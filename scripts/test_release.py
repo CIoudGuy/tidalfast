@@ -43,7 +43,8 @@ class History(unittest.TestCase):
         found = release.release_history(version)
         self.assertEqual(found[0]["version"], version)
         self.assertTrue(found[0]["notes"])
-        self.assertTrue(len(found) > 1)
+        # 1.0.0 is the first public release, so it may be the only one.
+        self.assertTrue(all(entry["notes"] for entry in found))
 
 
 if __name__ == "__main__":
