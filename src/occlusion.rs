@@ -3,9 +3,9 @@
 //! eframe draws only the logic of a window that winit reports occluded,
 //! like a minimised one, but winit has no occlusion event on Windows: a
 //! window under others kept drawing the now-playing background thirty
-//! times a second for nobody. On Windows [`Watch`] works it out from the
+//! times a second for nobody. On Windows `Watch` works it out from the
 //! windows above the main one in z-order, and the pass's logic records the
-//! answer here ([`set_covered`]) before anything is drawn. A covered window
+//! answer here (`set_covered`) before anything is drawn. A covered window
 //! gets the drawing budget of a window nobody can see
 //! (`power::Budget::Background`, see `App::sync_power`), so animations and
 //! timed frames ask for nothing; playback, the media controls, the tray,
