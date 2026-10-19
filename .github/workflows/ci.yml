@@ -129,11 +129,16 @@ jobs:
         shell: pwsh
         run: |
           mbx build --locked
-          $imports = & dumpbin /dependents target\debug\tidalfast.exe | Out-String
+          # dumpbin ships with Visual Studio but is not on the runner's PATH.
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $tools = if ($env:RUNNER_ARCH -eq 'ARM64') { 'Hostarm64\arm64' } else { 'Hostx64\x64' }
+          $dumpbin = & $vswhere -latest -products * -find "VC\Tools\MSVC\**\bin\$tools\dumpbin.exe" | Select-Object -First 1
+          if (-not $dumpbin) { throw "dumpbin was not found" }
+          $imports = & $dumpbin /dependents target\debug\tidalfast.exe | Out-String
           $runtime = $imports | Select-String -Pattern 'MSVCP[0-9_]*\.dll|VCRUNTIME[0-9_]*\.dll'
           if ($runtime) { throw "Tidalfast imports an MSVC runtime:`n$runtime" }
           $machine = if ($env:RUNNER_ARCH -eq 'ARM64') { 'AA64 machine \(ARM64\)' } else { '8664 machine \(x64\)' }
-          $headers = & dumpbin /headers target\debug\tidalfast.exe | Out-String
+          $headers = & $dumpbin /headers target\debug\tidalfast.exe | Out-String
           if ($headers -notmatch $machine) { throw "tidalfast.exe is not built for $env:RUNNER_ARCH`:`n$headers" }
 
       - name: Windows installer syntax and renamed inputs
