@@ -476,7 +476,12 @@ mod tests {
         let direct = runtime.block_on(async {
             std::panic::catch_unwind(|| build_blocking(&proxy, Duration::from_secs(1)).is_ok())
         });
-        assert!(direct.is_err(), "building it directly panics here");
+        // reqwest makes that check only with debug assertions on (its
+        // `wait::enter`), so a release test run, as the Nix package's
+        // check phase is, builds it directly without a panic.
+        if cfg!(debug_assertions) {
+            assert!(direct.is_err(), "building it directly panics here");
+        }
         let made = runtime.block_on(async {
             blocking_download_client(&proxy, Duration::from_secs(1), Duration::from_secs(2))
         });
