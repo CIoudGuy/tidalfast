@@ -4625,21 +4625,29 @@ mod tests {
         let end = oldest_right(&tree);
         assert!(end <= size.x, "the oldest month is in view ({end})");
         assert!(strip_y(&tree) == y, "the page itself did not move");
-        // A sideways swipe moves it back.
+        // The wheel the other way moves it back.
         for _ in 0..2 {
             frame(&ctx, &mut app, wheel(y, egui::vec2(0.0, 100.0)));
             tree = frame(&ctx, &mut app, vec![]);
         }
+        // The fingers lift and the scroll settles (eased, and on Linux
+        // gliding): a gesture that went on at once would hold the axis it
+        // started on, and what was left of the vertical one would still
+        // be moving the tabs.
+        for _ in 0..120 {
+            tree = frame(&ctx, &mut app, vec![]);
+        }
         let back = oldest_right(&tree);
         assert!(back > end, "the wheel moves the tabs back");
-        // A sideways swipe moves them too.
+        // A sideways swipe to the left moves them on towards the oldest
+        // month too.
         let y = strip_y(&tree);
         for _ in 0..8 {
             frame(&ctx, &mut app, wheel(y, egui::vec2(-400.0, 0.0)));
             tree = frame(&ctx, &mut app, vec![]);
         }
         assert!(
-            oldest_right(&tree) != back,
+            oldest_right(&tree) < back,
             "a sideways swipe moves the tabs ({} vs {back})",
             oldest_right(&tree)
         );
