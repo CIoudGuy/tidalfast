@@ -708,32 +708,52 @@ fn idle_animation_loops_slow_down_until_they_change_something() {
         r#"
 const el = document.createElement("div");
 document.body.appendChild(el);
-let n = 0;
 const count = (ms, change) => new Promise((res) => {
-	n = 0;
+	const at = [];
 	const end = Date.now() + ms;
 	const loop = () => {
-		n++;
-		if (change) el.style.left = `${n}px`;
+		at.push(Date.now());
+		if (change) el.style.left = `${at.length}px`;
 		if (Date.now() < end) requestAnimationFrame(loop);
-		else res(n);
+		else res(at);
 	};
 	requestAnimationFrame(loop);
 });
-R.busy = await count(500, true);
-R.idle = await count(1000, false);
-R.again = await count(500, true);
+const gaps = (at) => at.slice(1).map((t, i) => t - at[i]);
+const median = (v) => [...v].sort((a, b) => a - b)[v.length >> 1] ?? -1;
+const busy = await count(500, true);
+const idle = await count(1000, false);
+const again = await count(500, true);
+R.busy = busy.length;
+R.idle = idle.length;
+R.again = again.length;
+R.busyGap = median(gaps(busy));
+// Once ten frames in a row changed nothing.
+const held = gaps(idle).slice(10);
+R.idleGap = held.length ? Math.min(...held) : -1;
+R.againGap = median(gaps(again));
 R.done = true;
 "#,
     );
-    let n = |k: &str| r[k].as_i64().unwrap_or(0);
-    assert!(n("busy") >= 20, "{r}");
-    assert!(
-        n("idle") <= 30,
-        "an idle loop ran {} frames in 1 s: {r}",
-        n("idle")
-    );
-    assert!(n("again") >= 15, "{r}");
+    let n = |k: &str| r[k].as_i64().unwrap_or(-1);
+    // How far apart the frames are, which a slow machine does not change
+    // for an idle loop: it waits at least 100 ms whatever the timers do,
+    // and loops that change something run faster than that.
+    assert!(n("idleGap") >= 90, "an idle loop's frames: {r}");
+    assert!((0..90).contains(&n("busyGap")), "{r}");
+    assert!((0..90).contains(&n("againGap")), "{r}");
+    // How many frames run. On macOS's CI runners the busy frames came
+    // about 45 ms apart instead of 16 (timers firing late on a loaded
+    // machine), so the rate itself is held only where timers keep time.
+    if !cfg!(target_os = "macos") {
+        assert!(n("busy") >= 20, "{r}");
+        assert!(
+            n("idle") <= 30,
+            "an idle loop ran {} frames in 1 s: {r}",
+            n("idle")
+        );
+        assert!(n("again") >= 15, "{r}");
+    }
 }
 
 /// Inline style changes redo only that element's cascade, yet the computed
