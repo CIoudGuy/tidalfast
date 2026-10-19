@@ -462,10 +462,12 @@ mod tests {
     }
 
     /// A slot of its own in a throwaway directory, so a Tidalfast already
-    /// running on this machine is left alone.
+    /// running on this machine is left alone. Its name is kept short: the
+    /// socket inside must fit the 104 bytes macOS allows, and there the
+    /// tests' temporary folder (already this run's own, see
+    /// `paths::test_temp`) sits inside a long `$TMPDIR`.
     fn test_slot(name: &str) -> (fastframe_instance::Slot, std::path::PathBuf) {
-        let dir =
-            std::env::temp_dir().join(format!("tidalfast-instance-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("tf-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         (fastframe_instance::Slot::at(&dir, NAME), dir)
     }
@@ -490,7 +492,7 @@ mod tests {
     #[test]
     fn a_second_launch_hands_a_plugin_link_to_the_first() {
         // #given
-        let (slot, dir) = test_slot("second-launch-plugin");
+        let (slot, dir) = test_slot("plugin");
         let waker = crate::backend::Waker::default();
         let Outcome::Only(first) = claim(&slot, &waker, None) else {
             panic!("the first launch runs");
@@ -513,7 +515,7 @@ mod tests {
     #[test]
     fn a_second_launch_hands_its_link_to_the_first() {
         // #given
-        let (slot, dir) = test_slot("second-launch");
+        let (slot, dir) = test_slot("link");
         let waker = crate::backend::Waker::default();
         let Outcome::Only(first) = claim(&slot, &waker, None) else {
             panic!("the first launch runs");
@@ -536,7 +538,7 @@ mod tests {
     #[test]
     fn a_client_reaches_the_command_queue_and_the_snapshot() {
         // #given
-        let (slot, dir) = test_slot("round-trip");
+        let (slot, dir) = test_slot("trip");
         let Outcome::Only(guard) = claim(&slot, &crate::backend::Waker::default(), None) else {
             panic!("the slot is free");
         };
