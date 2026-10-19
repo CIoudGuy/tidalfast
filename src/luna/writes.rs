@@ -3,7 +3,7 @@
 //! place, next to `child_process`, where a plugin acts on something that is
 //! not its own, so it is off until the user says yes.
 //!
-//! * The first such request of a plugin asks the user ("<plugin> wants to
+//! * The first such request of a plugin asks the user ("\<plugin> wants to
 //!   change your TIDAL playlists or favourites") with Deny, Allow for a
 //!   minute or Always allow. An answer of a minute covers the requests that
 //!   follow (a duplicate scan removes many songs one by one); Always is kept

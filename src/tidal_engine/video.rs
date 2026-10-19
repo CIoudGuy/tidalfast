@@ -2,7 +2,7 @@
 //! and AAC sound.
 //!
 //! The engine plays a video like a track. Its decode thread fetches the
-//! segments a few ahead ([`Fetcher`]), splits each ([`super::ts`]), decodes
+//! segments a few ahead (`Fetcher`), splits each ([`super::ts`]), decodes
 //! the sound with symphonia into the same output chain as any track (so
 //! volume, the equalizer and the exclusive output carry on), and hands the
 //! segment itself to the [`VideoHub`]. The interface's video player takes

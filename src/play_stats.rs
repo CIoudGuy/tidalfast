@@ -301,7 +301,7 @@ pub struct TopEntry {
     pub listened_ms: u64,
 }
 
-/// One listen of [`StatsReport::recent`].
+/// One listen of `StatsReport::recent`.
 pub type RecentListen = ListenRecord;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

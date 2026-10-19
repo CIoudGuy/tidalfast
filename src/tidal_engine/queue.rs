@@ -602,7 +602,7 @@ impl Queue {
 
     /// Continues past the end of the context with autoplay's tracks. The
     /// next `advance` plays the first of them.
-    /// What was played in the last [`recent::AUTOPLAY_WINDOW`] songs, or
+    /// What was played in the last `recent::AUTOPLAY_WINDOW` songs, or
     /// is listed twice, is left out. Nothing changes, and `false` comes
     /// back, when nothing is left.
     pub fn continue_with(&mut self, tracks: Vec<LocalTrack>) -> bool {

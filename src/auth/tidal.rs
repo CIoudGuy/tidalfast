@@ -537,7 +537,7 @@ const CODE_REFRESHES: u32 = 3;
 /// The whole device sign-in: wait `wait` (so rapid start/cancel clicks
 /// reach TIDAL as one request), ask for a code, hand it to `on_code`
 /// (`true` when it replaces an expired one), then poll. An expired code is
-/// replaced up to [`CODE_REFRESHES`] times. Every step ends at once when
+/// replaced up to `CODE_REFRESHES` times. Every step ends at once when
 /// `cancel` turns true, dropping any request in flight.
 pub async fn device_sign_in(
     base: &str,
