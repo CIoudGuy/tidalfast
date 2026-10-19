@@ -3,7 +3,10 @@
 //! Every load here is paused (`play: false`), so no test opens an audio
 //! device: a paused load still resolves, downloads, decodes and reports
 //! its first position, which is the part these tests are about. The one
-//! bit-perfect test plays, into a capture standing in for the device.
+//! bit-perfect test plays, into a capture standing in for the device, and
+//! the tests that play a plugin's own song through play into a quiet
+//! output ([`quiet_engine_with`]): a machine with no sound device (a CI
+//! runner) pauses a real output at its first write.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
@@ -253,6 +256,32 @@ fn engine_with(config: EngineConfig, catalog: Arc<dyn Catalog>) -> (Engine, Rece
         }
     });
     (Engine::new(config, catalog, notify).unwrap(), receiver)
+}
+
+/// As [`engine_with`], playing into a quiet output at the music's own
+/// speed instead of the sound device: songs play to their end without a
+/// sound, and on a machine that has no device at all.
+fn quiet_engine_with(
+    config: EngineConfig,
+    catalog: Arc<dyn Catalog>,
+) -> (Engine, Receiver<LocalState>) {
+    let (sender, receiver) = mpsc::channel();
+    let sender = Mutex::new(sender);
+    let notify: Notify = Arc::new(move |event| {
+        if let EngineEvent::State(state) = event {
+            let _ = lock(&sender).send(state);
+        }
+    });
+    let make_sink: SinkFactory = Arc::new(|| {
+        Box::new(song_end::Quiet {
+            frames: Arc::default(),
+            pace: Some(1),
+            stops: Arc::default(),
+        }) as Box<dyn crate::sink::AudioSink>
+    });
+    let opener = exclusive::tests::capture(|_| true, Arc::default());
+    let engine = Engine::with_outputs(config, catalog, notify, opener, Some(make_sink)).unwrap();
+    (engine, receiver)
 }
 
 /// How long the engine may stay silent before a test gives up on it. The
@@ -1544,7 +1573,7 @@ fn a_plugin_source_replaces_the_playing_songs_audio_and_falls_back_when_it_fails
 #[test]
 fn a_plugins_own_song_plays_from_its_start_and_holds_at_its_end() {
     let catalog = FakeCatalog::new();
-    let (engine, states) = engine(Arc::clone(&catalog));
+    let (engine, states) = quiet_engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
     load_album(&engine, Some("tidal:track:2"));
     let tidal = until(&states, paused_on("tidal:track:2"));
     let sequence = tidal.track_sequence;
@@ -1622,7 +1651,7 @@ fn a_plugins_own_song_starts_with_nothing_loaded_without_a_new_song() {
         autoplay: false,
         ..config()
     };
-    let (engine, states) = engine_with(stops, Arc::clone(&catalog) as Arc<dyn Catalog>);
+    let (engine, states) = quiet_engine_with(stops, Arc::clone(&catalog) as Arc<dyn Catalog>);
     engine
         .command(PlayerCommand::Load(LoadSpec {
             uris: vec!["tidal:track:1".into()],
@@ -1670,7 +1699,7 @@ fn a_plugins_own_song_starts_with_nothing_loaded_without_a_new_song() {
     // A remembered song nobody has played since the start is in no queue
     // yet: a song of the plugin's own still plays for the song it names,
     // with no song reported.
-    let (fresh, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+    let (fresh, states) = quiet_engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
     fresh
         .command(PlayerCommand::ReplaceAudio {
             uri: "tidal:track:7".into(),

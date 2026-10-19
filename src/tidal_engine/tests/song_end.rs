@@ -680,11 +680,11 @@ impl Catalog for Songs {
 
 /// Counts the frames it is given. `pace` plays them at that many times
 /// their speed rather than at once.
-struct Quiet {
-    frames: Arc<AtomicUsize>,
-    pace: Option<u32>,
+pub(super) struct Quiet {
+    pub(super) frames: Arc<AtomicUsize>,
+    pub(super) pace: Option<u32>,
     /// Times the engine let the output stop.
-    stops: Arc<AtomicUsize>,
+    pub(super) stops: Arc<AtomicUsize>,
 }
 
 impl AudioSink for Quiet {
