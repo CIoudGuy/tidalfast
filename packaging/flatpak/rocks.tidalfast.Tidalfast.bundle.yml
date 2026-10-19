@@ -1,0 +1,61 @@
+# The release workflow's Flatpak: the binary the Linux job built, packaged
+# into the same sandbox as rocks.tidalfast.Tidalfast.yml describes. The
+# job unpacks the release tarball into built/ beside this file first.
+id: rocks.tidalfast.Tidalfast
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: tidalfast
+finish-args:
+  # Wayland first, X11 when that is what there is.
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  # Sound: PulseAudio, which PipeWire also answers.
+  - --socket=pulseaudio
+  # Bit-perfect output opens the sound card's ALSA hw device under
+  # /dev/snd, which Flatpak only exposes with all devices, and asks the
+  # sound server to release the card over the session bus
+  # (org.freedesktop.ReserveDevice1, as JACK does).
+  - --device=all
+  - --own-name=org.freedesktop.ReserveDevice1.*
+  - --talk-name=org.freedesktop.ReserveDevice1.*
+  # TIDAL's API, streaming, sign-in and Luna plugin downloads.
+  - --share=network
+  # Platform storage for this application's TIDAL grants.
+  - --talk-name=org.freedesktop.secrets
+  # The tray item, and media keys and Now Playing over MPRIS.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --own-name=org.mpris.MediaPlayer2.tidalfast
+  # Discord Rich Presence: Discord's IPC sockets in the runtime directory,
+  # from a native, Flatpak (Discord, Discord Canary, Vesktop) or Snap
+  # Discord.
+  - --filesystem=xdg-run/discord-ipc-0
+  - --filesystem=xdg-run/discord-ipc-1
+  - --filesystem=xdg-run/discord-ipc-2
+  - --filesystem=xdg-run/discord-ipc-3
+  - --filesystem=xdg-run/app/com.discordapp.Discord:create
+  - --filesystem=xdg-run/app/com.discordapp.DiscordCanary:create
+  - --filesystem=xdg-run/.flatpak/dev.vencord.Vesktop:create
+  - --filesystem=xdg-run/snap.discord:create
+  # Older Flatpak versions leave XDG_STATE_HOME unset. Keep the fallback
+  # state directory (session, history, logs, and credential markers) durable.
+  - --persist=.local/state
+modules:
+  - name: tidalfast
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 tidalfast /app/bin/tidalfast
+      - install -Dm644 packaging/applications/*.desktop /app/share/applications/rocks.tidalfast.Tidalfast.desktop
+      - sed -i 's/^Icon=.*$/Icon=rocks.tidalfast.Tidalfast/;s/^StartupWMClass=tidalfast$/StartupWMClass=rocks.tidalfast.Tidalfast/' /app/share/applications/rocks.tidalfast.Tidalfast.desktop
+      - install -Dm644 packaging/icons/*.svg /app/share/icons/hicolor/scalable/apps/rocks.tidalfast.Tidalfast.svg
+      - install -Dm644 packaging/flatpak/rocks.tidalfast.Tidalfast.metainfo.xml /app/share/metainfo/rocks.tidalfast.Tidalfast.metainfo.xml
+      - install -Dm644 LICENSE /app/share/licenses/tidalfast/LICENSE
+    sources:
+      - type: dir
+        path: built
+      # Metainfo belongs to this packaging checkout, not the portable archive.
+      - type: file
+        path: rocks.tidalfast.Tidalfast.metainfo.xml
+        dest: packaging/flatpak

@@ -1,0 +1,4544 @@
+# Ukrainian translation of Tidalfast.
+# Distributed under the same MIT license as Tidalfast.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Tidalfast\n"
+"Report-Msgid-Bugs-To: https://github.com/CIoudGuy/tidalfast/issues/new?"
+"template=translation.yml\n"
+"POT-Creation-Date: 2026-10-19 06:00+0000\n"
+"PO-Revision-Date: 2026-10-06 18:00+0000\n"
+"Last-Translator: Tidalfast contributors\n"
+"Language-Team: Ukrainian\n"
+"Language: uk\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n % 10 == 1 && n % 100 != 11 ? 0 : n % 10 "
+">= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 1 : 2);\n"
+
+#. Translators: The play button on a Library card. {name} is the playlist, album, or artist.
+#: src/ui/sidebar.rs:181
+#, rust-format
+msgid "Pause {name}"
+msgstr "Призупинити {name}"
+
+#. Translators: The play button on a Library card. {name} is the playlist, album, or artist.
+#: src/ui/sidebar.rs:184
+#, rust-format
+msgid "Play {name}"
+msgstr "Відтворити {name}"
+
+#. Translators: Keep {count} exactly as written. A folder's size in the sidebar.
+#. Translators: Keep {count} exactly as written. A playlist's size in the sidebar.
+#. Translators: The label beside the pointer while several items are dragged. {count} is how many.
+#: src/ui/sidebar.rs:405 src/ui/sidebar.rs:1308 src/ui/widgets.rs:2056
+#, rust-format
+msgid "{count} item"
+msgid_plural "{count} items"
+msgstr[0] "{count} елемент"
+msgstr[1] "{count} елементи"
+msgstr[2] "{count} елементів"
+
+#: src/ui/sidebar.rs:464 src/ui/sidebar.rs:1257 src/ui/sidebar.rs:1898
+#: src/app.rs:3253 src/app.rs:6506 src/app.rs:20448 src/ui/collection.rs:3143
+#: src/ui/collection.rs:3663 src/ui/home.rs:164 src/ui/search.rs:429
+#: src/ui/search.rs:973 src/ui/search.rs:1388 src/ui/search.rs:1600
+msgid "Playlist"
+msgstr "Плейліст"
+
+#: src/ui/sidebar.rs:474 src/ui/sidebar.rs:1600 src/app.rs:3227
+#: src/app.rs:20453 src/model.rs:855 src/ui/collection.rs:3387
+#: src/ui/collection.rs:3394 src/ui/collection.rs:3551 src/ui/keys.rs:237
+#: src/ui/search.rs:810 src/ui/save_later.rs:22 src/ui/purchases.rs:38
+#: src/ui/uploads.rs:1430
+msgid "Tracks"
+msgstr "Треки"
+
+#: src/ui/sidebar.rs:509
+msgid "Library order"
+msgstr "Порядок бібліотеки"
+
+#: src/ui/sidebar.rs:512 src/ui/home.rs:663 src/ui/home.rs:673
+#: src/ui/home.rs:694
+msgid "Recently played"
+msgstr "Нещодавно прослухані"
+
+#: src/ui/sidebar.rs:514 src/ui/uploads.rs:1742
+msgid "Name"
+msgstr "Назва"
+
+#: src/ui/sidebar.rs:517
+msgid "Recently added"
+msgstr "Нещодавно додані"
+
+#: src/ui/sidebar.rs:519
+msgid "Local custom order"
+msgstr "Власний локальний порядок"
+
+#: src/ui/sidebar.rs:520
+msgid "TIDAL order"
+msgstr "Порядок TIDAL"
+
+#: src/ui/sidebar.rs:646
+msgid "Show sidebar (Ctrl+B)"
+msgstr "Показати бічну панель (Ctrl+B)"
+
+#: src/ui/sidebar.rs:647
+msgid "Show sidebar (Cmd+B)"
+msgstr "Показати бічну панель (Cmd+B)"
+
+#: src/ui/sidebar.rs:662 src/ui/sidebar.rs:1715 src/ui/sidebar.rs:1795
+msgid "Music"
+msgstr "Музика"
+
+#: src/ui/sidebar.rs:668 src/ui/sidebar.rs:1728 src/ui/sidebar.rs:1801
+#: src/ui/explore.rs:69
+msgid "Explore"
+msgstr "Огляд"
+
+#: src/ui/sidebar.rs:689 src/ui/sidebar.rs:1887 src/ui/library.rs:43
+msgid "Create a playlist"
+msgstr "Створити плейліст"
+
+#: src/ui/sidebar.rs:1352 src/ui/sidebar.rs:1807 src/ui/feed.rs:32
+msgid "Feed"
+msgstr "Стрічка"
+
+#: src/ui/sidebar.rs:1398 src/ui/sidebar.rs:1813 src/ui/uploads.rs:53
+#: src/ui/uploads.rs:74 src/ui/uploads.rs:118
+msgid "Upload"
+msgstr "Завантажити"
+
+#: src/ui/sidebar.rs:1593 src/ui/library.rs:47 src/ui/now_playing.rs:645
+msgid "Mixes & Radio"
+msgstr "Мікси та радіо"
+
+#: src/ui/sidebar.rs:1596 src/model.rs:858 src/ui/artist.rs:194
+#: src/ui/artist.rs:1256 src/ui/artist.rs:2156 src/ui/library.rs:41
+#: src/ui/library.rs:42 src/ui/profile.rs:127 src/ui/menus.rs:636
+#: src/ui/downloads.rs:509 src/ui/save_later.rs:24
+msgid "Playlists"
+msgstr "Плейлісти"
+
+#: src/ui/sidebar.rs:1599 src/model.rs:857 src/model.rs:1107
+#: src/ui/artist.rs:933 src/ui/artist.rs:1250 src/ui/artist.rs:2125
+#: src/ui/library.rs:29 src/ui/downloads.rs:508 src/ui/save_later.rs:21
+#: src/ui/purchases.rs:37
+msgid "Albums"
+msgstr "Альбоми"
+
+#: src/ui/sidebar.rs:1601 src/model.rs:860 src/ui/artist.rs:222
+#: src/ui/artist.rs:1254 src/ui/videos.rs:44 src/ui/videos.rs:52
+#: src/ui/save_later.rs:25
+msgid "Videos"
+msgstr "Відео"
+
+#: src/ui/sidebar.rs:1602 src/model.rs:856 src/ui/library.rs:35
+msgid "Profiles"
+msgstr "Профілі"
+
+#: src/ui/sidebar.rs:1603 src/ui/purchases.rs:21
+msgid "Purchases"
+msgstr "Покупки"
+
+#: src/ui/sidebar.rs:1606 src/ui/menus.rs:754 src/ui/save_later.rs:75
+msgid "Save for Later"
+msgstr "Зберегти на потім"
+
+#: src/ui/sidebar.rs:1611 src/ui/settings.rs:1683 src/ui/collection.rs:967
+#: src/ui/collection.rs:3493 src/app/downloads.rs:709
+msgid "Downloaded"
+msgstr "Завантажене"
+
+#: src/ui/sidebar.rs:1747 src/ui/sidebar.rs:1783 src/ui/sidebar.rs:1819
+msgid "Collection"
+msgstr "Колекція"
+
+#: src/ui/sidebar.rs:1873
+msgid "All playlists"
+msgstr "Усі плейлісти"
+
+#: src/ui/sidebar.rs:1911
+msgid "Folder"
+msgstr "Тека"
+
+#: src/ui/sidebar.rs:1929
+msgid "Sort playlists"
+msgstr "Сортувати плейлісти"
+
+#: src/ui/sidebar.rs:1978
+msgid "Hide sidebar (Ctrl+B)"
+msgstr "Сховати бічну панель (Ctrl+B)"
+
+#: src/ui/sidebar.rs:1979
+msgid "Hide sidebar (Cmd+B)"
+msgstr "Сховати бічну панель (Cmd+B)"
+
+#: src/ui/sidebar.rs:2096 src/app.rs:3291 src/ui/artist.rs:488
+#: src/ui/home.rs:202 src/ui/home.rs:786 src/ui/search.rs:859
+msgid "Artist"
+msgstr "Виконавець"
+
+#: src/ui/sidebar.rs:2192
+msgid "Nothing here yet."
+msgstr "Тут поки нічого немає."
+
+#: src/ui/sidebar.rs:2194
+msgid "No matches."
+msgstr "Нічого не знайдено."
+
+#: src/ui/sidebar.rs:2833
+msgid "Sort by recently played"
+msgstr "Сортувати за нещодавно прослуханими"
+
+#: src/ui/sidebar.rs:2852 src/ui/equalizer.rs:693
+msgid "Rename"
+msgstr "Перейменувати"
+
+#: src/ui/sidebar.rs:2864
+msgid "Delete folder"
+msgstr "Видалити теку"
+
+#: src/ui/sidebar.rs:2881 src/ui/menus.rs:1329 src/ui/videos.rs:382
+msgid "Play now"
+msgstr "Відтворити зараз"
+
+#: src/ui/sidebar.rs:2899
+msgid "Unpin"
+msgstr "Відкріпити"
+
+#: src/ui/sidebar.rs:2901
+msgid "Pin to top"
+msgstr "Закріпити вгорі"
+
+#. Translators: Keep {count} exactly as written. It becomes the number of liked songs.
+#: src/i18n.rs:184
+#, rust-format
+msgid "Playlist • {count} track"
+msgid_plural "Playlist • {count} tracks"
+msgstr[0] "Плейліст • {count} пісня"
+msgstr[1] "Плейліст • {count} пісні"
+msgstr[2] "Плейліст • {count} пісень"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of songs.
+#. Translators: Keep {count} exactly as written.
+#. Translators: Keep {count} exactly as written. Shown in capitals on page headers.
+#. Translators: Keep {count} exactly as written. It becomes the number of selected tracks.
+#: src/i18n.rs:195 src/ui/collection.rs:3590 src/ui/collection.rs:3619
+#: src/ui/search.rs:612 src/ui/menus.rs:101 src/ui/menus.rs:1018
+#: src/ui/uploads.rs:244 src/ui/uploads.rs:707
+#, rust-format
+msgid "{count} track"
+msgid_plural "{count} tracks"
+msgstr[0] "{count} пісня"
+msgstr[1] "{count} пісні"
+msgstr[2] "{count} пісень"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of playlists.
+#: src/i18n.rs:206
+#, rust-format
+msgid "{count} playlist"
+msgid_plural "{count} playlists"
+msgstr[0] "{count} плейліст"
+msgstr[1] "{count} плейлісти"
+msgstr[2] "{count} плейлістів"
+
+#. Translators: Keep {count} exactly as written. It becomes the number of playlists a folder holds.
+#: src/i18n.rs:217
+#, rust-format
+msgid "Folder • {count} playlist"
+msgid_plural "Folder • {count} playlists"
+msgstr[0] "Папка • {count} плейліст"
+msgstr[1] "Папка • {count} плейлісти"
+msgstr[2] "Папка • {count} плейлістів"
+
+#: src/i18n.rs:227
+#, rust-format
+msgid "{name}, folder, collapsed"
+msgstr "{name}, папка, згорнута"
+
+#: src/i18n.rs:229
+#, rust-format
+msgid "{name}, folder, expanded"
+msgstr "{name}, папка, розгорнута"
+
+#: src/i18n.rs:262 src/i18n.rs:265 src/ui/keys.rs:233 src/ui/home_feeds.rs:520
+#: src/ui/titlebar.rs:147
+msgid "Home"
+msgstr "Головна"
+
+#: src/i18n.rs:369 src/ui/menus.rs:1468
+msgid "Unfollow"
+msgstr "Не стежити"
+
+#: src/i18n.rs:371 src/ui/menus.rs:1527
+msgctxt "artist"
+msgid "Unfollow"
+msgstr "Відписатися"
+
+#: src/ui/player_bar.rs:384 src/ui/lyrics.rs:108 src/ui/lyrics.rs:311
+#: src/ui/compact.rs:594 src/ui/now_playing.rs:283
+msgid "Nothing playing"
+msgstr "Нічого не відтворюється"
+
+#: src/ui/player_bar.rs:390 src/app.rs:9539 src/ui/now_playing.rs:284
+msgid "Pick a track, album, or playlist"
+msgstr "Виберіть пісню, альбом або плейліст"
+
+#: src/ui/player_bar.rs:650 src/ui/widgets.rs:1935 src/ui/widgets.rs:2995
+#: src/ui/collection.rs:3207 src/ui/collection.rs:3229 src/ui/dialogs.rs:131
+#: src/ui/radio.rs:254 src/ui/menus.rs:716 src/ui/menus.rs:730
+#: src/ui/menus.rs:1052 src/ui/compact.rs:491
+msgid "Remove from My Collection"
+msgstr "Вилучити з Моєї колекції"
+
+#: src/ui/player_bar.rs:657 src/ui/widgets.rs:1937 src/ui/widgets.rs:3001
+#: src/ui/collection.rs:3206 src/ui/collection.rs:3228 src/ui/radio.rs:253
+#: src/ui/menus.rs:718 src/ui/menus.rs:732 src/ui/menus.rs:1054
+#: src/ui/compact.rs:493
+msgid "Add to My Collection"
+msgstr "Додати до Моєї колекції"
+
+#: src/ui/player_bar.rs:715
+msgid "Don't play this"
+msgstr "Не відтворювати це"
+
+#: src/ui/player_bar.rs:769 src/ui/queue.rs:1082 src/ui/widgets.rs:1981
+#: src/ui/widgets.rs:2961 src/ui/artist.rs:868 src/ui/artist.rs:1649
+#: src/ui/artist.rs:2040 src/ui/collection.rs:732 src/ui/now_playing.rs:875
+#: src/ui/now_playing_video.rs:312 src/ui/sticky.rs:441
+#: src/ui/album_credits.rs:549 src/ui/uploads.rs:1542
+msgid "More"
+msgstr "Більше"
+
+#: src/ui/player_bar.rs:880 src/ui/player_bar.rs:887 src/ui/artist.rs:850
+#: src/ui/artist.rs:1628 src/ui/artist.rs:1703 src/ui/artist.rs:1987
+#: src/ui/collection.rs:707 src/ui/menus.rs:1395 src/ui/titlebar.rs:166
+#: src/ui/sticky.rs:515
+msgid "Shuffle"
+msgstr "Перемішати"
+
+#: src/ui/player_bar.rs:903 src/ui/compact.rs:415
+#: src/ui/now_playing_video.rs:498 src/ui/titlebar.rs:165
+msgid "Previous"
+msgstr "Попередній"
+
+#: src/ui/player_bar.rs:949 src/ui/collection.rs:876 src/ui/compact.rs:422
+#: src/ui/now_playing_video.rs:517
+msgid "Pause"
+msgstr "Призупинити"
+
+#: src/ui/player_bar.rs:951 src/ui/artist.rs:833 src/ui/artist.rs:1635
+#: src/ui/artist.rs:1713 src/ui/artist.rs:1979 src/ui/collection.rs:878
+#: src/ui/compact.rs:424 src/ui/now_playing_video.rs:519
+msgid "Play"
+msgstr "Відтворити"
+
+#: src/ui/player_bar.rs:979 src/ui/compact.rs:434
+#: src/ui/now_playing_video.rs:535 src/ui/titlebar.rs:164
+msgid "Next"
+msgstr "Наступний"
+
+#: src/ui/player_bar.rs:988 src/ui/titlebar.rs:167
+msgid "Repeat"
+msgstr "Увімкнути повтор"
+
+#: src/ui/player_bar.rs:992
+msgid "Repeat one"
+msgstr "Повторювати один трек"
+
+#: src/ui/player_bar.rs:997
+msgid "Repeat off"
+msgstr "Вимкнути повтор"
+
+#: src/ui/player_bar.rs:1103 src/ui/compact.rs:566
+msgid "Playback position (%)"
+msgstr "Позиція відтворення (%)"
+
+#: src/ui/player_bar.rs:1161 src/ui/player_utility.rs:475
+msgid "Bit-perfect"
+msgstr "Bit-perfect"
+
+#: src/ui/player_bar.rs:1246
+msgid "Compact mode"
+msgstr "Компактний режим"
+
+#: src/ui/player_bar.rs:1301
+msgid ""
+"Bit-perfect playback: the volume stays at 100%. Turn the volume down on your "
+"device."
+msgstr ""
+"Відтворення bit-perfect: гучність лишається на 100 %. Зменште її на своєму "
+"пристрої."
+
+#: src/ui/player_bar.rs:1306
+msgid "This device's volume can't be changed from Tidalfast"
+msgstr "Гучність цього пристрою не можна змінити зі Tidalfast"
+
+#: src/ui/player_bar.rs:1329 src/ui/queue.rs:24 src/ui/queue.rs:41
+msgid "Queue"
+msgstr "Черга"
+
+#: src/ui/queue.rs:42 src/ui/menus.rs:580 src/ui/menus.rs:656
+msgid "Recent"
+msgstr "Нещодавні"
+
+#: src/ui/queue.rs:79
+msgid "Save as a playlist"
+msgstr "Зберегти як плейліст"
+
+#: src/ui/queue.rs:96 src/ui/queue.rs:909
+msgid "Clear queue"
+msgstr "Очистити чергу"
+
+#: src/ui/queue.rs:199 src/ui/queue.rs:212 src/ui/queue.rs:866
+msgid "Playing from"
+msgstr "Відтворюється з"
+
+#: src/ui/queue.rs:232
+msgid "Now playing"
+msgstr "Відтворюється"
+
+#: src/ui/queue.rs:274
+msgid "Nothing queued"
+msgstr "Черга порожня"
+
+#: src/ui/queue.rs:275
+msgid "Queued tracks appear here."
+msgstr "Тут з’являться пісні, додані до черги."
+
+#. Translators: Songs added manually, before the current playlist or album continues.
+#: src/ui/queue.rs:295
+msgid "Playing next"
+msgstr "Далі в черзі"
+
+#: src/ui/queue.rs:402
+msgid "Next up from"
+msgstr "Далі з"
+
+#. Translators: Upcoming songs from the current playlist or album, after manually queued songs.
+#: src/ui/queue.rs:403 src/ui/queue.rs:412
+msgid "Next up"
+msgstr "Далі"
+
+#: src/ui/queue.rs:458 src/ui/queue.rs:491 src/ui/widgets.rs:4215
+#: src/ui/collection.rs:2352 src/ui/plugins.rs:2097 src/ui/blocked.rs:49
+msgid "Retry"
+msgstr "Повторити спробу"
+
+#: src/ui/queue.rs:473
+msgid "No recent plays"
+msgstr "Немає нещодавніх прослуховувань"
+
+#: src/ui/queue.rs:474
+msgid "Played tracks appear here."
+msgstr "Тут з’являться прослухані пісні."
+
+#: src/ui/queue.rs:550
+msgid "Load more"
+msgstr "Завантажити ще"
+
+#: src/ui/queue.rs:723 src/ui/queue.rs:728 src/ui/titlebar.rs:149
+msgid "Play queue"
+msgstr "Черга відтворення"
+
+#: src/ui/queue.rs:740 src/ui/lyrics.rs:69 src/ui/artist.rs:747
+#: src/ui/dialogs.rs:671 src/ui/dialogs.rs:831 src/ui/mod.rs:973
+#: src/ui/now_playing.rs:346 src/ui/now_playing_video.rs:152
+#: src/ui/now_playing_video.rs:490 src/ui/blocked.rs:29 src/ui/uploads.rs:492
+msgid "Close"
+msgstr "Закрити"
+
+#: src/ui/queue.rs:834
+msgid "History"
+msgstr "Історія"
+
+#: src/ui/queue.rs:901 src/ui/widgets.rs:4790
+msgid "Clear"
+msgstr "Очистити"
+
+#. Translators: {title} is a song name, {subtitle} its artists.
+#: src/ui/queue.rs:958 src/ui/widgets.rs:1424
+#, rust-format
+msgid "Play {title}, {subtitle}"
+msgstr "Відтворити {title}, {subtitle}"
+
+#: src/ui/queue.rs:1068 src/ui/dialogs.rs:162
+msgid "Remove"
+msgstr "Видалити"
+
+#: src/ui/lyrics.rs:58 src/ui/compact.rs:304 src/ui/now_playing.rs:169
+msgid "Lyrics"
+msgstr "Текст пісні"
+
+#: src/ui/lyrics.rs:81
+msgid "Full screen lyrics"
+msgstr "Текст пісні на весь екран"
+
+#: src/ui/lyrics.rs:109 src/ui/lyrics.rs:312
+msgid "Play a track to see its lyrics."
+msgstr "Увімкніть пісню, щоб побачити її текст."
+
+#: src/ui/lyrics.rs:120 src/ui/lyrics.rs:137 src/app.rs:12563
+#: src/ui/artist.rs:377 src/ui/artist.rs:411 src/ui/collection.rs:2695
+#: src/ui/collection.rs:2852 src/ui/collection.rs:2885
+#: src/ui/collection.rs:2944 src/ui/collection.rs:3067
+#: src/ui/collection.rs:3100 src/ui/collection.rs:3378 src/ui/library.rs:294
+#: src/ui/library.rs:457 src/ui/downloads.rs:40 src/ui/save_later.rs:154
+#: src/ui/purchases.rs:116
+msgid "You're offline"
+msgstr "Немає підключення до мережі"
+
+#: src/ui/lyrics.rs:123 src/ui/lyrics.rs:140 src/ui/artist.rs:380
+#: src/ui/artist.rs:414 src/ui/collection.rs:2698 src/ui/collection.rs:2855
+#: src/ui/collection.rs:2888 src/ui/collection.rs:2947
+#: src/ui/collection.rs:3070 src/ui/collection.rs:3103
+#: src/ui/collection.rs:3381 src/ui/library.rs:297 src/ui/library.rs:460
+#: src/ui/downloads.rs:55 src/ui/save_later.rs:157 src/ui/purchases.rs:119
+msgid "Tidalfast will reconnect automatically when your connection returns."
+msgstr "Tidalfast автоматично підключиться, коли з’єднання відновиться."
+
+#: src/ui/lyrics.rs:149 src/ui/lyrics.rs:326 src/ui/settings.rs:574
+#: src/ui/downloads.rs:488 src/ui/now_playing.rs:504
+#: src/ui/album_credits.rs:590 src/ui/album_extras.rs:180
+msgid "Try again"
+msgstr "Спробувати ще раз"
+
+#: src/ui/lyrics.rs:160 src/ui/lyrics.rs:337 src/ui/compact.rs:608
+msgid "No lyrics"
+msgstr "Немає тексту"
+
+#: src/ui/lyrics.rs:161 src/ui/lyrics.rs:338
+msgid "No lyrics found for this track."
+msgstr "Текст для цього треку не знайдено."
+
+#: src/ui/lyrics.rs:170 src/ui/lyrics.rs:347 src/ui/compact.rs:604
+msgid "Instrumental"
+msgstr "Інструментальна композиція"
+
+#: src/ui/lyrics.rs:171 src/ui/lyrics.rs:348
+msgid "No timed lyrics for this track."
+msgstr "Для цього треку немає синхронізованого тексту."
+
+#: src/ui/lyrics.rs:295 src/ui/lyrics.rs:539
+msgid "Sync Lyrics"
+msgstr "Синхронізувати текст"
+
+#: src/ui/lyrics.rs:591
+msgid "The lyrics service is busy right now. Try again in a moment."
+msgstr ""
+"Сервіс текстів пісень зараз перевантажений. Спробуйте ще раз за хвилину."
+
+#: src/ui/lyrics.rs:597
+msgid "Couldn't reach the lyrics service. Check your connection and try again."
+msgstr ""
+"Не вдалося зв'язатися з сервісом текстів пісень. Перевірте з'єднання та "
+"спробуйте ще раз."
+
+#. Translators: Keep {error} unchanged. It is the original failure detail.
+#: src/ui/lyrics.rs:604
+#, rust-format
+msgid "Couldn't fetch the lyrics: {error}"
+msgstr "Не вдалося отримати текст пісні: {error}"
+
+#: src/ui/widgets.rs:1075 src/ui/library.rs:44
+msgid "Filter playlists"
+msgstr "Фільтрувати плейлісти"
+
+#: src/ui/widgets.rs:1102
+msgid "No editable playlists"
+msgstr "Немає плейлістів, які можна змінити"
+
+#: src/ui/widgets.rs:1104 src/ui/library.rs:286
+msgid "No matching playlists"
+msgstr "Немає відповідних плейлістів"
+
+#. Translators: {column} is a column heading of a song list, such as Title.
+#: src/ui/widgets.rs:2500
+#, rust-format
+msgid "Sort by {column}"
+msgstr "Сортувати: {column}"
+
+#: src/ui/widgets.rs:2505
+msgctxt "column heading"
+msgid "TITLE"
+msgstr "НАЗВА"
+
+#: src/ui/widgets.rs:2512
+msgid "Sort by playlist order"
+msgstr "Сортувати в порядку плейліста"
+
+#: src/ui/widgets.rs:2528
+msgctxt "column heading"
+msgid "ARTIST"
+msgstr "ВИКОНАВЕЦЬ"
+
+#: src/ui/widgets.rs:2532
+msgctxt "column heading"
+msgid "ALBUM"
+msgstr "АЛЬБОМ"
+
+#: src/ui/widgets.rs:2537
+msgctxt "column heading"
+msgid "ADDED BY"
+msgstr "ХТО ДОДАВ"
+
+#: src/ui/widgets.rs:2542
+msgctxt "column heading"
+msgid "DATE ADDED"
+msgstr "ДАТА ДОДАВАННЯ"
+
+#: src/ui/widgets.rs:2551
+msgctxt "column heading"
+msgid "TIME"
+msgstr "ЧАС"
+
+#: src/ui/widgets.rs:2557
+msgid "Sort by duration"
+msgstr "Сортувати за тривалістю"
+
+#: src/ui/widgets.rs:2562
+msgctxt "column heading"
+msgid "BPM"
+msgstr "BPM"
+
+#: src/ui/widgets.rs:2563
+msgctxt "column heading"
+msgid "KEY"
+msgstr "ТОНАЛЬНІСТЬ"
+
+#: src/ui/widgets.rs:2979 src/ui/menus.rs:502
+msgid "Add to playlist"
+msgstr "Додати до плейліста"
+
+#: src/ui/widgets.rs:4178 src/app.rs:12149
+msgid "That needs a connection. Turn off offline mode to use TIDAL."
+msgstr ""
+"Для цього потрібне підключення. Вимкніть автономний режим, щоб користуватися "
+"TIDAL."
+
+#: src/ui/widgets.rs:4186 src/app.rs:13734 src/app.rs:13748
+msgid "Network connection error. Check your connection."
+msgstr "Помилка мережевого підключення. Перевірте з’єднання."
+
+#: src/ui/widgets.rs:4205 src/ui/downloads.rs:84 src/ui/downloads.rs:109
+msgid "Go online"
+msgstr "Підключитися"
+
+#: src/ui/widgets.rs:4641
+msgid "Cut"
+msgstr "Вирізати"
+
+#: src/ui/widgets.rs:4646
+msgid "Copy"
+msgstr "Копіювати"
+
+#: src/ui/widgets.rs:4651
+msgid "Paste"
+msgstr "Вставити"
+
+#: src/ui/widgets.rs:4668
+msgid "Select all"
+msgstr "Виділити все"
+
+#: src/ui/widgets.rs:5032
+msgid "Host"
+msgstr "Хост"
+
+#: src/ui/widgets.rs:5049
+msgid "Port"
+msgstr "Порт"
+
+#: src/ui/widgets.rs:5067
+msgid "Username"
+msgstr "Ім’я користувача"
+
+#: src/ui/widgets.rs:5078
+msgid "Password"
+msgstr "Пароль"
+
+#: src/ui/widgets.rs:5096
+msgid ""
+"Proxy login applies to Web requests. Local playback uses this proxy only "
+"without a login."
+msgstr ""
+"Облікові дані проксі застосовуються до вебзапитів. Локальне відтворення "
+"використовує цей проксі, лише якщо облікові дані не вказано."
+
+#: src/ui/widgets.rs:5100
+msgid ""
+"TIDAL hostnames are resolved by the proxy. Local playback connects directly."
+msgstr ""
+"Імена хостів TIDAL визначає проксі. Локальне відтворення підключається "
+"напряму."
+
+#: src/app.rs:986
+msgid "Restoring proxy settings"
+msgstr "Відновлення налаштувань проксі"
+
+#: src/app.rs:1332
+#, rust-format
+msgid "Tidalfast updated to v{version}"
+msgstr "Tidalfast оновлено до v{version}"
+
+#: src/app.rs:1335 src/ui/settings.rs:1811 src/ui/dialogs.rs:262
+msgid "What's new"
+msgstr "Що нового"
+
+#. Translators: {error} is a sentence saying why the proxy password could not be stored.
+#: src/app.rs:2340
+#, rust-format
+msgid ""
+"{error} The original settings file is kept intact; changed preferences are "
+"not saved yet."
+msgstr ""
+"{error} Початковий файл налаштувань не змінено; змінені параметри ще не "
+"збережено."
+
+#: src/app.rs:2361
+#, rust-format
+msgid "Couldn't load AutoEQ's headphone list: {error}"
+msgstr "Не вдалося завантажити список навушників AutoEQ: {error}"
+
+#: src/app.rs:2377
+#, rust-format
+msgid "Couldn't load the AutoEQ profile: {error}"
+msgstr "Не вдалося завантажити профіль AutoEQ: {error}"
+
+#. Translators: {version} is a version number such as 1.4.0.
+#: src/app.rs:2521
+#, rust-format
+msgid "Tidalfast {version} is available"
+msgstr "Доступна версія Tidalfast {version}"
+
+#: src/app.rs:2542
+msgid "You're up to date"
+msgstr "У вас остання версія"
+
+#: src/app.rs:2561
+msgid "This build can't check for updates"
+msgstr "Ця збірка не може перевіряти оновлення"
+
+#: src/app.rs:2563
+msgid "Couldn't reach the update server"
+msgstr "Не вдалося зв’язатися із сервером оновлень"
+
+#. Translators: {error} is an error message from the playback engine.
+#: src/app.rs:2636
+#, rust-format
+msgid "Local playback: {error}"
+msgstr "Локальне відтворення: {error}"
+
+#: src/app.rs:2681
+msgid "TIDAL hasn't confirmed your playlist changes yet. Try refreshing again."
+msgstr ""
+"TIDAL ще не підтвердив зміни у вашому плейлісті. Спробуйте оновити ще раз."
+
+#: src/app.rs:3162
+msgid "The song you were playing isn't available anymore"
+msgstr "Трек, який ви слухали, більше недоступний"
+
+#. Translators: {name} is a song title.
+#: src/app.rs:3167
+#, rust-format
+msgid "{name} isn't available anymore"
+msgstr "{name} більше недоступний"
+
+#: src/app.rs:3235 src/app/radio.rs:191 src/ui/radio.rs:37 src/ui/radio.rs:81
+msgid "Radio"
+msgstr "Радіо"
+
+#: src/app.rs:3269 src/api/models.rs:302 src/ui/search.rs:427
+#: src/ui/search.rs:1387 src/ui/search.rs:1580 src/ui/feed.rs:128
+#: src/ui/uploads.rs:1295
+msgid "Album"
+msgstr "Альбом"
+
+#: src/app.rs:3300
+#, rust-format
+msgid "{artist} top tracks"
+msgstr "Популярні треки: {artist}"
+
+#: src/app.rs:3302
+msgid "Top tracks"
+msgstr "Популярні треки"
+
+#: src/app.rs:3322 src/ui/radio.rs:197 src/ui/radio.rs:214
+msgid "Mix"
+msgstr "Мікс"
+
+#: src/app.rs:3841
+#, rust-format
+msgid "Left out {count} filters this equalizer does not have"
+msgstr "Пропущено фільтрів, яких немає в цьому еквалайзері: {count}"
+
+#: src/app.rs:3850
+#, rust-format
+msgid "That is not an Equalizer APO profile: {error}"
+msgstr "Це не профіль Equalizer APO: {error}"
+
+#: src/app.rs:3996
+msgid "Proxy applied. Restarting local playback."
+msgstr "Проксі застосовано. Перезапуск локального відтворення."
+
+#: src/app.rs:3998
+msgid "Proxy settings applied"
+msgstr "Налаштування проксі застосовано"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:4005
+#, rust-format
+msgid ""
+"Proxy could not be applied: {error}. Previous connection settings are still "
+"in use."
+msgstr ""
+"Не вдалося застосувати проксі: {error}. Використовуються попередні "
+"налаштування з’єднання."
+
+#: src/app.rs:5905
+msgid "Removed from queue"
+msgstr "Видалено з черги"
+
+#: src/app.rs:6019
+msgid "Queue cleared"
+msgstr "Чергу очищено"
+
+#. Translators: Keep {date} unchanged. It is a date in YYYY-MM-DD form.
+#: src/app.rs:6049 src/app.rs:20438
+#, rust-format
+msgid "Queue {date}"
+msgstr "Черга {date}"
+
+#: src/app.rs:6647
+msgid "Your TIDAL sign-in expired. Please sign in again."
+msgstr "Термін дії входу в TIDAL минув. Увійдіть знову."
+
+#. Translators: {error} is an error message.
+#: src/app.rs:6654
+#, rust-format
+msgid "Couldn't load your profile: {error}"
+msgstr "Не вдалося завантажити ваш профіль: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7035
+#, rust-format
+msgid "Couldn't load more playlists: {error}"
+msgstr "Не вдалося завантажити більше плейлістів: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7343
+#, rust-format
+msgid "Couldn't create the playlist: {error}"
+msgstr "Не вдалося створити плейліст: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7361 src/app.rs:7380 src/app.rs:7569
+#, rust-format
+msgid "Couldn't update the playlist: {error}"
+msgstr "Не вдалося оновити плейліст: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7396 src/app.rs:7533
+#, rust-format
+msgid "Playlist change failed: {error}"
+msgstr "Не вдалося змінити плейліст: {error}"
+
+#. Translators: {name} is an album name and {error} is an error message.
+#: src/app.rs:7417 src/app.rs:9823
+#, rust-format
+msgid "Couldn't add {name} to queue: {error}"
+msgstr "Не вдалося додати «{name}» до черги: {error}"
+
+#: src/app.rs:7446
+msgid "Couldn't delete the folder, its playlists couldn't be moved out"
+msgstr "Не вдалося видалити теку: її плейлисти не вдалося винести"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7453
+#, rust-format
+msgid "Folder change failed: {error}"
+msgstr "Не вдалося змінити теку: {error}"
+
+#: src/app.rs:7744
+msgid "We won't play this song again"
+msgstr "Цей трек більше не відтворюватиметься"
+
+#: src/app.rs:7747
+msgid "Couldn't block this song"
+msgstr "Не вдалося заблокувати цей трек"
+
+#: src/app.rs:7776
+msgid "We'll play this song again"
+msgstr "Ми знову відтворюватимемо цю пісню"
+
+#: src/app.rs:7787
+msgid "Couldn't unblock this song"
+msgstr "Не вдалося розблокувати пісню"
+
+#: src/app.rs:7806
+msgid "We won't play this artist in mixes and radio"
+msgstr "Ми не відтворюватимемо цього виконавця в міксах і радіо"
+
+#: src/app.rs:7808
+msgid "We'll play this artist again"
+msgstr "Ми знову відтворюватимемо цього виконавця"
+
+#: src/app.rs:7813
+msgid "Couldn't block this artist"
+msgstr "Не вдалося заблокувати виконавця"
+
+#: src/app.rs:7815
+msgid "Couldn't unblock this artist"
+msgstr "Не вдалося розблокувати виконавця"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7895
+#, rust-format
+msgid "Couldn't update My Collection: {error}"
+msgstr "Не вдалося оновити Мою колекцію: {error}"
+
+#. Translators: {query} is the words someone searched for.
+#: src/app.rs:7944
+#, rust-format
+msgid "Nothing on TIDAL matches “{query}”"
+msgstr "У TIDAL нічого не знайдено за запитом «{query}»"
+
+#. Translators: {query} is the words someone searched for; {error} is an error message.
+#: src/app.rs:7952
+#, rust-format
+msgid "Couldn't search for “{query}”: {error}"
+msgstr "Не вдалося виконати пошук «{query}»: {error}"
+
+#: src/app.rs:7990 src/ui/keys.rs:224 src/ui/search.rs:156 src/ui/topbar.rs:354
+#: src/ui/titlebar.rs:148
+msgid "Search"
+msgstr "Пошук"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:8301
+#, rust-format
+msgid "Cannot open this track: {error}"
+msgstr "Не вдається відкрити цю пісню: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:8366 src/app.rs:8390
+#, rust-format
+msgid "Couldn't add to queue: {error}"
+msgstr "Не вдалося додати до черги: {error}"
+
+#: src/app.rs:8493
+msgid "This track's album is not on TIDAL"
+msgstr "Альбому цієї пісні немає в TIDAL"
+
+#: src/app.rs:8506
+msgid "Tidalfast cannot open this kind of TIDAL link"
+msgstr "Tidalfast не може відкрити таке посилання TIDAL"
+
+#: src/app.rs:8730
+msgid "Nothing is playing. Pick something first"
+msgstr "Нічого не відтворюється. Спершу виберіть, що слухати"
+
+#: src/app.rs:9137
+msgid "Playback isn't ready yet. Sign in to TIDAL first"
+msgstr "Відтворення ще не готове. Спершу увійдіть у TIDAL"
+
+#: src/app.rs:9522 src/app.rs:9527
+msgid "Pick something to play"
+msgstr "Виберіть, що відтворити"
+
+#. Translators: {name} is an album name.
+#: src/app.rs:9788 src/app.rs:12669
+#, rust-format
+msgid "Loading {name} to queue…"
+msgstr "Додавання «{name}» до черги…"
+
+#: src/app.rs:9807
+msgid "Playback device changed. Add the album to queue again"
+msgstr "Пристрій відтворення змінився. Додайте альбом до черги ще раз"
+
+#: src/app.rs:9816 src/app.rs:9834 src/app.rs:9843
+msgid "Couldn't load the album's tracks in order. Try again"
+msgstr "Не вдалося завантажити пісні альбому по порядку. Спробуйте ще раз"
+
+#: src/app.rs:9882
+msgid "This album has no playable tracks to queue"
+msgstr "У цьому альбомі немає пісень, які можна додати до черги"
+
+#. Translators: {count} is a number of songs and {name} is an album name.
+#: src/app.rs:9891
+#, rust-format
+msgid "{count} track from {name} added to queue"
+msgid_plural "{count} tracks from {name} added to queue"
+msgstr[0] "{count} пісню з «{name}» додано до черги"
+msgstr[1] "{count} пісні з «{name}» додано до черги"
+msgstr[2] "{count} пісень з «{name}» додано до черги"
+
+#. Translators: {count} is a number of songs.
+#: src/app.rs:9935
+#, rust-format
+msgid "{count} track added to queue"
+msgid_plural "{count} tracks added to queue"
+msgstr[0] "{count} пісню додано до черги"
+msgstr[1] "{count} пісні додано до черги"
+msgstr[2] "{count} пісень додано до черги"
+
+#. Translators: {name} is a song, album, or playlist name.
+#: src/app.rs:9972
+#, rust-format
+msgid "{name} added to queue"
+msgstr "Додано до черги: {name}"
+
+#. Translators: {name} is a playlist name.
+#: src/app.rs:10311
+#, rust-format
+msgid "Added to {name}"
+msgstr "Додано до «{name}»"
+
+#: src/app.rs:10313 src/ui/settings.rs:812 src/ui/titlebar.rs:145
+msgid "View"
+msgstr "Вигляд"
+
+#: src/app.rs:10438
+msgid "The clipboard has no TIDAL song links"
+msgstr "У буфері обміну немає посилань на треки TIDAL"
+
+#. Translators: {count} is the number of pasted links that failed.
+#: src/app.rs:10519
+#, rust-format
+msgid "{count} pasted link could not be added"
+msgid_plural "{count} pasted links could not be added"
+msgstr[0] "Не вдалося додати {count} вставлене посилання"
+msgstr[1] "Не вдалося додати {count} вставлені посилання"
+msgstr[2] "Не вдалося додати {count} вставлених посилань"
+
+#: src/app.rs:11181
+msgid "Removed from playlist"
+msgstr "Видалено з плейлиста"
+
+#: src/app.rs:11252
+msgid "Playlist created"
+msgstr "Плейлист створено"
+
+#: src/app.rs:11279
+msgid "TIDAL doesn't let apps remove a playlist description, so it was kept"
+msgstr ""
+"TIDAL не дозволяє застосункам видаляти опис плейліста, тому його збережено"
+
+#: src/app.rs:11289
+msgid "Playlist updated"
+msgstr "Плейліст оновлено"
+
+#: src/app.rs:11306
+msgid "Playlist is now public"
+msgstr "Плейлист тепер публічний"
+
+#: src/app.rs:11308
+msgid "Playlist is now private"
+msgstr "Плейлист тепер приватний"
+
+#: src/app.rs:11324
+msgid "Playlist deleted"
+msgstr "Плейлист видалено"
+
+#: src/app.rs:11367
+msgid "Folder created"
+msgstr "Папку створено"
+
+#: src/app.rs:11383
+msgid "Folder renamed"
+msgstr "Папку перейменовано"
+
+#: src/app.rs:11402
+msgid "Folder deleted"
+msgstr "Папку видалено"
+
+#: src/app.rs:11442 src/app.rs:11482 src/app/uploads.rs:511
+#: src/app/uploads.rs:516
+msgid "Link copied"
+msgstr "Посилання скопійовано"
+
+#: src/app.rs:11448
+msgid "Embed code copied"
+msgstr "Код для вбудовування скопійовано"
+
+#. Translators: {count} is a number of song links, always more than one.
+#: src/app.rs:11486
+#, rust-format
+msgid "{count} link copied"
+msgid_plural "{count} links copied"
+msgstr[0] "Скопійовано {count} посилання"
+msgstr[1] "Скопійовано {count} посилання"
+msgstr[2] "Скопійовано {count} посилань"
+
+#: src/app.rs:11562
+msgid "Picture copied"
+msgstr "Зображення скопійовано"
+
+#: src/app.rs:11564
+msgid "The picture could not be copied"
+msgstr "Не вдалося скопіювати зображення"
+
+#: src/app.rs:11793
+msgid ""
+"TIDAL doesn't let apps reorder your playlists, so this order is saved on "
+"this computer"
+msgstr ""
+"TIDAL не дозволяє застосункам змінювати порядок плейлістів, тому цей порядок "
+"збережено на цьому комп’ютері"
+
+#: src/app.rs:11840
+msgid "Restarting local playback"
+msgstr "Перезапуск локального відтворення"
+
+#: src/app.rs:11899
+msgid "Play history cleared"
+msgstr "Історію прослуховування очищено"
+
+#. Translators: {size} is a size in megabytes, such as 12.5.
+#: src/app.rs:11910
+#, rust-format
+msgid "Cleared {size} MB of artwork"
+msgstr "Очищено {size} МБ обкладинок"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:11916
+#, rust-format
+msgid "Couldn't clear artwork: {error}"
+msgstr "Не вдалося очистити обкладинки: {error}"
+
+#: src/app.rs:12027
+msgid "Copied as an Equalizer APO profile"
+msgstr "Скопійовано як профіль Equalizer APO"
+
+#: src/app.rs:12138
+msgid "Collaborator invites aren't available in Tidalfast yet"
+msgstr "Запрошення співавторів у Tidalfast поки недоступні"
+
+#: src/app.rs:12235
+msgid "Offline mode is on. Turn it off to check for updates."
+msgstr "Автономний режим увімкнено. Вимкніть його, щоб перевіряти оновлення."
+
+#: src/app.rs:12368
+msgid "Couldn't change whether Tidalfast starts at login."
+msgstr "Не вдалося змінити запуск Tidalfast під час входу в систему."
+
+#: src/app.rs:12683 src/ui/collection.rs:692
+msgid "No playable tracks in this view"
+msgstr "Тут немає пісень, доступних для відтворення"
+
+#: src/app.rs:13547 src/ui/now_playing_video.rs:212
+msgid "Loading…"
+msgstr "Завантаження…"
+
+#: src/app.rs:13672
+msgid "Couldn't start playback"
+msgstr "Не вдалося почати відтворення"
+
+#: src/app.rs:13673
+msgid "Couldn't pause"
+msgstr "Не вдалося поставити на паузу"
+
+#: src/app.rs:13674
+msgid "Couldn't skip"
+msgstr "Не вдалося пропустити"
+
+#: src/app.rs:13675
+msgid "Couldn't go back"
+msgstr "Не вдалося повернутися назад"
+
+#: src/app.rs:13676
+msgid "Couldn't seek"
+msgstr "Не вдалося перемотати"
+
+#: src/app.rs:13677
+msgid "Couldn't change the volume"
+msgstr "Не вдалося змінити гучність"
+
+#: src/app.rs:13678
+msgid "Couldn't change shuffle"
+msgstr "Не вдалося змінити режим перемішування"
+
+#: src/app.rs:13679
+msgid "Couldn't change repeat"
+msgstr "Не вдалося змінити режим повтору"
+
+#: src/app.rs:13722
+msgid ""
+"No audio output device was found. Connect or enable one, then press play "
+"again."
+msgstr ""
+"Пристрій виведення звуку не знайдено. Під’єднайте або увімкніть його, а "
+"потім знову натисніть «Відтворити»."
+
+#: src/app.rs:13727
+msgid "This video can't be played in Tidalfast"
+msgstr "Це відео неможливо відтворити в Tidalfast"
+
+#: src/app.rs:13739
+msgid "TIDAL doesn't make this playlist's songs available to third-party apps."
+msgstr "TIDAL не надає сторонім застосункам треки цього плейліста."
+
+#. Translators: Keep {track} unchanged. It is the name of the song,
+#. playlist, album, or artist the radio is based on, not translated.
+#: src/app.rs:20458 src/app/radio.rs:38
+#, rust-format
+msgid "{track} Radio"
+msgstr "Радіо: {track}"
+
+#: src/ui/settings.rs:282
+msgid "General"
+msgstr "Загальні"
+
+#: src/ui/settings.rs:283 src/ui/titlebar.rs:161
+msgid "Playback"
+msgstr "Відтворення"
+
+#: src/ui/settings.rs:284 src/ui/settings.rs:1513
+msgid "Downloads"
+msgstr "Завантаження"
+
+#: src/ui/settings.rs:285 src/ui/settings.rs:384
+msgid "Account"
+msgstr "Обліковий запис"
+
+#: src/ui/settings.rs:286 src/ui/settings.rs:1806
+msgid "About"
+msgstr "Про застосунок"
+
+#: src/ui/settings.rs:343
+msgid "Search settings"
+msgstr "Пошук налаштувань"
+
+#: src/ui/settings.rs:361 src/ui/keys.rs:249 src/ui/topbar.rs:718
+#: src/ui/titlebar.rs:139
+msgid "Settings"
+msgstr "Налаштування"
+
+#: src/ui/settings.rs:385 src/ui/titlebar.rs:142
+msgid "Sign out"
+msgstr "Вийти з облікового запису"
+
+#: src/ui/settings.rs:386
+msgid "Streaming quality"
+msgstr "Якість потокового відтворення"
+
+#: src/ui/settings.rs:409
+msgid "TIDAL Free, playback needs a subscription"
+msgstr "TIDAL Free, для відтворення потрібна підписка"
+
+#: src/ui/settings.rs:428
+msgid "Audio quality"
+msgstr "Якість звуку"
+
+#: src/ui/settings.rs:429 src/ui/player_utility.rs:458
+msgid "Bit-perfect (exclusive mode)"
+msgstr "Bit-perfect (монопольний режим)"
+
+#: src/ui/settings.rs:430
+msgid "Adaptive streaming"
+msgstr "Адаптивне потокове відтворення"
+
+#: src/ui/settings.rs:434
+msgctxt "streaming quality"
+msgid "Low"
+msgstr "Низька"
+
+#: src/ui/settings.rs:435
+msgid "AAC 96 kbps, the least data"
+msgstr "AAC 96 кбіт/с, найменше трафіку"
+
+#: src/ui/settings.rs:439
+msgctxt "streaming quality"
+msgid "High"
+msgstr "Висока"
+
+#: src/ui/settings.rs:440
+msgid "AAC 320 kbps"
+msgstr "AAC 320 кбіт/с"
+
+#: src/ui/settings.rs:444
+msgctxt "streaming quality"
+msgid "Lossless"
+msgstr "Без втрат"
+
+#: src/ui/settings.rs:445
+msgid "16-bit, 44.1 kHz"
+msgstr "16 біт, 44,1 кГц"
+
+#: src/ui/settings.rs:449
+msgctxt "streaming quality"
+msgid "Max"
+msgstr "Макс."
+
+#: src/ui/settings.rs:450
+msgid "Up to 24-bit, 192 kHz"
+msgstr "До 24 біт, 192 кГц"
+
+#: src/ui/settings.rs:458
+msgid ""
+"Max plays hi-res FLAC when you signed in with “Log in with Max (hi-res)” and "
+"TIDAL has it."
+msgstr ""
+"Max відтворює Hi-Res FLAC, якщо ви увійшли через «Увійти з Max (Hi-Res)» і "
+"він є в TIDAL."
+
+#: src/ui/settings.rs:465
+msgid "Automatically adjust audio quality based on your network conditions"
+msgstr "Автоматично підлаштовує якість звуку під стан мережі"
+
+#: src/ui/settings.rs:472
+msgid ""
+"Holds the audio device and sends each track at its own format, untouched. "
+"Equalizer, normalisation and crossfade are off while it is on; volume moves "
+"the device's own control when it has one."
+msgstr ""
+"Займає аудіопристрій і надсилає кожен трек у його власному форматі без змін. "
+"Еквалайзер, нормалізація та кросфейд вимкнені; гучність керує власним "
+"регулятором пристрою, якщо він є."
+
+#: src/ui/settings.rs:530
+msgid "Video quality"
+msgstr "Якість відео"
+
+#: src/ui/settings.rs:535
+msgid ""
+"Music videos play at this resolution or the closest below. Auto picks the "
+"best that fits the window."
+msgstr ""
+"Музичні відео відтворюються в цій роздільності або найближчій нижчій. Авто "
+"вибирає найкращу з тих, що вміщуються у вікно."
+
+#: src/ui/settings.rs:545
+msgctxt "video quality"
+msgid "Auto"
+msgstr "Авто"
+
+#: src/ui/settings.rs:546
+msgid "The best that fits the window"
+msgstr "Найкраща, що вміщується у вікно"
+
+#: src/ui/settings.rs:562
+msgctxt "playback status"
+msgid "Ready"
+msgstr "Готово"
+
+#: src/ui/settings.rs:563
+msgid "TIDAL plays on this computer."
+msgstr "TIDAL відтворює музику на цьому комп’ютері."
+
+#: src/ui/settings.rs:567
+msgctxt "playback status"
+msgid "Connecting"
+msgstr "Під’єднується"
+
+#: src/ui/settings.rs:568
+msgid "Starting playback…"
+msgstr "Запуск відтворення…"
+
+#: src/ui/settings.rs:572
+msgctxt "playback status"
+msgid "Unavailable"
+msgstr "Недоступно"
+
+#: src/ui/settings.rs:577
+msgctxt "playback status"
+msgid "Not signed in"
+msgstr "Вхід не виконано"
+
+#: src/ui/settings.rs:578
+msgid "Sign in to TIDAL to play music."
+msgstr "Увійдіть у TIDAL, щоб слухати музику."
+
+#: src/ui/settings.rs:582
+msgid "Playback on this computer"
+msgstr "Відтворення на цьому комп’ютері"
+
+#: src/ui/settings.rs:583
+msgid "Normalize volume"
+msgstr "Нормалізувати гучність"
+
+#: src/ui/settings.rs:584
+msgid "Autoplay"
+msgstr "Автовідтворення"
+
+#: src/ui/settings.rs:585
+msgid "Gapless playback"
+msgstr "Відтворення без пауз"
+
+#: src/ui/settings.rs:586 src/ui/settings.rs:1789
+msgid "Apply and restart playback"
+msgstr "Застосувати й перезапустити відтворення"
+
+#: src/ui/settings.rs:587 src/ui/settings.rs:1800
+msgid "Restart local playback to apply these settings."
+msgstr "Перезапустіть локальне відтворення, щоб застосувати ці налаштування."
+
+#: src/ui/settings.rs:588
+msgid "Crossfade"
+msgstr "Кросфейд"
+
+#: src/ui/settings.rs:589
+msgid "Report plays to TIDAL"
+msgstr "Повідомляти TIDAL про прослуховування"
+
+#: src/ui/settings.rs:590
+msgid "Allow explicit content"
+msgstr "Дозволити відвертий вміст"
+
+#: src/ui/settings.rs:591
+msgid "Allow AI content"
+msgstr "Дозволити вміст ШІ"
+
+#: src/ui/settings.rs:592
+msgid "Output device"
+msgstr "Пристрій виведення"
+
+#. Translators: {status} is a playback state such as Ready or Not set up.
+#: src/ui/settings.rs:596
+#, rust-format
+msgid "Status: {status}"
+msgstr "Стан: {status}"
+
+#: src/ui/settings.rs:601
+msgid "Set the same volume level for all tracks."
+msgstr "Встановити однаковий рівень гучності для всіх треків."
+
+#: src/ui/settings.rs:607
+msgid "Adjust the length of fading and overlap in between tracks."
+msgstr "Налаштуйте тривалість затухання та накладання між треками."
+
+#: src/ui/settings.rs:612
+msgid "The speakers or headphones to play on."
+msgstr "Динаміки або навушники для відтворення."
+
+#: src/ui/settings.rs:618
+msgid ""
+"Tell TIDAL what you listen to, as its own apps do, for your history and "
+"recommendations."
+msgstr ""
+"Повідомляє TIDAL, що ви слухаєте, як його власні застосунки, — для історії "
+"та рекомендацій."
+
+#: src/ui/settings.rs:623
+msgid "Keep playing similar content when your queue ends."
+msgstr "Продовжувати відтворювати схожий вміст, коли черга закінчиться."
+
+#: src/ui/settings.rs:627
+msgid "Play tracks without silence between them."
+msgstr "Відтворювати треки без тиші між ними."
+
+#: src/ui/settings.rs:630
+msgid "Output buffer"
+msgstr "Буфер виведення"
+
+#: src/ui/settings.rs:633
+msgid ""
+"More buffering can prevent clicks on busy computers. Less buffering makes "
+"controls respond sooner."
+msgstr ""
+"Більший буфер може запобігти клацанням на завантаженому комп’ютері. Менший "
+"буфер пришвидшує реакцію елементів керування."
+
+#: src/ui/settings.rs:638
+msgid "Playback settings applied"
+msgstr "Налаштування відтворення застосовано"
+
+#: src/ui/settings.rs:643
+msgid ""
+"When on, music labeled with the E badge will be playable. To prevent "
+"explicit music from playing, switch this off. Videos aren't included. "
+"(Tracks will appear greyed out.)"
+msgstr ""
+"Коли ввімкнено, музику зі значком E можна буде відтворювати. Щоб заборонити "
+"відтворення музики з відвертим вмістом, вимкніть цю функцію. Відео не "
+"включено. (Треки відображатимуться сірим.)"
+
+#: src/ui/settings.rs:650
+msgid ""
+"When on, music labeled with the AI badge will be playable. To prevent AI-"
+"labeled music from playing, switch this off. (Tracks will appear greyed out.)"
+msgstr ""
+"Коли ввімкнено, музику зі значком AI можна буде відтворювати. Щоб заборонити "
+"відтворення музики з позначкою AI, вимкніть цю функцію. (Треки "
+"відображатимуться сірим.)"
+
+#: src/ui/settings.rs:667
+msgid "Reconnect"
+msgstr "Під’єднатися знову"
+
+#: src/ui/settings.rs:699
+msgid "Off"
+msgstr "Вимкнено"
+
+#: src/ui/settings.rs:794
+msgid "Playback settings applied."
+msgstr "Налаштування відтворення застосовано."
+
+#: src/ui/settings.rs:803 src/ui/blocked.rs:18
+msgid "Blocked"
+msgstr "Заблоковані"
+
+#: src/ui/settings.rs:806 src/ui/blocked.rs:41
+msgid "View and edit your blocked content."
+msgstr "Переглядайте та редагуйте заблокований вміст."
+
+#: src/ui/settings.rs:820
+msgid "Appearance"
+msgstr "Оформлення"
+
+#: src/ui/settings.rs:821
+msgid "Theme"
+msgstr "Тема"
+
+#: src/ui/settings.rs:822
+msgid "Colour from album art"
+msgstr "Колір з обкладинки альбому"
+
+#: src/ui/settings.rs:823
+msgid "Use Tidalfast's title bar"
+msgstr "Використовувати рядок заголовка Tidalfast"
+
+#: src/ui/settings.rs:824
+msgid "Animated covers"
+msgstr "Анімовані обкладинки"
+
+#: src/ui/settings.rs:825
+msgid "Audio metadata"
+msgstr "Метадані аудіо"
+
+#: src/ui/settings.rs:826
+msgid "Hide Uploads tab"
+msgstr "Сховати вкладку «Завантаження»"
+
+#: src/ui/settings.rs:827
+msgid "Show collection in sidebar"
+msgstr "Показувати колекцію в бічній панелі"
+
+#: src/ui/settings.rs:834
+msgid "Follow system uses your desktop's light or dark appearance."
+msgstr ""
+"«Як у системі» використовує світле або темне оформлення вашої стільниці."
+
+#: src/ui/settings.rs:838 src/ui/settings.rs:2307
+msgid "Language"
+msgstr "Мова"
+
+#: src/ui/settings.rs:841
+msgid ""
+"System follows your computer's language. Untranslated text stays in English."
+msgstr ""
+"«Системна» відповідає мові вашого комп’ютера. Неперекладений текст "
+"залишається англійською."
+
+#: src/ui/settings.rs:848
+msgid "Use the current cover's colour in the notch player."
+msgstr "Використовувати колір поточної обкладинки в плеєрі біля вирізу екрана."
+
+#: src/ui/settings.rs:852
+msgid "Interface zoom"
+msgstr "Масштаб інтерфейсу"
+
+#: src/ui/settings.rs:856
+msgid "Ctrl+Plus and Ctrl+Minus work anywhere; Ctrl+0 resets."
+msgstr "Ctrl+Plus і Ctrl+Minus працюють будь-де; Ctrl+0 скидає масштаб."
+
+#: src/ui/settings.rs:860
+msgid "Cmd+Plus and Cmd+Minus work anywhere; Cmd+0 resets."
+msgstr "Cmd+Plus і Cmd+Minus працюють будь-де; Cmd+0 скидає масштаб."
+
+#: src/ui/settings.rs:869
+msgid ""
+"Draw Tidalfast's own title bar and window buttons instead of the desktop's."
+msgstr ""
+"Використовувати власний рядок заголовка й кнопки вікна Tidalfast замість "
+"елементів стільниці."
+
+#: src/ui/settings.rs:877
+msgid ""
+"Play TIDAL's moving album covers, silently, where covers are shown large."
+msgstr ""
+"Відтворює без звуку анімовані обкладинки TIDAL там, де обкладинки показано "
+"великими."
+
+#: src/ui/settings.rs:882
+msgid "Show additional fields (e.g. BPM) in track lists."
+msgstr "Показувати додаткові поля (наприклад, BPM) у списках треків."
+
+#: src/ui/settings.rs:886
+msgid "Hide the Uploads tab from the navigation."
+msgstr "Сховати вкладку «Завантаження» в навігації."
+
+#: src/ui/settings.rs:892
+msgid "Show all collection items directly in the sidebar instead of a submenu."
+msgstr ""
+"Показувати всі елементи колекції просто в бічній панелі, а не в підменю."
+
+#: src/ui/settings.rs:896
+msgid "Player background"
+msgstr "Фон плеєра"
+
+#: src/ui/settings.rs:899
+msgid "Choose your preferred look for the player background."
+msgstr "Виберіть, який вигляд матиме фон плеєра."
+
+#: src/ui/settings.rs:954
+msgctxt "player background"
+msgid "Color"
+msgstr "Колір"
+
+#: src/ui/settings.rs:955
+msgctxt "player background"
+msgid "Blur"
+msgstr "Розмиття"
+
+#: src/ui/settings.rs:1127
+msgid "Window and tray"
+msgstr "Вікно та трей"
+
+#: src/ui/settings.rs:1128
+msgid "Keep music playing when the window closes"
+msgstr "Продовжувати відтворення після закриття вікна"
+
+#: src/ui/settings.rs:1129
+msgid "MacBook notch widget"
+msgstr "Віджет у вирізі MacBook"
+
+#: src/ui/settings.rs:1130
+msgid "Launch at login"
+msgstr "Запускати під час входу в систему"
+
+#: src/ui/settings.rs:1131
+msgid "Start minimized"
+msgstr "Запускати згорнутим"
+
+#: src/ui/settings.rs:1138
+msgid ""
+"Tidalfast hides to the system tray. Quit from the tray menu or with Ctrl+Q."
+msgstr ""
+"Tidalfast згортається в системний трей. Вийти можна через меню трею або за "
+"допомогою Ctrl+Q."
+
+#: src/ui/settings.rs:1142
+msgid ""
+"Tidalfast hides to the system tray. Quit from the tray menu or with Cmd+Q."
+msgstr ""
+"Tidalfast згортається в системний трей. Вийти можна через меню трею або за "
+"допомогою Cmd+Q."
+
+#: src/ui/settings.rs:1151
+msgid "Show interactive Now Playing widget when hovering over the notch."
+msgstr ""
+"Показувати інтерактивний віджет «Відтворюється» під час наведення на виріз."
+
+#: src/ui/settings.rs:1157
+msgid "Open Tidalfast when you log in to this computer."
+msgstr "Відкривати Tidalfast, коли ви входите в систему на цьому комп’ютері."
+
+#: src/ui/settings.rs:1164
+msgid "When Tidalfast opens at login, start with the window minimized."
+msgstr ""
+"Коли Tidalfast відкривається під час входу в систему, запускати його зі "
+"згорнутим вікном."
+
+#: src/ui/settings.rs:1226
+msgid "Plugins (TidaLuna)"
+msgstr "Плагіни (TidaLuna)"
+
+#: src/ui/settings.rs:1227
+msgid "Enable TidaLuna plugins"
+msgstr "Увімкнути плагіни TidaLuna"
+
+#: src/ui/settings.rs:1232
+msgid ""
+"Run TidaLuna plugins inside Tidalfast. Off by default; turning it off "
+"unloads them and keeps them installed."
+msgstr ""
+"Запускає плагіни TidaLuna всередині Tidalfast. Типово вимкнено; після "
+"вимкнення вони вивантажуються, але залишаються встановленими."
+
+#: src/ui/settings.rs:1254
+msgid "Manage"
+msgstr "Керування"
+
+#: src/ui/settings.rs:1265
+msgid "Proxy"
+msgstr "Проксі"
+
+#: src/ui/settings.rs:1267
+msgid "Mode, host, port, username and password"
+msgstr "Режим, хост, порт, ім’я користувача та пароль"
+
+#: src/ui/settings.rs:1270
+msgid "Off, System, HTTP or SOCKS5 proxy for network requests."
+msgstr "Проксі для мережевих запитів: вимкнено, системний, HTTP або SOCKS5."
+
+#: src/ui/settings.rs:1273
+msgid "Advanced"
+msgstr "Додатково"
+
+#: src/ui/settings.rs:1274
+msgid "Middle-click autoscroll"
+msgstr "Автопрокручування середньою кнопкою"
+
+#: src/ui/settings.rs:1280
+msgid ""
+"Middle-click a list, then move the pointer to scroll it. Off by default, "
+"because a middle click usually pastes on Linux."
+msgstr ""
+"Клацніть середньою кнопкою на списку, а потім рухайте вказівник, щоб "
+"прокручувати його. Типово вимкнено, бо в Linux клацання середньою кнопкою "
+"зазвичай вставляє текст."
+
+#: src/ui/settings.rs:1285
+msgid "TIDAL client"
+msgstr "Клієнт TIDAL"
+
+#: src/ui/settings.rs:1288
+msgid ""
+"Optional: a TIDAL client to sign in with instead of the built-in one. Leave "
+"empty to use the built-in one; changes apply at the next sign-in."
+msgstr ""
+"Необов’язково: клієнт TIDAL для входу замість вбудованого. Залиште порожнім, "
+"щоб використовувати вбудований; зміни застосовуються під час наступного "
+"входу."
+
+#: src/ui/settings.rs:1339
+msgid "Client ID"
+msgstr "Client ID"
+
+#: src/ui/settings.rs:1344
+msgid "Client secret"
+msgstr "Client secret"
+
+#: src/ui/settings.rs:1349
+msgid "Browser sign-in client ID (Max)"
+msgstr "Client ID для входу через браузер (Max)"
+
+#: src/ui/settings.rs:1387
+msgctxt "proxy"
+msgid "Mode"
+msgstr "Режим"
+
+#: src/ui/settings.rs:1390
+msgid ""
+"Off ignores environment variables. System uses them, and the OS proxy on "
+"macOS and Windows."
+msgstr ""
+"«Вимкнено» ігнорує змінні середовища. «Системний» використовує їх, а також "
+"проксі ОС у macOS і Windows."
+
+#: src/ui/settings.rs:1442 src/ui/login.rs:338
+msgid "Apply settings"
+msgstr "Застосувати налаштування"
+
+#: src/ui/settings.rs:1454
+msgid "Not using a proxy."
+msgstr "Проксі не використовується."
+
+#: src/ui/settings.rs:1455
+msgid "Using the system proxy."
+msgstr "Використовується системний проксі."
+
+#: src/ui/settings.rs:1464
+msgid "Equalizer"
+msgstr "Еквалайзер"
+
+#: src/ui/settings.rs:1470
+msgid ""
+"Shape the sound of playback on this computer with ten sliders or parametric "
+"bands. It does not affect other devices."
+msgstr ""
+"Налаштуйте звук відтворення на цьому комп'ютері десятьма повзунками або "
+"параметричними смугами. Інші пристрої це не зачіпає."
+
+#: src/ui/settings.rs:1476
+msgid "Presets"
+msgstr "Пресети"
+
+#. Translators: a search keyword for the equalizer's preamplifier slider.
+#. Translators: the equalizer's preamplifier, which turns everything down to make room for boosts.
+#: src/ui/settings.rs:1478 src/ui/equalizer.rs:406
+msgid "Preamp"
+msgstr "Попередній підсилювач"
+
+#. Translators: a search keyword for the equalizer's frequency band sliders.
+#: src/ui/settings.rs:1480
+msgid "Bands"
+msgstr "Смуги"
+
+#: src/ui/settings.rs:1481 src/ui/equalizer.rs:102
+msgctxt "equalizer view"
+msgid "Parametric"
+msgstr "Параметричний"
+
+#: src/ui/settings.rs:1482 src/ui/equalizer.rs:772
+msgid "Headphone correction (AutoEQ)"
+msgstr "Корекція навушників (AutoEQ)"
+
+#: src/ui/settings.rs:1516
+msgid "Download quality"
+msgstr "Якість завантаження"
+
+#: src/ui/settings.rs:1519
+msgid ""
+"Downloads are kept inside Tidalfast for offline listening, never as files to "
+"copy."
+msgstr ""
+"Завантаження зберігаються в Tidalfast для прослуховування офлайн, а не як "
+"файли для копіювання."
+
+#: src/ui/settings.rs:1523 src/ui/settings.rs:1602
+msgid "Download over metered connections"
+msgstr "Завантажувати через лімітні з’єднання"
+
+#: src/ui/settings.rs:1526
+msgid ""
+"Off: downloads wait while the system reports a metered or charged connection."
+msgstr ""
+"Вимк.: завантаження чекають, поки система повідомляє про лімітне чи платне "
+"з’єднання."
+
+#: src/ui/settings.rs:1530
+msgid "Downloads at once"
+msgstr "Одночасні завантаження"
+
+#: src/ui/settings.rs:1531
+msgid "How many tracks download at the same time."
+msgstr "Скільки треків завантажується одночасно."
+
+#: src/ui/settings.rs:1534
+msgid "Remove all downloads"
+msgstr "Вилучити всі завантаження"
+
+#: src/ui/settings.rs:1538 src/ui/settings.rs:1555
+msgid "Offline mode"
+msgstr "Автономний режим"
+
+#: src/ui/settings.rs:1541
+msgid ""
+"Play only your downloads and make no requests to TIDAL until you turn it off."
+msgstr ""
+"Відтворювати лише завантажені треки й не надсилати запити до TIDAL, доки "
+"режим не вимкнено."
+
+#: src/ui/settings.rs:1570
+msgid "Same as streaming"
+msgstr "Як для стримінгу"
+
+#: src/ui/settings.rs:1644
+msgid "Remove all"
+msgstr "Вилучити все"
+
+#: src/ui/settings.rs:1656
+msgid "Storage"
+msgstr "Сховище"
+
+#: src/ui/settings.rs:1657
+msgid "Audio cache"
+msgstr "Аудіокеш"
+
+#: src/ui/settings.rs:1662
+msgid "Artwork cache"
+msgstr "Кеш обкладинок"
+
+#. Translators: {folder} is the path of a cache folder.
+#: src/ui/settings.rs:1664 src/ui/settings.rs:1670 src/ui/settings.rs:1685
+#, rust-format
+msgid "Stored in {folder}"
+msgstr "Зберігається в {folder}"
+
+#: src/ui/settings.rs:1674
+msgid "Play history"
+msgstr "Історія прослуховування"
+
+#. Translators: {file} is the path of the play history file.
+#: src/ui/settings.rs:1678
+#, rust-format
+msgid "Tracks played here are stored in {file}. This file is never uploaded."
+msgstr ""
+"Треки, відтворені тут, зберігаються у {file}. Цей файл ніколи не "
+"вивантажується."
+
+#: src/ui/settings.rs:1700
+msgid "Clear artwork"
+msgstr "Очистити обкладинки"
+
+#: src/ui/settings.rs:1761
+msgid "Clear history"
+msgstr "Очистити історію"
+
+#: src/ui/settings.rs:1807
+msgid "Tidalfast is not affiliated with TIDAL."
+msgstr "Tidalfast не пов’язаний з TIDAL."
+
+#: src/ui/settings.rs:1808 src/ui/topbar.rs:722 src/ui/titlebar.rs:178
+msgid "Check for updates"
+msgstr "Перевірити оновлення"
+
+#: src/ui/settings.rs:1809
+msgid "Checking…"
+msgstr "Перевірка…"
+
+#: src/ui/settings.rs:1810 src/ui/dialogs.rs:296 src/ui/keys.rs:259
+#: src/ui/topbar.rs:725 src/ui/titlebar.rs:173
+msgid "Keyboard shortcuts"
+msgstr "Комбінації клавіш"
+
+#: src/ui/settings.rs:1812
+msgid "Source code"
+msgstr "Вихідний код"
+
+#: src/ui/settings.rs:1813
+msgid "Licenses"
+msgstr "Ліцензії"
+
+#: src/ui/settings.rs:1892
+msgid "Updates"
+msgstr "Оновлення"
+
+#: src/ui/settings.rs:1893
+msgid "Automatic update checks"
+msgstr "Автоматично перевіряти оновлення"
+
+#: src/ui/settings.rs:1894
+msgid "Download updates automatically"
+msgstr "Завантажувати оновлення автоматично"
+
+#: src/ui/settings.rs:1895
+msgid "Update channel"
+msgstr "Канал оновлень"
+
+#: src/ui/settings.rs:1897
+msgctxt "update channel"
+msgid "Stable"
+msgstr "Стабільний"
+
+#: src/ui/settings.rs:1898
+msgctxt "update channel"
+msgid "Beta"
+msgstr "Бета"
+
+#: src/ui/settings.rs:1899
+msgctxt "update channel"
+msgid "Dev"
+msgstr "Dev"
+
+#: src/ui/settings.rs:1906
+msgid "Checks for a new version once a day. No personal data is sent."
+msgstr ""
+"Раз на день перевіряє, чи є нова версія. Особисті дані не надсилаються."
+
+#: src/ui/settings.rs:1913
+msgid "Downloads in the background. You choose when to restart."
+msgstr "Завантажується у фоновому режимі. Ви вирішуєте, коли перезапустити."
+
+#: src/ui/settings.rs:1920
+msgid ""
+"Stable gets tested releases. Beta and Dev get new features earlier and may "
+"be rougher."
+msgstr ""
+"Стабільний канал отримує перевірені випуски. Beta і Dev отримують нові "
+"функції раніше, але можуть бути менш стабільними."
+
+#. Translators: {query} is the text typed into the settings search field.
+#: src/ui/settings.rs:1991
+#, rust-format
+msgid "No settings for “{query}”"
+msgstr "За запитом «{query}» налаштувань не знайдено"
+
+#: src/ui/settings.rs:1992
+msgid "Try fewer words, or check the spelling."
+msgstr "Спробуйте менше слів або перевірте правопис."
+
+#: src/ui/settings.rs:2051 src/ui/player_utility.rs:414
+msgid "System default"
+msgstr "Типовий системний"
+
+#: src/ui/settings.rs:2280
+msgctxt "language"
+msgid "System"
+msgstr "Системна"
+
+#: src/api/models.rs:299 src/ui/uploads.rs:1283
+msgid "Single"
+msgstr "Сингл"
+
+#: src/api/models.rs:300
+msgid "Compilation"
+msgstr "Збірка"
+
+#: src/api/models.rs:301 src/model.rs:1109
+msgid "Appears On"
+msgstr "За участю виконавця"
+
+#: src/model.rs:854
+msgid "Top results"
+msgstr "Найкращі результати"
+
+#: src/model.rs:859 src/ui/home_feeds.rs:55
+msgid "Uploads"
+msgstr "Завантаження"
+
+#: src/model.rs:1106 src/ui/save_later.rs:20
+msgctxt "filter"
+msgid "All"
+msgstr "Усі"
+
+#: src/model.rs:1108
+msgid "Singles & EPs"
+msgstr "Сингли та EP"
+
+#: src/settings.rs:214
+msgctxt "theme"
+msgid "Dark"
+msgstr "Темна"
+
+#: src/settings.rs:215
+msgctxt "theme"
+msgid "Light"
+msgstr "Світла"
+
+#: src/settings.rs:216
+msgid "Follow system"
+msgstr "Як у системі"
+
+#: src/settings.rs:242
+msgctxt "proxy"
+msgid "Off"
+msgstr "Вимкнено"
+
+#: src/settings.rs:243
+msgctxt "proxy"
+msgid "System"
+msgstr "Системний"
+
+#: src/ui/artist.rs:63 src/ui/artist.rs:1164
+msgid "Top Tracks"
+msgstr "Популярні треки"
+
+#: src/ui/artist.rs:68 src/ui/artist.rs:195 src/ui/artist.rs:223
+#: src/ui/artist.rs:253 src/ui/artist.rs:324 src/ui/artist.rs:981
+#: src/ui/artist.rs:2070 src/ui/artist.rs:2120 src/ui/home.rs:458
+#: src/ui/explore.rs:138 src/ui/home_feeds.rs:126 src/ui/home_feeds.rs:181
+#: src/ui/home_feeds.rs:397 src/ui/album_extras.rs:449
+msgid "View all"
+msgstr "Показати все"
+
+#: src/ui/artist.rs:171 src/ui/artist.rs:1452
+msgid "No popular tracks to show."
+msgstr "Немає популярних пісень."
+
+#: src/ui/artist.rs:252 src/ui/artist.rs:1255
+msgid "Fans also like"
+msgstr "Шанувальникам також подобається"
+
+#: src/ui/artist.rs:319 src/ui/artist.rs:1257 src/ui/collection.rs:749
+#: src/ui/menus.rs:975 src/ui/menus.rs:1383 src/ui/menus.rs:1521
+#: src/ui/now_playing.rs:159 src/ui/now_playing_video.rs:187
+#: src/ui/sticky.rs:455 src/ui/album_credits.rs:137
+msgid "Credits"
+msgstr "Автори"
+
+#. Translators: {count} is a short number of followers, such as 1.9M.
+#: src/ui/artist.rs:452
+#, rust-format
+msgid "{count} follower"
+msgid_plural "{count} followers"
+msgstr[0] "{count} підписник"
+msgstr[1] "{count} підписники"
+msgstr[2] "{count} підписників"
+
+#: src/ui/artist.rs:542 src/ui/album_extras.rs:80
+msgid "Read more"
+msgstr "Читати далі"
+
+#: src/ui/artist.rs:676
+msgid "No biography for this artist"
+msgstr "Немає біографії цього виконавця"
+
+#: src/ui/artist.rs:698
+msgid "Biography"
+msgstr "Біографія"
+
+#: src/ui/artist.rs:702
+#, rust-format
+msgid "Artist bio from {source}"
+msgstr "Біографія виконавця від {source}"
+
+#: src/ui/artist.rs:831 src/ui/collection.rs:874
+msgid "Starting…"
+msgstr "Запуск…"
+
+#: src/ui/artist.rs:873 src/ui/artist.rs:1659 src/ui/artist.rs:2045
+#: src/ui/collection.rs:739 src/ui/menus.rs:485 src/ui/activity.rs:1040
+#: src/ui/activity.rs:1232 src/ui/sticky.rs:448 src/ui/uploads.rs:363
+#: src/ui/uploads.rs:1567
+msgid "Share"
+msgstr "Поділитися"
+
+#: src/ui/artist.rs:879 src/ui/artist.rs:1670 src/ui/now_playing.rs:660
+msgid "Artist radio"
+msgstr "Радіо виконавця"
+
+#: src/ui/artist.rs:887 src/ui/artist.rs:1680
+msgctxt "artist"
+msgid "Following"
+msgstr "Ви підписані"
+
+#: src/ui/artist.rs:893 src/ui/artist.rs:1686 src/ui/menus.rs:1529
+msgctxt "artist"
+msgid "Follow"
+msgstr "Підписатися"
+
+#: src/ui/artist.rs:941 src/ui/artist.rs:1251
+msgid "EPs & Singles"
+msgstr "EP і сингли"
+
+#: src/ui/artist.rs:949 src/ui/artist.rs:1252
+msgid "Compilations"
+msgstr "Збірки"
+
+#: src/ui/artist.rs:957 src/ui/artist.rs:1253
+msgid "Appears on"
+msgstr "Бере участь у"
+
+#: src/ui/artist.rs:1162 src/ui/artist.rs:2145
+msgid "Uploaded tracks"
+msgstr "Завантажені треки"
+
+#. Translators: {count} is how many people follow the user's own
+#. artist profile, such as 2.
+#: src/ui/artist.rs:1926
+#, rust-format
+msgid "{count} fan"
+msgid_plural "{count} fans"
+msgstr[0] "{count} шанувальник"
+msgstr[1] "{count} шанувальники"
+msgstr[2] "{count} шанувальників"
+
+#: src/ui/artist.rs:1943
+msgid "Add bio"
+msgstr "Додати біографію"
+
+#: src/ui/artist.rs:2051 src/ui/collection.rs:807 src/ui/sticky.rs:485
+#: src/ui/uploads.rs:1264
+msgid "Edit"
+msgstr "Змінити"
+
+#: src/ui/artist.rs:2110
+msgid "Your profile is empty"
+msgstr "Ваш профіль порожній"
+
+#: src/ui/artist.rs:2113
+msgid ""
+"Start creating playlists, adding your social profiles, or uploading a track."
+msgstr "Створюйте плейлисти, додавайте профілі в соцмережах або завантажте трек."
+
+#: src/ui/collection.rs:329
+msgid "Add collaborator"
+msgstr "Додати співавтора"
+
+#: src/ui/collection.rs:571
+msgid "Filter tracks"
+msgstr "Фільтр треків"
+
+#: src/ui/collection.rs:573
+msgid "Filter playlist on title, artist or album"
+msgstr "Фільтр плейліста за назвою, виконавцем або альбомом"
+
+#: src/ui/collection.rs:713
+msgid "No playable songs in this view"
+msgstr "У цьому поданні немає треків для відтворення"
+
+#: src/ui/collection.rs:765 src/ui/collection.rs:900 src/ui/sticky.rs:465
+msgid "Save as playlist"
+msgstr "Зберегти як плейліст"
+
+#: src/ui/collection.rs:775 src/ui/sticky.rs:495
+msgid "Added"
+msgstr "Додано"
+
+#: src/ui/collection.rs:781 src/ui/sticky.rs:501 src/ui/uploads.rs:745
+msgid "Add"
+msgstr "Додати"
+
+#: src/ui/collection.rs:796 src/ui/sticky.rs:474 src/ui/uploads.rs:249
+#: src/ui/uploads.rs:1320
+msgid "Public"
+msgstr "Публічний"
+
+#: src/ui/collection.rs:798 src/ui/sticky.rs:476
+msgid "Private"
+msgstr "Приватний"
+
+#: src/ui/collection.rs:915
+msgid "Refreshing…"
+msgstr "Оновлення…"
+
+#: src/ui/collection.rs:917
+msgid "Refresh"
+msgstr "Оновити"
+
+#: src/ui/collection.rs:969
+msgid "Downloading"
+msgstr "Завантаження"
+
+#: src/ui/collection.rs:971 src/ui/collection.rs:997 src/ui/menus.rs:773
+#: src/ui/menus.rs:1069 src/ui/menus.rs:1227
+msgid "Download"
+msgstr "Завантажити"
+
+#: src/ui/collection.rs:995 src/ui/menus.rs:769 src/ui/menus.rs:1066
+#: src/ui/menus.rs:1224
+msgid "Remove download"
+msgstr "Видалити завантаження"
+
+#: src/ui/collection.rs:1743
+#, rust-format
+msgid "Volume {number}"
+msgstr "Диск {number}"
+
+#: src/ui/collection.rs:1972 src/ui/collection.rs:2001
+msgid "Unavailable"
+msgstr "Недоступно"
+
+#: src/ui/collection.rs:1978
+msgid "You're offline. Reconnect to load more tracks."
+msgstr "Ви не в мережі. Підключіться, щоб завантажити більше треків."
+
+#: src/ui/collection.rs:2163
+msgid "Nothing here yet"
+msgstr "Тут поки нічого немає"
+
+#: src/ui/collection.rs:2164
+msgid "Added tracks appear here."
+msgstr "Тут з’являться додані пісні."
+
+#: src/ui/collection.rs:2603 src/ui/home.rs:936
+msgid "Your top tracks"
+msgstr "Ваші топ-пісні"
+
+#: src/ui/collection.rs:2612
+msgid "Your most-played tracks from the last four weeks."
+msgstr "Треки, які ви слухали найчастіше за останні чотири тижні."
+
+#: src/ui/collection.rs:3139
+msgid "Collaborative Playlist"
+msgstr "Спільний плейліст"
+
+#: src/ui/collection.rs:3141
+msgid "Public Playlist"
+msgstr "Публічний плейліст"
+
+#: src/ui/collection.rs:3522
+msgid "No downloads yet"
+msgstr "Ще нічого не завантажено"
+
+#: src/ui/collection.rs:3525
+msgid ""
+"Turn on Download on an album, playlist or mix to play it without a "
+"connection."
+msgstr ""
+"Увімкніть «Завантажити» для альбому, плейлиста чи міксу, щоб слухати без "
+"з’єднання."
+
+#. Translators: {count} is the number of people who saved a playlist.
+#: src/ui/collection.rs:3606
+#, rust-format
+msgid "{count} save"
+msgid_plural "{count} saves"
+msgstr[0] "{count} збереження"
+msgstr[1] "{count} збереження"
+msgstr[2] "{count} збережень"
+
+#. Translators: {name} is the name of someone who added songs to the playlist.
+#: src/ui/collection.rs:3706
+#, rust-format
+msgid "with {name}"
+msgstr "з {name}"
+
+#. Translators: {first} and {second} are names of people who added songs.
+#: src/ui/collection.rs:3710
+#, rust-format
+msgid "with {first} and {second}"
+msgstr "з {first} і {second}"
+
+#. Translators: {count} is how many other people added songs to the playlist.
+#: src/ui/collection.rs:3717
+#, rust-format
+msgid "and {count} other"
+msgid_plural "and {count} others"
+msgstr[0] "та ще {count} особа"
+msgstr[1] "та ще {count} особи"
+msgstr[2] "та ще {count} осіб"
+
+#: src/ui/dialogs.rs:129 src/ui/menus.rs:1457
+msgid "Delete playlist"
+msgstr "Видалити плейлист"
+
+#: src/ui/dialogs.rs:139
+msgid ""
+"Are you sure you want to delete this playlist? This action can't be undone."
+msgstr ""
+"Ви впевнені, що хочете видалити цей плейліст? Цю дію неможливо скасувати."
+
+#. Translators: {name} is a playlist name.
+#: src/ui/dialogs.rs:144
+#, rust-format
+msgid "“{name}” will no longer appear in My Collection."
+msgstr "«{name}» більше не з’являтиметься в Моїй колекції."
+
+#: src/ui/dialogs.rs:160 src/ui/equalizer.rs:706 src/ui/uploads.rs:1651
+#: src/ui/uploads.rs:1859
+msgid "Delete"
+msgstr "Видалити"
+
+#: src/ui/dialogs.rs:167 src/ui/dialogs.rs:227 src/ui/dialogs.rs:253
+#: src/ui/login.rs:98 src/ui/login.rs:129 src/ui/uploads.rs:1700
+#: src/ui/uploads.rs:1861
+msgid "Cancel"
+msgstr "Скасувати"
+
+#: src/ui/dialogs.rs:184
+msgid "Tracks already in this playlist"
+msgstr "Пісні вже є в цьому плейлісті"
+
+#: src/ui/dialogs.rs:186 src/ui/dialogs.rs:245
+msgid "Track already in this playlist"
+msgstr "Пісня вже є в цьому плейлісті"
+
+#: src/ui/dialogs.rs:211 src/ui/dialogs.rs:254
+msgid "Add anyway"
+msgstr "Однаково додати"
+
+#: src/ui/dialogs.rs:286 src/ui/dialogs.rs:342 src/ui/uploads.rs:1649
+msgid "Done"
+msgstr "Готово"
+
+#: src/ui/dialogs.rs:580
+#, rust-format
+msgid "This track is already in “{playlist}”. Add it again?"
+msgstr "Ця пісня вже є в «{playlist}». Додати її ще раз?"
+
+#: src/ui/dialogs.rs:587
+#, rust-format
+msgid "This track is already in “{playlist}”. Add them anyway?"
+msgstr "Ця пісня вже є в «{playlist}». Однаково додати їх?"
+
+#. Translators: {name} is a song name and {playlist} a playlist name.
+#: src/ui/dialogs.rs:592
+#, rust-format
+msgid "“{name}” is already in “{playlist}”. Add it again?"
+msgstr "«{name}» уже є в «{playlist}». Додати її ще раз?"
+
+#: src/ui/dialogs.rs:600
+#, rust-format
+msgid "“{name}” is already in “{playlist}”. Add them anyway?"
+msgstr "«{name}» уже є в «{playlist}». Однаково додати їх?"
+
+#: src/ui/dialogs.rs:609
+#, rust-format
+msgid "“{first}” and “{second}” are already in “{playlist}”. Add them anyway?"
+msgstr "«{first}» і «{second}» уже є в «{playlist}». Однаково додати їх?"
+
+#. Translators: {first} and {second} are song names, {count} is how many more songs are already in the playlist, and {playlist} is a playlist name.
+#: src/ui/dialogs.rs:618
+#, rust-format
+msgid ""
+"“{first}”, “{second}”, and {count} more are already in “{playlist}”. Add "
+"them anyway?"
+msgid_plural ""
+"“{first}”, “{second}”, and {count} more are already in “{playlist}”. Add "
+"them anyway?"
+msgstr[0] ""
+"«{first}», «{second}» і ще {count} пісня вже є в «{playlist}». Однаково "
+"додати їх?"
+msgstr[1] ""
+"«{first}», «{second}» і ще {count} пісні вже є в «{playlist}». Однаково "
+"додати їх?"
+msgstr[2] ""
+"«{first}», «{second}» і ще {count} пісень уже є в «{playlist}». Однаково "
+"додати їх?"
+
+#: src/ui/dialogs.rs:660 src/ui/dialogs.rs:763 src/ui/menus.rs:469
+msgid "Copy embed code"
+msgstr "Копіювати код для вбудовування"
+
+#: src/ui/dialogs.rs:774
+msgid "By using TIDAL Embeds, you accept the"
+msgstr "Користуючись TIDAL Embeds, ви приймаєте"
+
+#: src/ui/dialogs.rs:780
+msgid "TIDAL Developer Terms of Service."
+msgstr "Умови використання TIDAL для розробників."
+
+#: src/ui/dialogs.rs:1036 src/ui/dialogs.rs:1074
+msgid "Make it public"
+msgstr "Зробити публічним"
+
+#: src/ui/dialogs.rs:1050
+msgid "Your playlist will be visible on your Profile and accessible by anyone."
+msgstr "Ваш плейліст буде видно у вашому профілі, і він буде доступний усім."
+
+#: src/ui/dialogs.rs:1121 src/ui/dialogs.rs:1439 src/ui/uploads.rs:1231
+#: src/ui/uploads.rs:1800
+msgid "Title"
+msgstr "Назва"
+
+#: src/ui/dialogs.rs:1147
+msgid "Write a description"
+msgstr "Додайте опис"
+
+#: src/ui/dialogs.rs:1161
+#, rust-format
+msgid "{count}/500 characters"
+msgstr "{count}/500 символів"
+
+#: src/ui/dialogs.rs:1183 src/ui/menus.rs:1437
+msgid "Collaborators"
+msgstr "Співавтори"
+
+#: src/ui/dialogs.rs:1219 src/ui/dialogs.rs:1232
+msgid "Copy invitation link"
+msgstr "Копіювати посилання-запрошення"
+
+#: src/ui/dialogs.rs:1226
+msgid "Invite others by sharing the link"
+msgstr "Запрошуйте інших, поділившись посиланням"
+
+#: src/ui/dialogs.rs:1341
+msgid "Create playlist"
+msgstr "Створити плейліст"
+
+#: src/ui/dialogs.rs:1350
+msgid "Playlist cover"
+msgstr "Обкладинка плейлиста"
+
+#. Translators: {count} is the number of songs.
+#: src/ui/dialogs.rs:1365
+#, rust-format
+msgid "{count} track will be added."
+msgid_plural "{count} tracks will be added."
+msgstr[0] "Буде додано {count} пісню."
+msgstr[1] "Буде додано {count} пісні."
+msgstr[2] "Буде додано {count} пісень."
+
+#: src/ui/dialogs.rs:1387 src/ui/dialogs.rs:1452 src/ui/dialogs.rs:1550
+#: src/ui/equalizer.rs:675 src/ui/uploads.rs:1698
+msgid "Save"
+msgstr "Зберегти"
+
+#: src/ui/dialogs.rs:1423
+msgid "Rename folder"
+msgstr "Перейменувати теку"
+
+#: src/ui/dialogs.rs:1425
+msgid "New folder"
+msgstr "Нова тека"
+
+#: src/ui/dialogs.rs:1441
+msgid "Give your new folder a name"
+msgstr "Дайте назву новій теці"
+
+#: src/ui/dialogs.rs:1505 src/ui/menus.rs:1421
+msgid "Edit playlist"
+msgstr "Редагувати плейлист"
+
+#: src/ui/dialogs.rs:1514
+msgid "Selected playlist cover"
+msgstr "Вибрана обкладинка плейліста"
+
+#: src/ui/dialogs.rs:1517
+msgid "Current playlist cover"
+msgstr "Поточна обкладинка плейліста"
+
+#: src/ui/home.rs:153
+msgid "Created by me"
+msgstr "Створено мною"
+
+#: src/ui/home.rs:158
+#, rust-format
+msgid "Created by {owner}"
+msgstr "Автор: {owner}"
+
+#: src/ui/home.rs:436 src/ui/home_feeds.rs:56
+msgid "For you"
+msgstr "Для вас"
+
+#: src/ui/home.rs:750 src/ui/home.rs:760 src/ui/home.rs:775
+msgid "Your top artists"
+msgstr "Ваші топ-виконавці"
+
+#: src/ui/home.rs:937
+msgid "Show more top tracks"
+msgstr "Показати більше топ-пісень"
+
+#: src/ui/home.rs:951
+msgid "Recommended for you"
+msgstr "Рекомендовано для вас"
+
+#: src/ui/keys.rs:170
+msgctxt "key"
+msgid "Space"
+msgstr "Пробіл"
+
+#: src/ui/keys.rs:171
+msgid "Play or pause"
+msgstr "Відтворити або призупинити"
+
+#: src/ui/keys.rs:175
+msgid "Previous or next"
+msgstr "Попередній або наступний"
+
+#: src/ui/keys.rs:179
+msgid "Seek 10 seconds"
+msgstr "Перемотати на 10 секунд"
+
+#: src/ui/keys.rs:183
+msgid "Volume up or down"
+msgstr "Збільшити або зменшити гучність"
+
+#: src/ui/keys.rs:185
+msgid "Mute or unmute"
+msgstr "Вимкнути або увімкнути звук"
+
+#: src/ui/keys.rs:188
+msgid "Add or remove the playing track from My Collection"
+msgstr "Додати поточний трек до Моєї колекції або видалити його"
+
+#: src/ui/keys.rs:190
+msgid "Toggle shuffle"
+msgstr "Увімкнути або вимкнути перемішування"
+
+#: src/ui/keys.rs:191
+msgid "Cycle repeat"
+msgstr "Перемкнути режим повтору"
+
+#: src/ui/keys.rs:192
+msgid "Show the queue"
+msgstr "Показати чергу"
+
+#: src/ui/keys.rs:193
+msgid "Show the lyrics"
+msgstr "Показати текст пісні"
+
+#: src/ui/keys.rs:194
+msgid "Lyrics: leave full screen"
+msgstr "Текст пісні: вийти з повноекранного режиму"
+
+#: src/ui/keys.rs:197
+msgid "Track list: extend or shrink the selection"
+msgstr "Список пісень: розширити або звузити виділення"
+
+#: src/ui/keys.rs:199
+msgid "Remove from this playlist"
+msgstr "Видалити з цього плейліста"
+
+#: src/ui/keys.rs:202
+msgid "Track list: select all"
+msgstr "Список пісень: виділити все"
+
+#: src/ui/keys.rs:206
+msgid "Track list: copy the selected tracks' links"
+msgstr "Список пісень: копіювати посилання на виділені пісні"
+
+#: src/ui/keys.rs:210
+msgid "Playlist: cut the selected tracks"
+msgstr "Плейліст: вирізати виділені пісні"
+
+#: src/ui/keys.rs:214
+msgid "Playlist: add the pasted track links"
+msgstr "Плейліст: додати вставлені посилання на пісні"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:219
+msgid "Cmd+F  or  /"
+msgstr "Cmd+F  або  /"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:222
+msgid "Ctrl+F  or  /"
+msgstr "Ctrl+F  або  /"
+
+#: src/ui/keys.rs:228
+msgid "Show or hide the sidebar"
+msgstr "Показати або сховати бічну панель"
+
+#: src/ui/keys.rs:230
+msgid "Back or forward"
+msgstr "Назад або вперед"
+
+#: src/ui/keys.rs:241
+msgid "Go to the playing artist"
+msgstr "Перейти до виконавця поточної пісні"
+
+#: src/ui/keys.rs:245
+msgid "Go to the playing album"
+msgstr "Перейти до альбому поточної пісні"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:254
+msgid "Cmd+/ or ?"
+msgstr "Cmd+/ або ?"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:257
+msgid "Ctrl+/ or ?"
+msgstr "Ctrl+/ або ?"
+
+#: src/ui/keys.rs:263
+msgid "Close the window"
+msgstr "Закрити вікно"
+
+#: src/ui/keys.rs:265 src/ui/titlebar.rs:143
+msgid "Quit"
+msgstr "Вийти"
+
+#: src/ui/library.rs:30
+msgid "No saved albums"
+msgstr "Немає збережених альбомів"
+
+#: src/ui/library.rs:31
+msgid "Saved albums appear here."
+msgstr "Тут з’являться збережені альбоми."
+
+#: src/ui/library.rs:32
+msgid "Filter albums"
+msgstr "Фільтр альбомів"
+
+#: src/ui/library.rs:36
+msgid "No followed artists"
+msgstr "Немає виконавців, на яких ви підписані"
+
+#: src/ui/library.rs:37
+msgid "Followed artists appear here."
+msgstr "Тут з’являться виконавці, на яких ви підписані."
+
+#: src/ui/library.rs:38
+msgid "Filter profiles"
+msgstr "Фільтр профілів"
+
+#: src/ui/library.rs:48
+msgid "No mixes yet"
+msgstr "Міксів ще немає"
+
+#: src/ui/library.rs:51
+msgid "Mixes and radios you add to your collection appear here."
+msgstr "Мікси та радіо, додані до колекції, з’являться тут."
+
+#: src/ui/login.rs:80
+msgid "Waiting for you to approve in your browser"
+msgstr "Очікуємо підтвердження у браузері"
+
+#: src/ui/login.rs:89 src/ui/login.rs:135
+msgid "Didn't open? Open the sign-in page again"
+msgstr "Не відкрилося? Відкрийте сторінку входу ще раз"
+
+#: src/ui/login.rs:107
+msgid "Paste the address from your browser"
+msgstr "Вставте адресу з браузера"
+
+#: src/ui/login.rs:123
+msgid "Continue"
+msgstr "Продовжити"
+
+#: src/ui/login.rs:150
+msgid "Connecting to TIDAL…"
+msgstr "Підключення до TIDAL…"
+
+#: src/ui/login.rs:156
+msgid "Log in to Tidalfast"
+msgstr "Вхід у Tidalfast"
+
+#: src/ui/login.rs:162
+msgid "Log in"
+msgstr "Увійти"
+
+#: src/ui/login.rs:168
+msgid "Log in with Max (hi-res)"
+msgstr "Увійти з Max (Hi-Res)"
+
+#: src/ui/login.rs:181
+msgid "Proxy Settings"
+msgstr "Налаштування проксі"
+
+#: src/ui/mod.rs:953
+msgid "Minimize"
+msgstr "Згорнути"
+
+#: src/ui/mod.rs:960
+msgid "Restore"
+msgstr "Відновити"
+
+#: src/ui/mod.rs:962
+msgid "Maximize"
+msgstr "Розгорнути"
+
+#: src/ui/radio.rs:335
+msgid "Based on this playlist"
+msgstr "На основі цього плейліста"
+
+#: src/ui/radio.rs:336
+msgid "Based on this album"
+msgstr "На основі цього альбому"
+
+#: src/ui/radio.rs:337
+msgid "Based on this artist"
+msgstr "На основі цього виконавця"
+
+#: src/ui/radio.rs:338
+msgid "Based on this track"
+msgstr "На основі цієї пісні"
+
+#. Translators: {first} is an artist name.
+#: src/ui/radio.rs:356
+#, rust-format
+msgid "With {first}"
+msgstr "За участю {first}"
+
+#. Translators: {first} and {second} are artist names.
+#: src/ui/radio.rs:359
+#, rust-format
+msgid "With {first} and {second}"
+msgstr "За участю {first} і {second}"
+
+#. Translators: {first}, {second} and {third} are artist names.
+#: src/ui/radio.rs:365
+#, rust-format
+msgid "With {first}, {second} and {third}"
+msgstr "За участю {first}, {second} і {third}"
+
+#. Translators: {first}, {second} and {third} are artist names; more follow.
+#: src/ui/radio.rs:372
+#, rust-format
+msgid "With {first}, {second}, {third} and more"
+msgstr "За участю {first}, {second}, {third} та інших"
+
+#: src/ui/search.rs:80 src/ui/search.rs:334
+msgid "Search needs a connection. Turn off offline mode to search TIDAL."
+msgstr ""
+"Для пошуку потрібне підключення. Вимкніть автономний режим, щоб шукати в "
+"TIDAL."
+
+#. Translators: {query} is the text the user searched for.
+#: src/ui/search.rs:124
+#, rust-format
+msgid "No results for “{query}”"
+msgstr "За запитом «{query}» нічого не знайдено"
+
+#: src/ui/search.rs:126
+msgid "Check the spelling, or try fewer words."
+msgstr "Перевірте правопис або спробуйте менше слів."
+
+#: src/ui/search.rs:183
+#, rust-format
+msgid "Did you mean {query}?"
+msgstr "Можливо, ви мали на увазі {query}?"
+
+#: src/ui/search.rs:275
+msgid "Go to genre"
+msgstr "Перейти до жанру"
+
+#: src/ui/search.rs:339
+msgid "Connect to the internet to search tracks, artists, and playlists."
+msgstr ""
+"Підключіться до інтернету, щоб шукати треки, виконавців і списки відтворення."
+
+#: src/ui/search.rs:350
+msgid "Search TIDAL"
+msgstr "Пошук у TIDAL"
+
+#: src/ui/search.rs:351
+msgid "Find tracks, artists, albums, and playlists."
+msgstr "Шукайте треки, виконавців, альбоми та плейлисти."
+
+#: src/ui/search.rs:428 src/ui/search.rs:1389 src/ui/search.rs:1590
+msgid "Track"
+msgstr "Трек"
+
+#: src/ui/search.rs:430 src/ui/search.rs:1390 src/ui/search.rs:1610
+msgid "Video"
+msgstr "Відео"
+
+#: src/ui/search.rs:970
+#, rust-format
+msgid "By {owner}"
+msgstr "Автор: {owner}"
+
+#: src/ui/search.rs:1343
+msgid "Recent Searches"
+msgstr "Нещодавні пошуки"
+
+#: src/ui/topbar.rs:261
+msgid "Back"
+msgstr "Назад"
+
+#: src/ui/topbar.rs:262
+msgid "Forward"
+msgstr "Вперед"
+
+#: src/ui/topbar.rs:284
+msgid "Update ready"
+msgstr "Оновлення готове"
+
+#: src/ui/topbar.rs:286 src/ui/update.rs:113
+msgid "Downloading update…"
+msgstr "Завантаження оновлення…"
+
+#. Translators: {version} is a version number such as 1.2.0.
+#: src/ui/topbar.rs:290
+#, rust-format
+msgid "Update to {version}"
+msgstr "Оновити до {version}"
+
+#: src/ui/topbar.rs:417
+msgid "Offline mode is on. Turn it off in Settings or with Go online."
+msgstr ""
+"Автономний режим увімкнено. Вимкніть його в налаштуваннях або кнопкою "
+"«Підключитися»."
+
+#: src/ui/topbar.rs:422
+msgid ""
+"Tidalfast is offline. Reconnecting automatically when connection returns."
+msgstr ""
+"Tidalfast не в мережі. Підключення відновиться автоматично, коли мережа "
+"стане доступною."
+
+#: src/ui/topbar.rs:431
+msgid "Updating My Collection…"
+msgstr "Оновлення Моєї колекції…"
+
+#: src/ui/topbar.rs:432
+msgid "Checking for updates…"
+msgstr "Перевірка оновлень…"
+
+#: src/ui/topbar.rs:433
+msgid "Waiting for TIDAL…"
+msgstr "Очікування TIDAL…"
+
+#. Translators: {version} is a version number such as 1.2.0.
+#: src/ui/topbar.rs:450
+#, rust-format
+msgid "Version {version} is available."
+msgstr "Доступна версія {version}."
+
+#: src/ui/topbar.rs:703
+msgid "Profile"
+msgstr "Профіль"
+
+#: src/ui/topbar.rs:708 src/ui/profile.rs:118 src/ui/activity.rs:545
+msgid "My Activity"
+msgstr "Моя активність"
+
+#: src/ui/topbar.rs:715
+msgid "Manage subscription"
+msgstr "Керувати підпискою"
+
+#: src/ui/topbar.rs:721 src/ui/titlebar.rs:169
+msgid "Help"
+msgstr "Довідка"
+
+#: src/ui/topbar.rs:729
+msgid "Get Support"
+msgstr "Отримати підтримку"
+
+#: src/ui/topbar.rs:731
+msgid "Legal"
+msgstr "Правова інформація"
+
+#: src/ui/topbar.rs:732
+msgid "Terms and Conditions"
+msgstr "Умови користування"
+
+#: src/ui/topbar.rs:733
+msgid "Privacy Notice"
+msgstr "Повідомлення про конфіденційність"
+
+#: src/ui/topbar.rs:737
+msgid "Marketplace Terms and Conditions"
+msgstr "Умови користування Marketplace"
+
+#: src/ui/topbar.rs:745
+msgid "Log out"
+msgstr "Вийти"
+
+#: src/ui/topbar.rs:760
+msgid "Luna Settings"
+msgstr "Налаштування Luna"
+
+#: src/ui/update.rs:53
+msgid "Update Tidalfast"
+msgstr "Оновити Tidalfast"
+
+#: src/ui/update.rs:104
+msgid "Release notes"
+msgstr "Примітки до випуску"
+
+#: src/ui/update.rs:111
+msgid "Checking download…"
+msgstr "Перевірка завантаження…"
+
+#. Translators: {received} and {total} are sizes in megabytes, such as 12.5.
+#: src/ui/update.rs:129
+#, rust-format
+msgid "{received} of {total} MB"
+msgstr "{received} з {total} МБ"
+
+#: src/ui/update.rs:145
+msgid "Ready to install"
+msgstr "Готово до встановлення"
+
+#: src/ui/update.rs:154
+msgid "Music playing on this computer will stop when Tidalfast restarts."
+msgstr ""
+"Музика, що відтворюється на цьому комп’ютері, зупиниться, коли Tidalfast "
+"перезапуститься."
+
+#: src/ui/update.rs:162
+msgid "Restart to update"
+msgstr "Перезапустити й оновити"
+
+#: src/ui/update.rs:169
+msgid "Preparing to restart…"
+msgstr "Підготовка до перезапуску…"
+
+#: src/ui/update.rs:202
+msgid "Download from GitHub"
+msgstr "Завантажити з GitHub"
+
+#: src/ui/update.rs:207
+msgid "Retry download"
+msgstr "Повторити завантаження"
+
+#: src/ui/update.rs:209
+msgid "Update now"
+msgstr "Оновити зараз"
+
+#: src/ui/update.rs:228
+msgid "Later"
+msgstr "Пізніше"
+
+#. Translators: A length of time, abbreviated. Keep {hours} and {minutes}.
+#: src/util.rs:28
+#, rust-format
+msgid "{hours} hr {minutes} min"
+msgstr "{hours} год {minutes} хв"
+
+#. Translators: A length of time, abbreviated. Keep {minutes} and {seconds}.
+#: src/util.rs:33
+#, rust-format
+msgid "{minutes} min {seconds} sec"
+msgstr "{minutes} хв {seconds} с"
+
+#. Translators: A length of time, abbreviated. Keep {seconds}.
+#: src/util.rs:38
+#, rust-format
+msgid "{seconds} sec"
+msgstr "{seconds} с"
+
+#: src/util.rs:79
+msgctxt "month"
+msgid "Jan"
+msgstr "січ."
+
+#: src/util.rs:80
+msgctxt "month"
+msgid "Feb"
+msgstr "лют."
+
+#: src/util.rs:81
+msgctxt "month"
+msgid "Mar"
+msgstr "бер."
+
+#: src/util.rs:82
+msgctxt "month"
+msgid "Apr"
+msgstr "квіт."
+
+#: src/util.rs:83 src/ui/activity.rs:39
+msgctxt "month"
+msgid "May"
+msgstr "трав."
+
+#: src/util.rs:84
+msgctxt "month"
+msgid "Jun"
+msgstr "черв."
+
+#: src/util.rs:85
+msgctxt "month"
+msgid "Jul"
+msgstr "лип."
+
+#: src/util.rs:86
+msgctxt "month"
+msgid "Aug"
+msgstr "серп."
+
+#: src/util.rs:87
+msgctxt "month"
+msgid "Sep"
+msgstr "вер."
+
+#: src/util.rs:88
+msgctxt "month"
+msgid "Oct"
+msgstr "жовт."
+
+#: src/util.rs:89
+msgctxt "month"
+msgid "Nov"
+msgstr "лист."
+
+#: src/util.rs:90
+msgctxt "month"
+msgid "Dec"
+msgstr "груд."
+
+#. Translators: A date. {month} is an abbreviated month name; reorder as your language writes dates.
+#: src/util.rs:96 src/ui/activity.rs:66
+#, rust-format
+msgid "{month} {day}, {year}"
+msgstr "{day} {month} {year} р."
+
+#. Translators: A month and year. {month} is an abbreviated month name.
+#: src/util.rs:99
+#, rust-format
+msgid "{month} {year}"
+msgstr "{month} {year} р."
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:125
+#, rust-format
+msgid "{count} second ago"
+msgid_plural "{count} seconds ago"
+msgstr[0] "{count} секунду тому"
+msgstr[1] "{count} секунди тому"
+msgstr[2] "{count} секунд тому"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:135
+#, rust-format
+msgid "{count} minute ago"
+msgid_plural "{count} minutes ago"
+msgstr[0] "{count} хвилину тому"
+msgstr[1] "{count} хвилини тому"
+msgstr[2] "{count} хвилин тому"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:145
+#, rust-format
+msgid "{count} hour ago"
+msgid_plural "{count} hours ago"
+msgstr[0] "{count} годину тому"
+msgstr[1] "{count} години тому"
+msgstr[2] "{count} годин тому"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:153
+#, rust-format
+msgid "{count} day ago"
+msgid_plural "{count} days ago"
+msgstr[0] "{count} день тому"
+msgstr[1] "{count} дні тому"
+msgstr[2] "{count} днів тому"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:160
+#, rust-format
+msgid "{count} week ago"
+msgid_plural "{count} weeks ago"
+msgstr[0] "{count} тиждень тому"
+msgstr[1] "{count} тижні тому"
+msgstr[2] "{count} тижнів тому"
+
+#: src/util.rs:443
+msgid "Good morning"
+msgstr "Доброго ранку"
+
+#: src/util.rs:444
+msgid "Good afternoon"
+msgstr "Доброго дня"
+
+#: src/util.rs:445
+msgid "Good evening"
+msgstr "Доброго вечора"
+
+#: src/window.rs:20
+msgid "Tidalfast cannot open its window"
+msgstr "Tidalfast не може відкрити своє вікно"
+
+#: src/window.rs:23
+msgid ""
+"On Windows on ARM, the OpenGL that Tidalfast draws with comes from "
+"Microsoft's OpenCL, OpenGL & Vulkan Compatibility Pack. Open its Microsoft "
+"Store page to install or repair it?"
+msgstr ""
+"У Windows на ARM Tidalfast використовує OpenGL із пакета Microsoft OpenCL, "
+"OpenGL & Vulkan Compatibility Pack. Відкрити його сторінку в Microsoft "
+"Store, щоб установити або відновити пакет?"
+
+#: src/ui/feed.rs:58
+msgid "New releases from artists you follow will show up here."
+msgstr "Тут з’являться нові релізи виконавців, за якими ви стежите."
+
+#: src/ui/feed.rs:73
+msgid "This month"
+msgstr "Цього місяця"
+
+#: src/ui/feed.rs:74
+msgid "Last month"
+msgstr "Минулого місяця"
+
+#: src/ui/feed.rs:75
+msgid "Older"
+msgstr "Раніше"
+
+#: src/ui/feed.rs:123
+#, rust-format
+msgid "Single by {artists}"
+msgstr "Сингл: {artists}"
+
+#: src/ui/feed.rs:126
+#, rust-format
+msgid "EP by {artists}"
+msgstr "EP: {artists}"
+
+#: src/ui/home_feeds.rs:54
+msgid "Staff Picks"
+msgstr "Вибір редакції"
+
+#: src/ui/profile.rs:67
+msgctxt "profile"
+msgid "Followers"
+msgstr "Підписники"
+
+#: src/ui/profile.rs:71
+msgctxt "profile"
+msgid "Following"
+msgstr "Підписки"
+
+#: src/ui/profile.rs:133
+msgid "No public playlists yet."
+msgstr "Публічних плейлистів ще немає."
+
+#: src/ui/menus.rs:60 src/ui/activity.rs:1564
+msgctxt "menu head"
+msgid "Artist"
+msgstr "Виконавець"
+
+#: src/ui/menus.rs:92
+#, rust-format
+msgid "{count} Item ({duration})"
+msgid_plural "{count} Items ({duration})"
+msgstr[0] "{count} елемент ({duration})"
+msgstr[1] "{count} елементи ({duration})"
+msgstr[2] "{count} елементів ({duration})"
+
+#: src/ui/menus.rs:318
+msgid "Share with anyone"
+msgstr "Поділитися з будь-ким"
+
+#: src/ui/menus.rs:331
+msgid "Music shared from TIDAL can be opened on other services"
+msgstr "Музику з TIDAL можна відкрити й в інших сервісах"
+
+#: src/ui/menus.rs:412
+msgid "Invite as collaborator"
+msgstr "Запросити як співавтора"
+
+#: src/ui/menus.rs:423
+msgid "Every invite link can be used once."
+msgstr "Кожне посилання-запрошення можна використати лише один раз."
+
+#: src/ui/menus.rs:459 src/ui/uploads.rs:368
+msgid "Copy link"
+msgstr "Копіювати посилання"
+
+#: src/ui/menus.rs:555
+msgid "Create new playlist"
+msgstr "Створити плейлист"
+
+#: src/ui/menus.rs:569
+msgid "Show all playlists"
+msgstr "Показати всі плейлисти"
+
+#: src/ui/menus.rs:606
+msgid "Move to folder"
+msgstr "Перемістити до теки"
+
+#: src/ui/menus.rs:627
+msgid "Create folder"
+msgstr "Створити теку"
+
+#: src/ui/menus.rs:646
+msgid "Show all folders"
+msgstr "Показати всі теки"
+
+#: src/ui/menus.rs:684
+msgid "Go to artist"
+msgstr "Перейти до виконавця"
+
+#: src/ui/menus.rs:752
+msgid "Remove from Save for Later"
+msgstr "Прибрати зі «Зберегти на потім»"
+
+#: src/ui/menus.rs:906 src/ui/menus.rs:1031 src/ui/menus.rs:1342
+#: src/ui/videos.rs:354
+msgid "Play next"
+msgstr "Відтворити наступним"
+
+#: src/ui/menus.rs:916
+msgid "Remove from queue"
+msgstr "Видалити з черги"
+
+#: src/ui/menus.rs:937 src/ui/menus.rs:1042
+msgid "Remove from playlist"
+msgstr "Вилучити з плейлиста"
+
+#: src/ui/menus.rs:951
+msgid "Go to track radio"
+msgstr "Перейти до радіо треку"
+
+#: src/ui/menus.rs:967
+msgid "Go to album"
+msgstr "Перейти до альбому"
+
+#: src/ui/menus.rs:990 src/ui/menus.rs:1375 src/ui/now_playing.rs:887
+#: src/ui/now_playing_video.rs:323 src/ui/videos.rs:385
+msgid "Add to queue"
+msgstr "Додати до черги"
+
+#: src/ui/menus.rs:1438
+msgid "NEW"
+msgstr "НОВЕ"
+
+#: src/ui/menus.rs:1446
+msgid "Make private"
+msgstr "Зробити приватним"
+
+#: src/ui/menus.rs:1448
+msgid "Make public"
+msgstr "Зробити публічним"
+
+#: src/ui/menus.rs:1470
+msgid "Follow"
+msgstr "Стежити"
+
+#: src/ui/menus.rs:1494
+msgid "Bio"
+msgstr "Біографія"
+
+#: src/ui/menus.rs:1499
+msgid "Go to artist radio"
+msgstr "Перейти до радіо виконавця"
+
+#: src/ui/menus.rs:1508 src/ui/blocked.rs:134
+msgid "Unblock"
+msgstr "Розблокувати"
+
+#: src/ui/menus.rs:1510
+msgid "Block"
+msgstr "Заблокувати"
+
+#: src/ui/downloads.rs:38
+msgid "Offline mode is on"
+msgstr "Автономний режим увімкнено"
+
+#: src/ui/downloads.rs:50
+msgid ""
+"Only your downloads are available. Turn off offline mode to use TIDAL again."
+msgstr ""
+"Доступні лише ваші завантаження. Вимкніть автономний режим, щоб знову "
+"користуватися TIDAL."
+
+#: src/ui/downloads.rs:67
+msgid "This needs a connection. Turn off offline mode to use TIDAL again."
+msgstr ""
+"Для цього потрібне підключення. Вимкніть автономний режим, щоб знову "
+"користуватися TIDAL."
+
+#: src/ui/downloads.rs:127
+msgid ""
+"Offline mode is on. Only your downloads play, and Tidalfast makes no "
+"requests to TIDAL."
+msgstr ""
+"Автономний режим увімкнено. Відтворюються лише ваші завантаження, а "
+"Tidalfast не надсилає запити до TIDAL."
+
+#: src/ui/downloads.rs:168
+msgid "You're offline. Only downloaded tracks play until you reconnect."
+msgstr "Ви офлайн. До повторного підключення грають лише завантажені треки."
+
+#: src/ui/downloads.rs:191
+msgid "Download queue"
+msgstr "Черга завантажень"
+
+#: src/ui/downloads.rs:198
+msgid "Cancel all"
+msgstr "Скасувати все"
+
+#: src/ui/downloads.rs:210
+msgid "Retry failed"
+msgstr "Повторити невдалі"
+
+#: src/ui/downloads.rs:220
+msgid "Resume all"
+msgstr "Відновити все"
+
+#: src/ui/downloads.rs:226
+msgid "Pause all"
+msgstr "Призупинити все"
+
+#: src/ui/downloads.rs:241
+msgid ""
+"Waiting for a connection that is not metered. Settings can allow metered "
+"connections."
+msgstr ""
+"Очікування нелімітного з’єднання. У налаштуваннях можна дозволити лімітні "
+"з’єднання."
+
+#: src/ui/downloads.rs:255
+msgid "TIDAL asked downloads to slow down. They carry on shortly."
+msgstr "TIDAL попросив уповільнити завантаження. Вони невдовзі продовжаться."
+
+#: src/ui/downloads.rs:319 src/ui/downloads.rs:473
+msgid "Cancel download"
+msgstr "Скасувати завантаження"
+
+#: src/ui/downloads.rs:339
+#, rust-format
+msgid "Downloading {done} of {total}"
+msgstr "Завантаження {done} з {total}"
+
+#: src/ui/downloads.rs:401
+msgid "Waiting"
+msgstr "Очікування"
+
+#: src/ui/downloads.rs:419
+msgid "Paused"
+msgstr "Призупинено"
+
+#: src/ui/downloads.rs:424
+msgid "Failed"
+msgstr "Помилка"
+
+#: src/ui/downloads.rs:483
+msgid "Resume download"
+msgstr "Відновити завантаження"
+
+#: src/ui/downloads.rs:493
+msgid "Pause download"
+msgstr "Призупинити завантаження"
+
+#: src/ui/downloads.rs:510
+msgid "Mixes"
+msgstr "Мікси"
+
+#: src/ui/downloads.rs:511 src/ui/blocked.rs:82 src/ui/save_later.rs:23
+msgid "Artists"
+msgstr "Виконавці"
+
+#: src/ui/downloads.rs:537 src/app/downloads.rs:811
+#, rust-format
+msgid "Songs not available: {count}"
+msgstr "Недоступні пісні: {count}"
+
+#: src/app/downloads.rs:201
+msgid "Download started"
+msgstr "Завантаження розпочато"
+
+#: src/app/downloads.rs:243
+msgid "The disk is full. Free up space, then resume the downloads."
+msgstr "Диск заповнений. Звільніть місце й відновіть завантаження."
+
+#: src/app/downloads.rs:480
+msgid "Download removed"
+msgstr "Завантаження видалено"
+
+#: src/app/downloads.rs:792
+msgid "A download failed"
+msgstr "Не вдалося завантажити трек"
+
+#: src/app/downloads.rs:872
+#, rust-format
+msgid "Couldn't download {name}"
+msgstr "Не вдалося завантажити {name}"
+
+#: src/app/downloads.rs:925
+#, rust-format
+msgid ""
+"There isn't enough disk space for {name}. It needs about {needed}, and "
+"{free} is free."
+msgstr ""
+"Недостатньо місця на диску для «{name}». Потрібно приблизно {needed}, вільно "
+"{free}."
+
+#: src/ui/player_utility.rs:79
+msgid "Unmute"
+msgstr "Увімкнути звук"
+
+#: src/ui/player_utility.rs:81
+msgid "Mute"
+msgstr "Вимкнути звук"
+
+#: src/ui/player_utility.rs:134
+msgid "Volume (%)"
+msgstr "Гучність (%)"
+
+#: src/ui/player_utility.rs:343 src/ui/player_utility.rs:406
+msgid "Sound output"
+msgstr "Виведення звуку"
+
+#: src/ui/player_utility.rs:561 src/ui/player_utility.rs:566
+msgid "Exclusive"
+msgstr "Монопольно"
+
+#: src/ui/compact.rs:288
+msgid "Exit compact mode"
+msgstr "Вийти з компактного режиму"
+
+#: src/ui/equalizer.rs:51
+msgctxt "equalizer filter"
+msgid "Peak"
+msgstr "Пік"
+
+#: src/ui/equalizer.rs:52
+msgctxt "equalizer filter"
+msgid "Low shelf"
+msgstr "Полиця НЧ"
+
+#: src/ui/equalizer.rs:53
+msgctxt "equalizer filter"
+msgid "High shelf"
+msgstr "Полиця ВЧ"
+
+#: src/ui/equalizer.rs:54
+msgctxt "equalizer filter"
+msgid "Low pass"
+msgstr "Фільтр НЧ"
+
+#: src/ui/equalizer.rs:55
+msgctxt "equalizer filter"
+msgid "High pass"
+msgstr "Фільтр ВЧ"
+
+#: src/ui/equalizer.rs:56
+msgctxt "equalizer filter"
+msgid "Notch"
+msgstr "Режекторний"
+
+#: src/ui/equalizer.rs:57
+msgctxt "equalizer filter"
+msgid "Band pass"
+msgstr "Смуговий"
+
+#: src/ui/equalizer.rs:58
+msgctxt "equalizer filter"
+msgid "All pass"
+msgstr "Усепропускний"
+
+#: src/ui/equalizer.rs:86
+msgid ""
+"Bypassed while bit-perfect is on: the music reaches the device untouched."
+msgstr ""
+"Обходиться, поки ввімкнено bit-perfect: музика доходить до пристрою без змін."
+
+#: src/ui/equalizer.rs:98
+msgctxt "equalizer view"
+msgid "Graphic"
+msgstr "Графічний"
+
+#: src/ui/equalizer.rs:131
+msgid "Remember for each output device"
+msgstr "Запам'ятовувати для кожного пристрою виводу"
+
+#: src/ui/equalizer.rs:143
+msgid "Choosing another output device brings back the equalizer it had."
+msgstr "Вибір іншого пристрою виводу повертає його еквалайзер."
+
+#: src/ui/equalizer.rs:426 src/ui/equalizer.rs:431
+msgid "Automatic"
+msgstr "Автоматично"
+
+#: src/ui/equalizer.rs:441
+#, rust-format
+msgid "Boosts reach {db} dB past full scale; the limiter catches the peaks."
+msgstr "Підсилення перевищують повну шкалу на {db} дБ; лімітер зрізає піки."
+
+#: src/ui/equalizer.rs:445
+msgid "No boost goes past full scale."
+msgstr "Жодне підсилення не перевищує повну шкалу."
+
+#: src/ui/equalizer.rs:460
+msgid "Headphone crossfeed"
+msgstr "Кросфід для навушників"
+
+#: src/ui/equalizer.rs:469
+msgid ""
+"Blends some of each side into the other at low pitches, as speakers do, so "
+"music on headphones sounds less hard-panned."
+msgstr ""
+"Підмішує на низьких частотах трохи кожного каналу в інший, як це роблять "
+"колонки, щоб музика в навушниках звучала менш розділено."
+
+#: src/ui/equalizer.rs:477
+msgctxt "equalizer crossfeed"
+msgid "Off"
+msgstr "Вимкнено"
+
+#: src/ui/equalizer.rs:478
+msgctxt "equalizer crossfeed"
+msgid "Light"
+msgstr "Слабкий"
+
+#: src/ui/equalizer.rs:479
+msgctxt "equalizer crossfeed"
+msgid "Medium"
+msgstr "Середній"
+
+#: src/ui/equalizer.rs:480
+msgctxt "equalizer crossfeed"
+msgid "Strong"
+msgstr "Сильний"
+
+#: src/ui/equalizer.rs:541
+msgctxt "equalizer band"
+msgid "Type"
+msgstr "Тип"
+
+#: src/ui/equalizer.rs:542
+msgctxt "equalizer band"
+msgid "Frequency"
+msgstr "Частота"
+
+#: src/ui/equalizer.rs:543
+msgctxt "equalizer band"
+msgid "Gain"
+msgstr "Підсилення"
+
+#: src/ui/equalizer.rs:613
+msgid "Add band"
+msgstr "Додати смугу"
+
+#: src/ui/equalizer.rs:629
+msgid ""
+"Drag a band on the graph; the mouse wheel sets its width. Double-click the "
+"graph to add one."
+msgstr ""
+"Перетягніть смугу на графіку; коліщатко миші змінює її ширину. Двічі "
+"клацніть графік, щоб додати смугу."
+
+#: src/ui/equalizer.rs:640
+msgid "Your presets"
+msgstr "Ваші пресети"
+
+#: src/ui/equalizer.rs:665
+msgid "Preset name"
+msgstr "Назва пресету"
+
+#: src/ui/equalizer.rs:724
+msgid "Equalizer APO and AutoEQ profiles"
+msgstr "Профілі Equalizer APO та AutoEQ"
+
+#: src/ui/equalizer.rs:745
+msgid "Import"
+msgstr "Імпортувати"
+
+#: src/ui/equalizer.rs:757
+msgid "Copy as Equalizer APO"
+msgstr "Копіювати як Equalizer APO"
+
+#: src/ui/equalizer.rs:781
+#, rust-format
+msgid "Loaded: {headphone}"
+msgstr "Завантажено: {headphone}"
+
+#: src/ui/equalizer.rs:788
+msgid "Loading the headphone list…"
+msgstr "Завантаження списку навушників…"
+
+#: src/ui/equalizer.rs:790
+msgid "Find your headphones"
+msgstr "Знайти свої навушники"
+
+#: src/ui/equalizer.rs:800
+msgid ""
+"Downloads the AutoEQ project's list from GitHub once, then only the profile "
+"you pick."
+msgstr ""
+"Один раз завантажує список проєкту AutoEQ з GitHub, а потім лише вибраний "
+"профіль."
+
+#: src/ui/equalizer.rs:808
+msgid "Search headphones"
+msgstr "Пошук навушників"
+
+#: src/ui/equalizer.rs:826
+#, rust-format
+msgid "{count} more; type more of the name."
+msgstr "Ще {count}; введіть більше від назви."
+
+#: src/ui/audio_output.rs:50
+msgid "the output device"
+msgstr "пристрій виводу"
+
+#: src/ui/audio_output.rs:53
+#, rust-format
+msgid "Bit-perfect · {format} → {device} (exclusive)"
+msgstr "Bit-perfect · {format} → {device} (монопольно)"
+
+#: src/ui/audio_output.rs:58
+msgid "hardware volume"
+msgstr "апаратна гучність"
+
+#: src/ui/audio_output.rs:66
+#, rust-format
+msgid "Exclusive on {device}, but not bit-perfect: this track is lossy."
+msgstr "Монопольно на {device}, але не bit-perfect: цей трек із втратами."
+
+#: src/ui/audio_output.rs:75 src/ui/audio_output.rs:101
+#, rust-format
+msgid "Not bit-perfect: {reason}"
+msgstr "Не bit-perfect: {reason}"
+
+#: src/ui/audio_output.rs:79
+msgid "Bit-perfect starts with the next track you play."
+msgstr "Режим bit-perfect почнеться з наступного треку."
+
+#: src/ui/audio_output.rs:84
+msgid "shared mode"
+msgstr "спільний режим"
+
+#: src/ui/audio_output.rs:89
+#, rust-format
+msgid "resampled to {rate}"
+msgstr "передискретизовано до {rate}"
+
+#: src/ui/audio_output.rs:92
+msgid "equalizer on"
+msgstr "еквалайзер увімкнено"
+
+#: src/ui/audio_output.rs:95
+msgid "volume below 100%"
+msgstr "гучність нижче 100%"
+
+#: src/ui/audio_output.rs:98
+msgid "normalized"
+msgstr "нормалізація"
+
+#: src/ui/audio_output.rs:160
+msgid "Asking the device what it takes…"
+msgstr "Запит форматів у пристрою…"
+
+#: src/ui/audio_output.rs:161
+#, rust-format
+msgid "In exclusive mode this device takes {formats}."
+msgstr "У монопольному режимі цей пристрій приймає {formats}."
+
+#: src/ui/audio_output.rs:173
+msgid "Sample rate conversion"
+msgstr "Перетворення частоти дискретизації"
+
+#: src/ui/audio_output.rs:180
+msgctxt "resampler quality"
+msgid "Same as TIDAL"
+msgstr "Як у TIDAL"
+
+#: src/ui/audio_output.rs:183
+msgctxt "resampler quality"
+msgid "Standard"
+msgstr "Стандартне"
+
+#: src/ui/audio_output.rs:186
+msgctxt "resampler quality"
+msgid "High"
+msgstr "Високе"
+
+#: src/ui/audio_output.rs:189
+msgctxt "resampler quality"
+msgid "Best"
+msgstr "Найкраще"
+
+#: src/ui/audio_output.rs:206
+msgid "Same as TIDAL lets the system convert. The others convert in Tidalfast."
+msgstr ""
+"«Як у TIDAL» доручає перетворення системі. Інші перетворюють у Tidalfast."
+
+#: src/ui/audio_output.rs:223
+#, rust-format
+msgid "This device runs at {rate}, so Tidalfast converts the music."
+msgstr "Цей пристрій працює на {rate}, тому Tidalfast перетворює музику."
+
+#: src/ui/audio_output.rs:235
+msgid "While Tidalfast plays bit-perfect, other apps cannot use this device."
+msgstr ""
+"Поки Tidalfast грає в режимі bit-perfect, інші застосунки не можуть "
+"використовувати цей пристрій."
+
+#: src/ui/audio_output.rs:240
+msgid "Release the device when paused"
+msgstr "Звільняти пристрій на паузі"
+
+#: src/ui/plugins_store.rs:309
+msgid "Rate"
+msgstr "Оцінити"
+
+#: src/ui/plugins_store.rs:650
+msgid "1 update available"
+msgstr "Доступне 1 оновлення"
+
+#: src/ui/plugins_store.rs:652
+#, rust-format
+msgid "{n} updates available"
+msgstr "Доступно оновлень: {n}"
+
+#: src/ui/plugins_store.rs:666
+msgid "Update all"
+msgstr "Оновити все"
+
+#: src/ui/plugins_store.rs:1941
+msgid "Find some in the Plugin Store."
+msgstr "Знайдіть їх у магазині плагінів."
+
+#: src/luna/mod.rs:336
+msgid "Not supported"
+msgstr "Не підтримується"
+
+#: src/luna/mod.rs:337
+msgid "Partly supported"
+msgstr "Підтримується частково"
+
+#: src/luna/mod.rs:361
+msgid ""
+"This build needs TIDAL's own Last.fm key, which Tidalfast does not have."
+msgstr ""
+"Цій збірці потрібен власний ключ Last.fm від TIDAL, якого в Tidalfast немає."
+
+#: src/luna/mod.rs:365
+msgid ""
+"It saves TIDAL songs as files, which Tidalfast does not allow (use Download "
+"in Tidalfast to listen offline)."
+msgstr ""
+"Він зберігає пісні TIDAL як файли, що Tidalfast не дозволяє (щоб слухати "
+"офлайн, використовуйте «Завантажити» в Tidalfast)."
+
+#: src/luna/mod.rs:369
+msgid ""
+"It needs TIDAL's own remote control code, which Tidalfast does not have."
+msgstr ""
+"Йому потрібен власний код віддаленого керування TIDAL, якого в Tidalfast "
+"немає."
+
+#: src/luna/mod.rs:373
+msgid ""
+"It sends your TIDAL sign-in to the author's server, which Tidalfast never "
+"allows, so its remote control cannot run."
+msgstr ""
+"Він надсилає ваші дані для входу в TIDAL на сервер автора, що Tidalfast "
+"ніколи не дозволяє, тому його віддалене керування не може працювати."
+
+#: src/luna/mod.rs:377
+msgid ""
+"Its mini player is a separate browser window, which Tidalfast does not "
+"include."
+msgstr ""
+"Його мініпрогравач — це окреме вікно браузера, якого в Tidalfast немає."
+
+#: src/luna/mod.rs:381
+msgid ""
+"It needs to listen for media keys across the whole computer, which Tidalfast "
+"does not allow (Tidalfast has its own media controls)."
+msgstr ""
+"Йому потрібно відстежувати медіаклавіші в усьому комп'ютері, що Tidalfast не "
+"дозволяє (у Tidalfast є власне керування медіа)."
+
+#: src/luna/mod.rs:385
+msgid ""
+"It plays through the mpv program and talks to it over a channel Tidalfast "
+"does not allow."
+msgstr ""
+"Він відтворює через програму mpv і спілкується з нею каналом, який Tidalfast "
+"не дозволяє."
+
+#: src/luna/mod.rs:389
+msgid ""
+"It marks playlists inside TIDAL's web \"add to playlist\" window, which "
+"Tidalfast does not have."
+msgstr ""
+"Він позначає плейлісти у вебвікні TIDAL «Додати до плейліста», якого в "
+"Tidalfast немає."
+
+#: src/luna/mod.rs:393
+msgid ""
+"It needs a native add-on that Tidalfast cannot load (Tidalfast has its own "
+"media controls)."
+msgstr ""
+"Йому потрібне рідне доповнення, яке Tidalfast не може завантажити (у "
+"Tidalfast є власне керування медіа)."
+
+#: src/luna/mod.rs:397
+msgid ""
+"Last.fm scrobbling needs TIDAL's own Last.fm key, which Tidalfast does not "
+"have."
+msgstr ""
+"Скроблінг у Last.fm потребує власного ключа Last.fm від TIDAL, якого в "
+"Tidalfast немає."
+
+#: src/luna/mod.rs:401
+msgid ""
+"The lyrics bubble over the player bar works, but its separate lyrics window "
+"does not, because that needs a browser engine."
+msgstr ""
+"Бульбашка з текстом пісні над панеллю програвача працює, а окреме вікно з "
+"текстом ні, бо для нього потрібен рушій браузера."
+
+#: src/app/plugins.rs:444
+#, rust-format
+msgid "{name} updated to {version}"
+msgstr "{name} оновлено до {version}"
+
+#: src/ui/activity.rs:35
+msgctxt "month"
+msgid "January"
+msgstr "січень"
+
+#: src/ui/activity.rs:36
+msgctxt "month"
+msgid "February"
+msgstr "лютий"
+
+#: src/ui/activity.rs:37
+msgctxt "month"
+msgid "March"
+msgstr "березень"
+
+#: src/ui/activity.rs:38
+msgctxt "month"
+msgid "April"
+msgstr "квітень"
+
+#: src/ui/activity.rs:40
+msgctxt "month"
+msgid "June"
+msgstr "червень"
+
+#: src/ui/activity.rs:41
+msgctxt "month"
+msgid "July"
+msgstr "липень"
+
+#: src/ui/activity.rs:42
+msgctxt "month"
+msgid "August"
+msgstr "серпень"
+
+#: src/ui/activity.rs:43
+msgctxt "month"
+msgid "September"
+msgstr "вересень"
+
+#: src/ui/activity.rs:44
+msgctxt "month"
+msgid "October"
+msgstr "жовтень"
+
+#: src/ui/activity.rs:45
+msgctxt "month"
+msgid "November"
+msgstr "листопад"
+
+#: src/ui/activity.rs:46
+msgctxt "month"
+msgid "December"
+msgstr "грудень"
+
+#. Translators: A month tab on My Activity. {month} is the month's name, {year} the year's last two digits.
+#: src/ui/activity.rs:78
+#, rust-format
+msgctxt "activity tab"
+msgid "{month} ’{year}"
+msgstr "{month} ’{year}"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of times songs were played.
+#: src/ui/activity.rs:113
+#, rust-format
+msgid "{count} stream"
+msgid_plural "{count} streams"
+msgstr[0] "{count} прослуховування"
+msgstr[1] "{count} прослуховування"
+msgstr[2] "{count} прослуховувань"
+
+#. Translators: Keep {count} exactly as written. Days until this month's ranking closes; shown in capitals.
+#: src/ui/activity.rs:119
+#, rust-format
+msgid "{count} day left"
+msgid_plural "{count} days left"
+msgstr[0] "Залишився {count} день"
+msgstr[1] "Залишилося {count} дні"
+msgstr[2] "Залишилося {count} днів"
+
+#. Translators: {first} and {second} are artists; {first_streams} and {second_streams} read like "84 streams".
+#: src/ui/activity.rs:130
+#, rust-format
+msgid ""
+"{first} and {second} are currently your top streamed artists with "
+"{first_streams} and {second_streams}."
+msgstr ""
+"{first} і {second} зараз ваші найпопулярніші виконавці: {first_streams} і "
+"{second_streams}."
+
+#. Translators: {artist} is an artist; {streams} reads like "84 streams".
+#: src/ui/activity.rs:146
+#, rust-format
+msgid "{artist} is currently your top streamed artist with {streams}."
+msgstr "{artist} зараз ваш найпопулярніший виконавець: {streams}."
+
+#: src/ui/activity.rs:156 src/ui/activity.rs:1120
+msgid "No streams counted yet this month."
+msgstr "Цього місяця прослуховувань ще не враховано."
+
+#. Translators: {artist} is an artist, {month} a month's name, {streams} reads like "258 streams".
+#: src/ui/activity.rs:164
+#, rust-format
+msgid "{artist} was your top artist in {month} with {streams}."
+msgstr "{artist} був вашим головним виконавцем за {month}: {streams}."
+
+#: src/ui/activity.rs:617 src/ui/activity.rs:1121
+msgid "Updated once a day"
+msgstr "Оновлюється раз на день"
+
+#: src/ui/activity.rs:693 src/ui/activity.rs:1020
+msgid "Your Top Artists"
+msgstr "Ваші улюблені виконавці"
+
+#: src/ui/activity.rs:798
+msgid "Previous Month"
+msgstr "Минулий місяць"
+
+#: src/ui/activity.rs:825
+msgid ""
+"Your subscription helps fund TIDAL RISING, a program designed to support "
+"emerging talent."
+msgstr ""
+"Ваша підписка допомагає фінансувати TIDAL RISING, програму підтримки молодих "
+"талантів."
+
+#: src/ui/activity.rs:832
+msgid "Your listening supports artists"
+msgstr "Ваші прослуховування підтримують артистів"
+
+#: src/ui/activity.rs:876
+msgid "Listening in Tidalfast"
+msgstr "Прослуховування в Tidalfast"
+
+#: src/ui/activity.rs:887
+msgid ""
+"Counted on this computer by Tidalfast only. TIDAL's numbers above include "
+"every app you listen with."
+msgstr ""
+"Пораховано лише Tidalfast на цьому комп’ютері. Цифри TIDAL вище охоплюють "
+"усі застосунки, в яких ви слухаєте."
+
+#: src/ui/activity.rs:916
+msgid "Nothing played in Tidalfast this month yet."
+msgstr "Цього місяця в Tidalfast ще нічого не грало."
+
+#. Translators: A listening time like "12 h 5 min". Keep {hours} and {minutes}.
+#: src/ui/activity.rs:924
+#, rust-format
+msgid "{hours} h {minutes} min"
+msgstr "{hours} год {minutes} хв"
+
+#: src/ui/activity.rs:929
+msgid "Listening time this month"
+msgstr "Час прослуховування цього місяця"
+
+#: src/ui/activity.rs:932
+msgid "Streams this month"
+msgstr "Прослуховувань цього місяця"
+
+#: src/ui/activity.rs:1065
+msgctxt "activity tab"
+msgid "This Month"
+msgstr "Цей місяць"
+
+#: src/ui/activity.rs:1143
+msgid "We do our best to calculate your listening activity."
+msgstr "Ми намагаємося якомога точніше підрахувати вашу активність."
+
+#: src/ui/activity.rs:1159
+msgid "Learn more"
+msgstr "Докладніше"
+
+#. Translators: Two artists' names, as in "Bonobo and Khruangbin".
+#: src/ui/activity.rs:1290
+#, rust-format
+msgid "{first} and {second}"
+msgstr "{first} і {second}"
+
+#: src/ui/activity.rs:1397
+msgid "Your most streamed artist"
+msgstr "Ваш найпопулярніший виконавець"
+
+#: src/ui/now_playing.rs:157
+msgid "Similar tracks"
+msgstr "Схожі треки"
+
+#: src/ui/now_playing.rs:375 src/ui/now_playing_video.rs:161
+msgid "Leave full screen (Esc)"
+msgstr "Вийти з повноекранного режиму (Esc)"
+
+#: src/ui/now_playing.rs:377 src/ui/now_playing_video.rs:163
+#: src/ui/titlebar.rs:157
+msgid "Full screen"
+msgstr "На весь екран"
+
+#: src/ui/now_playing.rs:530 src/ui/now_playing_video.rs:374
+msgid "Released"
+msgstr "Випущено"
+
+#: src/ui/now_playing.rs:533
+msgid "Label"
+msgstr "Лейбл"
+
+#: src/ui/now_playing.rs:538
+msgid "No credits for this track."
+msgstr "Для цього треку немає відомостей про авторів."
+
+#: src/ui/now_playing.rs:659
+msgid "Artist Radio"
+msgstr "Радіо виконавця"
+
+#: src/ui/now_playing.rs:671
+msgid "Track Radio"
+msgstr "Радіо треку"
+
+#: src/ui/now_playing.rs:672
+msgid "Track radio"
+msgstr "Радіо треку"
+
+#: src/ui/now_playing.rs:682
+msgid "Suggested tracks"
+msgstr "Рекомендовані треки"
+
+#: src/ui/now_playing_video.rs:176 src/ui/now_playing_video.rs:402
+msgid "Picture-in-picture"
+msgstr "Картинка в картинці"
+
+#: src/ui/now_playing_video.rs:190 src/ui/now_playing_video.rs:339
+msgid "Similar videos"
+msgstr "Схожі відео"
+
+#: src/ui/now_playing_video.rs:206
+msgid "Couldn't load this video's details"
+msgstr "Не вдалося завантажити відомості про це відео"
+
+#: src/ui/now_playing_video.rs:224
+msgid "No similar videos"
+msgstr "Немає схожих відео"
+
+#: src/ui/now_playing_video.rs:363
+msgid "Performer"
+msgstr "Виконавець"
+
+#: src/ui/now_playing_video.rs:483
+msgid "Back to the app"
+msgstr "Повернутися до застосунку"
+
+#: src/ui/now_playing_video.rs:505
+msgid "Back 10 seconds"
+msgstr "Назад на 10 секунд"
+
+#: src/ui/now_playing_video.rs:528
+msgid "Forward 10 seconds"
+msgstr "Вперед на 10 секунд"
+
+#: src/ui/plugins.rs:857
+#, rust-format
+msgid "Loaded plugin {name}!"
+msgstr "Плагін {name} завантажено!"
+
+#: src/ui/plugins.rs:957
+msgid "You have no plugins installed!"
+msgstr "Немає встановлених плагінів!"
+
+#: src/ui/plugins.rs:2042
+msgid "Press keys…"
+msgstr "Натисніть клавіші…"
+
+#: src/ui/plugins.rs:2044
+msgid "Click, then press keys"
+msgstr "Клацніть, потім натисніть клавіші"
+
+#: src/ui/plugins.rs:2092
+#, rust-format
+msgid "Settings crashed: {error}"
+msgstr "Збій налаштувань: {error}"
+
+#: src/ui/titlebar.rs:79
+msgid "Menu"
+msgstr "Меню"
+
+#: src/ui/titlebar.rs:125
+msgid "File"
+msgstr "Файл"
+
+#: src/ui/titlebar.rs:129
+msgid "New playlist"
+msgstr "Новий плейліст"
+
+#: src/ui/titlebar.rs:152
+msgid "Toggle sidebar"
+msgstr "Показати/сховати бічну панель"
+
+#: src/ui/titlebar.rs:163
+msgid "Play/Pause"
+msgstr "Відтворити/Пауза"
+
+#: src/ui/titlebar.rs:184
+msgid "Plugins"
+msgstr "Плагіни"
+
+#: src/ui/videos.rs:71
+msgid "No favourite videos"
+msgstr "Немає улюблених відео"
+
+#: src/ui/videos.rs:72
+msgid "Videos you favourite on TIDAL appear here."
+msgstr "Відео, додані до улюблених у TIDAL, з'являться тут."
+
+#: src/ui/videos.rs:90
+msgid ""
+"You haven't added any videos yet. Tap the heart icon on any video to add it "
+"to your collection."
+msgstr ""
+"Ви ще не додали жодного відео. Торкніться значка серця на будь-якому відео, "
+"щоб додати його до колекції."
+
+#: src/ui/videos.rs:108
+msgid "View TIDAL's top videos"
+msgstr "Переглянути найкращі відео TIDAL"
+
+#: src/ui/videos.rs:392
+msgid "Open on TIDAL"
+msgstr "Відкрити в TIDAL"
+
+#: src/ui/album_credits.rs:138 src/ui/album_credits.rs:781
+msgid "Info"
+msgstr "Інформація"
+
+#: src/ui/album_credits.rs:488 src/ui/album_credits.rs:696
+msgid "No credits for this album."
+msgstr "Для цього альбому немає відомостей про авторів."
+
+#: src/ui/album_credits.rs:709
+msgid "Album Review"
+msgstr "Рецензія на альбом"
+
+#. Translators: {source} is where the text comes from, e.g. TiVo.
+#: src/ui/album_credits.rs:743 src/ui/album_extras.rs:125
+#, rust-format
+msgid "Album review from {source}"
+msgstr "Огляд альбому від {source}"
+
+#: src/ui/album_credits.rs:761
+msgid "Additional Credits"
+msgstr "Додаткові учасники"
+
+#: src/ui/album_extras.rs:62 src/ui/album_extras.rs:121
+msgid "Review"
+msgstr "Огляд"
+
+#: src/ui/album_extras.rs:171
+msgid "Recommended songs"
+msgstr "Рекомендовані треки"
+
+#: src/ui/album_extras.rs:223
+msgid "Refresh list"
+msgstr "Оновити список"
+
+#. Translators: {title} is a song's title; the button adds it to the playlist.
+#: src/ui/album_extras.rs:366
+#, rust-format
+msgid "Add {title} to the playlist"
+msgstr "Додати {title} до плейліста"
+
+#: src/ui/album_extras.rs:401
+msgid "Other versions"
+msgstr "Інші версії"
+
+#. Translators: {artist} is the album's artist.
+#: src/ui/album_extras.rs:410
+#, rust-format
+msgid "More albums by {artist}"
+msgstr "Більше альбомів: {artist}"
+
+#: src/ui/album_extras.rs:414
+msgid "Related albums"
+msgstr "Схожі альбоми"
+
+#: src/ui/album_extras.rs:415
+msgid "Related artists"
+msgstr "Схожі виконавці"
+
+#: src/ui/blocked.rs:88
+msgid "No blocked artists"
+msgstr "Немає заблокованих виконавців"
+
+#: src/ui/blocked.rs:101
+msgid "Songs"
+msgstr "Пісні"
+
+#: src/ui/blocked.rs:107
+msgid "No blocked songs"
+msgstr "Немає заблокованих пісень"
+
+#: src/ui/save_later.rs:35
+msgid ""
+"You haven't saved anything for later yet. Choose Save for Later on an album, "
+"song, artist, playlist or video."
+msgstr ""
+"Ви ще нічого не зберегли на потім. Виберіть «Зберегти на потім» біля "
+"альбому, треку, виконавця, плейлиста або відео."
+
+#: src/ui/save_later.rs:39
+msgid ""
+"You haven't saved any albums for later yet. Choose Save for Later on an "
+"album."
+msgstr ""
+"Ви ще не зберегли на потім жодного альбому. Виберіть «Зберегти на потім» "
+"біля альбому."
+
+#: src/ui/save_later.rs:43
+msgid ""
+"You haven't saved any tracks for later yet. Choose Save for Later on a song."
+msgstr ""
+"Ви ще не зберегли на потім жодного треку. Виберіть «Зберегти на потім» біля "
+"треку."
+
+#: src/ui/save_later.rs:47
+msgid ""
+"You haven't saved any artists for later yet. Choose Save for Later on an "
+"artist."
+msgstr ""
+"Ви ще не зберегли на потім жодного виконавця. Виберіть «Зберегти на потім» "
+"біля виконавця."
+
+#: src/ui/save_later.rs:51
+msgid ""
+"You haven't saved any playlists for later yet. Choose Save for Later on a "
+"playlist."
+msgstr ""
+"Ви ще не зберегли на потім жодного плейлиста. Виберіть «Зберегти на потім» "
+"біля плейлиста."
+
+#: src/ui/save_later.rs:55
+msgid ""
+"You haven't saved any videos for later yet. Choose Save for Later on a video."
+msgstr ""
+"Ви ще не зберегли на потім жодного відео. Виберіть «Зберегти на потім» біля "
+"відео."
+
+#: src/ui/save_later.rs:173
+msgid "Nothing saved for later"
+msgstr "Нічого не збережено на потім"
+
+#: src/ui/purchases.rs:70
+msgid "Some purchases couldn't be shown."
+msgstr "Не вдалося показати деякі покупки."
+
+#: src/ui/purchases.rs:78
+msgid ""
+"You haven't purchased any tracks yet. Discover music uploaded directly by "
+"artists."
+msgstr ""
+"Ви ще не купили жодного треку. Відкрийте для себе музику, яку виконавці "
+"завантажили напряму."
+
+#: src/ui/purchases.rs:83
+msgid ""
+"You haven't purchased any albums yet. Discover music uploaded directly by "
+"artists."
+msgstr ""
+"Ви ще не купили жодного альбому. Відкрийте для себе музику, яку виконавці "
+"завантажили напряму."
+
+#: src/ui/purchases.rs:90
+msgid "No purchases"
+msgstr "Немає покупок"
+
+#: src/ui/purchases.rs:99
+msgid "View Uploads"
+msgstr "Дивитися завантаження"
+
+#: src/app/save_later.rs:87
+msgid "Added to Save for Later"
+msgstr "Додано до «Зберегти на потім»"
+
+#: src/app/save_later.rs:89
+msgid "Removed from Save for Later"
+msgstr "Прибрано зі «Зберегти на потім»"
+
+#. Translators: {error} is an error message.
+#: src/app/save_later.rs:156
+#, rust-format
+msgid "Couldn't update Save for Later: {error}"
+msgstr "Не вдалося оновити «Зберегти на потім»: {error}"
+
+#: src/ui/uploads.rs:96
+msgid "An error occurred while loading your uploads. Please try again later."
+msgstr ""
+"Сталася помилка під час отримання ваших завантажень. Спробуйте пізніше."
+
+#: src/ui/uploads.rs:107
+msgid "Find new fans for your music"
+msgstr "Знайдіть нових шанувальників для своєї музики"
+
+#: src/ui/uploads.rs:110
+msgid ""
+"Upload your track and share it with listeners or collaborators right away"
+msgstr ""
+"Завантажте свій трек і одразу поділіться ним зі слухачами або співавторами"
+
+#: src/ui/uploads.rs:128
+msgid "Or drag and drop file"
+msgstr "Або перетягніть файл сюди"
+
+#: src/ui/uploads.rs:242
+msgid "Uploading..."
+msgstr "Завантаження..."
+
+#: src/ui/uploads.rs:359 src/ui/uploads.rs:1108
+msgid "Edit album"
+msgstr "Змінити альбом"
+
+#: src/ui/uploads.rs:379
+msgid "Delete album"
+msgstr "Видалити альбом"
+
+#: src/ui/uploads.rs:445
+msgid "Delete album and tracks?"
+msgstr "Видалити альбом і треки?"
+
+#: src/ui/uploads.rs:448
+msgid ""
+"This will permanently delete the album and all tracks it contains. You can't "
+"undo this action."
+msgstr ""
+"Альбом і всі його треки буде видалено назавжди. Цю дію неможливо скасувати."
+
+#: src/ui/uploads.rs:460
+msgid "Delete track?"
+msgstr "Видалити трек?"
+
+#: src/ui/uploads.rs:463
+#, rust-format
+msgid "“{title}” will be permanently deleted. You can't undo this action."
+msgstr "«{title}» буде видалено назавжди. Цю дію неможливо скасувати."
+
+#: src/ui/uploads.rs:518
+#, rust-format
+msgid "Organize {count} new track"
+msgid_plural "Organize {count} new tracks"
+msgstr[0] "Упорядкувати {count} новий трек"
+msgstr[1] "Упорядкувати {count} нові треки"
+msgstr[2] "Упорядкувати {count} нових треків"
+
+#: src/ui/uploads.rs:528 src/ui/uploads.rs:634
+msgid "Place this track into one of your existing albums."
+msgstr "Помістіть цей трек в один із ваших альбомів."
+
+#: src/ui/uploads.rs:532 src/ui/uploads.rs:638
+msgid "Place these tracks into one of your existing albums"
+msgstr "Помістіть ці треки в один із ваших альбомів"
+
+#: src/ui/uploads.rs:539 src/ui/uploads.rs:632
+msgid "Add to an existing album"
+msgstr "Додати до наявного альбому"
+
+#: src/ui/uploads.rs:550
+msgid "Upload as Single"
+msgstr "Завантажити як сингл"
+
+#: src/ui/uploads.rs:553
+msgid "Upload as an individual Single. You can turn it into an album later."
+msgstr "Завантажте як окремий сингл. Пізніше його можна перетворити на альбом."
+
+#: src/ui/uploads.rs:643 src/ui/uploads.rs:1559
+msgid "Move to another album"
+msgstr "Перемістити до іншого альбому"
+
+#: src/ui/uploads.rs:644
+msgid "Choose the album this track goes into."
+msgstr "Виберіть альбом, до якого потрапить цей трек."
+
+#: src/ui/uploads.rs:746
+msgid "Move"
+msgstr "Перемістити"
+
+#: src/ui/uploads.rs:1103
+msgid "New single"
+msgstr "Новий сингл"
+
+#: src/ui/uploads.rs:1104
+msgid "New EP"
+msgstr "Новий EP"
+
+#: src/ui/uploads.rs:1105
+msgid "New album"
+msgstr "Новий альбом"
+
+#: src/ui/uploads.rs:1179
+msgid "Change Image"
+msgstr "Змінити зображення"
+
+#: src/ui/uploads.rs:1188
+msgid "Show spectrogram"
+msgstr "Показати спектрограму"
+
+#: src/ui/uploads.rs:1190
+msgid "Create spectrogram"
+msgstr "Створити спектрограму"
+
+#: src/ui/uploads.rs:1209 src/app/uploads.rs:383 src/app/uploads.rs:692
+msgid "We're generating your spectrogram artwork. It should be ready soon."
+msgstr "Ми створюємо обкладинку зі спектрограми. Незабаром вона буде готова."
+
+#: src/ui/uploads.rs:1253
+msgid "Artist name"
+msgstr "Ім’я виконавця"
+
+#: src/ui/uploads.rs:1278
+msgid "Album type"
+msgstr "Тип альбому"
+
+#: src/ui/uploads.rs:1289
+msgid "EP"
+msgstr "EP"
+
+#: src/ui/uploads.rs:1311
+msgid "Visibility"
+msgstr "Видимість"
+
+#: src/ui/uploads.rs:1324
+msgid "Discoverable and streamable when at least one track is public."
+msgstr "Можна знайти й відтворити, коли принаймні один трек публічний."
+
+#: src/ui/uploads.rs:1332
+msgid "Unlisted"
+msgstr "За посиланням"
+
+#: src/ui/uploads.rs:1336
+msgid ""
+"Only visible to you and anyone with the link. Hidden from profiles when all "
+"tracks are private."
+msgstr ""
+"Видно лише вам і всім, хто має посилання. Приховано з профілів, коли всі "
+"треки приватні."
+
+#: src/ui/uploads.rs:1354
+msgid ""
+"This album contains tracks that are still being uploaded or scanned. You can "
+"change visibility once all tracks have finished scanning."
+msgstr ""
+"В альбомі є треки, які ще завантажуються або перевіряються. Видимість можна "
+"буде змінити, коли перевірку всіх треків буде завершено."
+
+#: src/ui/uploads.rs:1371
+msgid "Artwork created from the unique characteristics of your track"
+msgstr "Обкладинка, створена з унікальних характеристик вашого треку"
+
+#: src/ui/uploads.rs:1439
+msgid "Add tracks"
+msgstr "Додати треки"
+
+#: src/ui/uploads.rs:1455
+msgid "This album has no tracks"
+msgstr "В альбомі немає треків"
+
+#: src/ui/uploads.rs:1496
+msgid "Preparing..."
+msgstr "Підготовка..."
+
+#: src/ui/uploads.rs:1499
+#, rust-format
+msgid "Uploading ({percent}%)..."
+msgstr "Завантаження ({percent}%)..."
+
+#: src/ui/uploads.rs:1507
+msgid "Scanning…"
+msgstr "Перевірка…"
+
+#: src/ui/uploads.rs:1510
+msgid "Flagged"
+msgstr "Позначено"
+
+#: src/ui/uploads.rs:1511
+msgid "Error uploading file"
+msgstr "Помилка завантаження файлу"
+
+#: src/ui/uploads.rs:1552 src/ui/uploads.rs:1787
+msgid "Edit track details"
+msgstr "Змінити відомості про трек"
+
+#: src/ui/uploads.rs:1568
+msgid "Copy track link"
+msgstr "Копіювати посилання на трек"
+
+#: src/ui/uploads.rs:1576
+msgid "Delete track"
+msgstr "Видалити трек"
+
+#: src/ui/uploads.rs:1719
+msgid "Edit name"
+msgstr "Змінити ім’я"
+
+#: src/ui/uploads.rs:1727
+msgid "This name will be used on your profile and all of your tracks."
+msgstr ""
+"Це ім’я використовуватиметься у вашому профілі та для всіх ваших треків."
+
+#: src/app/uploads.rs:166
+msgid "The file is currently uploading. Wait until it's finished."
+msgstr "Файл зараз завантажується. Зачекайте, доки завершиться."
+
+#: src/app/uploads.rs:177
+msgid "Choose a JPEG or PNG image."
+msgstr "Виберіть зображення JPEG або PNG."
+
+#: src/app/uploads.rs:201
+msgid "Before uploading, let us know what name to release your music under."
+msgstr ""
+"Перш ніж завантажувати, скажіть, під яким іменем випустити вашу музику."
+
+#: src/app/uploads.rs:209
+msgid "Your TIDAL artist profile isn't loaded yet. Try again in a moment."
+msgstr ""
+"Ваш профіль виконавця TIDAL ще не завантажено. Спробуйте ще раз за мить."
+
+#: src/app/uploads.rs:224
+msgid "This file format isn't supported."
+msgstr "Цей формат файлу не підтримується."
+
+#: src/app/uploads.rs:250
+msgid "Untitled"
+msgstr "Без назви"
+
+#: src/app/uploads.rs:497
+msgid "Upload deleted"
+msgstr "Завантаження видалено"
+
+#: src/app/uploads.rs:780 src/app/uploads.rs:802 src/app/uploads.rs:805
+msgid "Upload failed. Please try again."
+msgstr "Не вдалося завантажити. Спробуйте ще раз."
+
+#: src/app/uploads.rs:820
+msgid "Upload complete"
+msgstr "Завантаження завершено"
+
+#: src/app/uploads.rs:868
+msgid "Couldn't save your changes. Try again."
+msgstr "Не вдалося зберегти зміни. Спробуйте ще раз."

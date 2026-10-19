@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Contribution and project scope
+    url: https://github.com/CIoudGuy/tidalfast/blob/main/CONTRIBUTING.md
+    about: Check product boundaries and contribution requirements before opening an issue or pull request.
+  - name: Documentation
+    url: https://cioudguy.github.io/tidalfast
+    about: Install steps, settings, and where Tidalfast keeps its files and logs.

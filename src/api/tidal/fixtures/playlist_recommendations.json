@@ -1,0 +1,39 @@
+{
+  "limit": 2,
+  "offset": 0,
+  "totalNumberOfItems": 100,
+  "items": [
+    {
+      "type": "track",
+      "item": {
+        "id": 332900812,
+        "title": "Warrior Song",
+        "duration": 118,
+        "explicit": false,
+        "allowStreaming": true,
+        "streamReady": true,
+        "trackNumber": 1,
+        "volumeNumber": 1,
+        "artist": {"id": 4823102, "name": "An Artist"},
+        "artists": [{"id": 4823102, "name": "An Artist"}, {"id": 7588027, "name": "A Guest"}],
+        "album": {"id": 332900805, "title": "Songs", "cover": "d03a8667-7a36-4db8-bc3a-96b21caaab5a"}
+      }
+    },
+    {
+      "type": "track",
+      "item": {
+        "id": 72355458,
+        "title": "Stereo Test",
+        "duration": 158,
+        "explicit": true,
+        "allowStreaming": true,
+        "streamReady": true,
+        "trackNumber": 2,
+        "volumeNumber": 1,
+        "artist": {"id": 8656354, "name": "Another Artist"},
+        "artists": [{"id": 8656354, "name": "Another Artist"}],
+        "album": {"id": 72355457, "title": "Test Songs", "cover": null}
+      }
+    }
+  ]
+}

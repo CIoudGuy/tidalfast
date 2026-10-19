@@ -1,0 +1,1116 @@
+// Plugin CSS: <style> elements, constructed stylesheets (adoptedStyleSheets,
+// insertRule, replaceSync), the cascade (specificity, order, !important,
+// inline styles), custom properties with var() fallbacks, @media and
+// @supports, @font-face. dom.js asks compute() for the resolved style of
+// every element when it builds the overlay.
+"use strict";
+(() => {
+	const g = globalThis;
+	const L = g.__lunaInternal;
+	const D = L.dom;
+	const { CSSStyleDeclaration, declProxy, splitDecls } = D;
+	// Plugin and theme CSS together stop here: every cascade and every
+	// overlay flush pays for all of it. A sheet larger than this alone is
+	// not even parsed.
+	const MAX_CSS_BYTES = 4 << 20;
+
+	// ---------------------------------------------------------------- text helpers
+	const stripComments = (s) => {
+		let out = "",
+			q = null;
+		for (let i = 0; i < s.length; i++) {
+			const ch = s[i];
+			if (q) {
+				out += ch;
+				if (ch === "\\") out += s[++i] ?? "";
+				else if (ch === q) q = null;
+			} else if (ch === '"' || ch === "'") {
+				q = ch;
+				out += ch;
+			} else if (ch === "/" && s[i + 1] === "*") {
+				const end = s.indexOf("*/", i + 2);
+				i = end < 0 ? s.length : end + 1;
+			} else out += ch;
+		}
+		return out;
+	};
+	// Read from `i` up to the first top-level char in `stops`; returns [text, index].
+	const readUntil = (s, i, stops) => {
+		let depth = 0,
+			q = null;
+		const st = i;
+		for (; i < s.length; i++) {
+			const ch = s[i];
+			if (q) {
+				if (ch === "\\") i++;
+				else if (ch === q) q = null;
+			} else if (depth === 0 && stops.includes(ch)) break;
+			else if (ch === '"' || ch === "'") q = ch;
+			else if (ch === "(" || ch === "[") depth++;
+			else if (ch === ")" || ch === "]") depth = Math.max(0, depth - 1);
+		}
+		return [s.slice(st, i), i];
+	};
+	// After a "{" at i-1: the block body and the index after the matching "}".
+	const readBlock = (s, i) => {
+		let depth = 1,
+			q = null;
+		const st = i;
+		for (; i < s.length; i++) {
+			const ch = s[i];
+			if (q) {
+				if (ch === "\\") i++;
+				else if (ch === q) q = null;
+			} else if (ch === '"' || ch === "'") q = ch;
+			else if (ch === "{") depth++;
+			else if (ch === "}" && --depth === 0) break;
+		}
+		return [s.slice(st, i), i + 1];
+	};
+
+	// ---------------------------------------------------------------- CSSOM
+	class CSSRule {
+		constructor(sheet, parent) {
+			this.parentStyleSheet = sheet ?? null;
+			this.parentRule = parent ?? null;
+		}
+	}
+	Object.assign(CSSRule, { STYLE_RULE: 1, CHARSET_RULE: 2, IMPORT_RULE: 3, MEDIA_RULE: 4, FONT_FACE_RULE: 5, PAGE_RULE: 6, KEYFRAMES_RULE: 7, KEYFRAME_RULE: 8, NAMESPACE_RULE: 10, SUPPORTS_RULE: 12 });
+	const ruleChanged = () => D.cssChanged();
+	class CSSStyleRule extends CSSRule {
+		constructor(sel, body, sheet, parent) {
+			super(sheet, parent);
+			this._isRule = true;
+			this._sel = String(sel).trim();
+			this._decl = new CSSStyleDeclaration(this);
+			this._decl._setSilently(body);
+			this.cssRules = [];
+			this._parsed = undefined;
+		}
+		get type() {
+			return 1;
+		}
+		get selectorText() {
+			return this._sel;
+		}
+		set selectorText(v) {
+			this._sel = String(v).trim();
+			this._parsed = undefined;
+			ruleChanged();
+		}
+		get style() {
+			return (this._proxy ??= declProxy(this._decl));
+		}
+		set style(v) {
+			this._decl.cssText = v;
+		}
+		_styleChanged() {
+			ruleChanged();
+		}
+		get cssText() {
+			return `${this._sel} { ${this._decl.cssText} }`;
+		}
+		get selectors() {
+			if (this._parsed === undefined) {
+				try {
+					this._parsed = D.sel.parse(this._sel);
+				} catch {
+					this._parsed = null;
+				}
+			}
+			return this._parsed;
+		}
+	}
+	class CSSGroupingRule extends CSSRule {
+		constructor(cond, body, sheet, parent) {
+			super(sheet, parent);
+			this.conditionText = String(cond).trim();
+			this.cssRules = parseRules(body, sheet, this);
+		}
+		insertRule(text, index = 0) {
+			const rs = parseRules(String(text), this.parentStyleSheet, this);
+			if (!rs.length) throw new g.DOMException("Failed to parse the rule", "SyntaxError");
+			this.cssRules.splice(index, 0, rs[0]);
+			ruleChanged();
+			return index;
+		}
+		deleteRule(i) {
+			this.cssRules.splice(i, 1);
+			ruleChanged();
+		}
+	}
+	class CSSMediaRule extends CSSGroupingRule {
+		get type() {
+			return 4;
+		}
+		get media() {
+			return { mediaText: this.conditionText, length: 1, item: () => this.conditionText };
+		}
+		get active() {
+			return D.evalMedia(this.conditionText);
+		}
+		get cssText() {
+			return `@media ${this.conditionText} { ${this.cssRules.map((r) => r.cssText).join(" ")} }`;
+		}
+	}
+	class CSSSupportsRule extends CSSGroupingRule {
+		get type() {
+			return 12;
+		}
+		get active() {
+			return !/^\s*not\b/i.test(this.conditionText);
+		}
+		get cssText() {
+			return `@supports ${this.conditionText} { ${this.cssRules.map((r) => r.cssText).join(" ")} }`;
+		}
+	}
+	class CSSLayerBlockRule extends CSSGroupingRule {
+		get type() {
+			return 0;
+		}
+		get active() {
+			return true;
+		}
+		get cssText() {
+			return `@layer ${this.conditionText} { ${this.cssRules.map((r) => r.cssText).join(" ")} }`;
+		}
+	}
+	class CSSOtherRule extends CSSRule {
+		constructor(name, prelude, body, sheet, parent) {
+			super(sheet, parent);
+			this.name = name;
+			this._prelude = String(prelude).trim();
+			this._body = body;
+			this.cssRules = [];
+		}
+		get type() {
+			return /keyframes/.test(this.name) ? 7 : this.name === "import" ? 3 : 0;
+		}
+		get cssText() {
+			return this._body === null ? `@${this.name} ${this._prelude};` : `@${this.name} ${this._prelude} { ${this._body} }`;
+		}
+	}
+	class CSSFontFaceRule extends CSSRule {
+		constructor(body, sheet, parent) {
+			super(sheet, parent);
+			this._decl = new CSSStyleDeclaration(this);
+			this._decl._setSilently(body);
+		}
+		get type() {
+			return 5;
+		}
+		get style() {
+			return declProxy(this._decl);
+		}
+		_styleChanged() {
+			ruleChanged();
+		}
+		get cssText() {
+			return `@font-face { ${this._decl.cssText} }`;
+		}
+	}
+	// Style rule body: declarations, plus nested rules (CSS nesting).
+	const styleRule = (sel, body, sheet, parent, out) => {
+		if (!body.includes("{")) {
+			out.push(new CSSStyleRule(sel, body, sheet, parent));
+			return;
+		}
+		let decls = "";
+		const nested = [];
+		let i = 0;
+		while (i < body.length) {
+			const [pre, j] = readUntil(body, i, ";{");
+			if (body[j] === "{") {
+				const [inner, k] = readBlock(body, j + 1);
+				nested.push([pre.trim(), inner]);
+				i = k;
+			} else {
+				decls += `${pre};`;
+				i = j + 1;
+			}
+		}
+		out.push(new CSSStyleRule(sel, decls, sheet, parent));
+		const parents = splitTopComma(sel);
+		for (const [pre, inner] of nested) {
+			if (pre.startsWith("@")) {
+				const rs = parseRules(`${pre} { ${sel} { ${inner} } }`, sheet, parent);
+				out.push(...rs);
+				continue;
+			}
+			const full = splitTopComma(pre)
+				.flatMap((p) => parents.map((par) => (p.includes("&") ? p.replace(/&/g, par) : `${par} ${p}`)))
+				.join(", ");
+			styleRule(full, inner, sheet, parent, out);
+		}
+	};
+	const splitTopComma = (s) => {
+		const out = [];
+		let i = 0;
+		while (i <= s.length) {
+			const [p, j] = readUntil(s, i, ",");
+			out.push(p.trim());
+			i = j + 1;
+		}
+		return out.filter(Boolean);
+	};
+	const parseRules = (text, sheet, parent) => {
+		const s = stripComments(String(text ?? ""));
+		const out = [];
+		let i = 0;
+		while (i < s.length) {
+			while (i < s.length && /[\s;]/.test(s[i])) i++;
+			if (i >= s.length) break;
+			if (s[i] === "}") {
+				i++;
+				continue;
+			}
+			const [pre, j] = readUntil(s, i, ";{}");
+			const prelude = pre.trim();
+			if (s[j] !== "{") {
+				// statement at-rule (@import, @charset, @layer a, b;) or junk
+				if (prelude.startsWith("@")) {
+					const m = /^@([\w-]+)\s*([\s\S]*)$/.exec(prelude);
+					if (m) out.push(new CSSOtherRule(m[1].toLowerCase(), m[2], null, sheet, parent));
+				}
+				i = j + 1;
+				continue;
+			}
+			const [body, k] = readBlock(s, j + 1);
+			i = k;
+			if (prelude.startsWith("@")) {
+				const m = /^@([\w-]+)\s*([\s\S]*)$/.exec(prelude);
+				if (!m) continue;
+				const name = m[1].toLowerCase();
+				const cond = m[2];
+				if (name === "media") out.push(new CSSMediaRule(cond, body, sheet, parent));
+				else if (name === "supports") out.push(new CSSSupportsRule(cond, body, sheet, parent));
+				else if (name === "layer" || name === "scope" || name === "document" || name === "-moz-document") out.push(new CSSLayerBlockRule(cond, body, sheet, parent));
+				else if (name === "font-face") out.push(new CSSFontFaceRule(body, sheet, parent));
+				else out.push(new CSSOtherRule(name, cond, body, sheet, parent));
+			} else if (prelude) styleRule(prelude, body, sheet, parent, out);
+		}
+		return out;
+	};
+
+	class StyleSheet {}
+	class CSSStyleSheet extends StyleSheet {
+		constructor(opts = {}) {
+			super();
+			this.cssRules = [];
+			this.disabled = !!opts.disabled;
+			this.ownerNode = null;
+			this.ownerRule = null;
+			this.href = null;
+			this.title = null;
+			this.type = "text/css";
+			this._media = opts.media ?? "";
+		}
+		get rules() {
+			return this.cssRules;
+		}
+		get media() {
+			return { mediaText: String(this._media), length: this._media ? 1 : 0, item: () => this._media, appendMedium() {}, deleteMedium() {} };
+		}
+		insertRule(text, index = 0) {
+			const rs = parseRules(String(text), this, null);
+			if (!rs.length) throw new g.DOMException(`Failed to parse the rule '${text}'`, "SyntaxError");
+			if (index < 0 || index > this.cssRules.length) throw new g.DOMException("Index out of range", "IndexSizeError");
+			this.cssRules.splice(index, 0, ...rs);
+			this._cssom = true;
+			ruleChanged();
+			return index;
+		}
+		addRule(sel, style, index) {
+			return this.insertRule(`${sel} { ${style} }`, index ?? this.cssRules.length);
+		}
+		deleteRule(i) {
+			this.cssRules.splice(i, 1);
+			this._cssom = true;
+			ruleChanged();
+		}
+		removeRule(i) {
+			this.deleteRule(i ?? 0);
+		}
+		replaceSync(text) {
+			text = String(text ?? "");
+			this.cssRules = text.length > MAX_CSS_BYTES ? [] : parseRules(text, this, null);
+			this._cssom = true;
+			ruleChanged();
+		}
+		replace(text) {
+			try {
+				this.replaceSync(text);
+				return Promise.resolve(this);
+			} catch (e) {
+				return Promise.reject(e);
+			}
+		}
+	}
+	Object.assign(g, { CSSRule, CSSStyleRule, CSSMediaRule, CSSSupportsRule, CSSFontFaceRule, CSSGroupingRule, CSSStyleSheet, StyleSheet });
+
+	// A <style> element's sheet: reparsed when its text changes, unless the
+	// plugin edited the sheet through the CSSOM since.
+	const sheetOf = (el) => {
+		const text = el.textContent;
+		let sh = el._sheet;
+		if (!sh) {
+			sh = el._sheet = new CSSStyleSheet({ media: el.getAttribute("media") ?? "" });
+			sh.ownerNode = el;
+			sh._src = null;
+		}
+		if (sh._src !== text) {
+			sh._src = text;
+			sh.cssRules = text.length > MAX_CSS_BYTES ? [] : parseRules(text, sh, null);
+			sh._cssom = false;
+		}
+		sh.disabled = sh.disabled || el.hasAttribute("disabled");
+		return sh;
+	};
+	const styleElements = () => {
+		const out = [];
+		for (const e of D.descendants(g.document)) if (e.localName === "style") out.push(e);
+		return out;
+	};
+	const documentSheets = () => {
+		const list = styleElements().map(sheetOf);
+		return Object.assign(list, { item: (i) => list[i] ?? null });
+	};
+
+	// ---------------------------------------------------------------- rule index
+	// What TIDAL's own stylesheet does to its containers that a plugin can
+	// take over by copying their class: the fullscreen now-playing container
+	// covers the view (betterFullscreen swaps in its own player).
+	let tidal = null;
+	const tidalSheet = () => {
+		if (!tidal) {
+			tidal = new CSSStyleSheet();
+			tidal.replaceSync('[class^="_fullscreen_"] { position: absolute; inset: 0; z-index: 10; }');
+		}
+		return tidal;
+	};
+	let index = null;
+	let indexKey = "";
+	// Nothing in the document changed since the index was checked: reuse it
+	// without looking at every style element (getComputedStyle in a loop).
+	let warnedCss = false;
+	let indexGen = -1;
+	let indexSize = "";
+	const buildIndex = () => {
+		const size = `${g.innerWidth}x${g.innerHeight}|${D.colorScheme}`;
+		if (index && indexGen === D.domGen() && indexSize === size) return index;
+		indexGen = D.domGen();
+		indexSize = size;
+		const key = `${D.cssVersion()}|${size}`;
+		const els = styleElements();
+		const sheets = [tidalSheet(), ...els.map(sheetOf), ...(g.document.adoptedStyleSheets ?? [])];
+		const srcKey = `${key}|${els.length}|${sheets.map((s) => (s._src ?? "").length).join(",")}`;
+		if (index && srcKey === indexKey) return index;
+		indexKey = srcKey;
+		const byId = new Map(),
+			byClass = new Map(),
+			byTag = new Map(),
+			byAttr = new Map(),
+			any = [];
+		// `::before` / `::after` rules, indexed the same way: the anchors'
+		// box layers (TIDAL paints header art and glass in them).
+		const pseudoIx = () => ({ byId: new Map(), byClass: new Map(), byTag: new Map(), byAttr: new Map(), any: [], size: 0 });
+		const pseudo = { before: pseudoIx(), after: pseudoIx() };
+		const fonts = [];
+		const keyframes = new Map();
+		let hover = false;
+		// A selector that reads the `style` attribute: inline style changes
+		// then may change which rules match anywhere.
+		let styleAttr = false;
+		// A selector that reads siblings or position (`+`, `~`, `:nth-child`,
+		// `:empty`...): inserting or removing nodes may change what it
+		// matches anywhere.
+		let structural = false;
+		// The compounds that carry a `:has(...)` (their other pseudo-classes
+		// left out): a change inside an element they match may change whether
+		// it matches, and so its whole subtree (scroll-to-playing marks the
+		// playing row with `[aria-rowindex]:has(a[href*=...]) span`).
+		const hasSteps = [];
+		// The same for the rules that also read the style attribute, and
+		// whether one of those looks at siblings: all an inline style
+		// change can reach beyond its element and what is inside it.
+		const hasStyleSteps = [];
+		let styleSiblings = false;
+		const hasIn = (c) => c.pseudos.some((p) => p.name === "has" || (p.list ?? []).some((x) => x.steps.some((st) => hasIn(st.c))));
+		const attrNames = new Set();
+		let order = 0;
+		let bytes = 0;
+		const add = (m, k, r) => {
+			let a = m.get(k);
+			if (!a) m.set(k, (a = []));
+			a.push(r);
+		};
+		const walk = (rules) => {
+			for (const r of rules) {
+				if (r instanceof CSSStyleRule) {
+					const list = r.selectors;
+					if (!list) continue;
+					if (!hover && r._sel.includes(":hover")) hover = true;
+					const readsStyle = /\[\s*style\b/i.test(r._sel);
+					if (readsStyle) styleAttr = true;
+					if (readsStyle && /[+~]/.test(r._sel)) styleSiblings = true;
+					if (!structural && /[+~]|:(nth-|first-child|last-child|only-child|empty|first-of-type|last-of-type|only-of-type)/i.test(r._sel)) structural = true;
+					for (const m of r._sel.matchAll(/\[\s*([\w-]+)/g)) attrNames.add(m[1].toLowerCase());
+					const decls = [...r._decl._m].map(([name, d]) => ({ name, value: d.value, important: d.important }));
+					if (!decls.length) continue;
+					if (r._sel.includes(":has("))
+						for (const sel of list)
+							for (const st of sel.steps)
+								if (hasIn(st.c)) {
+									const step = [{ c: { ...st.c, pseudos: [] } }];
+									hasSteps.push(step);
+									if (readsStyle) hasStyleSteps.push(step);
+								}
+					for (const sel of list) {
+						const last = sel.steps.at(-1).c;
+						let ix = { byId, byClass, byTag, byAttr, any };
+						let steps = sel.steps;
+						if (last.pe) {
+							const p = last.peName && pseudo[last.peName];
+							if (!p) continue;
+							// Match the element the pseudo-element belongs to.
+							steps = [...steps.slice(0, -1), { ...steps.at(-1), c: { ...last, pe: false } }];
+							ix = p;
+							p.size++;
+						}
+						const entry = { steps, spec: sel.spec, order: order++, decls };
+						if (last.ids.length) add(ix.byId, last.ids[0], entry);
+						else if (last.classes.length) add(ix.byClass, D.canonClass(last.classes[0]), entry);
+						else if (last.tag && last.tag !== "*") add(ix.byTag, last.tag.toLowerCase(), entry);
+						else if (last.attrs.length) add(ix.byAttr, last.attrs[0].name, entry);
+						else ix.any.push(entry);
+					}
+				} else if (r instanceof CSSGroupingRule) {
+					if (r.active) walk(r.cssRules);
+				} else if (r instanceof CSSFontFaceRule) {
+					const fam = r._decl.getPropertyValue("font-family").replace(/^["']|["']$/g, "").trim();
+					const src = r._decl.getPropertyValue("src");
+					const m = /url\(\s*(["']?)([^"')]+)\1\s*\)/.exec(src) ?? /local\(\s*(["']?)([^"')]+)\1\s*\)/.exec(src);
+					if (fam && m) {
+							const weight = r._decl.getPropertyValue("font-weight").trim();
+							fonts.push(weight ? { family: fam, src: m[2], weight } : { family: fam, src: m[2] });
+						}
+				} else if (r instanceof CSSOtherRule && r.type === 7 && r._body) {
+					const frames = parseKeyframes(r._body);
+					if (frames.length) keyframes.set(r._prelude.replace(/^["']|["']$/g, ""), frames);
+				}
+			}
+		};
+		let skipped = 0;
+		for (const sh of sheets) {
+			if (!sh || sh.disabled) continue;
+			if (sh._media && !D.evalMedia(sh._media)) continue;
+			if (sh !== tidal) {
+				const size = (sh._src ?? "").length || sh.cssRules.reduce((n, r) => n + (r.cssText?.length ?? 0), 0);
+				if (bytes + size > MAX_CSS_BYTES) {
+					skipped++;
+					continue;
+				}
+				bytes += size;
+			}
+			walk(sh.cssRules);
+		}
+		if (skipped && !warnedCss) L.callOp("log", { plugin: null, level: "warn", msg: `${skipped} style sheet(s) left out: plugin and theme CSS is capped at ${MAX_CSS_BYTES >> 20} MB` });
+		warnedCss = skipped > 0;
+		index = { byId, byClass, byTag, byAttr, any, fonts, keyframes, hover, styleAttr, structural, hasSteps, hasStyleSteps, styleSiblings, attrNames, bytes, size: order, pseudo };
+		return index;
+	};
+	// `@keyframes` body -> [[offset 0..1, Map name -> value]], sorted.
+	const parseKeyframes = (body) => {
+		const out = [];
+		let i = 0;
+		while (i < body.length) {
+			const [pre, j] = readUntil(body, i, "{");
+			if (j >= body.length) break;
+			const [inner, k] = readBlock(body, j + 1);
+			i = k;
+			const decls = new Map();
+			for (const part of splitDecls(inner)) {
+				const c = part.indexOf(":");
+				if (c > 0) decls.set(part.slice(0, c).trim().toLowerCase(), part.slice(c + 1).replace(/!important\s*$/i, "").trim());
+			}
+			for (const sel of pre.split(",")) {
+				const s = sel.trim().toLowerCase();
+				const off = s === "from" ? 0 : s === "to" ? 1 : /%$/.test(s) ? parseFloat(s) / 100 : NaN;
+				if (Number.isFinite(off)) out.push([Math.min(1, Math.max(0, off)), decls]);
+			}
+		}
+		return out.sort((a, b) => a[0] - b[0]);
+	};
+	const usesHover = () => !!buildIndex().hover;
+	const candidates = (ix, el) => {
+		const out = [...ix.any];
+		const id = el._attrs.get("id");
+		if (id) out.push(...(ix.byId.get(id) ?? []));
+		const cls = el._attrs.get("class");
+		if (cls) for (const c of new Set(cls.split(/\s+/).map(D.canonClass))) if (c) out.push(...(ix.byClass.get(c) ?? []));
+		out.push(...(ix.byTag.get(el.localName.toLowerCase()) ?? []));
+		for (const a of el._attrs.keys()) out.push(...(ix.byAttr.get(a.toLowerCase()) ?? []));
+		if (el._style?.length && !el._attrs.has("style")) out.push(...(ix.byAttr.get("style") ?? []));
+		return out;
+	};
+
+	// ---------------------------------------------------------------- cascade
+	// The winning declarations of `el`: Map name -> value (unresolved).
+	// Cascades by element, good while the document and the index stay as
+	// they are (getComputedStyle on every element walks each one's ancestors).
+	let memo = new WeakMap();
+	// The `::before`/`::after` styles of an anchor, good while its cascade is
+	// (forgotten and reset with `memo`).
+	let pmemo = new WeakMap();
+	let memoIx = null;
+	let memoGen = -1;
+	let memoStyleGen = -1;
+	let memoStructGen = -1;
+	const forgetSubtree = (n) => {
+		memo.delete(n);
+		pmemo.delete(n);
+		for (const c of n.childNodes ?? []) forgetSubtree(c);
+	};
+	// Writes a declaration so the map's order is the cascade's: a property
+	// written again moves to the end (a Map keeps a key's first place), and
+	// the `background` shorthand resets its longhands, as in CSS.
+	const put = (m, name, value) => {
+		m.delete(name);
+		if (name === "background") {
+			m.delete("background-color");
+			m.delete("background-image");
+		}
+		m.set(name, value);
+	};
+	const cascade = (ix, el) => {
+		if (memoIx !== ix || memoGen !== D.domGen() || (memoStructGen !== D.structGen() && ix.structural)) {
+			if (L.stat) L.stat(memoIx !== ix ? "recascade: css" : memoGen !== D.domGen() ? "recascade: dom" : "recascade: structure", Date.now());
+			D.cascadeResets = (D.cascadeResets ?? 0) + 1;
+			memo = new WeakMap();
+			pmemo = new WeakMap();
+			memoIx = ix;
+			memoGen = D.domGen();
+			memoStyleGen = D.styleGen();
+			memoStructGen = D.structGen();
+			D.takeRestyled();
+			D.takeInserted();
+			D.takeDetached();
+		}
+		if (memoStructGen !== D.structGen()) {
+			// Nodes came and went (or an element's class changed), and no
+			// selector looks at siblings: only what was inserted (it may have
+			// moved under other ancestors) is matched again, and the subtree of
+			// each ancestor a `:has(...)` rule may match.
+			memoStructGen = D.structGen();
+			const inserted = D.takeInserted();
+			const detached = D.takeDetached();
+			for (const n of inserted) forgetSubtree(n);
+			if (ix.hasSteps.length) {
+				const done = new Set();
+				const up = (a) => {
+					for (let x = a; x instanceof g.Element && !done.has(x); x = x.parentElement) {
+						done.add(x);
+						if (ix.hasSteps.some((st) => D.sel.matchSteps(x, st, null))) forgetSubtree(x);
+					}
+				};
+				for (const n of inserted) up(n.parentElement);
+				for (const p of detached) up(p);
+			}
+		}
+		if (memoStyleGen !== D.styleGen()) {
+			// Only inline styles changed: redo those elements.
+			memoStyleGen = D.styleGen();
+			const els = D.takeRestyled();
+			// A selector that reads the style attribute (Lunallena's
+			// `[style="width: 240px;"]`) can match differently on the element
+			// and what is inside it (`[style] > i`), on the siblings after it
+			// (`[style] + i`) and on the ancestors that have it (`:has`): those
+			// are matched again and every other element keeps its cascade
+			// (TIDAL's progress bar rewrites its style every second, a full
+			// recascade of the page each time).
+			if (ix.styleAttr) {
+				const done = new Set();
+				for (const e of els) {
+					forgetSubtree(e);
+					if (ix.styleSiblings) for (let n = e.nextSibling; n; n = n.nextSibling) forgetSubtree(n);
+					for (let x = ix.hasStyleSteps.length ? e.parentElement : null; x instanceof g.Element && !done.has(x); x = x.parentElement) {
+						done.add(x);
+						if (ix.hasStyleSteps.some((st) => D.sel.matchSteps(x, st, null))) forgetSubtree(x);
+					}
+				}
+			} else for (const e of els) { memo.delete(e); pmemo.delete(e); }
+		}
+		if (memo.has(el)) return memo.get(el);
+		const t0 = L.stat ? Date.now() : 0;
+		const out = cascadeNow(ix, el);
+		if (L.stat) L.stat("css: cascade one", t0);
+		memo.set(el, out);
+		return out;
+	};
+	const cascadeNow = (ix, el) => {
+		// Counted for the tests that check what a change keeps.
+		D.cascadeRuns = (D.cascadeRuns ?? 0) + 1;
+		const live = el.isConnected;
+		const matched = ix.size ? candidates(ix, el).filter((r) => D.sel.matchSteps(el, r.steps, null, live)) : [];
+		const inline = el._style?._m;
+		if (!matched.length && !inline?.size) return null;
+		matched.sort((a, b) => D.sel.cmpSpec(a.spec, b.spec) || a.order - b.order);
+		const normal = new Map();
+		const imp = new Map();
+		for (const r of matched) for (const d of r.decls) put(d.important ? imp : normal, d.name, d.value);
+		if (inline) for (const [k, d] of inline) put(d.important ? imp : normal, k, d.value);
+		for (const [k, v] of imp) put(normal, k, v);
+		return normal;
+	};
+	// The winning declarations of an element's `::before`/`::after` (no
+	// inline style: that is the element's own).
+	const pseudoCascade = (px, el) => {
+		const matched = candidates(px, el).filter((r) => D.sel.matchSteps(el, r.steps, null, true));
+		if (!matched.length) return null;
+		matched.sort((a, b) => D.sel.cmpSpec(a.spec, b.spec) || a.order - b.order);
+		const normal = new Map();
+		const imp = new Map();
+		for (const r of matched) for (const d of r.decls) put(d.important ? imp : normal, d.name, d.value);
+		for (const [k, v] of imp) put(normal, k, v);
+		return normal;
+	};
+	// Resolve var(--x, fallback) against `vars` (Map of unresolved values).
+	// Unknown variables without a fallback stay as written, for the UI's theme.
+	const resolveVars = (value, vars, depth = 0) => {
+		if (!value.includes("var(") || depth > 16) return value;
+		let out = "";
+		let i = 0;
+		for (;;) {
+			const at = value.indexOf("var(", i);
+			if (at < 0) break;
+			out += value.slice(i, at);
+			const [inner, end] = readUntil(value, at + 4, ")");
+			const comma = readUntil(inner, 0, ",")[1];
+			const name = inner.slice(0, comma).trim();
+			const fb = comma < inner.length ? inner.slice(comma + 1).trim() : null;
+			const v = vars.get(name);
+			if (v !== undefined && v.trim() !== "" && v.trim() !== "initial") out += resolveVars(v, vars, depth + 1);
+			else if (fb !== null) out += resolveVars(fb, vars, depth + 1);
+			else out += `var(${name})`;
+			i = end + 1;
+		}
+		return out + value.slice(i);
+	};
+	D.resolveVars = resolveVars;
+	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "column-gap", "padding-top", "padding-left", "padding-right", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "border-color", "letter-spacing", "text-transform", "white-space", "flex", "order", "pointer-events", "background-position", "background-size", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns"]);
+	const ANIM_LONG = ["animation-name", "animation-duration", "animation-delay", "animation-iteration-count", "animation-direction", "animation-timing-function", "animation-play-state"];
+	const seconds = (t) => (/ms$/i.test(t) ? parseFloat(t) / 1000 : parseFloat(t));
+	// `animation` shorthand or longhands -> "name duration delay count direction timing state"
+	// per animation, comma separated (count `infinite` or a number).
+	const animation = (decls) => {
+		const get = (k) => decls.get(k);
+		const list = [];
+		const short = get("animation");
+		if (short && !/^none$/i.test(short.trim())) {
+			for (const part of splitTop(short)) {
+				const a = { name: "", dur: 0, delay: 0, count: "1", dir: "normal", timing: "ease", state: "running" };
+				let times = 0;
+				for (const tok of part.match(/[\w-]+\([^)]*\)|[^\s]+/g) ?? []) {
+					if (/^-?[\d.]+m?s$/i.test(tok)) {
+						if (times++ === 0) a.dur = seconds(tok);
+						else a.delay = seconds(tok);
+					} else if (/^(infinite|[\d.]+)$/i.test(tok)) a.count = tok.toLowerCase();
+					else if (/^(normal|reverse|alternate|alternate-reverse)$/i.test(tok)) a.dir = tok.toLowerCase();
+					else if (/^(linear|ease|ease-in|ease-out|ease-in-out|step-start|step-end)$|^(steps|cubic-bezier)\(/i.test(tok)) a.timing = tok.toLowerCase();
+					else if (/^(paused|running)$/i.test(tok)) a.state = tok.toLowerCase();
+					else if (/^(none|forwards|backwards|both)$/i.test(tok)) {
+						/* fill mode */
+					} else a.name = tok.replace(/^["']|["']$/g, "");
+				}
+				list.push(a);
+			}
+		}
+		const names = get("animation-name");
+		if (names) {
+			const at = (k, i, f) => {
+				const v = get(k);
+				if (!v) return undefined;
+				const p = splitTop(v);
+				return f(p[i % p.length].trim());
+			};
+			splitTop(names).forEach((n, i) => {
+				const a = list[i] ?? (list[i] = { name: "", dur: 0, delay: 0, count: "1", dir: "normal", timing: "ease", state: "running" });
+				a.name = n.trim().replace(/^["']|["']$/g, "");
+			});
+			list.forEach((a, i) => {
+				a.dur = at("animation-duration", i, seconds) ?? a.dur;
+				a.delay = at("animation-delay", i, seconds) ?? a.delay;
+				a.count = at("animation-iteration-count", i, (x) => x.toLowerCase()) ?? a.count;
+				a.dir = at("animation-direction", i, (x) => x.toLowerCase()) ?? a.dir;
+				a.timing = at("animation-timing-function", i, (x) => x.toLowerCase().replace(/\s+/g, "")) ?? a.timing;
+			});
+		}
+		const state = get("animation-play-state");
+		if (state) for (const a of list) a.state = /paused/i.test(state) ? "paused" : "running";
+		const ok = list.filter((a) => a.name && a.name !== "none" && a.dur > 0);
+		return ok.length ? ok.map((a) => `${a.name} ${a.dur} ${a.delay} ${a.count} ${a.dir} ${a.timing.replace(/\s+/g, "")} ${a.state}`).join(",") : null;
+	};
+	// `transition` shorthand or longhands -> "property duration delay timing" per
+	// transition, comma separated (`all`, `opacity`, `transform`...).
+	const TIMING = /^(linear|ease|ease-in|ease-out|ease-in-out|step-start|step-end)$|^(steps|cubic-bezier)\(/i;
+	const transition = (decls) => {
+		const get = (k) => decls.get(k);
+		const list = [];
+		const short = get("transition");
+		if (short && !/^none$/i.test(short.trim())) {
+			for (const part of splitTop(short)) {
+				const t = { prop: "all", dur: 0, delay: 0, timing: "ease" };
+				let times = 0;
+				for (const tok of part.match(/[\w-]+\([^)]*\)|[^\s]+/g) ?? []) {
+					if (/^-?[\d.]+m?s$/i.test(tok)) {
+						if (times++ === 0) t.dur = seconds(tok);
+						else t.delay = seconds(tok);
+					} else if (TIMING.test(tok)) t.timing = tok.toLowerCase().replace(/\s+/g, "");
+					else t.prop = tok.toLowerCase();
+				}
+				list.push(t);
+			}
+		}
+		const props = get("transition-property");
+		if (props) {
+			splitTop(props).forEach((p, i) => {
+				const t = list[i] ?? (list[i] = { prop: "all", dur: 0, delay: 0, timing: "ease" });
+				t.prop = p.trim().toLowerCase();
+			});
+		}
+		const at = (k, i, f) => {
+			const v = get(k);
+			if (!v) return undefined;
+			const p = splitTop(v);
+			return f(p[i % p.length].trim());
+		};
+		list.forEach((t, i) => {
+			t.dur = at("transition-duration", i, seconds) ?? t.dur;
+			t.delay = at("transition-delay", i, seconds) ?? t.delay;
+			t.timing = at("transition-timing-function", i, (x) => x.toLowerCase().replace(/\s+/g, "")) ?? t.timing;
+		});
+		const ok = list.filter((t) => t.dur > 0 && Number.isFinite(t.dur));
+		return ok.length ? ok.map((t) => `${t.prop} ${t.dur} ${t.delay || 0} ${t.timing}`).join(",") : null;
+	};
+	const splitTop = (s) => {
+		const out = [];
+		let i = 0;
+		while (i <= s.length) {
+			const [p, j] = readUntil(s, i, ",");
+			if (p.trim()) out.push(p.trim());
+			i = j + 1;
+		}
+		return out;
+	};
+	const INHERITED = new Set(["color", "font-family", "font-size", "font-weight", "font-style", "visibility", "line-height", "text-align", "cursor", "letter-spacing", "text-transform", "white-space", "direction"]);
+	const isImage = (v) => /url\(|gradient\(|image-set\(/i.test(v);
+	// The colour in a `background` shorthand without an image (`0 0`,
+	// `red`, `center / cover #111`): transparent when it names none.
+	const BG_WORDS = /^(top|bottom|left|right|center|repeat|repeat-x|repeat-y|no-repeat|space|round|scroll|fixed|local|cover|contain|auto|border-box|padding-box|content-box|text|\/)$/i;
+	const bgColor = (v) => {
+		const words = [];
+		let depth = 0;
+		let cur = "";
+		for (const ch of v.trim()) {
+			if (ch === "(") depth++;
+			if (ch === ")") depth--;
+			if (/\s/.test(ch) && depth === 0) {
+				if (cur) words.push(cur);
+				cur = "";
+			} else cur += ch;
+		}
+		if (cur) words.push(cur);
+		const c = words.find((w) => !BG_WORDS.test(w) && !/^-?[\d.]+(px|%|em|rem|vh|vw)?$/i.test(w) && !w.includes("/"));
+		return c ?? "transparent";
+	};
+	// Winning declarations -> the overlay's Style (only what the renderer knows).
+	const toStyle = (decls, vars, parentStyle) => {
+		const st = {};
+		const set = (k, v) => {
+			v = String(v).trim();
+			if (!v || /^(initial|unset|revert|revert-layer)$/i.test(v)) return;
+			if (/^inherit$/i.test(v)) {
+				if (parentStyle?.[k] !== undefined) st[k] = parentStyle[k];
+				return;
+			}
+			st[k] = v;
+		};
+		for (const [name, raw] of decls) {
+			if (name.startsWith("--")) continue;
+			const v = resolveVars(raw, vars);
+			if (STYLE_FIELDS.has(name)) set(name, v);
+			else if (name === "background") {
+				if (isImage(v)) set("background-image", v);
+				else if (/^none$/i.test(v.trim())) set("background-image", "none");
+				else if (/^(inherit|initial|unset|revert|revert-layer)$/i.test(v.trim())) set("background-color", v);
+				else set("background-color", bgColor(v));
+			} else if (name === "inset") {
+				const p = v.split(/\s+/);
+				const [t, r = t, b = t, l = r] = p;
+				set("top", t);
+				set("right", r);
+				set("bottom", b);
+				set("left", l);
+			} else if (name === "text-decoration-line") set("text-decoration", v);
+			else if (name === "-webkit-filter") set("filter", v);
+			else if (name === "backdrop-filter" || name === "-webkit-backdrop-filter") {
+				if (!/^none$/i.test(v.trim())) set("backdrop-filter", v);
+			}
+			else if (name === "translate" || name === "rotate" || name === "scale") {
+				if (!/^none$/i.test(v.trim())) set(`-${name}`, v);
+			}
+		}
+		// `outline-style` / `-width` / `-color` written apart (the cotton candy
+		// family's thumbnails) make one `outline` value; the width defaults
+		// to `medium` (3px) and the colour to `currentcolor`.
+		if (decls.has("outline-style") && !decls.has("outline")) {
+			const get = (k) => (decls.has(k) ? resolveVars(decls.get(k), vars).trim() : "");
+			const style = get("outline-style");
+			if (style && !/^(none|hidden)$/i.test(style)) set("outline", `${get("outline-width") || "3px"} ${style} ${get("outline-color") || "currentcolor"}`);
+		}
+		// The individual transform properties apply before `transform`.
+		const parts = [];
+		if (st["-translate"]) parts.push(`translate(${st["-translate"].trim().split(/\s+/).join(",")})`);
+		if (st["-rotate"]) parts.push(`rotate(${st["-rotate"]})`);
+		if (st["-scale"]) parts.push(`scale(${st["-scale"].trim().split(/\s+/).join(",")})`);
+		delete st["-translate"];
+		delete st["-rotate"];
+		delete st["-scale"];
+		if (parts.length) st.transform = [...parts, st.transform && !/^none$/i.test(st.transform) ? st.transform : ""].join(" ").trim();
+		if ([...decls.keys()].some((k) => k.startsWith("transition"))) {
+			const m = new Map();
+			for (const [k, raw] of decls) if (k.startsWith("transition")) m.set(k, resolveVars(raw, vars));
+			const t = transition(m);
+			if (t) st.transition = t;
+		}
+		if ([...decls.keys()].some((k) => k.startsWith("animation"))) {
+			const m = new Map();
+			for (const [k, raw] of decls) if (k.startsWith("animation")) m.set(k, resolveVars(raw, vars));
+			const a = animation(m);
+			if (a) st.animation = a;
+		}
+		return Object.keys(st).length ? st : null;
+	};
+	const hasContent = (decls) => {
+		const c = (decls.get("content") ?? "").trim();
+		return c !== "" && !/^(none|normal)$/i.test(c);
+	};
+	// Anchors TIDAL's stylesheet generates no `::before`/`::after` for.
+	const ownsNoPseudo = (el) => /(^|\s)_artistHeader_/.test(el.getAttribute?.("class") ?? "");
+	// What a theme's `::before` and `::after` rules say for the anchor `el`.
+	const pseudoOf = (ix, el) => {
+		D.pseudoRuns = (D.pseudoRuns ?? 0) + 1;
+		let o = null;
+		for (const kind of ["before", "after"]) {
+			const px = ix.pseudo[kind];
+			if (!px.size) continue;
+			const decls = pseudoCascade(px, el);
+			if (!decls) continue;
+			// A pseudo-element exists only with a `content`. TIDAL's own
+			// stylesheet gives most anchors theirs (`_dataContainer_::before`,
+			// `_smallHeader_::before`), which a theme restyles without one;
+			// the artist header has none, so `[class*="Header"]::before`
+			// (Mocha Blue's top-bar fill) draws no box over the portrait.
+			if (!hasContent(decls) && ownsNoPseudo(el)) continue;
+			let vars = el._cc?.myVars ?? NO_VARS;
+			for (const [k, v] of decls)
+				if (k.startsWith("--")) {
+					if (vars === (el._cc?.myVars ?? NO_VARS)) vars = new Map(vars);
+					vars.set(k, v);
+				}
+			const st = toStyle(decls, vars, el._cc?.inh ?? null);
+			if (!st) continue;
+			// `--img: none` on TIDAL's header art box drops the art its
+			// own rule paints from that variable.
+			if (/^none$/i.test((decls.get("--img") ?? "").trim()) && st["background-image"] === undefined) st["background-image"] = "none";
+			(o ??= {})[kind] = st;
+		}
+		return o;
+	};
+	const ROOTS = () => [g.document.documentElement, g.document.body, D.wimp];
+	// Resolved style of every element plugins styled, plus :root variables,
+	// the page style and fonts.
+	const NO_VARS = new Map();
+	let rootMemo = null;
+	const compute = () => {
+		const t0 = L.stat ? Date.now() : 0;
+		const ix = buildIndex();
+		if (L.stat) L.stat("css: index", t0);
+		const styles = new Map();
+		const roots = ROOTS();
+		const rootVars = new Map();
+		const page = {};
+		const walk = (el, vars, parentStyle) => {
+			if (L.stat) L.stat("css: visit", Date.now());
+			const decls = cascade(ix, el);
+			// Same declarations, variables and inherited style as last time:
+			// the same result, and the same objects, so the children's cache
+			// holds too. Only what changed is resolved again.
+			const cc = el._cc;
+			let myVars, st, inh;
+			if (cc && cc.decls === decls && cc.vars === vars && cc.parent === parentStyle) {
+				({ myVars, st, inh } = cc);
+			} else {
+				myVars = vars;
+				if (decls) {
+					let own = null;
+					for (const [k, v] of decls)
+						if (k.startsWith("--")) {
+							own ??= new Map(vars);
+							own.set(k, v);
+						}
+					if (own) myVars = own;
+				}
+				st = decls ? toStyle(decls, myVars, parentStyle) : null;
+				inh = st ? { ...(parentStyle ?? {}), ...pickInherited(st) } : parentStyle;
+				el._cc = { decls, vars, parent: parentStyle, myVars, st, inh };
+			}
+			if (st) styles.set(el, st);
+			if (roots.includes(el)) {
+				if (decls) for (const [k, v] of decls) if (k.startsWith("--")) rootVars.set(k, v);
+				if (st) Object.assign(page, st);
+			}
+			for (const c of el.childNodes) if (c instanceof g.Element && c.localName !== "head" && c.localName !== "style" && c.localName !== "script") walk(c, myVars, inh);
+		};
+		const html = g.document.documentElement;
+		const t1 = L.stat ? Date.now() : 0;
+		if (html) walk(html, NO_VARS, null);
+		if (L.stat) L.stat("css: walk", t1);
+		// The anchors' `::before` / `::after` boxes, with their element's
+		// variables (only anchors: plugin elements draw their own layers).
+		// An anchor whose cascade and variables are as they were keeps the
+		// boxes it had (the page's clock rewrites the tree every second).
+		const pseudo = new Map();
+		if (D.hosts && (ix.pseudo.before.size || ix.pseudo.after.size)) {
+			const t2 = L.stat ? Date.now() : 0;
+			for (const el of D.hosts.values()) {
+				if (!el.isConnected) continue;
+				const hit = pmemo.get(el);
+				let o;
+				if (hit && hit.cc === el._cc && hit.ix === ix) o = hit.o;
+				else {
+					o = pseudoOf(ix, el);
+					pmemo.set(el, { cc: el._cc, ix, o });
+				}
+				if (o) pseudo.set(el, o);
+			}
+			if (L.stat) L.stat("css: pseudo", t2);
+		}
+		// The root variables, resolved: the same ones as last time give the
+		// same answer (a theme like Cotton Candy declares hundreds).
+		const t3 = L.stat ? Date.now() : 0;
+		let vars;
+		const last = rootMemo;
+		let same = last !== null && last.src.size === rootVars.size;
+		if (same) for (const [k, v] of rootVars) if (last.src.get(k) !== v) { same = false; break; }
+		if (same) vars = last.vars;
+		else {
+			D.rootResolves = (D.rootResolves ?? 0) + 1;
+			vars = {};
+			for (const [k, v] of rootVars) vars[k] = resolveVars(v, rootVars).trim();
+			rootMemo = { src: rootVars, vars, keyframes: new Map() };
+		}
+		if (L.stat) L.stat("css: root vars", t3);
+		// The @keyframes the styled elements use, as [offset, style] lists
+		// (kept with the variables they were resolved against).
+		const t4 = L.stat ? Date.now() : 0;
+		const keyframes = {};
+		const kfCache = rootMemo.keyframes;
+		if (ix.keyframes.size)
+			for (const st of styles.values()) {
+				if (!st.animation) continue;
+				for (const a of st.animation.split(",")) {
+					const name = a.split(" ")[0];
+					const frames = ix.keyframes.get(name);
+					if (!frames || keyframes[name]) continue;
+					const cached = kfCache.get(name);
+					if (cached && cached.frames === frames) {
+						keyframes[name] = cached.out;
+						continue;
+					}
+					keyframes[name] = frames.map(([off, decls]) => {
+						const frame = toStyle(decls, rootVars, null) ?? {};
+						// `--rotate: 360deg`: a custom property an animation moves.
+						for (const [k, v] of decls) if (k.startsWith("--")) (frame.custom ??= {})[k] = String(v).trim();
+						return [off, frame];
+					});
+					kfCache.set(name, { frames, out: keyframes[name] });
+				}
+			}
+		if (L.stat) L.stat("css: keyframes", t4);
+		return { styles, vars, page, fonts: ix.fonts, bytes: ix.bytes, keyframes, hover: ix.hover, pseudo };
+	};
+	// For the tests that count what a build works out again.
+	D.computeOverlayStyles = compute;
+	const pickInherited = (st) => {
+		const o = {};
+		for (const k of Object.keys(st)) if (INHERITED.has(k)) o[k] = st[k];
+		return o;
+	};
+
+	// ---------------------------------------------------------------- getComputedStyle
+	const BLOCK = new Set(["div", "p", "section", "article", "main", "aside", "header", "footer", "nav", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6", "form", "figure", "html", "body", "table", "pre"]);
+	const NONE = new Set(["head", "style", "script", "meta", "link", "title", "template"]);
+	// What the cascade declares for `el` (variables resolved, inherited
+	// properties carried down), with no used values: nothing here asks for
+	// the element's box.
+	const cascaded = (el) => {
+		const ix = buildIndex();
+		const chain = [];
+		for (let n = el; n instanceof g.Element; n = n.parentNode) chain.unshift(n);
+		let vars = new Map();
+		const props = new Map();
+		for (const n of chain) {
+			const d = cascade(ix, n);
+			const own = new Map();
+			if (d) {
+				for (const [k, v] of d) if (k.startsWith("--")) vars.set(k, v);
+				for (const [k, v] of d) if (!k.startsWith("--")) own.set(k, resolveVars(v, vars));
+			}
+			for (const k of [...props.keys()]) if (!INHERITED.has(k)) props.delete(k);
+			for (const [k, v] of own) {
+				if (v === "inherit") continue;
+				props.set(k, v);
+			}
+			if (n === el) vars = new Map(vars);
+		}
+		return { props, vars };
+	};
+	const computedStyle = (el, pseudo) => {
+		const decl = new CSSStyleDeclaration();
+		if (!(el instanceof g.Element) || (pseudo && /::?(before|after|marker|placeholder|selection|-webkit-scrollbar)/.test(String(pseudo)))) return declProxy(decl);
+		const { props, vars } = cascaded(el);
+		const r = el.getBoundingClientRect();
+		const defaults = {
+			display: NONE.has(el.localName) ? "none" : BLOCK.has(el.localName) ? "block" : el.localName === "svg" || el.localName === "img" ? "inline-block" : "inline",
+			visibility: "visible",
+			opacity: "1",
+			color: "rgb(255, 255, 255)",
+			"background-color": "rgba(0, 0, 0, 0)",
+			"font-size": "16px",
+			"font-weight": "400",
+			"font-family": "nationale, sans-serif",
+			position: "static",
+			"z-index": "auto",
+			width: `${r.width}px`,
+			height: `${r.height}px`,
+			"line-height": "normal",
+			transform: "none",
+		};
+		for (const [k, v] of Object.entries(defaults)) decl._m.set(k, { value: v, important: false });
+		for (const [k, v] of props) decl._m.set(k, { value: v, important: false });
+		if (props.has("background")) decl._m.set(isImage(props.get("background")) ? "background-image" : "background-color", { value: props.get("background"), important: false });
+		for (const [k, v] of vars) decl._m.set(k, { value: resolveVars(v, vars).trim(), important: false });
+		Object.defineProperty(decl, "_owner", { value: null });
+		const p = declProxy(decl);
+		return p;
+	};
+
+	// Whether any selector names attribute `k` (from the last index; a sheet
+	// change since then resets every cascade anyway). No index yet: yes.
+	const attrMatters = (k) => !index || index.attrNames.has(String(k).toLowerCase());
+	// Whether a rule looks at siblings, children or position: then a changed
+	// class can change what matches outside the element's own subtree.
+	const structural = () => !!buildIndex().structural;
+	L.css = { parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, splitDecls, usesHover, attrMatters, structural };
+})();

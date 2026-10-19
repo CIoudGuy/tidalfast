@@ -1,0 +1,145 @@
+{
+ "limit": 100,
+ "offset": 0,
+ "totalNumberOfItems": 2,
+ "items": [
+  {
+   "id": 77646168,
+   "title": "Get Lucky",
+   "duration": 369,
+   "replayGain": -8.1,
+   "peak": 0.998,
+   "allowStreaming": true,
+   "streamReady": true,
+   "adSupportedStreamReady": true,
+   "streamStartDate": "2013-05-17T00:00:00.000+0000",
+   "premiumStreamingOnly": false,
+   "trackNumber": 8,
+   "volumeNumber": 1,
+   "version": "feat. Pharrell Williams & Nile Rodgers",
+   "popularity": 79,
+   "copyright": "(P) 2013 Columbia",
+   "url": "http://www.tidal.com/track/77646168",
+   "isrc": "USQX91300108",
+   "editable": false,
+   "explicit": false,
+   "audioQuality": "LOSSLESS",
+   "audioModes": [
+    "STEREO"
+   ],
+   "mediaMetadata": {
+    "tags": [
+     "LOSSLESS",
+     "HIRES_LOSSLESS"
+    ]
+   },
+   "artist": {
+    "id": 8847,
+    "name": "Daft Punk",
+    "type": "MAIN",
+    "picture": "5e5f5c1b-0f34-4b62-9b54-0d6cbe4ec2a1",
+    "popularity": 82,
+    "url": "http://www.tidal.com/artist/8847",
+    "mixes": {
+     "ARTIST_MIX": "000ec0b01da1ddd752ec5dee553d48"
+    }
+   },
+   "artists": [
+    {
+     "id": 8847,
+     "name": "Daft Punk",
+     "type": "MAIN",
+     "picture": "5e5f5c1b-0f34-4b62-9b54-0d6cbe4ec2a1",
+     "popularity": 82,
+     "url": "http://www.tidal.com/artist/8847",
+     "mixes": {
+      "ARTIST_MIX": "000ec0b01da1ddd752ec5dee553d48"
+     }
+    },
+    {
+     "id": 3532225,
+     "name": "Pharrell Williams",
+     "type": "FEATURED",
+     "picture": null
+    }
+   ],
+   "album": {
+    "id": 77646164,
+    "title": "Random Access Memories",
+    "cover": "7e58f111-5b1a-492a-aaf1-88fb55ce8a44",
+    "vibrantColor": "#e4d3a5",
+    "videoCover": null,
+    "releaseDate": "2013-05-17"
+   },
+   "mixes": {
+    "TRACK_MIX": "0016b9ee0a2a4c1f4d2c3e2d4f"
+   }
+  },
+  {
+   "id": 77646169,
+   "title": "Contact",
+   "duration": 369,
+   "replayGain": -8.1,
+   "peak": 0.998,
+   "allowStreaming": false,
+   "streamReady": true,
+   "adSupportedStreamReady": true,
+   "streamStartDate": "2013-05-17T00:00:00.000+0000",
+   "premiumStreamingOnly": false,
+   "trackNumber": 13,
+   "volumeNumber": 1,
+   "version": null,
+   "popularity": 79,
+   "copyright": "(P) 2013 Columbia",
+   "url": "http://www.tidal.com/track/77646168",
+   "isrc": "USQX91300113",
+   "editable": false,
+   "explicit": false,
+   "audioQuality": "LOSSLESS",
+   "audioModes": [
+    "STEREO"
+   ],
+   "mediaMetadata": {
+    "tags": [
+     "LOSSLESS",
+     "HIRES_LOSSLESS"
+    ]
+   },
+   "artist": {
+    "id": 8847,
+    "name": "Daft Punk",
+    "type": "MAIN",
+    "picture": "5e5f5c1b-0f34-4b62-9b54-0d6cbe4ec2a1",
+    "popularity": 82,
+    "url": "http://www.tidal.com/artist/8847",
+    "mixes": {
+     "ARTIST_MIX": "000ec0b01da1ddd752ec5dee553d48"
+    }
+   },
+   "artists": [
+    {
+     "id": 8847,
+     "name": "Daft Punk",
+     "type": "MAIN",
+     "picture": "5e5f5c1b-0f34-4b62-9b54-0d6cbe4ec2a1",
+     "popularity": 82,
+     "url": "http://www.tidal.com/artist/8847",
+     "mixes": {
+      "ARTIST_MIX": "000ec0b01da1ddd752ec5dee553d48"
+     }
+    }
+   ],
+   "album": {
+    "id": 77646164,
+    "title": "Random Access Memories",
+    "cover": "7e58f111-5b1a-492a-aaf1-88fb55ce8a44",
+    "vibrantColor": "#e4d3a5",
+    "videoCover": null,
+    "releaseDate": "2013-05-17"
+   },
+   "mixes": {
+    "TRACK_MIX": "0016b9ee0a2a4c1f4d2c3e2d4f"
+   }
+  }
+ ]
+}

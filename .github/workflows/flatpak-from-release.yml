@@ -1,0 +1,60 @@
+name: Flatpak from release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing release tag to package
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  flatpak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    env:
+      RELEASE_TAG: ${{ inputs.version }}
+    steps:
+      - name: Validate release tag
+        shell: bash
+        run: '[[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][a-zA-Z0-9.-]+)?$ ]]'
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check release metainfo handling
+        run: python3 packaging/flatpak/test-metainfo.py
+      - name: Verify and unpack the published Linux build
+        shell: bash
+        run: |
+          name="tidalfast-${RELEASE_TAG}-x86_64-unknown-linux-gnu"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}"
+          mkdir dist
+          cd dist
+          curl --fail --location --retry 3 "$base/$name.tar.gz" --output "$name.tar.gz"
+          curl --fail --location --retry 3 "$base/checksums.txt" --output checksums.txt
+          awk -v file="$name.tar.gz" '$2 == file { print }' checksums.txt > input-checksum.txt
+          test -s input-checksum.txt
+          sha256sum --check input-checksum.txt
+          tar xzf "$name.tar.gz" -C ../packaging/flatpak
+          cd ..
+          mv "packaging/flatpak/$name" packaging/flatpak/built
+          # Keep the exact release version and description, with today's app ID.
+          python3 packaging/flatpak/prepare-metainfo.py "$RELEASE_TAG" \
+            packaging/flatpak/rocks.tidalfast.Tidalfast.metainfo.xml
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: packaging/flatpak/rocks.tidalfast.Tidalfast.bundle.yml
+          bundle: tidalfast-${{ inputs.version }}-x86_64.flatpak
+          cache: false
+          upload-artifact: false
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flatpak-${{ inputs.version }}
+          path: '*.flatpak'
+          if-no-files-found: error

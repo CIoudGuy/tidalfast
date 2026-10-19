@@ -1,0 +1,127 @@
+# TidaLuna plugins: what the user runs
+
+> Owner decision: Tidalfast has NO native plugin ports. Everything below that
+> describes native ports (VolumeScroll, DiscordRPC, NativeFullscreen, No Remix,
+> Total Play Time, Scroll To Playing) is historical research. These plugins are
+> meant to run through the Luna runtime (`src/luna/`), which is opt-in and off
+> by default (`plugins.luna_enabled`). Old settings keys for the ports are
+> ignored on load.
+
+Source of truth: TIDAL app IndexedDB (`%APPDATA%\TIDAL\IndexedDB\https_desktop.tidal.com_0.indexeddb.leveldb` + `.blob`),
+read from copies (snappy-decoded: LevelDB tables, log, and Blink value blobs). Luna 1.17.1-beta, TIDAL 2.43.2.
+Object store `@luna/plugins` = plugin records, `@luna/pluginStorage` = per-plugin settings, `storeUrl` = plugin stores.
+
+## IMPORTANT finding: far fewer plugins are installed than expected
+
+The long list of names seen earlier (MusicVideoButton, NoBuffer, SongReleaseDate, OneClickLyrics,
+PlayerKeyScroller, audiovisualiser, cover-colored-ui, custom-fonts, Kisakay, Akasiek, SinnerK0N, vMohammad,
+dantraynor, Henr1ES, meowarex, Clear-Coat, ...) are **Plugin Store catalogue entries cached by Luna, NOT installed**.
+They are metadata-only records (no `code`, `enabled` undefined, no `installed` flag). Only the records below carry
+code and `installed: true`. If the user believes more are installed, they were uninstalled/reset before the last
+state (IDB was last written 2026-10-13); ask the user to confirm before building the "store-only" list below.
+
+## Installed plugins (exact)
+
+| # | Plugin (package name) | Author repo | Enabled | Saved settings | Settings panel | Native plan | Effort |
+|---|---|---|---|---|---|---|---|
+| 1 | VolumeScroll (`VolumeScroll`) | Inrixia | yes | changeBy 2, changeByShift 1 (defaults 10 / 1) | full (2) | Wheel over volume control | S |
+| 2 | DiscordRPC (`DiscordRPC`) | Inrixia | yes | displayOnPause true, displayArtistIcon true, displayPlaylistButton true, customStatusText `{track} by {artist}`, pipeId 0 | full (5) | `discord-rich-presence` crate | M |
+| 3 | NativeFullscreen (`NativeFullscreen`) | Inrixia | yes | useTidalFullscreen false, hideTopBar false | full (2) | F11 window fullscreen | S |
+| 4 | No Remix (`@cioudguy/no-remix`) | CIoudGuy | yes | skipCurrent true, notify true, keepAnniversaryMixes true, extraWords "", allowWords "", allowedIds "", remixIds "" | full (7) | Queue/track filter | M |
+| 5 | Total Play Time (`@jxnxsdev/total-play-time`) | jxnxsdev | yes | none stored (no settings) | none (no settings) | Remaining-queue time chip | S |
+| 6 | Scroll To Playing (`@squadgazzz/scroll-to-playing`) | squadgazzz | yes | none in IDB; uses defaults: autoScroll true, highlightColor `126, 251, 238`, opacity 20 (kept in localStorage) | full (3) | Highlight + auto-scroll + jump button | M |
+| 7 | Device Disconnect Fix (`DeviceDisconnectFix`) | Aztup | yes | none | none | Won't port (not applicable) | - |
+| 8 | Song Downloader (`Song Downloader`) | Inrixia | yes | downloadQuality HI_RES_LOSSLESS, pathFormat `{artist} - {album} - {title}`, useRealMAX true | full (4) | Won't port | - |
+
+Core (always on, not user plugins): `@luna/lib`, `@luna/ui`, `@luna/dev` (DevTools settings all false), `@luna/lib.native`.
+
+Installed-then-removed (cached records, `installed:false`; settings still stored): HorizontalVolumeSlider
+(showVolumeText true, enableMouseWheel true, changeBy 10, changeByShift 1), `@jxnxsdev/discord-utils`, `@vmohammad/betterFullscreen`
+(Modern style lyric fullscreen, apiURL vmohammad.dev lyrics). Do not port unless the user asks; BetterFullscreen's ideas
+overlap Tidalfast's fullscreen lyrics.
+
+Store URLs registered in Luna: Inrixia (dev), Aztup, jxnxsdev, squadgazzz, CIoudGuy, vMohammad24, Foukapik, Renskursa, Akasiek,
+SinnerK0N, Henr1ES, meowarex, dantraynor, DevonCasey, FireWall-code, FlazeIGuess, MathDesigns, espeon, minseokk7, otomir23,
+seomin0610, visiuun, wont-stream (lunar), SuperslowJelly (TIDAL-Clear-Coat theme).
+
+## Where these live now
+
+Settings > Plugins is TidaLuna's own settings page, drawn natively (tabs Plugins, Plugin
+Store, Themes, Settings; see "TidaLuna's settings page" in `luna-compat.md`). The TIDAL
+store URLs above are added by typing their `store.json` URL into "Install from URL", and a
+TidaLuna settings export (Settings > Settings Transfer) brings over plugins, their settings,
+themes such as Clear Coat, and store URLs in one step.
+
+The Plugin Store marks a plugin that does not fully work in Tidalfast with a
+"Not supported" or "Partly supported" pill beside its name (hover for the
+reason). The audited table in `luna-compat.md` is the only source of these
+labels (`COMPAT` in `src/luna/mod.rs`); a plugin it does not list shows none.
+
+What the runtime enforces for these plugins (identity, HTTPS, quotas, the
+clipboard after a user action, thread pools) is under "Security model and
+limits" in `luna-compat.md`.
+
+## Settings page design (shared, historical)
+
+New "Plugins" section in `src/ui/settings.rs`: one row per plugin = switch + collapsible options. Persist in `settings.rs` as
+`plugins: PluginSettings { volume_scroll: {enabled, step, step_shift}, discord_rpc: {...}, ... }` (serde default, all
+`enabled=false` except as noted). Each plugin lives in its own module `src/plugins/<name>.rs` exposing `fn tick(app, ctx)` or event
+hooks, and checks its own `enabled` first so disabled plugins cost nothing. Suggested default for migrated users: enable 1-6 as above.
+
+## 1. VolumeScroll (S)
+- Luna: `wheel` listener on the player-bar volume slider container; deltaY<0 up. Step = `changeBy` percent, `changeByShift` with Shift, clamped 0-100, dispatches SET_VOLUME.
+- Tidalfast: volume slider at `src/ui/player_bar.rs` ~L807-830 (`volume_preview`, `volume_to_percent`); no wheel handling today.
+- Build: when the pointer is over the slider response, read `ctx.input(|i| i.smooth_scroll_delta.y)` (use raw scroll, not smoothed, for stepping) and apply `step` / `step_shift` (Shift via `i.modifiers.shift`); consume the scroll so the page behind does not move. Reuse the existing set-volume path (local) / remote path.
+- Settings: enabled, step % (default 10; user 2), shift step % (default 1; user 1). No crate.
+
+## 2. DiscordRPC (M)
+- Luna: `@xhayper/discord-rpc` over Discord IPC pipes, application client id `1130698654987067493` (public app id, ok to reuse or register our own "Tidalfast"). On play/pause/seek/track change (300 ms debounce) sets a Listening (type 2) activity: name = formatted `customStatusText` (`{track}`, `{artist}`, `{album}`), details = title (link tidal.com track), state = artists (link artist), large image = album cover URL, large text = album, small image = artist picture (if displayArtistIcon), start/end timestamps from playback position/duration, buttons "Play Song" (https://tidal.com/track/ID/u) and "Playlist" (only for public playlists, if displayPlaylistButton). Paused: small image "paused-icon", text "Paused", endTimestamp now; if displayOnPause false, activity cleared. Strings capped at 127 chars (min 2). Pipe selector chooses `discord-ipc-N`.
+- Tidalfast: no Discord code (only unrelated grep hits). Needs a hook on `EngineEvent` (track change, play state, seek) in `src/app.rs`, which already feeds `media_controls` (`Playback`, `NowPlaying`); piggyback there.
+- Crate: `discord-rich-presence` (or `discord-presence`); supports activity type/buttons/timestamps. For `type: Listening` and `statusDisplayType` check crate support; otherwise send raw IPC JSON. Run on a worker thread, reconnect with backoff, never block UI.
+- Cover art: use TIDAL image URLs (`https://resources.tidal.com/images/<uuid>/320x320.jpg`), no uploads needed.
+- Settings: enabled, display on pause, artist icon, playlist button, status text template, pipe id (0-9, "auto"). Off by default; no network beyond local IPC.
+
+## 3. NativeFullscreen (S)
+- Luna: F11 toggles real window fullscreen (hiding the web top bar) or, with `useTidalFullscreen`, TIDAL's own windowed fullscreen view; `hideTopBar` hides the app bar always.
+- Tidalfast: `WindowMode` exists (lyrics fullscreen remembers `lyrics_fullscreen_from`); no global F11 found.
+- Build: F11 -> `ViewportCommand::Fullscreen(!current)`; `useTidalFullscreen` equivalent = open the existing fullscreen lyrics/Now Playing view without fullscreening the OS window; `hideTopBar` = hide `ui/topbar.rs`. Settings: enabled, windowed-fullscreen view, hide top bar (both default false).
+
+## 4. No Remix (M)
+- Luna (CIoudGuy): strips tracks from the play queue whose title/version look like remixes, and skips if one starts. Matches: remix, rmx, mashup, megamix, VIP, dub, bootleg, flip, rework, re-edit, "X Edit" (DJ edits), club/DJ mixes, sped up, slowed+reverb, nightcore, daycore, 8D, bass boosted, chopped & screwed, TikTok/club versions, DJ-genre suffixes "(Techno)", "(Phonk)", plus translated equivalents. Keeps Original/Extended/Radio Mix, Radio/Single/Album Edit, remasters, live, acoustic, instrumental, vocal mix, feat. credits; anniversary mixes ("2019 Mix", "Dolby Atmos Mix") kept unless setting off. Context menu on a track: "allow this track" / "treat as a remix" (stored id lists). Toast when removing.
+- Build: pure function `is_remix(title, version, opts) -> bool` in `src/plugins/no_remix.rs` (regex set + word lists; unit tests from the keep/remove lists above). Apply (a) when queue is built/extended (engine `Catalog` results in `tidal_engine`) and (b) on track-start as a skip. Track context menu entries in queue/collection rows. TIDAL track JSON has a `version` field ("Remastered", "Club Mix"): match on `title + " " + version`.
+- Settings: enabled, skip if playing (true), notify (true), keep anniversary mixes (true), extra words, never-remove words, allowed ids, forced-remix ids (with "clear" buttons). Crate: `regex`.
+
+## 5. Total Play Time (S)
+- Luna: pill in the player-bar "more" area (`HH:MM:SS`) showing time left in the queue: remaining of current track + durations of all later queue items; updated on `media.currenttime` signals. Tooltip "Total Play Time of Remaining Queue"; clicking it 5 times shows an easter-egg alert (do not port).
+- Build: in `ui/player_bar.rs` compute from queue durations (already known in `LocalTrack`) minus position; format HH:MM:SS; small right-aligned label with tooltip. Settings: enabled only.
+
+## 6. Scroll To Playing (M)
+- Luna (squadgazzz): (a) highlights the playing track row (tinted background, left accent bar, tinted text); (b) highlights the source playlist in the sidebar; (c) auto-scrolls to the playing track when it changes (toggle); (d) floating round button (bottom-right, above the player bar) shown when the playing track is off-screen, with arrow, click scrolls back; also fixes highlighting when playing via Tidal Connect (remote playback). Handles virtualized lists by estimating positions then refining.
+- Tidalfast: has the row/queue UI in `ui/collection.rs`; `autoscroll.rs` is unrelated (middle-click scroll). egui `ScrollArea::vertical_scroll_offset` + known row height make this simple; the Tidal Connect case maps to Tidalfast's Cast/Connect remote state if the TIDAL port gets remote playback.
+- Build: in `ui/collection.rs`, find playing row index (match `uri`), draw tint with accent color (default `rgb(126,251,238)` at 20%), optionally `images::accent_color` as an alternative; on `now_playing` change request `scroll_to_rect`; show jump button via `egui::Area` when row rect is outside the clip rect; sidebar playlist highlight in `ui/sidebar.rs`.
+- Settings: enabled, auto-scroll on track change (true), highlight color RGB, opacity 0-100 (20), "use cover accent" (new, optional).
+
+## 7. Device Disconnect Fix (won't port)
+- Luna: on the `client.playback.playersignal` IPC message containing `devices`, force Redux `activePlayer/SET_ACTIVE_PLAYER` to `PLAYER_SDK`, working around the TIDAL web app failing to find a player after an audio device disconnect.
+- Reason: workaround for a bug in TIDAL's web player state. Tidalfast owns its engine. Instead, make sure the sink reopens/falls back to the default output device on device loss (`src/sink.rs`, worth a separate robustness ticket, S). No plugin toggle.
+
+## 8. Song Downloader (won't port)
+- Luna: context-menu "Download N tracks"; saves FLAC (tags embedded) at chosen quality incl. Hi-Res, path template `{artist} - {album} - {title}`, optional RealMAX (swap to the highest-quality version of the track), default folder.
+- Reason: ripping licensed TIDAL streams to files is outside TIDAL's offline licence and conflicts with the project rule "only unencrypted streams, never attempt to decrypt DRM". Not offering it natively, nor RealMAX auto-swap as a download aid. (A separate, legitimate "prefer highest available version of a track when playing" option is possible later, M.)
+
+## Store-only catalogue (cached, NOT installed; port only on request)
+Descriptions from the records. Effort in brackets if ported; "needs X" = TIDAL feature we lack.
+- Inrixia: LastFM / ListenBrainz scrobblers (M, `reqwest`+md5, new settings), NoBuffer (n/a, CDN kick), RealMAX (see above), Shazam (won't, needs audio fingerprint), PersistSettings/SmallWindow/Avatar/Themer/CoverTheme/Tidal Tags (quality tags, S: show quality badges; CoverTheme overlaps `images::accent_color`, S), DesktopConnect (needs TIDAL Connect, L).
+- Renskursa: MusicVideoButton (needs music videos, which Tidalfast lacks, L), SongReleaseDate (S).
+- Foukapik: OneClickLyrics (S, shortcut to lyrics view), PlayerKeyScroller (Shift+Left/Right seek, S), HorizontalVolumeSlider (previously installed; Tidalfast already has a slider, wheel covered by #1).
+- jxnxsdev: audiovisualiser (runs as a Luna plugin: its band analysis comes from the live output tap, see `luna-compat.md`), cover-colored-ui (S via `images::accent_color`), custom-fonts (S; `fastframe-fonts` + `system_fonts.rs` exist), fadeout/crossfade (M, sink), lyrics-everywhere (overlap with `ui/lyrics.rs`), miniplayer (won't, Tidalfast has no mini player), playlist-export m3u8 (S), qr-share (S, `qrcode` crate), spinny-cover (S), streamer-tools (won't, web overlay server), syncify and squadgazzz sync plugins (M, import from another service), uwu-ifier (S, joke), tidal-wave (unfinished).
+- meowarex: radiant-lyrics, colorama-lyrics, copy-lyrics, element-hider, obsidian theme, audio-visualizer (Linux only). Lyrics ones overlap `ui/lyrics.rs`.
+- vMohammad24: mpv (won't, replaces player; its `child_process` start is allowed behind a prompt, its IPC pipe is not), noTrack (n/a), QoL, translate, quickExclusiveMode (S if sink exposes exclusive mode), betterFullscreen.
+- Others: tidarr-integration (downloader, won't), DownloadManager (Kisakay, FLAC rip, won't), Deleter, Starry Night/Clear-Coat (themes: Tidalfast has `theme.rs`), TidalAPI/TidalMediaControls (Tidalfast already has media controls via `MediaControls`), star-ratings, altplay (Jellyfin), multipleplaylists, up-next, quick-queue, tidal-genres, track-radio, playlist-tools, etc.
+
+## Suggested build order
+1. Plugins settings page + `PluginSettings` scaffold (S)
+2. VolumeScroll, Total Play Time, NativeFullscreen (S each)
+3. Scroll To Playing (M)
+4. No Remix (M)
+5. DiscordRPC (M)

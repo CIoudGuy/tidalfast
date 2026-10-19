@@ -1,0 +1,1035 @@
+{
+  "#instances": {
+    "@luna/core LunaPlugin": [
+      "_liveReload",
+      "addDependant",
+      "code",
+      "control",
+      "dependants",
+      "disable",
+      "enable",
+      "enabled",
+      "exports",
+      "fetching",
+      "install",
+      "installed",
+      "isDev",
+      "liveReload",
+      "load",
+      "loadError",
+      "loading",
+      "name",
+      "onSetEnabled",
+      "onSetLiveReload",
+      "package",
+      "reload",
+      "store",
+      "trace",
+      "uninstall",
+      "unloads",
+      "url"
+    ],
+    "@luna/core ReactiveStore": [
+      "clear",
+      "del",
+      "dump",
+      "ensure",
+      "get",
+      "getReactive",
+      "idbName",
+      "idbStore",
+      "keys",
+      "reactiveCache",
+      "saveTimers",
+      "set",
+      "trace"
+    ],
+    "@luna/lib Album": [
+      "artist",
+      "artists",
+      "brainzAlbum",
+      "brainzId",
+      "brainzRelease",
+      "count",
+      "coverUrl",
+      "genre",
+      "id",
+      "mediaItems",
+      "numberOfTracks",
+      "recordLabel",
+      "releaseDate",
+      "releaseYear",
+      "tMediaItems",
+      "tidalAlbum",
+      "title",
+      "trace",
+      "upc"
+    ],
+    "@luna/lib MediaItem": [
+      "album",
+      "artist",
+      "artists",
+      "bestQuality",
+      "bpm",
+      "brainzId",
+      "brainzItem",
+      "contentType",
+      "copyright",
+      "coverUrl",
+      "download",
+      "downloadProgress",
+      "duration",
+      "fetchBestQuality",
+      "fetchTidalMediaItem",
+      "fileExtension",
+      "flacTags",
+      "formatListeners",
+      "id",
+      "isrc",
+      "isrcs",
+      "lyrics",
+      "max",
+      "play",
+      "playbackInfo",
+      "qualityTags",
+      "releaseDate",
+      "releaseDateStr",
+      "replayGain",
+      "replayGainPeak",
+      "tidalItem",
+      "title",
+      "trace",
+      "trackNumber",
+      "updateFormat",
+      "url",
+      "volumeNumber",
+      "withFormat"
+    ],
+    "@luna/lib Playlist": [
+      "count",
+      "coverUrl",
+      "mediaItems",
+      "tMediaItems",
+      "tidalPlaylist",
+      "title",
+      "trace",
+      "uuid"
+    ],
+    "@luna/lib StyleTag": [
+      "_css",
+      "add",
+      "css",
+      "id",
+      "remove",
+      "styleTag"
+    ],
+    "@luna/ui Page": [
+      "addtoDOM",
+      "component",
+      "name",
+      "open",
+      "pageStyles",
+      "reactRoot",
+      "removeFromDOM",
+      "render",
+      "root",
+      "rootId",
+      "unloads"
+    ]
+  },
+  "#state": {
+    "accumulatedPlaybackTime": [
+      "lastPlayingTimestamp",
+      "playbackState",
+      "productId",
+      "storedTimes"
+    ],
+    "activePlayer": [
+      "activePlayer",
+      "currentStreamingSessionId"
+    ],
+    "artistPicker": [
+      "alreadyFetchedArtists",
+      "categories",
+      "isLoading",
+      "searchAsideShowing",
+      "searchPhrase",
+      "searchResults",
+      "selected"
+    ],
+    "auth": [
+      "verificationUri"
+    ],
+    "cloudQueue": [
+      "currentItemId",
+      "etag",
+      "headPosition",
+      "historyMediaItemIds",
+      "itemsEtag",
+      "properties",
+      "queueId",
+      "repeatMode",
+      "shuffled",
+      "tailItemId",
+      "tailPosition"
+    ],
+    "content": [
+      "albumCredits",
+      "albumLists",
+      "albumReviews",
+      "albums",
+      "articleLists",
+      "articles",
+      "artistBios",
+      "artistContributions",
+      "artistLists",
+      "artistRoleCategories",
+      "artists",
+      "dateAddedMaps",
+      "dynamicPages",
+      "folders",
+      "lyrics",
+      "mediaItemProxies",
+      "mediaItems",
+      "mixLists",
+      "mixedTypesLists",
+      "mixes",
+      "playlistLists",
+      "playlists",
+      "trackContributors",
+      "trackLists",
+      "videoContributors",
+      "videos"
+    ],
+    "entities": [
+      "lyrics"
+    ],
+    "etag": [],
+    "experimentationPlatform": [
+      "activeExperiments",
+      "anonymousExperiments",
+      "authenticatedExperiments",
+      "experimentKeys"
+    ],
+    "favorites": [
+      "albums",
+      "artists",
+      "mixes",
+      "playlists",
+      "tracks",
+      "users",
+      "videos"
+    ],
+    "featureFlags": [
+      "flags",
+      "ready",
+      "userOverrides"
+    ],
+    "feed": [
+      "hasNewFeedItems",
+      "status",
+      "updates"
+    ],
+    "locale": [
+      "bundles",
+      "currentBundleName",
+      "currentLocale",
+      "locale",
+      "ready"
+    ],
+    "modal": [
+      "activeModal"
+    ],
+    "network": [
+      "failedStartup",
+      "hasNetworkConnection"
+    ],
+    "notifications": [
+      "items",
+      "notifications"
+    ],
+    "playQueue": [
+      "backupElements",
+      "backupSource",
+      "currentIndex",
+      "elements",
+      "lastShuffleSeed",
+      "originalSource",
+      "repeatMode",
+      "shuffleModeEnabled",
+      "sourceEntityId",
+      "sourceEntityType",
+      "sourceName",
+      "sourceTrackListName",
+      "sourceUrl",
+      "tidalfastClearableRows",
+      "tidalfastRemovableRows",
+      "type",
+      "uniqueIdCounter"
+    ],
+    "playbackControls": [
+      "desiredPlaybackState",
+      "latestCurrentTime",
+      "latestCurrentTimeSyncTimestamp",
+      "mediaProduct",
+      "muted",
+      "playbackContext",
+      "playbackState",
+      "prefilled",
+      "startAt",
+      "tidalfastReplaceEnded",
+      "tidalfastReplacedAudio",
+      "tidalfastReplacedDuration",
+      "volume",
+      "volumeUnmute"
+    ],
+    "player": [
+      "activeDeviceId",
+      "activeDeviceMode",
+      "activeDeviceType",
+      "availableDevices",
+      "desiredDeviceMode",
+      "devices",
+      "forceVolume",
+      "hasPreloadedNextProduct",
+      "isConnected",
+      "preloadedItem"
+    ],
+    "remotePlayback": [
+      "connectedDevice",
+      "deviceToConnectTo",
+      "devices",
+      "isConnected",
+      "remotePlaybackReceiverState",
+      "session",
+      "sessionStatus",
+      "type"
+    ],
+    "router": [
+      "currentParams",
+      "currentPath",
+      "currentSearch",
+      "history",
+      "previousPath",
+      "search"
+    ],
+    "search": [
+      "didYouMeanByQueryMap",
+      "genres",
+      "isLoading",
+      "queryId",
+      "recentSearches",
+      "results",
+      "searchPhrase",
+      "searchResultFilterOrder",
+      "searchSession",
+      "suggestionUuid",
+      "topHit"
+    ],
+    "selections": [
+      "indices",
+      "isDragging",
+      "items",
+      "loadedFolders",
+      "openFolders"
+    ],
+    "session": [
+      "clientId",
+      "clientUniqueKey",
+      "countryCode",
+      "facebookAccessToken",
+      "isInitialized",
+      "isLoading",
+      "isPolling",
+      "migrated",
+      "userId",
+      "utmParameters"
+    ],
+    "settings": [
+      "audioNormalization",
+      "audioSpectrumEnabled",
+      "autoPlay",
+      "closeToTray",
+      "crossfade",
+      "desktop",
+      "downloadQuality",
+      "explicitContentEnabled",
+      "language",
+      "openLinksInDesktopApp",
+      "quality",
+      "startMinimized",
+      "streamingQuality",
+      "updateAvailable",
+      "urls",
+      "videoQuality"
+    ],
+    "speech": [
+      "command",
+      "recognitionActive",
+      "recognitionSupported"
+    ],
+    "user": [
+      "clients",
+      "isLoaded",
+      "isLoading",
+      "meta",
+      "onboarding",
+      "subscription",
+      "temporaryDisableArtistPicker"
+    ],
+    "userProfiles": [],
+    "view": [
+      "appReady",
+      "fullscreenAllowed",
+      "isDragging",
+      "isFeedSidebarShowing",
+      "isFullscreen",
+      "isNativeFullscreen",
+      "isNowPlaying",
+      "isNowPlayingVisible",
+      "isPortal",
+      "isSearchPopoverShowing",
+      "modules",
+      "showNowPlaying",
+      "showPlayQueueAside",
+      "triggerSearchFocus"
+    ]
+  },
+  "@luna/core": {
+    "LunaPlugin": {
+      "kind": "class",
+      "members": [
+        "addDependant",
+        "code",
+        "control",
+        "disable",
+        "enable",
+        "enabled",
+        "exports",
+        "install",
+        "installed",
+        "isDev",
+        "liveReload",
+        "load",
+        "onSetEnabled",
+        "onSetLiveReload",
+        "package",
+        "reload",
+        "static corePlugins",
+        "static dumpStorage",
+        "static fetchCode",
+        "static fetchPackage",
+        "static fromName",
+        "static fromStorage",
+        "static getAllByName",
+        "static getByName",
+        "static loadStoredPlugins",
+        "static pluginStorage",
+        "static plugins",
+        "static trace",
+        "uninstall",
+        "url"
+      ]
+    },
+    "Messager": {
+      "kind": "object",
+      "members": [
+        "Error",
+        "Info",
+        "Warn"
+      ]
+    },
+    "ReactiveStore": {
+      "kind": "class",
+      "members": [
+        "clear",
+        "del",
+        "dump",
+        "ensure",
+        "get",
+        "getReactive",
+        "keys",
+        "set",
+        "static Storages",
+        "static getPluginStorage",
+        "static getStore"
+      ]
+    },
+    "SettingsTransfer": {
+      "kind": "class",
+      "members": [
+        "static dump",
+        "static exportableStores",
+        "static restore",
+        "static validate"
+      ]
+    },
+    "Signal": {
+      "kind": "class",
+      "members": [
+        "_",
+        "onValue"
+      ]
+    },
+    "Tracer": {
+      "kind": "function",
+      "members": []
+    },
+    "buildActions": {
+      "kind": "object",
+      "members": []
+    },
+    "findModuleByProperty": {
+      "kind": "function",
+      "members": []
+    },
+    "findModuleProperty": {
+      "kind": "function",
+      "members": []
+    },
+    "ftch": {
+      "kind": "object",
+      "members": [
+        "json",
+        "text"
+      ]
+    },
+    "interceptors": {
+      "kind": "object",
+      "members": [
+        "mix/LOAD_TRACK_MIX_ID",
+        "playbackControls/SET_PLAYBACK_STATE"
+      ]
+    },
+    "modules": {
+      "kind": "object",
+      "members": [
+        "@luna/core",
+        "@luna/lib",
+        "@luna/lib.native",
+        "@luna/ui",
+        "@mui/material",
+        "oby",
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "react/jsx-dev-runtime",
+        "react/jsx-runtime"
+      ]
+    },
+    "recursiveSearch": {
+      "kind": "function",
+      "members": []
+    },
+    "reduxStore": {
+      "kind": "object",
+      "members": [
+        "@@observable",
+        "dispatch",
+        "getState",
+        "replaceReducer",
+        "subscribe"
+      ]
+    },
+    "tidalModules": {
+      "kind": "object",
+      "members": [
+        "tidalfast"
+      ]
+    },
+    "unloadSet": {
+      "kind": "function",
+      "members": []
+    }
+  },
+  "@luna/lib": {
+    "Album": {
+      "kind": "class",
+      "members": [
+        "brainzId",
+        "count",
+        "coverUrl",
+        "genre",
+        "mediaItems",
+        "numberOfTracks",
+        "recordLabel",
+        "releaseDate",
+        "releaseYear",
+        "static artistNames",
+        "static formatCoverUrl",
+        "static formatTitle",
+        "static fromId",
+        "static fromStore",
+        "static getAlbumCoverUrl",
+        "static getItemFromStore",
+        "static trace"
+      ]
+    },
+    "Artist": {
+      "kind": "class",
+      "members": [
+        "coverUrl",
+        "name",
+        "static artistNames",
+        "static formatCoverUrl",
+        "static formatTitle",
+        "static fromId",
+        "static fromStore",
+        "static getAlbumCoverUrl",
+        "static getItemFromStore",
+        "static trace"
+      ]
+    },
+    "ContentBase": {
+      "kind": "class",
+      "members": [
+        "static artistNames",
+        "static formatCoverUrl",
+        "static formatTitle",
+        "static fromStore",
+        "static getAlbumCoverUrl",
+        "static getItemFromStore"
+      ]
+    },
+    "ContextMenu": {
+      "kind": "class",
+      "members": [
+        "static addButton",
+        "static buttons",
+        "static getCurrent",
+        "static onMediaItem",
+        "static onOpen",
+        "static trace"
+      ]
+    },
+    "MediaItem": {
+      "kind": "class",
+      "members": [
+        "bestQuality",
+        "bpm",
+        "copyright",
+        "download",
+        "downloadProgress",
+        "duration",
+        "fileExtension",
+        "isrcs",
+        "play",
+        "qualityTags",
+        "replayGain",
+        "replayGainPeak",
+        "static _supportsSpatialAudio",
+        "static artistNames",
+        "static availableTags",
+        "static formatCoverUrl",
+        "static formatTitle",
+        "static fromId",
+        "static fromIds",
+        "static fromIsrc",
+        "static fromPlaybackContext",
+        "static fromStore",
+        "static fromTMediaItems",
+        "static getAlbumCoverUrl",
+        "static getItemFromStore",
+        "static onMediaTransition",
+        "static onPreMediaTransition",
+        "static onPreload",
+        "static supportsSpatialAudio",
+        "static trace",
+        "trackNumber",
+        "updateFormat",
+        "url",
+        "volumeNumber",
+        "withFormat"
+      ]
+    },
+    "MediaItems": {
+      "kind": "class",
+      "members": [
+        "count",
+        "mediaItems",
+        "static fromIds",
+        "static fromTMediaItems",
+        "title"
+      ]
+    },
+    "PlayState": {
+      "kind": "class",
+      "members": [
+        "static MIN_SCROBBLE_DURATION",
+        "static MIN_SCROBBLE_PERCENTAGE",
+        "static RepeatMode",
+        "static cumulativePlaytime",
+        "static currentTime",
+        "static desiredState",
+        "static lastPlayStart",
+        "static moveTo",
+        "static next",
+        "static nextMediaItem",
+        "static onScrobble",
+        "static onState",
+        "static pause",
+        "static play",
+        "static playNext",
+        "static playQueue",
+        "static playTime",
+        "static playbackContext",
+        "static playbackControls",
+        "static playing",
+        "static previous",
+        "static previousMediaItem",
+        "static repeatMode",
+        "static seek",
+        "static setRepeatMode",
+        "static setShuffle",
+        "static shuffle",
+        "static state",
+        "static trace",
+        "static updatePlayQueue"
+      ]
+    },
+    "Playlist": {
+      "kind": "class",
+      "members": [
+        "count",
+        "coverUrl",
+        "mediaItems",
+        "static artistNames",
+        "static formatCoverUrl",
+        "static formatTitle",
+        "static fromId",
+        "static fromStore",
+        "static getAlbumCoverUrl",
+        "static getItemFromStore",
+        "static trace",
+        "title"
+      ]
+    },
+    "Quality": {
+      "kind": "class",
+      "members": [
+        "audioQuality",
+        "metadataTag",
+        "static Atmos",
+        "static HiRes",
+        "static High",
+        "static Low",
+        "static Lowest",
+        "static MQA",
+        "static Max",
+        "static Sony630",
+        "static fromAudioQuality",
+        "static fromIdx",
+        "static fromMetaTags",
+        "static lookups",
+        "static max",
+        "static min",
+        "valueOf"
+      ]
+    },
+    "StyleTag": {
+      "kind": "class",
+      "members": [
+        "add",
+        "css",
+        "remove"
+      ]
+    },
+    "Tidal": {
+      "kind": "object",
+      "members": [
+        "PlayState",
+        "featureFlags"
+      ]
+    },
+    "TidalApi": {
+      "kind": "object",
+      "members": [
+        "album",
+        "albumItems",
+        "artist",
+        "fetch",
+        "getAuthHeaders",
+        "getCredentials",
+        "isrc",
+        "lyrics",
+        "playbackInfo",
+        "playlist",
+        "playlistItems",
+        "queryArgs",
+        "trace",
+        "track"
+      ]
+    },
+    "downloadObject": {
+      "kind": "function",
+      "members": []
+    },
+    "errSignal": {
+      "kind": "object",
+      "members": [
+        "_l",
+        "_v"
+      ]
+    },
+    "getCredentials": {
+      "kind": "function",
+      "members": []
+    },
+    "getPlaybackInfo": {
+      "kind": "function",
+      "members": []
+    },
+    "ipcRenderer": {
+      "kind": "object",
+      "members": [
+        "invoke",
+        "on",
+        "onOpenUrl",
+        "once",
+        "send"
+      ]
+    },
+    "libTrace": {
+      "kind": "object",
+      "members": [
+        "debug",
+        "err",
+        "log",
+        "msg",
+        "warn",
+        "withSource"
+      ]
+    },
+    "observe": {
+      "kind": "function",
+      "members": []
+    },
+    "observePromise": {
+      "kind": "function",
+      "members": []
+    },
+    "parseDasha": {
+      "kind": "function",
+      "members": []
+    },
+    "parseDate": {
+      "kind": "function",
+      "members": []
+    },
+    "redux": {
+      "kind": "object",
+      "members": [
+        "RepeatMode",
+        "actionTypes",
+        "actions",
+        "intercept",
+        "interceptActionResp",
+        "interceptPromise",
+        "store"
+      ]
+    },
+    "safeInterval": {
+      "kind": "function",
+      "members": []
+    },
+    "safeTimeout": {
+      "kind": "function",
+      "members": []
+    },
+    "unloads": {
+      "kind": "value",
+      "members": []
+    }
+  },
+  "@luna/lib.native": {
+    "clipboardWriteText": {
+      "kind": "function",
+      "members": []
+    },
+    "fetchMediaItemStream": {
+      "kind": "function",
+      "members": []
+    },
+    "needsElevation": {
+      "kind": "function",
+      "members": []
+    },
+    "openExternal": {
+      "kind": "function",
+      "members": []
+    },
+    "pkg": {
+      "kind": "object",
+      "members": [
+        "name",
+        "version"
+      ]
+    },
+    "relaunch": {
+      "kind": "function",
+      "members": []
+    },
+    "runElevatedInstall": {
+      "kind": "function",
+      "members": []
+    },
+    "sendToRender": {
+      "kind": "function",
+      "members": []
+    },
+    "showErrorBox": {
+      "kind": "function",
+      "members": []
+    },
+    "showMessageBox": {
+      "kind": "function",
+      "members": []
+    },
+    "showOpenDialog": {
+      "kind": "function",
+      "members": []
+    },
+    "showSaveDialog": {
+      "kind": "function",
+      "members": []
+    },
+    "update": {
+      "kind": "function",
+      "members": []
+    }
+  },
+  "@luna/ui": {
+    "LunaAuthor": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaAuthorDisplay": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaButton": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaButtonSetting": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaLink": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaNumber": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaNumberSetting": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaSecureText": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaSecureTextSetting": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaSelectItem": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaSelectSetting": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaSetting": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaSettings": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaStack": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaSwitch": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaSwitchSetting": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaTextSetting": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaTitle": {
+      "kind": "function",
+      "members": []
+    },
+    "LunaTrashButton": {
+      "kind": "function",
+      "members": []
+    },
+    "Page": {
+      "kind": "class",
+      "members": [
+        "addtoDOM",
+        "open",
+        "removeFromDOM",
+        "render",
+        "static hook",
+        "static hooked",
+        "static openPage",
+        "static pages",
+        "static register"
+      ]
+    },
+    "SpinningButton": {
+      "kind": "function",
+      "members": []
+    },
+    "confirm": {
+      "kind": "function",
+      "members": []
+    },
+    "lunaMuiTheme": {
+      "kind": "object",
+      "members": [
+        "applyStyles",
+        "breakpoints",
+        "components",
+        "direction",
+        "mixins",
+        "palette",
+        "shadows",
+        "shape",
+        "spacing",
+        "transitions",
+        "typography",
+        "unstable_sx",
+        "unstable_sxConfig",
+        "vars",
+        "zIndex"
+      ]
+    },
+    "settingsSx": {
+      "kind": "object",
+      "members": [
+        "backgroundColor",
+        "borderRadius",
+        "boxShadow",
+        "padding",
+        "paddingBottom"
+      ]
+    },
+    "unloads": {
+      "kind": "value",
+      "members": []
+    }
+  }
+}

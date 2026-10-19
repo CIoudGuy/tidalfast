@@ -1,0 +1,4505 @@
+# Turkish translation of Tidalfast.
+# Distributed under the same MIT license as Tidalfast.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Tidalfast\n"
+"Report-Msgid-Bugs-To: https://github.com/CIoudGuy/tidalfast/issues/new?"
+"template=translation.yml\n"
+"POT-Creation-Date: 2026-10-19 06:00+0000\n"
+"PO-Revision-Date: 2026-10-02 20:30+0000\n"
+"Last-Translator: Barış Berke Çetin\n"
+"Language-Team: Turkish\n"
+"Language: tr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#. Translators: The play button on a Library card. {name} is the playlist, album, or artist.
+#: src/ui/sidebar.rs:181
+#, rust-format
+msgid "Pause {name}"
+msgstr "{name} duraklat"
+
+#. Translators: The play button on a Library card. {name} is the playlist, album, or artist.
+#: src/ui/sidebar.rs:184
+#, rust-format
+msgid "Play {name}"
+msgstr "{name} çal"
+
+#. Translators: Keep {count} exactly as written. A folder's size in the sidebar.
+#. Translators: Keep {count} exactly as written. A playlist's size in the sidebar.
+#. Translators: The label beside the pointer while several items are dragged. {count} is how many.
+#: src/ui/sidebar.rs:405 src/ui/sidebar.rs:1308 src/ui/widgets.rs:2056
+#, rust-format
+msgid "{count} item"
+msgid_plural "{count} items"
+msgstr[0] "{count} öğe"
+msgstr[1] "{count} öğe"
+
+#: src/ui/sidebar.rs:464 src/ui/sidebar.rs:1257 src/ui/sidebar.rs:1898
+#: src/app.rs:3253 src/app.rs:6506 src/app.rs:20448 src/ui/collection.rs:3143
+#: src/ui/collection.rs:3663 src/ui/home.rs:164 src/ui/search.rs:429
+#: src/ui/search.rs:973 src/ui/search.rs:1388 src/ui/search.rs:1600
+msgid "Playlist"
+msgstr "Çalma listesi"
+
+#: src/ui/sidebar.rs:474 src/ui/sidebar.rs:1600 src/app.rs:3227
+#: src/app.rs:20453 src/model.rs:855 src/ui/collection.rs:3387
+#: src/ui/collection.rs:3394 src/ui/collection.rs:3551 src/ui/keys.rs:237
+#: src/ui/search.rs:810 src/ui/save_later.rs:22 src/ui/purchases.rs:38
+#: src/ui/uploads.rs:1430
+msgid "Tracks"
+msgstr "Parçalar"
+
+#: src/ui/sidebar.rs:509
+msgid "Library order"
+msgstr "Kitaplık sıralaması"
+
+#: src/ui/sidebar.rs:512 src/ui/home.rs:663 src/ui/home.rs:673
+#: src/ui/home.rs:694
+msgid "Recently played"
+msgstr "Son çalınanlar"
+
+#: src/ui/sidebar.rs:514 src/ui/uploads.rs:1742
+msgid "Name"
+msgstr "Ad"
+
+#: src/ui/sidebar.rs:517
+msgid "Recently added"
+msgstr "Son eklenenler"
+
+#: src/ui/sidebar.rs:519
+msgid "Local custom order"
+msgstr "Yerel özel sıralama"
+
+#: src/ui/sidebar.rs:520
+msgid "TIDAL order"
+msgstr "TIDAL sırası"
+
+#: src/ui/sidebar.rs:646
+msgid "Show sidebar (Ctrl+B)"
+msgstr "Kenar çubuğunu göster (Ctrl+B)"
+
+#: src/ui/sidebar.rs:647
+msgid "Show sidebar (Cmd+B)"
+msgstr "Kenar çubuğunu göster (Cmd+B)"
+
+#: src/ui/sidebar.rs:662 src/ui/sidebar.rs:1715 src/ui/sidebar.rs:1795
+msgid "Music"
+msgstr "Müzik"
+
+#: src/ui/sidebar.rs:668 src/ui/sidebar.rs:1728 src/ui/sidebar.rs:1801
+#: src/ui/explore.rs:69
+msgid "Explore"
+msgstr "Keşfet"
+
+#: src/ui/sidebar.rs:689 src/ui/sidebar.rs:1887 src/ui/library.rs:43
+msgid "Create a playlist"
+msgstr "Çalma listesi oluştur"
+
+#: src/ui/sidebar.rs:1352 src/ui/sidebar.rs:1807 src/ui/feed.rs:32
+msgid "Feed"
+msgstr "Akış"
+
+#: src/ui/sidebar.rs:1398 src/ui/sidebar.rs:1813 src/ui/uploads.rs:53
+#: src/ui/uploads.rs:74 src/ui/uploads.rs:118
+msgid "Upload"
+msgstr "Yükle"
+
+#: src/ui/sidebar.rs:1593 src/ui/library.rs:47 src/ui/now_playing.rs:645
+msgid "Mixes & Radio"
+msgstr "Mixler ve radyo"
+
+#: src/ui/sidebar.rs:1596 src/model.rs:858 src/ui/artist.rs:194
+#: src/ui/artist.rs:1256 src/ui/artist.rs:2156 src/ui/library.rs:41
+#: src/ui/library.rs:42 src/ui/profile.rs:127 src/ui/menus.rs:636
+#: src/ui/downloads.rs:509 src/ui/save_later.rs:24
+msgid "Playlists"
+msgstr "Çalma listeleri"
+
+#: src/ui/sidebar.rs:1599 src/model.rs:857 src/model.rs:1107
+#: src/ui/artist.rs:933 src/ui/artist.rs:1250 src/ui/artist.rs:2125
+#: src/ui/library.rs:29 src/ui/downloads.rs:508 src/ui/save_later.rs:21
+#: src/ui/purchases.rs:37
+msgid "Albums"
+msgstr "Albümler"
+
+#: src/ui/sidebar.rs:1601 src/model.rs:860 src/ui/artist.rs:222
+#: src/ui/artist.rs:1254 src/ui/videos.rs:44 src/ui/videos.rs:52
+#: src/ui/save_later.rs:25
+msgid "Videos"
+msgstr "Videolar"
+
+#: src/ui/sidebar.rs:1602 src/model.rs:856 src/ui/library.rs:35
+msgid "Profiles"
+msgstr "Profiller"
+
+#: src/ui/sidebar.rs:1603 src/ui/purchases.rs:21
+msgid "Purchases"
+msgstr "Satın alınanlar"
+
+#: src/ui/sidebar.rs:1606 src/ui/menus.rs:754 src/ui/save_later.rs:75
+msgid "Save for Later"
+msgstr "Sonrası için kaydet"
+
+#: src/ui/sidebar.rs:1611 src/ui/settings.rs:1683 src/ui/collection.rs:967
+#: src/ui/collection.rs:3493 src/app/downloads.rs:709
+msgid "Downloaded"
+msgstr "İndirilenler"
+
+#: src/ui/sidebar.rs:1747 src/ui/sidebar.rs:1783 src/ui/sidebar.rs:1819
+msgid "Collection"
+msgstr "Koleksiyon"
+
+#: src/ui/sidebar.rs:1873
+msgid "All playlists"
+msgstr "Tüm çalma listeleri"
+
+#: src/ui/sidebar.rs:1911
+msgid "Folder"
+msgstr "Klasör"
+
+#: src/ui/sidebar.rs:1929
+msgid "Sort playlists"
+msgstr "Çalma listelerini sırala"
+
+#: src/ui/sidebar.rs:1978
+msgid "Hide sidebar (Ctrl+B)"
+msgstr "Kenar çubuğunu gizle (Ctrl+B)"
+
+#: src/ui/sidebar.rs:1979
+msgid "Hide sidebar (Cmd+B)"
+msgstr "Kenar çubuğunu gizle (Cmd+B)"
+
+#: src/ui/sidebar.rs:2096 src/app.rs:3291 src/ui/artist.rs:488
+#: src/ui/home.rs:202 src/ui/home.rs:786 src/ui/search.rs:859
+msgid "Artist"
+msgstr "Sanatçı"
+
+#: src/ui/sidebar.rs:2192
+msgid "Nothing here yet."
+msgstr "Burada henüz bir şey yok."
+
+#: src/ui/sidebar.rs:2194
+msgid "No matches."
+msgstr "Eşleşme bulunamadı."
+
+#: src/ui/sidebar.rs:2833
+msgid "Sort by recently played"
+msgstr "Son çalınanlara göre sırala"
+
+#: src/ui/sidebar.rs:2852 src/ui/equalizer.rs:693
+msgid "Rename"
+msgstr "Yeniden adlandır"
+
+#: src/ui/sidebar.rs:2864
+msgid "Delete folder"
+msgstr "Klasörü sil"
+
+#: src/ui/sidebar.rs:2881 src/ui/menus.rs:1329 src/ui/videos.rs:382
+msgid "Play now"
+msgstr "Şimdi çal"
+
+#: src/ui/sidebar.rs:2899
+msgid "Unpin"
+msgstr "Sabitlemeyi kaldır"
+
+#: src/ui/sidebar.rs:2901
+msgid "Pin to top"
+msgstr "Başa sabitle"
+
+#. Translators: Keep {count} exactly as written. It becomes the number of liked songs.
+#: src/i18n.rs:184
+#, rust-format
+msgid "Playlist • {count} track"
+msgid_plural "Playlist • {count} tracks"
+msgstr[0] "Çalma listesi • {count} şarkı"
+msgstr[1] "Çalma listesi • {count} şarkı"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of songs.
+#. Translators: Keep {count} exactly as written.
+#. Translators: Keep {count} exactly as written. Shown in capitals on page headers.
+#. Translators: Keep {count} exactly as written. It becomes the number of selected tracks.
+#: src/i18n.rs:195 src/ui/collection.rs:3590 src/ui/collection.rs:3619
+#: src/ui/search.rs:612 src/ui/menus.rs:101 src/ui/menus.rs:1018
+#: src/ui/uploads.rs:244 src/ui/uploads.rs:707
+#, rust-format
+msgid "{count} track"
+msgid_plural "{count} tracks"
+msgstr[0] "{count} şarkı"
+msgstr[1] "{count} şarkı"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of playlists.
+#: src/i18n.rs:206
+#, rust-format
+msgid "{count} playlist"
+msgid_plural "{count} playlists"
+msgstr[0] "{count} çalma listesi"
+msgstr[1] "{count} çalma listesi"
+
+#. Translators: Keep {count} exactly as written. It becomes the number of playlists a folder holds.
+#: src/i18n.rs:217
+#, rust-format
+msgid "Folder • {count} playlist"
+msgid_plural "Folder • {count} playlists"
+msgstr[0] "Klasör • {count} çalma listesi"
+msgstr[1] "Klasör • {count} çalma listesi"
+
+#: src/i18n.rs:227
+#, rust-format
+msgid "{name}, folder, collapsed"
+msgstr "{name}, klasör, daraltılmış"
+
+#: src/i18n.rs:229
+#, rust-format
+msgid "{name}, folder, expanded"
+msgstr "{name}, klasör, genişletilmiş"
+
+#: src/i18n.rs:262 src/i18n.rs:265 src/ui/keys.rs:233 src/ui/home_feeds.rs:520
+#: src/ui/titlebar.rs:147
+msgid "Home"
+msgstr "Ana Sayfa"
+
+#: src/i18n.rs:369 src/ui/menus.rs:1468
+msgid "Unfollow"
+msgstr "Takibi bırak"
+
+#: src/i18n.rs:371 src/ui/menus.rs:1527
+msgctxt "artist"
+msgid "Unfollow"
+msgstr "Takipten çık"
+
+#: src/ui/player_bar.rs:384 src/ui/lyrics.rs:108 src/ui/lyrics.rs:311
+#: src/ui/compact.rs:594 src/ui/now_playing.rs:283
+msgid "Nothing playing"
+msgstr "Hiçbir şey çalmıyor"
+
+#: src/ui/player_bar.rs:390 src/app.rs:9539 src/ui/now_playing.rs:284
+msgid "Pick a track, album, or playlist"
+msgstr "Bir şarkı, albüm veya çalma listesi seçin"
+
+#: src/ui/player_bar.rs:650 src/ui/widgets.rs:1935 src/ui/widgets.rs:2995
+#: src/ui/collection.rs:3207 src/ui/collection.rs:3229 src/ui/dialogs.rs:131
+#: src/ui/radio.rs:254 src/ui/menus.rs:716 src/ui/menus.rs:730
+#: src/ui/menus.rs:1052 src/ui/compact.rs:491
+msgid "Remove from My Collection"
+msgstr "Koleksiyonumdan kaldır"
+
+#: src/ui/player_bar.rs:657 src/ui/widgets.rs:1937 src/ui/widgets.rs:3001
+#: src/ui/collection.rs:3206 src/ui/collection.rs:3228 src/ui/radio.rs:253
+#: src/ui/menus.rs:718 src/ui/menus.rs:732 src/ui/menus.rs:1054
+#: src/ui/compact.rs:493
+msgid "Add to My Collection"
+msgstr "Koleksiyonuma ekle"
+
+#: src/ui/player_bar.rs:715
+msgid "Don't play this"
+msgstr "Bunu çalma"
+
+#: src/ui/player_bar.rs:769 src/ui/queue.rs:1082 src/ui/widgets.rs:1981
+#: src/ui/widgets.rs:2961 src/ui/artist.rs:868 src/ui/artist.rs:1649
+#: src/ui/artist.rs:2040 src/ui/collection.rs:732 src/ui/now_playing.rs:875
+#: src/ui/now_playing_video.rs:312 src/ui/sticky.rs:441
+#: src/ui/album_credits.rs:549 src/ui/uploads.rs:1542
+msgid "More"
+msgstr "Daha fazla"
+
+#: src/ui/player_bar.rs:880 src/ui/player_bar.rs:887 src/ui/artist.rs:850
+#: src/ui/artist.rs:1628 src/ui/artist.rs:1703 src/ui/artist.rs:1987
+#: src/ui/collection.rs:707 src/ui/menus.rs:1395 src/ui/titlebar.rs:166
+#: src/ui/sticky.rs:515
+msgid "Shuffle"
+msgstr "Karışık çal"
+
+#: src/ui/player_bar.rs:903 src/ui/compact.rs:415
+#: src/ui/now_playing_video.rs:498 src/ui/titlebar.rs:165
+msgid "Previous"
+msgstr "Önceki"
+
+#: src/ui/player_bar.rs:949 src/ui/collection.rs:876 src/ui/compact.rs:422
+#: src/ui/now_playing_video.rs:517
+msgid "Pause"
+msgstr "Duraklat"
+
+#: src/ui/player_bar.rs:951 src/ui/artist.rs:833 src/ui/artist.rs:1635
+#: src/ui/artist.rs:1713 src/ui/artist.rs:1979 src/ui/collection.rs:878
+#: src/ui/compact.rs:424 src/ui/now_playing_video.rs:519
+msgid "Play"
+msgstr "Çal"
+
+#: src/ui/player_bar.rs:979 src/ui/compact.rs:434
+#: src/ui/now_playing_video.rs:535 src/ui/titlebar.rs:164
+msgid "Next"
+msgstr "Sonraki"
+
+#: src/ui/player_bar.rs:988 src/ui/titlebar.rs:167
+msgid "Repeat"
+msgstr "Tekrarla"
+
+#: src/ui/player_bar.rs:992
+msgid "Repeat one"
+msgstr "Tek şarkıyı tekrarla"
+
+#: src/ui/player_bar.rs:997
+msgid "Repeat off"
+msgstr "Tekrarlamayı kapat"
+
+#: src/ui/player_bar.rs:1103 src/ui/compact.rs:566
+msgid "Playback position (%)"
+msgstr "Çalma konumu (%)"
+
+#: src/ui/player_bar.rs:1161 src/ui/player_utility.rs:475
+msgid "Bit-perfect"
+msgstr "Bit-perfect"
+
+#: src/ui/player_bar.rs:1246
+msgid "Compact mode"
+msgstr "Kompakt mod"
+
+#: src/ui/player_bar.rs:1301
+msgid ""
+"Bit-perfect playback: the volume stays at 100%. Turn the volume down on your "
+"device."
+msgstr ""
+"Bit-perfect oynatma: ses düzeyi %100'de kalır. Sesi aygıtınızdan kısın."
+
+#: src/ui/player_bar.rs:1306
+msgid "This device's volume can't be changed from Tidalfast"
+msgstr "Bu cihazın ses düzeyi Tidalfast üzerinden değiştirilemez"
+
+#: src/ui/player_bar.rs:1329 src/ui/queue.rs:24 src/ui/queue.rs:41
+msgid "Queue"
+msgstr "Sıra"
+
+#: src/ui/queue.rs:42 src/ui/menus.rs:580 src/ui/menus.rs:656
+msgid "Recent"
+msgstr "Geçmiş"
+
+#: src/ui/queue.rs:79
+msgid "Save as a playlist"
+msgstr "Çalma listesi olarak kaydet"
+
+#: src/ui/queue.rs:96 src/ui/queue.rs:909
+msgid "Clear queue"
+msgstr "Sırayı temizle"
+
+#: src/ui/queue.rs:199 src/ui/queue.rs:212 src/ui/queue.rs:866
+msgid "Playing from"
+msgstr "Şuradan çalınıyor"
+
+#: src/ui/queue.rs:232
+msgid "Now playing"
+msgstr "Şu an çalıyor"
+
+#: src/ui/queue.rs:274
+msgid "Nothing queued"
+msgstr "Sırada şarkı yok"
+
+#: src/ui/queue.rs:275
+msgid "Queued tracks appear here."
+msgstr "Sıraya eklenen şarkılar burada görünür."
+
+#. Translators: Songs added manually, before the current playlist or album continues.
+#: src/ui/queue.rs:295
+msgid "Playing next"
+msgstr "Sıradaki"
+
+#: src/ui/queue.rs:402
+msgid "Next up from"
+msgstr "Sıradaki kaynak"
+
+#. Translators: Upcoming songs from the current playlist or album, after manually queued songs.
+#: src/ui/queue.rs:403 src/ui/queue.rs:412
+msgid "Next up"
+msgstr "Daha sonra"
+
+#: src/ui/queue.rs:458 src/ui/queue.rs:491 src/ui/widgets.rs:4215
+#: src/ui/collection.rs:2352 src/ui/plugins.rs:2097 src/ui/blocked.rs:49
+msgid "Retry"
+msgstr "Yeniden dene"
+
+#: src/ui/queue.rs:473
+msgid "No recent plays"
+msgstr "Son çalınan şarkı yok"
+
+#: src/ui/queue.rs:474
+msgid "Played tracks appear here."
+msgstr "Çalınan şarkılar burada görünür."
+
+#: src/ui/queue.rs:550
+msgid "Load more"
+msgstr "Daha fazla yükle"
+
+#: src/ui/queue.rs:723 src/ui/queue.rs:728 src/ui/titlebar.rs:149
+msgid "Play queue"
+msgstr "Çalma kuyruğu"
+
+#: src/ui/queue.rs:740 src/ui/lyrics.rs:69 src/ui/artist.rs:747
+#: src/ui/dialogs.rs:671 src/ui/dialogs.rs:831 src/ui/mod.rs:973
+#: src/ui/now_playing.rs:346 src/ui/now_playing_video.rs:152
+#: src/ui/now_playing_video.rs:490 src/ui/blocked.rs:29 src/ui/uploads.rs:492
+msgid "Close"
+msgstr "Kapat"
+
+#: src/ui/queue.rs:834
+msgid "History"
+msgstr "Geçmiş"
+
+#: src/ui/queue.rs:901 src/ui/widgets.rs:4790
+msgid "Clear"
+msgstr "Temizle"
+
+#. Translators: {title} is a song name, {subtitle} its artists.
+#: src/ui/queue.rs:958 src/ui/widgets.rs:1424
+#, rust-format
+msgid "Play {title}, {subtitle}"
+msgstr "{title}, {subtitle} çal"
+
+#: src/ui/queue.rs:1068 src/ui/dialogs.rs:162
+msgid "Remove"
+msgstr "Kaldır"
+
+#: src/ui/lyrics.rs:58 src/ui/compact.rs:304 src/ui/now_playing.rs:169
+msgid "Lyrics"
+msgstr "Şarkı Sözleri"
+
+#: src/ui/lyrics.rs:81
+msgid "Full screen lyrics"
+msgstr "Tam ekran şarkı sözleri"
+
+#: src/ui/lyrics.rs:109 src/ui/lyrics.rs:312
+msgid "Play a track to see its lyrics."
+msgstr "Şarkı sözlerini görmek için bir şarkı çalın."
+
+#: src/ui/lyrics.rs:120 src/ui/lyrics.rs:137 src/app.rs:12563
+#: src/ui/artist.rs:377 src/ui/artist.rs:411 src/ui/collection.rs:2695
+#: src/ui/collection.rs:2852 src/ui/collection.rs:2885
+#: src/ui/collection.rs:2944 src/ui/collection.rs:3067
+#: src/ui/collection.rs:3100 src/ui/collection.rs:3378 src/ui/library.rs:294
+#: src/ui/library.rs:457 src/ui/downloads.rs:40 src/ui/save_later.rs:154
+#: src/ui/purchases.rs:116
+msgid "You're offline"
+msgstr "Çevrimdışısınız"
+
+#: src/ui/lyrics.rs:123 src/ui/lyrics.rs:140 src/ui/artist.rs:380
+#: src/ui/artist.rs:414 src/ui/collection.rs:2698 src/ui/collection.rs:2855
+#: src/ui/collection.rs:2888 src/ui/collection.rs:2947
+#: src/ui/collection.rs:3070 src/ui/collection.rs:3103
+#: src/ui/collection.rs:3381 src/ui/library.rs:297 src/ui/library.rs:460
+#: src/ui/downloads.rs:55 src/ui/save_later.rs:157 src/ui/purchases.rs:119
+msgid "Tidalfast will reconnect automatically when your connection returns."
+msgstr ""
+"Bağlantınız geri geldiğinde Tidalfast otomatik olarak yeniden bağlanacaktır."
+
+#: src/ui/lyrics.rs:149 src/ui/lyrics.rs:326 src/ui/settings.rs:574
+#: src/ui/downloads.rs:488 src/ui/now_playing.rs:504
+#: src/ui/album_credits.rs:590 src/ui/album_extras.rs:180
+msgid "Try again"
+msgstr "Tekrar dene"
+
+#: src/ui/lyrics.rs:160 src/ui/lyrics.rs:337 src/ui/compact.rs:608
+msgid "No lyrics"
+msgstr "Şarkı sözü yok"
+
+#: src/ui/lyrics.rs:161 src/ui/lyrics.rs:338
+msgid "No lyrics found for this track."
+msgstr "Bu parça için şarkı sözü bulunamadı."
+
+#: src/ui/lyrics.rs:170 src/ui/lyrics.rs:347 src/ui/compact.rs:604
+msgid "Instrumental"
+msgstr "Enstrümantal"
+
+#: src/ui/lyrics.rs:171 src/ui/lyrics.rs:348
+msgid "No timed lyrics for this track."
+msgstr "Bu parça için senkronize şarkı sözü yok."
+
+#: src/ui/lyrics.rs:295 src/ui/lyrics.rs:539
+msgid "Sync Lyrics"
+msgstr "Sözleri senkronize et"
+
+#: src/ui/lyrics.rs:591
+msgid "The lyrics service is busy right now. Try again in a moment."
+msgstr "Şarkı sözü hizmeti şu anda meşgul. Birazdan tekrar dene."
+
+#: src/ui/lyrics.rs:597
+msgid "Couldn't reach the lyrics service. Check your connection and try again."
+msgstr "Şarkı sözü hizmetine ulaşılamadı. Bağlantını kontrol edip tekrar dene."
+
+#. Translators: Keep {error} unchanged. It is the original failure detail.
+#: src/ui/lyrics.rs:604
+#, rust-format
+msgid "Couldn't fetch the lyrics: {error}"
+msgstr "Şarkı sözleri alınamadı: {error}"
+
+#: src/ui/widgets.rs:1075 src/ui/library.rs:44
+msgid "Filter playlists"
+msgstr "Çalma listelerini filtrele"
+
+#: src/ui/widgets.rs:1102
+msgid "No editable playlists"
+msgstr "Düzenlenebilir çalma listesi yok"
+
+#: src/ui/widgets.rs:1104 src/ui/library.rs:286
+msgid "No matching playlists"
+msgstr "Eşleşen çalma listesi yok"
+
+#. Translators: {column} is a column heading of a song list, such as Title.
+#: src/ui/widgets.rs:2500
+#, rust-format
+msgid "Sort by {column}"
+msgstr "{column} sütununa göre sırala"
+
+#: src/ui/widgets.rs:2505
+msgctxt "column heading"
+msgid "TITLE"
+msgstr "BAŞLIK"
+
+#: src/ui/widgets.rs:2512
+msgid "Sort by playlist order"
+msgstr "Çalma listesi sırasına göre sırala"
+
+#: src/ui/widgets.rs:2528
+msgctxt "column heading"
+msgid "ARTIST"
+msgstr "SANATÇI"
+
+#: src/ui/widgets.rs:2532
+msgctxt "column heading"
+msgid "ALBUM"
+msgstr "ALBÜM"
+
+#: src/ui/widgets.rs:2537
+msgctxt "column heading"
+msgid "ADDED BY"
+msgstr "EKLEYEN"
+
+#: src/ui/widgets.rs:2542
+msgctxt "column heading"
+msgid "DATE ADDED"
+msgstr "EKLENME TARİHİ"
+
+#: src/ui/widgets.rs:2551
+msgctxt "column heading"
+msgid "TIME"
+msgstr "SÜRE"
+
+#: src/ui/widgets.rs:2557
+msgid "Sort by duration"
+msgstr "Süreye göre sırala"
+
+#: src/ui/widgets.rs:2562
+msgctxt "column heading"
+msgid "BPM"
+msgstr "BPM"
+
+#: src/ui/widgets.rs:2563
+msgctxt "column heading"
+msgid "KEY"
+msgstr "TON"
+
+#: src/ui/widgets.rs:2979 src/ui/menus.rs:502
+msgid "Add to playlist"
+msgstr "Çalma listesine ekle"
+
+#: src/ui/widgets.rs:4178 src/app.rs:12149
+msgid "That needs a connection. Turn off offline mode to use TIDAL."
+msgstr ""
+"Bunun için bağlantı gerekir. TIDAL’ı kullanmak için çevrimdışı modu kapatın."
+
+#: src/ui/widgets.rs:4186 src/app.rs:13734 src/app.rs:13748
+msgid "Network connection error. Check your connection."
+msgstr "Ağ bağlantısı hatası. Bağlantınızı kontrol edin."
+
+#: src/ui/widgets.rs:4205 src/ui/downloads.rs:84 src/ui/downloads.rs:109
+msgid "Go online"
+msgstr "Çevrimiçi ol"
+
+#: src/ui/widgets.rs:4641
+msgid "Cut"
+msgstr "Kes"
+
+#: src/ui/widgets.rs:4646
+msgid "Copy"
+msgstr "Kopyala"
+
+#: src/ui/widgets.rs:4651
+msgid "Paste"
+msgstr "Yapıştır"
+
+#: src/ui/widgets.rs:4668
+msgid "Select all"
+msgstr "Tümünü seç"
+
+#: src/ui/widgets.rs:5032
+msgid "Host"
+msgstr "Sunucu"
+
+#: src/ui/widgets.rs:5049
+msgid "Port"
+msgstr "Port"
+
+#: src/ui/widgets.rs:5067
+msgid "Username"
+msgstr "Kullanıcı adı"
+
+#: src/ui/widgets.rs:5078
+msgid "Password"
+msgstr "Parola"
+
+#: src/ui/widgets.rs:5096
+msgid ""
+"Proxy login applies to Web requests. Local playback uses this proxy only "
+"without a login."
+msgstr ""
+"Proxy girişi web istekleri için geçerlidir. Yerel çalma bu proxy'yi yalnızca "
+"kimlik doğrulamasız kullanır."
+
+#: src/ui/widgets.rs:5100
+msgid ""
+"TIDAL hostnames are resolved by the proxy. Local playback connects directly."
+msgstr ""
+"TIDAL ana makine adları proxy tarafından çözümlenir. Yerel çalma doğrudan "
+"bağlanır."
+
+#: src/app.rs:986
+msgid "Restoring proxy settings"
+msgstr "Proxy ayarları geri yükleniyor"
+
+#: src/app.rs:1332
+#, rust-format
+msgid "Tidalfast updated to v{version}"
+msgstr "Tidalfast v{version} sürümüne güncellendi"
+
+#: src/app.rs:1335 src/ui/settings.rs:1811 src/ui/dialogs.rs:262
+msgid "What's new"
+msgstr "Yenilikler"
+
+#. Translators: {error} is a sentence saying why the proxy password could not be stored.
+#: src/app.rs:2340
+#, rust-format
+msgid ""
+"{error} The original settings file is kept intact; changed preferences are "
+"not saved yet."
+msgstr ""
+"{error} Orijinal ayarlar dosyası korundu; değiştirilen tercihler henüz "
+"kaydedilmedi."
+
+#: src/app.rs:2361
+#, rust-format
+msgid "Couldn't load AutoEQ's headphone list: {error}"
+msgstr "AutoEQ kulaklık listesi yüklenemedi: {error}"
+
+#: src/app.rs:2377
+#, rust-format
+msgid "Couldn't load the AutoEQ profile: {error}"
+msgstr "AutoEQ profili yüklenemedi: {error}"
+
+#. Translators: {version} is a version number such as 1.4.0.
+#: src/app.rs:2521
+#, rust-format
+msgid "Tidalfast {version} is available"
+msgstr "Tidalfast {version} sürümü hazır"
+
+#: src/app.rs:2542
+msgid "You're up to date"
+msgstr "Güncelsiniz"
+
+#: src/app.rs:2561
+msgid "This build can't check for updates"
+msgstr "Bu sürüm güncellemeleri denetleyemiyor"
+
+#: src/app.rs:2563
+msgid "Couldn't reach the update server"
+msgstr "Güncelleme sunucusuna ulaşılamadı"
+
+#. Translators: {error} is an error message from the playback engine.
+#: src/app.rs:2636
+#, rust-format
+msgid "Local playback: {error}"
+msgstr "Yerel çalma: {error}"
+
+#: src/app.rs:2681
+msgid "TIDAL hasn't confirmed your playlist changes yet. Try refreshing again."
+msgstr ""
+"TIDAL çalma listesi değişikliklerinizi henüz onaylamadı. Yeniden yenilemeyi "
+"deneyin."
+
+#: src/app.rs:3162
+msgid "The song you were playing isn't available anymore"
+msgstr "Çaldığınız şarkı artık kullanılamıyor"
+
+#. Translators: {name} is a song title.
+#: src/app.rs:3167
+#, rust-format
+msgid "{name} isn't available anymore"
+msgstr "{name} artık kullanılamıyor"
+
+#: src/app.rs:3235 src/app/radio.rs:191 src/ui/radio.rs:37 src/ui/radio.rs:81
+msgid "Radio"
+msgstr "Radyo"
+
+#: src/app.rs:3269 src/api/models.rs:302 src/ui/search.rs:427
+#: src/ui/search.rs:1387 src/ui/search.rs:1580 src/ui/feed.rs:128
+#: src/ui/uploads.rs:1295
+msgid "Album"
+msgstr "Albüm"
+
+#: src/app.rs:3300
+#, rust-format
+msgid "{artist} top tracks"
+msgstr "{artist} - En Çok Dinlenenler"
+
+#: src/app.rs:3302
+msgid "Top tracks"
+msgstr "En çok çalınan şarkılar"
+
+#: src/app.rs:3322 src/ui/radio.rs:197 src/ui/radio.rs:214
+msgid "Mix"
+msgstr "Mix"
+
+#: src/app.rs:3841
+#, rust-format
+msgid "Left out {count} filters this equalizer does not have"
+msgstr "Bu ekolayzerde olmayan {count} filtre atlandı"
+
+#: src/app.rs:3850
+#, rust-format
+msgid "That is not an Equalizer APO profile: {error}"
+msgstr "Bu bir Equalizer APO profili değil: {error}"
+
+#: src/app.rs:3996
+msgid "Proxy applied. Restarting local playback."
+msgstr "Proxy uygulandı. Yerel çalma yeniden başlatılıyor."
+
+#: src/app.rs:3998
+msgid "Proxy settings applied"
+msgstr "Proxy ayarları uygulandı"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:4005
+#, rust-format
+msgid ""
+"Proxy could not be applied: {error}. Previous connection settings are still "
+"in use."
+msgstr ""
+"Proxy uygulanamadı: {error}. Önceki bağlantı ayarları kullanılmaya devam "
+"ediyor."
+
+#: src/app.rs:5905
+msgid "Removed from queue"
+msgstr "Sıradan kaldırıldı"
+
+#: src/app.rs:6019
+msgid "Queue cleared"
+msgstr "Sıra temizlendi"
+
+#. Translators: Keep {date} unchanged. It is a date in YYYY-MM-DD form.
+#: src/app.rs:6049 src/app.rs:20438
+#, rust-format
+msgid "Queue {date}"
+msgstr "Sıra {date}"
+
+#: src/app.rs:6647
+msgid "Your TIDAL sign-in expired. Please sign in again."
+msgstr "TIDAL oturumunuzun süresi doldu. Lütfen yeniden oturum açın."
+
+#. Translators: {error} is an error message.
+#: src/app.rs:6654
+#, rust-format
+msgid "Couldn't load your profile: {error}"
+msgstr "Profiliniz yüklenemedi: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7035
+#, rust-format
+msgid "Couldn't load more playlists: {error}"
+msgstr "Daha fazla çalma listesi yüklenemedi: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7343
+#, rust-format
+msgid "Couldn't create the playlist: {error}"
+msgstr "Çalma listesi oluşturulamadı: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7361 src/app.rs:7380 src/app.rs:7569
+#, rust-format
+msgid "Couldn't update the playlist: {error}"
+msgstr "Çalma listesi güncellenemedi: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7396 src/app.rs:7533
+#, rust-format
+msgid "Playlist change failed: {error}"
+msgstr "Çalma listesi değişikliği başarısız oldu: {error}"
+
+#. Translators: {name} is an album name and {error} is an error message.
+#: src/app.rs:7417 src/app.rs:9823
+#, rust-format
+msgid "Couldn't add {name} to queue: {error}"
+msgstr "{name} sıraya eklenemedi: {error}"
+
+#: src/app.rs:7446
+msgid "Couldn't delete the folder, its playlists couldn't be moved out"
+msgstr "Klasör silinemedi, içindeki çalma listeleri dışarı taşınamadı"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7453
+#, rust-format
+msgid "Folder change failed: {error}"
+msgstr "Klasör değişikliği başarısız: {error}"
+
+#: src/app.rs:7744
+msgid "We won't play this song again"
+msgstr "Bu şarkıyı bir daha çalmayacağız"
+
+#: src/app.rs:7747
+msgid "Couldn't block this song"
+msgstr "Bu şarkı engellenemedi"
+
+#: src/app.rs:7776
+msgid "We'll play this song again"
+msgstr "Bu şarkıyı yeniden çalacağız"
+
+#: src/app.rs:7787
+msgid "Couldn't unblock this song"
+msgstr "Şarkının engeli kaldırılamadı"
+
+#: src/app.rs:7806
+msgid "We won't play this artist in mixes and radio"
+msgstr "Bu sanatçıyı mikslerde ve radyoda çalmayacağız"
+
+#: src/app.rs:7808
+msgid "We'll play this artist again"
+msgstr "Bu sanatçıyı yeniden çalacağız"
+
+#: src/app.rs:7813
+msgid "Couldn't block this artist"
+msgstr "Sanatçı engellenemedi"
+
+#: src/app.rs:7815
+msgid "Couldn't unblock this artist"
+msgstr "Sanatçının engeli kaldırılamadı"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7895
+#, rust-format
+msgid "Couldn't update My Collection: {error}"
+msgstr "Koleksiyonum güncellenemedi: {error}"
+
+#. Translators: {query} is the words someone searched for.
+#: src/app.rs:7944
+#, rust-format
+msgid "Nothing on TIDAL matches “{query}”"
+msgstr "TIDAL'da “{query}” ile eşleşen bir şey yok"
+
+#. Translators: {query} is the words someone searched for; {error} is an error message.
+#: src/app.rs:7952
+#, rust-format
+msgid "Couldn't search for “{query}”: {error}"
+msgstr "“{query}” aranamadı: {error}"
+
+#: src/app.rs:7990 src/ui/keys.rs:224 src/ui/search.rs:156 src/ui/topbar.rs:354
+#: src/ui/titlebar.rs:148
+msgid "Search"
+msgstr "Ara"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:8301
+#, rust-format
+msgid "Cannot open this track: {error}"
+msgstr "Bu şarkı açılamıyor: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:8366 src/app.rs:8390
+#, rust-format
+msgid "Couldn't add to queue: {error}"
+msgstr "Sıraya eklenemedi: {error}"
+
+#: src/app.rs:8493
+msgid "This track's album is not on TIDAL"
+msgstr "Bu şarkının albümü TIDAL'da bulunmuyor"
+
+#: src/app.rs:8506
+msgid "Tidalfast cannot open this kind of TIDAL link"
+msgstr "Tidalfast bu tür bir TIDAL bağlantısını açamaz"
+
+#: src/app.rs:8730
+msgid "Nothing is playing. Pick something first"
+msgstr "Hiçbir şey çalmıyor. Önce bir şey seçin"
+
+#: src/app.rs:9137
+msgid "Playback isn't ready yet. Sign in to TIDAL first"
+msgstr "Çalma henüz hazır değil. Önce TIDAL'da oturum açın"
+
+#: src/app.rs:9522 src/app.rs:9527
+msgid "Pick something to play"
+msgstr "Çalmak için bir şey seçin"
+
+#. Translators: {name} is an album name.
+#: src/app.rs:9788 src/app.rs:12669
+#, rust-format
+msgid "Loading {name} to queue…"
+msgstr "{name} sıraya ekleniyor…"
+
+#: src/app.rs:9807
+msgid "Playback device changed. Add the album to queue again"
+msgstr "Çalma cihazı değişti. Albümü sıraya tekrar ekleyin"
+
+#: src/app.rs:9816 src/app.rs:9834 src/app.rs:9843
+msgid "Couldn't load the album's tracks in order. Try again"
+msgstr "Albümün şarkıları sırayla yüklenemedi. Yeniden deneyin"
+
+#: src/app.rs:9882
+msgid "This album has no playable tracks to queue"
+msgstr "Bu albümde sıraya eklenebilecek çalınabilir şarkı yok"
+
+#. Translators: {count} is a number of songs and {name} is an album name.
+#: src/app.rs:9891
+#, rust-format
+msgid "{count} track from {name} added to queue"
+msgid_plural "{count} tracks from {name} added to queue"
+msgstr[0] "{count} şarkı ({name}) sıraya eklendi"
+msgstr[1] "{count} şarkı ({name}) sıraya eklendi"
+
+#. Translators: {count} is a number of songs.
+#: src/app.rs:9935
+#, rust-format
+msgid "{count} track added to queue"
+msgid_plural "{count} tracks added to queue"
+msgstr[0] "{count} şarkı sıraya eklendi"
+msgstr[1] "{count} şarkı sıraya eklendi"
+
+#. Translators: {name} is a song, album, or playlist name.
+#: src/app.rs:9972
+#, rust-format
+msgid "{name} added to queue"
+msgstr "{name} sıraya eklendi"
+
+#. Translators: {name} is a playlist name.
+#: src/app.rs:10311
+#, rust-format
+msgid "Added to {name}"
+msgstr "{name} listesine eklendi"
+
+#: src/app.rs:10313 src/ui/settings.rs:812 src/ui/titlebar.rs:145
+msgid "View"
+msgstr "Görünüm"
+
+#: src/app.rs:10438
+msgid "The clipboard has no TIDAL song links"
+msgstr "Panoda TIDAL şarkı bağlantısı yok"
+
+#. Translators: {count} is the number of pasted links that failed.
+#: src/app.rs:10519
+#, rust-format
+msgid "{count} pasted link could not be added"
+msgid_plural "{count} pasted links could not be added"
+msgstr[0] "Yapıştırılan {count} bağlantı eklenemedi"
+msgstr[1] "Yapıştırılan {count} bağlantı eklenemedi"
+
+#: src/app.rs:11181
+msgid "Removed from playlist"
+msgstr "Çalma listesinden kaldırıldı"
+
+#: src/app.rs:11252
+msgid "Playlist created"
+msgstr "Çalma listesi oluşturuldu"
+
+#: src/app.rs:11279
+msgid "TIDAL doesn't let apps remove a playlist description, so it was kept"
+msgstr ""
+"TIDAL, uygulamaların çalma listesi açıklamasını kaldırmasına izin vermiyor, "
+"bu yüzden korundu"
+
+#: src/app.rs:11289
+msgid "Playlist updated"
+msgstr "Çalma listesi güncellendi"
+
+#: src/app.rs:11306
+msgid "Playlist is now public"
+msgstr "Çalma listesi artık herkese açık"
+
+#: src/app.rs:11308
+msgid "Playlist is now private"
+msgstr "Çalma listesi artık gizli"
+
+#: src/app.rs:11324
+msgid "Playlist deleted"
+msgstr "Çalma listesi silindi"
+
+#: src/app.rs:11367
+msgid "Folder created"
+msgstr "Klasör oluşturuldu"
+
+#: src/app.rs:11383
+msgid "Folder renamed"
+msgstr "Klasör yeniden adlandırıldı"
+
+#: src/app.rs:11402
+msgid "Folder deleted"
+msgstr "Klasör silindi"
+
+#: src/app.rs:11442 src/app.rs:11482 src/app/uploads.rs:511
+#: src/app/uploads.rs:516
+msgid "Link copied"
+msgstr "Bağlantı kopyalandı"
+
+#: src/app.rs:11448
+msgid "Embed code copied"
+msgstr "Yerleştirme kodu kopyalandı"
+
+#. Translators: {count} is a number of song links, always more than one.
+#: src/app.rs:11486
+#, rust-format
+msgid "{count} link copied"
+msgid_plural "{count} links copied"
+msgstr[0] "{count} bağlantı kopyalandı"
+msgstr[1] "{count} bağlantı kopyalandı"
+
+#: src/app.rs:11562
+msgid "Picture copied"
+msgstr "Görsel kopyalandı"
+
+#: src/app.rs:11564
+msgid "The picture could not be copied"
+msgstr "Görsel kopyalanamadı"
+
+#: src/app.rs:11793
+msgid ""
+"TIDAL doesn't let apps reorder your playlists, so this order is saved on "
+"this computer"
+msgstr ""
+"TIDAL, uygulamaların çalma listelerinizi yeniden sıralamasına izin vermiyor, "
+"bu yüzden bu sıra bu bilgisayarda kaydedilir"
+
+#: src/app.rs:11840
+msgid "Restarting local playback"
+msgstr "Yerel çalma yeniden başlatılıyor"
+
+#: src/app.rs:11899
+msgid "Play history cleared"
+msgstr "Çalma geçmişi temizlendi"
+
+#. Translators: {size} is a size in megabytes, such as 12.5.
+#: src/app.rs:11910
+#, rust-format
+msgid "Cleared {size} MB of artwork"
+msgstr "{size} MB albüm kapağı temizlendi"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:11916
+#, rust-format
+msgid "Couldn't clear artwork: {error}"
+msgstr "Albüm kapakları temizlenemedi: {error}"
+
+#: src/app.rs:12027
+msgid "Copied as an Equalizer APO profile"
+msgstr "Equalizer APO profili olarak kopyalandı"
+
+#: src/app.rs:12138
+msgid "Collaborator invites aren't available in Tidalfast yet"
+msgstr "Ortak çalışan davetleri Tidalfast'te henüz kullanılamıyor"
+
+#: src/app.rs:12235
+msgid "Offline mode is on. Turn it off to check for updates."
+msgstr "Çevrimdışı mod açık. Güncellemeleri denetlemek için kapatın."
+
+#: src/app.rs:12368
+msgid "Couldn't change whether Tidalfast starts at login."
+msgstr ""
+"Tidalfast’ın oturum açıldığında başlayıp başlamayacağı değiştirilemedi."
+
+#: src/app.rs:12683 src/ui/collection.rs:692
+msgid "No playable tracks in this view"
+msgstr "Bu görünümde çalınabilir şarkı yok"
+
+#: src/app.rs:13547 src/ui/now_playing_video.rs:212
+msgid "Loading…"
+msgstr "Yükleniyor…"
+
+#: src/app.rs:13672
+msgid "Couldn't start playback"
+msgstr "Çalma başlatılamadı"
+
+#: src/app.rs:13673
+msgid "Couldn't pause"
+msgstr "Duraklatılamadı"
+
+#: src/app.rs:13674
+msgid "Couldn't skip"
+msgstr "Atlanamadı"
+
+#: src/app.rs:13675
+msgid "Couldn't go back"
+msgstr "Geri gidilemedi"
+
+#: src/app.rs:13676
+msgid "Couldn't seek"
+msgstr "Konum değiştirilemedi"
+
+#: src/app.rs:13677
+msgid "Couldn't change the volume"
+msgstr "Ses düzeyi değiştirilemedi"
+
+#: src/app.rs:13678
+msgid "Couldn't change shuffle"
+msgstr "Karışık çalma modu değiştirilemedi"
+
+#: src/app.rs:13679
+msgid "Couldn't change repeat"
+msgstr "Tekrarlama modu değiştirilemedi"
+
+#: src/app.rs:13722
+msgid ""
+"No audio output device was found. Connect or enable one, then press play "
+"again."
+msgstr ""
+"Hiçbir ses çıkış cihazı bulunamadı. Bir cihaz bağlayın veya etkinleştirin, "
+"ardından tekrar çala basın."
+
+#: src/app.rs:13727
+msgid "This video can't be played in Tidalfast"
+msgstr "Bu video Tidalfast'te oynatılamıyor"
+
+#: src/app.rs:13739
+msgid "TIDAL doesn't make this playlist's songs available to third-party apps."
+msgstr ""
+"TIDAL, bu çalma listesindeki şarkıları üçüncü taraf uygulamalara sunmuyor."
+
+#. Translators: Keep {track} unchanged. It is the name of the song,
+#. playlist, album, or artist the radio is based on, not translated.
+#: src/app.rs:20458 src/app/radio.rs:38
+#, rust-format
+msgid "{track} Radio"
+msgstr "{track} Radyosu"
+
+#: src/ui/settings.rs:282
+msgid "General"
+msgstr "Genel"
+
+#: src/ui/settings.rs:283 src/ui/titlebar.rs:161
+msgid "Playback"
+msgstr "Oynatma"
+
+#: src/ui/settings.rs:284 src/ui/settings.rs:1513
+msgid "Downloads"
+msgstr "İndirmeler"
+
+#: src/ui/settings.rs:285 src/ui/settings.rs:384
+msgid "Account"
+msgstr "Hesap"
+
+#: src/ui/settings.rs:286 src/ui/settings.rs:1806
+msgid "About"
+msgstr "Hakkında"
+
+#: src/ui/settings.rs:343
+msgid "Search settings"
+msgstr "Ayarlarda ara"
+
+#: src/ui/settings.rs:361 src/ui/keys.rs:249 src/ui/topbar.rs:718
+#: src/ui/titlebar.rs:139
+msgid "Settings"
+msgstr "Ayarlar"
+
+#: src/ui/settings.rs:385 src/ui/titlebar.rs:142
+msgid "Sign out"
+msgstr "Oturumu kapat"
+
+#: src/ui/settings.rs:386
+msgid "Streaming quality"
+msgstr "Akış kalitesi"
+
+#: src/ui/settings.rs:409
+msgid "TIDAL Free, playback needs a subscription"
+msgstr "TIDAL Free, çalmak için abonelik gerekir"
+
+#: src/ui/settings.rs:428
+msgid "Audio quality"
+msgstr "Ses kalitesi"
+
+#: src/ui/settings.rs:429 src/ui/player_utility.rs:458
+msgid "Bit-perfect (exclusive mode)"
+msgstr "Bit-perfect (özel mod)"
+
+#: src/ui/settings.rs:430
+msgid "Adaptive streaming"
+msgstr "Uyarlanabilir akış"
+
+#: src/ui/settings.rs:434
+msgctxt "streaming quality"
+msgid "Low"
+msgstr "Düşük"
+
+#: src/ui/settings.rs:435
+msgid "AAC 96 kbps, the least data"
+msgstr "AAC 96 kbps, en az veri"
+
+#: src/ui/settings.rs:439
+msgctxt "streaming quality"
+msgid "High"
+msgstr "Yüksek"
+
+#: src/ui/settings.rs:440
+msgid "AAC 320 kbps"
+msgstr "AAC 320 kbps"
+
+#: src/ui/settings.rs:444
+msgctxt "streaming quality"
+msgid "Lossless"
+msgstr "Kayıpsız"
+
+#: src/ui/settings.rs:445
+msgid "16-bit, 44.1 kHz"
+msgstr "16 bit, 44,1 kHz"
+
+#: src/ui/settings.rs:449
+msgctxt "streaming quality"
+msgid "Max"
+msgstr "Maks."
+
+#: src/ui/settings.rs:450
+msgid "Up to 24-bit, 192 kHz"
+msgstr "24 bit, 192 kHz'e kadar"
+
+#: src/ui/settings.rs:458
+msgid ""
+"Max plays hi-res FLAC when you signed in with “Log in with Max (hi-res)” and "
+"TIDAL has it."
+msgstr ""
+"“Max (yüksek çözünürlük) ile giriş yap” ile oturum açtıysanız ve TIDAL'da "
+"varsa Max yüksek çözünürlüklü FLAC çalar."
+
+#: src/ui/settings.rs:465
+msgid "Automatically adjust audio quality based on your network conditions"
+msgstr "Ses kalitesini ağ koşullarınıza göre otomatik olarak ayarlar"
+
+#: src/ui/settings.rs:472
+msgid ""
+"Holds the audio device and sends each track at its own format, untouched. "
+"Equalizer, normalisation and crossfade are off while it is on; volume moves "
+"the device's own control when it has one."
+msgstr ""
+"Ses cihazını tutar ve her parçayı kendi biçiminde, dokunulmadan gönderir. "
+"Ekolayzer, normalleştirme ve geçiş kapalıdır; cihazın kendi ses denetimi "
+"varsa ses düzeyi onu hareket ettirir."
+
+#: src/ui/settings.rs:530
+msgid "Video quality"
+msgstr "Video kalitesi"
+
+#: src/ui/settings.rs:535
+msgid ""
+"Music videos play at this resolution or the closest below. Auto picks the "
+"best that fits the window."
+msgstr ""
+"Müzik videoları bu çözünürlükte veya altındaki en yakın çözünürlükte "
+"oynatılır. Otomatik, pencereye sığan en iyisini seçer."
+
+#: src/ui/settings.rs:545
+msgctxt "video quality"
+msgid "Auto"
+msgstr "Otomatik"
+
+#: src/ui/settings.rs:546
+msgid "The best that fits the window"
+msgstr "Pencereye sığan en iyisi"
+
+#: src/ui/settings.rs:562
+msgctxt "playback status"
+msgid "Ready"
+msgstr "Hazır"
+
+#: src/ui/settings.rs:563
+msgid "TIDAL plays on this computer."
+msgstr "TIDAL bu bilgisayarda çalar."
+
+#: src/ui/settings.rs:567
+msgctxt "playback status"
+msgid "Connecting"
+msgstr "Bağlanıyor"
+
+#: src/ui/settings.rs:568
+msgid "Starting playback…"
+msgstr "Çalma başlatılıyor…"
+
+#: src/ui/settings.rs:572
+msgctxt "playback status"
+msgid "Unavailable"
+msgstr "Kullanılamıyor"
+
+#: src/ui/settings.rs:577
+msgctxt "playback status"
+msgid "Not signed in"
+msgstr "Oturum açılmadı"
+
+#: src/ui/settings.rs:578
+msgid "Sign in to TIDAL to play music."
+msgstr "Müzik çalmak için TIDAL'da oturum açın."
+
+#: src/ui/settings.rs:582
+msgid "Playback on this computer"
+msgstr "Bu bilgisayarda çalma"
+
+#: src/ui/settings.rs:583
+msgid "Normalize volume"
+msgstr "Ses düzeyini eşitle"
+
+#: src/ui/settings.rs:584
+msgid "Autoplay"
+msgstr "Otomatik çalma"
+
+#: src/ui/settings.rs:585
+msgid "Gapless playback"
+msgstr "Kesintisiz çalma"
+
+#: src/ui/settings.rs:586 src/ui/settings.rs:1789
+msgid "Apply and restart playback"
+msgstr "Uygula ve çalmayı yeniden başlat"
+
+#: src/ui/settings.rs:587 src/ui/settings.rs:1800
+msgid "Restart local playback to apply these settings."
+msgstr "Bu ayarları uygulamak için yerel çalmayı yeniden başlatın."
+
+#: src/ui/settings.rs:588
+msgid "Crossfade"
+msgstr "Geçiş efekti"
+
+#: src/ui/settings.rs:589
+msgid "Report plays to TIDAL"
+msgstr "Dinlemeleri TIDAL'a bildir"
+
+#: src/ui/settings.rs:590
+msgid "Allow explicit content"
+msgstr "Müstehcen içeriğe izin ver"
+
+#: src/ui/settings.rs:591
+msgid "Allow AI content"
+msgstr "Yapay zekâ içeriğine izin ver"
+
+#: src/ui/settings.rs:592
+msgid "Output device"
+msgstr "Çıkış aygıtı"
+
+#. Translators: {status} is a playback state such as Ready or Not set up.
+#: src/ui/settings.rs:596
+#, rust-format
+msgid "Status: {status}"
+msgstr "Durum: {status}"
+
+#: src/ui/settings.rs:601
+msgid "Set the same volume level for all tracks."
+msgstr "Tüm parçalar için aynı ses seviyesini ayarla."
+
+#: src/ui/settings.rs:607
+msgid "Adjust the length of fading and overlap in between tracks."
+msgstr "Parçalar arasındaki geçiş ve örtüşme süresini ayarla."
+
+#: src/ui/settings.rs:612
+msgid "The speakers or headphones to play on."
+msgstr "Çalınacak hoparlör veya kulaklık."
+
+#: src/ui/settings.rs:618
+msgid ""
+"Tell TIDAL what you listen to, as its own apps do, for your history and "
+"recommendations."
+msgstr ""
+"Kendi uygulamaları gibi, geçmişiniz ve önerileriniz için dinlediklerinizi "
+"TIDAL'a bildirir."
+
+#: src/ui/settings.rs:623
+msgid "Keep playing similar content when your queue ends."
+msgstr "Sıra bittiğinde benzer içerikleri çalmaya devam et."
+
+#: src/ui/settings.rs:627
+msgid "Play tracks without silence between them."
+msgstr "Parçaları aralarında sessizlik olmadan çalar."
+
+#: src/ui/settings.rs:630
+msgid "Output buffer"
+msgstr "Çıkış arabelleği"
+
+#: src/ui/settings.rs:633
+msgid ""
+"More buffering can prevent clicks on busy computers. Less buffering makes "
+"controls respond sooner."
+msgstr ""
+"Daha fazla arabellek yoğun bilgisayarlarda çıtırtıları önleyebilir. Daha az "
+"arabellek kontrollerin daha hızlı tepki vermesini sağlar."
+
+#: src/ui/settings.rs:638
+msgid "Playback settings applied"
+msgstr "Çalma ayarları uygulandı"
+
+#: src/ui/settings.rs:643
+msgid ""
+"When on, music labeled with the E badge will be playable. To prevent "
+"explicit music from playing, switch this off. Videos aren't included. "
+"(Tracks will appear greyed out.)"
+msgstr ""
+"Açıkken E rozetli müzikler çalınabilir. Müstehcen içerikli müziklerin "
+"çalınmasını önlemek için bunu kapat. Videolar dahil değildir. (Parçalar "
+"soluk görünür.)"
+
+#: src/ui/settings.rs:650
+msgid ""
+"When on, music labeled with the AI badge will be playable. To prevent AI-"
+"labeled music from playing, switch this off. (Tracks will appear greyed out.)"
+msgstr ""
+"Açıkken AI rozetli müzikler çalınabilir. AI etiketli müziklerin çalınmasını "
+"önlemek için bunu kapat. (Parçalar soluk görünür.)"
+
+#: src/ui/settings.rs:667
+msgid "Reconnect"
+msgstr "Yeniden bağlan"
+
+#: src/ui/settings.rs:699
+msgid "Off"
+msgstr "Kapalı"
+
+#: src/ui/settings.rs:794
+msgid "Playback settings applied."
+msgstr "Çalma ayarları uygulandı."
+
+#: src/ui/settings.rs:803 src/ui/blocked.rs:18
+msgid "Blocked"
+msgstr "Engellenenler"
+
+#: src/ui/settings.rs:806 src/ui/blocked.rs:41
+msgid "View and edit your blocked content."
+msgstr "Engellediğin içeriği görüntüle ve düzenle."
+
+#: src/ui/settings.rs:820
+msgid "Appearance"
+msgstr "Görünüm"
+
+#: src/ui/settings.rs:821
+msgid "Theme"
+msgstr "Tema"
+
+#: src/ui/settings.rs:822
+msgid "Colour from album art"
+msgstr "Albüm kapağından renk al"
+
+#: src/ui/settings.rs:823
+msgid "Use Tidalfast's title bar"
+msgstr "Tidalfast başlık çubuğunu kullan"
+
+#: src/ui/settings.rs:824
+msgid "Animated covers"
+msgstr "Hareketli kapaklar"
+
+#: src/ui/settings.rs:825
+msgid "Audio metadata"
+msgstr "Ses meta verileri"
+
+#: src/ui/settings.rs:826
+msgid "Hide Uploads tab"
+msgstr "Yüklemeler sekmesini gizle"
+
+#: src/ui/settings.rs:827
+msgid "Show collection in sidebar"
+msgstr "Koleksiyonu kenar çubuğunda göster"
+
+#: src/ui/settings.rs:834
+msgid "Follow system uses your desktop's light or dark appearance."
+msgstr ""
+"Sistemi takip et seçeneği masaüstünüzün açık veya koyu görünümünü kullanır."
+
+#: src/ui/settings.rs:838 src/ui/settings.rs:2307
+msgid "Language"
+msgstr "Dil"
+
+#: src/ui/settings.rs:841
+msgid ""
+"System follows your computer's language. Untranslated text stays in English."
+msgstr ""
+"Sistem seçeneği bilgisayarınızın dilini takip eder. Çevrilmemiş metinler "
+"İngilizce kalır."
+
+#: src/ui/settings.rs:848
+msgid "Use the current cover's colour in the notch player."
+msgstr "Çentikteki oynatıcıda geçerli kapağın rengini kullan."
+
+#: src/ui/settings.rs:852
+msgid "Interface zoom"
+msgstr "Arayüz yakınlaştırma"
+
+#: src/ui/settings.rs:856
+msgid "Ctrl+Plus and Ctrl+Minus work anywhere; Ctrl+0 resets."
+msgstr "Ctrl+Artı ve Ctrl+Eksi her yerde çalışır; Ctrl+0 sıfırlar."
+
+#: src/ui/settings.rs:860
+msgid "Cmd+Plus and Cmd+Minus work anywhere; Cmd+0 resets."
+msgstr "Cmd+Artı ve Cmd+Eksi her yerde çalışır; Cmd+0 sıfırlar."
+
+#: src/ui/settings.rs:869
+msgid ""
+"Draw Tidalfast's own title bar and window buttons instead of the desktop's."
+msgstr ""
+"Masaüstü ortamının başlık çubuğu ve pencere düğmeleri yerine Tidalfast'in "
+"kendi başlık çubuğunu ve pencere düğmelerini çizer."
+
+#: src/ui/settings.rs:877
+msgid ""
+"Play TIDAL's moving album covers, silently, where covers are shown large."
+msgstr ""
+"Kapakların büyük gösterildiği yerlerde TIDAL'ın hareketli albüm kapaklarını "
+"sessiz oynatır."
+
+#: src/ui/settings.rs:882
+msgid "Show additional fields (e.g. BPM) in track lists."
+msgstr "Parça listelerinde ek alanları (ör. BPM) göster."
+
+#: src/ui/settings.rs:886
+msgid "Hide the Uploads tab from the navigation."
+msgstr "Yüklemeler sekmesini gezintiden gizle."
+
+#: src/ui/settings.rs:892
+msgid "Show all collection items directly in the sidebar instead of a submenu."
+msgstr ""
+"Koleksiyonun tüm öğelerini alt menü yerine doğrudan kenar çubuğunda göster."
+
+#: src/ui/settings.rs:896
+msgid "Player background"
+msgstr "Oynatıcı arka planı"
+
+#: src/ui/settings.rs:899
+msgid "Choose your preferred look for the player background."
+msgstr "Oynatıcı arka planı için tercih ettiğiniz görünümü seçin."
+
+#: src/ui/settings.rs:954
+msgctxt "player background"
+msgid "Color"
+msgstr "Renk"
+
+#: src/ui/settings.rs:955
+msgctxt "player background"
+msgid "Blur"
+msgstr "Bulanık"
+
+#: src/ui/settings.rs:1127
+msgid "Window and tray"
+msgstr "Pencere ve tepsi"
+
+#: src/ui/settings.rs:1128
+msgid "Keep music playing when the window closes"
+msgstr "Pencere kapandığında müzik çalmaya devam etsin"
+
+#: src/ui/settings.rs:1129
+msgid "MacBook notch widget"
+msgstr "MacBook çentik araç takımı"
+
+#: src/ui/settings.rs:1130
+msgid "Launch at login"
+msgstr "Oturum açıldığında başlat"
+
+#: src/ui/settings.rs:1131
+msgid "Start minimized"
+msgstr "Küçültülmüş başlat"
+
+#: src/ui/settings.rs:1138
+msgid ""
+"Tidalfast hides to the system tray. Quit from the tray menu or with Ctrl+Q."
+msgstr ""
+"Tidalfast sistem tepsisine gizlenir. Tepsi menüsünden veya Ctrl+Q ile çıkın."
+
+#: src/ui/settings.rs:1142
+msgid ""
+"Tidalfast hides to the system tray. Quit from the tray menu or with Cmd+Q."
+msgstr ""
+"Tidalfast sistem tepsisine gizlenir. Tepsi menüsünden veya Cmd+Q ile çıkın."
+
+#: src/ui/settings.rs:1151
+msgid "Show interactive Now Playing widget when hovering over the notch."
+msgstr ""
+"İmleç çentiğin üzerine getirildiğinde etkileşimli Şu An Çalan araç takımını "
+"göster."
+
+#: src/ui/settings.rs:1157
+msgid "Open Tidalfast when you log in to this computer."
+msgstr "Bu bilgisayarda oturum açtığınızda Tidalfast’ı aç."
+
+#: src/ui/settings.rs:1164
+msgid "When Tidalfast opens at login, start with the window minimized."
+msgstr ""
+"Tidalfast oturum açıldığında açılırken pencereyi küçültülmüş olarak başlat."
+
+#: src/ui/settings.rs:1226
+msgid "Plugins (TidaLuna)"
+msgstr "Eklentiler (TidaLuna)"
+
+#: src/ui/settings.rs:1227
+msgid "Enable TidaLuna plugins"
+msgstr "TidaLuna eklentilerini etkinleştir"
+
+#: src/ui/settings.rs:1232
+msgid ""
+"Run TidaLuna plugins inside Tidalfast. Off by default; turning it off "
+"unloads them and keeps them installed."
+msgstr ""
+"TidaLuna eklentilerini Tidalfast içinde çalıştırır. Varsayılan olarak "
+"kapalıdır; kapatmak eklentileri devre dışı bırakır ama yüklü tutar."
+
+#: src/ui/settings.rs:1254
+msgid "Manage"
+msgstr "Yönet"
+
+#: src/ui/settings.rs:1265
+msgid "Proxy"
+msgstr "Proxy"
+
+#: src/ui/settings.rs:1267
+msgid "Mode, host, port, username and password"
+msgstr "Mod, sunucu, port, kullanıcı adı ve parola"
+
+#: src/ui/settings.rs:1270
+msgid "Off, System, HTTP or SOCKS5 proxy for network requests."
+msgstr "Ağ istekleri için Kapalı, Sistem, HTTP veya SOCKS5 proxy."
+
+#: src/ui/settings.rs:1273
+msgid "Advanced"
+msgstr "Gelişmiş"
+
+#: src/ui/settings.rs:1274
+msgid "Middle-click autoscroll"
+msgstr "Orta tıklamayla otomatik kaydırma"
+
+#: src/ui/settings.rs:1280
+msgid ""
+"Middle-click a list, then move the pointer to scroll it. Off by default, "
+"because a middle click usually pastes on Linux."
+msgstr ""
+"Bir listeye orta tıklayın ve kaydırmak için imleci hareket ettirin. Linux'ta "
+"orta tıklama genellikle yapıştırdığı için varsayılan olarak kapalıdır."
+
+#: src/ui/settings.rs:1285
+msgid "TIDAL client"
+msgstr "TIDAL istemcisi"
+
+#: src/ui/settings.rs:1288
+msgid ""
+"Optional: a TIDAL client to sign in with instead of the built-in one. Leave "
+"empty to use the built-in one; changes apply at the next sign-in."
+msgstr ""
+"İsteğe bağlı: yerleşik istemci yerine oturum açmak için bir TIDAL istemcisi. "
+"Yerleşik olanı kullanmak için boş bırakın; değişiklikler bir sonraki oturum "
+"açışta uygulanır."
+
+#: src/ui/settings.rs:1339
+msgid "Client ID"
+msgstr "İstemci Kimliği (Client ID)"
+
+#: src/ui/settings.rs:1344
+msgid "Client secret"
+msgstr "İstemci gizli anahtarı (Client secret)"
+
+#: src/ui/settings.rs:1349
+msgid "Browser sign-in client ID (Max)"
+msgstr "Tarayıcıyla oturum açma istemci kimliği (Max)"
+
+#: src/ui/settings.rs:1387
+msgctxt "proxy"
+msgid "Mode"
+msgstr "Mod"
+
+#: src/ui/settings.rs:1390
+msgid ""
+"Off ignores environment variables. System uses them, and the OS proxy on "
+"macOS and Windows."
+msgstr ""
+"Kapalı, ortam değişkenlerini yok sayar. Sistem, bu değişkenleri ve macOS ile "
+"Windows'ta işletim sistemi proxy'sini kullanır."
+
+#: src/ui/settings.rs:1442 src/ui/login.rs:338
+msgid "Apply settings"
+msgstr "Ayarları uygula"
+
+#: src/ui/settings.rs:1454
+msgid "Not using a proxy."
+msgstr "Proxy kullanılmıyor."
+
+#: src/ui/settings.rs:1455
+msgid "Using the system proxy."
+msgstr "Sistem proxy'si kullanılıyor."
+
+#: src/ui/settings.rs:1464
+msgid "Equalizer"
+msgstr "Ekolayzer"
+
+#: src/ui/settings.rs:1470
+msgid ""
+"Shape the sound of playback on this computer with ten sliders or parametric "
+"bands. It does not affect other devices."
+msgstr ""
+"Bu bilgisayardaki çalmanın sesini on kaydırıcı veya parametrik bantlarla "
+"şekillendirin. Diğer cihazları etkilemez."
+
+#: src/ui/settings.rs:1476
+msgid "Presets"
+msgstr "Hazır ayarlar"
+
+#. Translators: a search keyword for the equalizer's preamplifier slider.
+#. Translators: the equalizer's preamplifier, which turns everything down to make room for boosts.
+#: src/ui/settings.rs:1478 src/ui/equalizer.rs:406
+msgid "Preamp"
+msgstr "Ön amfi"
+
+#. Translators: a search keyword for the equalizer's frequency band sliders.
+#: src/ui/settings.rs:1480
+msgid "Bands"
+msgstr "Bantlar"
+
+#: src/ui/settings.rs:1481 src/ui/equalizer.rs:102
+msgctxt "equalizer view"
+msgid "Parametric"
+msgstr "Parametrik"
+
+#: src/ui/settings.rs:1482 src/ui/equalizer.rs:772
+msgid "Headphone correction (AutoEQ)"
+msgstr "Kulaklık düzeltmesi (AutoEQ)"
+
+#: src/ui/settings.rs:1516
+msgid "Download quality"
+msgstr "İndirme kalitesi"
+
+#: src/ui/settings.rs:1519
+msgid ""
+"Downloads are kept inside Tidalfast for offline listening, never as files to "
+"copy."
+msgstr ""
+"İndirmeler çevrimdışı dinlemek için Tidalfast içinde tutulur, asla "
+"kopyalanacak dosya olarak değil."
+
+#: src/ui/settings.rs:1523 src/ui/settings.rs:1602
+msgid "Download over metered connections"
+msgstr "Ölçülü bağlantılarda indir"
+
+#: src/ui/settings.rs:1526
+msgid ""
+"Off: downloads wait while the system reports a metered or charged connection."
+msgstr ""
+"Kapalı: sistem ölçülü veya ücretli bir bağlantı bildirdiği sürece indirmeler "
+"bekler."
+
+#: src/ui/settings.rs:1530
+msgid "Downloads at once"
+msgstr "Aynı anda indirme"
+
+#: src/ui/settings.rs:1531
+msgid "How many tracks download at the same time."
+msgstr "Aynı anda kaç parça indirileceği."
+
+#: src/ui/settings.rs:1534
+msgid "Remove all downloads"
+msgstr "Tüm indirmeleri kaldır"
+
+#: src/ui/settings.rs:1538 src/ui/settings.rs:1555
+msgid "Offline mode"
+msgstr "Çevrimdışı mod"
+
+#: src/ui/settings.rs:1541
+msgid ""
+"Play only your downloads and make no requests to TIDAL until you turn it off."
+msgstr ""
+"Yalnızca indirdiklerinizi oynatın ve siz kapatana kadar TIDAL’a istek "
+"göndermeyin."
+
+#: src/ui/settings.rs:1570
+msgid "Same as streaming"
+msgstr "Akışla aynı"
+
+#: src/ui/settings.rs:1644
+msgid "Remove all"
+msgstr "Tümünü kaldır"
+
+#: src/ui/settings.rs:1656
+msgid "Storage"
+msgstr "Depolama"
+
+#: src/ui/settings.rs:1657
+msgid "Audio cache"
+msgstr "Ses önbelleği"
+
+#: src/ui/settings.rs:1662
+msgid "Artwork cache"
+msgstr "Albüm kapağı önbelleği"
+
+#. Translators: {folder} is the path of a cache folder.
+#: src/ui/settings.rs:1664 src/ui/settings.rs:1670 src/ui/settings.rs:1685
+#, rust-format
+msgid "Stored in {folder}"
+msgstr "{folder} konumunda saklanır"
+
+#: src/ui/settings.rs:1674
+msgid "Play history"
+msgstr "Çalma geçmişi"
+
+#. Translators: {file} is the path of the play history file.
+#: src/ui/settings.rs:1678
+#, rust-format
+msgid "Tracks played here are stored in {file}. This file is never uploaded."
+msgstr ""
+"Burada çalınan parçalar {file} dosyasında saklanır. Bu dosya asla karşıya "
+"yüklenmez."
+
+#: src/ui/settings.rs:1700
+msgid "Clear artwork"
+msgstr "Kapakları temizle"
+
+#: src/ui/settings.rs:1761
+msgid "Clear history"
+msgstr "Geçmişi temizle"
+
+#: src/ui/settings.rs:1807
+msgid "Tidalfast is not affiliated with TIDAL."
+msgstr "Tidalfast, TIDAL ile bağlantılı değildir."
+
+#: src/ui/settings.rs:1808 src/ui/topbar.rs:722 src/ui/titlebar.rs:178
+msgid "Check for updates"
+msgstr "Güncellemeleri denetle"
+
+#: src/ui/settings.rs:1809
+msgid "Checking…"
+msgstr "Denetleniyor…"
+
+#: src/ui/settings.rs:1810 src/ui/dialogs.rs:296 src/ui/keys.rs:259
+#: src/ui/topbar.rs:725 src/ui/titlebar.rs:173
+msgid "Keyboard shortcuts"
+msgstr "Klavye kısayolları"
+
+#: src/ui/settings.rs:1812
+msgid "Source code"
+msgstr "Kaynak kodu"
+
+#: src/ui/settings.rs:1813
+msgid "Licenses"
+msgstr "Lisanslar"
+
+#: src/ui/settings.rs:1892
+msgid "Updates"
+msgstr "Güncellemeler"
+
+#: src/ui/settings.rs:1893
+msgid "Automatic update checks"
+msgstr "Otomatik güncelleme denetimleri"
+
+#: src/ui/settings.rs:1894
+msgid "Download updates automatically"
+msgstr "Güncellemeleri otomatik indir"
+
+#: src/ui/settings.rs:1895
+msgid "Update channel"
+msgstr "Güncelleme kanalı"
+
+#: src/ui/settings.rs:1897
+msgctxt "update channel"
+msgid "Stable"
+msgstr "Kararlı"
+
+#: src/ui/settings.rs:1898
+msgctxt "update channel"
+msgid "Beta"
+msgstr "Beta"
+
+#: src/ui/settings.rs:1899
+msgctxt "update channel"
+msgid "Dev"
+msgstr "Dev"
+
+#: src/ui/settings.rs:1906
+msgid "Checks for a new version once a day. No personal data is sent."
+msgstr ""
+"Günde bir kez yeni sürüm olup olmadığına bakar. Kişisel veri gönderilmez."
+
+#: src/ui/settings.rs:1913
+msgid "Downloads in the background. You choose when to restart."
+msgstr "Arka planda indirilir. Yeniden başlatma zamanını siz seçersiniz."
+
+#: src/ui/settings.rs:1920
+msgid ""
+"Stable gets tested releases. Beta and Dev get new features earlier and may "
+"be rougher."
+msgstr ""
+"Kararlı kanal sınanmış sürümleri alır. Beta ve Dev yeni özellikleri daha "
+"erken alır ve daha az cilalı olabilir."
+
+#. Translators: {query} is the text typed into the settings search field.
+#: src/ui/settings.rs:1991
+#, rust-format
+msgid "No settings for “{query}”"
+msgstr "“{query}” için ayar bulunamadı"
+
+#: src/ui/settings.rs:1992
+msgid "Try fewer words, or check the spelling."
+msgstr "Daha az kelime deneyin veya yazımı kontrol edin."
+
+#: src/ui/settings.rs:2051 src/ui/player_utility.rs:414
+msgid "System default"
+msgstr "Sistem varsayılanı"
+
+#: src/ui/settings.rs:2280
+msgctxt "language"
+msgid "System"
+msgstr "Sistem"
+
+#: src/api/models.rs:299 src/ui/uploads.rs:1283
+msgid "Single"
+msgstr "Tekli"
+
+#: src/api/models.rs:300
+msgid "Compilation"
+msgstr "Derleme"
+
+#: src/api/models.rs:301 src/model.rs:1109
+msgid "Appears On"
+msgstr "Yer Aldığı Albümler"
+
+#: src/model.rs:854
+msgid "Top results"
+msgstr "En iyi sonuçlar"
+
+#: src/model.rs:859 src/ui/home_feeds.rs:55
+msgid "Uploads"
+msgstr "Yüklemeler"
+
+#: src/model.rs:1106 src/ui/save_later.rs:20
+msgctxt "filter"
+msgid "All"
+msgstr "Tümü"
+
+#: src/model.rs:1108
+msgid "Singles & EPs"
+msgstr "Tekliler ve EP'ler"
+
+#: src/settings.rs:214
+msgctxt "theme"
+msgid "Dark"
+msgstr "Koyu"
+
+#: src/settings.rs:215
+msgctxt "theme"
+msgid "Light"
+msgstr "Açık"
+
+#: src/settings.rs:216
+msgid "Follow system"
+msgstr "Sistemi takip et"
+
+#: src/settings.rs:242
+msgctxt "proxy"
+msgid "Off"
+msgstr "Kapalı"
+
+#: src/settings.rs:243
+msgctxt "proxy"
+msgid "System"
+msgstr "Sistem"
+
+#: src/ui/artist.rs:63 src/ui/artist.rs:1164
+msgid "Top Tracks"
+msgstr "En Çok Dinlenenler"
+
+#: src/ui/artist.rs:68 src/ui/artist.rs:195 src/ui/artist.rs:223
+#: src/ui/artist.rs:253 src/ui/artist.rs:324 src/ui/artist.rs:981
+#: src/ui/artist.rs:2070 src/ui/artist.rs:2120 src/ui/home.rs:458
+#: src/ui/explore.rs:138 src/ui/home_feeds.rs:126 src/ui/home_feeds.rs:181
+#: src/ui/home_feeds.rs:397 src/ui/album_extras.rs:449
+msgid "View all"
+msgstr "Tümünü gör"
+
+#: src/ui/artist.rs:171 src/ui/artist.rs:1452
+msgid "No popular tracks to show."
+msgstr "Gösterilecek popüler şarkı yok."
+
+#: src/ui/artist.rs:252 src/ui/artist.rs:1255
+msgid "Fans also like"
+msgstr "Hayranlar bunları da beğendi"
+
+#: src/ui/artist.rs:319 src/ui/artist.rs:1257 src/ui/collection.rs:749
+#: src/ui/menus.rs:975 src/ui/menus.rs:1383 src/ui/menus.rs:1521
+#: src/ui/now_playing.rs:159 src/ui/now_playing_video.rs:187
+#: src/ui/sticky.rs:455 src/ui/album_credits.rs:137
+msgid "Credits"
+msgstr "Katkıda bulunanlar"
+
+#. Translators: {count} is a short number of followers, such as 1.9M.
+#: src/ui/artist.rs:452
+#, rust-format
+msgid "{count} follower"
+msgid_plural "{count} followers"
+msgstr[0] "{count} takipçi"
+msgstr[1] "{count} takipçi"
+
+#: src/ui/artist.rs:542 src/ui/album_extras.rs:80
+msgid "Read more"
+msgstr "Devamını oku"
+
+#: src/ui/artist.rs:676
+msgid "No biography for this artist"
+msgstr "Bu sanatçı için biyografi yok"
+
+#: src/ui/artist.rs:698
+msgid "Biography"
+msgstr "Biyografi"
+
+#: src/ui/artist.rs:702
+#, rust-format
+msgid "Artist bio from {source}"
+msgstr "{source} kaynaklı sanatçı biyografisi"
+
+#: src/ui/artist.rs:831 src/ui/collection.rs:874
+msgid "Starting…"
+msgstr "Başlatılıyor…"
+
+#: src/ui/artist.rs:873 src/ui/artist.rs:1659 src/ui/artist.rs:2045
+#: src/ui/collection.rs:739 src/ui/menus.rs:485 src/ui/activity.rs:1040
+#: src/ui/activity.rs:1232 src/ui/sticky.rs:448 src/ui/uploads.rs:363
+#: src/ui/uploads.rs:1567
+msgid "Share"
+msgstr "Paylaş"
+
+#: src/ui/artist.rs:879 src/ui/artist.rs:1670 src/ui/now_playing.rs:660
+msgid "Artist radio"
+msgstr "Sanatçı radyosu"
+
+#: src/ui/artist.rs:887 src/ui/artist.rs:1680
+msgctxt "artist"
+msgid "Following"
+msgstr "Takip ediliyor"
+
+#: src/ui/artist.rs:893 src/ui/artist.rs:1686 src/ui/menus.rs:1529
+msgctxt "artist"
+msgid "Follow"
+msgstr "Takip et"
+
+#: src/ui/artist.rs:941 src/ui/artist.rs:1251
+msgid "EPs & Singles"
+msgstr "EP'ler ve single'lar"
+
+#: src/ui/artist.rs:949 src/ui/artist.rs:1252
+msgid "Compilations"
+msgstr "Derlemeler"
+
+#: src/ui/artist.rs:957 src/ui/artist.rs:1253
+msgid "Appears on"
+msgstr "Yer aldığı albümler"
+
+#: src/ui/artist.rs:1162 src/ui/artist.rs:2145
+msgid "Uploaded tracks"
+msgstr "Yüklenen parçalar"
+
+#. Translators: {count} is how many people follow the user's own
+#. artist profile, such as 2.
+#: src/ui/artist.rs:1926
+#, rust-format
+msgid "{count} fan"
+msgid_plural "{count} fans"
+msgstr[0] "{count} hayran"
+msgstr[1] "{count} hayran"
+
+#: src/ui/artist.rs:1943
+msgid "Add bio"
+msgstr "Biyografi ekle"
+
+#: src/ui/artist.rs:2051 src/ui/collection.rs:807 src/ui/sticky.rs:485
+#: src/ui/uploads.rs:1264
+msgid "Edit"
+msgstr "Düzenle"
+
+#: src/ui/artist.rs:2110
+msgid "Your profile is empty"
+msgstr "Profilin boş"
+
+#: src/ui/artist.rs:2113
+msgid ""
+"Start creating playlists, adding your social profiles, or uploading a track."
+msgstr "Çalma listeleri oluşturarak, sosyal profillerini ekleyerek ya da bir parça yükleyerek başla."
+
+#: src/ui/collection.rs:329
+msgid "Add collaborator"
+msgstr "Ortak çalışan ekle"
+
+#: src/ui/collection.rs:571
+msgid "Filter tracks"
+msgstr "Parçaları filtrele"
+
+#: src/ui/collection.rs:573
+msgid "Filter playlist on title, artist or album"
+msgstr "Çalma listesini başlığa, sanatçıya veya albüme göre filtrele"
+
+#: src/ui/collection.rs:713
+msgid "No playable songs in this view"
+msgstr "Bu görünümde çalınabilir şarkı yok"
+
+#: src/ui/collection.rs:765 src/ui/collection.rs:900 src/ui/sticky.rs:465
+msgid "Save as playlist"
+msgstr "Çalma listesi olarak kaydet"
+
+#: src/ui/collection.rs:775 src/ui/sticky.rs:495
+msgid "Added"
+msgstr "Eklendi"
+
+#: src/ui/collection.rs:781 src/ui/sticky.rs:501 src/ui/uploads.rs:745
+msgid "Add"
+msgstr "Ekle"
+
+#: src/ui/collection.rs:796 src/ui/sticky.rs:474 src/ui/uploads.rs:249
+#: src/ui/uploads.rs:1320
+msgid "Public"
+msgstr "Herkese açık"
+
+#: src/ui/collection.rs:798 src/ui/sticky.rs:476
+msgid "Private"
+msgstr "Gizli"
+
+#: src/ui/collection.rs:915
+msgid "Refreshing…"
+msgstr "Yenileniyor…"
+
+#: src/ui/collection.rs:917
+msgid "Refresh"
+msgstr "Yenile"
+
+#: src/ui/collection.rs:969
+msgid "Downloading"
+msgstr "İndiriliyor"
+
+#: src/ui/collection.rs:971 src/ui/collection.rs:997 src/ui/menus.rs:773
+#: src/ui/menus.rs:1069 src/ui/menus.rs:1227
+msgid "Download"
+msgstr "İndir"
+
+#: src/ui/collection.rs:995 src/ui/menus.rs:769 src/ui/menus.rs:1066
+#: src/ui/menus.rs:1224
+msgid "Remove download"
+msgstr "İndirmeyi kaldır"
+
+#: src/ui/collection.rs:1743
+#, rust-format
+msgid "Volume {number}"
+msgstr "Disk {number}"
+
+#: src/ui/collection.rs:1972 src/ui/collection.rs:2001
+msgid "Unavailable"
+msgstr "Kullanılamıyor"
+
+#: src/ui/collection.rs:1978
+msgid "You're offline. Reconnect to load more tracks."
+msgstr "Çevrimdışısınız. Daha fazla şarkı yüklemek için yeniden bağlanın."
+
+#: src/ui/collection.rs:2163
+msgid "Nothing here yet"
+msgstr "Burada henüz bir şey yok"
+
+#: src/ui/collection.rs:2164
+msgid "Added tracks appear here."
+msgstr "Eklenen şarkılar burada görünür."
+
+#: src/ui/collection.rs:2603 src/ui/home.rs:936
+msgid "Your top tracks"
+msgstr "En çok dinlediğin şarkılar"
+
+#: src/ui/collection.rs:2612
+msgid "Your most-played tracks from the last four weeks."
+msgstr "Son dört haftada en çok dinlediğin parçalar."
+
+#: src/ui/collection.rs:3139
+msgid "Collaborative Playlist"
+msgstr "Ortak çalma listesi"
+
+#: src/ui/collection.rs:3141
+msgid "Public Playlist"
+msgstr "Herkese açık çalma listesi"
+
+#: src/ui/collection.rs:3522
+msgid "No downloads yet"
+msgstr "Henüz indirme yok"
+
+#: src/ui/collection.rs:3525
+msgid ""
+"Turn on Download on an album, playlist or mix to play it without a "
+"connection."
+msgstr ""
+"Bağlantı olmadan dinlemek için bir albümde, çalma listesinde veya mikste "
+"İndir'i açın."
+
+#. Translators: {count} is the number of people who saved a playlist.
+#: src/ui/collection.rs:3606
+#, rust-format
+msgid "{count} save"
+msgid_plural "{count} saves"
+msgstr[0] "{count} kaydetme"
+msgstr[1] "{count} kaydetme"
+
+#. Translators: {name} is the name of someone who added songs to the playlist.
+#: src/ui/collection.rs:3706
+#, rust-format
+msgid "with {name}"
+msgstr "{name} ile"
+
+#. Translators: {first} and {second} are names of people who added songs.
+#: src/ui/collection.rs:3710
+#, rust-format
+msgid "with {first} and {second}"
+msgstr "{first} ve {second} ile"
+
+#. Translators: {count} is how many other people added songs to the playlist.
+#: src/ui/collection.rs:3717
+#, rust-format
+msgid "and {count} other"
+msgid_plural "and {count} others"
+msgstr[0] "ve {count} kişi daha"
+msgstr[1] "ve {count} kişi daha"
+
+#: src/ui/dialogs.rs:129 src/ui/menus.rs:1457
+msgid "Delete playlist"
+msgstr "Çalma listesini sil"
+
+#: src/ui/dialogs.rs:139
+msgid ""
+"Are you sure you want to delete this playlist? This action can't be undone."
+msgstr ""
+"Bu çalma listesini silmek istediğine emin misin? Bu işlem geri alınamaz."
+
+#. Translators: {name} is a playlist name.
+#: src/ui/dialogs.rs:144
+#, rust-format
+msgid "“{name}” will no longer appear in My Collection."
+msgstr "“{name}” artık Koleksiyonum'da görünmeyecek."
+
+#: src/ui/dialogs.rs:160 src/ui/equalizer.rs:706 src/ui/uploads.rs:1651
+#: src/ui/uploads.rs:1859
+msgid "Delete"
+msgstr "Sil"
+
+#: src/ui/dialogs.rs:167 src/ui/dialogs.rs:227 src/ui/dialogs.rs:253
+#: src/ui/login.rs:98 src/ui/login.rs:129 src/ui/uploads.rs:1700
+#: src/ui/uploads.rs:1861
+msgid "Cancel"
+msgstr "İptal"
+
+#: src/ui/dialogs.rs:184
+msgid "Tracks already in this playlist"
+msgstr "Bu çalma listesinde zaten bulunan şarkılar"
+
+#: src/ui/dialogs.rs:186 src/ui/dialogs.rs:245
+msgid "Track already in this playlist"
+msgstr "Şarkı bu çalma listesinde zaten var"
+
+#: src/ui/dialogs.rs:211 src/ui/dialogs.rs:254
+msgid "Add anyway"
+msgstr "Yine de ekle"
+
+#: src/ui/dialogs.rs:286 src/ui/dialogs.rs:342 src/ui/uploads.rs:1649
+msgid "Done"
+msgstr "Bitti"
+
+#: src/ui/dialogs.rs:580
+#, rust-format
+msgid "This track is already in “{playlist}”. Add it again?"
+msgstr "Bu şarkı “{playlist}” çalma listesinde zaten var. Tekrar eklensin mi?"
+
+#: src/ui/dialogs.rs:587
+#, rust-format
+msgid "This track is already in “{playlist}”. Add them anyway?"
+msgstr "Bu şarkı “{playlist}” çalma listesinde zaten var. Yine de eklensin mi?"
+
+#. Translators: {name} is a song name and {playlist} a playlist name.
+#: src/ui/dialogs.rs:592
+#, rust-format
+msgid "“{name}” is already in “{playlist}”. Add it again?"
+msgstr "“{name}” zaten “{playlist}” içinde var. Tekrar eklensin mi?"
+
+#: src/ui/dialogs.rs:600
+#, rust-format
+msgid "“{name}” is already in “{playlist}”. Add them anyway?"
+msgstr "“{name}” zaten “{playlist}” içinde var. Yine de eklensin mi?"
+
+#: src/ui/dialogs.rs:609
+#, rust-format
+msgid "“{first}” and “{second}” are already in “{playlist}”. Add them anyway?"
+msgstr ""
+"“{first}” ve “{second}” zaten “{playlist}” içinde var. Yine de eklensin mi?"
+
+#. Translators: {first} and {second} are song names, {count} is how many more songs are already in the playlist, and {playlist} is a playlist name.
+#: src/ui/dialogs.rs:618
+#, rust-format
+msgid ""
+"“{first}”, “{second}”, and {count} more are already in “{playlist}”. Add "
+"them anyway?"
+msgid_plural ""
+"“{first}”, “{second}”, and {count} more are already in “{playlist}”. Add "
+"them anyway?"
+msgstr[0] ""
+"“{first}”, “{second}” ve {count} şarkı daha zaten “{playlist}” içinde var. "
+"Yine de eklensin mi?"
+msgstr[1] ""
+"“{first}”, “{second}” ve {count} şarkı daha zaten “{playlist}” içinde var. "
+"Yine de eklensin mi?"
+
+#: src/ui/dialogs.rs:660 src/ui/dialogs.rs:763 src/ui/menus.rs:469
+msgid "Copy embed code"
+msgstr "Yerleştirme kodunu kopyala"
+
+#: src/ui/dialogs.rs:774
+msgid "By using TIDAL Embeds, you accept the"
+msgstr "TIDAL Embeds'i kullanarak şunları kabul etmiş olursunuz:"
+
+#: src/ui/dialogs.rs:780
+msgid "TIDAL Developer Terms of Service."
+msgstr "TIDAL Geliştirici Hizmet Şartları."
+
+#: src/ui/dialogs.rs:1036 src/ui/dialogs.rs:1074
+msgid "Make it public"
+msgstr "Herkese açık yap"
+
+#: src/ui/dialogs.rs:1050
+msgid "Your playlist will be visible on your Profile and accessible by anyone."
+msgstr "Çalma listen profilinde görünür olacak ve herkes erişebilecek."
+
+#: src/ui/dialogs.rs:1121 src/ui/dialogs.rs:1439 src/ui/uploads.rs:1231
+#: src/ui/uploads.rs:1800
+msgid "Title"
+msgstr "Başlık"
+
+#: src/ui/dialogs.rs:1147
+msgid "Write a description"
+msgstr "Açıklama yaz"
+
+#: src/ui/dialogs.rs:1161
+#, rust-format
+msgid "{count}/500 characters"
+msgstr "{count}/500 karakter"
+
+#: src/ui/dialogs.rs:1183 src/ui/menus.rs:1437
+msgid "Collaborators"
+msgstr "Ortak çalışanlar"
+
+#: src/ui/dialogs.rs:1219 src/ui/dialogs.rs:1232
+msgid "Copy invitation link"
+msgstr "Davet bağlantısını kopyala"
+
+#: src/ui/dialogs.rs:1226
+msgid "Invite others by sharing the link"
+msgstr "Bağlantıyı paylaşarak başkalarını davet et"
+
+#: src/ui/dialogs.rs:1341
+msgid "Create playlist"
+msgstr "Çalma listesi oluştur"
+
+#: src/ui/dialogs.rs:1350
+msgid "Playlist cover"
+msgstr "Çalma listesi kapağı"
+
+#. Translators: {count} is the number of songs.
+#: src/ui/dialogs.rs:1365
+#, rust-format
+msgid "{count} track will be added."
+msgid_plural "{count} tracks will be added."
+msgstr[0] "{count} şarkı eklenecek."
+msgstr[1] "{count} şarkı eklenecek."
+
+#: src/ui/dialogs.rs:1387 src/ui/dialogs.rs:1452 src/ui/dialogs.rs:1550
+#: src/ui/equalizer.rs:675 src/ui/uploads.rs:1698
+msgid "Save"
+msgstr "Kaydet"
+
+#: src/ui/dialogs.rs:1423
+msgid "Rename folder"
+msgstr "Klasörü yeniden adlandır"
+
+#: src/ui/dialogs.rs:1425
+msgid "New folder"
+msgstr "Yeni klasör"
+
+#: src/ui/dialogs.rs:1441
+msgid "Give your new folder a name"
+msgstr "Yeni klasörüne bir ad ver"
+
+#: src/ui/dialogs.rs:1505 src/ui/menus.rs:1421
+msgid "Edit playlist"
+msgstr "Çalma listesini düzenle"
+
+#: src/ui/dialogs.rs:1514
+msgid "Selected playlist cover"
+msgstr "Seçilen çalma listesi kapağı"
+
+#: src/ui/dialogs.rs:1517
+msgid "Current playlist cover"
+msgstr "Mevcut çalma listesi kapağı"
+
+#: src/ui/home.rs:153
+msgid "Created by me"
+msgstr "Bana ait"
+
+#: src/ui/home.rs:158
+#, rust-format
+msgid "Created by {owner}"
+msgstr "Oluşturan: {owner}"
+
+#: src/ui/home.rs:436 src/ui/home_feeds.rs:56
+msgid "For you"
+msgstr "Sizin için"
+
+#: src/ui/home.rs:750 src/ui/home.rs:760 src/ui/home.rs:775
+msgid "Your top artists"
+msgstr "En çok dinlediğin sanatçılar"
+
+#: src/ui/home.rs:937
+msgid "Show more top tracks"
+msgstr "Daha fazla popüler şarkı göster"
+
+#: src/ui/home.rs:951
+msgid "Recommended for you"
+msgstr "Senin için önerilenler"
+
+#: src/ui/keys.rs:170
+msgctxt "key"
+msgid "Space"
+msgstr "Boşluk"
+
+#: src/ui/keys.rs:171
+msgid "Play or pause"
+msgstr "Çal veya duraklat"
+
+#: src/ui/keys.rs:175
+msgid "Previous or next"
+msgstr "Önceki veya sonraki"
+
+#: src/ui/keys.rs:179
+msgid "Seek 10 seconds"
+msgstr "10 saniye sar"
+
+#: src/ui/keys.rs:183
+msgid "Volume up or down"
+msgstr "Sesi artır veya azalt"
+
+#: src/ui/keys.rs:185
+msgid "Mute or unmute"
+msgstr "Sesi kapat veya aç"
+
+#: src/ui/keys.rs:188
+msgid "Add or remove the playing track from My Collection"
+msgstr "Çalan parçayı Koleksiyonum’a ekle veya koleksiyondan kaldır"
+
+#: src/ui/keys.rs:190
+msgid "Toggle shuffle"
+msgstr "Karışık çalmayı aç/kapat"
+
+#: src/ui/keys.rs:191
+msgid "Cycle repeat"
+msgstr "Tekrarlama modunu değiştir"
+
+#: src/ui/keys.rs:192
+msgid "Show the queue"
+msgstr "Sırayı göster"
+
+#: src/ui/keys.rs:193
+msgid "Show the lyrics"
+msgstr "Şarkı sözlerini göster"
+
+#: src/ui/keys.rs:194
+msgid "Lyrics: leave full screen"
+msgstr "Şarkı sözleri: tam ekrandan çık"
+
+#: src/ui/keys.rs:197
+msgid "Track list: extend or shrink the selection"
+msgstr "Şarkı listesi: seçimi genişlet veya daralt"
+
+#: src/ui/keys.rs:199
+msgid "Remove from this playlist"
+msgstr "Bu çalma listesinden kaldır"
+
+#: src/ui/keys.rs:202
+msgid "Track list: select all"
+msgstr "Şarkı listesi: tümünü seç"
+
+#: src/ui/keys.rs:206
+msgid "Track list: copy the selected tracks' links"
+msgstr "Şarkı listesi: seçilen şarkıların bağlantılarını kopyala"
+
+#: src/ui/keys.rs:210
+msgid "Playlist: cut the selected tracks"
+msgstr "Çalma listesi: seçilen şarkıları kes"
+
+#: src/ui/keys.rs:214
+msgid "Playlist: add the pasted track links"
+msgstr "Çalma listesi: yapıştırılan şarkı bağlantılarını ekle"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:219
+msgid "Cmd+F  or  /"
+msgstr "Cmd+F  veya  /"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:222
+msgid "Ctrl+F  or  /"
+msgstr "Ctrl+F  veya  /"
+
+#: src/ui/keys.rs:228
+msgid "Show or hide the sidebar"
+msgstr "Kenar çubuğunu göster veya gizle"
+
+#: src/ui/keys.rs:230
+msgid "Back or forward"
+msgstr "Geri veya ileri"
+
+#: src/ui/keys.rs:241
+msgid "Go to the playing artist"
+msgstr "Çalan sanatçıya git"
+
+#: src/ui/keys.rs:245
+msgid "Go to the playing album"
+msgstr "Çalan albüme git"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:254
+msgid "Cmd+/ or ?"
+msgstr "Cmd+/ veya ?"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:257
+msgid "Ctrl+/ or ?"
+msgstr "Ctrl+/ veya ?"
+
+#: src/ui/keys.rs:263
+msgid "Close the window"
+msgstr "Pencereyi kapat"
+
+#: src/ui/keys.rs:265 src/ui/titlebar.rs:143
+msgid "Quit"
+msgstr "Çıkış"
+
+#: src/ui/library.rs:30
+msgid "No saved albums"
+msgstr "Kayıtlı albüm yok"
+
+#: src/ui/library.rs:31
+msgid "Saved albums appear here."
+msgstr "Kaydedilen albümler burada görünür."
+
+#: src/ui/library.rs:32
+msgid "Filter albums"
+msgstr "Albümleri filtrele"
+
+#: src/ui/library.rs:36
+msgid "No followed artists"
+msgstr "Takip edilen sanatçı yok"
+
+#: src/ui/library.rs:37
+msgid "Followed artists appear here."
+msgstr "Takip edilen sanatçılar burada görünür."
+
+#: src/ui/library.rs:38
+msgid "Filter profiles"
+msgstr "Profilleri filtrele"
+
+#: src/ui/library.rs:48
+msgid "No mixes yet"
+msgstr "Henüz mix yok"
+
+#: src/ui/library.rs:51
+msgid "Mixes and radios you add to your collection appear here."
+msgstr "Koleksiyonunuza eklediğiniz mix'ler ve radyolar burada görünür."
+
+#: src/ui/login.rs:80
+msgid "Waiting for you to approve in your browser"
+msgstr "Tarayıcıda onayınız bekleniyor"
+
+#: src/ui/login.rs:89 src/ui/login.rs:135
+msgid "Didn't open? Open the sign-in page again"
+msgstr "Açılmadı mı? Giriş sayfasını tekrar açın"
+
+#: src/ui/login.rs:107
+msgid "Paste the address from your browser"
+msgstr "Tarayıcınızdaki adresi yapıştırın"
+
+#: src/ui/login.rs:123
+msgid "Continue"
+msgstr "Devam"
+
+#: src/ui/login.rs:150
+msgid "Connecting to TIDAL…"
+msgstr "TIDAL'a bağlanılıyor…"
+
+#: src/ui/login.rs:156
+msgid "Log in to Tidalfast"
+msgstr "Tidalfast'a giriş yap"
+
+#: src/ui/login.rs:162
+msgid "Log in"
+msgstr "Giriş yap"
+
+#: src/ui/login.rs:168
+msgid "Log in with Max (hi-res)"
+msgstr "Max (yüksek çözünürlük) ile giriş yap"
+
+#: src/ui/login.rs:181
+msgid "Proxy Settings"
+msgstr "Proxy Ayarları"
+
+#: src/ui/mod.rs:953
+msgid "Minimize"
+msgstr "Simge durumuna küçült"
+
+#: src/ui/mod.rs:960
+msgid "Restore"
+msgstr "Önceki boyuta getir"
+
+#: src/ui/mod.rs:962
+msgid "Maximize"
+msgstr "Ekranı kapla"
+
+#: src/ui/radio.rs:335
+msgid "Based on this playlist"
+msgstr "Bu çalma listesine dayalı"
+
+#: src/ui/radio.rs:336
+msgid "Based on this album"
+msgstr "Bu albüme dayalı"
+
+#: src/ui/radio.rs:337
+msgid "Based on this artist"
+msgstr "Bu sanatçıya dayalı"
+
+#: src/ui/radio.rs:338
+msgid "Based on this track"
+msgstr "Bu şarkıya dayalı"
+
+#. Translators: {first} is an artist name.
+#: src/ui/radio.rs:356
+#, rust-format
+msgid "With {first}"
+msgstr "{first} ile"
+
+#. Translators: {first} and {second} are artist names.
+#: src/ui/radio.rs:359
+#, rust-format
+msgid "With {first} and {second}"
+msgstr "{first} ve {second} ile"
+
+#. Translators: {first}, {second} and {third} are artist names.
+#: src/ui/radio.rs:365
+#, rust-format
+msgid "With {first}, {second} and {third}"
+msgstr "{first}, {second} ve {third} ile"
+
+#. Translators: {first}, {second} and {third} are artist names; more follow.
+#: src/ui/radio.rs:372
+#, rust-format
+msgid "With {first}, {second}, {third} and more"
+msgstr "{first}, {second}, {third} ve daha fazlası ile"
+
+#: src/ui/search.rs:80 src/ui/search.rs:334
+msgid "Search needs a connection. Turn off offline mode to search TIDAL."
+msgstr ""
+"Arama için bağlantı gerekir. TIDAL’da aramak için çevrimdışı modu kapatın."
+
+#. Translators: {query} is the text the user searched for.
+#: src/ui/search.rs:124
+#, rust-format
+msgid "No results for “{query}”"
+msgstr "“{query}” için sonuç bulunamadı"
+
+#: src/ui/search.rs:126
+msgid "Check the spelling, or try fewer words."
+msgstr "Yazımı kontrol edin veya daha az kelime deneyin."
+
+#: src/ui/search.rs:183
+#, rust-format
+msgid "Did you mean {query}?"
+msgstr "{query} mi demek istediniz?"
+
+#: src/ui/search.rs:275
+msgid "Go to genre"
+msgstr "Türe git"
+
+#: src/ui/search.rs:339
+msgid "Connect to the internet to search tracks, artists, and playlists."
+msgstr "Şarkı, sanatçı ve çalma listesi aramak için internete bağlanın."
+
+#: src/ui/search.rs:350
+msgid "Search TIDAL"
+msgstr "TIDAL'da ara"
+
+#: src/ui/search.rs:351
+msgid "Find tracks, artists, albums, and playlists."
+msgstr ""
+"Parça, sanatçı, albüm ve çalma listesi bulun.Şarkıları, sanatçıları, "
+"albümleri, çalma listelerini ve podcast'leri bulun."
+
+#: src/ui/search.rs:428 src/ui/search.rs:1389 src/ui/search.rs:1590
+msgid "Track"
+msgstr "Parça"
+
+#: src/ui/search.rs:430 src/ui/search.rs:1390 src/ui/search.rs:1610
+msgid "Video"
+msgstr "Video"
+
+#: src/ui/search.rs:970
+#, rust-format
+msgid "By {owner}"
+msgstr "{owner} tarafından"
+
+#: src/ui/search.rs:1343
+msgid "Recent Searches"
+msgstr "Son aramalar"
+
+#: src/ui/topbar.rs:261
+msgid "Back"
+msgstr "Geri"
+
+#: src/ui/topbar.rs:262
+msgid "Forward"
+msgstr "İleri"
+
+#: src/ui/topbar.rs:284
+msgid "Update ready"
+msgstr "Güncelleme hazır"
+
+#: src/ui/topbar.rs:286 src/ui/update.rs:113
+msgid "Downloading update…"
+msgstr "Güncelleme indiriliyor…"
+
+#. Translators: {version} is a version number such as 1.2.0.
+#: src/ui/topbar.rs:290
+#, rust-format
+msgid "Update to {version}"
+msgstr "{version} sürümüne güncelle"
+
+#: src/ui/topbar.rs:417
+msgid "Offline mode is on. Turn it off in Settings or with Go online."
+msgstr "Çevrimdışı mod açık. Ayarlar’dan veya “Çevrimiçi ol” ile kapatın."
+
+#: src/ui/topbar.rs:422
+msgid ""
+"Tidalfast is offline. Reconnecting automatically when connection returns."
+msgstr ""
+"Tidalfast çevrimdışı. Bağlantı geri geldiğinde otomatik olarak yeniden "
+"bağlanacaktır."
+
+#: src/ui/topbar.rs:431
+msgid "Updating My Collection…"
+msgstr "Koleksiyonum güncelleniyor…"
+
+#: src/ui/topbar.rs:432
+msgid "Checking for updates…"
+msgstr "Güncellemeler denetleniyor…"
+
+#: src/ui/topbar.rs:433
+msgid "Waiting for TIDAL…"
+msgstr "TIDAL bekleniyor…"
+
+#. Translators: {version} is a version number such as 1.2.0.
+#: src/ui/topbar.rs:450
+#, rust-format
+msgid "Version {version} is available."
+msgstr "Sürüm {version} hazır."
+
+#: src/ui/topbar.rs:703
+msgid "Profile"
+msgstr "Profil"
+
+#: src/ui/topbar.rs:708 src/ui/profile.rs:118 src/ui/activity.rs:545
+msgid "My Activity"
+msgstr "Etkinliğim"
+
+#: src/ui/topbar.rs:715
+msgid "Manage subscription"
+msgstr "Aboneliği yönet"
+
+#: src/ui/topbar.rs:721 src/ui/titlebar.rs:169
+msgid "Help"
+msgstr "Yardım"
+
+#: src/ui/topbar.rs:729
+msgid "Get Support"
+msgstr "Destek al"
+
+#: src/ui/topbar.rs:731
+msgid "Legal"
+msgstr "Yasal"
+
+#: src/ui/topbar.rs:732
+msgid "Terms and Conditions"
+msgstr "Şartlar ve Koşullar"
+
+#: src/ui/topbar.rs:733
+msgid "Privacy Notice"
+msgstr "Gizlilik Bildirimi"
+
+#: src/ui/topbar.rs:737
+msgid "Marketplace Terms and Conditions"
+msgstr "Marketplace Şartlar ve Koşullar"
+
+#: src/ui/topbar.rs:745
+msgid "Log out"
+msgstr "Çıkış yap"
+
+#: src/ui/topbar.rs:760
+msgid "Luna Settings"
+msgstr "Luna Ayarları"
+
+#: src/ui/update.rs:53
+msgid "Update Tidalfast"
+msgstr "Tidalfast'i güncelle"
+
+#: src/ui/update.rs:104
+msgid "Release notes"
+msgstr "Sürüm notları"
+
+#: src/ui/update.rs:111
+msgid "Checking download…"
+msgstr "İndirme denetleniyor…"
+
+#. Translators: {received} and {total} are sizes in megabytes, such as 12.5.
+#: src/ui/update.rs:129
+#, rust-format
+msgid "{received} of {total} MB"
+msgstr "{received} / {total} MB"
+
+#: src/ui/update.rs:145
+msgid "Ready to install"
+msgstr "Yüklemeye hazır"
+
+#: src/ui/update.rs:154
+msgid "Music playing on this computer will stop when Tidalfast restarts."
+msgstr "Tidalfast yeniden başlatıldığında bu bilgisayarda çalan müzik duracak."
+
+#: src/ui/update.rs:162
+msgid "Restart to update"
+msgstr "Güncellemek için yeniden başlat"
+
+#: src/ui/update.rs:169
+msgid "Preparing to restart…"
+msgstr "Yeniden başlatmaya hazırlanıyor…"
+
+#: src/ui/update.rs:202
+msgid "Download from GitHub"
+msgstr "GitHub'dan indir"
+
+#: src/ui/update.rs:207
+msgid "Retry download"
+msgstr "İndirmeyi yeniden dene"
+
+#: src/ui/update.rs:209
+msgid "Update now"
+msgstr "Şimdi güncelle"
+
+#: src/ui/update.rs:228
+msgid "Later"
+msgstr "Sonra"
+
+#. Translators: A length of time, abbreviated. Keep {hours} and {minutes}.
+#: src/util.rs:28
+#, rust-format
+msgid "{hours} hr {minutes} min"
+msgstr "{hours} sa {minutes} dk"
+
+#. Translators: A length of time, abbreviated. Keep {minutes} and {seconds}.
+#: src/util.rs:33
+#, rust-format
+msgid "{minutes} min {seconds} sec"
+msgstr "{minutes} dk {seconds} sn"
+
+#. Translators: A length of time, abbreviated. Keep {seconds}.
+#: src/util.rs:38
+#, rust-format
+msgid "{seconds} sec"
+msgstr "{seconds} sn"
+
+#: src/util.rs:79
+msgctxt "month"
+msgid "Jan"
+msgstr "Oca"
+
+#: src/util.rs:80
+msgctxt "month"
+msgid "Feb"
+msgstr "Şub"
+
+#: src/util.rs:81
+msgctxt "month"
+msgid "Mar"
+msgstr "Mar"
+
+#: src/util.rs:82
+msgctxt "month"
+msgid "Apr"
+msgstr "Nis"
+
+#: src/util.rs:83 src/ui/activity.rs:39
+msgctxt "month"
+msgid "May"
+msgstr "May"
+
+#: src/util.rs:84
+msgctxt "month"
+msgid "Jun"
+msgstr "Haz"
+
+#: src/util.rs:85
+msgctxt "month"
+msgid "Jul"
+msgstr "Tem"
+
+#: src/util.rs:86
+msgctxt "month"
+msgid "Aug"
+msgstr "Ağu"
+
+#: src/util.rs:87
+msgctxt "month"
+msgid "Sep"
+msgstr "Eyl"
+
+#: src/util.rs:88
+msgctxt "month"
+msgid "Oct"
+msgstr "Eki"
+
+#: src/util.rs:89
+msgctxt "month"
+msgid "Nov"
+msgstr "Kas"
+
+#: src/util.rs:90
+msgctxt "month"
+msgid "Dec"
+msgstr "Ara"
+
+#. Translators: A date. {month} is an abbreviated month name; reorder as your language writes dates.
+#: src/util.rs:96 src/ui/activity.rs:66
+#, rust-format
+msgid "{month} {day}, {year}"
+msgstr "{day} {month} {year}"
+
+#. Translators: A month and year. {month} is an abbreviated month name.
+#: src/util.rs:99
+#, rust-format
+msgid "{month} {year}"
+msgstr "{month} {year}"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:125
+#, rust-format
+msgid "{count} second ago"
+msgid_plural "{count} seconds ago"
+msgstr[0] "{count} saniye önce"
+msgstr[1] "{count} saniye önce"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:135
+#, rust-format
+msgid "{count} minute ago"
+msgid_plural "{count} minutes ago"
+msgstr[0] "{count} dakika önce"
+msgstr[1] "{count} dakika önce"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:145
+#, rust-format
+msgid "{count} hour ago"
+msgid_plural "{count} hours ago"
+msgstr[0] "{count} saat önce"
+msgstr[1] "{count} saat önce"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:153
+#, rust-format
+msgid "{count} day ago"
+msgid_plural "{count} days ago"
+msgstr[0] "{count} gün önce"
+msgstr[1] "{count} gün önce"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:160
+#, rust-format
+msgid "{count} week ago"
+msgid_plural "{count} weeks ago"
+msgstr[0] "{count} hafta önce"
+msgstr[1] "{count} hafta önce"
+
+#: src/util.rs:443
+msgid "Good morning"
+msgstr "Günaydın"
+
+#: src/util.rs:444
+msgid "Good afternoon"
+msgstr "İyi günler"
+
+#: src/util.rs:445
+msgid "Good evening"
+msgstr "İyi akşamlar"
+
+#: src/window.rs:20
+msgid "Tidalfast cannot open its window"
+msgstr "Tidalfast penceresini açamıyor"
+
+#: src/window.rs:23
+msgid ""
+"On Windows on ARM, the OpenGL that Tidalfast draws with comes from "
+"Microsoft's OpenCL, OpenGL & Vulkan Compatibility Pack. Open its Microsoft "
+"Store page to install or repair it?"
+msgstr ""
+"ARM üzerinde Windows'ta Tidalfast'in çizim için kullandığı OpenGL, "
+"Microsoft'un OpenCL, OpenGL & Vulkan Compatibility Pack paketinden gelir. "
+"Yüklemek veya onarmak için Microsoft Store sayfası açılsın mı?"
+
+#: src/ui/feed.rs:58
+msgid "New releases from artists you follow will show up here."
+msgstr "Takip ettiğin sanatçıların yeni çıkanları burada görünecek."
+
+#: src/ui/feed.rs:73
+msgid "This month"
+msgstr "Bu ay"
+
+#: src/ui/feed.rs:74
+msgid "Last month"
+msgstr "Geçen ay"
+
+#: src/ui/feed.rs:75
+msgid "Older"
+msgstr "Daha eski"
+
+#: src/ui/feed.rs:123
+#, rust-format
+msgid "Single by {artists}"
+msgstr "{artists} single'ı"
+
+#: src/ui/feed.rs:126
+#, rust-format
+msgid "EP by {artists}"
+msgstr "{artists} EP'si"
+
+#: src/ui/home_feeds.rs:54
+msgid "Staff Picks"
+msgstr "Editörün Seçimi"
+
+#: src/ui/profile.rs:67
+msgctxt "profile"
+msgid "Followers"
+msgstr "Takipçi"
+
+#: src/ui/profile.rs:71
+msgctxt "profile"
+msgid "Following"
+msgstr "Takip edilen"
+
+#: src/ui/profile.rs:133
+msgid "No public playlists yet."
+msgstr "Henüz herkese açık çalma listesi yok."
+
+#: src/ui/menus.rs:60 src/ui/activity.rs:1564
+msgctxt "menu head"
+msgid "Artist"
+msgstr "Sanatçı"
+
+#: src/ui/menus.rs:92
+#, rust-format
+msgid "{count} Item ({duration})"
+msgid_plural "{count} Items ({duration})"
+msgstr[0] "{count} öğe ({duration})"
+msgstr[1] "{count} öğe ({duration})"
+
+#: src/ui/menus.rs:318
+msgid "Share with anyone"
+msgstr "Herkesle paylaş"
+
+#: src/ui/menus.rs:331
+msgid "Music shared from TIDAL can be opened on other services"
+msgstr "TIDAL üzerinden paylaşılan müzik başka hizmetlerde de açılabilir"
+
+#: src/ui/menus.rs:412
+msgid "Invite as collaborator"
+msgstr "Ortak çalışan olarak davet et"
+
+#: src/ui/menus.rs:423
+msgid "Every invite link can be used once."
+msgstr "Her davet bağlantısı yalnızca bir kez kullanılabilir."
+
+#: src/ui/menus.rs:459 src/ui/uploads.rs:368
+msgid "Copy link"
+msgstr "Bağlantıyı kopyala"
+
+#: src/ui/menus.rs:555
+msgid "Create new playlist"
+msgstr "Yeni çalma listesi oluştur"
+
+#: src/ui/menus.rs:569
+msgid "Show all playlists"
+msgstr "Tüm çalma listelerini göster"
+
+#: src/ui/menus.rs:606
+msgid "Move to folder"
+msgstr "Klasöre taşı"
+
+#: src/ui/menus.rs:627
+msgid "Create folder"
+msgstr "Klasör oluştur"
+
+#: src/ui/menus.rs:646
+msgid "Show all folders"
+msgstr "Tüm klasörleri göster"
+
+#: src/ui/menus.rs:684
+msgid "Go to artist"
+msgstr "Sanatçıya git"
+
+#: src/ui/menus.rs:752
+msgid "Remove from Save for Later"
+msgstr "Sonrası için kaydedilenlerden kaldır"
+
+#: src/ui/menus.rs:906 src/ui/menus.rs:1031 src/ui/menus.rs:1342
+#: src/ui/videos.rs:354
+msgid "Play next"
+msgstr "Sıradaki olarak çal"
+
+#: src/ui/menus.rs:916
+msgid "Remove from queue"
+msgstr "Sıradan kaldır"
+
+#: src/ui/menus.rs:937 src/ui/menus.rs:1042
+msgid "Remove from playlist"
+msgstr "Çalma listesinden kaldır"
+
+#: src/ui/menus.rs:951
+msgid "Go to track radio"
+msgstr "Parça radyosuna git"
+
+#: src/ui/menus.rs:967
+msgid "Go to album"
+msgstr "Albüme git"
+
+#: src/ui/menus.rs:990 src/ui/menus.rs:1375 src/ui/now_playing.rs:887
+#: src/ui/now_playing_video.rs:323 src/ui/videos.rs:385
+msgid "Add to queue"
+msgstr "Sıraya ekle"
+
+#: src/ui/menus.rs:1438
+msgid "NEW"
+msgstr "YENİ"
+
+#: src/ui/menus.rs:1446
+msgid "Make private"
+msgstr "Gizli yap"
+
+#: src/ui/menus.rs:1448
+msgid "Make public"
+msgstr "Herkese açık yap"
+
+#: src/ui/menus.rs:1470
+msgid "Follow"
+msgstr "Takip et"
+
+#: src/ui/menus.rs:1494
+msgid "Bio"
+msgstr "Biyografi"
+
+#: src/ui/menus.rs:1499
+msgid "Go to artist radio"
+msgstr "Sanatçı radyosuna git"
+
+#: src/ui/menus.rs:1508 src/ui/blocked.rs:134
+msgid "Unblock"
+msgstr "Engeli kaldır"
+
+#: src/ui/menus.rs:1510
+msgid "Block"
+msgstr "Engelle"
+
+#: src/ui/downloads.rs:38
+msgid "Offline mode is on"
+msgstr "Çevrimdışı mod açık"
+
+#: src/ui/downloads.rs:50
+msgid ""
+"Only your downloads are available. Turn off offline mode to use TIDAL again."
+msgstr ""
+"Yalnızca indirdikleriniz kullanılabilir. TIDAL’ı yeniden kullanmak için "
+"çevrimdışı modu kapatın."
+
+#: src/ui/downloads.rs:67
+msgid "This needs a connection. Turn off offline mode to use TIDAL again."
+msgstr ""
+"Bunun için bağlantı gerekir. TIDAL’ı yeniden kullanmak için çevrimdışı modu "
+"kapatın."
+
+#: src/ui/downloads.rs:127
+msgid ""
+"Offline mode is on. Only your downloads play, and Tidalfast makes no "
+"requests to TIDAL."
+msgstr ""
+"Çevrimdışı mod açık. Yalnızca indirdikleriniz oynatılır ve Tidalfast TIDAL’a "
+"istek göndermez."
+
+#: src/ui/downloads.rs:168
+msgid "You're offline. Only downloaded tracks play until you reconnect."
+msgstr ""
+"Çevrimdışısınız. Yeniden bağlanana kadar yalnızca indirilen parçalar çalar."
+
+#: src/ui/downloads.rs:191
+msgid "Download queue"
+msgstr "İndirme kuyruğu"
+
+#: src/ui/downloads.rs:198
+msgid "Cancel all"
+msgstr "Tümünü iptal et"
+
+#: src/ui/downloads.rs:210
+msgid "Retry failed"
+msgstr "Başarısızları yeniden dene"
+
+#: src/ui/downloads.rs:220
+msgid "Resume all"
+msgstr "Tümünü sürdür"
+
+#: src/ui/downloads.rs:226
+msgid "Pause all"
+msgstr "Tümünü duraklat"
+
+#: src/ui/downloads.rs:241
+msgid ""
+"Waiting for a connection that is not metered. Settings can allow metered "
+"connections."
+msgstr ""
+"Ölçülü olmayan bir bağlantı bekleniyor. Ayarlar ölçülü bağlantılara izin "
+"verebilir."
+
+#: src/ui/downloads.rs:255
+msgid "TIDAL asked downloads to slow down. They carry on shortly."
+msgstr ""
+"TIDAL indirmeleri yavaşlatmayı istedi. Kısa süre sonra devam edecekler."
+
+#: src/ui/downloads.rs:319 src/ui/downloads.rs:473
+msgid "Cancel download"
+msgstr "İndirmeyi iptal et"
+
+#: src/ui/downloads.rs:339
+#, rust-format
+msgid "Downloading {done} of {total}"
+msgstr "{total} şarkıdan {done} indiriliyor"
+
+#: src/ui/downloads.rs:401
+msgid "Waiting"
+msgstr "Bekliyor"
+
+#: src/ui/downloads.rs:419
+msgid "Paused"
+msgstr "Duraklatıldı"
+
+#: src/ui/downloads.rs:424
+msgid "Failed"
+msgstr "Başarısız"
+
+#: src/ui/downloads.rs:483
+msgid "Resume download"
+msgstr "İndirmeyi sürdür"
+
+#: src/ui/downloads.rs:493
+msgid "Pause download"
+msgstr "İndirmeyi duraklat"
+
+#: src/ui/downloads.rs:510
+msgid "Mixes"
+msgstr "Mixler"
+
+#: src/ui/downloads.rs:511 src/ui/blocked.rs:82 src/ui/save_later.rs:23
+msgid "Artists"
+msgstr "Sanatçılar"
+
+#: src/ui/downloads.rs:537 src/app/downloads.rs:811
+#, rust-format
+msgid "Songs not available: {count}"
+msgstr "Kullanılamayan şarkılar: {count}"
+
+#: src/app/downloads.rs:201
+msgid "Download started"
+msgstr "İndirme başladı"
+
+#: src/app/downloads.rs:243
+msgid "The disk is full. Free up space, then resume the downloads."
+msgstr "Disk dolu. Yer açın, ardından indirmeleri sürdürün."
+
+#: src/app/downloads.rs:480
+msgid "Download removed"
+msgstr "İndirme kaldırıldı"
+
+#: src/app/downloads.rs:792
+msgid "A download failed"
+msgstr "Bir indirme başarısız oldu"
+
+#: src/app/downloads.rs:872
+#, rust-format
+msgid "Couldn't download {name}"
+msgstr "{name} indirilemedi"
+
+#: src/app/downloads.rs:925
+#, rust-format
+msgid ""
+"There isn't enough disk space for {name}. It needs about {needed}, and "
+"{free} is free."
+msgstr ""
+"{name} için yeterli disk alanı yok. Yaklaşık {needed} gerekiyor, {free} boş."
+
+#: src/ui/player_utility.rs:79
+msgid "Unmute"
+msgstr "Sesi aç"
+
+#: src/ui/player_utility.rs:81
+msgid "Mute"
+msgstr "Sesi kapat"
+
+#: src/ui/player_utility.rs:134
+msgid "Volume (%)"
+msgstr "Ses düzeyi (%)"
+
+#: src/ui/player_utility.rs:343 src/ui/player_utility.rs:406
+msgid "Sound output"
+msgstr "Ses çıkışı"
+
+#: src/ui/player_utility.rs:561 src/ui/player_utility.rs:566
+msgid "Exclusive"
+msgstr "Özel"
+
+#: src/ui/compact.rs:288
+msgid "Exit compact mode"
+msgstr "Kompakt moddan çık"
+
+#: src/ui/equalizer.rs:51
+msgctxt "equalizer filter"
+msgid "Peak"
+msgstr "Tepe"
+
+#: src/ui/equalizer.rs:52
+msgctxt "equalizer filter"
+msgid "Low shelf"
+msgstr "Alçak raf"
+
+#: src/ui/equalizer.rs:53
+msgctxt "equalizer filter"
+msgid "High shelf"
+msgstr "Yüksek raf"
+
+#: src/ui/equalizer.rs:54
+msgctxt "equalizer filter"
+msgid "Low pass"
+msgstr "Alçak geçiren"
+
+#: src/ui/equalizer.rs:55
+msgctxt "equalizer filter"
+msgid "High pass"
+msgstr "Yüksek geçiren"
+
+#: src/ui/equalizer.rs:56
+msgctxt "equalizer filter"
+msgid "Notch"
+msgstr "Çentik"
+
+#: src/ui/equalizer.rs:57
+msgctxt "equalizer filter"
+msgid "Band pass"
+msgstr "Bant geçiren"
+
+#: src/ui/equalizer.rs:58
+msgctxt "equalizer filter"
+msgid "All pass"
+msgstr "Tümünü geçiren"
+
+#: src/ui/equalizer.rs:86
+msgid ""
+"Bypassed while bit-perfect is on: the music reaches the device untouched."
+msgstr "Bit-perfect açıkken devre dışı: müzik cihaza dokunulmadan ulaşır."
+
+#: src/ui/equalizer.rs:98
+msgctxt "equalizer view"
+msgid "Graphic"
+msgstr "Grafik"
+
+#: src/ui/equalizer.rs:131
+msgid "Remember for each output device"
+msgstr "Her çıkış cihazı için hatırla"
+
+#: src/ui/equalizer.rs:143
+msgid "Choosing another output device brings back the equalizer it had."
+msgstr "Başka bir çıkış cihazı seçmek, onun ekolayzerini geri getirir."
+
+#: src/ui/equalizer.rs:426 src/ui/equalizer.rs:431
+msgid "Automatic"
+msgstr "Otomatik"
+
+#: src/ui/equalizer.rs:441
+#, rust-format
+msgid "Boosts reach {db} dB past full scale; the limiter catches the peaks."
+msgstr "Yükseltmeler tam ölçeği {db} dB aşıyor; sınırlayıcı tepeleri yakalar."
+
+#: src/ui/equalizer.rs:445
+msgid "No boost goes past full scale."
+msgstr "Hiçbir yükseltme tam ölçeği aşmıyor."
+
+#: src/ui/equalizer.rs:460
+msgid "Headphone crossfeed"
+msgstr "Kulaklık crossfeed"
+
+#: src/ui/equalizer.rs:469
+msgid ""
+"Blends some of each side into the other at low pitches, as speakers do, so "
+"music on headphones sounds less hard-panned."
+msgstr ""
+"Hoparlörlerin yaptığı gibi, alçak seslerde her kanalın bir kısmını diğerine "
+"karıştırır; kulaklıkta müzik daha az ayrık duyulur."
+
+#: src/ui/equalizer.rs:477
+msgctxt "equalizer crossfeed"
+msgid "Off"
+msgstr "Kapalı"
+
+#: src/ui/equalizer.rs:478
+msgctxt "equalizer crossfeed"
+msgid "Light"
+msgstr "Hafif"
+
+#: src/ui/equalizer.rs:479
+msgctxt "equalizer crossfeed"
+msgid "Medium"
+msgstr "Orta"
+
+#: src/ui/equalizer.rs:480
+msgctxt "equalizer crossfeed"
+msgid "Strong"
+msgstr "Güçlü"
+
+#: src/ui/equalizer.rs:541
+msgctxt "equalizer band"
+msgid "Type"
+msgstr "Tür"
+
+#: src/ui/equalizer.rs:542
+msgctxt "equalizer band"
+msgid "Frequency"
+msgstr "Frekans"
+
+#: src/ui/equalizer.rs:543
+msgctxt "equalizer band"
+msgid "Gain"
+msgstr "Kazanç"
+
+#: src/ui/equalizer.rs:613
+msgid "Add band"
+msgstr "Bant ekle"
+
+#: src/ui/equalizer.rs:629
+msgid ""
+"Drag a band on the graph; the mouse wheel sets its width. Double-click the "
+"graph to add one."
+msgstr ""
+"Grafikte bir bandı sürükleyin; fare tekerleği genişliğini ayarlar. Bant "
+"eklemek için grafiğe çift tıklayın."
+
+#: src/ui/equalizer.rs:640
+msgid "Your presets"
+msgstr "Ön ayarlarınız"
+
+#: src/ui/equalizer.rs:665
+msgid "Preset name"
+msgstr "Ön ayar adı"
+
+#: src/ui/equalizer.rs:724
+msgid "Equalizer APO and AutoEQ profiles"
+msgstr "Equalizer APO ve AutoEQ profilleri"
+
+#: src/ui/equalizer.rs:745
+msgid "Import"
+msgstr "İçe aktar"
+
+#: src/ui/equalizer.rs:757
+msgid "Copy as Equalizer APO"
+msgstr "Equalizer APO olarak kopyala"
+
+#: src/ui/equalizer.rs:781
+#, rust-format
+msgid "Loaded: {headphone}"
+msgstr "Yüklendi: {headphone}"
+
+#: src/ui/equalizer.rs:788
+msgid "Loading the headphone list…"
+msgstr "Kulaklık listesi yükleniyor…"
+
+#: src/ui/equalizer.rs:790
+msgid "Find your headphones"
+msgstr "Kulaklığınızı bulun"
+
+#: src/ui/equalizer.rs:800
+msgid ""
+"Downloads the AutoEQ project's list from GitHub once, then only the profile "
+"you pick."
+msgstr ""
+"AutoEQ projesinin listesini GitHub'dan bir kez indirir, sonra yalnızca "
+"seçtiğiniz profili."
+
+#: src/ui/equalizer.rs:808
+msgid "Search headphones"
+msgstr "Kulaklık ara"
+
+#: src/ui/equalizer.rs:826
+#, rust-format
+msgid "{count} more; type more of the name."
+msgstr "{count} tane daha; adın daha fazlasını yazın."
+
+#: src/ui/audio_output.rs:50
+msgid "the output device"
+msgstr "çıkış cihazı"
+
+#: src/ui/audio_output.rs:53
+#, rust-format
+msgid "Bit-perfect · {format} → {device} (exclusive)"
+msgstr "Bit-perfect · {format} → {device} (özel)"
+
+#: src/ui/audio_output.rs:58
+msgid "hardware volume"
+msgstr "donanım ses düzeyi"
+
+#: src/ui/audio_output.rs:66
+#, rust-format
+msgid "Exclusive on {device}, but not bit-perfect: this track is lossy."
+msgstr ""
+"{device} üzerinde özel modda, ancak bit-perfect değil: bu parça kayıplı."
+
+#: src/ui/audio_output.rs:75 src/ui/audio_output.rs:101
+#, rust-format
+msgid "Not bit-perfect: {reason}"
+msgstr "Bit-perfect değil: {reason}"
+
+#: src/ui/audio_output.rs:79
+msgid "Bit-perfect starts with the next track you play."
+msgstr "Bit-perfect, çalacağınız sonraki parçayla başlar."
+
+#: src/ui/audio_output.rs:84
+msgid "shared mode"
+msgstr "paylaşımlı mod"
+
+#: src/ui/audio_output.rs:89
+#, rust-format
+msgid "resampled to {rate}"
+msgstr "{rate} değerine yeniden örneklendi"
+
+#: src/ui/audio_output.rs:92
+msgid "equalizer on"
+msgstr "ekolayzer açık"
+
+#: src/ui/audio_output.rs:95
+msgid "volume below 100%"
+msgstr "ses düzeyi %100'ün altında"
+
+#: src/ui/audio_output.rs:98
+msgid "normalized"
+msgstr "normalleştirildi"
+
+#: src/ui/audio_output.rs:160
+msgid "Asking the device what it takes…"
+msgstr "Cihaza neleri desteklediği soruluyor…"
+
+#: src/ui/audio_output.rs:161
+#, rust-format
+msgid "In exclusive mode this device takes {formats}."
+msgstr "Özel modda bu cihaz {formats} alır."
+
+#: src/ui/audio_output.rs:173
+msgid "Sample rate conversion"
+msgstr "Örnekleme hızı dönüştürme"
+
+#: src/ui/audio_output.rs:180
+msgctxt "resampler quality"
+msgid "Same as TIDAL"
+msgstr "TIDAL ile aynı"
+
+#: src/ui/audio_output.rs:183
+msgctxt "resampler quality"
+msgid "Standard"
+msgstr "Standart"
+
+#: src/ui/audio_output.rs:186
+msgctxt "resampler quality"
+msgid "High"
+msgstr "Yüksek"
+
+#: src/ui/audio_output.rs:189
+msgctxt "resampler quality"
+msgid "Best"
+msgstr "En iyi"
+
+#: src/ui/audio_output.rs:206
+msgid "Same as TIDAL lets the system convert. The others convert in Tidalfast."
+msgstr ""
+"“TIDAL ile aynı” dönüştürmeyi sisteme bırakır. Diğerleri Tidalfast içinde "
+"dönüştürür."
+
+#: src/ui/audio_output.rs:223
+#, rust-format
+msgid "This device runs at {rate}, so Tidalfast converts the music."
+msgstr ""
+"Bu aygıt {rate} hızında çalışıyor, bu yüzden Tidalfast müziği dönüştürür."
+
+#: src/ui/audio_output.rs:235
+msgid "While Tidalfast plays bit-perfect, other apps cannot use this device."
+msgstr "Tidalfast bit-perfect çalarken diğer uygulamalar bu cihazı kullanamaz."
+
+#: src/ui/audio_output.rs:240
+msgid "Release the device when paused"
+msgstr "Duraklatınca cihazı bırak"
+
+#: src/ui/plugins_store.rs:309
+msgid "Rate"
+msgstr "Puan ver"
+
+#: src/ui/plugins_store.rs:650
+msgid "1 update available"
+msgstr "1 güncelleme mevcut"
+
+#: src/ui/plugins_store.rs:652
+#, rust-format
+msgid "{n} updates available"
+msgstr "{n} güncelleme mevcut"
+
+#: src/ui/plugins_store.rs:666
+msgid "Update all"
+msgstr "Tümünü güncelle"
+
+#: src/ui/plugins_store.rs:1941
+msgid "Find some in the Plugin Store."
+msgstr "Eklenti Mağazası'nda bulabilirsiniz."
+
+#: src/luna/mod.rs:336
+msgid "Not supported"
+msgstr "Desteklenmiyor"
+
+#: src/luna/mod.rs:337
+msgid "Partly supported"
+msgstr "Kısmen destekleniyor"
+
+#: src/luna/mod.rs:361
+msgid ""
+"This build needs TIDAL's own Last.fm key, which Tidalfast does not have."
+msgstr ""
+"Bu sürüm, Tidalfast'te bulunmayan TIDAL'ın kendi Last.fm anahtarına ihtiyaç "
+"duyuyor."
+
+#: src/luna/mod.rs:365
+msgid ""
+"It saves TIDAL songs as files, which Tidalfast does not allow (use Download "
+"in Tidalfast to listen offline)."
+msgstr ""
+"TIDAL şarkılarını dosya olarak kaydeder, ancak Tidalfast buna izin vermez "
+"(çevrimdışı dinlemek için Tidalfast'te İndir'i kullanın)."
+
+#: src/luna/mod.rs:369
+msgid ""
+"It needs TIDAL's own remote control code, which Tidalfast does not have."
+msgstr ""
+"Tidalfast'te bulunmayan TIDAL'ın kendi uzaktan kumanda koduna ihtiyaç "
+"duyuyor."
+
+#: src/luna/mod.rs:373
+msgid ""
+"It sends your TIDAL sign-in to the author's server, which Tidalfast never "
+"allows, so its remote control cannot run."
+msgstr ""
+"TIDAL girişinizi yazarın sunucusuna gönderir, Tidalfast buna asla izin "
+"vermez, bu yüzden uzaktan kumandası çalışamaz."
+
+#: src/luna/mod.rs:377
+msgid ""
+"Its mini player is a separate browser window, which Tidalfast does not "
+"include."
+msgstr ""
+"Mini oynatıcısı ayrı bir tarayıcı penceresidir ve Tidalfast bunu içermez."
+
+#: src/luna/mod.rs:381
+msgid ""
+"It needs to listen for media keys across the whole computer, which Tidalfast "
+"does not allow (Tidalfast has its own media controls)."
+msgstr ""
+"Tüm bilgisayarda medya tuşlarını dinlemesi gerekir, Tidalfast buna izin "
+"vermez (Tidalfast'in kendi medya denetimleri vardır)."
+
+#: src/luna/mod.rs:385
+msgid ""
+"It plays through the mpv program and talks to it over a channel Tidalfast "
+"does not allow."
+msgstr ""
+"mpv programı üzerinden çalar ve onunla Tidalfast'in izin vermediği bir kanal "
+"üzerinden konuşur."
+
+#: src/luna/mod.rs:389
+msgid ""
+"It marks playlists inside TIDAL's web \"add to playlist\" window, which "
+"Tidalfast does not have."
+msgstr ""
+"Çalma listelerini TIDAL'ın web'deki \"Çalma listesine ekle\" penceresinde "
+"işaretler, Tidalfast'te bu pencere yoktur."
+
+#: src/luna/mod.rs:393
+msgid ""
+"It needs a native add-on that Tidalfast cannot load (Tidalfast has its own "
+"media controls)."
+msgstr ""
+"Tidalfast'in yükleyemediği yerel bir eklentiye ihtiyaç duyuyor (Tidalfast'in "
+"kendi medya denetimleri vardır)."
+
+#: src/luna/mod.rs:397
+msgid ""
+"Last.fm scrobbling needs TIDAL's own Last.fm key, which Tidalfast does not "
+"have."
+msgstr ""
+"Last.fm scrobble işlemi, Tidalfast'te bulunmayan TIDAL'ın kendi Last.fm "
+"anahtarına ihtiyaç duyar."
+
+#: src/luna/mod.rs:401
+msgid ""
+"The lyrics bubble over the player bar works, but its separate lyrics window "
+"does not, because that needs a browser engine."
+msgstr ""
+"Oynatıcı çubuğunun üzerindeki şarkı sözü balonu çalışır, ancak ayrı şarkı "
+"sözü penceresi çalışmaz, çünkü bir tarayıcı motoru gerektirir."
+
+#: src/app/plugins.rs:444
+#, rust-format
+msgid "{name} updated to {version}"
+msgstr "{name}, {version} sürümüne güncellendi"
+
+#: src/ui/activity.rs:35
+msgctxt "month"
+msgid "January"
+msgstr "Ocak"
+
+#: src/ui/activity.rs:36
+msgctxt "month"
+msgid "February"
+msgstr "Şubat"
+
+#: src/ui/activity.rs:37
+msgctxt "month"
+msgid "March"
+msgstr "Mart"
+
+#: src/ui/activity.rs:38
+msgctxt "month"
+msgid "April"
+msgstr "Nisan"
+
+#: src/ui/activity.rs:40
+msgctxt "month"
+msgid "June"
+msgstr "Haziran"
+
+#: src/ui/activity.rs:41
+msgctxt "month"
+msgid "July"
+msgstr "Temmuz"
+
+#: src/ui/activity.rs:42
+msgctxt "month"
+msgid "August"
+msgstr "Ağustos"
+
+#: src/ui/activity.rs:43
+msgctxt "month"
+msgid "September"
+msgstr "Eylül"
+
+#: src/ui/activity.rs:44
+msgctxt "month"
+msgid "October"
+msgstr "Ekim"
+
+#: src/ui/activity.rs:45
+msgctxt "month"
+msgid "November"
+msgstr "Kasım"
+
+#: src/ui/activity.rs:46
+msgctxt "month"
+msgid "December"
+msgstr "Aralık"
+
+#. Translators: A month tab on My Activity. {month} is the month's name, {year} the year's last two digits.
+#: src/ui/activity.rs:78
+#, rust-format
+msgctxt "activity tab"
+msgid "{month} ’{year}"
+msgstr "{month} ’{year}"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of times songs were played.
+#: src/ui/activity.rs:113
+#, rust-format
+msgid "{count} stream"
+msgid_plural "{count} streams"
+msgstr[0] "{count} dinlenme"
+msgstr[1] "{count} dinlenme"
+
+#. Translators: Keep {count} exactly as written. Days until this month's ranking closes; shown in capitals.
+#: src/ui/activity.rs:119
+#, rust-format
+msgid "{count} day left"
+msgid_plural "{count} days left"
+msgstr[0] "{count} gün kaldı"
+msgstr[1] "{count} gün kaldı"
+
+#. Translators: {first} and {second} are artists; {first_streams} and {second_streams} read like "84 streams".
+#: src/ui/activity.rs:130
+#, rust-format
+msgid ""
+"{first} and {second} are currently your top streamed artists with "
+"{first_streams} and {second_streams}."
+msgstr ""
+"{first} ve {second}, {first_streams} ve {second_streams} ile şu an en çok "
+"dinlediğin sanatçılar."
+
+#. Translators: {artist} is an artist; {streams} reads like "84 streams".
+#: src/ui/activity.rs:146
+#, rust-format
+msgid "{artist} is currently your top streamed artist with {streams}."
+msgstr "{artist}, {streams} ile şu an en çok dinlediğin sanatçı."
+
+#: src/ui/activity.rs:156 src/ui/activity.rs:1120
+msgid "No streams counted yet this month."
+msgstr "Bu ay henüz dinlenme sayılmadı."
+
+#. Translators: {artist} is an artist, {month} a month's name, {streams} reads like "258 streams".
+#: src/ui/activity.rs:164
+#, rust-format
+msgid "{artist} was your top artist in {month} with {streams}."
+msgstr "{artist}, {streams} ile {month} ayında en çok dinlediğin sanatçıydı."
+
+#: src/ui/activity.rs:617 src/ui/activity.rs:1121
+msgid "Updated once a day"
+msgstr "Günde bir kez güncellenir"
+
+#: src/ui/activity.rs:693 src/ui/activity.rs:1020
+msgid "Your Top Artists"
+msgstr "En çok dinlediğin sanatçılar"
+
+#: src/ui/activity.rs:798
+msgid "Previous Month"
+msgstr "Geçen ay"
+
+#: src/ui/activity.rs:825
+msgid ""
+"Your subscription helps fund TIDAL RISING, a program designed to support "
+"emerging talent."
+msgstr ""
+"Aboneliğin, yükselen yetenekleri desteklemek için tasarlanan TIDAL RISING "
+"programının finansmanına katkı sağlıyor."
+
+#: src/ui/activity.rs:832
+msgid "Your listening supports artists"
+msgstr "Dinlediklerin sanatçılara destek oluyor"
+
+#: src/ui/activity.rs:876
+msgid "Listening in Tidalfast"
+msgstr "Tidalfast'ta dinlenenler"
+
+#: src/ui/activity.rs:887
+msgid ""
+"Counted on this computer by Tidalfast only. TIDAL's numbers above include "
+"every app you listen with."
+msgstr ""
+"Yalnızca bu bilgisayardaki Tidalfast tarafından sayıldı. Yukarıdaki TIDAL "
+"rakamları dinlediğin tüm uygulamaları kapsar."
+
+#: src/ui/activity.rs:916
+msgid "Nothing played in Tidalfast this month yet."
+msgstr "Bu ay Tidalfast'ta henüz bir şey çalınmadı."
+
+#. Translators: A listening time like "12 h 5 min". Keep {hours} and {minutes}.
+#: src/ui/activity.rs:924
+#, rust-format
+msgid "{hours} h {minutes} min"
+msgstr "{hours} sa {minutes} dk"
+
+#: src/ui/activity.rs:929
+msgid "Listening time this month"
+msgstr "Bu ayki dinleme süresi"
+
+#: src/ui/activity.rs:932
+msgid "Streams this month"
+msgstr "Bu ayki dinlenmeler"
+
+#: src/ui/activity.rs:1065
+msgctxt "activity tab"
+msgid "This Month"
+msgstr "Bu ay"
+
+#: src/ui/activity.rs:1143
+msgid "We do our best to calculate your listening activity."
+msgstr "Dinleme etkinliğini hesaplamak için elimizden geleni yapıyoruz."
+
+#: src/ui/activity.rs:1159
+msgid "Learn more"
+msgstr "Daha fazla bilgi"
+
+#. Translators: Two artists' names, as in "Bonobo and Khruangbin".
+#: src/ui/activity.rs:1290
+#, rust-format
+msgid "{first} and {second}"
+msgstr "{first} ve {second}"
+
+#: src/ui/activity.rs:1397
+msgid "Your most streamed artist"
+msgstr "En çok dinlediğin sanatçı"
+
+#: src/ui/now_playing.rs:157
+msgid "Similar tracks"
+msgstr "Benzer parçalar"
+
+#: src/ui/now_playing.rs:375 src/ui/now_playing_video.rs:161
+msgid "Leave full screen (Esc)"
+msgstr "Tam ekrandan çık (Esc)"
+
+#: src/ui/now_playing.rs:377 src/ui/now_playing_video.rs:163
+#: src/ui/titlebar.rs:157
+msgid "Full screen"
+msgstr "Tam ekran"
+
+#: src/ui/now_playing.rs:530 src/ui/now_playing_video.rs:374
+msgid "Released"
+msgstr "Yayın"
+
+#: src/ui/now_playing.rs:533
+msgid "Label"
+msgstr "Plak şirketi"
+
+#: src/ui/now_playing.rs:538
+msgid "No credits for this track."
+msgstr "Bu parça için katkı bilgisi yok."
+
+#: src/ui/now_playing.rs:659
+msgid "Artist Radio"
+msgstr "Sanatçı radyosu"
+
+#: src/ui/now_playing.rs:671
+msgid "Track Radio"
+msgstr "Parça radyosu"
+
+#: src/ui/now_playing.rs:672
+msgid "Track radio"
+msgstr "Parça radyosu"
+
+#: src/ui/now_playing.rs:682
+msgid "Suggested tracks"
+msgstr "Önerilen parçalar"
+
+#: src/ui/now_playing_video.rs:176 src/ui/now_playing_video.rs:402
+msgid "Picture-in-picture"
+msgstr "Pencere içinde pencere"
+
+#: src/ui/now_playing_video.rs:190 src/ui/now_playing_video.rs:339
+msgid "Similar videos"
+msgstr "Benzer videolar"
+
+#: src/ui/now_playing_video.rs:206
+msgid "Couldn't load this video's details"
+msgstr "Bu videonun ayrıntıları yüklenemedi"
+
+#: src/ui/now_playing_video.rs:224
+msgid "No similar videos"
+msgstr "Benzer video yok"
+
+#: src/ui/now_playing_video.rs:363
+msgid "Performer"
+msgstr "Sanatçı"
+
+#: src/ui/now_playing_video.rs:483
+msgid "Back to the app"
+msgstr "Uygulamaya dön"
+
+#: src/ui/now_playing_video.rs:505
+msgid "Back 10 seconds"
+msgstr "10 saniye geri"
+
+#: src/ui/now_playing_video.rs:528
+msgid "Forward 10 seconds"
+msgstr "10 saniye ileri"
+
+#: src/ui/plugins.rs:857
+#, rust-format
+msgid "Loaded plugin {name}!"
+msgstr "{name} eklentisi yüklendi!"
+
+#: src/ui/plugins.rs:957
+msgid "You have no plugins installed!"
+msgstr "Yüklü eklentiniz yok!"
+
+#: src/ui/plugins.rs:2042
+msgid "Press keys…"
+msgstr "Tuşlara basın…"
+
+#: src/ui/plugins.rs:2044
+msgid "Click, then press keys"
+msgstr "Tıklayın, sonra tuşlara basın"
+
+#: src/ui/plugins.rs:2092
+#, rust-format
+msgid "Settings crashed: {error}"
+msgstr "Ayarlar çöktü: {error}"
+
+#: src/ui/titlebar.rs:79
+msgid "Menu"
+msgstr "Menü"
+
+#: src/ui/titlebar.rs:125
+msgid "File"
+msgstr "Dosya"
+
+#: src/ui/titlebar.rs:129
+msgid "New playlist"
+msgstr "Yeni çalma listesi"
+
+#: src/ui/titlebar.rs:152
+msgid "Toggle sidebar"
+msgstr "Kenar çubuğunu aç/kapat"
+
+#: src/ui/titlebar.rs:163
+msgid "Play/Pause"
+msgstr "Oynat/Duraklat"
+
+#: src/ui/titlebar.rs:184
+msgid "Plugins"
+msgstr "Eklentiler"
+
+#: src/ui/videos.rs:71
+msgid "No favourite videos"
+msgstr "Favori video yok"
+
+#: src/ui/videos.rs:72
+msgid "Videos you favourite on TIDAL appear here."
+msgstr "TIDAL'da favorilere eklediğiniz videolar burada görünür."
+
+#: src/ui/videos.rs:90
+msgid ""
+"You haven't added any videos yet. Tap the heart icon on any video to add it "
+"to your collection."
+msgstr ""
+"Henüz hiç video eklemedin. Koleksiyonuna eklemek için herhangi bir videodaki "
+"kalp simgesine dokun."
+
+#: src/ui/videos.rs:108
+msgid "View TIDAL's top videos"
+msgstr "TIDAL’ın en iyi videolarını gör"
+
+#: src/ui/videos.rs:392
+msgid "Open on TIDAL"
+msgstr "TIDAL'da aç"
+
+#: src/ui/album_credits.rs:138 src/ui/album_credits.rs:781
+msgid "Info"
+msgstr "Bilgi"
+
+#: src/ui/album_credits.rs:488 src/ui/album_credits.rs:696
+msgid "No credits for this album."
+msgstr "Bu albüm için katkı bilgisi yok."
+
+#: src/ui/album_credits.rs:709
+msgid "Album Review"
+msgstr "Albüm incelemesi"
+
+#. Translators: {source} is where the text comes from, e.g. TiVo.
+#: src/ui/album_credits.rs:743 src/ui/album_extras.rs:125
+#, rust-format
+msgid "Album review from {source}"
+msgstr "Albüm değerlendirmesi: {source}"
+
+#: src/ui/album_credits.rs:761
+msgid "Additional Credits"
+msgstr "Ek emeği geçenler"
+
+#: src/ui/album_extras.rs:62 src/ui/album_extras.rs:121
+msgid "Review"
+msgstr "Değerlendirme"
+
+#: src/ui/album_extras.rs:171
+msgid "Recommended songs"
+msgstr "Önerilen parçalar"
+
+#: src/ui/album_extras.rs:223
+msgid "Refresh list"
+msgstr "Listeyi yenile"
+
+#. Translators: {title} is a song's title; the button adds it to the playlist.
+#: src/ui/album_extras.rs:366
+#, rust-format
+msgid "Add {title} to the playlist"
+msgstr "{title} parçasını çalma listesine ekle"
+
+#: src/ui/album_extras.rs:401
+msgid "Other versions"
+msgstr "Diğer sürümler"
+
+#. Translators: {artist} is the album's artist.
+#: src/ui/album_extras.rs:410
+#, rust-format
+msgid "More albums by {artist}"
+msgstr "{artist} sanatçısının diğer albümleri"
+
+#: src/ui/album_extras.rs:414
+msgid "Related albums"
+msgstr "İlgili albümler"
+
+#: src/ui/album_extras.rs:415
+msgid "Related artists"
+msgstr "İlgili sanatçılar"
+
+#: src/ui/blocked.rs:88
+msgid "No blocked artists"
+msgstr "Engellenen sanatçı yok"
+
+#: src/ui/blocked.rs:101
+msgid "Songs"
+msgstr "Şarkılar"
+
+#: src/ui/blocked.rs:107
+msgid "No blocked songs"
+msgstr "Engellenen şarkı yok"
+
+#: src/ui/save_later.rs:35
+msgid ""
+"You haven't saved anything for later yet. Choose Save for Later on an album, "
+"song, artist, playlist or video."
+msgstr ""
+"Henüz sonrası için bir şey kaydetmedin. Bir albümde, parçada, sanatçıda, "
+"çalma listesinde veya videoda Sonrası için kaydet’i seç."
+
+#: src/ui/save_later.rs:39
+msgid ""
+"You haven't saved any albums for later yet. Choose Save for Later on an "
+"album."
+msgstr ""
+"Henüz sonrası için albüm kaydetmedin. Bir albümde Sonrası için kaydet’i seç."
+
+#: src/ui/save_later.rs:43
+msgid ""
+"You haven't saved any tracks for later yet. Choose Save for Later on a song."
+msgstr ""
+"Henüz sonrası için parça kaydetmedin. Bir parçada Sonrası için kaydet’i seç."
+
+#: src/ui/save_later.rs:47
+msgid ""
+"You haven't saved any artists for later yet. Choose Save for Later on an "
+"artist."
+msgstr ""
+"Henüz sonrası için sanatçı kaydetmedin. Bir sanatçıda Sonrası için kaydet’i "
+"seç."
+
+#: src/ui/save_later.rs:51
+msgid ""
+"You haven't saved any playlists for later yet. Choose Save for Later on a "
+"playlist."
+msgstr ""
+"Henüz sonrası için çalma listesi kaydetmedin. Bir çalma listesinde Sonrası "
+"için kaydet’i seç."
+
+#: src/ui/save_later.rs:55
+msgid ""
+"You haven't saved any videos for later yet. Choose Save for Later on a video."
+msgstr ""
+"Henüz sonrası için video kaydetmedin. Bir videoda Sonrası için kaydet’i seç."
+
+#: src/ui/save_later.rs:173
+msgid "Nothing saved for later"
+msgstr "Sonrası için kaydedilen bir şey yok"
+
+#: src/ui/purchases.rs:70
+msgid "Some purchases couldn't be shown."
+msgstr "Bazı satın alınanlar gösterilemedi."
+
+#: src/ui/purchases.rs:78
+msgid ""
+"You haven't purchased any tracks yet. Discover music uploaded directly by "
+"artists."
+msgstr ""
+"Henüz parça satın almadın. Sanatçıların doğrudan yüklediği müziği keşfet."
+
+#: src/ui/purchases.rs:83
+msgid ""
+"You haven't purchased any albums yet. Discover music uploaded directly by "
+"artists."
+msgstr ""
+"Henüz albüm satın almadın. Sanatçıların doğrudan yüklediği müziği keşfet."
+
+#: src/ui/purchases.rs:90
+msgid "No purchases"
+msgstr "Satın alma yok"
+
+#: src/ui/purchases.rs:99
+msgid "View Uploads"
+msgstr "Yüklemeleri gör"
+
+#: src/app/save_later.rs:87
+msgid "Added to Save for Later"
+msgstr "Sonrası için kaydedilenlere eklendi"
+
+#: src/app/save_later.rs:89
+msgid "Removed from Save for Later"
+msgstr "Sonrası için kaydedilenlerden kaldırıldı"
+
+#. Translators: {error} is an error message.
+#: src/app/save_later.rs:156
+#, rust-format
+msgid "Couldn't update Save for Later: {error}"
+msgstr "Sonrası için kaydedilenler güncellenemedi: {error}"
+
+#: src/ui/uploads.rs:96
+msgid "An error occurred while loading your uploads. Please try again later."
+msgstr ""
+"Yüklemelerin getirilirken bir hata oluştu. Lütfen daha sonra tekrar dene."
+
+#: src/ui/uploads.rs:107
+msgid "Find new fans for your music"
+msgstr "Müziğin için yeni hayranlar bul"
+
+#: src/ui/uploads.rs:110
+msgid ""
+"Upload your track and share it with listeners or collaborators right away"
+msgstr "Parçanı yükle ve dinleyicilerle veya ortak çalışanlarla hemen paylaş"
+
+#: src/ui/uploads.rs:128
+msgid "Or drag and drop file"
+msgstr "Veya dosyayı sürükleyip bırak"
+
+#: src/ui/uploads.rs:242
+msgid "Uploading..."
+msgstr "Yükleniyor..."
+
+#: src/ui/uploads.rs:359 src/ui/uploads.rs:1108
+msgid "Edit album"
+msgstr "Albümü düzenle"
+
+#: src/ui/uploads.rs:379
+msgid "Delete album"
+msgstr "Albümü sil"
+
+#: src/ui/uploads.rs:445
+msgid "Delete album and tracks?"
+msgstr "Albüm ve parçalar silinsin mi?"
+
+#: src/ui/uploads.rs:448
+msgid ""
+"This will permanently delete the album and all tracks it contains. You can't "
+"undo this action."
+msgstr ""
+"Albüm ve içindeki tüm parçalar kalıcı olarak silinecek. Bu işlemi geri "
+"alamazsın."
+
+#: src/ui/uploads.rs:460
+msgid "Delete track?"
+msgstr "Parça silinsin mi?"
+
+#: src/ui/uploads.rs:463
+#, rust-format
+msgid "“{title}” will be permanently deleted. You can't undo this action."
+msgstr "“{title}” kalıcı olarak silinecek. Bu işlemi geri alamazsın."
+
+#: src/ui/uploads.rs:518
+#, rust-format
+msgid "Organize {count} new track"
+msgid_plural "Organize {count} new tracks"
+msgstr[0] "Yeni {count} parçayı organize et"
+msgstr[1] "Yeni {count} parçayı organize et"
+
+#: src/ui/uploads.rs:528 src/ui/uploads.rs:634
+msgid "Place this track into one of your existing albums."
+msgstr "Bu parçayı mevcut albümlerinden birine yerleştir."
+
+#: src/ui/uploads.rs:532 src/ui/uploads.rs:638
+msgid "Place these tracks into one of your existing albums"
+msgstr "Bu parçaları mevcut albümlerinden birine yerleştir"
+
+#: src/ui/uploads.rs:539 src/ui/uploads.rs:632
+msgid "Add to an existing album"
+msgstr "Mevcut bir albüme ekle"
+
+#: src/ui/uploads.rs:550
+msgid "Upload as Single"
+msgstr "Tekli olarak yükle"
+
+#: src/ui/uploads.rs:553
+msgid "Upload as an individual Single. You can turn it into an album later."
+msgstr ""
+"Tek başına bir Tekli olarak yükle. Daha sonra albüme dönüştürebilirsin."
+
+#: src/ui/uploads.rs:643 src/ui/uploads.rs:1559
+msgid "Move to another album"
+msgstr "Başka bir albüme taşı"
+
+#: src/ui/uploads.rs:644
+msgid "Choose the album this track goes into."
+msgstr "Bu parçanın gireceği albümü seç."
+
+#: src/ui/uploads.rs:746
+msgid "Move"
+msgstr "Taşı"
+
+#: src/ui/uploads.rs:1103
+msgid "New single"
+msgstr "Yeni tekli"
+
+#: src/ui/uploads.rs:1104
+msgid "New EP"
+msgstr "Yeni EP"
+
+#: src/ui/uploads.rs:1105
+msgid "New album"
+msgstr "Yeni albüm"
+
+#: src/ui/uploads.rs:1179
+msgid "Change Image"
+msgstr "Görseli değiştir"
+
+#: src/ui/uploads.rs:1188
+msgid "Show spectrogram"
+msgstr "Spektrogramı göster"
+
+#: src/ui/uploads.rs:1190
+msgid "Create spectrogram"
+msgstr "Spektrogram oluştur"
+
+#: src/ui/uploads.rs:1209 src/app/uploads.rs:383 src/app/uploads.rs:692
+msgid "We're generating your spectrogram artwork. It should be ready soon."
+msgstr "Spektrogram görselini oluşturuyoruz. Birazdan hazır olacak."
+
+#: src/ui/uploads.rs:1253
+msgid "Artist name"
+msgstr "Sanatçı adı"
+
+#: src/ui/uploads.rs:1278
+msgid "Album type"
+msgstr "Albüm türü"
+
+#: src/ui/uploads.rs:1289
+msgid "EP"
+msgstr "EP"
+
+#: src/ui/uploads.rs:1311
+msgid "Visibility"
+msgstr "Görünürlük"
+
+#: src/ui/uploads.rs:1324
+msgid "Discoverable and streamable when at least one track is public."
+msgstr "En az bir parça herkese açık olduğunda keşfedilebilir ve dinlenebilir."
+
+#: src/ui/uploads.rs:1332
+msgid "Unlisted"
+msgstr "Listelenmemiş"
+
+#: src/ui/uploads.rs:1336
+msgid ""
+"Only visible to you and anyone with the link. Hidden from profiles when all "
+"tracks are private."
+msgstr ""
+"Yalnızca sana ve bağlantıya sahip herkese görünür. Tüm parçalar gizli "
+"olduğunda profillerden gizlenir."
+
+#: src/ui/uploads.rs:1354
+msgid ""
+"This album contains tracks that are still being uploaded or scanned. You can "
+"change visibility once all tracks have finished scanning."
+msgstr ""
+"Bu albümde hâlâ yüklenen veya taranan parçalar var. Tüm parçaların taraması "
+"bittiğinde görünürlüğü değiştirebilirsin."
+
+#: src/ui/uploads.rs:1371
+msgid "Artwork created from the unique characteristics of your track"
+msgstr "Parçanın benzersiz özelliklerinden oluşturulan görsel"
+
+#: src/ui/uploads.rs:1439
+msgid "Add tracks"
+msgstr "Parça ekle"
+
+#: src/ui/uploads.rs:1455
+msgid "This album has no tracks"
+msgstr "Bu albümde parça yok"
+
+#: src/ui/uploads.rs:1496
+msgid "Preparing..."
+msgstr "Hazırlanıyor..."
+
+#: src/ui/uploads.rs:1499
+#, rust-format
+msgid "Uploading ({percent}%)..."
+msgstr "Yükleniyor ({percent}%)..."
+
+#: src/ui/uploads.rs:1507
+msgid "Scanning…"
+msgstr "Taranıyor…"
+
+#: src/ui/uploads.rs:1510
+msgid "Flagged"
+msgstr "İşaretlendi"
+
+#: src/ui/uploads.rs:1511
+msgid "Error uploading file"
+msgstr "Dosya yüklenirken hata oluştu"
+
+#: src/ui/uploads.rs:1552 src/ui/uploads.rs:1787
+msgid "Edit track details"
+msgstr "Parça ayrıntılarını düzenle"
+
+#: src/ui/uploads.rs:1568
+msgid "Copy track link"
+msgstr "Parça bağlantısını kopyala"
+
+#: src/ui/uploads.rs:1576
+msgid "Delete track"
+msgstr "Parçayı sil"
+
+#: src/ui/uploads.rs:1719
+msgid "Edit name"
+msgstr "Adı düzenle"
+
+#: src/ui/uploads.rs:1727
+msgid "This name will be used on your profile and all of your tracks."
+msgstr "Bu ad profilinde ve tüm parçalarında kullanılacak."
+
+#: src/app/uploads.rs:166
+msgid "The file is currently uploading. Wait until it's finished."
+msgstr "Dosya şu anda yükleniyor. Bitmesini bekle."
+
+#: src/app/uploads.rs:177
+msgid "Choose a JPEG or PNG image."
+msgstr "Bir JPEG veya PNG görseli seç."
+
+#: src/app/uploads.rs:201
+msgid "Before uploading, let us know what name to release your music under."
+msgstr "Yüklemeden önce müziğini hangi adla yayınlayacağını söyle."
+
+#: src/app/uploads.rs:209
+msgid "Your TIDAL artist profile isn't loaded yet. Try again in a moment."
+msgstr "TIDAL sanatçı profilin henüz yüklenmedi. Biraz sonra tekrar dene."
+
+#: src/app/uploads.rs:224
+msgid "This file format isn't supported."
+msgstr "Bu dosya biçimi desteklenmiyor."
+
+#: src/app/uploads.rs:250
+msgid "Untitled"
+msgstr "Adsız"
+
+#: src/app/uploads.rs:497
+msgid "Upload deleted"
+msgstr "Yükleme silindi"
+
+#: src/app/uploads.rs:780 src/app/uploads.rs:802 src/app/uploads.rs:805
+msgid "Upload failed. Please try again."
+msgstr "Yükleme başarısız oldu. Lütfen tekrar dene."
+
+#: src/app/uploads.rs:820
+msgid "Upload complete"
+msgstr "Yükleme tamamlandı"
+
+#: src/app/uploads.rs:868
+msgid "Couldn't save your changes. Try again."
+msgstr "Değişiklikler kaydedilemedi. Tekrar dene."

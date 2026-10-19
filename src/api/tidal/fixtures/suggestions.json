@@ -1,0 +1,22 @@
+{
+ "history": [],
+ "suggestions": [
+  {"query": "eminem", "highlights": [{"start": 0, "length": 6}]},
+  {"query": "eminem lose yourself", "highlights": [{"start": 0, "length": 6}]},
+  {"query": "eminem without me", "highlights": [{"start": 0, "length": 6}]},
+  {"query": "eminem mockingbird", "highlights": [{"start": 0, "length": 6}]},
+  {"query": "eminem the real slim shady", "highlights": [{"start": 0, "length": 6}]}
+ ],
+ "directHits": [
+  {"type": "ARTISTS", "value": {"id": 18, "name": "Eminem", "picture": null, "popularity": 98}},
+  {"type": "TRACKS", "value": {"id": 2001, "title": "Lose Yourself", "duration": 326, "explicit": true,
+    "artists": [{"id": 18, "name": "Eminem", "type": "MAIN"}],
+    "album": {"id": 3001, "title": "8 Mile (Music From And Inspired By The Motion Picture)", "cover": null}}},
+  {"type": "ALBUMS", "value": {"id": 3002, "title": "The Eminem Show", "duration": 4500, "explicit": true, "cover": null,
+    "numberOfTracks": 20, "releaseDate": "2002-05-26", "type": "ALBUM",
+    "artists": [{"id": 18, "name": "Eminem", "type": "MAIN"}]}},
+  {"type": "PLAYLISTS", "value": {"uuid": "0e8f0d0f-1c66-4c4b-9e7e-2c4e2f8e1a22", "title": "Eminem Essentials",
+    "numberOfTracks": 50, "duration": 12000, "creator": {"id": 0}, "image": null}}
+ ],
+ "suggestionUuid": "00000000-0000-0000-0000-000000000000"
+}

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>rocks.tidalfast.Tidalfast</id>
+  <name>Tidalfast</name>
+  <summary>A native TIDAL client</summary>
+  <developer id="rocks.tidalfast">
+    <name>Tidalfast contributors</name>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>
+      A TIDAL client written in Rust with no browser engine. It starts
+      in well under a second, plays music on this computer, and has native
+      ports of popular TidaLuna plugins.
+    </p>
+    <p>
+      Browse your library, search TIDAL, edit playlists, manage the queue,
+      and view lyrics. It also has keyboard shortcuts, media-key support,
+      background playback, and a now-playing view with similar tracks,
+      credits, and lyrics.
+      Playback needs a TIDAL subscription.
+    </p>
+  </description>
+  <launchable type="desktop-id">rocks.tidalfast.Tidalfast.desktop</launchable>
+  <url type="homepage">https://cioudguy.github.io/tidalfast/</url>
+  <url type="bugtracker">https://github.com/CIoudGuy/tidalfast/issues</url>
+  <url type="help">https://cioudguy.github.io/tidalfast/getting-started/</url>
+  <url type="vcs-browser">https://github.com/CIoudGuy/tidalfast</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Home, with the library, recommendations and the player bar</caption>
+      <image>https://raw.githubusercontent.com/CIoudGuy/tidalfast/main/docs/assets/images/readme-home-dark.jpg</image>
+    </screenshot>
+  </screenshots>
+  <branding>
+    <color type="primary" scheme_preference="light">#33ffee</color>
+    <color type="primary" scheme_preference="dark">#003a36</color>
+  </branding>
+  <content_rating type="oars-1.1" />
+  <requires>
+    <display_length compare="ge">760</display_length>
+    <internet>always</internet>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <releases>
+    <release version="1.0.0" date="2026-10-19">
+      <url>https://github.com/CIoudGuy/tidalfast/releases/tag/v1.0.0</url>
+    </release>
+  </releases>
+</component>

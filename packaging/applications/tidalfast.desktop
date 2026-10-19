@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Tidalfast
+GenericName=Music Player
+Comment=A native TIDAL client
+Exec=tidalfast %u
+Terminal=false
+Categories=AudioVideo;Audio;Player;Music;
+Keywords=tidal;music;player;streaming;tidalfast;
+Icon=tidalfast
+StartupNotify=true
+StartupWMClass=tidalfast
+MimeType=x-scheme-handler/tidal;x-scheme-handler/tidaluna;

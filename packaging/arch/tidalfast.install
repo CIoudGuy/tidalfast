@@ -1,0 +1,21 @@
+print_tidalfast_post_install() {
+  cat <<'EOF2'
+Tidalfast setup:
+
+  Launch it, press Sign in with TIDAL, and approve in the browser.
+  Playback needs a TIDAL subscription.
+
+  Closing the window keeps the music playing in the system tray; quit from
+  the tray menu or with Ctrl+Q.
+
+Docs: https://cioudguy.github.io/tidalfast/
+EOF2
+}
+
+post_install() {
+  print_tidalfast_post_install
+}
+
+post_upgrade() {
+  print_tidalfast_post_install
+}

@@ -1,0 +1,21 @@
+{
+ "uuid": "11111111-aaaa-4bbb-8ccc-000000000003",
+ "title": "My Friday",
+ "numberOfTracks": 3,
+ "numberOfVideos": 1,
+ "creator": {
+  "id": 12345678
+ },
+ "description": "Songs for Friday",
+ "duration": 900,
+ "lastUpdated": "2026-09-01T10:00:00.000+0000",
+ "created": "2025-01-01T10:00:00.000+0000",
+ "type": "USER",
+ "publicPlaylist": false,
+ "url": "http://www.tidal.com/playlist/11111111-aaaa-4bbb-8ccc-000000000003",
+ "image": "4261748a-4475-4829-bb02-d0a7c16bb7e6",
+ "popularity": 0,
+ "squareImage": "a9e0c3fa-a1d4-4d17-94d7-a0d1ec1f6e3d",
+ "promotedArtists": [],
+ "lastItemAddedAt": "2026-09-01T10:00:00.000+0000"
+}

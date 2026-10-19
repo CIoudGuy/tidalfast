@@ -1,0 +1,59 @@
+name: TidaLuna API watch
+
+# Weekly: compares TidaLuna's plugin-facing code (luna.d.ts, the lib, lib.native,
+# ui and render packages) with the last seen state and opens an issue listing
+# what changed, so the compatibility layer in src/luna can follow.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare with last seen state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          state=.github/luna-api-state.json
+          head=$(gh api repos/Inrixia/TidaLuna/commits/master --jq .sha)
+          gh api "repos/Inrixia/TidaLuna/git/trees/$head?recursive=1" --jq '[.tree[] | select(.path=="luna.d.ts" or .path=="plugins/lib" or .path=="plugins/lib.native" or .path=="plugins/ui" or .path=="render") | {(.path): .sha}] | add' > new-paths.json
+          release=$(gh api repos/Inrixia/TidaLuna/releases/latest --jq .tag_name 2>/dev/null || echo none)
+          jq -n --arg commit "$head" --arg release "$release" --slurpfile p new-paths.json '{commit:$commit, release:$release, paths:$p[0]}' > new-state.json
+          if [ ! -f "$state" ]; then
+            mv new-state.json "$state"
+            git config user.name "github-actions"
+            git config user.email "github-actions@users.noreply.github.com"
+            git add "$state" && git commit -m "TidaLuna API watch: initial state" && git push
+            exit 0
+          fi
+          old_commit=$(jq -r .commit "$state")
+          changed=$(jq -r --slurpfile n new-state.json '.paths as $o | $n[0].paths | to_entries[] | select($o[.key] != .value) | .key' "$state")
+          new_release=$(jq -r .release new-state.json); old_release=$(jq -r .release "$state")
+          if [ -z "$changed" ] && [ "$new_release" = "$old_release" ]; then
+            echo "No API changes."; exit 0
+          fi
+          {
+            echo "TidaLuna changed since the last check."
+            echo
+            [ "$new_release" != "$old_release" ] && echo "- New release: **$new_release** (was $old_release)"
+            if [ -n "$changed" ]; then
+              echo "- Changed plugin-facing parts:"; for p in $changed; do echo "  - \`$p\`"; done
+            fi
+            echo
+            echo "Compare: https://github.com/Inrixia/TidaLuna/compare/${old_commit}...${head}"
+            echo
+            echo "Check whether src/luna (the @luna/lib shim, redux table, DOM bridge, native shim) needs updating and re-run the plugin store sweep."
+          } > body.md
+          gh issue create --title "TidaLuna API changed ($(date -u +%Y-%m-%d))" --body-file body.md
+          mv new-state.json "$state"
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add "$state" && git commit -m "TidaLuna API watch: update state" && git push

@@ -1,0 +1,15 @@
+{
+ "trackId": 77646168,
+ "assetPresentation": "FULL",
+ "audioMode": "STEREO",
+ "audioQuality": "LOSSLESS",
+ "manifestMimeType": "application/vnd.tidal.bts",
+ "manifestHash": "aGFzaA==",
+ "manifest": "eyJtaW1lVHlwZSI6ICJhdWRpby9mbGFjIiwgImNvZGVjcyI6ICJmbGFjIiwgImVuY3J5cHRpb25UeXBlIjogIk5PTkUiLCAidXJscyI6IFsiaHR0cHM6Ly9zcC1wci1mYS5hdWRpby50aWRhbC5jb20vbWVkaWF0cmFja3MvYWJjLzAuZmxhYz90b2tlbj10MX54Il19",
+ "albumReplayGain": -7.84,
+ "albumPeakAmplitude": 0.999,
+ "trackReplayGain": -8.1,
+ "trackPeakAmplitude": 0.998,
+ "bitDepth": 16,
+ "sampleRate": 44100
+}

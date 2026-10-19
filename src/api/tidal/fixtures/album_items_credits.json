@@ -1,0 +1,45 @@
+{
+  "limit": 100,
+  "offset": 0,
+  "totalNumberOfItems": 3,
+  "items": [
+    {
+      "type": "track",
+      "credits": [
+        {"type": "Producer", "contributors": [{"id": 3652822, "name": "Ada Example"}]},
+        {"type": "Composer", "contributors": [{"name": "Bo Sample"}, {"id": 3652822, "name": "Ada Example"}]},
+        {"type": "AdditionalProducer", "contributors": [{"id": 7776423, "name": "Cy Placeholder"}]},
+        {"type": "Mixing Engineer", "contributors": []}
+      ],
+      "item": {
+        "id": 209237068,
+        "title": "Intro",
+        "version": null,
+        "trackNumber": 1,
+        "volumeNumber": 1,
+        "duration": 180,
+        "artist": {"id": 3652822, "name": "Ada Example"},
+        "album": {"id": 209237067, "title": "First Light"}
+      }
+    },
+    {
+      "type": "track",
+      "credits": [],
+      "item": {
+        "id": 209237069,
+        "title": "Quiet Hours",
+        "version": "Live",
+        "trackNumber": 1,
+        "volumeNumber": 2,
+        "duration": 200,
+        "artist": {"id": 3652822, "name": "Ada Example"},
+        "album": {"id": 209237067, "title": "First Light"}
+      }
+    },
+    {
+      "type": "video",
+      "credits": [{"type": "Director", "contributors": [{"name": "Dee Filmmaker"}]}],
+      "item": {"id": 5, "title": "A Video"}
+    }
+  ]
+}

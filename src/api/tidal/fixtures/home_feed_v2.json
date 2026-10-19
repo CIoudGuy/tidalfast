@@ -1,0 +1,44 @@
+{
+ "uuid": "dddddddd-0000-4000-8000-000000000001",
+ "page": {"cursor": null},
+ "header": {"vibes": {"items": []}},
+ "items": [
+  {"type": "SHORTCUT_LIST", "moduleId": "SHORTCUT_LIST", "title": "Shortcuts", "subtitle": null, "icons": [],
+   "viewAll": null,
+   "items": [
+    {"type": "MIX", "following": false, "data": {
+      "id": "0011aa22bb33cc44dd55ee66ff7788", "type": "DAILY_MIX",
+      "titleTextInfo": {"text": "My Daily Discovery", "color": "#FFFFFF"},
+      "subtitleTextInfo": {"text": "Sample Artist and more", "color": "#FFFFFF"},
+      "mixImages": [{"url": "https://images.example.test/mix/320.jpg", "width": 320, "height": 320},
+                    {"url": "https://images.example.test/mix/1500.jpg", "width": 1500, "height": 1500}]}},
+    {"type": "DEEP_LINK", "data": {"url": "tidal://somewhere"}},
+    {"type": "PLAYLIST", "data": {"uuid": "bbbbbbbb-0000-4000-8000-000000000003", "title": "Sample Daily",
+      "squareImage": "cccc1111-2222-3333-4444-555566667779", "trn": "trn:playlist:bbbbbbbb-0000-4000-8000-000000000003"}}
+   ]},
+  {"type": "HORIZONTAL_LIST", "moduleId": "recommended", "title": "Recommended for you",
+   "viewAll": "home/pages/recommended_playlists",
+   "items": [
+    {"type": "PLAYLIST", "data": {"uuid": "bbbbbbbb-0000-4000-8000-000000000004", "title": "Sample Pick",
+      "squareImage": "cccc1111-2222-3333-4444-555566667780"}}
+   ]},
+  {"type": "HORIZONTAL_LIST_WITH_CONTEXT", "moduleId": "because", "title": "Because you liked",
+   "header": {"type": "ALBUM", "data": {"id": 1000002, "title": "Sample Record"}},
+   "items": [
+    {"type": "ALBUM", "data": {"id": 1000003, "title": "Similar Record", "cover": "aaaa1111-2222-3333-4444-555566667778",
+      "artists": [{"id": 2000002, "name": "Other Artist"}]}},
+    {"type": "VIDEO", "data": {"id": 3000001, "title": "A video"}}
+   ]},
+  {"type": "TRACK_LIST", "moduleId": "recent", "title": "Recently played",
+   "items": [
+    {"type": "TRACK", "data": {"id": 4000001, "title": "Sample Song", "duration": 200,
+      "artists": [{"id": 2000001, "name": "Sample Artist"}],
+      "album": {"id": 1000001, "title": "Sample Album", "cover": "aaaa1111-2222-3333-4444-555566667777"}}}
+   ]},
+  {"type": "HORIZONTAL_LIST", "moduleId": "your-mixes", "title": "Your mixes",
+   "viewAll": "home/pages/your_mixes", "items": []},
+  {"type": "SOME_FUTURE_MODULE", "moduleId": "future", "title": "Future thing",
+   "items": [{"type": "HOLOGRAM", "data": {"id": 1}}]},
+  {"type": "TEXT_BANNER", "moduleId": "banner", "title": "No list here"}
+ ]
+}

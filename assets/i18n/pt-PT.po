@@ -1,0 +1,4530 @@
+# European Portuguese translation of the Tidalfast navigation pilot.
+# Distributed under the same MIT license as Tidalfast.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Tidalfast\n"
+"Report-Msgid-Bugs-To: https://github.com/CIoudGuy/tidalfast/issues/new?"
+"template=translation.yml\n"
+"POT-Creation-Date: 2026-10-19 06:00+0000\n"
+"PO-Revision-Date: 2026-09-23 20:00+0000\n"
+"Last-Translator: Tidalfast contributors\n"
+"Language-Team: European Portuguese\n"
+"Language: pt_PT\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. Translators: The play button on a Library card. {name} is the playlist, album, or artist.
+#: src/ui/sidebar.rs:181
+#, rust-format
+msgid "Pause {name}"
+msgstr "Pausar {name}"
+
+#. Translators: The play button on a Library card. {name} is the playlist, album, or artist.
+#: src/ui/sidebar.rs:184
+#, rust-format
+msgid "Play {name}"
+msgstr "Reproduzir {name}"
+
+#. Translators: Keep {count} exactly as written. A folder's size in the sidebar.
+#. Translators: Keep {count} exactly as written. A playlist's size in the sidebar.
+#. Translators: The label beside the pointer while several items are dragged. {count} is how many.
+#: src/ui/sidebar.rs:405 src/ui/sidebar.rs:1308 src/ui/widgets.rs:2056
+#, rust-format
+msgid "{count} item"
+msgid_plural "{count} items"
+msgstr[0] "{count} item"
+msgstr[1] "{count} itens"
+
+#: src/ui/sidebar.rs:464 src/ui/sidebar.rs:1257 src/ui/sidebar.rs:1898
+#: src/app.rs:3253 src/app.rs:6506 src/app.rs:20448 src/ui/collection.rs:3143
+#: src/ui/collection.rs:3663 src/ui/home.rs:164 src/ui/search.rs:429
+#: src/ui/search.rs:973 src/ui/search.rs:1388 src/ui/search.rs:1600
+msgid "Playlist"
+msgstr "Playlist"
+
+#: src/ui/sidebar.rs:474 src/ui/sidebar.rs:1600 src/app.rs:3227
+#: src/app.rs:20453 src/model.rs:855 src/ui/collection.rs:3387
+#: src/ui/collection.rs:3394 src/ui/collection.rs:3551 src/ui/keys.rs:237
+#: src/ui/search.rs:810 src/ui/save_later.rs:22 src/ui/purchases.rs:38
+#: src/ui/uploads.rs:1430
+msgid "Tracks"
+msgstr "Faixas"
+
+#: src/ui/sidebar.rs:509
+msgid "Library order"
+msgstr "Ordem da biblioteca"
+
+#: src/ui/sidebar.rs:512 src/ui/home.rs:663 src/ui/home.rs:673
+#: src/ui/home.rs:694
+msgid "Recently played"
+msgstr "Reproduzidos recentemente"
+
+#: src/ui/sidebar.rs:514 src/ui/uploads.rs:1742
+msgid "Name"
+msgstr "Nome"
+
+#: src/ui/sidebar.rs:517
+msgid "Recently added"
+msgstr "Adicionados recentemente"
+
+#: src/ui/sidebar.rs:519
+msgid "Local custom order"
+msgstr "Ordem personalizada local"
+
+#: src/ui/sidebar.rs:520
+msgid "TIDAL order"
+msgstr "Ordem do TIDAL"
+
+#: src/ui/sidebar.rs:646
+msgid "Show sidebar (Ctrl+B)"
+msgstr "Mostrar barra lateral (Ctrl+B)"
+
+#: src/ui/sidebar.rs:647
+msgid "Show sidebar (Cmd+B)"
+msgstr "Mostrar barra lateral (Cmd+B)"
+
+#: src/ui/sidebar.rs:662 src/ui/sidebar.rs:1715 src/ui/sidebar.rs:1795
+msgid "Music"
+msgstr "Música"
+
+#: src/ui/sidebar.rs:668 src/ui/sidebar.rs:1728 src/ui/sidebar.rs:1801
+#: src/ui/explore.rs:69
+msgid "Explore"
+msgstr "Explorar"
+
+#: src/ui/sidebar.rs:689 src/ui/sidebar.rs:1887 src/ui/library.rs:43
+msgid "Create a playlist"
+msgstr "Criar playlist"
+
+#: src/ui/sidebar.rs:1352 src/ui/sidebar.rs:1807 src/ui/feed.rs:32
+msgid "Feed"
+msgstr "Feed"
+
+#: src/ui/sidebar.rs:1398 src/ui/sidebar.rs:1813 src/ui/uploads.rs:53
+#: src/ui/uploads.rs:74 src/ui/uploads.rs:118
+msgid "Upload"
+msgstr "Carregar"
+
+#: src/ui/sidebar.rs:1593 src/ui/library.rs:47 src/ui/now_playing.rs:645
+msgid "Mixes & Radio"
+msgstr "Mixes e rádio"
+
+#: src/ui/sidebar.rs:1596 src/model.rs:858 src/ui/artist.rs:194
+#: src/ui/artist.rs:1256 src/ui/artist.rs:2156 src/ui/library.rs:41
+#: src/ui/library.rs:42 src/ui/profile.rs:127 src/ui/menus.rs:636
+#: src/ui/downloads.rs:509 src/ui/save_later.rs:24
+msgid "Playlists"
+msgstr "Playlists"
+
+#: src/ui/sidebar.rs:1599 src/model.rs:857 src/model.rs:1107
+#: src/ui/artist.rs:933 src/ui/artist.rs:1250 src/ui/artist.rs:2125
+#: src/ui/library.rs:29 src/ui/downloads.rs:508 src/ui/save_later.rs:21
+#: src/ui/purchases.rs:37
+msgid "Albums"
+msgstr "Álbuns"
+
+#: src/ui/sidebar.rs:1601 src/model.rs:860 src/ui/artist.rs:222
+#: src/ui/artist.rs:1254 src/ui/videos.rs:44 src/ui/videos.rs:52
+#: src/ui/save_later.rs:25
+msgid "Videos"
+msgstr "Vídeos"
+
+#: src/ui/sidebar.rs:1602 src/model.rs:856 src/ui/library.rs:35
+msgid "Profiles"
+msgstr "Perfis"
+
+#: src/ui/sidebar.rs:1603 src/ui/purchases.rs:21
+msgid "Purchases"
+msgstr "Compras"
+
+#: src/ui/sidebar.rs:1606 src/ui/menus.rs:754 src/ui/save_later.rs:75
+msgid "Save for Later"
+msgstr "Guardar para depois"
+
+#: src/ui/sidebar.rs:1611 src/ui/settings.rs:1683 src/ui/collection.rs:967
+#: src/ui/collection.rs:3493 src/app/downloads.rs:709
+msgid "Downloaded"
+msgstr "Transferidos"
+
+#: src/ui/sidebar.rs:1747 src/ui/sidebar.rs:1783 src/ui/sidebar.rs:1819
+msgid "Collection"
+msgstr "Coleção"
+
+#: src/ui/sidebar.rs:1873
+msgid "All playlists"
+msgstr "Todas as playlists"
+
+#: src/ui/sidebar.rs:1911
+msgid "Folder"
+msgstr "Pasta"
+
+#: src/ui/sidebar.rs:1929
+msgid "Sort playlists"
+msgstr "Ordenar playlists"
+
+#: src/ui/sidebar.rs:1978
+msgid "Hide sidebar (Ctrl+B)"
+msgstr "Ocultar barra lateral (Ctrl+B)"
+
+#: src/ui/sidebar.rs:1979
+msgid "Hide sidebar (Cmd+B)"
+msgstr "Ocultar barra lateral (Cmd+B)"
+
+#: src/ui/sidebar.rs:2096 src/app.rs:3291 src/ui/artist.rs:488
+#: src/ui/home.rs:202 src/ui/home.rs:786 src/ui/search.rs:859
+msgid "Artist"
+msgstr "Artista"
+
+#: src/ui/sidebar.rs:2192
+msgid "Nothing here yet."
+msgstr "Ainda não há nada aqui."
+
+#: src/ui/sidebar.rs:2194
+msgid "No matches."
+msgstr "Sem resultados."
+
+#: src/ui/sidebar.rs:2833
+msgid "Sort by recently played"
+msgstr "Ordenar por reproduzidos recentemente"
+
+#: src/ui/sidebar.rs:2852 src/ui/equalizer.rs:693
+msgid "Rename"
+msgstr "Mudar o nome"
+
+#: src/ui/sidebar.rs:2864
+msgid "Delete folder"
+msgstr "Eliminar pasta"
+
+#: src/ui/sidebar.rs:2881 src/ui/menus.rs:1329 src/ui/videos.rs:382
+msgid "Play now"
+msgstr "Reproduzir agora"
+
+#: src/ui/sidebar.rs:2899
+msgid "Unpin"
+msgstr "Desafixar"
+
+#: src/ui/sidebar.rs:2901
+msgid "Pin to top"
+msgstr "Fixar no topo"
+
+#. Translators: Keep {count} exactly as written. It becomes the number of liked songs.
+#: src/i18n.rs:184
+#, rust-format
+msgid "Playlist • {count} track"
+msgid_plural "Playlist • {count} tracks"
+msgstr[0] "Playlist • {count} música"
+msgstr[1] "Playlist • {count} músicas"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of songs.
+#. Translators: Keep {count} exactly as written.
+#. Translators: Keep {count} exactly as written. Shown in capitals on page headers.
+#. Translators: Keep {count} exactly as written. It becomes the number of selected tracks.
+#: src/i18n.rs:195 src/ui/collection.rs:3590 src/ui/collection.rs:3619
+#: src/ui/search.rs:612 src/ui/menus.rs:101 src/ui/menus.rs:1018
+#: src/ui/uploads.rs:244 src/ui/uploads.rs:707
+#, rust-format
+msgid "{count} track"
+msgid_plural "{count} tracks"
+msgstr[0] "{count} música"
+msgstr[1] "{count} músicas"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of playlists.
+#: src/i18n.rs:206
+#, rust-format
+msgid "{count} playlist"
+msgid_plural "{count} playlists"
+msgstr[0] "{count} lista de reprodução"
+msgstr[1] "{count} listas de reprodução"
+
+#. Translators: Keep {count} exactly as written. It becomes the number of playlists a folder holds.
+#: src/i18n.rs:217
+#, rust-format
+msgid "Folder • {count} playlist"
+msgid_plural "Folder • {count} playlists"
+msgstr[0] "Pasta • {count} playlist"
+msgstr[1] "Pasta • {count} playlists"
+
+#: src/i18n.rs:227
+#, rust-format
+msgid "{name}, folder, collapsed"
+msgstr "{name}, pasta, fechada"
+
+#: src/i18n.rs:229
+#, rust-format
+msgid "{name}, folder, expanded"
+msgstr "{name}, pasta, aberta"
+
+#: src/i18n.rs:262 src/i18n.rs:265 src/ui/keys.rs:233 src/ui/home_feeds.rs:520
+#: src/ui/titlebar.rs:147
+msgid "Home"
+msgstr "Início"
+
+#: src/i18n.rs:369 src/ui/menus.rs:1468
+msgid "Unfollow"
+msgstr "Deixar de seguir"
+
+#: src/i18n.rs:371 src/ui/menus.rs:1527
+msgctxt "artist"
+msgid "Unfollow"
+msgstr "Deixar de seguir"
+
+#: src/ui/player_bar.rs:384 src/ui/lyrics.rs:108 src/ui/lyrics.rs:311
+#: src/ui/compact.rs:594 src/ui/now_playing.rs:283
+msgid "Nothing playing"
+msgstr "Nada em reprodução"
+
+#: src/ui/player_bar.rs:390 src/app.rs:9539 src/ui/now_playing.rs:284
+msgid "Pick a track, album, or playlist"
+msgstr "Escolhe uma música, um álbum ou uma playlist"
+
+#: src/ui/player_bar.rs:650 src/ui/widgets.rs:1935 src/ui/widgets.rs:2995
+#: src/ui/collection.rs:3207 src/ui/collection.rs:3229 src/ui/dialogs.rs:131
+#: src/ui/radio.rs:254 src/ui/menus.rs:716 src/ui/menus.rs:730
+#: src/ui/menus.rs:1052 src/ui/compact.rs:491
+msgid "Remove from My Collection"
+msgstr "Remover da Minha coleção"
+
+#: src/ui/player_bar.rs:657 src/ui/widgets.rs:1937 src/ui/widgets.rs:3001
+#: src/ui/collection.rs:3206 src/ui/collection.rs:3228 src/ui/radio.rs:253
+#: src/ui/menus.rs:718 src/ui/menus.rs:732 src/ui/menus.rs:1054
+#: src/ui/compact.rs:493
+msgid "Add to My Collection"
+msgstr "Adicionar à Minha coleção"
+
+#: src/ui/player_bar.rs:715
+msgid "Don't play this"
+msgstr "Não reproduzir isto"
+
+#: src/ui/player_bar.rs:769 src/ui/queue.rs:1082 src/ui/widgets.rs:1981
+#: src/ui/widgets.rs:2961 src/ui/artist.rs:868 src/ui/artist.rs:1649
+#: src/ui/artist.rs:2040 src/ui/collection.rs:732 src/ui/now_playing.rs:875
+#: src/ui/now_playing_video.rs:312 src/ui/sticky.rs:441
+#: src/ui/album_credits.rs:549 src/ui/uploads.rs:1542
+msgid "More"
+msgstr "Mais"
+
+#: src/ui/player_bar.rs:880 src/ui/player_bar.rs:887 src/ui/artist.rs:850
+#: src/ui/artist.rs:1628 src/ui/artist.rs:1703 src/ui/artist.rs:1987
+#: src/ui/collection.rs:707 src/ui/menus.rs:1395 src/ui/titlebar.rs:166
+#: src/ui/sticky.rs:515
+msgid "Shuffle"
+msgstr "Ordem aleatória"
+
+#: src/ui/player_bar.rs:903 src/ui/compact.rs:415
+#: src/ui/now_playing_video.rs:498 src/ui/titlebar.rs:165
+msgid "Previous"
+msgstr "Anterior"
+
+#: src/ui/player_bar.rs:949 src/ui/collection.rs:876 src/ui/compact.rs:422
+#: src/ui/now_playing_video.rs:517
+msgid "Pause"
+msgstr "Pausar"
+
+#: src/ui/player_bar.rs:951 src/ui/artist.rs:833 src/ui/artist.rs:1635
+#: src/ui/artist.rs:1713 src/ui/artist.rs:1979 src/ui/collection.rs:878
+#: src/ui/compact.rs:424 src/ui/now_playing_video.rs:519
+msgid "Play"
+msgstr "Reproduzir"
+
+#: src/ui/player_bar.rs:979 src/ui/compact.rs:434
+#: src/ui/now_playing_video.rs:535 src/ui/titlebar.rs:164
+msgid "Next"
+msgstr "Seguinte"
+
+#: src/ui/player_bar.rs:988 src/ui/titlebar.rs:167
+msgid "Repeat"
+msgstr "Repetir"
+
+#: src/ui/player_bar.rs:992
+msgid "Repeat one"
+msgstr "Repetir uma música"
+
+#: src/ui/player_bar.rs:997
+msgid "Repeat off"
+msgstr "Desativar repetição"
+
+#: src/ui/player_bar.rs:1103 src/ui/compact.rs:566
+msgid "Playback position (%)"
+msgstr "Posição de reprodução (%)"
+
+#: src/ui/player_bar.rs:1161 src/ui/player_utility.rs:475
+msgid "Bit-perfect"
+msgstr "Bit-perfect"
+
+#: src/ui/player_bar.rs:1246
+msgid "Compact mode"
+msgstr "Modo compacto"
+
+#: src/ui/player_bar.rs:1301
+msgid ""
+"Bit-perfect playback: the volume stays at 100%. Turn the volume down on your "
+"device."
+msgstr ""
+"Reprodução bit-perfect: o volume fica nos 100%. Baixe o volume no seu "
+"dispositivo."
+
+#: src/ui/player_bar.rs:1306
+msgid "This device's volume can't be changed from Tidalfast"
+msgstr "O volume deste dispositivo não pode ser alterado a partir do Tidalfast"
+
+#: src/ui/player_bar.rs:1329 src/ui/queue.rs:24 src/ui/queue.rs:41
+msgid "Queue"
+msgstr "Fila"
+
+#: src/ui/queue.rs:42 src/ui/menus.rs:580 src/ui/menus.rs:656
+msgid "Recent"
+msgstr "Recentes"
+
+#: src/ui/queue.rs:79
+msgid "Save as a playlist"
+msgstr "Guardar como playlist"
+
+#: src/ui/queue.rs:96 src/ui/queue.rs:909
+msgid "Clear queue"
+msgstr "Limpar fila"
+
+#: src/ui/queue.rs:199 src/ui/queue.rs:212 src/ui/queue.rs:866
+msgid "Playing from"
+msgstr "A reproduzir de"
+
+#: src/ui/queue.rs:232
+msgid "Now playing"
+msgstr "A reproduzir"
+
+#: src/ui/queue.rs:274
+msgid "Nothing queued"
+msgstr "Nenhuma música na fila"
+
+#: src/ui/queue.rs:275
+msgid "Queued tracks appear here."
+msgstr "As músicas na fila aparecem aqui."
+
+#. Translators: Songs added manually, before the current playlist or album continues.
+#: src/ui/queue.rs:295
+msgid "Playing next"
+msgstr "A seguir"
+
+#: src/ui/queue.rs:402
+msgid "Next up from"
+msgstr "A seguir de"
+
+#. Translators: Upcoming songs from the current playlist or album, after manually queued songs.
+#: src/ui/queue.rs:403 src/ui/queue.rs:412
+msgid "Next up"
+msgstr "Depois"
+
+#: src/ui/queue.rs:458 src/ui/queue.rs:491 src/ui/widgets.rs:4215
+#: src/ui/collection.rs:2352 src/ui/plugins.rs:2097 src/ui/blocked.rs:49
+msgid "Retry"
+msgstr "Tentar novamente"
+
+#: src/ui/queue.rs:473
+msgid "No recent plays"
+msgstr "Nenhuma reprodução recente"
+
+#: src/ui/queue.rs:474
+msgid "Played tracks appear here."
+msgstr "As músicas reproduzidas aparecem aqui."
+
+#: src/ui/queue.rs:550
+msgid "Load more"
+msgstr "Carregar mais"
+
+#: src/ui/queue.rs:723 src/ui/queue.rs:728 src/ui/titlebar.rs:149
+msgid "Play queue"
+msgstr "Fila de reprodução"
+
+#: src/ui/queue.rs:740 src/ui/lyrics.rs:69 src/ui/artist.rs:747
+#: src/ui/dialogs.rs:671 src/ui/dialogs.rs:831 src/ui/mod.rs:973
+#: src/ui/now_playing.rs:346 src/ui/now_playing_video.rs:152
+#: src/ui/now_playing_video.rs:490 src/ui/blocked.rs:29 src/ui/uploads.rs:492
+msgid "Close"
+msgstr "Fechar"
+
+#: src/ui/queue.rs:834
+msgid "History"
+msgstr "Histórico"
+
+#: src/ui/queue.rs:901 src/ui/widgets.rs:4790
+msgid "Clear"
+msgstr "Limpar"
+
+#. Translators: {title} is a song name, {subtitle} its artists.
+#: src/ui/queue.rs:958 src/ui/widgets.rs:1424
+#, rust-format
+msgid "Play {title}, {subtitle}"
+msgstr "Reproduzir {title}, {subtitle}"
+
+#: src/ui/queue.rs:1068 src/ui/dialogs.rs:162
+msgid "Remove"
+msgstr "Remover"
+
+#: src/ui/lyrics.rs:58 src/ui/compact.rs:304 src/ui/now_playing.rs:169
+msgid "Lyrics"
+msgstr "Letra"
+
+#: src/ui/lyrics.rs:81
+msgid "Full screen lyrics"
+msgstr "Letra em ecrã inteiro"
+
+#: src/ui/lyrics.rs:109 src/ui/lyrics.rs:312
+msgid "Play a track to see its lyrics."
+msgstr "Reproduz uma música para veres a letra."
+
+#: src/ui/lyrics.rs:120 src/ui/lyrics.rs:137 src/app.rs:12563
+#: src/ui/artist.rs:377 src/ui/artist.rs:411 src/ui/collection.rs:2695
+#: src/ui/collection.rs:2852 src/ui/collection.rs:2885
+#: src/ui/collection.rs:2944 src/ui/collection.rs:3067
+#: src/ui/collection.rs:3100 src/ui/collection.rs:3378 src/ui/library.rs:294
+#: src/ui/library.rs:457 src/ui/downloads.rs:40 src/ui/save_later.rs:154
+#: src/ui/purchases.rs:116
+msgid "You're offline"
+msgstr "Estás offline"
+
+#: src/ui/lyrics.rs:123 src/ui/lyrics.rs:140 src/ui/artist.rs:380
+#: src/ui/artist.rs:414 src/ui/collection.rs:2698 src/ui/collection.rs:2855
+#: src/ui/collection.rs:2888 src/ui/collection.rs:2947
+#: src/ui/collection.rs:3070 src/ui/collection.rs:3103
+#: src/ui/collection.rs:3381 src/ui/library.rs:297 src/ui/library.rs:460
+#: src/ui/downloads.rs:55 src/ui/save_later.rs:157 src/ui/purchases.rs:119
+msgid "Tidalfast will reconnect automatically when your connection returns."
+msgstr ""
+"O Tidalfast voltará a ligar-se automaticamente quando a ligação for "
+"restabelecida."
+
+#: src/ui/lyrics.rs:149 src/ui/lyrics.rs:326 src/ui/settings.rs:574
+#: src/ui/downloads.rs:488 src/ui/now_playing.rs:504
+#: src/ui/album_credits.rs:590 src/ui/album_extras.rs:180
+msgid "Try again"
+msgstr "Tentar novamente"
+
+#: src/ui/lyrics.rs:160 src/ui/lyrics.rs:337 src/ui/compact.rs:608
+msgid "No lyrics"
+msgstr "Sem letra"
+
+#: src/ui/lyrics.rs:161 src/ui/lyrics.rs:338
+msgid "No lyrics found for this track."
+msgstr "Não foi encontrada letra para esta música."
+
+#: src/ui/lyrics.rs:170 src/ui/lyrics.rs:347 src/ui/compact.rs:604
+msgid "Instrumental"
+msgstr "Instrumental"
+
+#: src/ui/lyrics.rs:171 src/ui/lyrics.rs:348
+msgid "No timed lyrics for this track."
+msgstr "Esta música não tem letra sincronizada."
+
+#: src/ui/lyrics.rs:295 src/ui/lyrics.rs:539
+msgid "Sync Lyrics"
+msgstr "Sincronizar letra"
+
+#: src/ui/lyrics.rs:591
+msgid "The lyrics service is busy right now. Try again in a moment."
+msgstr ""
+"O serviço de letras está ocupado neste momento. Tente novamente dentro de "
+"instantes."
+
+#: src/ui/lyrics.rs:597
+msgid "Couldn't reach the lyrics service. Check your connection and try again."
+msgstr ""
+"Não foi possível aceder ao serviço de letras. Verifique a sua ligação e "
+"tente novamente."
+
+#. Translators: Keep {error} unchanged. It is the original failure detail.
+#: src/ui/lyrics.rs:604
+#, rust-format
+msgid "Couldn't fetch the lyrics: {error}"
+msgstr "Não foi possível obter a letra: {error}"
+
+#: src/ui/widgets.rs:1075 src/ui/library.rs:44
+msgid "Filter playlists"
+msgstr "Filtrar playlists"
+
+#: src/ui/widgets.rs:1102
+msgid "No editable playlists"
+msgstr "Não há playlists editáveis"
+
+#: src/ui/widgets.rs:1104 src/ui/library.rs:286
+msgid "No matching playlists"
+msgstr "Nenhuma playlist corresponde"
+
+#. Translators: {column} is a column heading of a song list, such as Title.
+#: src/ui/widgets.rs:2500
+#, rust-format
+msgid "Sort by {column}"
+msgstr "Ordenar por {column}"
+
+#: src/ui/widgets.rs:2505
+msgctxt "column heading"
+msgid "TITLE"
+msgstr "TÍTULO"
+
+#: src/ui/widgets.rs:2512
+msgid "Sort by playlist order"
+msgstr "Ordenar pela ordem da playlist"
+
+#: src/ui/widgets.rs:2528
+msgctxt "column heading"
+msgid "ARTIST"
+msgstr "ARTISTA"
+
+#: src/ui/widgets.rs:2532
+msgctxt "column heading"
+msgid "ALBUM"
+msgstr "ÁLBUM"
+
+#: src/ui/widgets.rs:2537
+msgctxt "column heading"
+msgid "ADDED BY"
+msgstr "ADICIONADO POR"
+
+#: src/ui/widgets.rs:2542
+msgctxt "column heading"
+msgid "DATE ADDED"
+msgstr "DATA DE ADIÇÃO"
+
+#: src/ui/widgets.rs:2551
+msgctxt "column heading"
+msgid "TIME"
+msgstr "DURAÇÃO"
+
+#: src/ui/widgets.rs:2557
+msgid "Sort by duration"
+msgstr "Ordenar por duração"
+
+#: src/ui/widgets.rs:2562
+msgctxt "column heading"
+msgid "BPM"
+msgstr "BPM"
+
+#: src/ui/widgets.rs:2563
+msgctxt "column heading"
+msgid "KEY"
+msgstr "TOM"
+
+#: src/ui/widgets.rs:2979 src/ui/menus.rs:502
+msgid "Add to playlist"
+msgstr "Adicionar à playlist"
+
+#: src/ui/widgets.rs:4178 src/app.rs:12149
+msgid "That needs a connection. Turn off offline mode to use TIDAL."
+msgstr "Isto precisa de ligação. Desativa o modo offline para usar o TIDAL."
+
+#: src/ui/widgets.rs:4186 src/app.rs:13734 src/app.rs:13748
+msgid "Network connection error. Check your connection."
+msgstr "Erro de ligação à rede. Verifica a ligação."
+
+#: src/ui/widgets.rs:4205 src/ui/downloads.rs:84 src/ui/downloads.rs:109
+msgid "Go online"
+msgstr "Ficar online"
+
+#: src/ui/widgets.rs:4641
+msgid "Cut"
+msgstr "Cortar"
+
+#: src/ui/widgets.rs:4646
+msgid "Copy"
+msgstr "Copiar"
+
+#: src/ui/widgets.rs:4651
+msgid "Paste"
+msgstr "Colar"
+
+#: src/ui/widgets.rs:4668
+msgid "Select all"
+msgstr "Selecionar tudo"
+
+#: src/ui/widgets.rs:5032
+msgid "Host"
+msgstr "Host"
+
+#: src/ui/widgets.rs:5049
+msgid "Port"
+msgstr "Porta"
+
+#: src/ui/widgets.rs:5067
+msgid "Username"
+msgstr "Nome de utilizador"
+
+#: src/ui/widgets.rs:5078
+msgid "Password"
+msgstr "Palavra-passe"
+
+#: src/ui/widgets.rs:5096
+msgid ""
+"Proxy login applies to Web requests. Local playback uses this proxy only "
+"without a login."
+msgstr ""
+"As credenciais do proxy aplicam-se aos pedidos Web. A reprodução local só "
+"usa este proxy sem credenciais."
+
+#: src/ui/widgets.rs:5100
+msgid ""
+"TIDAL hostnames are resolved by the proxy. Local playback connects directly."
+msgstr ""
+"Os nomes de anfitrião do TIDAL são resolvidos pelo proxy. A reprodução local "
+"liga-se diretamente."
+
+#: src/app.rs:986
+msgid "Restoring proxy settings"
+msgstr "A repor as definições de proxy"
+
+#: src/app.rs:1332
+#, rust-format
+msgid "Tidalfast updated to v{version}"
+msgstr "O Tidalfast foi atualizado para a v{version}"
+
+#: src/app.rs:1335 src/ui/settings.rs:1811 src/ui/dialogs.rs:262
+msgid "What's new"
+msgstr "Novidades"
+
+#. Translators: {error} is a sentence saying why the proxy password could not be stored.
+#: src/app.rs:2340
+#, rust-format
+msgid ""
+"{error} The original settings file is kept intact; changed preferences are "
+"not saved yet."
+msgstr ""
+"{error} O ficheiro de definições original foi mantido intacto; as "
+"preferências alteradas ainda não foram guardadas."
+
+#: src/app.rs:2361
+#, rust-format
+msgid "Couldn't load AutoEQ's headphone list: {error}"
+msgstr "Não foi possível carregar a lista de auscultadores do AutoEQ: {error}"
+
+#: src/app.rs:2377
+#, rust-format
+msgid "Couldn't load the AutoEQ profile: {error}"
+msgstr "Não foi possível carregar o perfil do AutoEQ: {error}"
+
+#. Translators: {version} is a version number such as 1.4.0.
+#: src/app.rs:2521
+#, rust-format
+msgid "Tidalfast {version} is available"
+msgstr "O Tidalfast {version} está disponível"
+
+#: src/app.rs:2542
+msgid "You're up to date"
+msgstr "Está atualizado"
+
+#: src/app.rs:2561
+msgid "This build can't check for updates"
+msgstr "Esta versão não pode procurar atualizações"
+
+#: src/app.rs:2563
+msgid "Couldn't reach the update server"
+msgstr "Não foi possível contactar o servidor de atualizações"
+
+#. Translators: {error} is an error message from the playback engine.
+#: src/app.rs:2636
+#, rust-format
+msgid "Local playback: {error}"
+msgstr "Reprodução local: {error}"
+
+#: src/app.rs:2681
+msgid "TIDAL hasn't confirmed your playlist changes yet. Try refreshing again."
+msgstr ""
+"O TIDAL ainda não confirmou as alterações à sua playlist. Tente atualizar "
+"novamente."
+
+#: src/app.rs:3162
+msgid "The song you were playing isn't available anymore"
+msgstr "A música que estava a ouvir já não está disponível"
+
+#. Translators: {name} is a song title.
+#: src/app.rs:3167
+#, rust-format
+msgid "{name} isn't available anymore"
+msgstr "{name} já não está disponível"
+
+#: src/app.rs:3235 src/app/radio.rs:191 src/ui/radio.rs:37 src/ui/radio.rs:81
+msgid "Radio"
+msgstr "Rádio"
+
+#: src/app.rs:3269 src/api/models.rs:302 src/ui/search.rs:427
+#: src/ui/search.rs:1387 src/ui/search.rs:1580 src/ui/feed.rs:128
+#: src/ui/uploads.rs:1295
+msgid "Album"
+msgstr "Álbum"
+
+#: src/app.rs:3300
+#, rust-format
+msgid "{artist} top tracks"
+msgstr "Faixas principais de {artist}"
+
+#: src/app.rs:3302
+msgid "Top tracks"
+msgstr "Músicas mais populares"
+
+#: src/app.rs:3322 src/ui/radio.rs:197 src/ui/radio.rs:214
+msgid "Mix"
+msgstr "Mix"
+
+#: src/app.rs:3841
+#, rust-format
+msgid "Left out {count} filters this equalizer does not have"
+msgstr "Foram deixados de fora {count} filtros que este equalizador não tem"
+
+#: src/app.rs:3850
+#, rust-format
+msgid "That is not an Equalizer APO profile: {error}"
+msgstr "Isso não é um perfil do Equalizer APO: {error}"
+
+#: src/app.rs:3996
+msgid "Proxy applied. Restarting local playback."
+msgstr "Proxy aplicado. A reiniciar a reprodução local."
+
+#: src/app.rs:3998
+msgid "Proxy settings applied"
+msgstr "Definições de proxy aplicadas"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:4005
+#, rust-format
+msgid ""
+"Proxy could not be applied: {error}. Previous connection settings are still "
+"in use."
+msgstr ""
+"Não foi possível aplicar o proxy: {error}. As definições de ligação "
+"anteriores continuam em uso."
+
+#: src/app.rs:5905
+msgid "Removed from queue"
+msgstr "Removido da fila"
+
+#: src/app.rs:6019
+msgid "Queue cleared"
+msgstr "Fila limpa"
+
+#. Translators: Keep {date} unchanged. It is a date in YYYY-MM-DD form.
+#: src/app.rs:6049 src/app.rs:20438
+#, rust-format
+msgid "Queue {date}"
+msgstr "Fila {date}"
+
+#: src/app.rs:6647
+msgid "Your TIDAL sign-in expired. Please sign in again."
+msgstr "A sua sessão do TIDAL expirou. Inicie sessão novamente."
+
+#. Translators: {error} is an error message.
+#: src/app.rs:6654
+#, rust-format
+msgid "Couldn't load your profile: {error}"
+msgstr "Não foi possível carregar o teu perfil: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7035
+#, rust-format
+msgid "Couldn't load more playlists: {error}"
+msgstr "Não foi possível carregar mais playlists: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7343
+#, rust-format
+msgid "Couldn't create the playlist: {error}"
+msgstr "Não foi possível criar a playlist: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7361 src/app.rs:7380 src/app.rs:7569
+#, rust-format
+msgid "Couldn't update the playlist: {error}"
+msgstr "Não foi possível atualizar a playlist: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7396 src/app.rs:7533
+#, rust-format
+msgid "Playlist change failed: {error}"
+msgstr "A alteração da playlist falhou: {error}"
+
+#. Translators: {name} is an album name and {error} is an error message.
+#: src/app.rs:7417 src/app.rs:9823
+#, rust-format
+msgid "Couldn't add {name} to queue: {error}"
+msgstr "Não foi possível adicionar {name} à fila: {error}"
+
+#: src/app.rs:7446
+msgid "Couldn't delete the folder, its playlists couldn't be moved out"
+msgstr ""
+"Não foi possível eliminar a pasta: as listas dela não puderam ser movidas "
+"para fora"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7453
+#, rust-format
+msgid "Folder change failed: {error}"
+msgstr "Falha ao alterar a pasta: {error}"
+
+#: src/app.rs:7744
+msgid "We won't play this song again"
+msgstr "Não vamos reproduzir esta música outra vez"
+
+#: src/app.rs:7747
+msgid "Couldn't block this song"
+msgstr "Não foi possível bloquear esta música"
+
+#: src/app.rs:7776
+msgid "We'll play this song again"
+msgstr "Vamos voltar a reproduzir esta música"
+
+#: src/app.rs:7787
+msgid "Couldn't unblock this song"
+msgstr "Não foi possível desbloquear esta música"
+
+#: src/app.rs:7806
+msgid "We won't play this artist in mixes and radio"
+msgstr "Não vamos reproduzir este artista em mixes e rádios"
+
+#: src/app.rs:7808
+msgid "We'll play this artist again"
+msgstr "Vamos voltar a reproduzir este artista"
+
+#: src/app.rs:7813
+msgid "Couldn't block this artist"
+msgstr "Não foi possível bloquear este artista"
+
+#: src/app.rs:7815
+msgid "Couldn't unblock this artist"
+msgstr "Não foi possível desbloquear este artista"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7895
+#, rust-format
+msgid "Couldn't update My Collection: {error}"
+msgstr "Não foi possível atualizar a Minha coleção: {error}"
+
+#. Translators: {query} is the words someone searched for.
+#: src/app.rs:7944
+#, rust-format
+msgid "Nothing on TIDAL matches “{query}”"
+msgstr "Nada no TIDAL corresponde a «{query}»"
+
+#. Translators: {query} is the words someone searched for; {error} is an error message.
+#: src/app.rs:7952
+#, rust-format
+msgid "Couldn't search for “{query}”: {error}"
+msgstr "Não foi possível pesquisar «{query}»: {error}"
+
+#: src/app.rs:7990 src/ui/keys.rs:224 src/ui/search.rs:156 src/ui/topbar.rs:354
+#: src/ui/titlebar.rs:148
+msgid "Search"
+msgstr "Pesquisar"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:8301
+#, rust-format
+msgid "Cannot open this track: {error}"
+msgstr "Não é possível abrir esta música: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:8366 src/app.rs:8390
+#, rust-format
+msgid "Couldn't add to queue: {error}"
+msgstr "Não foi possível adicionar à fila: {error}"
+
+#: src/app.rs:8493
+msgid "This track's album is not on TIDAL"
+msgstr "O álbum desta música não está no TIDAL"
+
+#: src/app.rs:8506
+msgid "Tidalfast cannot open this kind of TIDAL link"
+msgstr "O Tidalfast não consegue abrir este tipo de ligação do TIDAL"
+
+#: src/app.rs:8730
+msgid "Nothing is playing. Pick something first"
+msgstr "Nada está a tocar. Escolhe algo primeiro"
+
+#: src/app.rs:9137
+msgid "Playback isn't ready yet. Sign in to TIDAL first"
+msgstr "A reprodução ainda não está pronta. Inicie primeiro sessão no TIDAL"
+
+#: src/app.rs:9522 src/app.rs:9527
+msgid "Pick something to play"
+msgstr "Escolhe algo para ouvir"
+
+#. Translators: {name} is an album name.
+#: src/app.rs:9788 src/app.rs:12669
+#, rust-format
+msgid "Loading {name} to queue…"
+msgstr "A adicionar {name} à fila…"
+
+#: src/app.rs:9807
+msgid "Playback device changed. Add the album to queue again"
+msgstr "O dispositivo de reprodução mudou. Adiciona o álbum à fila novamente"
+
+#: src/app.rs:9816 src/app.rs:9834 src/app.rs:9843
+msgid "Couldn't load the album's tracks in order. Try again"
+msgstr ""
+"Não foi possível carregar as músicas do álbum por ordem. Tenta novamente"
+
+#: src/app.rs:9882
+msgid "This album has no playable tracks to queue"
+msgstr "Este álbum não tem músicas que possam ser adicionadas à fila"
+
+#. Translators: {count} is a number of songs and {name} is an album name.
+#: src/app.rs:9891
+#, rust-format
+msgid "{count} track from {name} added to queue"
+msgid_plural "{count} tracks from {name} added to queue"
+msgstr[0] "{count} música de {name} adicionada à fila"
+msgstr[1] "{count} músicas de {name} adicionadas à fila"
+
+#. Translators: {count} is a number of songs.
+#: src/app.rs:9935
+#, rust-format
+msgid "{count} track added to queue"
+msgid_plural "{count} tracks added to queue"
+msgstr[0] "{count} música adicionada à fila"
+msgstr[1] "{count} músicas adicionadas à fila"
+
+#. Translators: {name} is a song, album, or playlist name.
+#: src/app.rs:9972
+#, rust-format
+msgid "{name} added to queue"
+msgstr "{name} adicionado à fila"
+
+#. Translators: {name} is a playlist name.
+#: src/app.rs:10311
+#, rust-format
+msgid "Added to {name}"
+msgstr "Adicionado a {name}"
+
+#: src/app.rs:10313 src/ui/settings.rs:812 src/ui/titlebar.rs:145
+msgid "View"
+msgstr "Ver"
+
+#: src/app.rs:10438
+msgid "The clipboard has no TIDAL song links"
+msgstr "A área de transferência não tem ligações de músicas do TIDAL"
+
+#. Translators: {count} is the number of pasted links that failed.
+#: src/app.rs:10519
+#, rust-format
+msgid "{count} pasted link could not be added"
+msgid_plural "{count} pasted links could not be added"
+msgstr[0] "{count} ligação colada não pôde ser adicionada"
+msgstr[1] "{count} ligações coladas não puderam ser adicionadas"
+
+#: src/app.rs:11181
+msgid "Removed from playlist"
+msgstr "Removido da playlist"
+
+#: src/app.rs:11252
+msgid "Playlist created"
+msgstr "Playlist criada"
+
+#: src/app.rs:11279
+msgid "TIDAL doesn't let apps remove a playlist description, so it was kept"
+msgstr ""
+"O TIDAL não permite que as aplicações removam a descrição de uma playlist, "
+"por isso foi mantida"
+
+#: src/app.rs:11289
+msgid "Playlist updated"
+msgstr "Playlist atualizada"
+
+#: src/app.rs:11306
+msgid "Playlist is now public"
+msgstr "A playlist está agora pública"
+
+#: src/app.rs:11308
+msgid "Playlist is now private"
+msgstr "A playlist está agora privada"
+
+#: src/app.rs:11324
+msgid "Playlist deleted"
+msgstr "Playlist eliminada"
+
+#: src/app.rs:11367
+msgid "Folder created"
+msgstr "Pasta criada"
+
+#: src/app.rs:11383
+msgid "Folder renamed"
+msgstr "Pasta renomeada"
+
+#: src/app.rs:11402
+msgid "Folder deleted"
+msgstr "Pasta eliminada"
+
+#: src/app.rs:11442 src/app.rs:11482 src/app/uploads.rs:511
+#: src/app/uploads.rs:516
+msgid "Link copied"
+msgstr "Ligação copiada"
+
+#: src/app.rs:11448
+msgid "Embed code copied"
+msgstr "Código de incorporação copiado"
+
+#. Translators: {count} is a number of song links, always more than one.
+#: src/app.rs:11486
+#, rust-format
+msgid "{count} link copied"
+msgid_plural "{count} links copied"
+msgstr[0] "{count} ligação copiada"
+msgstr[1] "{count} ligações copiadas"
+
+#: src/app.rs:11562
+msgid "Picture copied"
+msgstr "Imagem copiada"
+
+#: src/app.rs:11564
+msgid "The picture could not be copied"
+msgstr "Não foi possível copiar a imagem"
+
+#: src/app.rs:11793
+msgid ""
+"TIDAL doesn't let apps reorder your playlists, so this order is saved on "
+"this computer"
+msgstr ""
+"O TIDAL não permite que as aplicações reordenem as suas playlists, por isso "
+"esta ordem é guardada neste computador"
+
+#: src/app.rs:11840
+msgid "Restarting local playback"
+msgstr "A reiniciar a reprodução local"
+
+#: src/app.rs:11899
+msgid "Play history cleared"
+msgstr "Histórico de reprodução apagado"
+
+#. Translators: {size} is a size in megabytes, such as 12.5.
+#: src/app.rs:11910
+#, rust-format
+msgid "Cleared {size} MB of artwork"
+msgstr "{size} MB de capas apagados"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:11916
+#, rust-format
+msgid "Couldn't clear artwork: {error}"
+msgstr "Não foi possível apagar as capas: {error}"
+
+#: src/app.rs:12027
+msgid "Copied as an Equalizer APO profile"
+msgstr "Copiado como perfil do Equalizer APO"
+
+#: src/app.rs:12138
+msgid "Collaborator invites aren't available in Tidalfast yet"
+msgstr "Os convites de colaborador ainda não estão disponíveis no Tidalfast"
+
+#: src/app.rs:12235
+msgid "Offline mode is on. Turn it off to check for updates."
+msgstr "O modo offline está ativado. Desative-o para procurar atualizações."
+
+#: src/app.rs:12368
+msgid "Couldn't change whether Tidalfast starts at login."
+msgstr "Não foi possível alterar se o Tidalfast inicia ao iniciar sessão."
+
+#: src/app.rs:12683 src/ui/collection.rs:692
+msgid "No playable tracks in this view"
+msgstr "Não há músicas reproduzíveis nesta vista"
+
+#: src/app.rs:13547 src/ui/now_playing_video.rs:212
+msgid "Loading…"
+msgstr "A carregar…"
+
+#: src/app.rs:13672
+msgid "Couldn't start playback"
+msgstr "Não foi possível iniciar a reprodução"
+
+#: src/app.rs:13673
+msgid "Couldn't pause"
+msgstr "Não foi possível pausar"
+
+#: src/app.rs:13674
+msgid "Couldn't skip"
+msgstr "Não foi possível avançar"
+
+#: src/app.rs:13675
+msgid "Couldn't go back"
+msgstr "Não foi possível voltar"
+
+#: src/app.rs:13676
+msgid "Couldn't seek"
+msgstr "Não foi possível mudar a posição"
+
+#: src/app.rs:13677
+msgid "Couldn't change the volume"
+msgstr "Não foi possível alterar o volume"
+
+#: src/app.rs:13678
+msgid "Couldn't change shuffle"
+msgstr "Não foi possível alterar a ordem aleatória"
+
+#: src/app.rs:13679
+msgid "Couldn't change repeat"
+msgstr "Não foi possível alterar a repetição"
+
+#: src/app.rs:13722
+msgid ""
+"No audio output device was found. Connect or enable one, then press play "
+"again."
+msgstr ""
+"Não foi encontrado nenhum dispositivo de saída de áudio. Liga ou ativa um e "
+"carrega novamente em Reproduzir."
+
+#: src/app.rs:13727
+msgid "This video can't be played in Tidalfast"
+msgstr "Este vídeo não pode ser reproduzido no Tidalfast"
+
+#: src/app.rs:13739
+msgid "TIDAL doesn't make this playlist's songs available to third-party apps."
+msgstr ""
+"O TIDAL não disponibiliza as músicas desta playlist a aplicações de "
+"terceiros."
+
+#. Translators: Keep {track} unchanged. It is the name of the song,
+#. playlist, album, or artist the radio is based on, not translated.
+#: src/app.rs:20458 src/app/radio.rs:38
+#, rust-format
+msgid "{track} Radio"
+msgstr "Rádio de {track}"
+
+#: src/ui/settings.rs:282
+msgid "General"
+msgstr "Geral"
+
+#: src/ui/settings.rs:283 src/ui/titlebar.rs:161
+msgid "Playback"
+msgstr "Reprodução"
+
+#: src/ui/settings.rs:284 src/ui/settings.rs:1513
+msgid "Downloads"
+msgstr "Transferências"
+
+#: src/ui/settings.rs:285 src/ui/settings.rs:384
+msgid "Account"
+msgstr "Conta"
+
+#: src/ui/settings.rs:286 src/ui/settings.rs:1806
+msgid "About"
+msgstr "Acerca de"
+
+#: src/ui/settings.rs:343
+msgid "Search settings"
+msgstr "Pesquisar nas definições"
+
+#: src/ui/settings.rs:361 src/ui/keys.rs:249 src/ui/topbar.rs:718
+#: src/ui/titlebar.rs:139
+msgid "Settings"
+msgstr "Definições"
+
+#: src/ui/settings.rs:385 src/ui/titlebar.rs:142
+msgid "Sign out"
+msgstr "Terminar sessão"
+
+#: src/ui/settings.rs:386
+msgid "Streaming quality"
+msgstr "Qualidade de streaming"
+
+#: src/ui/settings.rs:409
+msgid "TIDAL Free, playback needs a subscription"
+msgstr "TIDAL Free, a reprodução requer uma subscrição"
+
+#: src/ui/settings.rs:428
+msgid "Audio quality"
+msgstr "Qualidade do áudio"
+
+#: src/ui/settings.rs:429 src/ui/player_utility.rs:458
+msgid "Bit-perfect (exclusive mode)"
+msgstr "Bit-perfect (modo exclusivo)"
+
+#: src/ui/settings.rs:430
+msgid "Adaptive streaming"
+msgstr "Streaming adaptativo"
+
+#: src/ui/settings.rs:434
+msgctxt "streaming quality"
+msgid "Low"
+msgstr "Baixa"
+
+#: src/ui/settings.rs:435
+msgid "AAC 96 kbps, the least data"
+msgstr "AAC 96 kbps, o menor consumo de dados"
+
+#: src/ui/settings.rs:439
+msgctxt "streaming quality"
+msgid "High"
+msgstr "Alta"
+
+#: src/ui/settings.rs:440
+msgid "AAC 320 kbps"
+msgstr "AAC 320 kbps"
+
+#: src/ui/settings.rs:444
+msgctxt "streaming quality"
+msgid "Lossless"
+msgstr "Sem perdas"
+
+#: src/ui/settings.rs:445
+msgid "16-bit, 44.1 kHz"
+msgstr "16 bits, 44,1 kHz"
+
+#: src/ui/settings.rs:449
+msgctxt "streaming quality"
+msgid "Max"
+msgstr "Máx."
+
+#: src/ui/settings.rs:450
+msgid "Up to 24-bit, 192 kHz"
+msgstr "Até 24 bits, 192 kHz"
+
+#: src/ui/settings.rs:458
+msgid ""
+"Max plays hi-res FLAC when you signed in with “Log in with Max (hi-res)” and "
+"TIDAL has it."
+msgstr ""
+"O Max reproduz FLAC de alta resolução se iniciou sessão com «Iniciar sessão "
+"com Max (alta resolução)» e o TIDAL o tiver."
+
+#: src/ui/settings.rs:465
+msgid "Automatically adjust audio quality based on your network conditions"
+msgstr ""
+"Ajusta automaticamente a qualidade de áudio de acordo com as condições da "
+"sua rede"
+
+#: src/ui/settings.rs:472
+msgid ""
+"Holds the audio device and sends each track at its own format, untouched. "
+"Equalizer, normalisation and crossfade are off while it is on; volume moves "
+"the device's own control when it has one."
+msgstr ""
+"Reserva o dispositivo de áudio e envia cada faixa no próprio formato, "
+"intacta. O equalizador, a normalização e a transição ficam desligados; o "
+"volume move o controlo do próprio dispositivo quando tem um."
+
+#: src/ui/settings.rs:530
+msgid "Video quality"
+msgstr "Qualidade de vídeo"
+
+#: src/ui/settings.rs:535
+msgid ""
+"Music videos play at this resolution or the closest below. Auto picks the "
+"best that fits the window."
+msgstr ""
+"Os videoclipes são reproduzidos nesta resolução ou na mais próxima abaixo. "
+"Automático escolhe a melhor que cabe na janela."
+
+#: src/ui/settings.rs:545
+msgctxt "video quality"
+msgid "Auto"
+msgstr "Automático"
+
+#: src/ui/settings.rs:546
+msgid "The best that fits the window"
+msgstr "A melhor que cabe na janela"
+
+#: src/ui/settings.rs:562
+msgctxt "playback status"
+msgid "Ready"
+msgstr "Pronto"
+
+#: src/ui/settings.rs:563
+msgid "TIDAL plays on this computer."
+msgstr "O TIDAL reproduz neste computador."
+
+#: src/ui/settings.rs:567
+msgctxt "playback status"
+msgid "Connecting"
+msgstr "A ligar"
+
+#: src/ui/settings.rs:568
+msgid "Starting playback…"
+msgstr "A iniciar a reprodução…"
+
+#: src/ui/settings.rs:572
+msgctxt "playback status"
+msgid "Unavailable"
+msgstr "Indisponível"
+
+#: src/ui/settings.rs:577
+msgctxt "playback status"
+msgid "Not signed in"
+msgstr "Sessão não iniciada"
+
+#: src/ui/settings.rs:578
+msgid "Sign in to TIDAL to play music."
+msgstr "Inicie sessão no TIDAL para reproduzir música."
+
+#: src/ui/settings.rs:582
+msgid "Playback on this computer"
+msgstr "Reprodução neste computador"
+
+#: src/ui/settings.rs:583
+msgid "Normalize volume"
+msgstr "Normalizar volume"
+
+#: src/ui/settings.rs:584
+msgid "Autoplay"
+msgstr "Reprodução automática"
+
+#: src/ui/settings.rs:585
+msgid "Gapless playback"
+msgstr "Reprodução sem pausas"
+
+#: src/ui/settings.rs:586 src/ui/settings.rs:1789
+msgid "Apply and restart playback"
+msgstr "Aplicar e reiniciar a reprodução"
+
+#: src/ui/settings.rs:587 src/ui/settings.rs:1800
+msgid "Restart local playback to apply these settings."
+msgstr "Reinicia a reprodução local para aplicar estas definições."
+
+#: src/ui/settings.rs:588
+msgid "Crossfade"
+msgstr "Crossfade"
+
+#: src/ui/settings.rs:589
+msgid "Report plays to TIDAL"
+msgstr "Comunicar reproduções ao TIDAL"
+
+#: src/ui/settings.rs:590
+msgid "Allow explicit content"
+msgstr "Permitir conteúdo explícito"
+
+#: src/ui/settings.rs:591
+msgid "Allow AI content"
+msgstr "Permitir conteúdo de IA"
+
+#: src/ui/settings.rs:592
+msgid "Output device"
+msgstr "Dispositivo de saída"
+
+#. Translators: {status} is a playback state such as Ready or Not set up.
+#: src/ui/settings.rs:596
+#, rust-format
+msgid "Status: {status}"
+msgstr "Estado: {status}"
+
+#: src/ui/settings.rs:601
+msgid "Set the same volume level for all tracks."
+msgstr "Defina o mesmo nível de volume para todas as faixas."
+
+#: src/ui/settings.rs:607
+msgid "Adjust the length of fading and overlap in between tracks."
+msgstr "Ajuste a duração do fade e da sobreposição entre as faixas."
+
+#: src/ui/settings.rs:612
+msgid "The speakers or headphones to play on."
+msgstr "As colunas ou auscultadores onde reproduzir."
+
+#: src/ui/settings.rs:618
+msgid ""
+"Tell TIDAL what you listen to, as its own apps do, for your history and "
+"recommendations."
+msgstr ""
+"Informa o TIDAL do que ouve, como as próprias aplicações, para o seu "
+"histórico e recomendações."
+
+#: src/ui/settings.rs:623
+msgid "Keep playing similar content when your queue ends."
+msgstr "Continue a reproduzir conteúdo semelhante quando a fila terminar."
+
+#: src/ui/settings.rs:627
+msgid "Play tracks without silence between them."
+msgstr "Reproduz as faixas sem silêncio entre elas."
+
+#: src/ui/settings.rs:630
+msgid "Output buffer"
+msgstr "Buffer de saída"
+
+#: src/ui/settings.rs:633
+msgid ""
+"More buffering can prevent clicks on busy computers. Less buffering makes "
+"controls respond sooner."
+msgstr ""
+"Um buffer maior pode evitar estalidos em computadores sobrecarregados. Um "
+"buffer menor faz os controlos responderem mais depressa."
+
+#: src/ui/settings.rs:638
+msgid "Playback settings applied"
+msgstr "Definições de reprodução aplicadas"
+
+#: src/ui/settings.rs:643
+msgid ""
+"When on, music labeled with the E badge will be playable. To prevent "
+"explicit music from playing, switch this off. Videos aren't included. "
+"(Tracks will appear greyed out.)"
+msgstr ""
+"Quando ativado, as músicas com o selo E poderão ser reproduzidas. Para "
+"impedir a reprodução de músicas explícitas, desative esta opção. Os vídeos "
+"não estão incluídos. (As faixas aparecerão a cinzento.)"
+
+#: src/ui/settings.rs:650
+msgid ""
+"When on, music labeled with the AI badge will be playable. To prevent AI-"
+"labeled music from playing, switch this off. (Tracks will appear greyed out.)"
+msgstr ""
+"Quando ativado, as músicas com o selo AI poderão ser reproduzidas. Para "
+"impedir a reprodução de músicas marcadas como AI, desative esta opção. (As "
+"faixas aparecerão a cinzento.)"
+
+#: src/ui/settings.rs:667
+msgid "Reconnect"
+msgstr "Voltar a ligar"
+
+#: src/ui/settings.rs:699
+msgid "Off"
+msgstr "Desativado"
+
+#: src/ui/settings.rs:794
+msgid "Playback settings applied."
+msgstr "Definições de reprodução aplicadas."
+
+#: src/ui/settings.rs:803 src/ui/blocked.rs:18
+msgid "Blocked"
+msgstr "Bloqueados"
+
+#: src/ui/settings.rs:806 src/ui/blocked.rs:41
+msgid "View and edit your blocked content."
+msgstr "Veja e edite o seu conteúdo bloqueado."
+
+#: src/ui/settings.rs:820
+msgid "Appearance"
+msgstr "Aspeto"
+
+#: src/ui/settings.rs:821
+msgid "Theme"
+msgstr "Tema"
+
+#: src/ui/settings.rs:822
+msgid "Colour from album art"
+msgstr "Cor da capa do álbum"
+
+#: src/ui/settings.rs:823
+msgid "Use Tidalfast's title bar"
+msgstr "Usar a barra de título do Tidalfast"
+
+#: src/ui/settings.rs:824
+msgid "Animated covers"
+msgstr "Capas animadas"
+
+#: src/ui/settings.rs:825
+msgid "Audio metadata"
+msgstr "Metadados de áudio"
+
+#: src/ui/settings.rs:826
+msgid "Hide Uploads tab"
+msgstr "Ocultar o separador Carregamentos"
+
+#: src/ui/settings.rs:827
+msgid "Show collection in sidebar"
+msgstr "Mostrar a coleção na barra lateral"
+
+#: src/ui/settings.rs:834
+msgid "Follow system uses your desktop's light or dark appearance."
+msgstr ""
+"Seguir o sistema usa o aspeto claro ou escuro do teu ambiente de trabalho."
+
+#: src/ui/settings.rs:838 src/ui/settings.rs:2307
+msgid "Language"
+msgstr "Idioma"
+
+#: src/ui/settings.rs:841
+msgid ""
+"System follows your computer's language. Untranslated text stays in English."
+msgstr ""
+"Sistema segue o idioma do computador. O texto não traduzido fica em inglês."
+
+#: src/ui/settings.rs:848
+msgid "Use the current cover's colour in the notch player."
+msgstr "Usa a cor da capa atual no leitor do notch."
+
+#: src/ui/settings.rs:852
+msgid "Interface zoom"
+msgstr "Zoom da interface"
+
+#: src/ui/settings.rs:856
+msgid "Ctrl+Plus and Ctrl+Minus work anywhere; Ctrl+0 resets."
+msgstr "Ctrl+Plus e Ctrl+Minus funcionam em qualquer sítio; Ctrl+0 repõe."
+
+#: src/ui/settings.rs:860
+msgid "Cmd+Plus and Cmd+Minus work anywhere; Cmd+0 resets."
+msgstr "Cmd+Plus e Cmd+Minus funcionam em qualquer sítio; Cmd+0 repõe."
+
+#: src/ui/settings.rs:869
+msgid ""
+"Draw Tidalfast's own title bar and window buttons instead of the desktop's."
+msgstr ""
+"Desenha a barra de título e os botões de janela do próprio Tidalfast em vez "
+"dos do ambiente de trabalho."
+
+#: src/ui/settings.rs:877
+msgid ""
+"Play TIDAL's moving album covers, silently, where covers are shown large."
+msgstr ""
+"Reproduz sem som as capas animadas do TIDAL onde as capas aparecem em grande."
+
+#: src/ui/settings.rs:882
+msgid "Show additional fields (e.g. BPM) in track lists."
+msgstr "Mostrar campos adicionais (por exemplo, BPM) nas listas de faixas."
+
+#: src/ui/settings.rs:886
+msgid "Hide the Uploads tab from the navigation."
+msgstr "Oculta o separador Carregamentos da navegação."
+
+#: src/ui/settings.rs:892
+msgid "Show all collection items directly in the sidebar instead of a submenu."
+msgstr ""
+"Mostra todos os itens da coleção diretamente na barra lateral em vez de num "
+"submenu."
+
+#: src/ui/settings.rs:896
+msgid "Player background"
+msgstr "Fundo do leitor"
+
+#: src/ui/settings.rs:899
+msgid "Choose your preferred look for the player background."
+msgstr "Escolha o aspeto preferido para o fundo do leitor."
+
+#: src/ui/settings.rs:954
+msgctxt "player background"
+msgid "Color"
+msgstr "Cor"
+
+#: src/ui/settings.rs:955
+msgctxt "player background"
+msgid "Blur"
+msgstr "Desfocado"
+
+#: src/ui/settings.rs:1127
+msgid "Window and tray"
+msgstr "Janela e área de notificação"
+
+#: src/ui/settings.rs:1128
+msgid "Keep music playing when the window closes"
+msgstr "Continuar a tocar ao fechar a janela"
+
+#: src/ui/settings.rs:1129
+msgid "MacBook notch widget"
+msgstr "Widget do notch do MacBook"
+
+#: src/ui/settings.rs:1130
+msgid "Launch at login"
+msgstr "Iniciar ao iniciar sessão"
+
+#: src/ui/settings.rs:1131
+msgid "Start minimized"
+msgstr "Iniciar minimizado"
+
+#: src/ui/settings.rs:1138
+msgid ""
+"Tidalfast hides to the system tray. Quit from the tray menu or with Ctrl+Q."
+msgstr ""
+"O Tidalfast fica na área de notificação. Sai pelo menu da área de "
+"notificação ou com Ctrl+Q."
+
+#: src/ui/settings.rs:1142
+msgid ""
+"Tidalfast hides to the system tray. Quit from the tray menu or with Cmd+Q."
+msgstr ""
+"O Tidalfast fica na área de notificação. Sai pelo menu da área de "
+"notificação ou com Cmd+Q."
+
+#: src/ui/settings.rs:1151
+msgid "Show interactive Now Playing widget when hovering over the notch."
+msgstr ""
+"Mostrar widget interativo A reproduzir ao passar o cursor sobre o notch."
+
+#: src/ui/settings.rs:1157
+msgid "Open Tidalfast when you log in to this computer."
+msgstr "Abrir o Tidalfast quando iniciares sessão neste computador."
+
+#: src/ui/settings.rs:1164
+msgid "When Tidalfast opens at login, start with the window minimized."
+msgstr ""
+"Quando o Tidalfast abrir ao iniciar sessão, começar com a janela minimizada."
+
+#: src/ui/settings.rs:1226
+msgid "Plugins (TidaLuna)"
+msgstr "Plugins (TidaLuna)"
+
+#: src/ui/settings.rs:1227
+msgid "Enable TidaLuna plugins"
+msgstr "Ativar plugins do TidaLuna"
+
+#: src/ui/settings.rs:1232
+msgid ""
+"Run TidaLuna plugins inside Tidalfast. Off by default; turning it off "
+"unloads them and keeps them installed."
+msgstr ""
+"Executa os plugins do TidaLuna dentro do Tidalfast. Desativado por "
+"predefinição; ao desativar, são descarregados, mas continuam instalados."
+
+#: src/ui/settings.rs:1254
+msgid "Manage"
+msgstr "Gerir"
+
+#: src/ui/settings.rs:1265
+msgid "Proxy"
+msgstr "Proxy"
+
+#: src/ui/settings.rs:1267
+msgid "Mode, host, port, username and password"
+msgstr "Modo, host, porta, nome de utilizador e palavra-passe"
+
+#: src/ui/settings.rs:1270
+msgid "Off, System, HTTP or SOCKS5 proxy for network requests."
+msgstr "Proxy desativado, do sistema, HTTP ou SOCKS5 para os pedidos de rede."
+
+#: src/ui/settings.rs:1273
+msgid "Advanced"
+msgstr "Avançadas"
+
+#: src/ui/settings.rs:1274
+msgid "Middle-click autoscroll"
+msgstr "Deslocamento automático com o botão do meio"
+
+#: src/ui/settings.rs:1280
+msgid ""
+"Middle-click a list, then move the pointer to scroll it. Off by default, "
+"because a middle click usually pastes on Linux."
+msgstr ""
+"Clica com o botão do meio numa lista e move o ponteiro para a deslocar. "
+"Desativado por predefinição, porque no Linux o clique do meio costuma colar."
+
+#: src/ui/settings.rs:1285
+msgid "TIDAL client"
+msgstr "Cliente do TIDAL"
+
+#: src/ui/settings.rs:1288
+msgid ""
+"Optional: a TIDAL client to sign in with instead of the built-in one. Leave "
+"empty to use the built-in one; changes apply at the next sign-in."
+msgstr ""
+"Opcional: um cliente do TIDAL para iniciar sessão em vez do integrado. Deixe "
+"em branco para usar o integrado; as alterações aplicam-se no próximo início "
+"de sessão."
+
+#: src/ui/settings.rs:1339
+msgid "Client ID"
+msgstr "Client ID"
+
+#: src/ui/settings.rs:1344
+msgid "Client secret"
+msgstr "Client secret"
+
+#: src/ui/settings.rs:1349
+msgid "Browser sign-in client ID (Max)"
+msgstr "Client ID do início de sessão pelo navegador (Max)"
+
+#: src/ui/settings.rs:1387
+msgctxt "proxy"
+msgid "Mode"
+msgstr "Modo"
+
+#: src/ui/settings.rs:1390
+msgid ""
+"Off ignores environment variables. System uses them, and the OS proxy on "
+"macOS and Windows."
+msgstr ""
+"Desativado ignora as variáveis de ambiente. Sistema usa-as e, no macOS e no "
+"Windows, o proxy do sistema operativo."
+
+#: src/ui/settings.rs:1442 src/ui/login.rs:338
+msgid "Apply settings"
+msgstr "Aplicar definições"
+
+#: src/ui/settings.rs:1454
+msgid "Not using a proxy."
+msgstr "Sem proxy."
+
+#: src/ui/settings.rs:1455
+msgid "Using the system proxy."
+msgstr "A usar o proxy do sistema."
+
+#: src/ui/settings.rs:1464
+msgid "Equalizer"
+msgstr "Equalizador"
+
+#: src/ui/settings.rs:1470
+msgid ""
+"Shape the sound of playback on this computer with ten sliders or parametric "
+"bands. It does not affect other devices."
+msgstr ""
+"Ajuste o som da reprodução neste computador com dez controlos ou bandas "
+"paramétricas. Não afeta outros dispositivos."
+
+#: src/ui/settings.rs:1476
+msgid "Presets"
+msgstr "Predefinições"
+
+#. Translators: a search keyword for the equalizer's preamplifier slider.
+#. Translators: the equalizer's preamplifier, which turns everything down to make room for boosts.
+#: src/ui/settings.rs:1478 src/ui/equalizer.rs:406
+msgid "Preamp"
+msgstr "Pré-amplificador"
+
+#. Translators: a search keyword for the equalizer's frequency band sliders.
+#: src/ui/settings.rs:1480
+msgid "Bands"
+msgstr "Bandas"
+
+#: src/ui/settings.rs:1481 src/ui/equalizer.rs:102
+msgctxt "equalizer view"
+msgid "Parametric"
+msgstr "Paramétrico"
+
+#: src/ui/settings.rs:1482 src/ui/equalizer.rs:772
+msgid "Headphone correction (AutoEQ)"
+msgstr "Correção de auscultadores (AutoEQ)"
+
+#: src/ui/settings.rs:1516
+msgid "Download quality"
+msgstr "Qualidade das transferências"
+
+#: src/ui/settings.rs:1519
+msgid ""
+"Downloads are kept inside Tidalfast for offline listening, never as files to "
+"copy."
+msgstr ""
+"As transferências ficam dentro do Tidalfast para ouvir offline, nunca como "
+"ficheiros para copiar."
+
+#: src/ui/settings.rs:1523 src/ui/settings.rs:1602
+msgid "Download over metered connections"
+msgstr "Transferir em ligações com tráfego limitado"
+
+#: src/ui/settings.rs:1526
+msgid ""
+"Off: downloads wait while the system reports a metered or charged connection."
+msgstr ""
+"Desativado: as transferências esperam enquanto o sistema indicar uma ligação "
+"limitada ou paga."
+
+#: src/ui/settings.rs:1530
+msgid "Downloads at once"
+msgstr "Transferências simultâneas"
+
+#: src/ui/settings.rs:1531
+msgid "How many tracks download at the same time."
+msgstr "Quantas faixas são transferidas ao mesmo tempo."
+
+#: src/ui/settings.rs:1534
+msgid "Remove all downloads"
+msgstr "Remover todas as transferências"
+
+#: src/ui/settings.rs:1538 src/ui/settings.rs:1555
+msgid "Offline mode"
+msgstr "Modo offline"
+
+#: src/ui/settings.rs:1541
+msgid ""
+"Play only your downloads and make no requests to TIDAL until you turn it off."
+msgstr ""
+"Reproduzir apenas as tuas transferências e não fazer pedidos ao TIDAL até o "
+"desativares."
+
+#: src/ui/settings.rs:1570
+msgid "Same as streaming"
+msgstr "Igual ao streaming"
+
+#: src/ui/settings.rs:1644
+msgid "Remove all"
+msgstr "Remover tudo"
+
+#: src/ui/settings.rs:1656
+msgid "Storage"
+msgstr "Armazenamento"
+
+#: src/ui/settings.rs:1657
+msgid "Audio cache"
+msgstr "Cache de áudio"
+
+#: src/ui/settings.rs:1662
+msgid "Artwork cache"
+msgstr "Cache de capas"
+
+#. Translators: {folder} is the path of a cache folder.
+#: src/ui/settings.rs:1664 src/ui/settings.rs:1670 src/ui/settings.rs:1685
+#, rust-format
+msgid "Stored in {folder}"
+msgstr "Guardado em {folder}"
+
+#: src/ui/settings.rs:1674
+msgid "Play history"
+msgstr "Histórico de reprodução"
+
+#. Translators: {file} is the path of the play history file.
+#: src/ui/settings.rs:1678
+#, rust-format
+msgid "Tracks played here are stored in {file}. This file is never uploaded."
+msgstr ""
+"As faixas reproduzidas aqui ficam em {file}. Este ficheiro nunca é enviado."
+
+#: src/ui/settings.rs:1700
+msgid "Clear artwork"
+msgstr "Apagar capas"
+
+#: src/ui/settings.rs:1761
+msgid "Clear history"
+msgstr "Apagar histórico"
+
+#: src/ui/settings.rs:1807
+msgid "Tidalfast is not affiliated with TIDAL."
+msgstr "O Tidalfast não está afiliado ao TIDAL."
+
+#: src/ui/settings.rs:1808 src/ui/topbar.rs:722 src/ui/titlebar.rs:178
+msgid "Check for updates"
+msgstr "Procurar atualizações"
+
+#: src/ui/settings.rs:1809
+msgid "Checking…"
+msgstr "A verificar…"
+
+#: src/ui/settings.rs:1810 src/ui/dialogs.rs:296 src/ui/keys.rs:259
+#: src/ui/topbar.rs:725 src/ui/titlebar.rs:173
+msgid "Keyboard shortcuts"
+msgstr "Atalhos de teclado"
+
+#: src/ui/settings.rs:1812
+msgid "Source code"
+msgstr "Código-fonte"
+
+#: src/ui/settings.rs:1813
+msgid "Licenses"
+msgstr "Licenças"
+
+#: src/ui/settings.rs:1892
+msgid "Updates"
+msgstr "Atualizações"
+
+#: src/ui/settings.rs:1893
+msgid "Automatic update checks"
+msgstr "Procurar atualizações automaticamente"
+
+#: src/ui/settings.rs:1894
+msgid "Download updates automatically"
+msgstr "Transferir atualizações automaticamente"
+
+#: src/ui/settings.rs:1895
+msgid "Update channel"
+msgstr "Canal de atualização"
+
+#: src/ui/settings.rs:1897
+msgctxt "update channel"
+msgid "Stable"
+msgstr "Estável"
+
+#: src/ui/settings.rs:1898
+msgctxt "update channel"
+msgid "Beta"
+msgstr "Beta"
+
+#: src/ui/settings.rs:1899
+msgctxt "update channel"
+msgid "Dev"
+msgstr "Dev"
+
+#: src/ui/settings.rs:1906
+msgid "Checks for a new version once a day. No personal data is sent."
+msgstr ""
+"Procura uma versão nova uma vez por dia. Não são enviados dados pessoais."
+
+#: src/ui/settings.rs:1913
+msgid "Downloads in the background. You choose when to restart."
+msgstr "Transfere em segundo plano. Tu escolhes quando reiniciar."
+
+#: src/ui/settings.rs:1920
+msgid ""
+"Stable gets tested releases. Beta and Dev get new features earlier and may "
+"be rougher."
+msgstr ""
+"Estável recebe versões testadas. Beta e Dev recebem novidades mais cedo e "
+"podem ser menos polidos."
+
+#. Translators: {query} is the text typed into the settings search field.
+#: src/ui/settings.rs:1991
+#, rust-format
+msgid "No settings for “{query}”"
+msgstr "Nenhuma definição para “{query}”"
+
+#: src/ui/settings.rs:1992
+msgid "Try fewer words, or check the spelling."
+msgstr "Experimenta menos palavras ou verifica a ortografia."
+
+#: src/ui/settings.rs:2051 src/ui/player_utility.rs:414
+msgid "System default"
+msgstr "Predefinição do sistema"
+
+#: src/ui/settings.rs:2280
+msgctxt "language"
+msgid "System"
+msgstr "Sistema"
+
+#: src/api/models.rs:299 src/ui/uploads.rs:1283
+msgid "Single"
+msgstr "Single"
+
+#: src/api/models.rs:300
+msgid "Compilation"
+msgstr "Compilação"
+
+#: src/api/models.rs:301 src/model.rs:1109
+msgid "Appears On"
+msgstr "Aparece em"
+
+#: src/model.rs:854
+msgid "Top results"
+msgstr "Principais resultados"
+
+#: src/model.rs:859 src/ui/home_feeds.rs:55
+msgid "Uploads"
+msgstr "Carregamentos"
+
+#: src/model.rs:1106 src/ui/save_later.rs:20
+msgctxt "filter"
+msgid "All"
+msgstr "Tudo"
+
+#: src/model.rs:1108
+msgid "Singles & EPs"
+msgstr "Singles e EPs"
+
+#: src/settings.rs:214
+msgctxt "theme"
+msgid "Dark"
+msgstr "Escuro"
+
+#: src/settings.rs:215
+msgctxt "theme"
+msgid "Light"
+msgstr "Claro"
+
+#: src/settings.rs:216
+msgid "Follow system"
+msgstr "Seguir o sistema"
+
+#: src/settings.rs:242
+msgctxt "proxy"
+msgid "Off"
+msgstr "Desativado"
+
+#: src/settings.rs:243
+msgctxt "proxy"
+msgid "System"
+msgstr "Sistema"
+
+#: src/ui/artist.rs:63 src/ui/artist.rs:1164
+msgid "Top Tracks"
+msgstr "Faixas principais"
+
+#: src/ui/artist.rs:68 src/ui/artist.rs:195 src/ui/artist.rs:223
+#: src/ui/artist.rs:253 src/ui/artist.rs:324 src/ui/artist.rs:981
+#: src/ui/artist.rs:2070 src/ui/artist.rs:2120 src/ui/home.rs:458
+#: src/ui/explore.rs:138 src/ui/home_feeds.rs:126 src/ui/home_feeds.rs:181
+#: src/ui/home_feeds.rs:397 src/ui/album_extras.rs:449
+msgid "View all"
+msgstr "Ver tudo"
+
+#: src/ui/artist.rs:171 src/ui/artist.rs:1452
+msgid "No popular tracks to show."
+msgstr "Não há músicas populares para mostrar."
+
+#: src/ui/artist.rs:252 src/ui/artist.rs:1255
+msgid "Fans also like"
+msgstr "Os fãs também gostam de"
+
+#: src/ui/artist.rs:319 src/ui/artist.rs:1257 src/ui/collection.rs:749
+#: src/ui/menus.rs:975 src/ui/menus.rs:1383 src/ui/menus.rs:1521
+#: src/ui/now_playing.rs:159 src/ui/now_playing_video.rs:187
+#: src/ui/sticky.rs:455 src/ui/album_credits.rs:137
+msgid "Credits"
+msgstr "Créditos"
+
+#. Translators: {count} is a short number of followers, such as 1.9M.
+#: src/ui/artist.rs:452
+#, rust-format
+msgid "{count} follower"
+msgid_plural "{count} followers"
+msgstr[0] "{count} seguidor"
+msgstr[1] "{count} seguidores"
+
+#: src/ui/artist.rs:542 src/ui/album_extras.rs:80
+msgid "Read more"
+msgstr "Ler mais"
+
+#: src/ui/artist.rs:676
+msgid "No biography for this artist"
+msgstr "Nenhuma biografia para este artista"
+
+#: src/ui/artist.rs:698
+msgid "Biography"
+msgstr "Biografia"
+
+#: src/ui/artist.rs:702
+#, rust-format
+msgid "Artist bio from {source}"
+msgstr "Biografia do artista de {source}"
+
+#: src/ui/artist.rs:831 src/ui/collection.rs:874
+msgid "Starting…"
+msgstr "A iniciar…"
+
+#: src/ui/artist.rs:873 src/ui/artist.rs:1659 src/ui/artist.rs:2045
+#: src/ui/collection.rs:739 src/ui/menus.rs:485 src/ui/activity.rs:1040
+#: src/ui/activity.rs:1232 src/ui/sticky.rs:448 src/ui/uploads.rs:363
+#: src/ui/uploads.rs:1567
+msgid "Share"
+msgstr "Partilhar"
+
+#: src/ui/artist.rs:879 src/ui/artist.rs:1670 src/ui/now_playing.rs:660
+msgid "Artist radio"
+msgstr "Rádio do artista"
+
+#: src/ui/artist.rs:887 src/ui/artist.rs:1680
+msgctxt "artist"
+msgid "Following"
+msgstr "A seguir"
+
+#: src/ui/artist.rs:893 src/ui/artist.rs:1686 src/ui/menus.rs:1529
+msgctxt "artist"
+msgid "Follow"
+msgstr "Seguir"
+
+#: src/ui/artist.rs:941 src/ui/artist.rs:1251
+msgid "EPs & Singles"
+msgstr "EPs e singles"
+
+#: src/ui/artist.rs:949 src/ui/artist.rs:1252
+msgid "Compilations"
+msgstr "Compilações"
+
+#: src/ui/artist.rs:957 src/ui/artist.rs:1253
+msgid "Appears on"
+msgstr "Aparece em"
+
+#: src/ui/artist.rs:1162 src/ui/artist.rs:2145
+msgid "Uploaded tracks"
+msgstr "Faixas carregadas"
+
+#. Translators: {count} is how many people follow the user's own
+#. artist profile, such as 2.
+#: src/ui/artist.rs:1926
+#, rust-format
+msgid "{count} fan"
+msgid_plural "{count} fans"
+msgstr[0] "{count} fã"
+msgstr[1] "{count} fãs"
+
+#: src/ui/artist.rs:1943
+msgid "Add bio"
+msgstr "Adicionar biografia"
+
+#: src/ui/artist.rs:2051 src/ui/collection.rs:807 src/ui/sticky.rs:485
+#: src/ui/uploads.rs:1264
+msgid "Edit"
+msgstr "Editar"
+
+#: src/ui/artist.rs:2110
+msgid "Your profile is empty"
+msgstr "O teu perfil está vazio"
+
+#: src/ui/artist.rs:2113
+msgid ""
+"Start creating playlists, adding your social profiles, or uploading a track."
+msgstr "Começa por criar playlists, adicionar os teus perfis sociais ou carregar uma faixa."
+
+#: src/ui/collection.rs:329
+msgid "Add collaborator"
+msgstr "Adicionar colaborador"
+
+#: src/ui/collection.rs:571
+msgid "Filter tracks"
+msgstr "Filtrar faixas"
+
+#: src/ui/collection.rs:573
+msgid "Filter playlist on title, artist or album"
+msgstr "Filtrar a playlist por título, artista ou álbum"
+
+#: src/ui/collection.rs:713
+msgid "No playable songs in this view"
+msgstr "Nenhuma música reproduzível nesta vista"
+
+#: src/ui/collection.rs:765 src/ui/collection.rs:900 src/ui/sticky.rs:465
+msgid "Save as playlist"
+msgstr "Guardar como playlist"
+
+#: src/ui/collection.rs:775 src/ui/sticky.rs:495
+msgid "Added"
+msgstr "Adicionado"
+
+#: src/ui/collection.rs:781 src/ui/sticky.rs:501 src/ui/uploads.rs:745
+msgid "Add"
+msgstr "Adicionar"
+
+#: src/ui/collection.rs:796 src/ui/sticky.rs:474 src/ui/uploads.rs:249
+#: src/ui/uploads.rs:1320
+msgid "Public"
+msgstr "Pública"
+
+#: src/ui/collection.rs:798 src/ui/sticky.rs:476
+msgid "Private"
+msgstr "Privada"
+
+#: src/ui/collection.rs:915
+msgid "Refreshing…"
+msgstr "A atualizar…"
+
+#: src/ui/collection.rs:917
+msgid "Refresh"
+msgstr "Atualizar"
+
+#: src/ui/collection.rs:969
+msgid "Downloading"
+msgstr "A transferir"
+
+#: src/ui/collection.rs:971 src/ui/collection.rs:997 src/ui/menus.rs:773
+#: src/ui/menus.rs:1069 src/ui/menus.rs:1227
+msgid "Download"
+msgstr "Transferir"
+
+#: src/ui/collection.rs:995 src/ui/menus.rs:769 src/ui/menus.rs:1066
+#: src/ui/menus.rs:1224
+msgid "Remove download"
+msgstr "Remover transferência"
+
+#: src/ui/collection.rs:1743
+#, rust-format
+msgid "Volume {number}"
+msgstr "Volume {number}"
+
+#: src/ui/collection.rs:1972 src/ui/collection.rs:2001
+msgid "Unavailable"
+msgstr "Indisponível"
+
+#: src/ui/collection.rs:1978
+msgid "You're offline. Reconnect to load more tracks."
+msgstr "Estás offline. Volta a ligar-te para carregar mais músicas."
+
+#: src/ui/collection.rs:2163
+msgid "Nothing here yet"
+msgstr "Ainda não há nada aqui"
+
+#: src/ui/collection.rs:2164
+msgid "Added tracks appear here."
+msgstr "As músicas adicionadas aparecem aqui."
+
+#: src/ui/collection.rs:2603 src/ui/home.rs:936
+msgid "Your top tracks"
+msgstr "As tuas músicas mais ouvidas"
+
+#: src/ui/collection.rs:2612
+msgid "Your most-played tracks from the last four weeks."
+msgstr "As tuas faixas mais ouvidas nas últimas quatro semanas."
+
+#: src/ui/collection.rs:3139
+msgid "Collaborative Playlist"
+msgstr "Playlist colaborativa"
+
+#: src/ui/collection.rs:3141
+msgid "Public Playlist"
+msgstr "Playlist pública"
+
+#: src/ui/collection.rs:3522
+msgid "No downloads yet"
+msgstr "Ainda sem transferências"
+
+#: src/ui/collection.rs:3525
+msgid ""
+"Turn on Download on an album, playlist or mix to play it without a "
+"connection."
+msgstr "Ative Transferir num álbum, playlist ou mix para o ouvir sem ligação."
+
+#. Translators: {count} is the number of people who saved a playlist.
+#: src/ui/collection.rs:3606
+#, rust-format
+msgid "{count} save"
+msgid_plural "{count} saves"
+msgstr[0] "{count} pessoa guardou"
+msgstr[1] "{count} pessoas guardaram"
+
+#. Translators: {name} is the name of someone who added songs to the playlist.
+#: src/ui/collection.rs:3706
+#, rust-format
+msgid "with {name}"
+msgstr "com {name}"
+
+#. Translators: {first} and {second} are names of people who added songs.
+#: src/ui/collection.rs:3710
+#, rust-format
+msgid "with {first} and {second}"
+msgstr "com {first} e {second}"
+
+#. Translators: {count} is how many other people added songs to the playlist.
+#: src/ui/collection.rs:3717
+#, rust-format
+msgid "and {count} other"
+msgid_plural "and {count} others"
+msgstr[0] "e mais {count} pessoa"
+msgstr[1] "e mais {count} pessoas"
+
+#: src/ui/dialogs.rs:129 src/ui/menus.rs:1457
+msgid "Delete playlist"
+msgstr "Eliminar playlist"
+
+#: src/ui/dialogs.rs:139
+msgid ""
+"Are you sure you want to delete this playlist? This action can't be undone."
+msgstr ""
+"Tem a certeza de que quer eliminar esta playlist? Esta ação não pode ser "
+"anulada."
+
+#. Translators: {name} is a playlist name.
+#: src/ui/dialogs.rs:144
+#, rust-format
+msgid "“{name}” will no longer appear in My Collection."
+msgstr "“{name}” deixará de aparecer na Minha coleção."
+
+#: src/ui/dialogs.rs:160 src/ui/equalizer.rs:706 src/ui/uploads.rs:1651
+#: src/ui/uploads.rs:1859
+msgid "Delete"
+msgstr "Eliminar"
+
+#: src/ui/dialogs.rs:167 src/ui/dialogs.rs:227 src/ui/dialogs.rs:253
+#: src/ui/login.rs:98 src/ui/login.rs:129 src/ui/uploads.rs:1700
+#: src/ui/uploads.rs:1861
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: src/ui/dialogs.rs:184
+msgid "Tracks already in this playlist"
+msgstr "Músicas já presentes nesta playlist"
+
+#: src/ui/dialogs.rs:186 src/ui/dialogs.rs:245
+msgid "Track already in this playlist"
+msgstr "Música já presente nesta playlist"
+
+#: src/ui/dialogs.rs:211 src/ui/dialogs.rs:254
+msgid "Add anyway"
+msgstr "Adicionar na mesma"
+
+#: src/ui/dialogs.rs:286 src/ui/dialogs.rs:342 src/ui/uploads.rs:1649
+msgid "Done"
+msgstr "Concluído"
+
+#: src/ui/dialogs.rs:580
+#, rust-format
+msgid "This track is already in “{playlist}”. Add it again?"
+msgstr "Esta música já está em “{playlist}”. Adicionar novamente?"
+
+#: src/ui/dialogs.rs:587
+#, rust-format
+msgid "This track is already in “{playlist}”. Add them anyway?"
+msgstr "Esta música já está em “{playlist}”. Adicioná-las na mesma?"
+
+#. Translators: {name} is a song name and {playlist} a playlist name.
+#: src/ui/dialogs.rs:592
+#, rust-format
+msgid "“{name}” is already in “{playlist}”. Add it again?"
+msgstr "“{name}” já está em “{playlist}”. Adicionar novamente?"
+
+#: src/ui/dialogs.rs:600
+#, rust-format
+msgid "“{name}” is already in “{playlist}”. Add them anyway?"
+msgstr "“{name}” já está em “{playlist}”. Adicioná-las na mesma?"
+
+#: src/ui/dialogs.rs:609
+#, rust-format
+msgid "“{first}” and “{second}” are already in “{playlist}”. Add them anyway?"
+msgstr ""
+"“{first}” e “{second}” já estão em “{playlist}”. Adicioná-las na mesma?"
+
+#. Translators: {first} and {second} are song names, {count} is how many more songs are already in the playlist, and {playlist} is a playlist name.
+#: src/ui/dialogs.rs:618
+#, rust-format
+msgid ""
+"“{first}”, “{second}”, and {count} more are already in “{playlist}”. Add "
+"them anyway?"
+msgid_plural ""
+"“{first}”, “{second}”, and {count} more are already in “{playlist}”. Add "
+"them anyway?"
+msgstr[0] ""
+"“{first}”, “{second}” e mais {count} música já estão em “{playlist}”. "
+"Adicioná-las na mesma?"
+msgstr[1] ""
+"“{first}”, “{second}” e mais {count} músicas já estão em “{playlist}”. "
+"Adicioná-las na mesma?"
+
+#: src/ui/dialogs.rs:660 src/ui/dialogs.rs:763 src/ui/menus.rs:469
+msgid "Copy embed code"
+msgstr "Copiar código de incorporação"
+
+#: src/ui/dialogs.rs:774
+msgid "By using TIDAL Embeds, you accept the"
+msgstr "Ao utilizar o TIDAL Embeds, aceita os"
+
+#: src/ui/dialogs.rs:780
+msgid "TIDAL Developer Terms of Service."
+msgstr "Termos de Serviço para Programadores do TIDAL."
+
+#: src/ui/dialogs.rs:1036 src/ui/dialogs.rs:1074
+msgid "Make it public"
+msgstr "Tornar pública"
+
+#: src/ui/dialogs.rs:1050
+msgid "Your playlist will be visible on your Profile and accessible by anyone."
+msgstr ""
+"A sua playlist ficará visível no seu perfil e acessível a qualquer pessoa."
+
+#: src/ui/dialogs.rs:1121 src/ui/dialogs.rs:1439 src/ui/uploads.rs:1231
+#: src/ui/uploads.rs:1800
+msgid "Title"
+msgstr "Título"
+
+#: src/ui/dialogs.rs:1147
+msgid "Write a description"
+msgstr "Escreva uma descrição"
+
+#: src/ui/dialogs.rs:1161
+#, rust-format
+msgid "{count}/500 characters"
+msgstr "{count}/500 carateres"
+
+#: src/ui/dialogs.rs:1183 src/ui/menus.rs:1437
+msgid "Collaborators"
+msgstr "Colaboradores"
+
+#: src/ui/dialogs.rs:1219 src/ui/dialogs.rs:1232
+msgid "Copy invitation link"
+msgstr "Copiar ligação de convite"
+
+#: src/ui/dialogs.rs:1226
+msgid "Invite others by sharing the link"
+msgstr "Convide outras pessoas partilhando a ligação"
+
+#: src/ui/dialogs.rs:1341
+msgid "Create playlist"
+msgstr "Criar playlist"
+
+#: src/ui/dialogs.rs:1350
+msgid "Playlist cover"
+msgstr "Capa da playlist"
+
+#. Translators: {count} is the number of songs.
+#: src/ui/dialogs.rs:1365
+#, rust-format
+msgid "{count} track will be added."
+msgid_plural "{count} tracks will be added."
+msgstr[0] "{count} música será adicionada."
+msgstr[1] "{count} músicas serão adicionadas."
+
+#: src/ui/dialogs.rs:1387 src/ui/dialogs.rs:1452 src/ui/dialogs.rs:1550
+#: src/ui/equalizer.rs:675 src/ui/uploads.rs:1698
+msgid "Save"
+msgstr "Guardar"
+
+#: src/ui/dialogs.rs:1423
+msgid "Rename folder"
+msgstr "Mudar o nome da pasta"
+
+#: src/ui/dialogs.rs:1425
+msgid "New folder"
+msgstr "Nova pasta"
+
+#: src/ui/dialogs.rs:1441
+msgid "Give your new folder a name"
+msgstr "Dê um nome à sua nova pasta"
+
+#: src/ui/dialogs.rs:1505 src/ui/menus.rs:1421
+msgid "Edit playlist"
+msgstr "Editar playlist"
+
+#: src/ui/dialogs.rs:1514
+msgid "Selected playlist cover"
+msgstr "Capa da playlist selecionada"
+
+#: src/ui/dialogs.rs:1517
+msgid "Current playlist cover"
+msgstr "Capa atual da playlist"
+
+#: src/ui/home.rs:153
+msgid "Created by me"
+msgstr "Criada por mim"
+
+#: src/ui/home.rs:158
+#, rust-format
+msgid "Created by {owner}"
+msgstr "Criada por {owner}"
+
+#: src/ui/home.rs:436 src/ui/home_feeds.rs:56
+msgid "For you"
+msgstr "Para si"
+
+#: src/ui/home.rs:750 src/ui/home.rs:760 src/ui/home.rs:775
+msgid "Your top artists"
+msgstr "Os teus artistas mais ouvidos"
+
+#: src/ui/home.rs:937
+msgid "Show more top tracks"
+msgstr "Mostrar mais músicas mais ouvidas"
+
+#: src/ui/home.rs:951
+msgid "Recommended for you"
+msgstr "Recomendado para ti"
+
+#: src/ui/keys.rs:170
+msgctxt "key"
+msgid "Space"
+msgstr "Espaço"
+
+#: src/ui/keys.rs:171
+msgid "Play or pause"
+msgstr "Reproduzir ou pausar"
+
+#: src/ui/keys.rs:175
+msgid "Previous or next"
+msgstr "Anterior ou seguinte"
+
+#: src/ui/keys.rs:179
+msgid "Seek 10 seconds"
+msgstr "Avançar ou recuar 10 segundos"
+
+#: src/ui/keys.rs:183
+msgid "Volume up or down"
+msgstr "Aumentar ou diminuir o volume"
+
+#: src/ui/keys.rs:185
+msgid "Mute or unmute"
+msgstr "Silenciar ou ativar o som"
+
+#: src/ui/keys.rs:188
+msgid "Add or remove the playing track from My Collection"
+msgstr "Adicionar ou remover a faixa atual da Minha coleção"
+
+#: src/ui/keys.rs:190
+msgid "Toggle shuffle"
+msgstr "Ativar ou desativar a ordem aleatória"
+
+#: src/ui/keys.rs:191
+msgid "Cycle repeat"
+msgstr "Alternar o modo de repetição"
+
+#: src/ui/keys.rs:192
+msgid "Show the queue"
+msgstr "Mostrar a fila"
+
+#: src/ui/keys.rs:193
+msgid "Show the lyrics"
+msgstr "Mostrar a letra"
+
+#: src/ui/keys.rs:194
+msgid "Lyrics: leave full screen"
+msgstr "Letra: sair do ecrã inteiro"
+
+#: src/ui/keys.rs:197
+msgid "Track list: extend or shrink the selection"
+msgstr "Lista de músicas: ampliar ou reduzir a seleção"
+
+#: src/ui/keys.rs:199
+msgid "Remove from this playlist"
+msgstr "Remover desta playlist"
+
+#: src/ui/keys.rs:202
+msgid "Track list: select all"
+msgstr "Lista de músicas: selecionar tudo"
+
+#: src/ui/keys.rs:206
+msgid "Track list: copy the selected tracks' links"
+msgstr "Lista de músicas: copiar as ligações das músicas selecionadas"
+
+#: src/ui/keys.rs:210
+msgid "Playlist: cut the selected tracks"
+msgstr "Playlist: cortar as músicas selecionadas"
+
+#: src/ui/keys.rs:214
+msgid "Playlist: add the pasted track links"
+msgstr "Playlist: adicionar as ligações de músicas coladas"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:219
+msgid "Cmd+F  or  /"
+msgstr "Cmd+F  ou  /"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:222
+msgid "Ctrl+F  or  /"
+msgstr "Ctrl+F  ou  /"
+
+#: src/ui/keys.rs:228
+msgid "Show or hide the sidebar"
+msgstr "Mostrar ou ocultar a barra lateral"
+
+#: src/ui/keys.rs:230
+msgid "Back or forward"
+msgstr "Voltar ou avançar"
+
+#: src/ui/keys.rs:241
+msgid "Go to the playing artist"
+msgstr "Ir para o artista da música atual"
+
+#: src/ui/keys.rs:245
+msgid "Go to the playing album"
+msgstr "Ir para o álbum da música atual"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:254
+msgid "Cmd+/ or ?"
+msgstr "Cmd+/ ou ?"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:257
+msgid "Ctrl+/ or ?"
+msgstr "Ctrl+/ ou ?"
+
+#: src/ui/keys.rs:263
+msgid "Close the window"
+msgstr "Fechar a janela"
+
+#: src/ui/keys.rs:265 src/ui/titlebar.rs:143
+msgid "Quit"
+msgstr "Sair"
+
+#: src/ui/library.rs:30
+msgid "No saved albums"
+msgstr "Nenhum álbum guardado"
+
+#: src/ui/library.rs:31
+msgid "Saved albums appear here."
+msgstr "Os álbuns guardados aparecem aqui."
+
+#: src/ui/library.rs:32
+msgid "Filter albums"
+msgstr "Filtrar álbuns"
+
+#: src/ui/library.rs:36
+msgid "No followed artists"
+msgstr "Nenhum artista seguido"
+
+#: src/ui/library.rs:37
+msgid "Followed artists appear here."
+msgstr "Os artistas que segues aparecem aqui."
+
+#: src/ui/library.rs:38
+msgid "Filter profiles"
+msgstr "Filtrar perfis"
+
+#: src/ui/library.rs:48
+msgid "No mixes yet"
+msgstr "Ainda sem mixes"
+
+#: src/ui/library.rs:51
+msgid "Mixes and radios you add to your collection appear here."
+msgstr "Os mixes e rádios que adicionar à sua coleção aparecem aqui."
+
+#: src/ui/login.rs:80
+msgid "Waiting for you to approve in your browser"
+msgstr "A aguardar a sua aprovação no navegador"
+
+#: src/ui/login.rs:89 src/ui/login.rs:135
+msgid "Didn't open? Open the sign-in page again"
+msgstr "Não abriu? Abre novamente a página de início de sessão"
+
+#: src/ui/login.rs:107
+msgid "Paste the address from your browser"
+msgstr "Cole o endereço do seu navegador"
+
+#: src/ui/login.rs:123
+msgid "Continue"
+msgstr "Continuar"
+
+#: src/ui/login.rs:150
+msgid "Connecting to TIDAL…"
+msgstr "A ligar ao TIDAL…"
+
+#: src/ui/login.rs:156
+msgid "Log in to Tidalfast"
+msgstr "Iniciar sessão no Tidalfast"
+
+#: src/ui/login.rs:162
+msgid "Log in"
+msgstr "Iniciar sessão"
+
+#: src/ui/login.rs:168
+msgid "Log in with Max (hi-res)"
+msgstr "Iniciar sessão com Max (alta resolução)"
+
+#: src/ui/login.rs:181
+msgid "Proxy Settings"
+msgstr "Definições de proxy"
+
+#: src/ui/mod.rs:953
+msgid "Minimize"
+msgstr "Minimizar"
+
+#: src/ui/mod.rs:960
+msgid "Restore"
+msgstr "Restaurar"
+
+#: src/ui/mod.rs:962
+msgid "Maximize"
+msgstr "Maximizar"
+
+#: src/ui/radio.rs:335
+msgid "Based on this playlist"
+msgstr "Com base nesta playlist"
+
+#: src/ui/radio.rs:336
+msgid "Based on this album"
+msgstr "Com base neste álbum"
+
+#: src/ui/radio.rs:337
+msgid "Based on this artist"
+msgstr "Com base neste artista"
+
+#: src/ui/radio.rs:338
+msgid "Based on this track"
+msgstr "Com base nesta música"
+
+#. Translators: {first} is an artist name.
+#: src/ui/radio.rs:356
+#, rust-format
+msgid "With {first}"
+msgstr "Com {first}"
+
+#. Translators: {first} and {second} are artist names.
+#: src/ui/radio.rs:359
+#, rust-format
+msgid "With {first} and {second}"
+msgstr "Com {first} e {second}"
+
+#. Translators: {first}, {second} and {third} are artist names.
+#: src/ui/radio.rs:365
+#, rust-format
+msgid "With {first}, {second} and {third}"
+msgstr "Com {first}, {second} e {third}"
+
+#. Translators: {first}, {second} and {third} are artist names; more follow.
+#: src/ui/radio.rs:372
+#, rust-format
+msgid "With {first}, {second}, {third} and more"
+msgstr "Com {first}, {second}, {third} e mais"
+
+#: src/ui/search.rs:80 src/ui/search.rs:334
+msgid "Search needs a connection. Turn off offline mode to search TIDAL."
+msgstr ""
+"A pesquisa precisa de ligação. Desativa o modo offline para pesquisar no "
+"TIDAL."
+
+#. Translators: {query} is the text the user searched for.
+#: src/ui/search.rs:124
+#, rust-format
+msgid "No results for “{query}”"
+msgstr "Sem resultados para “{query}”"
+
+#: src/ui/search.rs:126
+msgid "Check the spelling, or try fewer words."
+msgstr "Verifica a ortografia ou experimenta menos palavras."
+
+#: src/ui/search.rs:183
+#, rust-format
+msgid "Did you mean {query}?"
+msgstr "Querias dizer {query}?"
+
+#: src/ui/search.rs:275
+msgid "Go to genre"
+msgstr "Ir para o género"
+
+#: src/ui/search.rs:339
+msgid "Connect to the internet to search tracks, artists, and playlists."
+msgstr ""
+"Liga-te à Internet para pesquisar músicas, artistas e listas de reprodução."
+
+#: src/ui/search.rs:350
+msgid "Search TIDAL"
+msgstr "Pesquisar no TIDAL"
+
+#: src/ui/search.rs:351
+msgid "Find tracks, artists, albums, and playlists."
+msgstr "Encontre faixas, artistas, álbuns e playlists."
+
+#: src/ui/search.rs:428 src/ui/search.rs:1389 src/ui/search.rs:1590
+msgid "Track"
+msgstr "Faixa"
+
+#: src/ui/search.rs:430 src/ui/search.rs:1390 src/ui/search.rs:1610
+msgid "Video"
+msgstr "Vídeo"
+
+#: src/ui/search.rs:970
+#, rust-format
+msgid "By {owner}"
+msgstr "De {owner}"
+
+#: src/ui/search.rs:1343
+msgid "Recent Searches"
+msgstr "Pesquisas recentes"
+
+#: src/ui/topbar.rs:261
+msgid "Back"
+msgstr "Voltar"
+
+#: src/ui/topbar.rs:262
+msgid "Forward"
+msgstr "Avançar"
+
+#: src/ui/topbar.rs:284
+msgid "Update ready"
+msgstr "Atualização pronta"
+
+#: src/ui/topbar.rs:286 src/ui/update.rs:113
+msgid "Downloading update…"
+msgstr "A transferir a atualização…"
+
+#. Translators: {version} is a version number such as 1.2.0.
+#: src/ui/topbar.rs:290
+#, rust-format
+msgid "Update to {version}"
+msgstr "Atualizar para {version}"
+
+#: src/ui/topbar.rs:417
+msgid "Offline mode is on. Turn it off in Settings or with Go online."
+msgstr ""
+"O modo offline está ativado. Desativa-o nas Definições ou com “Ficar online”."
+
+#: src/ui/topbar.rs:422
+msgid ""
+"Tidalfast is offline. Reconnecting automatically when connection returns."
+msgstr ""
+"O Tidalfast está offline. Voltará a ligar-se automaticamente quando a "
+"ligação for restabelecida."
+
+#: src/ui/topbar.rs:431
+msgid "Updating My Collection…"
+msgstr "A atualizar a Minha coleção…"
+
+#: src/ui/topbar.rs:432
+msgid "Checking for updates…"
+msgstr "A procurar atualizações…"
+
+#: src/ui/topbar.rs:433
+msgid "Waiting for TIDAL…"
+msgstr "A aguardar o TIDAL…"
+
+#. Translators: {version} is a version number such as 1.2.0.
+#: src/ui/topbar.rs:450
+#, rust-format
+msgid "Version {version} is available."
+msgstr "A versão {version} está disponível."
+
+#: src/ui/topbar.rs:703
+msgid "Profile"
+msgstr "Perfil"
+
+#: src/ui/topbar.rs:708 src/ui/profile.rs:118 src/ui/activity.rs:545
+msgid "My Activity"
+msgstr "A minha atividade"
+
+#: src/ui/topbar.rs:715
+msgid "Manage subscription"
+msgstr "Gerir subscrição"
+
+#: src/ui/topbar.rs:721 src/ui/titlebar.rs:169
+msgid "Help"
+msgstr "Ajuda"
+
+#: src/ui/topbar.rs:729
+msgid "Get Support"
+msgstr "Obter apoio"
+
+#: src/ui/topbar.rs:731
+msgid "Legal"
+msgstr "Legal"
+
+#: src/ui/topbar.rs:732
+msgid "Terms and Conditions"
+msgstr "Termos e condições"
+
+#: src/ui/topbar.rs:733
+msgid "Privacy Notice"
+msgstr "Aviso de privacidade"
+
+#: src/ui/topbar.rs:737
+msgid "Marketplace Terms and Conditions"
+msgstr "Termos e condições do Marketplace"
+
+#: src/ui/topbar.rs:745
+msgid "Log out"
+msgstr "Terminar sessão"
+
+#: src/ui/topbar.rs:760
+msgid "Luna Settings"
+msgstr "Definições do Luna"
+
+#: src/ui/update.rs:53
+msgid "Update Tidalfast"
+msgstr "Atualizar o Tidalfast"
+
+#: src/ui/update.rs:104
+msgid "Release notes"
+msgstr "Notas da versão"
+
+#: src/ui/update.rs:111
+msgid "Checking download…"
+msgstr "A verificar a transferência…"
+
+#. Translators: {received} and {total} are sizes in megabytes, such as 12.5.
+#: src/ui/update.rs:129
+#, rust-format
+msgid "{received} of {total} MB"
+msgstr "{received} de {total} MB"
+
+#: src/ui/update.rs:145
+msgid "Ready to install"
+msgstr "Pronto para instalar"
+
+#: src/ui/update.rs:154
+msgid "Music playing on this computer will stop when Tidalfast restarts."
+msgstr ""
+"A música a tocar neste computador vai parar quando o Tidalfast reiniciar."
+
+#: src/ui/update.rs:162
+msgid "Restart to update"
+msgstr "Reiniciar para atualizar"
+
+#: src/ui/update.rs:169
+msgid "Preparing to restart…"
+msgstr "A preparar o reinício…"
+
+#: src/ui/update.rs:202
+msgid "Download from GitHub"
+msgstr "Transferir do GitHub"
+
+#: src/ui/update.rs:207
+msgid "Retry download"
+msgstr "Tentar transferir novamente"
+
+#: src/ui/update.rs:209
+msgid "Update now"
+msgstr "Atualizar agora"
+
+#: src/ui/update.rs:228
+msgid "Later"
+msgstr "Mais tarde"
+
+#. Translators: A length of time, abbreviated. Keep {hours} and {minutes}.
+#: src/util.rs:28
+#, rust-format
+msgid "{hours} hr {minutes} min"
+msgstr "{hours} h {minutes} min"
+
+#. Translators: A length of time, abbreviated. Keep {minutes} and {seconds}.
+#: src/util.rs:33
+#, rust-format
+msgid "{minutes} min {seconds} sec"
+msgstr "{minutes} min {seconds} s"
+
+#. Translators: A length of time, abbreviated. Keep {seconds}.
+#: src/util.rs:38
+#, rust-format
+msgid "{seconds} sec"
+msgstr "{seconds} s"
+
+#: src/util.rs:79
+msgctxt "month"
+msgid "Jan"
+msgstr "jan."
+
+#: src/util.rs:80
+msgctxt "month"
+msgid "Feb"
+msgstr "fev."
+
+#: src/util.rs:81
+msgctxt "month"
+msgid "Mar"
+msgstr "mar."
+
+#: src/util.rs:82
+msgctxt "month"
+msgid "Apr"
+msgstr "abr."
+
+#: src/util.rs:83 src/ui/activity.rs:39
+msgctxt "month"
+msgid "May"
+msgstr "mai."
+
+#: src/util.rs:84
+msgctxt "month"
+msgid "Jun"
+msgstr "jun."
+
+#: src/util.rs:85
+msgctxt "month"
+msgid "Jul"
+msgstr "jul."
+
+#: src/util.rs:86
+msgctxt "month"
+msgid "Aug"
+msgstr "ago."
+
+#: src/util.rs:87
+msgctxt "month"
+msgid "Sep"
+msgstr "set."
+
+#: src/util.rs:88
+msgctxt "month"
+msgid "Oct"
+msgstr "out."
+
+#: src/util.rs:89
+msgctxt "month"
+msgid "Nov"
+msgstr "nov."
+
+#: src/util.rs:90
+msgctxt "month"
+msgid "Dec"
+msgstr "dez."
+
+#. Translators: A date. {month} is an abbreviated month name; reorder as your language writes dates.
+#: src/util.rs:96 src/ui/activity.rs:66
+#, rust-format
+msgid "{month} {day}, {year}"
+msgstr "{day} de {month} de {year}"
+
+#. Translators: A month and year. {month} is an abbreviated month name.
+#: src/util.rs:99
+#, rust-format
+msgid "{month} {year}"
+msgstr "{month} de {year}"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:125
+#, rust-format
+msgid "{count} second ago"
+msgid_plural "{count} seconds ago"
+msgstr[0] "há {count} segundo"
+msgstr[1] "há {count} segundos"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:135
+#, rust-format
+msgid "{count} minute ago"
+msgid_plural "{count} minutes ago"
+msgstr[0] "há {count} minuto"
+msgstr[1] "há {count} minutos"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:145
+#, rust-format
+msgid "{count} hour ago"
+msgid_plural "{count} hours ago"
+msgstr[0] "há {count} hora"
+msgstr[1] "há {count} horas"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:153
+#, rust-format
+msgid "{count} day ago"
+msgid_plural "{count} days ago"
+msgstr[0] "há {count} dia"
+msgstr[1] "há {count} dias"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:160
+#, rust-format
+msgid "{count} week ago"
+msgid_plural "{count} weeks ago"
+msgstr[0] "há {count} semana"
+msgstr[1] "há {count} semanas"
+
+#: src/util.rs:443
+msgid "Good morning"
+msgstr "Bom dia"
+
+#: src/util.rs:444
+msgid "Good afternoon"
+msgstr "Boa tarde"
+
+#: src/util.rs:445
+msgid "Good evening"
+msgstr "Boa noite"
+
+#: src/window.rs:20
+msgid "Tidalfast cannot open its window"
+msgstr "O Tidalfast não consegue abrir a janela"
+
+#: src/window.rs:23
+msgid ""
+"On Windows on ARM, the OpenGL that Tidalfast draws with comes from "
+"Microsoft's OpenCL, OpenGL & Vulkan Compatibility Pack. Open its Microsoft "
+"Store page to install or repair it?"
+msgstr ""
+"No Windows on ARM, o OpenGL que o Tidalfast usa para desenhar vem do OpenCL, "
+"OpenGL & Vulkan Compatibility Pack da Microsoft. Abrir a respetiva página na "
+"Microsoft Store para o instalar ou reparar?"
+
+#: src/ui/feed.rs:58
+msgid "New releases from artists you follow will show up here."
+msgstr "Os lançamentos dos artistas que segue vão aparecer aqui."
+
+#: src/ui/feed.rs:73
+msgid "This month"
+msgstr "Este mês"
+
+#: src/ui/feed.rs:74
+msgid "Last month"
+msgstr "Mês passado"
+
+#: src/ui/feed.rs:75
+msgid "Older"
+msgstr "Mais antigos"
+
+#: src/ui/feed.rs:123
+#, rust-format
+msgid "Single by {artists}"
+msgstr "Single de {artists}"
+
+#: src/ui/feed.rs:126
+#, rust-format
+msgid "EP by {artists}"
+msgstr "EP de {artists}"
+
+#: src/ui/home_feeds.rs:54
+msgid "Staff Picks"
+msgstr "Escolhas da equipa"
+
+#: src/ui/profile.rs:67
+msgctxt "profile"
+msgid "Followers"
+msgstr "Seguidores"
+
+#: src/ui/profile.rs:71
+msgctxt "profile"
+msgid "Following"
+msgstr "A seguir"
+
+#: src/ui/profile.rs:133
+msgid "No public playlists yet."
+msgstr "Ainda não há playlists públicas."
+
+#: src/ui/menus.rs:60 src/ui/activity.rs:1564
+msgctxt "menu head"
+msgid "Artist"
+msgstr "Artista"
+
+#: src/ui/menus.rs:92
+#, rust-format
+msgid "{count} Item ({duration})"
+msgid_plural "{count} Items ({duration})"
+msgstr[0] "{count} item ({duration})"
+msgstr[1] "{count} itens ({duration})"
+
+#: src/ui/menus.rs:318
+msgid "Share with anyone"
+msgstr "Partilhar com qualquer pessoa"
+
+#: src/ui/menus.rs:331
+msgid "Music shared from TIDAL can be opened on other services"
+msgstr "A música partilhada a partir do TIDAL pode ser aberta noutros serviços"
+
+#: src/ui/menus.rs:412
+msgid "Invite as collaborator"
+msgstr "Convidar como colaborador"
+
+#: src/ui/menus.rs:423
+msgid "Every invite link can be used once."
+msgstr "Cada ligação de convite só pode ser usada uma vez."
+
+#: src/ui/menus.rs:459 src/ui/uploads.rs:368
+msgid "Copy link"
+msgstr "Copiar ligação"
+
+#: src/ui/menus.rs:555
+msgid "Create new playlist"
+msgstr "Criar nova playlist"
+
+#: src/ui/menus.rs:569
+msgid "Show all playlists"
+msgstr "Mostrar todas as playlists"
+
+#: src/ui/menus.rs:606
+msgid "Move to folder"
+msgstr "Mover para a pasta"
+
+#: src/ui/menus.rs:627
+msgid "Create folder"
+msgstr "Criar pasta"
+
+#: src/ui/menus.rs:646
+msgid "Show all folders"
+msgstr "Mostrar todas as pastas"
+
+#: src/ui/menus.rs:684
+msgid "Go to artist"
+msgstr "Ir para o artista"
+
+#: src/ui/menus.rs:752
+msgid "Remove from Save for Later"
+msgstr "Remover de Guardar para depois"
+
+#: src/ui/menus.rs:906 src/ui/menus.rs:1031 src/ui/menus.rs:1342
+#: src/ui/videos.rs:354
+msgid "Play next"
+msgstr "Reproduzir a seguir"
+
+#: src/ui/menus.rs:916
+msgid "Remove from queue"
+msgstr "Remover da fila"
+
+#: src/ui/menus.rs:937 src/ui/menus.rs:1042
+msgid "Remove from playlist"
+msgstr "Remover da playlist"
+
+#: src/ui/menus.rs:951
+msgid "Go to track radio"
+msgstr "Ir para a rádio da faixa"
+
+#: src/ui/menus.rs:967
+msgid "Go to album"
+msgstr "Ir para o álbum"
+
+#: src/ui/menus.rs:990 src/ui/menus.rs:1375 src/ui/now_playing.rs:887
+#: src/ui/now_playing_video.rs:323 src/ui/videos.rs:385
+msgid "Add to queue"
+msgstr "Adicionar à fila"
+
+#: src/ui/menus.rs:1438
+msgid "NEW"
+msgstr "NOVO"
+
+#: src/ui/menus.rs:1446
+msgid "Make private"
+msgstr "Tornar privada"
+
+#: src/ui/menus.rs:1448
+msgid "Make public"
+msgstr "Tornar pública"
+
+#: src/ui/menus.rs:1470
+msgid "Follow"
+msgstr "Seguir"
+
+#: src/ui/menus.rs:1494
+msgid "Bio"
+msgstr "Biografia"
+
+#: src/ui/menus.rs:1499
+msgid "Go to artist radio"
+msgstr "Ir para a rádio do artista"
+
+#: src/ui/menus.rs:1508 src/ui/blocked.rs:134
+msgid "Unblock"
+msgstr "Desbloquear"
+
+#: src/ui/menus.rs:1510
+msgid "Block"
+msgstr "Bloquear"
+
+#: src/ui/downloads.rs:38
+msgid "Offline mode is on"
+msgstr "O modo offline está ativado"
+
+#: src/ui/downloads.rs:50
+msgid ""
+"Only your downloads are available. Turn off offline mode to use TIDAL again."
+msgstr ""
+"Só as tuas transferências estão disponíveis. Desativa o modo offline para "
+"voltares a usar o TIDAL."
+
+#: src/ui/downloads.rs:67
+msgid "This needs a connection. Turn off offline mode to use TIDAL again."
+msgstr ""
+"Isto precisa de ligação. Desativa o modo offline para voltares a usar o "
+"TIDAL."
+
+#: src/ui/downloads.rs:127
+msgid ""
+"Offline mode is on. Only your downloads play, and Tidalfast makes no "
+"requests to TIDAL."
+msgstr ""
+"O modo offline está ativado. Só as tuas transferências são reproduzidas, e o "
+"Tidalfast não faz pedidos ao TIDAL."
+
+#: src/ui/downloads.rs:168
+msgid "You're offline. Only downloaded tracks play until you reconnect."
+msgstr "Está offline. Só as faixas transferidas tocam até voltar a ligar-se."
+
+#: src/ui/downloads.rs:191
+msgid "Download queue"
+msgstr "Fila de transferências"
+
+#: src/ui/downloads.rs:198
+msgid "Cancel all"
+msgstr "Cancelar tudo"
+
+#: src/ui/downloads.rs:210
+msgid "Retry failed"
+msgstr "Repetir as falhadas"
+
+#: src/ui/downloads.rs:220
+msgid "Resume all"
+msgstr "Retomar tudo"
+
+#: src/ui/downloads.rs:226
+msgid "Pause all"
+msgstr "Pausar tudo"
+
+#: src/ui/downloads.rs:241
+msgid ""
+"Waiting for a connection that is not metered. Settings can allow metered "
+"connections."
+msgstr ""
+"A aguardar uma ligação sem tráfego limitado. Nas definições pode permitir "
+"ligações limitadas."
+
+#: src/ui/downloads.rs:255
+msgid "TIDAL asked downloads to slow down. They carry on shortly."
+msgstr ""
+"O TIDAL pediu para abrandar as transferências. Continuam dentro de momentos."
+
+#: src/ui/downloads.rs:319 src/ui/downloads.rs:473
+msgid "Cancel download"
+msgstr "Cancelar transferência"
+
+#: src/ui/downloads.rs:339
+#, rust-format
+msgid "Downloading {done} of {total}"
+msgstr "A transferir {done} de {total}"
+
+#: src/ui/downloads.rs:401
+msgid "Waiting"
+msgstr "Em espera"
+
+#: src/ui/downloads.rs:419
+msgid "Paused"
+msgstr "Em pausa"
+
+#: src/ui/downloads.rs:424
+msgid "Failed"
+msgstr "Falhou"
+
+#: src/ui/downloads.rs:483
+msgid "Resume download"
+msgstr "Retomar transferência"
+
+#: src/ui/downloads.rs:493
+msgid "Pause download"
+msgstr "Pausar transferência"
+
+#: src/ui/downloads.rs:510
+msgid "Mixes"
+msgstr "Mixes"
+
+#: src/ui/downloads.rs:511 src/ui/blocked.rs:82 src/ui/save_later.rs:23
+msgid "Artists"
+msgstr "Artistas"
+
+#: src/ui/downloads.rs:537 src/app/downloads.rs:811
+#, rust-format
+msgid "Songs not available: {count}"
+msgstr "Músicas indisponíveis: {count}"
+
+#: src/app/downloads.rs:201
+msgid "Download started"
+msgstr "Transferência iniciada"
+
+#: src/app/downloads.rs:243
+msgid "The disk is full. Free up space, then resume the downloads."
+msgstr "O disco está cheio. Liberte espaço e retome as transferências."
+
+#: src/app/downloads.rs:480
+msgid "Download removed"
+msgstr "Transferência removida"
+
+#: src/app/downloads.rs:792
+msgid "A download failed"
+msgstr "Uma transferência falhou"
+
+#: src/app/downloads.rs:872
+#, rust-format
+msgid "Couldn't download {name}"
+msgstr "Não foi possível transferir {name}"
+
+#: src/app/downloads.rs:925
+#, rust-format
+msgid ""
+"There isn't enough disk space for {name}. It needs about {needed}, and "
+"{free} is free."
+msgstr ""
+"Não há espaço suficiente em disco para {name}. São precisos cerca de "
+"{needed} e há {free} livres."
+
+#: src/ui/player_utility.rs:79
+msgid "Unmute"
+msgstr "Ativar som"
+
+#: src/ui/player_utility.rs:81
+msgid "Mute"
+msgstr "Silenciar"
+
+#: src/ui/player_utility.rs:134
+msgid "Volume (%)"
+msgstr "Volume (%)"
+
+#: src/ui/player_utility.rs:343 src/ui/player_utility.rs:406
+msgid "Sound output"
+msgstr "Saída de som"
+
+#: src/ui/player_utility.rs:561 src/ui/player_utility.rs:566
+msgid "Exclusive"
+msgstr "Exclusivo"
+
+#: src/ui/compact.rs:288
+msgid "Exit compact mode"
+msgstr "Sair do modo compacto"
+
+#: src/ui/equalizer.rs:51
+msgctxt "equalizer filter"
+msgid "Peak"
+msgstr "Pico"
+
+#: src/ui/equalizer.rs:52
+msgctxt "equalizer filter"
+msgid "Low shelf"
+msgstr "Prateleira de graves"
+
+#: src/ui/equalizer.rs:53
+msgctxt "equalizer filter"
+msgid "High shelf"
+msgstr "Prateleira de agudos"
+
+#: src/ui/equalizer.rs:54
+msgctxt "equalizer filter"
+msgid "Low pass"
+msgstr "Passa-baixo"
+
+#: src/ui/equalizer.rs:55
+msgctxt "equalizer filter"
+msgid "High pass"
+msgstr "Passa-alto"
+
+#: src/ui/equalizer.rs:56
+msgctxt "equalizer filter"
+msgid "Notch"
+msgstr "Rejeita-banda"
+
+#: src/ui/equalizer.rs:57
+msgctxt "equalizer filter"
+msgid "Band pass"
+msgstr "Passa-banda"
+
+#: src/ui/equalizer.rs:58
+msgctxt "equalizer filter"
+msgid "All pass"
+msgstr "Passa-tudo"
+
+#: src/ui/equalizer.rs:86
+msgid ""
+"Bypassed while bit-perfect is on: the music reaches the device untouched."
+msgstr ""
+"Ignorado enquanto o modo bit-perfect está ativo: a música chega ao "
+"dispositivo intacta."
+
+#: src/ui/equalizer.rs:98
+msgctxt "equalizer view"
+msgid "Graphic"
+msgstr "Gráfico"
+
+#: src/ui/equalizer.rs:131
+msgid "Remember for each output device"
+msgstr "Lembrar para cada dispositivo de saída"
+
+#: src/ui/equalizer.rs:143
+msgid "Choosing another output device brings back the equalizer it had."
+msgstr "Ao escolher outro dispositivo de saída, volta o equalizador que tinha."
+
+#: src/ui/equalizer.rs:426 src/ui/equalizer.rs:431
+msgid "Automatic"
+msgstr "Automático"
+
+#: src/ui/equalizer.rs:441
+#, rust-format
+msgid "Boosts reach {db} dB past full scale; the limiter catches the peaks."
+msgstr ""
+"Os reforços passam {db} dB da escala completa; o limitador segura os picos."
+
+#: src/ui/equalizer.rs:445
+msgid "No boost goes past full scale."
+msgstr "Nenhum reforço passa da escala completa."
+
+#: src/ui/equalizer.rs:460
+msgid "Headphone crossfeed"
+msgstr "Crossfeed para auscultadores"
+
+#: src/ui/equalizer.rs:469
+msgid ""
+"Blends some of each side into the other at low pitches, as speakers do, so "
+"music on headphones sounds less hard-panned."
+msgstr ""
+"Mistura um pouco de cada lado no outro nos tons graves, como fazem as "
+"colunas, para a música soar menos separada nos auscultadores."
+
+#: src/ui/equalizer.rs:477
+msgctxt "equalizer crossfeed"
+msgid "Off"
+msgstr "Desligado"
+
+#: src/ui/equalizer.rs:478
+msgctxt "equalizer crossfeed"
+msgid "Light"
+msgstr "Ligeiro"
+
+#: src/ui/equalizer.rs:479
+msgctxt "equalizer crossfeed"
+msgid "Medium"
+msgstr "Médio"
+
+#: src/ui/equalizer.rs:480
+msgctxt "equalizer crossfeed"
+msgid "Strong"
+msgstr "Forte"
+
+#: src/ui/equalizer.rs:541
+msgctxt "equalizer band"
+msgid "Type"
+msgstr "Tipo"
+
+#: src/ui/equalizer.rs:542
+msgctxt "equalizer band"
+msgid "Frequency"
+msgstr "Frequência"
+
+#: src/ui/equalizer.rs:543
+msgctxt "equalizer band"
+msgid "Gain"
+msgstr "Ganho"
+
+#: src/ui/equalizer.rs:613
+msgid "Add band"
+msgstr "Adicionar banda"
+
+#: src/ui/equalizer.rs:629
+msgid ""
+"Drag a band on the graph; the mouse wheel sets its width. Double-click the "
+"graph to add one."
+msgstr ""
+"Arraste uma banda no gráfico; a roda do rato ajusta a largura. Faça duplo "
+"clique no gráfico para adicionar uma."
+
+#: src/ui/equalizer.rs:640
+msgid "Your presets"
+msgstr "As suas predefinições"
+
+#: src/ui/equalizer.rs:665
+msgid "Preset name"
+msgstr "Nome da predefinição"
+
+#: src/ui/equalizer.rs:724
+msgid "Equalizer APO and AutoEQ profiles"
+msgstr "Perfis do Equalizer APO e do AutoEQ"
+
+#: src/ui/equalizer.rs:745
+msgid "Import"
+msgstr "Importar"
+
+#: src/ui/equalizer.rs:757
+msgid "Copy as Equalizer APO"
+msgstr "Copiar como Equalizer APO"
+
+#: src/ui/equalizer.rs:781
+#, rust-format
+msgid "Loaded: {headphone}"
+msgstr "Carregado: {headphone}"
+
+#: src/ui/equalizer.rs:788
+msgid "Loading the headphone list…"
+msgstr "A carregar a lista de auscultadores…"
+
+#: src/ui/equalizer.rs:790
+msgid "Find your headphones"
+msgstr "Encontrar os seus auscultadores"
+
+#: src/ui/equalizer.rs:800
+msgid ""
+"Downloads the AutoEQ project's list from GitHub once, then only the profile "
+"you pick."
+msgstr ""
+"Transfere uma vez a lista do projeto AutoEQ do GitHub e depois só o perfil "
+"escolhido."
+
+#: src/ui/equalizer.rs:808
+msgid "Search headphones"
+msgstr "Procurar auscultadores"
+
+#: src/ui/equalizer.rs:826
+#, rust-format
+msgid "{count} more; type more of the name."
+msgstr "Mais {count}; escreva mais do nome."
+
+#: src/ui/audio_output.rs:50
+msgid "the output device"
+msgstr "o dispositivo de saída"
+
+#: src/ui/audio_output.rs:53
+#, rust-format
+msgid "Bit-perfect · {format} → {device} (exclusive)"
+msgstr "Bit-perfect · {format} → {device} (exclusivo)"
+
+#: src/ui/audio_output.rs:58
+msgid "hardware volume"
+msgstr "volume por hardware"
+
+#: src/ui/audio_output.rs:66
+#, rust-format
+msgid "Exclusive on {device}, but not bit-perfect: this track is lossy."
+msgstr "Exclusivo em {device}, mas não bit-perfect: esta faixa tem perdas."
+
+#: src/ui/audio_output.rs:75 src/ui/audio_output.rs:101
+#, rust-format
+msgid "Not bit-perfect: {reason}"
+msgstr "Não é bit-perfect: {reason}"
+
+#: src/ui/audio_output.rs:79
+msgid "Bit-perfect starts with the next track you play."
+msgstr "O bit-perfect começa na próxima faixa que tocar."
+
+#: src/ui/audio_output.rs:84
+msgid "shared mode"
+msgstr "modo partilhado"
+
+#: src/ui/audio_output.rs:89
+#, rust-format
+msgid "resampled to {rate}"
+msgstr "reamostrado para {rate}"
+
+#: src/ui/audio_output.rs:92
+msgid "equalizer on"
+msgstr "equalizador ligado"
+
+#: src/ui/audio_output.rs:95
+msgid "volume below 100%"
+msgstr "volume abaixo de 100%"
+
+#: src/ui/audio_output.rs:98
+msgid "normalized"
+msgstr "normalizado"
+
+#: src/ui/audio_output.rs:160
+msgid "Asking the device what it takes…"
+msgstr "A perguntar ao dispositivo o que aceita…"
+
+#: src/ui/audio_output.rs:161
+#, rust-format
+msgid "In exclusive mode this device takes {formats}."
+msgstr "No modo exclusivo este dispositivo aceita {formats}."
+
+#: src/ui/audio_output.rs:173
+msgid "Sample rate conversion"
+msgstr "Conversão da taxa de amostragem"
+
+#: src/ui/audio_output.rs:180
+msgctxt "resampler quality"
+msgid "Same as TIDAL"
+msgstr "Igual ao TIDAL"
+
+#: src/ui/audio_output.rs:183
+msgctxt "resampler quality"
+msgid "Standard"
+msgstr "Padrão"
+
+#: src/ui/audio_output.rs:186
+msgctxt "resampler quality"
+msgid "High"
+msgstr "Alta"
+
+#: src/ui/audio_output.rs:189
+msgctxt "resampler quality"
+msgid "Best"
+msgstr "Máxima"
+
+#: src/ui/audio_output.rs:206
+msgid "Same as TIDAL lets the system convert. The others convert in Tidalfast."
+msgstr ""
+"“Igual ao TIDAL” deixa o sistema converter. As outras convertem no Tidalfast."
+
+#: src/ui/audio_output.rs:223
+#, rust-format
+msgid "This device runs at {rate}, so Tidalfast converts the music."
+msgstr ""
+"Este dispositivo funciona a {rate}, por isso o Tidalfast converte a música."
+
+#: src/ui/audio_output.rs:235
+msgid "While Tidalfast plays bit-perfect, other apps cannot use this device."
+msgstr ""
+"Enquanto o Tidalfast toca em bit-perfect, outras apps não podem usar este "
+"dispositivo."
+
+#: src/ui/audio_output.rs:240
+msgid "Release the device when paused"
+msgstr "Libertar o dispositivo em pausa"
+
+#: src/ui/plugins_store.rs:309
+msgid "Rate"
+msgstr "Avaliar"
+
+#: src/ui/plugins_store.rs:650
+msgid "1 update available"
+msgstr "1 atualização disponível"
+
+#: src/ui/plugins_store.rs:652
+#, rust-format
+msgid "{n} updates available"
+msgstr "{n} atualizações disponíveis"
+
+#: src/ui/plugins_store.rs:666
+msgid "Update all"
+msgstr "Atualizar tudo"
+
+#: src/ui/plugins_store.rs:1941
+msgid "Find some in the Plugin Store."
+msgstr "Encontre alguns na loja de plugins."
+
+#: src/luna/mod.rs:336
+msgid "Not supported"
+msgstr "Sem suporte"
+
+#: src/luna/mod.rs:337
+msgid "Partly supported"
+msgstr "Suporte parcial"
+
+#: src/luna/mod.rs:361
+msgid ""
+"This build needs TIDAL's own Last.fm key, which Tidalfast does not have."
+msgstr ""
+"Esta versão precisa da chave do Last.fm do próprio TIDAL, que o Tidalfast "
+"não tem."
+
+#: src/luna/mod.rs:365
+msgid ""
+"It saves TIDAL songs as files, which Tidalfast does not allow (use Download "
+"in Tidalfast to listen offline)."
+msgstr ""
+"Guarda músicas do TIDAL como ficheiros, o que o Tidalfast não permite (use "
+"Transferir no Tidalfast para ouvir offline)."
+
+#: src/luna/mod.rs:369
+msgid ""
+"It needs TIDAL's own remote control code, which Tidalfast does not have."
+msgstr ""
+"Precisa do código de controlo remoto do próprio TIDAL, que o Tidalfast não "
+"tem."
+
+#: src/luna/mod.rs:373
+msgid ""
+"It sends your TIDAL sign-in to the author's server, which Tidalfast never "
+"allows, so its remote control cannot run."
+msgstr ""
+"Envia o seu início de sessão do TIDAL para o servidor do autor, o que o "
+"Tidalfast nunca permite, por isso o controlo remoto não pode funcionar."
+
+#: src/luna/mod.rs:377
+msgid ""
+"Its mini player is a separate browser window, which Tidalfast does not "
+"include."
+msgstr ""
+"O mini leitor é uma janela de navegador separada, que o Tidalfast não inclui."
+
+#: src/luna/mod.rs:381
+msgid ""
+"It needs to listen for media keys across the whole computer, which Tidalfast "
+"does not allow (Tidalfast has its own media controls)."
+msgstr ""
+"Precisa de escutar as teclas multimédia em todo o computador, o que o "
+"Tidalfast não permite (o Tidalfast tem os seus próprios controlos "
+"multimédia)."
+
+#: src/luna/mod.rs:385
+msgid ""
+"It plays through the mpv program and talks to it over a channel Tidalfast "
+"does not allow."
+msgstr ""
+"Reproduz através do programa mpv e comunica com ele por um canal que o "
+"Tidalfast não permite."
+
+#: src/luna/mod.rs:389
+msgid ""
+"It marks playlists inside TIDAL's web \"add to playlist\" window, which "
+"Tidalfast does not have."
+msgstr ""
+"Marca playlists dentro da janela web \"Adicionar à playlist\" do TIDAL, que "
+"o Tidalfast não tem."
+
+#: src/luna/mod.rs:393
+msgid ""
+"It needs a native add-on that Tidalfast cannot load (Tidalfast has its own "
+"media controls)."
+msgstr ""
+"Precisa de um suplemento nativo que o Tidalfast não consegue carregar (o "
+"Tidalfast tem os seus próprios controlos multimédia)."
+
+#: src/luna/mod.rs:397
+msgid ""
+"Last.fm scrobbling needs TIDAL's own Last.fm key, which Tidalfast does not "
+"have."
+msgstr ""
+"O scrobbling do Last.fm precisa da chave do Last.fm do próprio TIDAL, que o "
+"Tidalfast não tem."
+
+#: src/luna/mod.rs:401
+msgid ""
+"The lyrics bubble over the player bar works, but its separate lyrics window "
+"does not, because that needs a browser engine."
+msgstr ""
+"O balão de letras sobre a barra do leitor funciona, mas a janela de letras "
+"separada não, porque precisa de um motor de navegador."
+
+#: src/app/plugins.rs:444
+#, rust-format
+msgid "{name} updated to {version}"
+msgstr "{name} atualizado para {version}"
+
+#: src/ui/activity.rs:35
+msgctxt "month"
+msgid "January"
+msgstr "janeiro"
+
+#: src/ui/activity.rs:36
+msgctxt "month"
+msgid "February"
+msgstr "fevereiro"
+
+#: src/ui/activity.rs:37
+msgctxt "month"
+msgid "March"
+msgstr "março"
+
+#: src/ui/activity.rs:38
+msgctxt "month"
+msgid "April"
+msgstr "abril"
+
+#: src/ui/activity.rs:40
+msgctxt "month"
+msgid "June"
+msgstr "junho"
+
+#: src/ui/activity.rs:41
+msgctxt "month"
+msgid "July"
+msgstr "julho"
+
+#: src/ui/activity.rs:42
+msgctxt "month"
+msgid "August"
+msgstr "agosto"
+
+#: src/ui/activity.rs:43
+msgctxt "month"
+msgid "September"
+msgstr "setembro"
+
+#: src/ui/activity.rs:44
+msgctxt "month"
+msgid "October"
+msgstr "outubro"
+
+#: src/ui/activity.rs:45
+msgctxt "month"
+msgid "November"
+msgstr "novembro"
+
+#: src/ui/activity.rs:46
+msgctxt "month"
+msgid "December"
+msgstr "dezembro"
+
+#. Translators: A month tab on My Activity. {month} is the month's name, {year} the year's last two digits.
+#: src/ui/activity.rs:78
+#, rust-format
+msgctxt "activity tab"
+msgid "{month} ’{year}"
+msgstr "{month} ’{year}"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of times songs were played.
+#: src/ui/activity.rs:113
+#, rust-format
+msgid "{count} stream"
+msgid_plural "{count} streams"
+msgstr[0] "{count} reprodução"
+msgstr[1] "{count} reproduções"
+
+#. Translators: Keep {count} exactly as written. Days until this month's ranking closes; shown in capitals.
+#: src/ui/activity.rs:119
+#, rust-format
+msgid "{count} day left"
+msgid_plural "{count} days left"
+msgstr[0] "Falta {count} dia"
+msgstr[1] "Faltam {count} dias"
+
+#. Translators: {first} and {second} are artists; {first_streams} and {second_streams} read like "84 streams".
+#: src/ui/activity.rs:130
+#, rust-format
+msgid ""
+"{first} and {second} are currently your top streamed artists with "
+"{first_streams} and {second_streams}."
+msgstr ""
+"{first} e {second} são neste momento os teus artistas mais ouvidos, com "
+"{first_streams} e {second_streams}."
+
+#. Translators: {artist} is an artist; {streams} reads like "84 streams".
+#: src/ui/activity.rs:146
+#, rust-format
+msgid "{artist} is currently your top streamed artist with {streams}."
+msgstr "{artist} é neste momento o teu artista mais ouvido, com {streams}."
+
+#: src/ui/activity.rs:156 src/ui/activity.rs:1120
+msgid "No streams counted yet this month."
+msgstr "Ainda não foram contadas reproduções este mês."
+
+#. Translators: {artist} is an artist, {month} a month's name, {streams} reads like "258 streams".
+#: src/ui/activity.rs:164
+#, rust-format
+msgid "{artist} was your top artist in {month} with {streams}."
+msgstr "{artist} foi o teu artista mais ouvido em {month}, com {streams}."
+
+#: src/ui/activity.rs:617 src/ui/activity.rs:1121
+msgid "Updated once a day"
+msgstr "Atualizado uma vez por dia"
+
+#: src/ui/activity.rs:693 src/ui/activity.rs:1020
+msgid "Your Top Artists"
+msgstr "Os teus artistas favoritos"
+
+#: src/ui/activity.rs:798
+msgid "Previous Month"
+msgstr "Mês anterior"
+
+#: src/ui/activity.rs:825
+msgid ""
+"Your subscription helps fund TIDAL RISING, a program designed to support "
+"emerging talent."
+msgstr ""
+"A tua subscrição ajuda a financiar o TIDAL RISING, um programa criado para "
+"apoiar novos talentos."
+
+#: src/ui/activity.rs:832
+msgid "Your listening supports artists"
+msgstr "O que ouves apoia os artistas"
+
+#: src/ui/activity.rs:876
+msgid "Listening in Tidalfast"
+msgstr "Ouvido no Tidalfast"
+
+#: src/ui/activity.rs:887
+msgid ""
+"Counted on this computer by Tidalfast only. TIDAL's numbers above include "
+"every app you listen with."
+msgstr ""
+"Contado só pelo Tidalfast neste computador. Os números do TIDAL acima "
+"incluem todas as apps em que ouves."
+
+#: src/ui/activity.rs:916
+msgid "Nothing played in Tidalfast this month yet."
+msgstr "Ainda não foi tocado nada no Tidalfast este mês."
+
+#. Translators: A listening time like "12 h 5 min". Keep {hours} and {minutes}.
+#: src/ui/activity.rs:924
+#, rust-format
+msgid "{hours} h {minutes} min"
+msgstr "{hours} h {minutes} min"
+
+#: src/ui/activity.rs:929
+msgid "Listening time this month"
+msgstr "Tempo de audição este mês"
+
+#: src/ui/activity.rs:932
+msgid "Streams this month"
+msgstr "Reproduções este mês"
+
+#: src/ui/activity.rs:1065
+msgctxt "activity tab"
+msgid "This Month"
+msgstr "Este mês"
+
+#: src/ui/activity.rs:1143
+msgid "We do our best to calculate your listening activity."
+msgstr "Fazemos o possível para calcular a tua atividade de audição."
+
+#: src/ui/activity.rs:1159
+msgid "Learn more"
+msgstr "Saber mais"
+
+#. Translators: Two artists' names, as in "Bonobo and Khruangbin".
+#: src/ui/activity.rs:1290
+#, rust-format
+msgid "{first} and {second}"
+msgstr "{first} e {second}"
+
+#: src/ui/activity.rs:1397
+msgid "Your most streamed artist"
+msgstr "O teu artista mais ouvido"
+
+#: src/ui/now_playing.rs:157
+msgid "Similar tracks"
+msgstr "Faixas semelhantes"
+
+#: src/ui/now_playing.rs:375 src/ui/now_playing_video.rs:161
+msgid "Leave full screen (Esc)"
+msgstr "Sair do ecrã inteiro (Esc)"
+
+#: src/ui/now_playing.rs:377 src/ui/now_playing_video.rs:163
+#: src/ui/titlebar.rs:157
+msgid "Full screen"
+msgstr "Ecrã inteiro"
+
+#: src/ui/now_playing.rs:530 src/ui/now_playing_video.rs:374
+msgid "Released"
+msgstr "Lançamento"
+
+#: src/ui/now_playing.rs:533
+msgid "Label"
+msgstr "Editora"
+
+#: src/ui/now_playing.rs:538
+msgid "No credits for this track."
+msgstr "Sem créditos para esta faixa."
+
+#: src/ui/now_playing.rs:659
+msgid "Artist Radio"
+msgstr "Rádio do artista"
+
+#: src/ui/now_playing.rs:671
+msgid "Track Radio"
+msgstr "Rádio da faixa"
+
+#: src/ui/now_playing.rs:672
+msgid "Track radio"
+msgstr "Rádio da faixa"
+
+#: src/ui/now_playing.rs:682
+msgid "Suggested tracks"
+msgstr "Faixas sugeridas"
+
+#: src/ui/now_playing_video.rs:176 src/ui/now_playing_video.rs:402
+msgid "Picture-in-picture"
+msgstr "Imagem na imagem"
+
+#: src/ui/now_playing_video.rs:190 src/ui/now_playing_video.rs:339
+msgid "Similar videos"
+msgstr "Vídeos semelhantes"
+
+#: src/ui/now_playing_video.rs:206
+msgid "Couldn't load this video's details"
+msgstr "Não foi possível carregar os detalhes deste vídeo"
+
+#: src/ui/now_playing_video.rs:224
+msgid "No similar videos"
+msgstr "Nenhum vídeo semelhante"
+
+#: src/ui/now_playing_video.rs:363
+msgid "Performer"
+msgstr "Intérprete"
+
+#: src/ui/now_playing_video.rs:483
+msgid "Back to the app"
+msgstr "Voltar à aplicação"
+
+#: src/ui/now_playing_video.rs:505
+msgid "Back 10 seconds"
+msgstr "Recuar 10 segundos"
+
+#: src/ui/now_playing_video.rs:528
+msgid "Forward 10 seconds"
+msgstr "Avançar 10 segundos"
+
+#: src/ui/plugins.rs:857
+#, rust-format
+msgid "Loaded plugin {name}!"
+msgstr "Plugin {name} carregado!"
+
+#: src/ui/plugins.rs:957
+msgid "You have no plugins installed!"
+msgstr "Não tem plugins instalados!"
+
+#: src/ui/plugins.rs:2042
+msgid "Press keys…"
+msgstr "Prima as teclas…"
+
+#: src/ui/plugins.rs:2044
+msgid "Click, then press keys"
+msgstr "Clique e prima as teclas"
+
+#: src/ui/plugins.rs:2092
+#, rust-format
+msgid "Settings crashed: {error}"
+msgstr "As definições falharam: {error}"
+
+#: src/ui/titlebar.rs:79
+msgid "Menu"
+msgstr "Menu"
+
+#: src/ui/titlebar.rs:125
+msgid "File"
+msgstr "Ficheiro"
+
+#: src/ui/titlebar.rs:129
+msgid "New playlist"
+msgstr "Nova playlist"
+
+#: src/ui/titlebar.rs:152
+msgid "Toggle sidebar"
+msgstr "Mostrar/ocultar barra lateral"
+
+#: src/ui/titlebar.rs:163
+msgid "Play/Pause"
+msgstr "Reproduzir/Pausar"
+
+#: src/ui/titlebar.rs:184
+msgid "Plugins"
+msgstr "Plugins"
+
+#: src/ui/videos.rs:71
+msgid "No favourite videos"
+msgstr "Nenhum vídeo favorito"
+
+#: src/ui/videos.rs:72
+msgid "Videos you favourite on TIDAL appear here."
+msgstr "Os vídeos que marcar como favoritos no TIDAL aparecem aqui."
+
+#: src/ui/videos.rs:90
+msgid ""
+"You haven't added any videos yet. Tap the heart icon on any video to add it "
+"to your collection."
+msgstr ""
+"Ainda não adicionou nenhum vídeo. Toque no ícone do coração em qualquer "
+"vídeo para o adicionar à sua coleção."
+
+#: src/ui/videos.rs:108
+msgid "View TIDAL's top videos"
+msgstr "Ver os principais vídeos do TIDAL"
+
+#: src/ui/videos.rs:392
+msgid "Open on TIDAL"
+msgstr "Abrir no TIDAL"
+
+#: src/ui/album_credits.rs:138 src/ui/album_credits.rs:781
+msgid "Info"
+msgstr "Info"
+
+#: src/ui/album_credits.rs:488 src/ui/album_credits.rs:696
+msgid "No credits for this album."
+msgstr "Sem créditos para este álbum."
+
+#: src/ui/album_credits.rs:709
+msgid "Album Review"
+msgstr "Crítica do álbum"
+
+#. Translators: {source} is where the text comes from, e.g. TiVo.
+#: src/ui/album_credits.rs:743 src/ui/album_extras.rs:125
+#, rust-format
+msgid "Album review from {source}"
+msgstr "Crítica do álbum por {source}"
+
+#: src/ui/album_credits.rs:761
+msgid "Additional Credits"
+msgstr "Créditos adicionais"
+
+#: src/ui/album_extras.rs:62 src/ui/album_extras.rs:121
+msgid "Review"
+msgstr "Crítica"
+
+#: src/ui/album_extras.rs:171
+msgid "Recommended songs"
+msgstr "Faixas recomendadas"
+
+#: src/ui/album_extras.rs:223
+msgid "Refresh list"
+msgstr "Atualizar lista"
+
+#. Translators: {title} is a song's title; the button adds it to the playlist.
+#: src/ui/album_extras.rs:366
+#, rust-format
+msgid "Add {title} to the playlist"
+msgstr "Adicionar {title} à playlist"
+
+#: src/ui/album_extras.rs:401
+msgid "Other versions"
+msgstr "Outras versões"
+
+#. Translators: {artist} is the album's artist.
+#: src/ui/album_extras.rs:410
+#, rust-format
+msgid "More albums by {artist}"
+msgstr "Mais álbuns de {artist}"
+
+#: src/ui/album_extras.rs:414
+msgid "Related albums"
+msgstr "Álbuns relacionados"
+
+#: src/ui/album_extras.rs:415
+msgid "Related artists"
+msgstr "Artistas relacionados"
+
+#: src/ui/blocked.rs:88
+msgid "No blocked artists"
+msgstr "Nenhum artista bloqueado"
+
+#: src/ui/blocked.rs:101
+msgid "Songs"
+msgstr "Músicas"
+
+#: src/ui/blocked.rs:107
+msgid "No blocked songs"
+msgstr "Nenhuma música bloqueada"
+
+#: src/ui/save_later.rs:35
+msgid ""
+"You haven't saved anything for later yet. Choose Save for Later on an album, "
+"song, artist, playlist or video."
+msgstr ""
+"Ainda não guardou nada para depois. Escolha Guardar para depois num álbum, "
+"música, artista, playlist ou vídeo."
+
+#: src/ui/save_later.rs:39
+msgid ""
+"You haven't saved any albums for later yet. Choose Save for Later on an "
+"album."
+msgstr ""
+"Ainda não guardou nenhum álbum para depois. Escolha Guardar para depois num "
+"álbum."
+
+#: src/ui/save_later.rs:43
+msgid ""
+"You haven't saved any tracks for later yet. Choose Save for Later on a song."
+msgstr ""
+"Ainda não guardou nenhuma música para depois. Escolha Guardar para depois "
+"numa música."
+
+#: src/ui/save_later.rs:47
+msgid ""
+"You haven't saved any artists for later yet. Choose Save for Later on an "
+"artist."
+msgstr ""
+"Ainda não guardou nenhum artista para depois. Escolha Guardar para depois "
+"num artista."
+
+#: src/ui/save_later.rs:51
+msgid ""
+"You haven't saved any playlists for later yet. Choose Save for Later on a "
+"playlist."
+msgstr ""
+"Ainda não guardou nenhuma playlist para depois. Escolha Guardar para depois "
+"numa playlist."
+
+#: src/ui/save_later.rs:55
+msgid ""
+"You haven't saved any videos for later yet. Choose Save for Later on a video."
+msgstr ""
+"Ainda não guardou nenhum vídeo para depois. Escolha Guardar para depois num "
+"vídeo."
+
+#: src/ui/save_later.rs:173
+msgid "Nothing saved for later"
+msgstr "Nada guardado para depois"
+
+#: src/ui/purchases.rs:70
+msgid "Some purchases couldn't be shown."
+msgstr "Não foi possível mostrar algumas compras."
+
+#: src/ui/purchases.rs:78
+msgid ""
+"You haven't purchased any tracks yet. Discover music uploaded directly by "
+"artists."
+msgstr ""
+"Ainda não comprou nenhuma música. Descubra música carregada diretamente "
+"pelos artistas."
+
+#: src/ui/purchases.rs:83
+msgid ""
+"You haven't purchased any albums yet. Discover music uploaded directly by "
+"artists."
+msgstr ""
+"Ainda não comprou nenhum álbum. Descubra música carregada diretamente pelos "
+"artistas."
+
+#: src/ui/purchases.rs:90
+msgid "No purchases"
+msgstr "Sem compras"
+
+#: src/ui/purchases.rs:99
+msgid "View Uploads"
+msgstr "Ver uploads"
+
+#: src/app/save_later.rs:87
+msgid "Added to Save for Later"
+msgstr "Adicionado a Guardar para depois"
+
+#: src/app/save_later.rs:89
+msgid "Removed from Save for Later"
+msgstr "Removido de Guardar para depois"
+
+#. Translators: {error} is an error message.
+#: src/app/save_later.rs:156
+#, rust-format
+msgid "Couldn't update Save for Later: {error}"
+msgstr "Não foi possível atualizar Guardar para depois: {error}"
+
+#: src/ui/uploads.rs:96
+msgid "An error occurred while loading your uploads. Please try again later."
+msgstr ""
+"Ocorreu um erro ao obter os seus carregamentos. Tente novamente mais tarde."
+
+#: src/ui/uploads.rs:107
+msgid "Find new fans for your music"
+msgstr "Encontre novos fãs para a sua música"
+
+#: src/ui/uploads.rs:110
+msgid ""
+"Upload your track and share it with listeners or collaborators right away"
+msgstr ""
+"Carregue a sua faixa e partilhe-a de imediato com ouvintes ou colaboradores"
+
+#: src/ui/uploads.rs:128
+msgid "Or drag and drop file"
+msgstr "Ou arraste e largue um ficheiro"
+
+#: src/ui/uploads.rs:242
+msgid "Uploading..."
+msgstr "A carregar..."
+
+#: src/ui/uploads.rs:359 src/ui/uploads.rs:1108
+msgid "Edit album"
+msgstr "Editar álbum"
+
+#: src/ui/uploads.rs:379
+msgid "Delete album"
+msgstr "Eliminar álbum"
+
+#: src/ui/uploads.rs:445
+msgid "Delete album and tracks?"
+msgstr "Eliminar álbum e faixas?"
+
+#: src/ui/uploads.rs:448
+msgid ""
+"This will permanently delete the album and all tracks it contains. You can't "
+"undo this action."
+msgstr ""
+"Isto eliminará permanentemente o álbum e todas as faixas que contém. Não "
+"pode anular esta ação."
+
+#: src/ui/uploads.rs:460
+msgid "Delete track?"
+msgstr "Eliminar faixa?"
+
+#: src/ui/uploads.rs:463
+#, rust-format
+msgid "“{title}” will be permanently deleted. You can't undo this action."
+msgstr "“{title}” será eliminada permanentemente. Não pode anular esta ação."
+
+#: src/ui/uploads.rs:518
+#, rust-format
+msgid "Organize {count} new track"
+msgid_plural "Organize {count} new tracks"
+msgstr[0] "Organizar {count} nova faixa"
+msgstr[1] "Organizar {count} novas faixas"
+
+#: src/ui/uploads.rs:528 src/ui/uploads.rs:634
+msgid "Place this track into one of your existing albums."
+msgstr "Coloque esta faixa num dos seus álbuns existentes."
+
+#: src/ui/uploads.rs:532 src/ui/uploads.rs:638
+msgid "Place these tracks into one of your existing albums"
+msgstr "Coloque estas faixas num dos seus álbuns existentes"
+
+#: src/ui/uploads.rs:539 src/ui/uploads.rs:632
+msgid "Add to an existing album"
+msgstr "Adicionar a um álbum existente"
+
+#: src/ui/uploads.rs:550
+msgid "Upload as Single"
+msgstr "Carregar como Single"
+
+#: src/ui/uploads.rs:553
+msgid "Upload as an individual Single. You can turn it into an album later."
+msgstr ""
+"Carregue como um Single individual. Pode transformá-lo em álbum mais tarde."
+
+#: src/ui/uploads.rs:643 src/ui/uploads.rs:1559
+msgid "Move to another album"
+msgstr "Mover para outro álbum"
+
+#: src/ui/uploads.rs:644
+msgid "Choose the album this track goes into."
+msgstr "Escolha o álbum onde esta faixa vai ficar."
+
+#: src/ui/uploads.rs:746
+msgid "Move"
+msgstr "Mover"
+
+#: src/ui/uploads.rs:1103
+msgid "New single"
+msgstr "Novo single"
+
+#: src/ui/uploads.rs:1104
+msgid "New EP"
+msgstr "Novo EP"
+
+#: src/ui/uploads.rs:1105
+msgid "New album"
+msgstr "Novo álbum"
+
+#: src/ui/uploads.rs:1179
+msgid "Change Image"
+msgstr "Alterar imagem"
+
+#: src/ui/uploads.rs:1188
+msgid "Show spectrogram"
+msgstr "Mostrar espectrograma"
+
+#: src/ui/uploads.rs:1190
+msgid "Create spectrogram"
+msgstr "Criar espectrograma"
+
+#: src/ui/uploads.rs:1209 src/app/uploads.rs:383 src/app/uploads.rs:692
+msgid "We're generating your spectrogram artwork. It should be ready soon."
+msgstr "Estamos a gerar a arte do seu espectrograma. Ficará pronta em breve."
+
+#: src/ui/uploads.rs:1253
+msgid "Artist name"
+msgstr "Nome do artista"
+
+#: src/ui/uploads.rs:1278
+msgid "Album type"
+msgstr "Tipo de álbum"
+
+#: src/ui/uploads.rs:1289
+msgid "EP"
+msgstr "EP"
+
+#: src/ui/uploads.rs:1311
+msgid "Visibility"
+msgstr "Visibilidade"
+
+#: src/ui/uploads.rs:1324
+msgid "Discoverable and streamable when at least one track is public."
+msgstr ""
+"Pode ser descoberto e reproduzido quando pelo menos uma faixa é pública."
+
+#: src/ui/uploads.rs:1332
+msgid "Unlisted"
+msgstr "Não listado"
+
+#: src/ui/uploads.rs:1336
+msgid ""
+"Only visible to you and anyone with the link. Hidden from profiles when all "
+"tracks are private."
+msgstr ""
+"Visível apenas para si e para quem tiver a ligação. Oculto nos perfis quando "
+"todas as faixas são privadas."
+
+#: src/ui/uploads.rs:1354
+msgid ""
+"This album contains tracks that are still being uploaded or scanned. You can "
+"change visibility once all tracks have finished scanning."
+msgstr ""
+"Este álbum contém faixas que ainda estão a ser carregadas ou analisadas. "
+"Poderá alterar a visibilidade quando todas as faixas terminarem a análise."
+
+#: src/ui/uploads.rs:1371
+msgid "Artwork created from the unique characteristics of your track"
+msgstr "Arte criada a partir das caraterísticas únicas da sua faixa"
+
+#: src/ui/uploads.rs:1439
+msgid "Add tracks"
+msgstr "Adicionar faixas"
+
+#: src/ui/uploads.rs:1455
+msgid "This album has no tracks"
+msgstr "Este álbum não tem faixas"
+
+#: src/ui/uploads.rs:1496
+msgid "Preparing..."
+msgstr "A preparar..."
+
+#: src/ui/uploads.rs:1499
+#, rust-format
+msgid "Uploading ({percent}%)..."
+msgstr "A carregar ({percent}%)..."
+
+#: src/ui/uploads.rs:1507
+msgid "Scanning…"
+msgstr "A analisar…"
+
+#: src/ui/uploads.rs:1510
+msgid "Flagged"
+msgstr "Sinalizado"
+
+#: src/ui/uploads.rs:1511
+msgid "Error uploading file"
+msgstr "Erro ao carregar o ficheiro"
+
+#: src/ui/uploads.rs:1552 src/ui/uploads.rs:1787
+msgid "Edit track details"
+msgstr "Editar detalhes da faixa"
+
+#: src/ui/uploads.rs:1568
+msgid "Copy track link"
+msgstr "Copiar ligação da faixa"
+
+#: src/ui/uploads.rs:1576
+msgid "Delete track"
+msgstr "Eliminar faixa"
+
+#: src/ui/uploads.rs:1719
+msgid "Edit name"
+msgstr "Editar nome"
+
+#: src/ui/uploads.rs:1727
+msgid "This name will be used on your profile and all of your tracks."
+msgstr "Este nome será usado no seu perfil e em todas as suas faixas."
+
+#: src/app/uploads.rs:166
+msgid "The file is currently uploading. Wait until it's finished."
+msgstr "O ficheiro está a ser carregado. Aguarde até terminar."
+
+#: src/app/uploads.rs:177
+msgid "Choose a JPEG or PNG image."
+msgstr "Escolha uma imagem JPEG ou PNG."
+
+#: src/app/uploads.rs:201
+msgid "Before uploading, let us know what name to release your music under."
+msgstr "Antes de carregar, diga-nos com que nome quer lançar a sua música."
+
+#: src/app/uploads.rs:209
+msgid "Your TIDAL artist profile isn't loaded yet. Try again in a moment."
+msgstr ""
+"O seu perfil de artista do TIDAL ainda não foi carregado. Tente novamente "
+"dentro de instantes."
+
+#: src/app/uploads.rs:224
+msgid "This file format isn't supported."
+msgstr "Este formato de ficheiro não é suportado."
+
+#: src/app/uploads.rs:250
+msgid "Untitled"
+msgstr "Sem título"
+
+#: src/app/uploads.rs:497
+msgid "Upload deleted"
+msgstr "Carregamento eliminado"
+
+#: src/app/uploads.rs:780 src/app/uploads.rs:802 src/app/uploads.rs:805
+msgid "Upload failed. Please try again."
+msgstr "Falha no carregamento. Tente novamente."
+
+#: src/app/uploads.rs:820
+msgid "Upload complete"
+msgstr "Carregamento concluído"
+
+#: src/app/uploads.rs:868
+msgid "Couldn't save your changes. Try again."
+msgstr "Não foi possível guardar as alterações. Tente novamente."

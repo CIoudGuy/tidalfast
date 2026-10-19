@@ -1,0 +1,13 @@
+{
+ "startDate": "2024-01-01T00:00:00.000+0000",
+ "validUntil": "2026-11-01T00:00:00.000+0000",
+ "status": "ACTIVE",
+ "subscription": {
+  "type": "HIFI",
+  "offlineGracePeriod": 30
+ },
+ "highestSoundQuality": "HI_RES_LOSSLESS",
+ "premiumAccess": true,
+ "canGetTrial": false,
+ "paymentType": "ADYEN_CREDIT_CARD"
+}

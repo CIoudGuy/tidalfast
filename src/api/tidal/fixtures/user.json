@@ -1,0 +1,10 @@
+{
+ "id": 12345678,
+ "username": "listener@example.invalid",
+ "firstName": "Ada",
+ "lastName": "Lovelace",
+ "email": "listener@example.invalid",
+ "countryCode": "NO",
+ "picture": "0f0f0f0f-1111-2222-3333-444444444444",
+ "newsletter": false
+}
