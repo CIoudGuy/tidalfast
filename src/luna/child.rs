@@ -1,8 +1,8 @@
 //! Programs plugins run (`child_process`): the one place a Luna plugin leaves
 //! the sandbox, so it is off until the user says yes.
 //!
-//! * Every program a plugin starts needs the user's answer first: "<plugin>
-//!   wants to run <program> on your computer" with Allow once, Always or
+//! * Every program a plugin starts needs the user's answer first: "\<plugin>
+//!   wants to run \<program> on your computer" with Allow once, Always or
 //!   Deny. The program is the resolved executable path, never the arguments.
 //!   Always is kept per plugin in `plugins.json` and can be revoked from the
 //!   plugin's Permissions. Nothing is ever allowed by default.

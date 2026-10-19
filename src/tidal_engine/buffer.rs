@@ -346,7 +346,7 @@ impl Fetch {
 }
 
 /// How fast a song's bytes come off the network: what adaptive streaming
-/// goes by ([`super::adaptive`]). The downloads of one song (a seek far
+/// goes by (`super::adaptive`). The downloads of one song (a seek far
 /// ahead starts another) add up in the same meter. Each arriving chunk
 /// costs a clock read and a few atomic additions; nothing is allocated and
 /// nothing wakes up for it.

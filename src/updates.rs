@@ -510,7 +510,7 @@ pub fn platform_assets<'a>(manifest: &'a Manifest, os: &str, arch: &str) -> Vec<
 // ---- the host --------------------------------------------------------------
 
 /// One GET the update code needs answered. Redirects are never followed by
-/// the client; [`Host`] follows them itself.
+/// the client; `Host` follows them itself.
 pub struct HostRequest<'a> {
     pub url: &'a str,
     pub accept: &'a str,
@@ -1633,7 +1633,7 @@ impl Updater {
     }
 
     /// Downloads and verifies `release` into a staging folder beside the app.
-    /// An AppImage is replaced in place instead (see [`Updater::replace_appimage`]).
+    /// An AppImage is replaced in place instead (see `Updater::replace_appimage`).
     pub fn download(&self, release: &Release, progress: impl FnMut(u64, u64)) -> Result<Prepared> {
         if self.source.is_github()
             && let Some(appimage) = crate::appimage::current()

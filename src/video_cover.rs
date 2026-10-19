@@ -20,7 +20,7 @@
 //! Decoding: Media Foundation on Windows, on the GPU (DXVA decode, then the
 //! GPU's video processor converts to RGB and scales), falling back to its
 //! software decoder. On Linux and macOS, Cisco's prebuilt OpenH264 library
-//! loaded at run time (see [`platform`]), else FFmpeg or GStreamer when
+//! loaded at run time (see `platform`), else FFmpeg or GStreamer when
 //! installed. On any error the caller keeps painting the still cover.
 
 use std::collections::HashMap;

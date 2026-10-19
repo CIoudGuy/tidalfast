@@ -59,7 +59,7 @@ pub struct Plugins {
     /// A plugin's editor window, shown as Tidalfast's own (Themer).
     pub editor: Option<PluginEditor>,
     /// Titles a plugin gave songs in a TIDAL answer, by TIDAL id
-    /// ([`HostCommand::RetitleTracks`]); track rows show them.
+    /// (`HostCommand::RetitleTracks`); track rows show them.
     pub retitles: std::collections::HashMap<String, String>,
     /// When Luna started waiting for the account to sign in.
     pub(crate) held_since: Option<std::time::Instant>,

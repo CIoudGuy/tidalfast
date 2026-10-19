@@ -108,7 +108,7 @@ pub struct EngineConfig {
     pub quality: Quality,
     /// Adaptive streaming: the next songs stream at a lower quality while
     /// the connection cannot keep up with `quality`
-    /// ([`super::adaptive`]). Off asks every song at `quality`.
+    /// (`super::adaptive`). Off asks every song at `quality`.
     pub adaptive: bool,
     pub normalisation: bool,
     pub autoplay: bool,

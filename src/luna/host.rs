@@ -84,7 +84,7 @@ pub struct QueueSource {
     pub kind: String,
     pub id: String,
     pub name: Option<String>,
-    /// TIDAL web path, e.g. "/playlist/<uuid>".
+    /// TIDAL web path, e.g. `/playlist/<uuid>`.
     pub url: Option<String>,
 }
 
@@ -261,7 +261,7 @@ pub enum HostCommand {
     ReplaceAudio {
         track: String,
         url: Option<PrivateUrl>,
-        /// A song of the plugin's own (see [`PlayerCommand::ReplaceAudio`]):
+        /// A song of the plugin's own (see `PlayerCommand::ReplaceAudio`):
         /// it starts over and plays, and does not go on to the next song.
         own: bool,
     },

@@ -947,7 +947,7 @@ pub fn pill_button(ui: &mut egui::Ui, palette: &Palette, label: &str, primary: b
 }
 
 /// A [`pill_button`] whose screen-reader name is `name` (a card's "Install"
-/// pill is "Install <plugin>").
+/// pill is "Install \<plugin>").
 pub fn pill_button_named(
     ui: &mut egui::Ui,
     palette: &Palette,
@@ -1158,7 +1158,7 @@ pub fn unseen(ctx: &egui::Context) -> bool {
     budget(ctx) == crate::power::Budget::Background
 }
 
-/// Asks for an endless decoration's next frame: at [`AMBIENT_FRAME`], half
+/// Asks for an endless decoration's next frame: at `AMBIENT_FRAME`, half
 /// that when out of focus or saving energy, and none when nobody can see
 /// the window. Only call it while the decoration is on screen.
 #[track_caller]
