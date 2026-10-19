@@ -116,7 +116,7 @@
                 pname = "tidalfast";
                 version = (pkgs.lib.importTOML ./Cargo.toml).package.version;
                 src = self;
-                hash = "sha256-lS6YUhXpKJmwMxfPlL3Z5gqDtinlxDSkcJvh5CFlB+A=";
+                hash = "sha256-ixy4JTus6mgwA2zVrqxPrTd4bl0NIVgEmCd4t+PQFhw=";
               };
               nativeBuildInputs =
                 with pkgs;
