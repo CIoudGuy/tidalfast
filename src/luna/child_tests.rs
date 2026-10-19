@@ -228,9 +228,26 @@ fn a_program_in_the_plugins_own_folder_cannot_be_remembered() {
     let inside = dir.join("tools").join("run.exe");
     std::fs::create_dir_all(inside.parent().unwrap()).unwrap();
     std::fs::write(&inside, b"x").unwrap();
-    assert!(is_inside(&inside, &dir));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&inside, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    // The folder can be reached by another name for it: an 8.3 short name
+    // on Windows (CI's C:\Users\RUNNER~1), a link on macOS (/var is
+    // /private/var). prepare resolves the program before asking, as
+    // is_inside resolves the folder, so it compares the program as
+    // resolve_program finds it.
+    let asked = Request {
+        file: inside.to_string_lossy().into_owned(),
+        ..Request::default()
+    };
+    assert!(!prepare(&asked, &dir).unwrap().remember);
+    let found = resolve_program(&inside.to_string_lossy(), None).unwrap();
+    assert!(is_inside(&found, &dir));
     assert!(!is_inside(Path::new("/usr/bin/sh"), &dir));
-    let sibling = PathBuf::from(format!("{}-other/run.exe", dir.display()));
+    let resolved = clean(std::fs::canonicalize(&dir).unwrap());
+    let sibling = PathBuf::from(format!("{}-other/run.exe", resolved.display()));
     assert!(
         !is_inside(&sibling, &dir),
         "a folder that only shares the prefix"
