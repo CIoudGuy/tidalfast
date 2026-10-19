@@ -36,11 +36,17 @@ fn slow_server(body: Vec<u8>, pace: usize) -> (String, Arc<AtomicBool>) {
                 if stream.write_all(head.as_bytes()).is_err() {
                     return;
                 }
-                for chunk in body.chunks(pace) {
+                // Each chunk is due 10 ms after the one before, counted
+                // from the start: a sleep that oversleeps (a loaded macOS
+                // runner's do) is made up by the next chunk, so the rate
+                // stays the one asked for rather than the timer's.
+                let start = Instant::now();
+                for (sent, chunk) in body.chunks(pace).enumerate() {
                     if stream.write_all(chunk).is_err() {
                         return;
                     }
-                    thread::sleep(Duration::from_millis(10));
+                    let due = start + Duration::from_millis(10) * (sent as u32 + 1);
+                    thread::sleep(due.saturating_duration_since(Instant::now()));
                 }
                 done.store(true, Ordering::SeqCst);
             });
