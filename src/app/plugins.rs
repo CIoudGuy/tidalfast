@@ -1350,6 +1350,18 @@ mod tests {
         let mut app = app("plugin-exclusive");
         let ctx = egui::Context::default();
         assert!(!app.settings.bit_perfect);
+        if !cfg!(any(windows, target_os = "linux")) {
+            // macOS has no exclusive output: plugins are told so, and the
+            // command changes nothing.
+            assert_eq!(app.luna_playback(None).exclusive_mode, None);
+            app.handle_host_request(
+                HostRequest::Command(HostCommand::SetExclusiveMode(true)),
+                &ctx,
+            );
+            assert!(!app.settings.bit_perfect);
+            app.backend.shutdown();
+            return;
+        }
         assert_eq!(app.luna_playback(None).exclusive_mode, Some(false));
         app.handle_host_request(
             HostRequest::Command(HostCommand::SetExclusiveMode(true)),

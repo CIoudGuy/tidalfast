@@ -2519,11 +2519,13 @@ mod tests {
             let explore = accessible_node(&tree, &gettext(locale, "Explore"), Role::Button);
             accessible_node(&tree, &gettext(locale, "Create a playlist"), Role::Button);
             accessible_node(&tree, &gettext(locale, "Sort playlists"), Role::Button);
-            accessible_node(
-                &tree,
-                &gettext(locale, "Hide sidebar (Ctrl+B)"),
-                Role::Button,
-            );
+            // The shortcut is named as the platform's keyboard writes it.
+            let hide = if cfg!(target_os = "macos") {
+                "Hide sidebar (Cmd+B)"
+            } else {
+                "Hide sidebar (Ctrl+B)"
+            };
+            accessible_node(&tree, &gettext(locale, hide), Role::Button);
             let collection = accessible_node(&tree, &gettext(locale, "Collection"), Role::Button);
             accessible_frame(
                 &ctx,
@@ -3703,7 +3705,12 @@ mod tests {
         assert_eq!(top("Settings") - top("Manage subscription"), 42.0);
         assert_eq!(top("Help") - top("Settings"), 42.0);
         // The menu starts at the bar's lower edge (56), its rows 4 inside.
-        assert_eq!(top("Profile"), 60.0);
+        // On macOS the bar is taller by the traffic lights' row, and the
+        // avatar the menu hangs from sits half of that lower.
+        assert_eq!(
+            top("Profile"),
+            60.0 + f64::from(crate::theme::titlebar_inset(&ctx)) / 2.0
+        );
         app.backend.shutdown();
     }
 
@@ -14640,15 +14647,21 @@ mod tests {
         );
         plugin_dom::test_overlay(Some(o));
         let themed = shapes(&ctx, &mut app);
-        let tab = ctx
-            .memory(|m| m.area_rect(tab_id))
-            .expect("the header is a tab over the page");
-        assert!((tab.width() - 420.0).abs() < 1.0, "{tab:?}");
-        let sidebar = 240.0;
-        let page_centre = sidebar + (size.x - sidebar) / 2.0;
-        // Centred on the page (its scroll area, without the scroll bar).
-        assert!((tab.center().x - page_centre).abs() < 20.0, "{tab:?}");
-        assert_eq!(tab.top(), -80.0, "pulled up over the window top");
+        if cfg!(target_os = "macos") {
+            // The traffic lights sit in the bar's row on macOS, so the bar
+            // stays and no tab is drawn (topbar::header_tab).
+            assert!(ctx.memory(|m| m.area_rect(tab_id)).is_none());
+        } else {
+            let tab = ctx
+                .memory(|m| m.area_rect(tab_id))
+                .expect("the header is a tab over the page");
+            assert!((tab.width() - 420.0).abs() < 1.0, "{tab:?}");
+            let sidebar = 240.0;
+            let page_centre = sidebar + (size.x - sidebar) / 2.0;
+            // Centred on the page (its scroll area, without the scroll bar).
+            assert!((tab.center().x - page_centre).abs() < 20.0, "{tab:?}");
+            assert_eq!(tab.top(), -80.0, "pulled up over the window top");
+        }
         let slid = explore(&themed);
         assert_eq!(slid.x, native.x - 47.0, "the sidebar slid out");
         assert_eq!(slid.y, native.y);
