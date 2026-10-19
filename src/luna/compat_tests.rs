@@ -740,12 +740,17 @@ R.done = true;
     // for an idle loop: it waits at least 100 ms whatever the timers do,
     // and loops that change something run faster than that.
     assert!(n("idleGap") >= 90, "an idle loop's frames: {r}");
-    assert!((0..90).contains(&n("busyGap")), "{r}");
-    assert!((0..90).contains(&n("againGap")), "{r}");
-    // How many frames run. On macOS's CI runners the busy frames came
-    // about 45 ms apart instead of 16 (timers firing late on a loaded
-    // machine), so the rate itself is held only where timers keep time.
+    // Loops that change something run faster than an idle one, before
+    // the idle stretch and again after it, however slow the machine.
+    assert!((0..n("idleGap")).contains(&n("busyGap")), "{r}");
+    assert!((0..n("idleGap")).contains(&n("againGap")), "{r}");
+    // How fast, and how many frames run. On macOS's CI runners every gap
+    // came about twice as long (busy frames 37 to 45 ms apart instead of
+    // 16, resumed ones 115: timers firing late on a loaded machine), so
+    // the rate itself is held only where timers keep time.
     if !cfg!(target_os = "macos") {
+        assert!(n("busyGap") < 90, "{r}");
+        assert!(n("againGap") < 90, "{r}");
         assert!(n("busy") >= 20, "{r}");
         assert!(
             n("idle") <= 30,
