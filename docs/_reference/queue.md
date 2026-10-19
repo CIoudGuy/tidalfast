@@ -30,7 +30,9 @@ A new context starts with an empty History in the play queue panel, which
 lists only songs played since (up to 100, newest last, saved with the
 session). The song just left joins History the moment the song changes;
 clicking a row goes back to it in the same context; the listening history
-is untouched. History, the playing song and Next up are one list in the
+is untouched. In the panel, one click on a Next up row skips to it (rule 5
+below); the second click of a double-click is ignored, so it never skips
+twice. History, the playing song and Next up are one list in the
 panel's single scroll area (no separate History scroller); it opens with
 "Playing from" at the top, History above it, and keeps that place on song
 changes until the user scrolls. The

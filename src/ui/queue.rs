@@ -1108,15 +1108,19 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
                 .push(Action::PlayHistory(item.uri().to_string()));
         }
     }
-    if response.double_clicked() {
-        match kind {
-            FloatingRow::History(_) => {}
-            FloatingRow::Current => {}
-            FloatingRow::Queue { index, .. } => app.actions.push(Action::PlayFromRow {
+    // A Next up row skips to its song with one click, like TIDAL's play
+    // queue. The second click of a double-click is left alone: the played
+    // row has gone, so it would land on the next one and skip again.
+    if let FloatingRow::Queue { index, .. } = kind {
+        if response.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        }
+        if response.clicked() && !response.double_clicked() {
+            app.actions.push(Action::PlayFromRow {
                 context: RowContext::Queue,
                 uri: item.uri().to_string(),
                 index: index as u32,
-            }),
+            });
         }
     }
 }
@@ -1200,6 +1204,87 @@ mod history_click_tests {
             "{:?}",
             app.actions
         );
+    }
+
+    /// Clicks on a Next up row in the panel: each press and release at the
+    /// row's middle, starting at each of the given times (seconds).
+    fn click_next_up(app: &mut App, presses: &[f64]) {
+        let ctx = egui::Context::default();
+        theme::install(&ctx);
+        let item = PlayableItem::Track(crate::api::models::Track {
+            uri: "tidal:track:7".into(),
+            name: "Song 7".into(),
+            ..Default::default()
+        });
+        let pos = egui::pos2(100.0, 20.0);
+        let run = |app: &mut App, time: f64, events: Vec<egui::Event>| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::pos2(0.0, 0.0),
+                        egui::vec2(400.0, 200.0),
+                    )),
+                    time: Some(time),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    floating_row(
+                        app,
+                        ui,
+                        &item,
+                        FloatingRow::Queue {
+                            index: 0,
+                            shift: 0.0,
+                        },
+                    )
+                },
+            );
+            output.textures_delta.clear();
+        };
+        run(app, 0.0, vec![egui::Event::PointerMoved(pos)]);
+        for &at in presses {
+            for (dt, pressed) in [(0.0, true), (0.05, false)] {
+                run(
+                    app,
+                    at + dt,
+                    vec![egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    }],
+                );
+            }
+        }
+    }
+
+    fn plays(app: &App) -> usize {
+        app.actions
+            .iter()
+            .filter(|a| {
+                matches!(a, Action::PlayFromRow { context: RowContext::Queue, uri, index: 0 }
+                    if uri == "tidal:track:7")
+            })
+            .count()
+    }
+
+    /// One click on a Next up row skips to it, as on a History row and in
+    /// TIDAL's play queue.
+    #[test]
+    fn one_click_on_a_next_up_row_skips_to_it() {
+        let mut app = app();
+        click_next_up(&mut app, &[1.0]);
+        assert_eq!(plays(&app), 1, "{:?}", app.actions);
+    }
+
+    /// A double-click skips once: its second click would otherwise land on
+    /// the row that moved up into the played one's place and skip again.
+    #[test]
+    fn a_double_click_on_a_next_up_row_skips_once() {
+        let mut app = app();
+        click_next_up(&mut app, &[1.0, 1.15]);
+        assert_eq!(plays(&app), 1, "{:?}", app.actions);
     }
 }
 
