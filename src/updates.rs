@@ -47,8 +47,9 @@ use fastframe_update::{MacConfig, Prereleases, Request, Response, Transport, Upd
 pub const UPDATE_HOST: &str = "files.devalt.cloud";
 /// The resource every feed and download lives under.
 const RESOURCE_BASE: &str = "https://files.devalt.cloud/api/res/cloud-guy/tidalfast";
-/// The resource's page, shown as the release link.
-const RELEASE_PAGE: &str = "https://files.devalt.cloud/cloud-guy/tidalfast";
+/// The public releases page, shown as the release link. The update host's
+/// own page is private, and a tag page would not exist for a dev build.
+const RELEASE_PAGE: &str = "https://github.com/CIoudGuy/tidalfast/releases";
 /// The header that carries the updater key.
 const KEY_HEADER: &str = "X-Update-Key";
 /// The header that carries the random install id (update host only).
@@ -2060,6 +2061,33 @@ mod tests {
         assert!(is_offered("1.1.0-dev.3", "1.1.0-dev.2", Dev));
         assert!(is_offered("1.1.0", "1.1.0-beta.4", Stable));
         assert!(!is_offered("garbage", "1.0.0", Dev));
+    }
+
+    /// The update window links to a page anyone can open: the update host's
+    /// own page is private and answers 404 to everyone but its owner.
+    #[test]
+    fn the_release_link_opens_the_public_releases_page() {
+        let mut manifest = manifest("1.1.0", "stable");
+        manifest.assets.push(asset(
+            "windows-x86_64",
+            "tidalfast-v1.1.0-x86_64-pc-windows-msvc.zip",
+            "1.1.0",
+            PACKAGE,
+        ));
+        let release = offer(
+            &manifest,
+            "1.0.0",
+            UpdateChannel::Stable,
+            "windows",
+            "x86_64",
+        )
+        .unwrap();
+        assert_eq!(
+            release.url,
+            "https://github.com/CIoudGuy/tidalfast/releases"
+        );
+        let metadata = DevaltTransport::metadata(&manifest);
+        assert_eq!(metadata["html_url"], release.url);
     }
 
     /// An installed copy updates through the setup program, which the
