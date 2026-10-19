@@ -238,9 +238,20 @@ pub fn prepare(req: &Request, data_dir: &Path) -> Result<Prepared, String> {
     })
 }
 
+/// Whether `exe` lies in the plugin's folder `dir`, by either path or by
+/// the files they resolve to: a folder reached by another name for it (an
+/// 8.3 short name, a link such as macOS's /var for /private/var) is still
+/// the plugin's, and so is a program reached through a link into it or a
+/// link inside it.
 fn is_inside(exe: &Path, dir: &Path) -> bool {
-    let dir = clean(std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf()));
-    let exe = clean(exe.to_path_buf());
+    let resolved = |p: &Path| clean(std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf()));
+    let exes = [clean(exe.to_path_buf()), resolved(exe)];
+    let dirs = [clean(dir.to_path_buf()), resolved(dir)];
+    exes.iter()
+        .any(|e| dirs.iter().any(|d| starts_with_dir(e, d)))
+}
+
+fn starts_with_dir(exe: &Path, dir: &Path) -> bool {
     let (exe, dir) = (exe.to_string_lossy(), dir.to_string_lossy());
     let sep = std::path::MAIN_SEPARATOR;
     let prefix = format!("{}{sep}", dir.trim_end_matches(sep));
@@ -427,7 +438,11 @@ fn with_exts(base: &Path) -> Option<PathBuf> {
 
 /// The program a name means: a path as given (relative to `cwd`), or the
 /// first match on `PATH` (never the current directory). Returned as an
-/// absolute path without Windows' `\\?\` prefix.
+/// absolute path without Windows' `\\?\` prefix, with links kept as they
+/// are: a multi-call program (coreutils on NixOS, BusyBox) is a link to one
+/// binary that acts by the name it was started as, so `sleep` has to start
+/// as `.../sleep`, not as the `coreutils` file the link points to. The same
+/// path is what the user is asked about and what Always remembers.
 pub fn resolve_program(name: &str, cwd: Option<&Path>) -> Option<PathBuf> {
     let has_dir = name.contains('/') || (cfg!(windows) && name.contains('\\'));
     let found = if has_dir {
@@ -444,7 +459,7 @@ pub fn resolve_program(name: &str, cwd: Option<&Path>) -> Option<PathBuf> {
             .filter(|d| !d.as_os_str().is_empty())
             .find_map(|d| with_exts(&d.join(name)))
     }?;
-    let found = std::fs::canonicalize(&found).unwrap_or(found);
+    let found = std::path::absolute(&found).unwrap_or(found);
     Some(clean(found))
 }
 
