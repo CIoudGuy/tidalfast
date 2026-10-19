@@ -162,6 +162,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          # cl and rc come from Visual Studio's developer shell, which the
+          # runner does not load.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $vsarch = if ($env:RUNNER_ARCH -eq 'ARM64') { 'arm64' } else { 'amd64' }
+          Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments "-arch=$vsarch -host_arch=$vsarch"
           dotnet tool install wix --version 5.0.2 --tool-path "$env:RUNNER_TEMP\wix"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "$env:RUNNER_TEMP\wix" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
@@ -183,6 +189,11 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          # The test payloads are compiled with cl (see the step above).
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $vsarch = if ($env:RUNNER_ARCH -eq 'ARM64') { 'arm64' } else { 'amd64' }
+          Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments "-arch=$vsarch -host_arch=$vsarch"
           $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
           if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
           python packaging\windows\test-msi.py $iscc -v
