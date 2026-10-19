@@ -21,8 +21,7 @@
   <img src="docs/assets/images/readme-home-dark.jpg" alt="Tidalfast's Home page with the library, recommendations and the player bar" width="900">
 </picture>
 
-<!-- Replace TRAILER_URL with the launch trailer's link once it is attached to the v1.0.0 release. -->
-**[▶ Watch the trailer](TRAILER_URL)**
+**[▶ Watch the trailer](https://github.com/CIoudGuy/tidalfast/releases/download/v1.0.0/tidalfast-1.0.0-trailer.mp4)**
 
 </div>
 
