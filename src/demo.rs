@@ -14011,6 +14011,11 @@ mod tests {
             let (ctx, mut app) = accessible_app("pinned-bar-idle");
             app.motion.force(false);
             crate::motion::apply(&ctx, false);
+            // The demo's song plays on, and the player bar asks for a frame
+            // at its progress bar's next visible step: a wait anywhere from
+            // nothing to half a second, by where the wall clock has taken
+            // the song. Paused, the page's own timers are what is left.
+            app.remote.as_mut().unwrap().state.is_playing = false;
             app.open(Page::Album("alb0".into()));
             app.demo_scroll = scroll;
             let mut delay = std::time::Duration::ZERO;
@@ -14039,7 +14044,7 @@ mod tests {
         // within milliseconds.
         let slack = std::time::Duration::from_millis(150);
         assert!(
-            with > std::time::Duration::from_millis(250) && with + slack >= without,
+            with > std::time::Duration::from_millis(250) && with >= without.saturating_sub(slack),
             "the bar adds a repaint timer: {with:?} against {without:?}"
         );
     }
