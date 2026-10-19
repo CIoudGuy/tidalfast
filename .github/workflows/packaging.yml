@@ -1,0 +1,108 @@
+name: Packaging
+
+on:
+  push:
+    branches: [main, master]
+    paths: [native-packages.yaml, packaging/**, .github/workflows/packaging.yml, .github/workflows/release.yml]
+  pull_request:
+    paths: [native-packages.yaml, packaging/**, .github/workflows/packaging.yml, .github/workflows/release.yml]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published version (empty tests the pinned v0.11.2 fixture)
+        type: string
+        default: ''
+      publish:
+        description: Attach packages and run enabled downstream publishers
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      publish:
+        type: boolean
+        default: true
+    secrets:
+      AUR_SSH_KEY:
+        required: false
+      AUR_KNOWN_HOSTS:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  packaging:
+    permissions:
+      contents: write
+    uses: crmne/native-packages/.github/workflows/package.yml@83bd46c245488c2b8f1b9d74569e16cf6a449e8f # v0.9.0
+    with:
+      targets: linux-amd64,linux-arm64
+      # Packaging changes exercise real release binaries on both architectures.
+      # Update this fixture deliberately; releases use their own tag instead.
+      version: ${{ inputs.version || 'v0.11.2' }}
+      publish: ${{ inputs.publish == true && inputs.version != '' }}
+    secrets: inherit
+
+  # The AppImage carries no libraries of its own, so the runner supplies
+  # ALSA as a desktop would. Runners have no FUSE: it unpacks itself to run.
+  appimage:
+    name: AppImage (${{ matrix.os }})
+    needs: packaging
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-amd64
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+            arch: aarch64
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-packages
+          path: dist/native-packages
+      - name: Run the AppImage
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          sudo apt-get update
+          # The AppImage bundles no libraries, so it needs what the DEB depends on.
+          sudo apt-get install -y --no-install-recommends \
+            libdbus-1-3 libgl1 libegl1 libxkbcommon0 libxkbcommon-x11-0 \
+            libwayland-client0 libwayland-cursor0 libwayland-egl1 libx11-6 \
+            libx11-xcb1 libxcursor1 libxi6 libxrandr2 libasound2t64 libpulse0
+          set -- dist/native-packages/packages/"$TARGET"/appimage/tidalfast-*-"$ARCH".AppImage
+          test "$#" -eq 1
+          chmod +x "$1"
+          "$1" --appimage-extract-and-run --version | grep -Ex 'tidalfast [0-9]+\.[0-9]+\.[0-9]+.*'
+
+  installation:
+    name: Install (${{ matrix.os }}, ${{ matrix.image }})
+    needs: packaging
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        image: ['ubuntu:24.04', 'debian:13-slim', 'fedora:41', 'fedora:latest']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-packages
+          path: dist/native-packages
+      - name: Release filename regression checks
+        run: python3 packaging/test-release-names.py
+      - name: Install and check runtime libraries in a clean container
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: bash packaging/test-install.sh "$IMAGE" dist/native-packages

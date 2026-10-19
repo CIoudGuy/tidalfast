@@ -1,0 +1,4552 @@
+# Russian translation of the Tidalfast navigation pilot.
+# Distributed under the same MIT license as Tidalfast.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Tidalfast\n"
+"Report-Msgid-Bugs-To: https://github.com/CIoudGuy/tidalfast/issues/new?"
+"template=translation.yml\n"
+"POT-Creation-Date: 2026-10-19 06:00+0000\n"
+"PO-Revision-Date: 2026-09-23 20:00+0000\n"
+"Last-Translator: Tidalfast contributors\n"
+"Language-Team: Russian\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n % 10 == 1 && n % 100 != 11 ? 0 : n % 10 "
+">= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 1 : 2);\n"
+
+#. Translators: The play button on a Library card. {name} is the playlist, album, or artist.
+#: src/ui/sidebar.rs:181
+#, rust-format
+msgid "Pause {name}"
+msgstr "Приостановить {name}"
+
+#. Translators: The play button on a Library card. {name} is the playlist, album, or artist.
+#: src/ui/sidebar.rs:184
+#, rust-format
+msgid "Play {name}"
+msgstr "Воспроизвести {name}"
+
+#. Translators: Keep {count} exactly as written. A folder's size in the sidebar.
+#. Translators: Keep {count} exactly as written. A playlist's size in the sidebar.
+#. Translators: The label beside the pointer while several items are dragged. {count} is how many.
+#: src/ui/sidebar.rs:405 src/ui/sidebar.rs:1308 src/ui/widgets.rs:2056
+#, rust-format
+msgid "{count} item"
+msgid_plural "{count} items"
+msgstr[0] "{count} элемент"
+msgstr[1] "{count} элемента"
+msgstr[2] "{count} элементов"
+
+#: src/ui/sidebar.rs:464 src/ui/sidebar.rs:1257 src/ui/sidebar.rs:1898
+#: src/app.rs:3253 src/app.rs:6506 src/app.rs:20448 src/ui/collection.rs:3143
+#: src/ui/collection.rs:3663 src/ui/home.rs:164 src/ui/search.rs:429
+#: src/ui/search.rs:973 src/ui/search.rs:1388 src/ui/search.rs:1600
+msgid "Playlist"
+msgstr "Плейлист"
+
+#: src/ui/sidebar.rs:474 src/ui/sidebar.rs:1600 src/app.rs:3227
+#: src/app.rs:20453 src/model.rs:855 src/ui/collection.rs:3387
+#: src/ui/collection.rs:3394 src/ui/collection.rs:3551 src/ui/keys.rs:237
+#: src/ui/search.rs:810 src/ui/save_later.rs:22 src/ui/purchases.rs:38
+#: src/ui/uploads.rs:1430
+msgid "Tracks"
+msgstr "Треки"
+
+#: src/ui/sidebar.rs:509
+msgid "Library order"
+msgstr "Порядок медиатеки"
+
+#: src/ui/sidebar.rs:512 src/ui/home.rs:663 src/ui/home.rs:673
+#: src/ui/home.rs:694
+msgid "Recently played"
+msgstr "Недавно прослушанные"
+
+#: src/ui/sidebar.rs:514 src/ui/uploads.rs:1742
+msgid "Name"
+msgstr "Название"
+
+#: src/ui/sidebar.rs:517
+msgid "Recently added"
+msgstr "Недавно добавленные"
+
+#: src/ui/sidebar.rs:519
+msgid "Local custom order"
+msgstr "Свой локальный порядок"
+
+#: src/ui/sidebar.rs:520
+msgid "TIDAL order"
+msgstr "Порядок TIDAL"
+
+#: src/ui/sidebar.rs:646
+msgid "Show sidebar (Ctrl+B)"
+msgstr "Показать боковую панель (Ctrl+B)"
+
+#: src/ui/sidebar.rs:647
+msgid "Show sidebar (Cmd+B)"
+msgstr "Показать боковую панель (Cmd+B)"
+
+#: src/ui/sidebar.rs:662 src/ui/sidebar.rs:1715 src/ui/sidebar.rs:1795
+msgid "Music"
+msgstr "Музыка"
+
+#: src/ui/sidebar.rs:668 src/ui/sidebar.rs:1728 src/ui/sidebar.rs:1801
+#: src/ui/explore.rs:69
+msgid "Explore"
+msgstr "Обзор"
+
+#: src/ui/sidebar.rs:689 src/ui/sidebar.rs:1887 src/ui/library.rs:43
+msgid "Create a playlist"
+msgstr "Создать плейлист"
+
+#: src/ui/sidebar.rs:1352 src/ui/sidebar.rs:1807 src/ui/feed.rs:32
+msgid "Feed"
+msgstr "Лента"
+
+#: src/ui/sidebar.rs:1398 src/ui/sidebar.rs:1813 src/ui/uploads.rs:53
+#: src/ui/uploads.rs:74 src/ui/uploads.rs:118
+msgid "Upload"
+msgstr "Загрузить"
+
+#: src/ui/sidebar.rs:1593 src/ui/library.rs:47 src/ui/now_playing.rs:645
+msgid "Mixes & Radio"
+msgstr "Миксы и радио"
+
+#: src/ui/sidebar.rs:1596 src/model.rs:858 src/ui/artist.rs:194
+#: src/ui/artist.rs:1256 src/ui/artist.rs:2156 src/ui/library.rs:41
+#: src/ui/library.rs:42 src/ui/profile.rs:127 src/ui/menus.rs:636
+#: src/ui/downloads.rs:509 src/ui/save_later.rs:24
+msgid "Playlists"
+msgstr "Плейлисты"
+
+#: src/ui/sidebar.rs:1599 src/model.rs:857 src/model.rs:1107
+#: src/ui/artist.rs:933 src/ui/artist.rs:1250 src/ui/artist.rs:2125
+#: src/ui/library.rs:29 src/ui/downloads.rs:508 src/ui/save_later.rs:21
+#: src/ui/purchases.rs:37
+msgid "Albums"
+msgstr "Альбомы"
+
+#: src/ui/sidebar.rs:1601 src/model.rs:860 src/ui/artist.rs:222
+#: src/ui/artist.rs:1254 src/ui/videos.rs:44 src/ui/videos.rs:52
+#: src/ui/save_later.rs:25
+msgid "Videos"
+msgstr "Видео"
+
+#: src/ui/sidebar.rs:1602 src/model.rs:856 src/ui/library.rs:35
+msgid "Profiles"
+msgstr "Профили"
+
+#: src/ui/sidebar.rs:1603 src/ui/purchases.rs:21
+msgid "Purchases"
+msgstr "Покупки"
+
+#: src/ui/sidebar.rs:1606 src/ui/menus.rs:754 src/ui/save_later.rs:75
+msgid "Save for Later"
+msgstr "Сохранить на потом"
+
+#: src/ui/sidebar.rs:1611 src/ui/settings.rs:1683 src/ui/collection.rs:967
+#: src/ui/collection.rs:3493 src/app/downloads.rs:709
+msgid "Downloaded"
+msgstr "Скачанное"
+
+#: src/ui/sidebar.rs:1747 src/ui/sidebar.rs:1783 src/ui/sidebar.rs:1819
+msgid "Collection"
+msgstr "Коллекция"
+
+#: src/ui/sidebar.rs:1873
+msgid "All playlists"
+msgstr "Все плейлисты"
+
+#: src/ui/sidebar.rs:1911
+msgid "Folder"
+msgstr "Папка"
+
+#: src/ui/sidebar.rs:1929
+msgid "Sort playlists"
+msgstr "Сортировка плейлистов"
+
+#: src/ui/sidebar.rs:1978
+msgid "Hide sidebar (Ctrl+B)"
+msgstr "Скрыть боковую панель (Ctrl+B)"
+
+#: src/ui/sidebar.rs:1979
+msgid "Hide sidebar (Cmd+B)"
+msgstr "Скрыть боковую панель (Cmd+B)"
+
+#: src/ui/sidebar.rs:2096 src/app.rs:3291 src/ui/artist.rs:488
+#: src/ui/home.rs:202 src/ui/home.rs:786 src/ui/search.rs:859
+msgid "Artist"
+msgstr "Исполнитель"
+
+#: src/ui/sidebar.rs:2192
+msgid "Nothing here yet."
+msgstr "Здесь пока ничего нет."
+
+#: src/ui/sidebar.rs:2194
+msgid "No matches."
+msgstr "Ничего не найдено."
+
+#: src/ui/sidebar.rs:2833
+msgid "Sort by recently played"
+msgstr "Сортировать по недавно прослушанным"
+
+#: src/ui/sidebar.rs:2852 src/ui/equalizer.rs:693
+msgid "Rename"
+msgstr "Переименовать"
+
+#: src/ui/sidebar.rs:2864
+msgid "Delete folder"
+msgstr "Удалить папку"
+
+#: src/ui/sidebar.rs:2881 src/ui/menus.rs:1329 src/ui/videos.rs:382
+msgid "Play now"
+msgstr "Воспроизвести"
+
+#: src/ui/sidebar.rs:2899
+msgid "Unpin"
+msgstr "Открепить"
+
+#: src/ui/sidebar.rs:2901
+msgid "Pin to top"
+msgstr "Закрепить сверху"
+
+#. Translators: Keep {count} exactly as written. It becomes the number of liked songs.
+#: src/i18n.rs:184
+#, rust-format
+msgid "Playlist • {count} track"
+msgid_plural "Playlist • {count} tracks"
+msgstr[0] "Плейлист • {count} трек"
+msgstr[1] "Плейлист • {count} трека"
+msgstr[2] "Плейлист • {count} треков"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of songs.
+#. Translators: Keep {count} exactly as written.
+#. Translators: Keep {count} exactly as written. Shown in capitals on page headers.
+#. Translators: Keep {count} exactly as written. It becomes the number of selected tracks.
+#: src/i18n.rs:195 src/ui/collection.rs:3590 src/ui/collection.rs:3619
+#: src/ui/search.rs:612 src/ui/menus.rs:101 src/ui/menus.rs:1018
+#: src/ui/uploads.rs:244 src/ui/uploads.rs:707
+#, rust-format
+msgid "{count} track"
+msgid_plural "{count} tracks"
+msgstr[0] "{count} трек"
+msgstr[1] "{count} трека"
+msgstr[2] "{count} треков"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of playlists.
+#: src/i18n.rs:206
+#, rust-format
+msgid "{count} playlist"
+msgid_plural "{count} playlists"
+msgstr[0] "{count} плейлист"
+msgstr[1] "{count} плейлиста"
+msgstr[2] "{count} плейлистов"
+
+#. Translators: Keep {count} exactly as written. It becomes the number of playlists a folder holds.
+#: src/i18n.rs:217
+#, rust-format
+msgid "Folder • {count} playlist"
+msgid_plural "Folder • {count} playlists"
+msgstr[0] "Папка • {count} плейлист"
+msgstr[1] "Папка • {count} плейлиста"
+msgstr[2] "Папка • {count} плейлистов"
+
+#: src/i18n.rs:227
+#, rust-format
+msgid "{name}, folder, collapsed"
+msgstr "{name}, папка, свёрнута"
+
+#: src/i18n.rs:229
+#, rust-format
+msgid "{name}, folder, expanded"
+msgstr "{name}, папка, развёрнута"
+
+#: src/i18n.rs:262 src/i18n.rs:265 src/ui/keys.rs:233 src/ui/home_feeds.rs:520
+#: src/ui/titlebar.rs:147
+msgid "Home"
+msgstr "Главная"
+
+#: src/i18n.rs:369 src/ui/menus.rs:1468
+msgid "Unfollow"
+msgstr "Отписаться"
+
+#: src/i18n.rs:371 src/ui/menus.rs:1527
+msgctxt "artist"
+msgid "Unfollow"
+msgstr "Отписаться"
+
+#: src/ui/player_bar.rs:384 src/ui/lyrics.rs:108 src/ui/lyrics.rs:311
+#: src/ui/compact.rs:594 src/ui/now_playing.rs:283
+msgid "Nothing playing"
+msgstr "Ничего не играет"
+
+#: src/ui/player_bar.rs:390 src/app.rs:9539 src/ui/now_playing.rs:284
+msgid "Pick a track, album, or playlist"
+msgstr "Выбери трек, альбом или плейлист"
+
+#: src/ui/player_bar.rs:650 src/ui/widgets.rs:1935 src/ui/widgets.rs:2995
+#: src/ui/collection.rs:3207 src/ui/collection.rs:3229 src/ui/dialogs.rs:131
+#: src/ui/radio.rs:254 src/ui/menus.rs:716 src/ui/menus.rs:730
+#: src/ui/menus.rs:1052 src/ui/compact.rs:491
+msgid "Remove from My Collection"
+msgstr "Удалить из Моей коллекции"
+
+#: src/ui/player_bar.rs:657 src/ui/widgets.rs:1937 src/ui/widgets.rs:3001
+#: src/ui/collection.rs:3206 src/ui/collection.rs:3228 src/ui/radio.rs:253
+#: src/ui/menus.rs:718 src/ui/menus.rs:732 src/ui/menus.rs:1054
+#: src/ui/compact.rs:493
+msgid "Add to My Collection"
+msgstr "Добавить в Мою коллекцию"
+
+#: src/ui/player_bar.rs:715
+msgid "Don't play this"
+msgstr "Не воспроизводить это"
+
+#: src/ui/player_bar.rs:769 src/ui/queue.rs:1082 src/ui/widgets.rs:1981
+#: src/ui/widgets.rs:2961 src/ui/artist.rs:868 src/ui/artist.rs:1649
+#: src/ui/artist.rs:2040 src/ui/collection.rs:732 src/ui/now_playing.rs:875
+#: src/ui/now_playing_video.rs:312 src/ui/sticky.rs:441
+#: src/ui/album_credits.rs:549 src/ui/uploads.rs:1542
+msgid "More"
+msgstr "Ещё"
+
+#: src/ui/player_bar.rs:880 src/ui/player_bar.rs:887 src/ui/artist.rs:850
+#: src/ui/artist.rs:1628 src/ui/artist.rs:1703 src/ui/artist.rs:1987
+#: src/ui/collection.rs:707 src/ui/menus.rs:1395 src/ui/titlebar.rs:166
+#: src/ui/sticky.rs:515
+msgid "Shuffle"
+msgstr "Перемешать"
+
+#: src/ui/player_bar.rs:903 src/ui/compact.rs:415
+#: src/ui/now_playing_video.rs:498 src/ui/titlebar.rs:165
+msgid "Previous"
+msgstr "Предыдущий"
+
+#: src/ui/player_bar.rs:949 src/ui/collection.rs:876 src/ui/compact.rs:422
+#: src/ui/now_playing_video.rs:517
+msgid "Pause"
+msgstr "Пауза"
+
+#: src/ui/player_bar.rs:951 src/ui/artist.rs:833 src/ui/artist.rs:1635
+#: src/ui/artist.rs:1713 src/ui/artist.rs:1979 src/ui/collection.rs:878
+#: src/ui/compact.rs:424 src/ui/now_playing_video.rs:519
+msgid "Play"
+msgstr "Воспроизвести"
+
+#: src/ui/player_bar.rs:979 src/ui/compact.rs:434
+#: src/ui/now_playing_video.rs:535 src/ui/titlebar.rs:164
+msgid "Next"
+msgstr "Следующий"
+
+#: src/ui/player_bar.rs:988 src/ui/titlebar.rs:167
+msgid "Repeat"
+msgstr "Повтор"
+
+#: src/ui/player_bar.rs:992
+msgid "Repeat one"
+msgstr "Повторять один трек"
+
+#: src/ui/player_bar.rs:997
+msgid "Repeat off"
+msgstr "Выключить повтор"
+
+#: src/ui/player_bar.rs:1103 src/ui/compact.rs:566
+msgid "Playback position (%)"
+msgstr "Позиция воспроизведения (%)"
+
+#: src/ui/player_bar.rs:1161 src/ui/player_utility.rs:475
+msgid "Bit-perfect"
+msgstr "Bit-perfect"
+
+#: src/ui/player_bar.rs:1246
+msgid "Compact mode"
+msgstr "Компактный режим"
+
+#: src/ui/player_bar.rs:1301
+msgid ""
+"Bit-perfect playback: the volume stays at 100%. Turn the volume down on your "
+"device."
+msgstr ""
+"Воспроизведение bit-perfect: громкость остаётся на 100 %. Уменьшите её на "
+"своём устройстве."
+
+#: src/ui/player_bar.rs:1306
+msgid "This device's volume can't be changed from Tidalfast"
+msgstr "Громкость этого устройства нельзя изменить из Tidalfast"
+
+#: src/ui/player_bar.rs:1329 src/ui/queue.rs:24 src/ui/queue.rs:41
+msgid "Queue"
+msgstr "Очередь"
+
+#: src/ui/queue.rs:42 src/ui/menus.rs:580 src/ui/menus.rs:656
+msgid "Recent"
+msgstr "Недавние"
+
+#: src/ui/queue.rs:79
+msgid "Save as a playlist"
+msgstr "Сохранить как плейлист"
+
+#: src/ui/queue.rs:96 src/ui/queue.rs:909
+msgid "Clear queue"
+msgstr "Очистить очередь"
+
+#: src/ui/queue.rs:199 src/ui/queue.rs:212 src/ui/queue.rs:866
+msgid "Playing from"
+msgstr "Источник воспроизведения"
+
+#: src/ui/queue.rs:232
+msgid "Now playing"
+msgstr "Сейчас играет"
+
+#: src/ui/queue.rs:274
+msgid "Nothing queued"
+msgstr "Очередь пуста"
+
+#: src/ui/queue.rs:275
+msgid "Queued tracks appear here."
+msgstr "Здесь появятся добавленные в очередь треки."
+
+#. Translators: Songs added manually, before the current playlist or album continues.
+#: src/ui/queue.rs:295
+msgid "Playing next"
+msgstr "Добавлено в очередь"
+
+#: src/ui/queue.rs:402
+msgid "Next up from"
+msgstr "Далее из"
+
+#. Translators: Upcoming songs from the current playlist or album, after manually queued songs.
+#: src/ui/queue.rs:403 src/ui/queue.rs:412
+msgid "Next up"
+msgstr "Далее"
+
+#: src/ui/queue.rs:458 src/ui/queue.rs:491 src/ui/widgets.rs:4215
+#: src/ui/collection.rs:2352 src/ui/plugins.rs:2097 src/ui/blocked.rs:49
+msgid "Retry"
+msgstr "Повторить"
+
+#: src/ui/queue.rs:473
+msgid "No recent plays"
+msgstr "Нет недавних прослушиваний"
+
+#: src/ui/queue.rs:474
+msgid "Played tracks appear here."
+msgstr "Здесь появятся прослушанные треки."
+
+#: src/ui/queue.rs:550
+msgid "Load more"
+msgstr "Загрузить ещё"
+
+#: src/ui/queue.rs:723 src/ui/queue.rs:728 src/ui/titlebar.rs:149
+msgid "Play queue"
+msgstr "Очередь воспроизведения"
+
+#: src/ui/queue.rs:740 src/ui/lyrics.rs:69 src/ui/artist.rs:747
+#: src/ui/dialogs.rs:671 src/ui/dialogs.rs:831 src/ui/mod.rs:973
+#: src/ui/now_playing.rs:346 src/ui/now_playing_video.rs:152
+#: src/ui/now_playing_video.rs:490 src/ui/blocked.rs:29 src/ui/uploads.rs:492
+msgid "Close"
+msgstr "Закрыть"
+
+#: src/ui/queue.rs:834
+msgid "History"
+msgstr "История"
+
+#: src/ui/queue.rs:901 src/ui/widgets.rs:4790
+msgid "Clear"
+msgstr "Очистить"
+
+#. Translators: {title} is a song name, {subtitle} its artists.
+#: src/ui/queue.rs:958 src/ui/widgets.rs:1424
+#, rust-format
+msgid "Play {title}, {subtitle}"
+msgstr "Воспроизвести {title}, {subtitle}"
+
+#: src/ui/queue.rs:1068 src/ui/dialogs.rs:162
+msgid "Remove"
+msgstr "Удалить"
+
+#: src/ui/lyrics.rs:58 src/ui/compact.rs:304 src/ui/now_playing.rs:169
+msgid "Lyrics"
+msgstr "Текст песни"
+
+#: src/ui/lyrics.rs:81
+msgid "Full screen lyrics"
+msgstr "Текст песни на весь экран"
+
+#: src/ui/lyrics.rs:109 src/ui/lyrics.rs:312
+msgid "Play a track to see its lyrics."
+msgstr "Включи трек, чтобы увидеть его текст."
+
+#: src/ui/lyrics.rs:120 src/ui/lyrics.rs:137 src/app.rs:12563
+#: src/ui/artist.rs:377 src/ui/artist.rs:411 src/ui/collection.rs:2695
+#: src/ui/collection.rs:2852 src/ui/collection.rs:2885
+#: src/ui/collection.rs:2944 src/ui/collection.rs:3067
+#: src/ui/collection.rs:3100 src/ui/collection.rs:3378 src/ui/library.rs:294
+#: src/ui/library.rs:457 src/ui/downloads.rs:40 src/ui/save_later.rs:154
+#: src/ui/purchases.rs:116
+msgid "You're offline"
+msgstr "Нет подключения к сети"
+
+#: src/ui/lyrics.rs:123 src/ui/lyrics.rs:140 src/ui/artist.rs:380
+#: src/ui/artist.rs:414 src/ui/collection.rs:2698 src/ui/collection.rs:2855
+#: src/ui/collection.rs:2888 src/ui/collection.rs:2947
+#: src/ui/collection.rs:3070 src/ui/collection.rs:3103
+#: src/ui/collection.rs:3381 src/ui/library.rs:297 src/ui/library.rs:460
+#: src/ui/downloads.rs:55 src/ui/save_later.rs:157 src/ui/purchases.rs:119
+msgid "Tidalfast will reconnect automatically when your connection returns."
+msgstr "Tidalfast автоматически подключится, когда соединение восстановится."
+
+#: src/ui/lyrics.rs:149 src/ui/lyrics.rs:326 src/ui/settings.rs:574
+#: src/ui/downloads.rs:488 src/ui/now_playing.rs:504
+#: src/ui/album_credits.rs:590 src/ui/album_extras.rs:180
+msgid "Try again"
+msgstr "Попробовать снова"
+
+#: src/ui/lyrics.rs:160 src/ui/lyrics.rs:337 src/ui/compact.rs:608
+msgid "No lyrics"
+msgstr "Нет текста песни"
+
+#: src/ui/lyrics.rs:161 src/ui/lyrics.rs:338
+msgid "No lyrics found for this track."
+msgstr "Текст этой песни не найден."
+
+#: src/ui/lyrics.rs:170 src/ui/lyrics.rs:347 src/ui/compact.rs:604
+msgid "Instrumental"
+msgstr "Инструментальная композиция"
+
+#: src/ui/lyrics.rs:171 src/ui/lyrics.rs:348
+msgid "No timed lyrics for this track."
+msgstr "Для этого трека нет синхронизированного текста."
+
+#: src/ui/lyrics.rs:295 src/ui/lyrics.rs:539
+msgid "Sync Lyrics"
+msgstr "Синхронизировать текст"
+
+#: src/ui/lyrics.rs:591
+msgid "The lyrics service is busy right now. Try again in a moment."
+msgstr ""
+"Сервис текстов песен сейчас перегружен. Повторите попытку через минуту."
+
+#: src/ui/lyrics.rs:597
+msgid "Couldn't reach the lyrics service. Check your connection and try again."
+msgstr ""
+"Не удалось подключиться к сервису текстов песен. Проверьте подключение и "
+"повторите попытку."
+
+#. Translators: Keep {error} unchanged. It is the original failure detail.
+#: src/ui/lyrics.rs:604
+#, rust-format
+msgid "Couldn't fetch the lyrics: {error}"
+msgstr "Не удалось получить текст песни: {error}"
+
+#: src/ui/widgets.rs:1075 src/ui/library.rs:44
+msgid "Filter playlists"
+msgstr "Фильтр плейлистов"
+
+#: src/ui/widgets.rs:1102
+msgid "No editable playlists"
+msgstr "Нет плейлистов, которые можно изменить"
+
+#: src/ui/widgets.rs:1104 src/ui/library.rs:286
+msgid "No matching playlists"
+msgstr "Подходящих плейлистов нет"
+
+#. Translators: {column} is a column heading of a song list, such as Title.
+#: src/ui/widgets.rs:2500
+#, rust-format
+msgid "Sort by {column}"
+msgstr "Сортировка: {column}"
+
+#: src/ui/widgets.rs:2505
+msgctxt "column heading"
+msgid "TITLE"
+msgstr "НАЗВАНИЕ"
+
+#: src/ui/widgets.rs:2512
+msgid "Sort by playlist order"
+msgstr "Сортировать в порядке плейлиста"
+
+#: src/ui/widgets.rs:2528
+msgctxt "column heading"
+msgid "ARTIST"
+msgstr "ИСПОЛНИТЕЛЬ"
+
+#: src/ui/widgets.rs:2532
+msgctxt "column heading"
+msgid "ALBUM"
+msgstr "АЛЬБОМ"
+
+#: src/ui/widgets.rs:2537
+msgctxt "column heading"
+msgid "ADDED BY"
+msgstr "КТО ДОБАВИЛ"
+
+#: src/ui/widgets.rs:2542
+msgctxt "column heading"
+msgid "DATE ADDED"
+msgstr "ДАТА ДОБАВЛЕНИЯ"
+
+#: src/ui/widgets.rs:2551
+msgctxt "column heading"
+msgid "TIME"
+msgstr "ВРЕМЯ"
+
+#: src/ui/widgets.rs:2557
+msgid "Sort by duration"
+msgstr "Сортировать по длительности"
+
+#: src/ui/widgets.rs:2562
+msgctxt "column heading"
+msgid "BPM"
+msgstr "BPM"
+
+#: src/ui/widgets.rs:2563
+msgctxt "column heading"
+msgid "KEY"
+msgstr "ТОНАЛЬНОСТЬ"
+
+#: src/ui/widgets.rs:2979 src/ui/menus.rs:502
+msgid "Add to playlist"
+msgstr "Добавить в плейлист"
+
+#: src/ui/widgets.rs:4178 src/app.rs:12149
+msgid "That needs a connection. Turn off offline mode to use TIDAL."
+msgstr ""
+"Для этого нужно подключение. Выключите автономный режим, чтобы пользоваться "
+"TIDAL."
+
+#: src/ui/widgets.rs:4186 src/app.rs:13734 src/app.rs:13748
+msgid "Network connection error. Check your connection."
+msgstr "Ошибка сетевого подключения. Проверьте соединение."
+
+#: src/ui/widgets.rs:4205 src/ui/downloads.rs:84 src/ui/downloads.rs:109
+msgid "Go online"
+msgstr "Подключиться"
+
+#: src/ui/widgets.rs:4641
+msgid "Cut"
+msgstr "Вырезать"
+
+#: src/ui/widgets.rs:4646
+msgid "Copy"
+msgstr "Копировать"
+
+#: src/ui/widgets.rs:4651
+msgid "Paste"
+msgstr "Вставить"
+
+#: src/ui/widgets.rs:4668
+msgid "Select all"
+msgstr "Выделить всё"
+
+#: src/ui/widgets.rs:5032
+msgid "Host"
+msgstr "Хост"
+
+#: src/ui/widgets.rs:5049
+msgid "Port"
+msgstr "Порт"
+
+#: src/ui/widgets.rs:5067
+msgid "Username"
+msgstr "Имя пользователя"
+
+#: src/ui/widgets.rs:5078
+msgid "Password"
+msgstr "Пароль"
+
+#: src/ui/widgets.rs:5096
+msgid ""
+"Proxy login applies to Web requests. Local playback uses this proxy only "
+"without a login."
+msgstr ""
+"Логин прокси применяется к веб-запросам. Локальное воспроизведение "
+"использует этот прокси только без логина."
+
+#: src/ui/widgets.rs:5100
+msgid ""
+"TIDAL hostnames are resolved by the proxy. Local playback connects directly."
+msgstr ""
+"Имена хостов TIDAL разрешаются через прокси. Локальное воспроизведение "
+"подключается напрямую."
+
+#: src/app.rs:986
+msgid "Restoring proxy settings"
+msgstr "Восстановление настроек прокси"
+
+#: src/app.rs:1332
+#, rust-format
+msgid "Tidalfast updated to v{version}"
+msgstr "Tidalfast обновлён до v{version}"
+
+#: src/app.rs:1335 src/ui/settings.rs:1811 src/ui/dialogs.rs:262
+msgid "What's new"
+msgstr "Что нового"
+
+#. Translators: {error} is a sentence saying why the proxy password could not be stored.
+#: src/app.rs:2340
+#, rust-format
+msgid ""
+"{error} The original settings file is kept intact; changed preferences are "
+"not saved yet."
+msgstr ""
+"{error} Исходный файл настроек не изменён; изменённые параметры пока не "
+"сохранены."
+
+#: src/app.rs:2361
+#, rust-format
+msgid "Couldn't load AutoEQ's headphone list: {error}"
+msgstr "Не удалось загрузить список наушников AutoEQ: {error}"
+
+#: src/app.rs:2377
+#, rust-format
+msgid "Couldn't load the AutoEQ profile: {error}"
+msgstr "Не удалось загрузить профиль AutoEQ: {error}"
+
+#. Translators: {version} is a version number such as 1.4.0.
+#: src/app.rs:2521
+#, rust-format
+msgid "Tidalfast {version} is available"
+msgstr "Доступен Tidalfast {version}"
+
+#: src/app.rs:2542
+msgid "You're up to date"
+msgstr "У вас последняя версия"
+
+#: src/app.rs:2561
+msgid "This build can't check for updates"
+msgstr "Эта сборка не может проверять обновления"
+
+#: src/app.rs:2563
+msgid "Couldn't reach the update server"
+msgstr "Не удалось связаться с сервером обновлений"
+
+#. Translators: {error} is an error message from the playback engine.
+#: src/app.rs:2636
+#, rust-format
+msgid "Local playback: {error}"
+msgstr "Локальное воспроизведение: {error}"
+
+#: src/app.rs:2681
+msgid "TIDAL hasn't confirmed your playlist changes yet. Try refreshing again."
+msgstr ""
+"TIDAL ещё не подтвердил изменения вашего плейлиста. Попробуйте обновить ещё "
+"раз."
+
+#: src/app.rs:3162
+msgid "The song you were playing isn't available anymore"
+msgstr "Трек, который вы слушали, больше недоступен"
+
+#. Translators: {name} is a song title.
+#: src/app.rs:3167
+#, rust-format
+msgid "{name} isn't available anymore"
+msgstr "{name} больше недоступен"
+
+#: src/app.rs:3235 src/app/radio.rs:191 src/ui/radio.rs:37 src/ui/radio.rs:81
+msgid "Radio"
+msgstr "Радио"
+
+#: src/app.rs:3269 src/api/models.rs:302 src/ui/search.rs:427
+#: src/ui/search.rs:1387 src/ui/search.rs:1580 src/ui/feed.rs:128
+#: src/ui/uploads.rs:1295
+msgid "Album"
+msgstr "Альбом"
+
+#: src/app.rs:3300
+#, rust-format
+msgid "{artist} top tracks"
+msgstr "Популярные треки: {artist}"
+
+#: src/app.rs:3302
+msgid "Top tracks"
+msgstr "Популярные треки"
+
+#: src/app.rs:3322 src/ui/radio.rs:197 src/ui/radio.rs:214
+msgid "Mix"
+msgstr "Микс"
+
+#: src/app.rs:3841
+#, rust-format
+msgid "Left out {count} filters this equalizer does not have"
+msgstr "Пропущено фильтров, которых нет в этом эквалайзере: {count}"
+
+#: src/app.rs:3850
+#, rust-format
+msgid "That is not an Equalizer APO profile: {error}"
+msgstr "Это не профиль Equalizer APO: {error}"
+
+#: src/app.rs:3996
+msgid "Proxy applied. Restarting local playback."
+msgstr "Прокси применён. Перезапуск локального воспроизведения."
+
+#: src/app.rs:3998
+msgid "Proxy settings applied"
+msgstr "Настройки прокси применены"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:4005
+#, rust-format
+msgid ""
+"Proxy could not be applied: {error}. Previous connection settings are still "
+"in use."
+msgstr ""
+"Не удалось применить прокси: {error}. Используются прежние настройки "
+"подключения."
+
+#: src/app.rs:5905
+msgid "Removed from queue"
+msgstr "Удалено из очереди"
+
+#: src/app.rs:6019
+msgid "Queue cleared"
+msgstr "Очередь очищена"
+
+#. Translators: Keep {date} unchanged. It is a date in YYYY-MM-DD form.
+#: src/app.rs:6049 src/app.rs:20438
+#, rust-format
+msgid "Queue {date}"
+msgstr "Очередь {date}"
+
+#: src/app.rs:6647
+msgid "Your TIDAL sign-in expired. Please sign in again."
+msgstr "Срок действия входа в TIDAL истёк. Войдите снова."
+
+#. Translators: {error} is an error message.
+#: src/app.rs:6654
+#, rust-format
+msgid "Couldn't load your profile: {error}"
+msgstr "Не удалось загрузить профиль: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7035
+#, rust-format
+msgid "Couldn't load more playlists: {error}"
+msgstr "Не удалось загрузить ещё плейлисты: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7343
+#, rust-format
+msgid "Couldn't create the playlist: {error}"
+msgstr "Не удалось создать плейлист: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7361 src/app.rs:7380 src/app.rs:7569
+#, rust-format
+msgid "Couldn't update the playlist: {error}"
+msgstr "Не удалось обновить плейлист: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7396 src/app.rs:7533
+#, rust-format
+msgid "Playlist change failed: {error}"
+msgstr "Не удалось изменить плейлист: {error}"
+
+#. Translators: {name} is an album name and {error} is an error message.
+#: src/app.rs:7417 src/app.rs:9823
+#, rust-format
+msgid "Couldn't add {name} to queue: {error}"
+msgstr "Не удалось добавить «{name}» в очередь: {error}"
+
+#: src/app.rs:7446
+msgid "Couldn't delete the folder, its playlists couldn't be moved out"
+msgstr "Не удалось удалить папку: плейлисты из неё не удалось вынести"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7453
+#, rust-format
+msgid "Folder change failed: {error}"
+msgstr "Не удалось изменить папку: {error}"
+
+#: src/app.rs:7744
+msgid "We won't play this song again"
+msgstr "Этот трек больше не будет воспроизводиться"
+
+#: src/app.rs:7747
+msgid "Couldn't block this song"
+msgstr "Не удалось заблокировать этот трек"
+
+#: src/app.rs:7776
+msgid "We'll play this song again"
+msgstr "Мы снова будем включать эту песню"
+
+#: src/app.rs:7787
+msgid "Couldn't unblock this song"
+msgstr "Не удалось разблокировать песню"
+
+#: src/app.rs:7806
+msgid "We won't play this artist in mixes and radio"
+msgstr "Мы не будем включать этого исполнителя в миксах и радио"
+
+#: src/app.rs:7808
+msgid "We'll play this artist again"
+msgstr "Мы снова будем включать этого исполнителя"
+
+#: src/app.rs:7813
+msgid "Couldn't block this artist"
+msgstr "Не удалось заблокировать исполнителя"
+
+#: src/app.rs:7815
+msgid "Couldn't unblock this artist"
+msgstr "Не удалось разблокировать исполнителя"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:7895
+#, rust-format
+msgid "Couldn't update My Collection: {error}"
+msgstr "Не удалось обновить Мою коллекцию: {error}"
+
+#. Translators: {query} is the words someone searched for.
+#: src/app.rs:7944
+#, rust-format
+msgid "Nothing on TIDAL matches “{query}”"
+msgstr "В TIDAL ничего не найдено по запросу «{query}»"
+
+#. Translators: {query} is the words someone searched for; {error} is an error message.
+#: src/app.rs:7952
+#, rust-format
+msgid "Couldn't search for “{query}”: {error}"
+msgstr "Не удалось найти «{query}»: {error}"
+
+#: src/app.rs:7990 src/ui/keys.rs:224 src/ui/search.rs:156 src/ui/topbar.rs:354
+#: src/ui/titlebar.rs:148
+msgid "Search"
+msgstr "Поиск"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:8301
+#, rust-format
+msgid "Cannot open this track: {error}"
+msgstr "Не удаётся открыть этот трек: {error}"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:8366 src/app.rs:8390
+#, rust-format
+msgid "Couldn't add to queue: {error}"
+msgstr "Не удалось добавить в очередь: {error}"
+
+#: src/app.rs:8493
+msgid "This track's album is not on TIDAL"
+msgstr "Альбома этого трека нет в TIDAL"
+
+#: src/app.rs:8506
+msgid "Tidalfast cannot open this kind of TIDAL link"
+msgstr "Tidalfast не умеет открывать такие ссылки TIDAL"
+
+#: src/app.rs:8730
+msgid "Nothing is playing. Pick something first"
+msgstr "Ничего не играет. Сначала выбери, что включить"
+
+#: src/app.rs:9137
+msgid "Playback isn't ready yet. Sign in to TIDAL first"
+msgstr "Воспроизведение ещё не готово. Сначала войдите в TIDAL"
+
+#: src/app.rs:9522 src/app.rs:9527
+msgid "Pick something to play"
+msgstr "Выбери, что включить"
+
+#. Translators: {name} is an album name.
+#: src/app.rs:9788 src/app.rs:12669
+#, rust-format
+msgid "Loading {name} to queue…"
+msgstr "Добавление «{name}» в очередь…"
+
+#: src/app.rs:9807
+msgid "Playback device changed. Add the album to queue again"
+msgstr "Устройство воспроизведения сменилось. Добавь альбом в очередь ещё раз"
+
+#: src/app.rs:9816 src/app.rs:9834 src/app.rs:9843
+msgid "Couldn't load the album's tracks in order. Try again"
+msgstr "Не удалось загрузить треки альбома по порядку. Попробуй ещё раз"
+
+#: src/app.rs:9882
+msgid "This album has no playable tracks to queue"
+msgstr "В этом альбоме нет треков, которые можно добавить в очередь"
+
+#. Translators: {count} is a number of songs and {name} is an album name.
+#: src/app.rs:9891
+#, rust-format
+msgid "{count} track from {name} added to queue"
+msgid_plural "{count} tracks from {name} added to queue"
+msgstr[0] "{count} трек из «{name}» добавлен в очередь"
+msgstr[1] "{count} трека из «{name}» добавлены в очередь"
+msgstr[2] "{count} треков из «{name}» добавлено в очередь"
+
+#. Translators: {count} is a number of songs.
+#: src/app.rs:9935
+#, rust-format
+msgid "{count} track added to queue"
+msgid_plural "{count} tracks added to queue"
+msgstr[0] "{count} трек добавлен в очередь"
+msgstr[1] "{count} трека добавлены в очередь"
+msgstr[2] "{count} треков добавлено в очередь"
+
+#. Translators: {name} is a song, album, or playlist name.
+#: src/app.rs:9972
+#, rust-format
+msgid "{name} added to queue"
+msgstr "Добавлено в очередь: {name}"
+
+#. Translators: {name} is a playlist name.
+#: src/app.rs:10311
+#, rust-format
+msgid "Added to {name}"
+msgstr "Добавлено в «{name}»"
+
+#: src/app.rs:10313 src/ui/settings.rs:812 src/ui/titlebar.rs:145
+msgid "View"
+msgstr "Вид"
+
+#: src/app.rs:10438
+msgid "The clipboard has no TIDAL song links"
+msgstr "В буфере обмена нет ссылок на треки TIDAL"
+
+#. Translators: {count} is the number of pasted links that failed.
+#: src/app.rs:10519
+#, rust-format
+msgid "{count} pasted link could not be added"
+msgid_plural "{count} pasted links could not be added"
+msgstr[0] "Не удалось добавить {count} вставленную ссылку"
+msgstr[1] "Не удалось добавить {count} вставленные ссылки"
+msgstr[2] "Не удалось добавить {count} вставленных ссылок"
+
+#: src/app.rs:11181
+msgid "Removed from playlist"
+msgstr "Удалено из плейлиста"
+
+#: src/app.rs:11252
+msgid "Playlist created"
+msgstr "Плейлист создан"
+
+#: src/app.rs:11279
+msgid "TIDAL doesn't let apps remove a playlist description, so it was kept"
+msgstr ""
+"TIDAL не позволяет приложениям удалять описание плейлиста, поэтому оно "
+"сохранено"
+
+#: src/app.rs:11289
+msgid "Playlist updated"
+msgstr "Плейлист обновлён"
+
+#: src/app.rs:11306
+msgid "Playlist is now public"
+msgstr "Плейлист теперь открытый"
+
+#: src/app.rs:11308
+msgid "Playlist is now private"
+msgstr "Плейлист теперь закрытый"
+
+#: src/app.rs:11324
+msgid "Playlist deleted"
+msgstr "Плейлист удалён"
+
+#: src/app.rs:11367
+msgid "Folder created"
+msgstr "Папка создана"
+
+#: src/app.rs:11383
+msgid "Folder renamed"
+msgstr "Папка переименована"
+
+#: src/app.rs:11402
+msgid "Folder deleted"
+msgstr "Папка удалена"
+
+#: src/app.rs:11442 src/app.rs:11482 src/app/uploads.rs:511
+#: src/app/uploads.rs:516
+msgid "Link copied"
+msgstr "Ссылка скопирована"
+
+#: src/app.rs:11448
+msgid "Embed code copied"
+msgstr "Код для вставки скопирован"
+
+#. Translators: {count} is a number of song links, always more than one.
+#: src/app.rs:11486
+#, rust-format
+msgid "{count} link copied"
+msgid_plural "{count} links copied"
+msgstr[0] "Скопирована {count} ссылка"
+msgstr[1] "Скопировано {count} ссылки"
+msgstr[2] "Скопировано {count} ссылок"
+
+#: src/app.rs:11562
+msgid "Picture copied"
+msgstr "Изображение скопировано"
+
+#: src/app.rs:11564
+msgid "The picture could not be copied"
+msgstr "Не удалось скопировать изображение"
+
+#: src/app.rs:11793
+msgid ""
+"TIDAL doesn't let apps reorder your playlists, so this order is saved on "
+"this computer"
+msgstr ""
+"TIDAL не позволяет приложениям менять порядок плейлистов, поэтому этот "
+"порядок сохранён на этом компьютере"
+
+#: src/app.rs:11840
+msgid "Restarting local playback"
+msgstr "Перезапуск локального воспроизведения"
+
+#: src/app.rs:11899
+msgid "Play history cleared"
+msgstr "История прослушивания очищена"
+
+#. Translators: {size} is a size in megabytes, such as 12.5.
+#: src/app.rs:11910
+#, rust-format
+msgid "Cleared {size} MB of artwork"
+msgstr "Удалено {size} МБ обложек"
+
+#. Translators: {error} is an error message.
+#: src/app.rs:11916
+#, rust-format
+msgid "Couldn't clear artwork: {error}"
+msgstr "Не удалось удалить обложки: {error}"
+
+#: src/app.rs:12027
+msgid "Copied as an Equalizer APO profile"
+msgstr "Скопировано как профиль Equalizer APO"
+
+#: src/app.rs:12138
+msgid "Collaborator invites aren't available in Tidalfast yet"
+msgstr "Приглашения соавторов в Tidalfast пока недоступны"
+
+#: src/app.rs:12235
+msgid "Offline mode is on. Turn it off to check for updates."
+msgstr "Автономный режим включён. Выключите его, чтобы проверять обновления."
+
+#: src/app.rs:12368
+msgid "Couldn't change whether Tidalfast starts at login."
+msgstr "Не удалось изменить запуск Tidalfast при входе в систему."
+
+#: src/app.rs:12683 src/ui/collection.rs:692
+msgid "No playable tracks in this view"
+msgstr "Здесь нет треков, доступных для воспроизведения"
+
+#: src/app.rs:13547 src/ui/now_playing_video.rs:212
+msgid "Loading…"
+msgstr "Загрузка…"
+
+#: src/app.rs:13672
+msgid "Couldn't start playback"
+msgstr "Не удалось начать воспроизведение"
+
+#: src/app.rs:13673
+msgid "Couldn't pause"
+msgstr "Не удалось поставить на паузу"
+
+#: src/app.rs:13674
+msgid "Couldn't skip"
+msgstr "Не удалось переключить трек"
+
+#: src/app.rs:13675
+msgid "Couldn't go back"
+msgstr "Не удалось вернуться назад"
+
+#: src/app.rs:13676
+msgid "Couldn't seek"
+msgstr "Не удалось перемотать"
+
+#: src/app.rs:13677
+msgid "Couldn't change the volume"
+msgstr "Не удалось изменить громкость"
+
+#: src/app.rs:13678
+msgid "Couldn't change shuffle"
+msgstr "Не удалось изменить режим перемешивания"
+
+#: src/app.rs:13679
+msgid "Couldn't change repeat"
+msgstr "Не удалось изменить режим повтора"
+
+#: src/app.rs:13722
+msgid ""
+"No audio output device was found. Connect or enable one, then press play "
+"again."
+msgstr ""
+"Устройство вывода звука не найдено. Подключи или включи его, затем снова "
+"нажми «Воспроизвести»."
+
+#: src/app.rs:13727
+msgid "This video can't be played in Tidalfast"
+msgstr "Это видео нельзя воспроизвести в Tidalfast"
+
+#: src/app.rs:13739
+msgid "TIDAL doesn't make this playlist's songs available to third-party apps."
+msgstr "TIDAL не предоставляет сторонним приложениям треки этого плейлиста."
+
+#. Translators: Keep {track} unchanged. It is the name of the song,
+#. playlist, album, or artist the radio is based on, not translated.
+#: src/app.rs:20458 src/app/radio.rs:38
+#, rust-format
+msgid "{track} Radio"
+msgstr "Радио по треку «{track}»"
+
+#: src/ui/settings.rs:282
+msgid "General"
+msgstr "Общие"
+
+#: src/ui/settings.rs:283 src/ui/titlebar.rs:161
+msgid "Playback"
+msgstr "Воспроизведение"
+
+#: src/ui/settings.rs:284 src/ui/settings.rs:1513
+msgid "Downloads"
+msgstr "Загрузки"
+
+#: src/ui/settings.rs:285 src/ui/settings.rs:384
+msgid "Account"
+msgstr "Аккаунт"
+
+#: src/ui/settings.rs:286 src/ui/settings.rs:1806
+msgid "About"
+msgstr "О программе"
+
+#: src/ui/settings.rs:343
+msgid "Search settings"
+msgstr "Поиск настроек"
+
+#: src/ui/settings.rs:361 src/ui/keys.rs:249 src/ui/topbar.rs:718
+#: src/ui/titlebar.rs:139
+msgid "Settings"
+msgstr "Настройки"
+
+#: src/ui/settings.rs:385 src/ui/titlebar.rs:142
+msgid "Sign out"
+msgstr "Выйти из аккаунта"
+
+#: src/ui/settings.rs:386
+msgid "Streaming quality"
+msgstr "Качество потоковой передачи"
+
+#: src/ui/settings.rs:409
+msgid "TIDAL Free, playback needs a subscription"
+msgstr "TIDAL Free, для воспроизведения нужна подписка"
+
+#: src/ui/settings.rs:428
+msgid "Audio quality"
+msgstr "Качество звука"
+
+#: src/ui/settings.rs:429 src/ui/player_utility.rs:458
+msgid "Bit-perfect (exclusive mode)"
+msgstr "Bit-perfect (монопольный режим)"
+
+#: src/ui/settings.rs:430
+msgid "Adaptive streaming"
+msgstr "Адаптивная потоковая передача"
+
+#: src/ui/settings.rs:434
+msgctxt "streaming quality"
+msgid "Low"
+msgstr "Низкое"
+
+#: src/ui/settings.rs:435
+msgid "AAC 96 kbps, the least data"
+msgstr "AAC 96 кбит/с, меньше всего трафика"
+
+#: src/ui/settings.rs:439
+msgctxt "streaming quality"
+msgid "High"
+msgstr "Высокое"
+
+#: src/ui/settings.rs:440
+msgid "AAC 320 kbps"
+msgstr "AAC 320 кбит/с"
+
+#: src/ui/settings.rs:444
+msgctxt "streaming quality"
+msgid "Lossless"
+msgstr "Без потерь"
+
+#: src/ui/settings.rs:445
+msgid "16-bit, 44.1 kHz"
+msgstr "16 бит, 44,1 кГц"
+
+#: src/ui/settings.rs:449
+msgctxt "streaming quality"
+msgid "Max"
+msgstr "Макс."
+
+#: src/ui/settings.rs:450
+msgid "Up to 24-bit, 192 kHz"
+msgstr "До 24 бит, 192 кГц"
+
+#: src/ui/settings.rs:458
+msgid ""
+"Max plays hi-res FLAC when you signed in with “Log in with Max (hi-res)” and "
+"TIDAL has it."
+msgstr ""
+"Max воспроизводит Hi-Res FLAC, если вы вошли через «Войти с Max (Hi-Res)» и "
+"он есть в TIDAL."
+
+#: src/ui/settings.rs:465
+msgid "Automatically adjust audio quality based on your network conditions"
+msgstr "Автоматически подстраивает качество звука под состояние сети"
+
+#: src/ui/settings.rs:472
+msgid ""
+"Holds the audio device and sends each track at its own format, untouched. "
+"Equalizer, normalisation and crossfade are off while it is on; volume moves "
+"the device's own control when it has one."
+msgstr ""
+"Занимает аудиоустройство и отправляет каждый трек в его собственном формате "
+"без изменений. Эквалайзер, нормализация и кроссфейд отключены; громкость "
+"управляет собственным регулятором устройства, если он есть."
+
+#: src/ui/settings.rs:530
+msgid "Video quality"
+msgstr "Качество видео"
+
+#: src/ui/settings.rs:535
+msgid ""
+"Music videos play at this resolution or the closest below. Auto picks the "
+"best that fits the window."
+msgstr ""
+"Музыкальные видео воспроизводятся в этом разрешении или ближайшем меньшем. "
+"Авто выбирает лучшее из подходящих по размеру окна."
+
+#: src/ui/settings.rs:545
+msgctxt "video quality"
+msgid "Auto"
+msgstr "Авто"
+
+#: src/ui/settings.rs:546
+msgid "The best that fits the window"
+msgstr "Лучшее, что помещается в окно"
+
+#: src/ui/settings.rs:562
+msgctxt "playback status"
+msgid "Ready"
+msgstr "Готово"
+
+#: src/ui/settings.rs:563
+msgid "TIDAL plays on this computer."
+msgstr "TIDAL воспроизводит музыку на этом компьютере."
+
+#: src/ui/settings.rs:567
+msgctxt "playback status"
+msgid "Connecting"
+msgstr "Подключение"
+
+#: src/ui/settings.rs:568
+msgid "Starting playback…"
+msgstr "Запуск воспроизведения…"
+
+#: src/ui/settings.rs:572
+msgctxt "playback status"
+msgid "Unavailable"
+msgstr "Недоступно"
+
+#: src/ui/settings.rs:577
+msgctxt "playback status"
+msgid "Not signed in"
+msgstr "Вход не выполнен"
+
+#: src/ui/settings.rs:578
+msgid "Sign in to TIDAL to play music."
+msgstr "Войдите в TIDAL, чтобы слушать музыку."
+
+#: src/ui/settings.rs:582
+msgid "Playback on this computer"
+msgstr "Воспроизведение на этом компьютере"
+
+#: src/ui/settings.rs:583
+msgid "Normalize volume"
+msgstr "Нормализация громкости"
+
+#: src/ui/settings.rs:584
+msgid "Autoplay"
+msgstr "Автовоспроизведение"
+
+#: src/ui/settings.rs:585
+msgid "Gapless playback"
+msgstr "Воспроизведение без пауз"
+
+#: src/ui/settings.rs:586 src/ui/settings.rs:1789
+msgid "Apply and restart playback"
+msgstr "Применить и перезапустить воспроизведение"
+
+#: src/ui/settings.rs:587 src/ui/settings.rs:1800
+msgid "Restart local playback to apply these settings."
+msgstr "Перезапусти локальное воспроизведение, чтобы применить эти настройки."
+
+#: src/ui/settings.rs:588
+msgid "Crossfade"
+msgstr "Кроссфейд"
+
+#: src/ui/settings.rs:589
+msgid "Report plays to TIDAL"
+msgstr "Сообщать TIDAL о прослушиваниях"
+
+#: src/ui/settings.rs:590
+msgid "Allow explicit content"
+msgstr "Разрешить откровенный контент"
+
+#: src/ui/settings.rs:591
+msgid "Allow AI content"
+msgstr "Разрешить контент ИИ"
+
+#: src/ui/settings.rs:592
+msgid "Output device"
+msgstr "Устройство вывода"
+
+#. Translators: {status} is a playback state such as Ready or Not set up.
+#: src/ui/settings.rs:596
+#, rust-format
+msgid "Status: {status}"
+msgstr "Состояние: {status}"
+
+#: src/ui/settings.rs:601
+msgid "Set the same volume level for all tracks."
+msgstr "Установить одинаковый уровень громкости для всех треков."
+
+#: src/ui/settings.rs:607
+msgid "Adjust the length of fading and overlap in between tracks."
+msgstr "Настройте длительность затухания и наложения между треками."
+
+#: src/ui/settings.rs:612
+msgid "The speakers or headphones to play on."
+msgstr "Динамики или наушники для воспроизведения."
+
+#: src/ui/settings.rs:618
+msgid ""
+"Tell TIDAL what you listen to, as its own apps do, for your history and "
+"recommendations."
+msgstr ""
+"Сообщает TIDAL, что вы слушаете, как его собственные приложения, — для "
+"истории и рекомендаций."
+
+#: src/ui/settings.rs:623
+msgid "Keep playing similar content when your queue ends."
+msgstr ""
+"Продолжать воспроизведение похожего контента, когда очередь закончится."
+
+#: src/ui/settings.rs:627
+msgid "Play tracks without silence between them."
+msgstr "Треки воспроизводятся без тишины между ними."
+
+#: src/ui/settings.rs:630
+msgid "Output buffer"
+msgstr "Буфер вывода"
+
+#: src/ui/settings.rs:633
+msgid ""
+"More buffering can prevent clicks on busy computers. Less buffering makes "
+"controls respond sooner."
+msgstr ""
+"Больший буфер помогает избежать щелчков на загруженном компьютере. Меньший "
+"ускоряет отклик элементов управления."
+
+#: src/ui/settings.rs:638
+msgid "Playback settings applied"
+msgstr "Настройки воспроизведения применены"
+
+#: src/ui/settings.rs:643
+msgid ""
+"When on, music labeled with the E badge will be playable. To prevent "
+"explicit music from playing, switch this off. Videos aren't included. "
+"(Tracks will appear greyed out.)"
+msgstr ""
+"Когда включено, музыка со значком E будет доступна для воспроизведения. "
+"Чтобы запретить воспроизведение музыки с откровенным контентом, выключите "
+"эту функцию. Видео не включены. (Треки будут отображаться серым.)"
+
+#: src/ui/settings.rs:650
+msgid ""
+"When on, music labeled with the AI badge will be playable. To prevent AI-"
+"labeled music from playing, switch this off. (Tracks will appear greyed out.)"
+msgstr ""
+"Когда включено, музыка со значком AI будет доступна для воспроизведения. "
+"Чтобы запретить воспроизведение музыки с пометкой AI, выключите эту функцию. "
+"(Треки будут отображаться серым.)"
+
+#: src/ui/settings.rs:667
+msgid "Reconnect"
+msgstr "Переподключиться"
+
+#: src/ui/settings.rs:699
+msgid "Off"
+msgstr "Выкл."
+
+#: src/ui/settings.rs:794
+msgid "Playback settings applied."
+msgstr "Настройки воспроизведения применены."
+
+#: src/ui/settings.rs:803 src/ui/blocked.rs:18
+msgid "Blocked"
+msgstr "Заблокированные"
+
+#: src/ui/settings.rs:806 src/ui/blocked.rs:41
+msgid "View and edit your blocked content."
+msgstr "Просматривайте и редактируйте заблокированный контент."
+
+#: src/ui/settings.rs:820
+msgid "Appearance"
+msgstr "Внешний вид"
+
+#: src/ui/settings.rs:821
+msgid "Theme"
+msgstr "Тема"
+
+#: src/ui/settings.rs:822
+msgid "Colour from album art"
+msgstr "Цвет из обложки"
+
+#: src/ui/settings.rs:823
+msgid "Use Tidalfast's title bar"
+msgstr "Использовать заголовок окна Tidalfast"
+
+#: src/ui/settings.rs:824
+msgid "Animated covers"
+msgstr "Анимированные обложки"
+
+#: src/ui/settings.rs:825
+msgid "Audio metadata"
+msgstr "Метаданные аудио"
+
+#: src/ui/settings.rs:826
+msgid "Hide Uploads tab"
+msgstr "Скрыть вкладку «Загрузки»"
+
+#: src/ui/settings.rs:827
+msgid "Show collection in sidebar"
+msgstr "Показывать коллекцию в боковой панели"
+
+#: src/ui/settings.rs:834
+msgid "Follow system uses your desktop's light or dark appearance."
+msgstr ""
+"«Как в системе» использует светлое или тёмное оформление рабочего стола."
+
+#: src/ui/settings.rs:838 src/ui/settings.rs:2307
+msgid "Language"
+msgstr "Язык"
+
+#: src/ui/settings.rs:841
+msgid ""
+"System follows your computer's language. Untranslated text stays in English."
+msgstr ""
+"«Системный» использует язык компьютера. Непереведённый текст остаётся на "
+"английском."
+
+#: src/ui/settings.rs:848
+msgid "Use the current cover's colour in the notch player."
+msgstr "Использовать цвет текущей обложки в плеере у выреза экрана."
+
+#: src/ui/settings.rs:852
+msgid "Interface zoom"
+msgstr "Масштаб интерфейса"
+
+#: src/ui/settings.rs:856
+msgid "Ctrl+Plus and Ctrl+Minus work anywhere; Ctrl+0 resets."
+msgstr "Ctrl+Plus и Ctrl+Minus работают везде; Ctrl+0 сбрасывает масштаб."
+
+#: src/ui/settings.rs:860
+msgid "Cmd+Plus and Cmd+Minus work anywhere; Cmd+0 resets."
+msgstr "Cmd+Plus и Cmd+Minus работают везде; Cmd+0 сбрасывает масштаб."
+
+#: src/ui/settings.rs:869
+msgid ""
+"Draw Tidalfast's own title bar and window buttons instead of the desktop's."
+msgstr ""
+"Рисовать собственную строку заголовка и кнопки окна Tidalfast вместо "
+"элементов окружения рабочего стола."
+
+#: src/ui/settings.rs:877
+msgid ""
+"Play TIDAL's moving album covers, silently, where covers are shown large."
+msgstr ""
+"Воспроизводит без звука анимированные обложки TIDAL там, где обложки "
+"показаны крупно."
+
+#: src/ui/settings.rs:882
+msgid "Show additional fields (e.g. BPM) in track lists."
+msgstr "Показывать дополнительные поля (например, BPM) в списках треков."
+
+#: src/ui/settings.rs:886
+msgid "Hide the Uploads tab from the navigation."
+msgstr "Скрыть вкладку «Загрузки» в навигации."
+
+#: src/ui/settings.rs:892
+msgid "Show all collection items directly in the sidebar instead of a submenu."
+msgstr ""
+"Показывать все элементы коллекции прямо в боковой панели, а не в подменю."
+
+#: src/ui/settings.rs:896
+msgid "Player background"
+msgstr "Фон плеера"
+
+#: src/ui/settings.rs:899
+msgid "Choose your preferred look for the player background."
+msgstr "Выберите, как будет выглядеть фон плеера."
+
+#: src/ui/settings.rs:954
+msgctxt "player background"
+msgid "Color"
+msgstr "Цвет"
+
+#: src/ui/settings.rs:955
+msgctxt "player background"
+msgid "Blur"
+msgstr "Размытие"
+
+#: src/ui/settings.rs:1127
+msgid "Window and tray"
+msgstr "Окно и трей"
+
+#: src/ui/settings.rs:1128
+msgid "Keep music playing when the window closes"
+msgstr "Продолжать воспроизведение после закрытия окна"
+
+#: src/ui/settings.rs:1129
+msgid "MacBook notch widget"
+msgstr "Виджет для выреза MacBook"
+
+#: src/ui/settings.rs:1130
+msgid "Launch at login"
+msgstr "Запускать при входе в систему"
+
+#: src/ui/settings.rs:1131
+msgid "Start minimized"
+msgstr "Запускать свёрнутым"
+
+#: src/ui/settings.rs:1138
+msgid ""
+"Tidalfast hides to the system tray. Quit from the tray menu or with Ctrl+Q."
+msgstr ""
+"Tidalfast сворачивается в системный трей. Выйти можно через меню трея или по "
+"Ctrl+Q."
+
+#: src/ui/settings.rs:1142
+msgid ""
+"Tidalfast hides to the system tray. Quit from the tray menu or with Cmd+Q."
+msgstr ""
+"Tidalfast сворачивается в системный трей. Выйти можно через меню трея или по "
+"Cmd+Q."
+
+#: src/ui/settings.rs:1151
+msgid "Show interactive Now Playing widget when hovering over the notch."
+msgstr ""
+"Показывать интерактивный виджет «Сейчас играет» при наведении курсора на "
+"вырез."
+
+#: src/ui/settings.rs:1157
+msgid "Open Tidalfast when you log in to this computer."
+msgstr "Открывать Tidalfast, когда вы входите в систему на этом компьютере."
+
+#: src/ui/settings.rs:1164
+msgid "When Tidalfast opens at login, start with the window minimized."
+msgstr ""
+"Когда Tidalfast открывается при входе в систему, запускать его со свёрнутым "
+"окном."
+
+#: src/ui/settings.rs:1226
+msgid "Plugins (TidaLuna)"
+msgstr "Плагины (TidaLuna)"
+
+#: src/ui/settings.rs:1227
+msgid "Enable TidaLuna plugins"
+msgstr "Включить плагины TidaLuna"
+
+#: src/ui/settings.rs:1232
+msgid ""
+"Run TidaLuna plugins inside Tidalfast. Off by default; turning it off "
+"unloads them and keeps them installed."
+msgstr ""
+"Запускает плагины TidaLuna внутри Tidalfast. По умолчанию выключено; при "
+"выключении они выгружаются, но остаются установленными."
+
+#: src/ui/settings.rs:1254
+msgid "Manage"
+msgstr "Управление"
+
+#: src/ui/settings.rs:1265
+msgid "Proxy"
+msgstr "Прокси"
+
+#: src/ui/settings.rs:1267
+msgid "Mode, host, port, username and password"
+msgstr "Режим, хост, порт, имя пользователя и пароль"
+
+#: src/ui/settings.rs:1270
+msgid "Off, System, HTTP or SOCKS5 proxy for network requests."
+msgstr "Прокси для сетевых запросов: выключен, системный, HTTP или SOCKS5."
+
+#: src/ui/settings.rs:1273
+msgid "Advanced"
+msgstr "Дополнительно"
+
+#: src/ui/settings.rs:1274
+msgid "Middle-click autoscroll"
+msgstr "Автопрокрутка средней кнопкой"
+
+#: src/ui/settings.rs:1280
+msgid ""
+"Middle-click a list, then move the pointer to scroll it. Off by default, "
+"because a middle click usually pastes on Linux."
+msgstr ""
+"Щёлкни средней кнопкой по списку и двигай указатель, чтобы прокручивать его. "
+"По умолчанию выключено, потому что в Linux средний щелчок обычно вставляет "
+"текст."
+
+#: src/ui/settings.rs:1285
+msgid "TIDAL client"
+msgstr "Клиент TIDAL"
+
+#: src/ui/settings.rs:1288
+msgid ""
+"Optional: a TIDAL client to sign in with instead of the built-in one. Leave "
+"empty to use the built-in one; changes apply at the next sign-in."
+msgstr ""
+"Необязательно: клиент TIDAL для входа вместо встроенного. Оставьте пустым, "
+"чтобы использовать встроенный; изменения применяются при следующем входе."
+
+#: src/ui/settings.rs:1339
+msgid "Client ID"
+msgstr "Client ID"
+
+#: src/ui/settings.rs:1344
+msgid "Client secret"
+msgstr "Client secret"
+
+#: src/ui/settings.rs:1349
+msgid "Browser sign-in client ID (Max)"
+msgstr "Client ID для входа через браузер (Max)"
+
+#: src/ui/settings.rs:1387
+msgctxt "proxy"
+msgid "Mode"
+msgstr "Режим"
+
+#: src/ui/settings.rs:1390
+msgid ""
+"Off ignores environment variables. System uses them, and the OS proxy on "
+"macOS and Windows."
+msgstr ""
+"«Выкл.» игнорирует переменные окружения. «Системный» использует их, а в "
+"macOS и Windows также прокси ОС."
+
+#: src/ui/settings.rs:1442 src/ui/login.rs:338
+msgid "Apply settings"
+msgstr "Применить настройки"
+
+#: src/ui/settings.rs:1454
+msgid "Not using a proxy."
+msgstr "Прокси не используется."
+
+#: src/ui/settings.rs:1455
+msgid "Using the system proxy."
+msgstr "Используется системный прокси."
+
+#: src/ui/settings.rs:1464
+msgid "Equalizer"
+msgstr "Эквалайзер"
+
+#: src/ui/settings.rs:1470
+msgid ""
+"Shape the sound of playback on this computer with ten sliders or parametric "
+"bands. It does not affect other devices."
+msgstr ""
+"Настройте звук воспроизведения на этом компьютере десятью ползунками или "
+"параметрическими полосами. Другие устройства это не затрагивает."
+
+#: src/ui/settings.rs:1476
+msgid "Presets"
+msgstr "Пресеты"
+
+#. Translators: a search keyword for the equalizer's preamplifier slider.
+#. Translators: the equalizer's preamplifier, which turns everything down to make room for boosts.
+#: src/ui/settings.rs:1478 src/ui/equalizer.rs:406
+msgid "Preamp"
+msgstr "Предусилитель"
+
+#. Translators: a search keyword for the equalizer's frequency band sliders.
+#: src/ui/settings.rs:1480
+msgid "Bands"
+msgstr "Полосы"
+
+#: src/ui/settings.rs:1481 src/ui/equalizer.rs:102
+msgctxt "equalizer view"
+msgid "Parametric"
+msgstr "Параметрический"
+
+#: src/ui/settings.rs:1482 src/ui/equalizer.rs:772
+msgid "Headphone correction (AutoEQ)"
+msgstr "Коррекция наушников (AutoEQ)"
+
+#: src/ui/settings.rs:1516
+msgid "Download quality"
+msgstr "Качество загрузки"
+
+#: src/ui/settings.rs:1519
+msgid ""
+"Downloads are kept inside Tidalfast for offline listening, never as files to "
+"copy."
+msgstr ""
+"Загрузки хранятся внутри Tidalfast для прослушивания офлайн, а не в виде "
+"файлов для копирования."
+
+#: src/ui/settings.rs:1523 src/ui/settings.rs:1602
+msgid "Download over metered connections"
+msgstr "Загружать через лимитные подключения"
+
+#: src/ui/settings.rs:1526
+msgid ""
+"Off: downloads wait while the system reports a metered or charged connection."
+msgstr ""
+"Выкл.: загрузки ждут, пока система сообщает о лимитном или платном "
+"подключении."
+
+#: src/ui/settings.rs:1530
+msgid "Downloads at once"
+msgstr "Одновременные загрузки"
+
+#: src/ui/settings.rs:1531
+msgid "How many tracks download at the same time."
+msgstr "Сколько треков загружается одновременно."
+
+#: src/ui/settings.rs:1534
+msgid "Remove all downloads"
+msgstr "Удалить все загрузки"
+
+#: src/ui/settings.rs:1538 src/ui/settings.rs:1555
+msgid "Offline mode"
+msgstr "Автономный режим"
+
+#: src/ui/settings.rs:1541
+msgid ""
+"Play only your downloads and make no requests to TIDAL until you turn it off."
+msgstr ""
+"Воспроизводить только загруженные треки и не отправлять запросы в TIDAL, "
+"пока режим не выключен."
+
+#: src/ui/settings.rs:1570
+msgid "Same as streaming"
+msgstr "Как при стриминге"
+
+#: src/ui/settings.rs:1644
+msgid "Remove all"
+msgstr "Удалить всё"
+
+#: src/ui/settings.rs:1656
+msgid "Storage"
+msgstr "Хранилище"
+
+#: src/ui/settings.rs:1657
+msgid "Audio cache"
+msgstr "Кэш аудио"
+
+#: src/ui/settings.rs:1662
+msgid "Artwork cache"
+msgstr "Кэш обложек"
+
+#. Translators: {folder} is the path of a cache folder.
+#: src/ui/settings.rs:1664 src/ui/settings.rs:1670 src/ui/settings.rs:1685
+#, rust-format
+msgid "Stored in {folder}"
+msgstr "Хранится в {folder}"
+
+#: src/ui/settings.rs:1674
+msgid "Play history"
+msgstr "История прослушивания"
+
+#. Translators: {file} is the path of the play history file.
+#: src/ui/settings.rs:1678
+#, rust-format
+msgid "Tracks played here are stored in {file}. This file is never uploaded."
+msgstr ""
+"Треки, прослушанные здесь, хранятся в {file}. Этот файл никуда не "
+"отправляется."
+
+#: src/ui/settings.rs:1700
+msgid "Clear artwork"
+msgstr "Очистить обложки"
+
+#: src/ui/settings.rs:1761
+msgid "Clear history"
+msgstr "Очистить историю"
+
+#: src/ui/settings.rs:1807
+msgid "Tidalfast is not affiliated with TIDAL."
+msgstr "Tidalfast не связан с TIDAL."
+
+#: src/ui/settings.rs:1808 src/ui/topbar.rs:722 src/ui/titlebar.rs:178
+msgid "Check for updates"
+msgstr "Проверить обновления"
+
+#: src/ui/settings.rs:1809
+msgid "Checking…"
+msgstr "Проверка…"
+
+#: src/ui/settings.rs:1810 src/ui/dialogs.rs:296 src/ui/keys.rs:259
+#: src/ui/topbar.rs:725 src/ui/titlebar.rs:173
+msgid "Keyboard shortcuts"
+msgstr "Сочетания клавиш"
+
+#: src/ui/settings.rs:1812
+msgid "Source code"
+msgstr "Исходный код"
+
+#: src/ui/settings.rs:1813
+msgid "Licenses"
+msgstr "Лицензии"
+
+#: src/ui/settings.rs:1892
+msgid "Updates"
+msgstr "Обновления"
+
+#: src/ui/settings.rs:1893
+msgid "Automatic update checks"
+msgstr "Автоматически проверять обновления"
+
+#: src/ui/settings.rs:1894
+msgid "Download updates automatically"
+msgstr "Загружать обновления автоматически"
+
+#: src/ui/settings.rs:1895
+msgid "Update channel"
+msgstr "Канал обновлений"
+
+#: src/ui/settings.rs:1897
+msgctxt "update channel"
+msgid "Stable"
+msgstr "Стабильный"
+
+#: src/ui/settings.rs:1898
+msgctxt "update channel"
+msgid "Beta"
+msgstr "Бета"
+
+#: src/ui/settings.rs:1899
+msgctxt "update channel"
+msgid "Dev"
+msgstr "Dev"
+
+#: src/ui/settings.rs:1906
+msgid "Checks for a new version once a day. No personal data is sent."
+msgstr ""
+"Раз в день проверяет, есть ли новая версия. Личные данные не отправляются."
+
+#: src/ui/settings.rs:1913
+msgid "Downloads in the background. You choose when to restart."
+msgstr "Загружается в фоне. Когда перезапустить, решаешь ты."
+
+#: src/ui/settings.rs:1920
+msgid ""
+"Stable gets tested releases. Beta and Dev get new features earlier and may "
+"be rougher."
+msgstr ""
+"Стабильный канал получает проверенные выпуски. Beta и Dev получают новые "
+"функции раньше, но могут быть менее стабильными."
+
+#. Translators: {query} is the text typed into the settings search field.
+#: src/ui/settings.rs:1991
+#, rust-format
+msgid "No settings for “{query}”"
+msgstr "Нет настроек по запросу «{query}»"
+
+#: src/ui/settings.rs:1992
+msgid "Try fewer words, or check the spelling."
+msgstr "Попробуй меньше слов или проверь написание."
+
+#: src/ui/settings.rs:2051 src/ui/player_utility.rs:414
+msgid "System default"
+msgstr "По умолчанию в системе"
+
+#: src/ui/settings.rs:2280
+msgctxt "language"
+msgid "System"
+msgstr "Системный"
+
+#: src/api/models.rs:299 src/ui/uploads.rs:1283
+msgid "Single"
+msgstr "Сингл"
+
+#: src/api/models.rs:300
+msgid "Compilation"
+msgstr "Сборник"
+
+#: src/api/models.rs:301 src/model.rs:1109
+msgid "Appears On"
+msgstr "Встречается в"
+
+#: src/model.rs:854
+msgid "Top results"
+msgstr "Лучшие результаты"
+
+#: src/model.rs:859 src/ui/home_feeds.rs:55
+msgid "Uploads"
+msgstr "Загрузки"
+
+#: src/model.rs:1106 src/ui/save_later.rs:20
+msgctxt "filter"
+msgid "All"
+msgstr "Все"
+
+#: src/model.rs:1108
+msgid "Singles & EPs"
+msgstr "Синглы и EP"
+
+#: src/settings.rs:214
+msgctxt "theme"
+msgid "Dark"
+msgstr "Тёмная"
+
+#: src/settings.rs:215
+msgctxt "theme"
+msgid "Light"
+msgstr "Светлая"
+
+#: src/settings.rs:216
+msgid "Follow system"
+msgstr "Как в системе"
+
+#: src/settings.rs:242
+msgctxt "proxy"
+msgid "Off"
+msgstr "Выкл."
+
+#: src/settings.rs:243
+msgctxt "proxy"
+msgid "System"
+msgstr "Системный"
+
+#: src/ui/artist.rs:63 src/ui/artist.rs:1164
+msgid "Top Tracks"
+msgstr "Популярные треки"
+
+#: src/ui/artist.rs:68 src/ui/artist.rs:195 src/ui/artist.rs:223
+#: src/ui/artist.rs:253 src/ui/artist.rs:324 src/ui/artist.rs:981
+#: src/ui/artist.rs:2070 src/ui/artist.rs:2120 src/ui/home.rs:458
+#: src/ui/explore.rs:138 src/ui/home_feeds.rs:126 src/ui/home_feeds.rs:181
+#: src/ui/home_feeds.rs:397 src/ui/album_extras.rs:449
+msgid "View all"
+msgstr "Показать все"
+
+#: src/ui/artist.rs:171 src/ui/artist.rs:1452
+msgid "No popular tracks to show."
+msgstr "Популярных треков нет."
+
+#: src/ui/artist.rs:252 src/ui/artist.rs:1255
+msgid "Fans also like"
+msgstr "Поклонникам также нравится"
+
+#: src/ui/artist.rs:319 src/ui/artist.rs:1257 src/ui/collection.rs:749
+#: src/ui/menus.rs:975 src/ui/menus.rs:1383 src/ui/menus.rs:1521
+#: src/ui/now_playing.rs:159 src/ui/now_playing_video.rs:187
+#: src/ui/sticky.rs:455 src/ui/album_credits.rs:137
+msgid "Credits"
+msgstr "Авторы"
+
+#. Translators: {count} is a short number of followers, such as 1.9M.
+#: src/ui/artist.rs:452
+#, rust-format
+msgid "{count} follower"
+msgid_plural "{count} followers"
+msgstr[0] "{count} подписчик"
+msgstr[1] "{count} подписчика"
+msgstr[2] "{count} подписчиков"
+
+#: src/ui/artist.rs:542 src/ui/album_extras.rs:80
+msgid "Read more"
+msgstr "Читать далее"
+
+#: src/ui/artist.rs:676
+msgid "No biography for this artist"
+msgstr "Нет биографии этого исполнителя"
+
+#: src/ui/artist.rs:698
+msgid "Biography"
+msgstr "Биография"
+
+#: src/ui/artist.rs:702
+#, rust-format
+msgid "Artist bio from {source}"
+msgstr "Биография исполнителя: {source}"
+
+#: src/ui/artist.rs:831 src/ui/collection.rs:874
+msgid "Starting…"
+msgstr "Запуск…"
+
+#: src/ui/artist.rs:873 src/ui/artist.rs:1659 src/ui/artist.rs:2045
+#: src/ui/collection.rs:739 src/ui/menus.rs:485 src/ui/activity.rs:1040
+#: src/ui/activity.rs:1232 src/ui/sticky.rs:448 src/ui/uploads.rs:363
+#: src/ui/uploads.rs:1567
+msgid "Share"
+msgstr "Поделиться"
+
+#: src/ui/artist.rs:879 src/ui/artist.rs:1670 src/ui/now_playing.rs:660
+msgid "Artist radio"
+msgstr "Радио исполнителя"
+
+#: src/ui/artist.rs:887 src/ui/artist.rs:1680
+msgctxt "artist"
+msgid "Following"
+msgstr "В подписках"
+
+#: src/ui/artist.rs:893 src/ui/artist.rs:1686 src/ui/menus.rs:1529
+msgctxt "artist"
+msgid "Follow"
+msgstr "Подписаться"
+
+#: src/ui/artist.rs:941 src/ui/artist.rs:1251
+msgid "EPs & Singles"
+msgstr "EP и синглы"
+
+#: src/ui/artist.rs:949 src/ui/artist.rs:1252
+msgid "Compilations"
+msgstr "Сборники"
+
+#: src/ui/artist.rs:957 src/ui/artist.rs:1253
+msgid "Appears on"
+msgstr "Участвует в"
+
+#: src/ui/artist.rs:1162 src/ui/artist.rs:2145
+msgid "Uploaded tracks"
+msgstr "Загруженные треки"
+
+#. Translators: {count} is how many people follow the user's own
+#. artist profile, such as 2.
+#: src/ui/artist.rs:1926
+#, rust-format
+msgid "{count} fan"
+msgid_plural "{count} fans"
+msgstr[0] "{count} поклонник"
+msgstr[1] "{count} поклонника"
+msgstr[2] "{count} поклонников"
+
+#: src/ui/artist.rs:1943
+msgid "Add bio"
+msgstr "Добавить биографию"
+
+#: src/ui/artist.rs:2051 src/ui/collection.rs:807 src/ui/sticky.rs:485
+#: src/ui/uploads.rs:1264
+msgid "Edit"
+msgstr "Изменить"
+
+#: src/ui/artist.rs:2110
+msgid "Your profile is empty"
+msgstr "Ваш профиль пуст"
+
+#: src/ui/artist.rs:2113
+msgid ""
+"Start creating playlists, adding your social profiles, or uploading a track."
+msgstr "Создавайте плейлисты, добавляйте профили в соцсетях или загрузите трек."
+
+#: src/ui/collection.rs:329
+msgid "Add collaborator"
+msgstr "Добавить соавтора"
+
+#: src/ui/collection.rs:571
+msgid "Filter tracks"
+msgstr "Фильтр по трекам"
+
+#: src/ui/collection.rs:573
+msgid "Filter playlist on title, artist or album"
+msgstr "Фильтр плейлиста по названию, исполнителю или альбому"
+
+#: src/ui/collection.rs:713
+msgid "No playable songs in this view"
+msgstr "В этом представлении нет треков для воспроизведения"
+
+#: src/ui/collection.rs:765 src/ui/collection.rs:900 src/ui/sticky.rs:465
+msgid "Save as playlist"
+msgstr "Сохранить как плейлист"
+
+#: src/ui/collection.rs:775 src/ui/sticky.rs:495
+msgid "Added"
+msgstr "Добавлено"
+
+#: src/ui/collection.rs:781 src/ui/sticky.rs:501 src/ui/uploads.rs:745
+msgid "Add"
+msgstr "Добавить"
+
+#: src/ui/collection.rs:796 src/ui/sticky.rs:474 src/ui/uploads.rs:249
+#: src/ui/uploads.rs:1320
+msgid "Public"
+msgstr "Открытый"
+
+#: src/ui/collection.rs:798 src/ui/sticky.rs:476
+msgid "Private"
+msgstr "Закрытый"
+
+#: src/ui/collection.rs:915
+msgid "Refreshing…"
+msgstr "Обновление…"
+
+#: src/ui/collection.rs:917
+msgid "Refresh"
+msgstr "Обновить"
+
+#: src/ui/collection.rs:969
+msgid "Downloading"
+msgstr "Скачивание"
+
+#: src/ui/collection.rs:971 src/ui/collection.rs:997 src/ui/menus.rs:773
+#: src/ui/menus.rs:1069 src/ui/menus.rs:1227
+msgid "Download"
+msgstr "Скачать"
+
+#: src/ui/collection.rs:995 src/ui/menus.rs:769 src/ui/menus.rs:1066
+#: src/ui/menus.rs:1224
+msgid "Remove download"
+msgstr "Удалить загрузку"
+
+#: src/ui/collection.rs:1743
+#, rust-format
+msgid "Volume {number}"
+msgstr "Диск {number}"
+
+#: src/ui/collection.rs:1972 src/ui/collection.rs:2001
+msgid "Unavailable"
+msgstr "Недоступно"
+
+#: src/ui/collection.rs:1978
+msgid "You're offline. Reconnect to load more tracks."
+msgstr "Вы не в сети. Подключитесь, чтобы загрузить больше треков."
+
+#: src/ui/collection.rs:2163
+msgid "Nothing here yet"
+msgstr "Здесь пока ничего нет"
+
+#: src/ui/collection.rs:2164
+msgid "Added tracks appear here."
+msgstr "Здесь появятся добавленные треки."
+
+#: src/ui/collection.rs:2603 src/ui/home.rs:936
+msgid "Your top tracks"
+msgstr "Твои топ-треки"
+
+#: src/ui/collection.rs:2612
+msgid "Your most-played tracks from the last four weeks."
+msgstr "Самое прослушиваемое за последние четыре недели."
+
+#: src/ui/collection.rs:3139
+msgid "Collaborative Playlist"
+msgstr "Совместный плейлист"
+
+#: src/ui/collection.rs:3141
+msgid "Public Playlist"
+msgstr "Открытый плейлист"
+
+#: src/ui/collection.rs:3522
+msgid "No downloads yet"
+msgstr "Пока ничего не скачано"
+
+#: src/ui/collection.rs:3525
+msgid ""
+"Turn on Download on an album, playlist or mix to play it without a "
+"connection."
+msgstr ""
+"Включите «Скачать» у альбома, плейлиста или микса, чтобы слушать без "
+"подключения."
+
+#. Translators: {count} is the number of people who saved a playlist.
+#: src/ui/collection.rs:3606
+#, rust-format
+msgid "{count} save"
+msgid_plural "{count} saves"
+msgstr[0] "{count} сохранение"
+msgstr[1] "{count} сохранения"
+msgstr[2] "{count} сохранений"
+
+#. Translators: {name} is the name of someone who added songs to the playlist.
+#: src/ui/collection.rs:3706
+#, rust-format
+msgid "with {name}"
+msgstr "с {name}"
+
+#. Translators: {first} and {second} are names of people who added songs.
+#: src/ui/collection.rs:3710
+#, rust-format
+msgid "with {first} and {second}"
+msgstr "с {first} и {second}"
+
+#. Translators: {count} is how many other people added songs to the playlist.
+#: src/ui/collection.rs:3717
+#, rust-format
+msgid "and {count} other"
+msgid_plural "and {count} others"
+msgstr[0] "и ещё {count} человек"
+msgstr[1] "и ещё {count} человека"
+msgstr[2] "и ещё {count} человек"
+
+#: src/ui/dialogs.rs:129 src/ui/menus.rs:1457
+msgid "Delete playlist"
+msgstr "Удалить плейлист"
+
+#: src/ui/dialogs.rs:139
+msgid ""
+"Are you sure you want to delete this playlist? This action can't be undone."
+msgstr ""
+"Вы уверены, что хотите удалить этот плейлист? Это действие нельзя отменить."
+
+#. Translators: {name} is a playlist name.
+#: src/ui/dialogs.rs:144
+#, rust-format
+msgid "“{name}” will no longer appear in My Collection."
+msgstr "«{name}» больше не будет в Моей коллекции."
+
+#: src/ui/dialogs.rs:160 src/ui/equalizer.rs:706 src/ui/uploads.rs:1651
+#: src/ui/uploads.rs:1859
+msgid "Delete"
+msgstr "Удалить"
+
+#: src/ui/dialogs.rs:167 src/ui/dialogs.rs:227 src/ui/dialogs.rs:253
+#: src/ui/login.rs:98 src/ui/login.rs:129 src/ui/uploads.rs:1700
+#: src/ui/uploads.rs:1861
+msgid "Cancel"
+msgstr "Отмена"
+
+#: src/ui/dialogs.rs:184
+msgid "Tracks already in this playlist"
+msgstr "Треки уже есть в этом плейлисте"
+
+#: src/ui/dialogs.rs:186 src/ui/dialogs.rs:245
+msgid "Track already in this playlist"
+msgstr "Трек уже есть в этом плейлисте"
+
+#: src/ui/dialogs.rs:211 src/ui/dialogs.rs:254
+msgid "Add anyway"
+msgstr "Всё равно добавить"
+
+#: src/ui/dialogs.rs:286 src/ui/dialogs.rs:342 src/ui/uploads.rs:1649
+msgid "Done"
+msgstr "Готово"
+
+#: src/ui/dialogs.rs:580
+#, rust-format
+msgid "This track is already in “{playlist}”. Add it again?"
+msgstr "Этот трек уже есть в «{playlist}». Добавить ещё раз?"
+
+#: src/ui/dialogs.rs:587
+#, rust-format
+msgid "This track is already in “{playlist}”. Add them anyway?"
+msgstr "Этот трек уже есть в «{playlist}». Всё равно добавить их?"
+
+#. Translators: {name} is a song name and {playlist} a playlist name.
+#: src/ui/dialogs.rs:592
+#, rust-format
+msgid "“{name}” is already in “{playlist}”. Add it again?"
+msgstr "«{name}» уже есть в «{playlist}». Добавить ещё раз?"
+
+#: src/ui/dialogs.rs:600
+#, rust-format
+msgid "“{name}” is already in “{playlist}”. Add them anyway?"
+msgstr "«{name}» уже есть в «{playlist}». Всё равно добавить их?"
+
+#: src/ui/dialogs.rs:609
+#, rust-format
+msgid "“{first}” and “{second}” are already in “{playlist}”. Add them anyway?"
+msgstr "«{first}» и «{second}» уже есть в «{playlist}». Всё равно добавить их?"
+
+#. Translators: {first} and {second} are song names, {count} is how many more songs are already in the playlist, and {playlist} is a playlist name.
+#: src/ui/dialogs.rs:618
+#, rust-format
+msgid ""
+"“{first}”, “{second}”, and {count} more are already in “{playlist}”. Add "
+"them anyway?"
+msgid_plural ""
+"“{first}”, “{second}”, and {count} more are already in “{playlist}”. Add "
+"them anyway?"
+msgstr[0] ""
+"«{first}», «{second}» и ещё {count} трек уже есть в «{playlist}». Всё равно "
+"добавить их?"
+msgstr[1] ""
+"«{first}», «{second}» и ещё {count} трека уже есть в «{playlist}». Всё равно "
+"добавить их?"
+msgstr[2] ""
+"«{first}», «{second}» и ещё {count} треков уже есть в «{playlist}». Всё "
+"равно добавить их?"
+
+#: src/ui/dialogs.rs:660 src/ui/dialogs.rs:763 src/ui/menus.rs:469
+msgid "Copy embed code"
+msgstr "Копировать код для вставки"
+
+#: src/ui/dialogs.rs:774
+msgid "By using TIDAL Embeds, you accept the"
+msgstr "Используя TIDAL Embeds, вы принимаете"
+
+#: src/ui/dialogs.rs:780
+msgid "TIDAL Developer Terms of Service."
+msgstr "Условия использования TIDAL для разработчиков."
+
+#: src/ui/dialogs.rs:1036 src/ui/dialogs.rs:1074
+msgid "Make it public"
+msgstr "Сделать открытым"
+
+#: src/ui/dialogs.rs:1050
+msgid "Your playlist will be visible on your Profile and accessible by anyone."
+msgstr "Ваш плейлист будет виден в профиле и доступен всем."
+
+#: src/ui/dialogs.rs:1121 src/ui/dialogs.rs:1439 src/ui/uploads.rs:1231
+#: src/ui/uploads.rs:1800
+msgid "Title"
+msgstr "Название"
+
+#: src/ui/dialogs.rs:1147
+msgid "Write a description"
+msgstr "Добавьте описание"
+
+#: src/ui/dialogs.rs:1161
+#, rust-format
+msgid "{count}/500 characters"
+msgstr "{count}/500 символов"
+
+#: src/ui/dialogs.rs:1183 src/ui/menus.rs:1437
+msgid "Collaborators"
+msgstr "Соавторы"
+
+#: src/ui/dialogs.rs:1219 src/ui/dialogs.rs:1232
+msgid "Copy invitation link"
+msgstr "Скопировать ссылку-приглашение"
+
+#: src/ui/dialogs.rs:1226
+msgid "Invite others by sharing the link"
+msgstr "Приглашайте других, поделившись ссылкой"
+
+#: src/ui/dialogs.rs:1341
+msgid "Create playlist"
+msgstr "Создать плейлист"
+
+#: src/ui/dialogs.rs:1350
+msgid "Playlist cover"
+msgstr "Обложка плейлиста"
+
+#. Translators: {count} is the number of songs.
+#: src/ui/dialogs.rs:1365
+#, rust-format
+msgid "{count} track will be added."
+msgid_plural "{count} tracks will be added."
+msgstr[0] "Будет добавлен {count} трек."
+msgstr[1] "Будут добавлены {count} трека."
+msgstr[2] "Будет добавлено {count} треков."
+
+#: src/ui/dialogs.rs:1387 src/ui/dialogs.rs:1452 src/ui/dialogs.rs:1550
+#: src/ui/equalizer.rs:675 src/ui/uploads.rs:1698
+msgid "Save"
+msgstr "Сохранить"
+
+#: src/ui/dialogs.rs:1423
+msgid "Rename folder"
+msgstr "Переименовать папку"
+
+#: src/ui/dialogs.rs:1425
+msgid "New folder"
+msgstr "Новая папка"
+
+#: src/ui/dialogs.rs:1441
+msgid "Give your new folder a name"
+msgstr "Придумайте название для новой папки"
+
+#: src/ui/dialogs.rs:1505 src/ui/menus.rs:1421
+msgid "Edit playlist"
+msgstr "Редактировать плейлист"
+
+#: src/ui/dialogs.rs:1514
+msgid "Selected playlist cover"
+msgstr "Выбранная обложка плейлиста"
+
+#: src/ui/dialogs.rs:1517
+msgid "Current playlist cover"
+msgstr "Текущая обложка плейлиста"
+
+#: src/ui/home.rs:153
+msgid "Created by me"
+msgstr "Создано мной"
+
+#: src/ui/home.rs:158
+#, rust-format
+msgid "Created by {owner}"
+msgstr "Автор: {owner}"
+
+#: src/ui/home.rs:436 src/ui/home_feeds.rs:56
+msgid "For you"
+msgstr "Для вас"
+
+#: src/ui/home.rs:750 src/ui/home.rs:760 src/ui/home.rs:775
+msgid "Your top artists"
+msgstr "Твои топ-исполнители"
+
+#: src/ui/home.rs:937
+msgid "Show more top tracks"
+msgstr "Показать больше топ-треков"
+
+#: src/ui/home.rs:951
+msgid "Recommended for you"
+msgstr "Рекомендации для тебя"
+
+#: src/ui/keys.rs:170
+msgctxt "key"
+msgid "Space"
+msgstr "Пробел"
+
+#: src/ui/keys.rs:171
+msgid "Play or pause"
+msgstr "Воспроизведение или пауза"
+
+#: src/ui/keys.rs:175
+msgid "Previous or next"
+msgstr "Предыдущий или следующий"
+
+#: src/ui/keys.rs:179
+msgid "Seek 10 seconds"
+msgstr "Перемотка на 10 секунд"
+
+#: src/ui/keys.rs:183
+msgid "Volume up or down"
+msgstr "Увеличить или уменьшить громкость"
+
+#: src/ui/keys.rs:185
+msgid "Mute or unmute"
+msgstr "Выключить или включить звук"
+
+#: src/ui/keys.rs:188
+msgid "Add or remove the playing track from My Collection"
+msgstr "Добавить текущий трек в Мою коллекцию или удалить его"
+
+#: src/ui/keys.rs:190
+msgid "Toggle shuffle"
+msgstr "Включить или выключить перемешивание"
+
+#: src/ui/keys.rs:191
+msgid "Cycle repeat"
+msgstr "Переключить режим повтора"
+
+#: src/ui/keys.rs:192
+msgid "Show the queue"
+msgstr "Показать очередь"
+
+#: src/ui/keys.rs:193
+msgid "Show the lyrics"
+msgstr "Показать текст песни"
+
+#: src/ui/keys.rs:194
+msgid "Lyrics: leave full screen"
+msgstr "Текст песни: выйти из полноэкранного режима"
+
+#: src/ui/keys.rs:197
+msgid "Track list: extend or shrink the selection"
+msgstr "Список треков: расширить или сузить выделение"
+
+#: src/ui/keys.rs:199
+msgid "Remove from this playlist"
+msgstr "Удалить из этого плейлиста"
+
+#: src/ui/keys.rs:202
+msgid "Track list: select all"
+msgstr "Список треков: выделить всё"
+
+#: src/ui/keys.rs:206
+msgid "Track list: copy the selected tracks' links"
+msgstr "Список треков: скопировать ссылки на выбранные треки"
+
+#: src/ui/keys.rs:210
+msgid "Playlist: cut the selected tracks"
+msgstr "Плейлист: вырезать выбранные треки"
+
+#: src/ui/keys.rs:214
+msgid "Playlist: add the pasted track links"
+msgstr "Плейлист: добавить вставленные ссылки на треки"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:219
+msgid "Cmd+F  or  /"
+msgstr "Cmd+F  или  /"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:222
+msgid "Ctrl+F  or  /"
+msgstr "Ctrl+F  или  /"
+
+#: src/ui/keys.rs:228
+msgid "Show or hide the sidebar"
+msgstr "Показать или скрыть боковую панель"
+
+#: src/ui/keys.rs:230
+msgid "Back or forward"
+msgstr "Назад или вперёд"
+
+#: src/ui/keys.rs:241
+msgid "Go to the playing artist"
+msgstr "Перейти к исполнителю текущего трека"
+
+#: src/ui/keys.rs:245
+msgid "Go to the playing album"
+msgstr "Перейти к альбому текущего трека"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:254
+msgid "Cmd+/ or ?"
+msgstr "Cmd+/ или ?"
+
+#. Translators: Keep the key names. Only the word "or" is translated.
+#: src/ui/keys.rs:257
+msgid "Ctrl+/ or ?"
+msgstr "Ctrl+/ или ?"
+
+#: src/ui/keys.rs:263
+msgid "Close the window"
+msgstr "Закрыть окно"
+
+#: src/ui/keys.rs:265 src/ui/titlebar.rs:143
+msgid "Quit"
+msgstr "Выход"
+
+#: src/ui/library.rs:30
+msgid "No saved albums"
+msgstr "Нет сохранённых альбомов"
+
+#: src/ui/library.rs:31
+msgid "Saved albums appear here."
+msgstr "Здесь появятся сохранённые альбомы."
+
+#: src/ui/library.rs:32
+msgid "Filter albums"
+msgstr "Фильтр по альбомам"
+
+#: src/ui/library.rs:36
+msgid "No followed artists"
+msgstr "Нет исполнителей в подписках"
+
+#: src/ui/library.rs:37
+msgid "Followed artists appear here."
+msgstr "Здесь появятся исполнители из твоих подписок."
+
+#: src/ui/library.rs:38
+msgid "Filter profiles"
+msgstr "Фильтр по профилям"
+
+#: src/ui/library.rs:48
+msgid "No mixes yet"
+msgstr "Миксов пока нет"
+
+#: src/ui/library.rs:51
+msgid "Mixes and radios you add to your collection appear here."
+msgstr "Миксы и радио, добавленные в коллекцию, появятся здесь."
+
+#: src/ui/login.rs:80
+msgid "Waiting for you to approve in your browser"
+msgstr "Ожидаем подтверждения в браузере"
+
+#: src/ui/login.rs:89 src/ui/login.rs:135
+msgid "Didn't open? Open the sign-in page again"
+msgstr "Не открылось? Открой страницу входа ещё раз"
+
+#: src/ui/login.rs:107
+msgid "Paste the address from your browser"
+msgstr "Вставьте адрес из браузера"
+
+#: src/ui/login.rs:123
+msgid "Continue"
+msgstr "Продолжить"
+
+#: src/ui/login.rs:150
+msgid "Connecting to TIDAL…"
+msgstr "Подключение к TIDAL…"
+
+#: src/ui/login.rs:156
+msgid "Log in to Tidalfast"
+msgstr "Вход в Tidalfast"
+
+#: src/ui/login.rs:162
+msgid "Log in"
+msgstr "Войти"
+
+#: src/ui/login.rs:168
+msgid "Log in with Max (hi-res)"
+msgstr "Войти с Max (Hi-Res)"
+
+#: src/ui/login.rs:181
+msgid "Proxy Settings"
+msgstr "Настройки прокси"
+
+#: src/ui/mod.rs:953
+msgid "Minimize"
+msgstr "Свернуть"
+
+#: src/ui/mod.rs:960
+msgid "Restore"
+msgstr "Восстановить"
+
+#: src/ui/mod.rs:962
+msgid "Maximize"
+msgstr "Развернуть"
+
+#: src/ui/radio.rs:335
+msgid "Based on this playlist"
+msgstr "На основе этого плейлиста"
+
+#: src/ui/radio.rs:336
+msgid "Based on this album"
+msgstr "На основе этого альбома"
+
+#: src/ui/radio.rs:337
+msgid "Based on this artist"
+msgstr "На основе этого исполнителя"
+
+#: src/ui/radio.rs:338
+msgid "Based on this track"
+msgstr "На основе этого трека"
+
+#. Translators: {first} is an artist name.
+#: src/ui/radio.rs:356
+#, rust-format
+msgid "With {first}"
+msgstr "С участием {first}"
+
+#. Translators: {first} and {second} are artist names.
+#: src/ui/radio.rs:359
+#, rust-format
+msgid "With {first} and {second}"
+msgstr "С участием {first} и {second}"
+
+#. Translators: {first}, {second} and {third} are artist names.
+#: src/ui/radio.rs:365
+#, rust-format
+msgid "With {first}, {second} and {third}"
+msgstr "С участием {first}, {second} и {third}"
+
+#. Translators: {first}, {second} and {third} are artist names; more follow.
+#: src/ui/radio.rs:372
+#, rust-format
+msgid "With {first}, {second}, {third} and more"
+msgstr "С участием {first}, {second}, {third} и других"
+
+#: src/ui/search.rs:80 src/ui/search.rs:334
+msgid "Search needs a connection. Turn off offline mode to search TIDAL."
+msgstr ""
+"Для поиска нужно подключение. Выключите автономный режим, чтобы искать в "
+"TIDAL."
+
+#. Translators: {query} is the text the user searched for.
+#: src/ui/search.rs:124
+#, rust-format
+msgid "No results for “{query}”"
+msgstr "Ничего не найдено по запросу «{query}»"
+
+#: src/ui/search.rs:126
+msgid "Check the spelling, or try fewer words."
+msgstr "Проверь написание или попробуй меньше слов."
+
+#: src/ui/search.rs:183
+#, rust-format
+msgid "Did you mean {query}?"
+msgstr "Возможно, вы имели в виду {query}?"
+
+#: src/ui/search.rs:275
+msgid "Go to genre"
+msgstr "Перейти к жанру"
+
+#: src/ui/search.rs:339
+msgid "Connect to the internet to search tracks, artists, and playlists."
+msgstr ""
+"Подключитесь к интернету, чтобы искать треки, исполнителей и плейлисты."
+
+#: src/ui/search.rs:350
+msgid "Search TIDAL"
+msgstr "Поиск в TIDAL"
+
+#: src/ui/search.rs:351
+msgid "Find tracks, artists, albums, and playlists."
+msgstr "Ищите треки, исполнителей, альбомы и плейлисты."
+
+#: src/ui/search.rs:428 src/ui/search.rs:1389 src/ui/search.rs:1590
+msgid "Track"
+msgstr "Трек"
+
+#: src/ui/search.rs:430 src/ui/search.rs:1390 src/ui/search.rs:1610
+msgid "Video"
+msgstr "Видео"
+
+#: src/ui/search.rs:970
+#, rust-format
+msgid "By {owner}"
+msgstr "Автор: {owner}"
+
+#: src/ui/search.rs:1343
+msgid "Recent Searches"
+msgstr "Недавние запросы"
+
+#: src/ui/topbar.rs:261
+msgid "Back"
+msgstr "Назад"
+
+#: src/ui/topbar.rs:262
+msgid "Forward"
+msgstr "Вперёд"
+
+#: src/ui/topbar.rs:284
+msgid "Update ready"
+msgstr "Обновление готово"
+
+#: src/ui/topbar.rs:286 src/ui/update.rs:113
+msgid "Downloading update…"
+msgstr "Загрузка обновления…"
+
+#. Translators: {version} is a version number such as 1.2.0.
+#: src/ui/topbar.rs:290
+#, rust-format
+msgid "Update to {version}"
+msgstr "Обновить до {version}"
+
+#: src/ui/topbar.rs:417
+msgid "Offline mode is on. Turn it off in Settings or with Go online."
+msgstr ""
+"Автономный режим включён. Выключите его в настройках или кнопкой "
+"«Подключиться»."
+
+#: src/ui/topbar.rs:422
+msgid ""
+"Tidalfast is offline. Reconnecting automatically when connection returns."
+msgstr ""
+"Tidalfast не в сети. Подключение восстановится автоматически, когда сеть "
+"станет доступна."
+
+#: src/ui/topbar.rs:431
+msgid "Updating My Collection…"
+msgstr "Обновление Моей коллекции…"
+
+#: src/ui/topbar.rs:432
+msgid "Checking for updates…"
+msgstr "Проверка обновлений…"
+
+#: src/ui/topbar.rs:433
+msgid "Waiting for TIDAL…"
+msgstr "Ожидание TIDAL…"
+
+#. Translators: {version} is a version number such as 1.2.0.
+#: src/ui/topbar.rs:450
+#, rust-format
+msgid "Version {version} is available."
+msgstr "Доступна версия {version}."
+
+#: src/ui/topbar.rs:703
+msgid "Profile"
+msgstr "Профиль"
+
+#: src/ui/topbar.rs:708 src/ui/profile.rs:118 src/ui/activity.rs:545
+msgid "My Activity"
+msgstr "Моя активность"
+
+#: src/ui/topbar.rs:715
+msgid "Manage subscription"
+msgstr "Управление подпиской"
+
+#: src/ui/topbar.rs:721 src/ui/titlebar.rs:169
+msgid "Help"
+msgstr "Справка"
+
+#: src/ui/topbar.rs:729
+msgid "Get Support"
+msgstr "Получить поддержку"
+
+#: src/ui/topbar.rs:731
+msgid "Legal"
+msgstr "Правовая информация"
+
+#: src/ui/topbar.rs:732
+msgid "Terms and Conditions"
+msgstr "Условия использования"
+
+#: src/ui/topbar.rs:733
+msgid "Privacy Notice"
+msgstr "Уведомление о конфиденциальности"
+
+#: src/ui/topbar.rs:737
+msgid "Marketplace Terms and Conditions"
+msgstr "Условия использования Marketplace"
+
+#: src/ui/topbar.rs:745
+msgid "Log out"
+msgstr "Выйти"
+
+#: src/ui/topbar.rs:760
+msgid "Luna Settings"
+msgstr "Настройки Luna"
+
+#: src/ui/update.rs:53
+msgid "Update Tidalfast"
+msgstr "Обновить Tidalfast"
+
+#: src/ui/update.rs:104
+msgid "Release notes"
+msgstr "Примечания к выпуску"
+
+#: src/ui/update.rs:111
+msgid "Checking download…"
+msgstr "Проверка загрузки…"
+
+#. Translators: {received} and {total} are sizes in megabytes, such as 12.5.
+#: src/ui/update.rs:129
+#, rust-format
+msgid "{received} of {total} MB"
+msgstr "{received} из {total} МБ"
+
+#: src/ui/update.rs:145
+msgid "Ready to install"
+msgstr "Готово к установке"
+
+#: src/ui/update.rs:154
+msgid "Music playing on this computer will stop when Tidalfast restarts."
+msgstr "Музыка на этом компьютере остановится при перезапуске Tidalfast."
+
+#: src/ui/update.rs:162
+msgid "Restart to update"
+msgstr "Перезапустить и обновить"
+
+#: src/ui/update.rs:169
+msgid "Preparing to restart…"
+msgstr "Подготовка к перезапуску…"
+
+#: src/ui/update.rs:202
+msgid "Download from GitHub"
+msgstr "Скачать с GitHub"
+
+#: src/ui/update.rs:207
+msgid "Retry download"
+msgstr "Повторить загрузку"
+
+#: src/ui/update.rs:209
+msgid "Update now"
+msgstr "Обновить сейчас"
+
+#: src/ui/update.rs:228
+msgid "Later"
+msgstr "Позже"
+
+#. Translators: A length of time, abbreviated. Keep {hours} and {minutes}.
+#: src/util.rs:28
+#, rust-format
+msgid "{hours} hr {minutes} min"
+msgstr "{hours} ч {minutes} мин"
+
+#. Translators: A length of time, abbreviated. Keep {minutes} and {seconds}.
+#: src/util.rs:33
+#, rust-format
+msgid "{minutes} min {seconds} sec"
+msgstr "{minutes} мин {seconds} сек"
+
+#. Translators: A length of time, abbreviated. Keep {seconds}.
+#: src/util.rs:38
+#, rust-format
+msgid "{seconds} sec"
+msgstr "{seconds} сек"
+
+#: src/util.rs:79
+msgctxt "month"
+msgid "Jan"
+msgstr "янв."
+
+#: src/util.rs:80
+msgctxt "month"
+msgid "Feb"
+msgstr "февр."
+
+#: src/util.rs:81
+msgctxt "month"
+msgid "Mar"
+msgstr "мар."
+
+#: src/util.rs:82
+msgctxt "month"
+msgid "Apr"
+msgstr "апр."
+
+#: src/util.rs:83 src/ui/activity.rs:39
+msgctxt "month"
+msgid "May"
+msgstr "мая"
+
+#: src/util.rs:84
+msgctxt "month"
+msgid "Jun"
+msgstr "июн."
+
+#: src/util.rs:85
+msgctxt "month"
+msgid "Jul"
+msgstr "июл."
+
+#: src/util.rs:86
+msgctxt "month"
+msgid "Aug"
+msgstr "авг."
+
+#: src/util.rs:87
+msgctxt "month"
+msgid "Sep"
+msgstr "сент."
+
+#: src/util.rs:88
+msgctxt "month"
+msgid "Oct"
+msgstr "окт."
+
+#: src/util.rs:89
+msgctxt "month"
+msgid "Nov"
+msgstr "нояб."
+
+#: src/util.rs:90
+msgctxt "month"
+msgid "Dec"
+msgstr "дек."
+
+#. Translators: A date. {month} is an abbreviated month name; reorder as your language writes dates.
+#: src/util.rs:96 src/ui/activity.rs:66
+#, rust-format
+msgid "{month} {day}, {year}"
+msgstr "{day} {month} {year} г."
+
+#. Translators: A month and year. {month} is an abbreviated month name.
+#: src/util.rs:99
+#, rust-format
+msgid "{month} {year}"
+msgstr "{month} {year} г."
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:125
+#, rust-format
+msgid "{count} second ago"
+msgid_plural "{count} seconds ago"
+msgstr[0] "{count} секунду назад"
+msgstr[1] "{count} секунды назад"
+msgstr[2] "{count} секунд назад"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:135
+#, rust-format
+msgid "{count} minute ago"
+msgid_plural "{count} minutes ago"
+msgstr[0] "{count} минуту назад"
+msgstr[1] "{count} минуты назад"
+msgstr[2] "{count} минут назад"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:145
+#, rust-format
+msgid "{count} hour ago"
+msgid_plural "{count} hours ago"
+msgstr[0] "{count} час назад"
+msgstr[1] "{count} часа назад"
+msgstr[2] "{count} часов назад"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:153
+#, rust-format
+msgid "{count} day ago"
+msgid_plural "{count} days ago"
+msgstr[0] "{count} день назад"
+msgstr[1] "{count} дня назад"
+msgstr[2] "{count} дней назад"
+
+#. Translators: How long ago a song was added. Keep {count}.
+#: src/util.rs:160
+#, rust-format
+msgid "{count} week ago"
+msgid_plural "{count} weeks ago"
+msgstr[0] "{count} неделю назад"
+msgstr[1] "{count} недели назад"
+msgstr[2] "{count} недель назад"
+
+#: src/util.rs:443
+msgid "Good morning"
+msgstr "Доброе утро"
+
+#: src/util.rs:444
+msgid "Good afternoon"
+msgstr "Добрый день"
+
+#: src/util.rs:445
+msgid "Good evening"
+msgstr "Добрый вечер"
+
+#: src/window.rs:20
+msgid "Tidalfast cannot open its window"
+msgstr "Tidalfast не может открыть окно"
+
+#: src/window.rs:23
+msgid ""
+"On Windows on ARM, the OpenGL that Tidalfast draws with comes from "
+"Microsoft's OpenCL, OpenGL & Vulkan Compatibility Pack. Open its Microsoft "
+"Store page to install or repair it?"
+msgstr ""
+"В Windows на ARM OpenGL, с помощью которого рисует Tidalfast, предоставляет "
+"пакет Microsoft OpenCL, OpenGL & Vulkan Compatibility Pack. Открыть его "
+"страницу в Microsoft Store, чтобы установить или восстановить его?"
+
+#: src/ui/feed.rs:58
+msgid "New releases from artists you follow will show up here."
+msgstr "Здесь появятся новые релизы исполнителей, на которых вы подписаны."
+
+#: src/ui/feed.rs:73
+msgid "This month"
+msgstr "В этом месяце"
+
+#: src/ui/feed.rs:74
+msgid "Last month"
+msgstr "В прошлом месяце"
+
+#: src/ui/feed.rs:75
+msgid "Older"
+msgstr "Ранее"
+
+#: src/ui/feed.rs:123
+#, rust-format
+msgid "Single by {artists}"
+msgstr "Сингл: {artists}"
+
+#: src/ui/feed.rs:126
+#, rust-format
+msgid "EP by {artists}"
+msgstr "EP: {artists}"
+
+#: src/ui/home_feeds.rs:54
+msgid "Staff Picks"
+msgstr "Выбор редакции"
+
+#: src/ui/profile.rs:67
+msgctxt "profile"
+msgid "Followers"
+msgstr "Подписчики"
+
+#: src/ui/profile.rs:71
+msgctxt "profile"
+msgid "Following"
+msgstr "Подписки"
+
+#: src/ui/profile.rs:133
+msgid "No public playlists yet."
+msgstr "Публичных плейлистов пока нет."
+
+#: src/ui/menus.rs:60 src/ui/activity.rs:1564
+msgctxt "menu head"
+msgid "Artist"
+msgstr "Исполнитель"
+
+#: src/ui/menus.rs:92
+#, rust-format
+msgid "{count} Item ({duration})"
+msgid_plural "{count} Items ({duration})"
+msgstr[0] "{count} элемент ({duration})"
+msgstr[1] "{count} элемента ({duration})"
+msgstr[2] "{count} элементов ({duration})"
+
+#: src/ui/menus.rs:318
+msgid "Share with anyone"
+msgstr "Поделиться с кем угодно"
+
+#: src/ui/menus.rs:331
+msgid "Music shared from TIDAL can be opened on other services"
+msgstr "Музыку из TIDAL можно открыть и в других сервисах"
+
+#: src/ui/menus.rs:412
+msgid "Invite as collaborator"
+msgstr "Пригласить как соавтора"
+
+#: src/ui/menus.rs:423
+msgid "Every invite link can be used once."
+msgstr "Каждую ссылку-приглашение можно использовать только один раз."
+
+#: src/ui/menus.rs:459 src/ui/uploads.rs:368
+msgid "Copy link"
+msgstr "Скопировать ссылку"
+
+#: src/ui/menus.rs:555
+msgid "Create new playlist"
+msgstr "Создать плейлист"
+
+#: src/ui/menus.rs:569
+msgid "Show all playlists"
+msgstr "Показать все плейлисты"
+
+#: src/ui/menus.rs:606
+msgid "Move to folder"
+msgstr "Переместить в папку"
+
+#: src/ui/menus.rs:627
+msgid "Create folder"
+msgstr "Создать папку"
+
+#: src/ui/menus.rs:646
+msgid "Show all folders"
+msgstr "Показать все папки"
+
+#: src/ui/menus.rs:684
+msgid "Go to artist"
+msgstr "Перейти к исполнителю"
+
+#: src/ui/menus.rs:752
+msgid "Remove from Save for Later"
+msgstr "Убрать из «Сохранить на потом»"
+
+#: src/ui/menus.rs:906 src/ui/menus.rs:1031 src/ui/menus.rs:1342
+#: src/ui/videos.rs:354
+msgid "Play next"
+msgstr "Воспроизвести следующим"
+
+#: src/ui/menus.rs:916
+msgid "Remove from queue"
+msgstr "Удалить из очереди"
+
+#: src/ui/menus.rs:937 src/ui/menus.rs:1042
+msgid "Remove from playlist"
+msgstr "Удалить из плейлиста"
+
+#: src/ui/menus.rs:951
+msgid "Go to track radio"
+msgstr "Перейти к радио трека"
+
+#: src/ui/menus.rs:967
+msgid "Go to album"
+msgstr "Перейти к альбому"
+
+#: src/ui/menus.rs:990 src/ui/menus.rs:1375 src/ui/now_playing.rs:887
+#: src/ui/now_playing_video.rs:323 src/ui/videos.rs:385
+msgid "Add to queue"
+msgstr "Добавить в очередь"
+
+#: src/ui/menus.rs:1438
+msgid "NEW"
+msgstr "НОВОЕ"
+
+#: src/ui/menus.rs:1446
+msgid "Make private"
+msgstr "Сделать закрытым"
+
+#: src/ui/menus.rs:1448
+msgid "Make public"
+msgstr "Сделать открытым"
+
+#: src/ui/menus.rs:1470
+msgid "Follow"
+msgstr "Подписаться"
+
+#: src/ui/menus.rs:1494
+msgid "Bio"
+msgstr "Биография"
+
+#: src/ui/menus.rs:1499
+msgid "Go to artist radio"
+msgstr "Перейти к радио исполнителя"
+
+#: src/ui/menus.rs:1508 src/ui/blocked.rs:134
+msgid "Unblock"
+msgstr "Разблокировать"
+
+#: src/ui/menus.rs:1510
+msgid "Block"
+msgstr "Заблокировать"
+
+#: src/ui/downloads.rs:38
+msgid "Offline mode is on"
+msgstr "Автономный режим включён"
+
+#: src/ui/downloads.rs:50
+msgid ""
+"Only your downloads are available. Turn off offline mode to use TIDAL again."
+msgstr ""
+"Доступны только ваши загрузки. Выключите автономный режим, чтобы снова "
+"пользоваться TIDAL."
+
+#: src/ui/downloads.rs:67
+msgid "This needs a connection. Turn off offline mode to use TIDAL again."
+msgstr ""
+"Для этого нужно подключение. Выключите автономный режим, чтобы снова "
+"пользоваться TIDAL."
+
+#: src/ui/downloads.rs:127
+msgid ""
+"Offline mode is on. Only your downloads play, and Tidalfast makes no "
+"requests to TIDAL."
+msgstr ""
+"Автономный режим включён. Воспроизводятся только ваши загрузки, а Tidalfast "
+"не отправляет запросы в TIDAL."
+
+#: src/ui/downloads.rs:168
+msgid "You're offline. Only downloaded tracks play until you reconnect."
+msgstr "Вы офлайн. До переподключения играют только загруженные треки."
+
+#: src/ui/downloads.rs:191
+msgid "Download queue"
+msgstr "Очередь загрузок"
+
+#: src/ui/downloads.rs:198
+msgid "Cancel all"
+msgstr "Отменить всё"
+
+#: src/ui/downloads.rs:210
+msgid "Retry failed"
+msgstr "Повторить неудавшиеся"
+
+#: src/ui/downloads.rs:220
+msgid "Resume all"
+msgstr "Возобновить всё"
+
+#: src/ui/downloads.rs:226
+msgid "Pause all"
+msgstr "Приостановить всё"
+
+#: src/ui/downloads.rs:241
+msgid ""
+"Waiting for a connection that is not metered. Settings can allow metered "
+"connections."
+msgstr ""
+"Ожидание нелимитного подключения. В настройках можно разрешить лимитные "
+"подключения."
+
+#: src/ui/downloads.rs:255
+msgid "TIDAL asked downloads to slow down. They carry on shortly."
+msgstr "TIDAL попросил замедлить загрузки. Они скоро продолжатся."
+
+#: src/ui/downloads.rs:319 src/ui/downloads.rs:473
+msgid "Cancel download"
+msgstr "Отменить загрузку"
+
+#: src/ui/downloads.rs:339
+#, rust-format
+msgid "Downloading {done} of {total}"
+msgstr "Загрузка {done} из {total}"
+
+#: src/ui/downloads.rs:401
+msgid "Waiting"
+msgstr "Ожидание"
+
+#: src/ui/downloads.rs:419
+msgid "Paused"
+msgstr "Приостановлено"
+
+#: src/ui/downloads.rs:424
+msgid "Failed"
+msgstr "Ошибка"
+
+#: src/ui/downloads.rs:483
+msgid "Resume download"
+msgstr "Возобновить загрузку"
+
+#: src/ui/downloads.rs:493
+msgid "Pause download"
+msgstr "Приостановить загрузку"
+
+#: src/ui/downloads.rs:510
+msgid "Mixes"
+msgstr "Миксы"
+
+#: src/ui/downloads.rs:511 src/ui/blocked.rs:82 src/ui/save_later.rs:23
+msgid "Artists"
+msgstr "Исполнители"
+
+#: src/ui/downloads.rs:537 src/app/downloads.rs:811
+#, rust-format
+msgid "Songs not available: {count}"
+msgstr "Недоступные песни: {count}"
+
+#: src/app/downloads.rs:201
+msgid "Download started"
+msgstr "Загрузка начата"
+
+#: src/app/downloads.rs:243
+msgid "The disk is full. Free up space, then resume the downloads."
+msgstr "Диск заполнен. Освободите место и возобновите загрузки."
+
+#: src/app/downloads.rs:480
+msgid "Download removed"
+msgstr "Загрузка удалена"
+
+#: src/app/downloads.rs:792
+msgid "A download failed"
+msgstr "Не удалось скачать трек"
+
+#: src/app/downloads.rs:872
+#, rust-format
+msgid "Couldn't download {name}"
+msgstr "Не удалось загрузить {name}"
+
+#: src/app/downloads.rs:925
+#, rust-format
+msgid ""
+"There isn't enough disk space for {name}. It needs about {needed}, and "
+"{free} is free."
+msgstr ""
+"Недостаточно места на диске для «{name}». Нужно около {needed}, свободно "
+"{free}."
+
+#: src/ui/player_utility.rs:79
+msgid "Unmute"
+msgstr "Включить звук"
+
+#: src/ui/player_utility.rs:81
+msgid "Mute"
+msgstr "Выключить звук"
+
+#: src/ui/player_utility.rs:134
+msgid "Volume (%)"
+msgstr "Громкость (%)"
+
+#: src/ui/player_utility.rs:343 src/ui/player_utility.rs:406
+msgid "Sound output"
+msgstr "Вывод звука"
+
+#: src/ui/player_utility.rs:561 src/ui/player_utility.rs:566
+msgid "Exclusive"
+msgstr "Монопольно"
+
+#: src/ui/compact.rs:288
+msgid "Exit compact mode"
+msgstr "Выйти из компактного режима"
+
+#: src/ui/equalizer.rs:51
+msgctxt "equalizer filter"
+msgid "Peak"
+msgstr "Пик"
+
+#: src/ui/equalizer.rs:52
+msgctxt "equalizer filter"
+msgid "Low shelf"
+msgstr "Полка НЧ"
+
+#: src/ui/equalizer.rs:53
+msgctxt "equalizer filter"
+msgid "High shelf"
+msgstr "Полка ВЧ"
+
+#: src/ui/equalizer.rs:54
+msgctxt "equalizer filter"
+msgid "Low pass"
+msgstr "Фильтр НЧ"
+
+#: src/ui/equalizer.rs:55
+msgctxt "equalizer filter"
+msgid "High pass"
+msgstr "Фильтр ВЧ"
+
+#: src/ui/equalizer.rs:56
+msgctxt "equalizer filter"
+msgid "Notch"
+msgstr "Режекторный"
+
+#: src/ui/equalizer.rs:57
+msgctxt "equalizer filter"
+msgid "Band pass"
+msgstr "Полосовой"
+
+#: src/ui/equalizer.rs:58
+msgctxt "equalizer filter"
+msgid "All pass"
+msgstr "Всепропускающий"
+
+#: src/ui/equalizer.rs:86
+msgid ""
+"Bypassed while bit-perfect is on: the music reaches the device untouched."
+msgstr ""
+"Обходится, пока включён режим bit-perfect: музыка доходит до устройства без "
+"изменений."
+
+#: src/ui/equalizer.rs:98
+msgctxt "equalizer view"
+msgid "Graphic"
+msgstr "Графический"
+
+#: src/ui/equalizer.rs:131
+msgid "Remember for each output device"
+msgstr "Запоминать для каждого устройства вывода"
+
+#: src/ui/equalizer.rs:143
+msgid "Choosing another output device brings back the equalizer it had."
+msgstr "При выборе другого устройства вывода возвращается его эквалайзер."
+
+#: src/ui/equalizer.rs:426 src/ui/equalizer.rs:431
+msgid "Automatic"
+msgstr "Автоматически"
+
+#: src/ui/equalizer.rs:441
+#, rust-format
+msgid "Boosts reach {db} dB past full scale; the limiter catches the peaks."
+msgstr "Подъёмы превышают полную шкалу на {db} дБ; лимитер срезает пики."
+
+#: src/ui/equalizer.rs:445
+msgid "No boost goes past full scale."
+msgstr "Ни один подъём не превышает полную шкалу."
+
+#: src/ui/equalizer.rs:460
+msgid "Headphone crossfeed"
+msgstr "Кроссфид для наушников"
+
+#: src/ui/equalizer.rs:469
+msgid ""
+"Blends some of each side into the other at low pitches, as speakers do, so "
+"music on headphones sounds less hard-panned."
+msgstr ""
+"Подмешивает на низких частотах часть каждого канала в другой, как это делают "
+"колонки, чтобы музыка в наушниках звучала менее разделённо."
+
+#: src/ui/equalizer.rs:477
+msgctxt "equalizer crossfeed"
+msgid "Off"
+msgstr "Выкл."
+
+#: src/ui/equalizer.rs:478
+msgctxt "equalizer crossfeed"
+msgid "Light"
+msgstr "Слабый"
+
+#: src/ui/equalizer.rs:479
+msgctxt "equalizer crossfeed"
+msgid "Medium"
+msgstr "Средний"
+
+#: src/ui/equalizer.rs:480
+msgctxt "equalizer crossfeed"
+msgid "Strong"
+msgstr "Сильный"
+
+#: src/ui/equalizer.rs:541
+msgctxt "equalizer band"
+msgid "Type"
+msgstr "Тип"
+
+#: src/ui/equalizer.rs:542
+msgctxt "equalizer band"
+msgid "Frequency"
+msgstr "Частота"
+
+#: src/ui/equalizer.rs:543
+msgctxt "equalizer band"
+msgid "Gain"
+msgstr "Усиление"
+
+#: src/ui/equalizer.rs:613
+msgid "Add band"
+msgstr "Добавить полосу"
+
+#: src/ui/equalizer.rs:629
+msgid ""
+"Drag a band on the graph; the mouse wheel sets its width. Double-click the "
+"graph to add one."
+msgstr ""
+"Перетащите полосу на графике; колесо мыши меняет её ширину. Дважды щёлкните "
+"по графику, чтобы добавить полосу."
+
+#: src/ui/equalizer.rs:640
+msgid "Your presets"
+msgstr "Ваши пресеты"
+
+#: src/ui/equalizer.rs:665
+msgid "Preset name"
+msgstr "Название пресета"
+
+#: src/ui/equalizer.rs:724
+msgid "Equalizer APO and AutoEQ profiles"
+msgstr "Профили Equalizer APO и AutoEQ"
+
+#: src/ui/equalizer.rs:745
+msgid "Import"
+msgstr "Импортировать"
+
+#: src/ui/equalizer.rs:757
+msgid "Copy as Equalizer APO"
+msgstr "Копировать как Equalizer APO"
+
+#: src/ui/equalizer.rs:781
+#, rust-format
+msgid "Loaded: {headphone}"
+msgstr "Загружено: {headphone}"
+
+#: src/ui/equalizer.rs:788
+msgid "Loading the headphone list…"
+msgstr "Загрузка списка наушников…"
+
+#: src/ui/equalizer.rs:790
+msgid "Find your headphones"
+msgstr "Найти свои наушники"
+
+#: src/ui/equalizer.rs:800
+msgid ""
+"Downloads the AutoEQ project's list from GitHub once, then only the profile "
+"you pick."
+msgstr ""
+"Один раз скачивает список проекта AutoEQ с GitHub, затем только выбранный "
+"профиль."
+
+#: src/ui/equalizer.rs:808
+msgid "Search headphones"
+msgstr "Поиск наушников"
+
+#: src/ui/equalizer.rs:826
+#, rust-format
+msgid "{count} more; type more of the name."
+msgstr "Ещё {count}; введите больше от названия."
+
+#: src/ui/audio_output.rs:50
+msgid "the output device"
+msgstr "устройство вывода"
+
+#: src/ui/audio_output.rs:53
+#, rust-format
+msgid "Bit-perfect · {format} → {device} (exclusive)"
+msgstr "Bit-perfect · {format} → {device} (монопольно)"
+
+#: src/ui/audio_output.rs:58
+msgid "hardware volume"
+msgstr "аппаратная громкость"
+
+#: src/ui/audio_output.rs:66
+#, rust-format
+msgid "Exclusive on {device}, but not bit-perfect: this track is lossy."
+msgstr "Монопольно на {device}, но не bit-perfect: этот трек с потерями."
+
+#: src/ui/audio_output.rs:75 src/ui/audio_output.rs:101
+#, rust-format
+msgid "Not bit-perfect: {reason}"
+msgstr "Не bit-perfect: {reason}"
+
+#: src/ui/audio_output.rs:79
+msgid "Bit-perfect starts with the next track you play."
+msgstr "Режим bit-perfect начнётся со следующего трека."
+
+#: src/ui/audio_output.rs:84
+msgid "shared mode"
+msgstr "общий режим"
+
+#: src/ui/audio_output.rs:89
+#, rust-format
+msgid "resampled to {rate}"
+msgstr "передискретизация в {rate}"
+
+#: src/ui/audio_output.rs:92
+msgid "equalizer on"
+msgstr "эквалайзер включён"
+
+#: src/ui/audio_output.rs:95
+msgid "volume below 100%"
+msgstr "громкость ниже 100%"
+
+#: src/ui/audio_output.rs:98
+msgid "normalized"
+msgstr "нормализация"
+
+#: src/ui/audio_output.rs:160
+msgid "Asking the device what it takes…"
+msgstr "Запрос форматов у устройства…"
+
+#: src/ui/audio_output.rs:161
+#, rust-format
+msgid "In exclusive mode this device takes {formats}."
+msgstr "В монопольном режиме это устройство принимает {formats}."
+
+#: src/ui/audio_output.rs:173
+msgid "Sample rate conversion"
+msgstr "Преобразование частоты дискретизации"
+
+#: src/ui/audio_output.rs:180
+msgctxt "resampler quality"
+msgid "Same as TIDAL"
+msgstr "Как в TIDAL"
+
+#: src/ui/audio_output.rs:183
+msgctxt "resampler quality"
+msgid "Standard"
+msgstr "Стандартное"
+
+#: src/ui/audio_output.rs:186
+msgctxt "resampler quality"
+msgid "High"
+msgstr "Высокое"
+
+#: src/ui/audio_output.rs:189
+msgctxt "resampler quality"
+msgid "Best"
+msgstr "Наилучшее"
+
+#: src/ui/audio_output.rs:206
+msgid "Same as TIDAL lets the system convert. The others convert in Tidalfast."
+msgstr ""
+"«Как в TIDAL» поручает преобразование системе. Остальные преобразуют в "
+"Tidalfast."
+
+#: src/ui/audio_output.rs:223
+#, rust-format
+msgid "This device runs at {rate}, so Tidalfast converts the music."
+msgstr ""
+"Это устройство работает на {rate}, поэтому Tidalfast преобразует музыку."
+
+#: src/ui/audio_output.rs:235
+msgid "While Tidalfast plays bit-perfect, other apps cannot use this device."
+msgstr ""
+"Пока Tidalfast играет в режиме bit-perfect, другие приложения не могут "
+"использовать это устройство."
+
+#: src/ui/audio_output.rs:240
+msgid "Release the device when paused"
+msgstr "Освобождать устройство на паузе"
+
+#: src/ui/plugins_store.rs:309
+msgid "Rate"
+msgstr "Оценить"
+
+#: src/ui/plugins_store.rs:650
+msgid "1 update available"
+msgstr "Доступно 1 обновление"
+
+#: src/ui/plugins_store.rs:652
+#, rust-format
+msgid "{n} updates available"
+msgstr "Доступно обновлений: {n}"
+
+#: src/ui/plugins_store.rs:666
+msgid "Update all"
+msgstr "Обновить все"
+
+#: src/ui/plugins_store.rs:1941
+msgid "Find some in the Plugin Store."
+msgstr "Найдите их в магазине плагинов."
+
+#: src/luna/mod.rs:336
+msgid "Not supported"
+msgstr "Не поддерживается"
+
+#: src/luna/mod.rs:337
+msgid "Partly supported"
+msgstr "Поддерживается частично"
+
+#: src/luna/mod.rs:361
+msgid ""
+"This build needs TIDAL's own Last.fm key, which Tidalfast does not have."
+msgstr ""
+"Этой сборке нужен собственный ключ Last.fm от TIDAL, которого у Tidalfast "
+"нет."
+
+#: src/luna/mod.rs:365
+msgid ""
+"It saves TIDAL songs as files, which Tidalfast does not allow (use Download "
+"in Tidalfast to listen offline)."
+msgstr ""
+"Он сохраняет песни TIDAL в виде файлов, что Tidalfast не разрешает (чтобы "
+"слушать офлайн, используйте «Скачать» в Tidalfast)."
+
+#: src/luna/mod.rs:369
+msgid ""
+"It needs TIDAL's own remote control code, which Tidalfast does not have."
+msgstr ""
+"Ему нужен собственный код удалённого управления TIDAL, которого у Tidalfast "
+"нет."
+
+#: src/luna/mod.rs:373
+msgid ""
+"It sends your TIDAL sign-in to the author's server, which Tidalfast never "
+"allows, so its remote control cannot run."
+msgstr ""
+"Он отправляет ваши данные для входа в TIDAL на сервер автора, что Tidalfast "
+"никогда не разрешает, поэтому его удалённое управление не может работать."
+
+#: src/luna/mod.rs:377
+msgid ""
+"Its mini player is a separate browser window, which Tidalfast does not "
+"include."
+msgstr ""
+"Его мини-плеер — это отдельное окно браузера, которого в Tidalfast нет."
+
+#: src/luna/mod.rs:381
+msgid ""
+"It needs to listen for media keys across the whole computer, which Tidalfast "
+"does not allow (Tidalfast has its own media controls)."
+msgstr ""
+"Ему нужно отслеживать медиаклавиши по всему компьютеру, что Tidalfast не "
+"разрешает (в Tidalfast есть собственное управление медиа)."
+
+#: src/luna/mod.rs:385
+msgid ""
+"It plays through the mpv program and talks to it over a channel Tidalfast "
+"does not allow."
+msgstr ""
+"Он воспроизводит через программу mpv и общается с ней по каналу, который "
+"Tidalfast не разрешает."
+
+#: src/luna/mod.rs:389
+msgid ""
+"It marks playlists inside TIDAL's web \"add to playlist\" window, which "
+"Tidalfast does not have."
+msgstr ""
+"Он отмечает плейлисты в веб-окне TIDAL «Добавить в плейлист», которого в "
+"Tidalfast нет."
+
+#: src/luna/mod.rs:393
+msgid ""
+"It needs a native add-on that Tidalfast cannot load (Tidalfast has its own "
+"media controls)."
+msgstr ""
+"Ему нужно нативное дополнение, которое Tidalfast не может загрузить (в "
+"Tidalfast есть собственное управление медиа)."
+
+#: src/luna/mod.rs:397
+msgid ""
+"Last.fm scrobbling needs TIDAL's own Last.fm key, which Tidalfast does not "
+"have."
+msgstr ""
+"Скробблинг в Last.fm требует собственный ключ Last.fm от TIDAL, которого у "
+"Tidalfast нет."
+
+#: src/luna/mod.rs:401
+msgid ""
+"The lyrics bubble over the player bar works, but its separate lyrics window "
+"does not, because that needs a browser engine."
+msgstr ""
+"Пузырь с текстом песни над панелью плеера работает, а отдельное окно с "
+"текстом нет, потому что для него нужен движок браузера."
+
+#: src/app/plugins.rs:444
+#, rust-format
+msgid "{name} updated to {version}"
+msgstr "{name} обновлён до {version}"
+
+#: src/ui/activity.rs:35
+msgctxt "month"
+msgid "January"
+msgstr "январь"
+
+#: src/ui/activity.rs:36
+msgctxt "month"
+msgid "February"
+msgstr "февраль"
+
+#: src/ui/activity.rs:37
+msgctxt "month"
+msgid "March"
+msgstr "март"
+
+#: src/ui/activity.rs:38
+msgctxt "month"
+msgid "April"
+msgstr "апрель"
+
+#: src/ui/activity.rs:40
+msgctxt "month"
+msgid "June"
+msgstr "июнь"
+
+#: src/ui/activity.rs:41
+msgctxt "month"
+msgid "July"
+msgstr "июль"
+
+#: src/ui/activity.rs:42
+msgctxt "month"
+msgid "August"
+msgstr "август"
+
+#: src/ui/activity.rs:43
+msgctxt "month"
+msgid "September"
+msgstr "сентябрь"
+
+#: src/ui/activity.rs:44
+msgctxt "month"
+msgid "October"
+msgstr "октябрь"
+
+#: src/ui/activity.rs:45
+msgctxt "month"
+msgid "November"
+msgstr "ноябрь"
+
+#: src/ui/activity.rs:46
+msgctxt "month"
+msgid "December"
+msgstr "декабрь"
+
+#. Translators: A month tab on My Activity. {month} is the month's name, {year} the year's last two digits.
+#: src/ui/activity.rs:78
+#, rust-format
+msgctxt "activity tab"
+msgid "{month} ’{year}"
+msgstr "{month} ’{year}"
+
+#. Translators: Keep {count} exactly as written. It becomes a number of times songs were played.
+#: src/ui/activity.rs:113
+#, rust-format
+msgid "{count} stream"
+msgid_plural "{count} streams"
+msgstr[0] "{count} прослушивание"
+msgstr[1] "{count} прослушивания"
+msgstr[2] "{count} прослушиваний"
+
+#. Translators: Keep {count} exactly as written. Days until this month's ranking closes; shown in capitals.
+#: src/ui/activity.rs:119
+#, rust-format
+msgid "{count} day left"
+msgid_plural "{count} days left"
+msgstr[0] "Остался {count} день"
+msgstr[1] "Осталось {count} дня"
+msgstr[2] "Осталось {count} дней"
+
+#. Translators: {first} and {second} are artists; {first_streams} and {second_streams} read like "84 streams".
+#: src/ui/activity.rs:130
+#, rust-format
+msgid ""
+"{first} and {second} are currently your top streamed artists with "
+"{first_streams} and {second_streams}."
+msgstr ""
+"{first} и {second} сейчас ваши самые прослушиваемые исполнители: "
+"{first_streams} и {second_streams}."
+
+#. Translators: {artist} is an artist; {streams} reads like "84 streams".
+#: src/ui/activity.rs:146
+#, rust-format
+msgid "{artist} is currently your top streamed artist with {streams}."
+msgstr "{artist} сейчас ваш самый прослушиваемый исполнитель: {streams}."
+
+#: src/ui/activity.rs:156 src/ui/activity.rs:1120
+msgid "No streams counted yet this month."
+msgstr "В этом месяце прослушиваний пока не учтено."
+
+#. Translators: {artist} is an artist, {month} a month's name, {streams} reads like "258 streams".
+#: src/ui/activity.rs:164
+#, rust-format
+msgid "{artist} was your top artist in {month} with {streams}."
+msgstr "{artist} был вашим главным исполнителем за {month}: {streams}."
+
+#: src/ui/activity.rs:617 src/ui/activity.rs:1121
+msgid "Updated once a day"
+msgstr "Обновляется раз в день"
+
+#: src/ui/activity.rs:693 src/ui/activity.rs:1020
+msgid "Your Top Artists"
+msgstr "Ваши любимые исполнители"
+
+#: src/ui/activity.rs:798
+msgid "Previous Month"
+msgstr "Прошлый месяц"
+
+#: src/ui/activity.rs:825
+msgid ""
+"Your subscription helps fund TIDAL RISING, a program designed to support "
+"emerging talent."
+msgstr ""
+"Ваша подписка помогает финансировать TIDAL RISING, программу поддержки "
+"молодых талантов."
+
+#: src/ui/activity.rs:832
+msgid "Your listening supports artists"
+msgstr "Ваши прослушивания поддерживают артистов"
+
+#: src/ui/activity.rs:876
+msgid "Listening in Tidalfast"
+msgstr "Прослушивания в Tidalfast"
+
+#: src/ui/activity.rs:887
+msgid ""
+"Counted on this computer by Tidalfast only. TIDAL's numbers above include "
+"every app you listen with."
+msgstr ""
+"Подсчитано только Tidalfast на этом компьютере. Цифры TIDAL выше включают "
+"все приложения, в которых вы слушаете."
+
+#: src/ui/activity.rs:916
+msgid "Nothing played in Tidalfast this month yet."
+msgstr "В этом месяце в Tidalfast пока ничего не играло."
+
+#. Translators: A listening time like "12 h 5 min". Keep {hours} and {minutes}.
+#: src/ui/activity.rs:924
+#, rust-format
+msgid "{hours} h {minutes} min"
+msgstr "{hours} ч {minutes} мин"
+
+#: src/ui/activity.rs:929
+msgid "Listening time this month"
+msgstr "Время прослушивания за месяц"
+
+#: src/ui/activity.rs:932
+msgid "Streams this month"
+msgstr "Прослушиваний за месяц"
+
+#: src/ui/activity.rs:1065
+msgctxt "activity tab"
+msgid "This Month"
+msgstr "Этот месяц"
+
+#: src/ui/activity.rs:1143
+msgid "We do our best to calculate your listening activity."
+msgstr "Мы стараемся как можно точнее подсчитать вашу активность."
+
+#: src/ui/activity.rs:1159
+msgid "Learn more"
+msgstr "Подробнее"
+
+#. Translators: Two artists' names, as in "Bonobo and Khruangbin".
+#: src/ui/activity.rs:1290
+#, rust-format
+msgid "{first} and {second}"
+msgstr "{first} и {second}"
+
+#: src/ui/activity.rs:1397
+msgid "Your most streamed artist"
+msgstr "Ваш самый прослушиваемый исполнитель"
+
+#: src/ui/now_playing.rs:157
+msgid "Similar tracks"
+msgstr "Похожие треки"
+
+#: src/ui/now_playing.rs:375 src/ui/now_playing_video.rs:161
+msgid "Leave full screen (Esc)"
+msgstr "Выйти из полноэкранного режима (Esc)"
+
+#: src/ui/now_playing.rs:377 src/ui/now_playing_video.rs:163
+#: src/ui/titlebar.rs:157
+msgid "Full screen"
+msgstr "Во весь экран"
+
+#: src/ui/now_playing.rs:530 src/ui/now_playing_video.rs:374
+msgid "Released"
+msgstr "Выпущено"
+
+#: src/ui/now_playing.rs:533
+msgid "Label"
+msgstr "Лейбл"
+
+#: src/ui/now_playing.rs:538
+msgid "No credits for this track."
+msgstr "Для этого трека нет сведений об авторах."
+
+#: src/ui/now_playing.rs:659
+msgid "Artist Radio"
+msgstr "Радио исполнителя"
+
+#: src/ui/now_playing.rs:671
+msgid "Track Radio"
+msgstr "Радио трека"
+
+#: src/ui/now_playing.rs:672
+msgid "Track radio"
+msgstr "Радио трека"
+
+#: src/ui/now_playing.rs:682
+msgid "Suggested tracks"
+msgstr "Рекомендуемые треки"
+
+#: src/ui/now_playing_video.rs:176 src/ui/now_playing_video.rs:402
+msgid "Picture-in-picture"
+msgstr "Картинка в картинке"
+
+#: src/ui/now_playing_video.rs:190 src/ui/now_playing_video.rs:339
+msgid "Similar videos"
+msgstr "Похожие видео"
+
+#: src/ui/now_playing_video.rs:206
+msgid "Couldn't load this video's details"
+msgstr "Не удалось загрузить сведения об этом видео"
+
+#: src/ui/now_playing_video.rs:224
+msgid "No similar videos"
+msgstr "Нет похожих видео"
+
+#: src/ui/now_playing_video.rs:363
+msgid "Performer"
+msgstr "Исполнитель"
+
+#: src/ui/now_playing_video.rs:483
+msgid "Back to the app"
+msgstr "Вернуться в приложение"
+
+#: src/ui/now_playing_video.rs:505
+msgid "Back 10 seconds"
+msgstr "Назад на 10 секунд"
+
+#: src/ui/now_playing_video.rs:528
+msgid "Forward 10 seconds"
+msgstr "Вперёд на 10 секунд"
+
+#: src/ui/plugins.rs:857
+#, rust-format
+msgid "Loaded plugin {name}!"
+msgstr "Плагин {name} загружен!"
+
+#: src/ui/plugins.rs:957
+msgid "You have no plugins installed!"
+msgstr "Нет установленных плагинов!"
+
+#: src/ui/plugins.rs:2042
+msgid "Press keys…"
+msgstr "Нажмите клавиши…"
+
+#: src/ui/plugins.rs:2044
+msgid "Click, then press keys"
+msgstr "Нажмите, затем клавиши"
+
+#: src/ui/plugins.rs:2092
+#, rust-format
+msgid "Settings crashed: {error}"
+msgstr "Сбой настроек: {error}"
+
+#: src/ui/titlebar.rs:79
+msgid "Menu"
+msgstr "Меню"
+
+#: src/ui/titlebar.rs:125
+msgid "File"
+msgstr "Файл"
+
+#: src/ui/titlebar.rs:129
+msgid "New playlist"
+msgstr "Новый плейлист"
+
+#: src/ui/titlebar.rs:152
+msgid "Toggle sidebar"
+msgstr "Показать/скрыть боковую панель"
+
+#: src/ui/titlebar.rs:163
+msgid "Play/Pause"
+msgstr "Воспроизвести/Пауза"
+
+#: src/ui/titlebar.rs:184
+msgid "Plugins"
+msgstr "Плагины"
+
+#: src/ui/videos.rs:71
+msgid "No favourite videos"
+msgstr "Нет избранных видео"
+
+#: src/ui/videos.rs:72
+msgid "Videos you favourite on TIDAL appear here."
+msgstr "Видео, добавленные в избранное в TIDAL, появятся здесь."
+
+#: src/ui/videos.rs:90
+msgid ""
+"You haven't added any videos yet. Tap the heart icon on any video to add it "
+"to your collection."
+msgstr ""
+"Вы ещё не добавили ни одного видео. Нажмите значок сердца на любом видео, "
+"чтобы добавить его в коллекцию."
+
+#: src/ui/videos.rs:108
+msgid "View TIDAL's top videos"
+msgstr "Смотреть лучшие видео TIDAL"
+
+#: src/ui/videos.rs:392
+msgid "Open on TIDAL"
+msgstr "Открыть в TIDAL"
+
+#: src/ui/album_credits.rs:138 src/ui/album_credits.rs:781
+msgid "Info"
+msgstr "Информация"
+
+#: src/ui/album_credits.rs:488 src/ui/album_credits.rs:696
+msgid "No credits for this album."
+msgstr "Для этого альбома нет сведений об авторах."
+
+#: src/ui/album_credits.rs:709
+msgid "Album Review"
+msgstr "Рецензия на альбом"
+
+#. Translators: {source} is where the text comes from, e.g. TiVo.
+#: src/ui/album_credits.rs:743 src/ui/album_extras.rs:125
+#, rust-format
+msgid "Album review from {source}"
+msgstr "Обзор альбома от {source}"
+
+#: src/ui/album_credits.rs:761
+msgid "Additional Credits"
+msgstr "Дополнительные участники"
+
+#: src/ui/album_extras.rs:62 src/ui/album_extras.rs:121
+msgid "Review"
+msgstr "Обзор"
+
+#: src/ui/album_extras.rs:171
+msgid "Recommended songs"
+msgstr "Рекомендуемые треки"
+
+#: src/ui/album_extras.rs:223
+msgid "Refresh list"
+msgstr "Обновить список"
+
+#. Translators: {title} is a song's title; the button adds it to the playlist.
+#: src/ui/album_extras.rs:366
+#, rust-format
+msgid "Add {title} to the playlist"
+msgstr "Добавить {title} в плейлист"
+
+#: src/ui/album_extras.rs:401
+msgid "Other versions"
+msgstr "Другие версии"
+
+#. Translators: {artist} is the album's artist.
+#: src/ui/album_extras.rs:410
+#, rust-format
+msgid "More albums by {artist}"
+msgstr "Ещё альбомы: {artist}"
+
+#: src/ui/album_extras.rs:414
+msgid "Related albums"
+msgstr "Похожие альбомы"
+
+#: src/ui/album_extras.rs:415
+msgid "Related artists"
+msgstr "Похожие исполнители"
+
+#: src/ui/blocked.rs:88
+msgid "No blocked artists"
+msgstr "Нет заблокированных исполнителей"
+
+#: src/ui/blocked.rs:101
+msgid "Songs"
+msgstr "Песни"
+
+#: src/ui/blocked.rs:107
+msgid "No blocked songs"
+msgstr "Нет заблокированных песен"
+
+#: src/ui/save_later.rs:35
+msgid ""
+"You haven't saved anything for later yet. Choose Save for Later on an album, "
+"song, artist, playlist or video."
+msgstr ""
+"Вы ещё ничего не сохранили на потом. Выберите «Сохранить на потом» у "
+"альбома, трека, исполнителя, плейлиста или видео."
+
+#: src/ui/save_later.rs:39
+msgid ""
+"You haven't saved any albums for later yet. Choose Save for Later on an "
+"album."
+msgstr ""
+"Вы ещё не сохранили на потом ни одного альбома. Выберите «Сохранить на "
+"потом» у альбома."
+
+#: src/ui/save_later.rs:43
+msgid ""
+"You haven't saved any tracks for later yet. Choose Save for Later on a song."
+msgstr ""
+"Вы ещё не сохранили на потом ни одного трека. Выберите «Сохранить на потом» "
+"у трека."
+
+#: src/ui/save_later.rs:47
+msgid ""
+"You haven't saved any artists for later yet. Choose Save for Later on an "
+"artist."
+msgstr ""
+"Вы ещё не сохранили на потом ни одного исполнителя. Выберите «Сохранить на "
+"потом» у исполнителя."
+
+#: src/ui/save_later.rs:51
+msgid ""
+"You haven't saved any playlists for later yet. Choose Save for Later on a "
+"playlist."
+msgstr ""
+"Вы ещё не сохранили на потом ни одного плейлиста. Выберите «Сохранить на "
+"потом» у плейлиста."
+
+#: src/ui/save_later.rs:55
+msgid ""
+"You haven't saved any videos for later yet. Choose Save for Later on a video."
+msgstr ""
+"Вы ещё не сохранили на потом ни одного видео. Выберите «Сохранить на потом» "
+"у видео."
+
+#: src/ui/save_later.rs:173
+msgid "Nothing saved for later"
+msgstr "Ничего не сохранено на потом"
+
+#: src/ui/purchases.rs:70
+msgid "Some purchases couldn't be shown."
+msgstr "Не удалось показать некоторые покупки."
+
+#: src/ui/purchases.rs:78
+msgid ""
+"You haven't purchased any tracks yet. Discover music uploaded directly by "
+"artists."
+msgstr ""
+"Вы ещё не купили ни одного трека. Откройте для себя музыку, загруженную "
+"напрямую исполнителями."
+
+#: src/ui/purchases.rs:83
+msgid ""
+"You haven't purchased any albums yet. Discover music uploaded directly by "
+"artists."
+msgstr ""
+"Вы ещё не купили ни одного альбома. Откройте для себя музыку, загруженную "
+"напрямую исполнителями."
+
+#: src/ui/purchases.rs:90
+msgid "No purchases"
+msgstr "Нет покупок"
+
+#: src/ui/purchases.rs:99
+msgid "View Uploads"
+msgstr "Смотреть загрузки"
+
+#: src/app/save_later.rs:87
+msgid "Added to Save for Later"
+msgstr "Добавлено в «Сохранить на потом»"
+
+#: src/app/save_later.rs:89
+msgid "Removed from Save for Later"
+msgstr "Убрано из «Сохранить на потом»"
+
+#. Translators: {error} is an error message.
+#: src/app/save_later.rs:156
+#, rust-format
+msgid "Couldn't update Save for Later: {error}"
+msgstr "Не удалось обновить «Сохранить на потом»: {error}"
+
+#: src/ui/uploads.rs:96
+msgid "An error occurred while loading your uploads. Please try again later."
+msgstr ""
+"При получении списка ваших загрузок произошла ошибка. Повторите попытку "
+"позже."
+
+#: src/ui/uploads.rs:107
+msgid "Find new fans for your music"
+msgstr "Найдите новых поклонников для своей музыки"
+
+#: src/ui/uploads.rs:110
+msgid ""
+"Upload your track and share it with listeners or collaborators right away"
+msgstr ""
+"Загрузите свой трек и сразу поделитесь им со слушателями или соавторами"
+
+#: src/ui/uploads.rs:128
+msgid "Or drag and drop file"
+msgstr "Или перетащите файл сюда"
+
+#: src/ui/uploads.rs:242
+msgid "Uploading..."
+msgstr "Загрузка..."
+
+#: src/ui/uploads.rs:359 src/ui/uploads.rs:1108
+msgid "Edit album"
+msgstr "Изменить альбом"
+
+#: src/ui/uploads.rs:379
+msgid "Delete album"
+msgstr "Удалить альбом"
+
+#: src/ui/uploads.rs:445
+msgid "Delete album and tracks?"
+msgstr "Удалить альбом и треки?"
+
+#: src/ui/uploads.rs:448
+msgid ""
+"This will permanently delete the album and all tracks it contains. You can't "
+"undo this action."
+msgstr ""
+"Альбом и все его треки будут удалены без возможности восстановления. Это "
+"действие нельзя отменить."
+
+#: src/ui/uploads.rs:460
+msgid "Delete track?"
+msgstr "Удалить трек?"
+
+#: src/ui/uploads.rs:463
+#, rust-format
+msgid "“{title}” will be permanently deleted. You can't undo this action."
+msgstr ""
+"«{title}» будет удалён без возможности восстановления. Это действие нельзя "
+"отменить."
+
+#: src/ui/uploads.rs:518
+#, rust-format
+msgid "Organize {count} new track"
+msgid_plural "Organize {count} new tracks"
+msgstr[0] "Упорядочить {count} новый трек"
+msgstr[1] "Упорядочить {count} новых трека"
+msgstr[2] "Упорядочить {count} новых треков"
+
+#: src/ui/uploads.rs:528 src/ui/uploads.rs:634
+msgid "Place this track into one of your existing albums."
+msgstr "Поместите этот трек в один из ваших альбомов."
+
+#: src/ui/uploads.rs:532 src/ui/uploads.rs:638
+msgid "Place these tracks into one of your existing albums"
+msgstr "Поместите эти треки в один из ваших альбомов"
+
+#: src/ui/uploads.rs:539 src/ui/uploads.rs:632
+msgid "Add to an existing album"
+msgstr "Добавить в существующий альбом"
+
+#: src/ui/uploads.rs:550
+msgid "Upload as Single"
+msgstr "Загрузить как сингл"
+
+#: src/ui/uploads.rs:553
+msgid "Upload as an individual Single. You can turn it into an album later."
+msgstr "Загрузите как отдельный сингл. Позже его можно превратить в альбом."
+
+#: src/ui/uploads.rs:643 src/ui/uploads.rs:1559
+msgid "Move to another album"
+msgstr "Переместить в другой альбом"
+
+#: src/ui/uploads.rs:644
+msgid "Choose the album this track goes into."
+msgstr "Выберите альбом, в который попадёт этот трек."
+
+#: src/ui/uploads.rs:746
+msgid "Move"
+msgstr "Переместить"
+
+#: src/ui/uploads.rs:1103
+msgid "New single"
+msgstr "Новый сингл"
+
+#: src/ui/uploads.rs:1104
+msgid "New EP"
+msgstr "Новый EP"
+
+#: src/ui/uploads.rs:1105
+msgid "New album"
+msgstr "Новый альбом"
+
+#: src/ui/uploads.rs:1179
+msgid "Change Image"
+msgstr "Изменить изображение"
+
+#: src/ui/uploads.rs:1188
+msgid "Show spectrogram"
+msgstr "Показать спектрограмму"
+
+#: src/ui/uploads.rs:1190
+msgid "Create spectrogram"
+msgstr "Создать спектрограмму"
+
+#: src/ui/uploads.rs:1209 src/app/uploads.rs:383 src/app/uploads.rs:692
+msgid "We're generating your spectrogram artwork. It should be ready soon."
+msgstr "Мы создаём обложку из спектрограммы. Она скоро будет готова."
+
+#: src/ui/uploads.rs:1253
+msgid "Artist name"
+msgstr "Имя исполнителя"
+
+#: src/ui/uploads.rs:1278
+msgid "Album type"
+msgstr "Тип альбома"
+
+#: src/ui/uploads.rs:1289
+msgid "EP"
+msgstr "EP"
+
+#: src/ui/uploads.rs:1311
+msgid "Visibility"
+msgstr "Видимость"
+
+#: src/ui/uploads.rs:1324
+msgid "Discoverable and streamable when at least one track is public."
+msgstr "Доступен для поиска и прослушивания, если хотя бы один трек открытый."
+
+#: src/ui/uploads.rs:1332
+msgid "Unlisted"
+msgstr "По ссылке"
+
+#: src/ui/uploads.rs:1336
+msgid ""
+"Only visible to you and anyone with the link. Hidden from profiles when all "
+"tracks are private."
+msgstr ""
+"Виден только вам и всем, у кого есть ссылка. Скрыт из профилей, если все "
+"треки закрытые."
+
+#: src/ui/uploads.rs:1354
+msgid ""
+"This album contains tracks that are still being uploaded or scanned. You can "
+"change visibility once all tracks have finished scanning."
+msgstr ""
+"В этом альбоме есть треки, которые ещё загружаются или проверяются. "
+"Видимость можно будет изменить, когда проверка всех треков завершится."
+
+#: src/ui/uploads.rs:1371
+msgid "Artwork created from the unique characteristics of your track"
+msgstr "Обложка, созданная на основе уникальных характеристик вашего трека"
+
+#: src/ui/uploads.rs:1439
+msgid "Add tracks"
+msgstr "Добавить треки"
+
+#: src/ui/uploads.rs:1455
+msgid "This album has no tracks"
+msgstr "В этом альбоме нет треков"
+
+#: src/ui/uploads.rs:1496
+msgid "Preparing..."
+msgstr "Подготовка..."
+
+#: src/ui/uploads.rs:1499
+#, rust-format
+msgid "Uploading ({percent}%)..."
+msgstr "Загрузка ({percent}%)..."
+
+#: src/ui/uploads.rs:1507
+msgid "Scanning…"
+msgstr "Проверка…"
+
+#: src/ui/uploads.rs:1510
+msgid "Flagged"
+msgstr "Помечен"
+
+#: src/ui/uploads.rs:1511
+msgid "Error uploading file"
+msgstr "Ошибка при загрузке файла"
+
+#: src/ui/uploads.rs:1552 src/ui/uploads.rs:1787
+msgid "Edit track details"
+msgstr "Изменить сведения о треке"
+
+#: src/ui/uploads.rs:1568
+msgid "Copy track link"
+msgstr "Скопировать ссылку на трек"
+
+#: src/ui/uploads.rs:1576
+msgid "Delete track"
+msgstr "Удалить трек"
+
+#: src/ui/uploads.rs:1719
+msgid "Edit name"
+msgstr "Изменить имя"
+
+#: src/ui/uploads.rs:1727
+msgid "This name will be used on your profile and all of your tracks."
+msgstr "Это имя будет использоваться в вашем профиле и для всех ваших треков."
+
+#: src/app/uploads.rs:166
+msgid "The file is currently uploading. Wait until it's finished."
+msgstr "Файл сейчас загружается. Подождите, пока загрузка завершится."
+
+#: src/app/uploads.rs:177
+msgid "Choose a JPEG or PNG image."
+msgstr "Выберите изображение JPEG или PNG."
+
+#: src/app/uploads.rs:201
+msgid "Before uploading, let us know what name to release your music under."
+msgstr "Прежде чем загружать, скажите, под каким именем выпускать вашу музыку."
+
+#: src/app/uploads.rs:209
+msgid "Your TIDAL artist profile isn't loaded yet. Try again in a moment."
+msgstr ""
+"Ваш профиль исполнителя TIDAL ещё не загружен. Повторите попытку через "
+"минуту."
+
+#: src/app/uploads.rs:224
+msgid "This file format isn't supported."
+msgstr "Этот формат файла не поддерживается."
+
+#: src/app/uploads.rs:250
+msgid "Untitled"
+msgstr "Без названия"
+
+#: src/app/uploads.rs:497
+msgid "Upload deleted"
+msgstr "Загрузка удалена"
+
+#: src/app/uploads.rs:780 src/app/uploads.rs:802 src/app/uploads.rs:805
+msgid "Upload failed. Please try again."
+msgstr "Не удалось загрузить. Повторите попытку."
+
+#: src/app/uploads.rs:820
+msgid "Upload complete"
+msgstr "Загрузка завершена"
+
+#: src/app/uploads.rs:868
+msgid "Couldn't save your changes. Try again."
+msgstr "Не удалось сохранить изменения. Повторите попытку."

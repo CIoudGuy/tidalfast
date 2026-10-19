@@ -1,0 +1,256 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Dependencies come only from crates.io or from crmne repositories, and
+  # review evidence (captures, comparison pages, recordings) stays in the pull
+  # request instead of the tree. See CONTRIBUTING.md.
+  policy:
+    name: policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Dependency sources
+        run: python3 .github/scripts/check-dependency-sources.py
+      - name: No review evidence in the tree
+        if: ${{ !cancelled() }}
+        run: python3 .github/scripts/check-review-evidence.py
+      - name: Policy check regressions
+        if: ${{ !cancelled() }}
+        run: python3 .github/scripts/test-policy-checks.py
+
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: GUI build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libpulse-dev libxkbcommon-dev \
+            libwayland-dev libgl1-mesa-dev ruby
+      # After the toolchain, so the cache key follows the pinned rustc. The
+      # key carries no job name, so each job sets its own generation. Only
+      # pushes to main save; a pull request restores and builds on top.
+      # Letting every branch save its own copy filled the repository's
+      # ten-gigabyte cache in a few days, and a full cache evicts the entry
+      # the next build wanted.
+      - uses: jdx/mr-boxington-action@v1
+        with:
+          cache-generation: quality-v1
+      - name: Formatting
+        run: cargo fmt --all --check
+      - name: Flatpak release metadata regression tests
+        run: python3 packaging/flatpak/test-metainfo.py
+      - name: Release manifest history regression tests
+        run: python3 -I scripts/test_release.py
+      - name: Linux launcher packaging regressions
+        run: python3 packaging/test-launchers.py
+      - name: Release name migration regressions
+        run: python3 packaging/test-release-names.py
+      - name: Clippy (default features)
+        run: mbx clippy --locked --all-targets -- -D warnings
+      - name: Clippy (all features)
+        run: mbx clippy --locked --all-targets --all-features -- -D warnings
+      - name: Rustdoc
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: mbx doc --locked --all-features --no-deps
+
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # A cold mbx cache needs the longest; warm runs take far less. The arm64
+    # runner has four cores and needs longer from cold.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        # windows-11-arm and ubuntu-24.04-arm are the only places the ARM
+        # builds for Windows and Linux are tested.
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest, windows-11-arm]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: GUI build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libpulse-dev libxkbcommon-dev \
+            libwayland-dev libgl1-mesa-dev
+      - uses: jdx/mr-boxington-action@v1
+        with:
+          cache-generation: test-v1
+      # The demo feature carries the headless render test that lays out every
+      # page, panel, and dialog without a display.
+      - name: Tests (default features)
+        run: mbx test --locked --all-targets
+      - name: Tests (all features)
+        run: mbx test --locked --all-targets --all-features
+      - name: Native credential store (dummy grants)
+        if: runner.os == 'Windows' || runner.os == 'macOS'
+        timeout-minutes: 2
+        run: mbx test --locked --lib credentials::tests::native_store_round_trip -- --ignored --exact
+      # Secret Service through GNOME Keyring, unlocked in a private session
+      # bus, the way a Linux desktop keeps the TIDAL grant.
+      - name: Native credential store on Linux (dummy grants)
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        run: |
+          sudo apt-get install -y gnome-keyring dbus
+          dbus-run-session -- bash -c 'echo -n ci | gnome-keyring-daemon --unlock --components=secrets >/dev/null && mbx test --locked --lib credentials::tests::native_store_round_trip -- --ignored --exact'
+      - name: Documentation tests
+        run: mbx test --locked --all-features --doc
+      # A build can pass while importing Microsoft's C++ runtime, then fail on
+      # a clean user's machine. Inspect the executable CI actually produced.
+      - name: Standalone Windows runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          mbx build --locked
+          $imports = & dumpbin /dependents target\debug\tidalfast.exe | Out-String
+          $runtime = $imports | Select-String -Pattern 'MSVCP[0-9_]*\.dll|VCRUNTIME[0-9_]*\.dll'
+          if ($runtime) { throw "Tidalfast imports an MSVC runtime:`n$runtime" }
+          $machine = if ($env:RUNNER_ARCH -eq 'ARM64') { 'AA64 machine \(ARM64\)' } else { '8664 machine \(x64\)' }
+          $headers = & dumpbin /headers target\debug\tidalfast.exe | Out-String
+          if ($headers -notmatch $machine) { throw "tidalfast.exe is not built for $env:RUNNER_ARCH`:`n$headers" }
+
+      - name: Windows installer syntax and renamed inputs
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          $arch = if ($env:RUNNER_ARCH -eq 'ARM64') { 'aarch64' } else { 'x86_64' }
+          & $iscc "/DVersion=$version" "/DArch=$arch" "/DBinary=$PWD\target\debug\tidalfast.exe" "/DOutputDir=$env:RUNNER_TEMP\tidalfast-installer-check" packaging\windows\tidalfast.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # The Windows Installer package, which native-packages builds as the
+      # release does (native-packages.yaml), from the executable built above.
+      - uses: ruby/setup-ruby@v1
+        if: runner.os == 'Windows'
+        with:
+          ruby-version: '4.0'
+      - name: Windows Installer package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          dotnet tool install wix --version 5.0.2 --tool-path "$env:RUNNER_TEMP\wix"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "$env:RUNNER_TEMP\wix" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          $env:PATH = "$env:RUNNER_TEMP\wix;$env:PATH"
+          gem install native-packages --version 0.9.0 --no-document
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $version = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version
+          $target, $id = if ($env:RUNNER_ARCH -eq 'ARM64') { 'aarch64-pc-windows-msvc', 'windows-arm64' } else { 'x86_64-pc-windows-msvc', 'windows-amd64' }
+          $payload = "dist\msi-input-$target"
+          New-Item -ItemType Directory -Force $payload | Out-Null
+          Copy-Item target\debug\tidalfast.exe, README.md, LICENSE, packaging\windows\tidalfast-installer.txt $payload
+          native-packages build --version $version --target $id --defer-recipes --output "$env:RUNNER_TEMP\tidalfast-msi-check"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Installs, updates and removes throwaway copies of the package, with
+      # an identity of their own: a running copy, a portable copy, and an
+      # Inno Setup install it takes over (#766 and the updater's contract).
+      - name: Windows Installer install, update and uninstall
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          python packaging\windows\test-msi.py $iscc -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: macOS bundle identity and helper startup
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mbx build --locked
+          version=$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])')
+          app="$RUNNER_TEMP/tidalfast-bundle-check/Tidalfast.app"
+          bash packaging/macos/bundle.sh target/debug/tidalfast "$app" "$version"
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
+          "$app/Contents/MacOS/$executable" --version
+          # A missing job must reach our error handler, not die during launch.
+          set +e
+          "$app/Contents/MacOS/$executable" --apply-update "$RUNNER_TEMP/tidalfast-missing-job.json" 2> "$RUNNER_TEMP/tidalfast-helper-check.log"
+          status=$?
+          set -e
+          test "$status" -eq 1
+          test -s "$RUNNER_TEMP/tidalfast-helper-check.log"
+
+  nix:
+    name: Nix package
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: wimpysworld/nothing-but-nix@v9
+      - uses: cachix/install-nix-action@v31
+      - uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+      - name: Read the public Nix cache
+        if: vars.CACHIX_CACHE != ''
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: ${{ vars.CACHIX_CACHE }}
+          skipPush: true
+      - run: nix build .#default
+      # Only a successful main push publishes. PRs and manual branch builds
+      # can read the public cache, but never receive its upload credential.
+      - name: Publish the Nix package closure
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CACHIX_CACHE != ''
+        shell: bash
+        env:
+          CACHIX_CACHE: ${{ vars.CACHIX_CACHE }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: |
+          if [ -z "$CACHIX_AUTH_TOKEN" ]; then
+            echo '::error::CACHIX_CACHE is configured but CACHIX_AUTH_TOKEN is missing.'
+            exit 1
+          fi
+          nix path-info --recursive ./result | cachix push "$CACHIX_CACHE"
+
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+          working-directory: docs
+
+      - name: Build documentation site
+        working-directory: docs
+        env:
+          JEKYLL_ENV: production
+        run: |
+          bundle exec jekyll build --destination "$RUNNER_TEMP/tidalfast-site"

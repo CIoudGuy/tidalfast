@@ -1,0 +1,56 @@
+{
+ "limit": 50,
+ "offset": 0,
+ "totalNumberOfItems": 2,
+ "items": [
+  {
+   "id": "0011a3f1f4f6d36dd5a4c2e9a1c6b0",
+   "title": "My Mix 1",
+   "subTitle": "Daft Punk, Justice and more",
+   "mixType": "DISCOVERY_MIX",
+   "images": {
+    "SMALL": {
+     "width": 320,
+     "height": 320,
+     "url": "https://images.tidal.com/mix/small.jpg"
+    },
+    "MEDIUM": {
+     "width": 640,
+     "height": 640,
+     "url": "https://images.tidal.com/mix/medium.jpg"
+    },
+    "LARGE": {
+     "width": 1500,
+     "height": 1500,
+     "url": "https://images.tidal.com/mix/large.jpg"
+    }
+   }
+  },
+  {
+   "id": "00221",
+   "type": "TRACK_MIX",
+   "titleTextInfo": {
+    "text": "Get Lucky Radio",
+    "color": "#fff"
+   },
+   "subtitleTextInfo": {
+    "text": "Daft Punk",
+    "color": "#fff"
+   },
+   "mixImages": [
+    {
+     "size": "SMALL",
+     "url": "https://images.tidal.com/mix2/s.jpg",
+     "width": 320,
+     "height": 320
+    },
+    {
+     "size": "LARGE",
+     "url": "https://images.tidal.com/mix2/l.jpg",
+     "width": 1500,
+     "height": 1500
+    }
+   ]
+  }
+ ]
+}

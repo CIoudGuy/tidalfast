@@ -1,0 +1,9 @@
+{
+ "limit": 20, "offset": 0, "totalNumberOfItems": 2,
+ "items": [
+  {"uuid": "bbbbbbbb-0000-4000-8000-000000000001", "title": "Sample Playlist One",
+   "squareImage": "cccc1111-2222-3333-4444-555566667777", "numberOfTracks": 30},
+  {"uuid": "bbbbbbbb-0000-4000-8000-000000000002", "title": "Sample Playlist Two",
+   "squareImage": "cccc1111-2222-3333-4444-555566667778", "numberOfTracks": 12}
+ ]
+}

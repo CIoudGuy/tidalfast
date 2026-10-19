@@ -1,0 +1,629 @@
+{
+ "id": "eyJwIjoiZTZlM2ZmMWItZDZjNC00NzczLTg4ZDAtMGNmOTdjY2ZjYjU5IiwicFYiOjEzfQ==",
+ "rows": [
+  {
+   "modules": [
+    {
+     "type": "ALBUM_HEADER",
+     "title": "",
+     "pagedList": {
+      "items": [],
+      "totalNumberOfItems": 0
+     }
+    }
+   ]
+  },
+  {
+   "modules": [
+    {
+     "copyright": "© 2026 Cole World, Inc., under exclusive license to Interscope Records",
+     "description": "",
+     "id": "eyJwIjoiZTZlM2ZmMWItZDZjNC00NzczLTg4ZDAtMGNmOTdjY2ZjYjU5IiwicFYiOjEzLCJtIjoiNjJmY2NhZTUtNDIwZC00MGJlLWJjZGMtZTUzODIwYzAwZjA5IiwibVYiOjEsIm1IIjoiNDIzYzQ4Y2UifQ==",
+     "listFormat": "NUMBERS",
+     "pagedList": {
+      "dataApiPath": "pages/data/2fbf68c2-dc58-49b1-b1be-6958e66383f3?albumId=496439179",
+      "items": [],
+      "limit": 9999,
+      "offset": 0,
+      "totalNumberOfItems": 24
+     },
+     "playButton": true,
+     "preTitle": null,
+     "quickPlay": false,
+     "releaseDate": "2026-02-05",
+     "showMore": null,
+     "shuffleButton": true,
+     "supportsPaging": false,
+     "title": "",
+     "type": "ALBUM_ITEMS",
+     "width": 100
+    }
+   ]
+  },
+  {
+   "modules": [
+    {
+     "description": "",
+     "header": null,
+     "id": "eyJwIjoiZTZlM2ZmMWItZDZjNC00NzczLTg4ZDAtMGNmOTdjY2ZjYjU5IiwicFYiOjEzLCJtIjoiN2Y2MmYzZWYtNjQ5OS00ZGM4LTkyMjktMTQ4ZDVmM2IzYjJlIiwibVYiOjEsIm1IIjoiYjI5Njc1ZTcifQ==",
+     "layout": null,
+     "listFormat": null,
+     "pagedList": {
+      "dataApiPath": "pages/data/bbb3ef50-2182-4501-b348-cf817a0e8a23?albumId=496439179",
+      "items": [
+       {
+        "ai": false,
+        "allowStreaming": true,
+        "artists": [
+         {
+          "contributionLinkUrl": null,
+          "handle": null,
+          "id": 3652822,
+          "name": "J. Cole",
+          "picture": "5ac8f8f2-f98c-43c4-8f49-6ccebe2eba26",
+          "type": "MAIN",
+          "userId": null
+         }
+        ],
+        "audioModes": [
+         "STEREO"
+        ],
+        "audioQuality": "LOSSLESS",
+        "cover": "147f169d-5234-4445-be76-2eed47ff9c17",
+        "duration": 6087,
+        "explicit": false,
+        "id": 497910903,
+        "mediaMetadata": {
+         "tags": [
+          "LOSSLESS",
+          "HIRES_LOSSLESS"
+         ]
+        },
+        "numberOfTracks": 24,
+        "numberOfVideos": 0,
+        "payToStream": false,
+        "releaseDate": "2026-02-05",
+        "streamReady": true,
+        "streamStartDate": "2026-02-09T00:00:00.000+00:00",
+        "title": "The Fall-Off",
+        "upload": false,
+        "url": "https://tidal.com/browse/album/497910903",
+        "vibrantColor": "#f3a07d",
+        "videoCover": null
+       },
+       {
+        "ai": false,
+        "allowStreaming": true,
+        "artists": [
+         {
+          "contributionLinkUrl": null,
+          "handle": null,
+          "id": 3652822,
+          "name": "J. Cole",
+          "picture": "5ac8f8f2-f98c-43c4-8f49-6ccebe2eba26",
+          "type": "MAIN",
+          "userId": null
+         }
+        ],
+        "audioModes": [
+         "DOLBY_ATMOS"
+        ],
+        "audioQuality": "LOW",
+        "cover": "163023b4-4404-4672-af69-e5f5c71075b4",
+        "duration": 6087,
+        "explicit": true,
+        "id": 555528761,
+        "mediaMetadata": {
+         "tags": [
+          "DOLBY_ATMOS"
+         ]
+        },
+        "numberOfTracks": 24,
+        "numberOfVideos": 0,
+        "payToStream": false,
+        "releaseDate": "2026-02-05",
+        "streamReady": true,
+        "streamStartDate": "2026-08-25T00:00:00.000+00:00",
+        "title": "The Fall-Off",
+        "upload": false,
+        "url": "https://tidal.com/browse/album/555528761",
+        "vibrantColor": "#e2a8a4",
+        "videoCover": null
+       },
+       {
+        "ai": false,
+        "allowStreaming": true,
+        "artists": [
+         {
+          "contributionLinkUrl": null,
+          "handle": null,
+          "id": 3652822,
+          "name": "J. Cole",
+          "picture": "5ac8f8f2-f98c-43c4-8f49-6ccebe2eba26",
+          "type": "MAIN",
+          "userId": null
+         }
+        ],
+        "audioModes": [
+         "DOLBY_ATMOS"
+        ],
+        "audioQuality": "LOW",
+        "cover": "8d35c30c-da4b-4843-a883-46ed9fd1ff52",
+        "duration": 6087,
+        "explicit": false,
+        "id": 555528786,
+        "mediaMetadata": {
+         "tags": [
+          "DOLBY_ATMOS"
+         ]
+        },
+        "numberOfTracks": 24,
+        "numberOfVideos": 0,
+        "payToStream": false,
+        "releaseDate": "2026-02-05",
+        "streamReady": true,
+        "streamStartDate": "2026-08-25T00:00:00.000+00:00",
+        "title": "The Fall-Off",
+        "upload": false,
+        "url": "https://tidal.com/browse/album/555528786",
+        "vibrantColor": "#e2a8a4",
+        "videoCover": null
+       }
+      ],
+      "limit": 5,
+      "offset": 0,
+      "totalNumberOfItems": 3
+     },
+     "preTitle": null,
+     "quickPlay": false,
+     "scroll": "HORIZONTAL",
+     "showMore": {
+      "apiPath": "pages/single-module-page/e6e3ff1b-d6c4-4773-88d0-0cf97ccfcb59/13/7f62f3ef-6499-4dc8-9229-148d5f3b3b2e/1?albumId=496439179",
+      "title": "View all"
+     },
+     "supportsPaging": false,
+     "title": "Other versions",
+     "type": "ALBUM_LIST",
+     "width": 100
+    }
+   ]
+  },
+  {
+   "modules": [
+    {
+     "description": "",
+     "header": null,
+     "id": "eyJwIjoiZTZlM2ZmMWItZDZjNC00NzczLTg4ZDAtMGNmOTdjY2ZjYjU5IiwicFYiOjEzLCJtIjoiM2Y0MTAyNDItNzc3Yi00M2I2LTlhY2YtNmVkOTFjYjk1MzI3IiwibVYiOjEsIm1IIjoiZjhlZDBhNWEifQ==",
+     "layout": null,
+     "listFormat": null,
+     "pagedList": {
+      "dataApiPath": "pages/data/46ef43c4-689a-4413-9917-65616c02b257?albumId=496439179&artistId=3652822",
+      "items": [
+       {
+        "ai": false,
+        "allowStreaming": true,
+        "artists": [
+         {
+          "contributionLinkUrl": null,
+          "handle": null,
+          "id": 3652822,
+          "name": "J. Cole",
+          "picture": "5ac8f8f2-f98c-43c4-8f49-6ccebe2eba26",
+          "type": "MAIN",
+          "userId": null
+         }
+        ],
+        "audioModes": [
+         "STEREO"
+        ],
+        "audioQuality": "LOSSLESS",
+        "cover": "d7f33569-e6ba-42cc-8b46-467f5e6cf555",
+        "duration": 3474,
+        "explicit": true,
+        "id": 432959631,
+        "mediaMetadata": {
+         "tags": [
+          "LOSSLESS"
+         ]
+        },
+        "numberOfTracks": 18,
+        "numberOfVideos": 0,
+        "payToStream": false,
+        "releaseDate": "2025-04-29",
+        "streamReady": true,
+        "streamStartDate": "2025-04-29T00:00:00.000+00:00",
+        "title": "The Come Up Mixtape Vol. 1",
+        "upload": false,
+        "url": "https://tidal.com/browse/album/432959631",
+        "vibrantColor": "#64a1c2",
+        "videoCover": null
+       },
+       {
+        "ai": false,
+        "allowStreaming": true,
+        "artists": [
+         {
+          "contributionLinkUrl": null,
+          "handle": null,
+          "id": 3652822,
+          "name": "J. Cole",
+          "picture": "5ac8f8f2-f98c-43c4-8f49-6ccebe2eba26",
+          "type": "MAIN",
+          "userId": null
+         }
+        ],
+        "audioModes": [
+         "STEREO"
+        ],
+        "audioQuality": "LOSSLESS",
+        "cover": "018bcf48-f688-4b60-9dc0-8af5eba0e905",
+        "duration": 3253,
+        "explicit": true,
+        "id": 400414937,
+        "mediaMetadata": {
+         "tags": [
+          "LOSSLESS"
+         ]
+        },
+        "numberOfTracks": 17,
+        "numberOfVideos": 0,
+        "payToStream": false,
+        "releaseDate": "2025-04-29",
+        "streamReady": true,
+        "streamStartDate": "2024-11-19T07:00:00.000+00:00",
+        "title": "The Come Up Mixtape Vol. 1",
+        "upload": false,
+        "url": "https://tidal.com/browse/album/400414937",
+        "vibrantColor": "#64a1c2",
+        "videoCover": null
+       },
+       {
+        "ai": false,
+        "allowStreaming": true,
+        "artists": [
+         {
+          "contributionLinkUrl": null,
+          "handle": null,
+          "id": 3652822,
+          "name": "J. Cole",
+          "picture": "5ac8f8f2-f98c-43c4-8f49-6ccebe2eba26",
+          "type": "MAIN",
+          "userId": null
+         }
+        ],
+        "audioModes": [
+         "STEREO"
+        ],
+        "audioQuality": "LOSSLESS",
+        "cover": "1f8c00b6-bdbc-407e-981b-b076ef058bda",
+        "duration": 2590,
+        "explicit": true,
+        "id": 355491608,
+        "mediaMetadata": {
+         "tags": [
+          "LOSSLESS",
+          "HIRES_LOSSLESS"
+         ]
+        },
+        "numberOfTracks": 12,
+        "numberOfVideos": 0,
+        "payToStream": false,
+        "releaseDate": "2024-04-05",
+        "streamReady": true,
+        "streamStartDate": "2024-04-05T07:00:00.000+00:00",
+        "title": "Might Delete Later",
+        "upload": false,
+        "url": "https://tidal.com/browse/album/355491608",
+        "vibrantColor": "#fae396",
+        "videoCover": null
+       }
+      ],
+      "limit": 20,
+      "offset": 0,
+      "totalNumberOfItems": 19
+     },
+     "preTitle": "",
+     "quickPlay": false,
+     "scroll": "HORIZONTAL",
+     "showMore": {
+      "apiPath": "pages/single-module-page/e6e3ff1b-d6c4-4773-88d0-0cf97ccfcb59/13/3f410242-777b-43b6-9acf-6ed91cb95327/1?albumId=496439179&artistId=3652822",
+      "title": "View all"
+     },
+     "supportsPaging": true,
+     "title": "More Albums by J. Cole",
+     "type": "ALBUM_LIST",
+     "width": 100
+    }
+   ]
+  },
+  {
+   "modules": [
+    {
+     "description": "",
+     "header": null,
+     "id": "eyJwIjoiZTZlM2ZmMWItZDZjNC00NzczLTg4ZDAtMGNmOTdjY2ZjYjU5IiwicFYiOjEzLCJtIjoiZDc4ODA0MWUtMzQ0OS00ZDIxLTgxMzctNGFlNTlhNzBjYjNlIiwibVYiOjEsIm1IIjoiNjNhNGY2YTMifQ==",
+     "layout": null,
+     "listFormat": null,
+     "pagedList": {
+      "dataApiPath": "pages/data/a8449d6d-a8bc-4586-b3e7-8ab5c767b798?albumId=496439179",
+      "items": [
+       {
+        "ai": false,
+        "allowStreaming": true,
+        "artists": [
+         {
+          "contributionLinkUrl": null,
+          "handle": null,
+          "id": 4899837,
+          "name": "PFG",
+          "picture": null,
+          "type": "MAIN",
+          "userId": null
+         }
+        ],
+        "audioModes": [
+         "STEREO"
+        ],
+        "audioQuality": "LOSSLESS",
+        "cover": "8125794b-3124-4039-8ed9-fb48cb4549d3",
+        "duration": 2007,
+        "explicit": true,
+        "id": 541730786,
+        "mediaMetadata": {
+         "tags": [
+          "LOSSLESS",
+          "HIRES_LOSSLESS"
+         ]
+        },
+        "numberOfTracks": 10,
+        "numberOfVideos": 0,
+        "payToStream": false,
+        "releaseDate": "2026-07-10",
+        "streamReady": true,
+        "streamStartDate": "2026-07-10T00:00:00.000+00:00",
+        "title": "NEVER SAY DIE",
+        "upload": false,
+        "url": "https://tidal.com/browse/album/541730786",
+        "vibrantColor": null,
+        "videoCover": null
+       },
+       {
+        "ai": false,
+        "allowStreaming": true,
+        "artists": [
+         {
+          "contributionLinkUrl": null,
+          "handle": null,
+          "id": 15390768,
+          "name": "Dreamville",
+          "picture": "456d092d-b86b-438e-9e83-c2bb4dc14cf6",
+          "type": "MAIN",
+          "userId": null
+         },
+         {
+          "contributionLinkUrl": null,
+          "handle": null,
+          "id": 3652822,
+          "name": "J. Cole",
+          "picture": "5ac8f8f2-f98c-43c4-8f49-6ccebe2eba26",
+          "type": "MAIN",
+          "userId": null
+         }
+        ],
+        "audioModes": [
+         "STEREO"
+        ],
+        "audioQuality": "LOSSLESS",
+        "cover": "dc9b7f17-1f19-48fe-88f2-2ac773a8fb60",
+        "duration": 3872,
+        "explicit": true,
+        "id": 112619186,
+        "mediaMetadata": {
+         "tags": [
+          "LOSSLESS"
+         ]
+        },
+        "numberOfTracks": 18,
+        "numberOfVideos": 0,
+        "payToStream": false,
+        "releaseDate": "2019-07-05",
+        "streamReady": true,
+        "streamStartDate": "2019-07-05T07:00:00.000+00:00",
+        "title": "Revenge Of The Dreamers III",
+        "upload": false,
+        "url": "https://tidal.com/browse/album/112619186",
+        "vibrantColor": "#f2e1a8",
+        "videoCover": null
+       },
+       {
+        "ai": false,
+        "allowStreaming": true,
+        "artists": [
+         {
+          "contributionLinkUrl": null,
+          "handle": null,
+          "id": 4793499,
+          "name": "Joey Bada$$",
+          "picture": "281ecf9a-9851-49f6-a4fd-320a898fcbb0",
+          "type": "MAIN",
+          "userId": null
+         }
+        ],
+        "audioModes": [
+         "STEREO"
+        ],
+        "audioQuality": "LOSSLESS",
+        "cover": "fe4c84ea-f494-41b8-8fab-7fbf0cc0b833",
+        "duration": 2373,
+        "explicit": true,
+        "id": 456515507,
+        "mediaMetadata": {
+         "tags": [
+          "LOSSLESS",
+          "HIRES_LOSSLESS"
+         ]
+        },
+        "numberOfTracks": 11,
+        "numberOfVideos": 0,
+        "payToStream": false,
+        "releaseDate": "2025-08-29",
+        "streamReady": true,
+        "streamStartDate": "2025-08-29T00:00:00.000+00:00",
+        "title": "Lonely At The Top",
+        "upload": false,
+        "url": "https://tidal.com/browse/album/456515507",
+        "vibrantColor": "#dcc056",
+        "videoCover": null
+       }
+      ],
+      "limit": 20,
+      "offset": 0,
+      "totalNumberOfItems": 20
+     },
+     "preTitle": null,
+     "quickPlay": false,
+     "scroll": "HORIZONTAL",
+     "showMore": {
+      "apiPath": "pages/single-module-page/e6e3ff1b-d6c4-4773-88d0-0cf97ccfcb59/13/d788041e-3449-4d21-8137-4ae59a70cb3e/1?albumId=496439179",
+      "title": "View all"
+     },
+     "supportsPaging": true,
+     "title": "Related Albums",
+     "type": "ALBUM_LIST",
+     "width": 100
+    }
+   ]
+  },
+  {
+   "modules": [
+    {
+     "description": "",
+     "header": null,
+     "id": "eyJwIjoiZTZlM2ZmMWItZDZjNC00NzczLTg4ZDAtMGNmOTdjY2ZjYjU5IiwicFYiOjEzLCJtIjoiYzAyOTZlODQtM2E2ZC00NzVhLTllOGEtY2FmMzljMmExNGM0IiwibVYiOjEsIm1IIjoiNTgzMTAxMTEifQ==",
+     "layout": null,
+     "pagedList": {
+      "dataApiPath": "pages/data/13f97524-5f7b-466d-949e-f9c597a9e3bc?albumId=496439179",
+      "items": [
+       {
+        "artistRoles": [
+         {
+          "category": "Artist",
+          "categoryId": -1
+         },
+         {
+          "category": "Production team",
+          "categoryId": 10
+         }
+        ],
+        "artistTypes": null,
+        "id": 15390768,
+        "mixes": {
+         "ARTIST_MIX": "00009c526f1e538a5f28af4c97dcc1"
+        },
+        "name": "Dreamville",
+        "picture": "456d092d-b86b-438e-9e83-c2bb4dc14cf6",
+        "selectedAlbumCoverFallback": null
+       },
+       {
+        "artistRoles": [
+         {
+          "category": "Artist",
+          "categoryId": -1
+         },
+         {
+          "category": "Songwriter",
+          "categoryId": 2
+         },
+         {
+          "category": "Performer",
+          "categoryId": 11
+         },
+         {
+          "category": "Producer",
+          "categoryId": 1
+         },
+         {
+          "category": "Production team",
+          "categoryId": 10
+         },
+         {
+          "category": "Engineer",
+          "categoryId": 3
+         },
+         {
+          "category": "Misc",
+          "categoryId": 99
+         }
+        ],
+        "artistTypes": null,
+        "id": 4006106,
+        "mixes": {
+         "ARTIST_MIX": "00006aea143596a3cba9e5d535e445"
+        },
+        "name": "Bas",
+        "picture": "a7ad3f4d-f20d-4288-87d5-6461ccc5bbbb",
+        "selectedAlbumCoverFallback": null
+       },
+       {
+        "artistRoles": [
+         {
+          "category": "Artist",
+          "categoryId": -1
+         },
+         {
+          "category": "Songwriter",
+          "categoryId": 2
+         },
+         {
+          "category": "Performer",
+          "categoryId": 11
+         },
+         {
+          "category": "Producer",
+          "categoryId": 1
+         },
+         {
+          "category": "Production team",
+          "categoryId": 10
+         },
+         {
+          "category": "Engineer",
+          "categoryId": 3
+         },
+         {
+          "category": "Misc",
+          "categoryId": 99
+         }
+        ],
+        "artistTypes": null,
+        "id": 3816041,
+        "mixes": {
+         "ARTIST_MIX": "000dfe5cf10f79aeb8961035b0b044"
+        },
+        "name": "Kendrick Lamar",
+        "picture": "84d81b7a-a12e-4a3e-bda4-d0527cb1c8cf",
+        "selectedAlbumCoverFallback": null
+       }
+      ],
+      "limit": 20,
+      "offset": 0,
+      "totalNumberOfItems": 20
+     },
+     "preTitle": null,
+     "quickPlay": false,
+     "scroll": "HORIZONTAL",
+     "showMore": {
+      "apiPath": "pages/single-module-page/e6e3ff1b-d6c4-4773-88d0-0cf97ccfcb59/13/c0296e84-3a6d-475a-9e8a-caf39c2a14c4/1?albumId=496439179",
+      "title": "View all"
+     },
+     "supportsPaging": true,
+     "title": "Related Artists",
+     "type": "ARTIST_LIST",
+     "width": 100
+    }
+   ]
+  }
+ ],
+ "selfLink": null,
+ "title": "The Fall-Off"
+}

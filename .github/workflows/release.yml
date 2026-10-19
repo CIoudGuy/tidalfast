@@ -1,0 +1,253 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Match the native packages' declared glibc 2.39 baseline.
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          # A native arm64 runner, so the GUI's system libraries need no
+          # cross-compilation sysroot.
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            msvc-arch: x64
+            pe-machine: 8664 machine \(x64\)
+            package-target: windows-amd64
+          # A native arm64 runner, as for Linux: the binary is built, checked
+          # and started on the processor it ships for.
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            msvc-arch: arm64
+            pe-machine: AA64 machine \(ARM64\)
+            package-target: windows-arm64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      # The repository pins its toolchain; add the cross-target's standard
+      # library to the toolchain the pin actually resolves to.
+      - run: rustup target add ${{ matrix.target }}
+      - name: GUI build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libpulse-dev libxkbcommon-dev \
+            libwayland-dev libgl1-mesa-dev
+      # Both Windows jobs use dumpbin below to inspect the finished binary.
+      # The action sets up x64 tools unless told otherwise, which on the arm64
+      # runner would compile under emulation.
+      - name: MSVC environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc-arch }}
+      # No compiler cache: published binaries never build from outputs
+      # restored from an Actions cache.
+      - run: cargo build --release --target ${{ matrix.target }} ${{ matrix.features }}
+
+      # The zip and installer must run on a clean Windows machine without a
+      # separately installed Visual C++ redistributable.
+      - name: Verify standalone Windows runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $binary = "target\${{ matrix.target }}\release\tidalfast.exe"
+          $imports = & dumpbin /dependents $binary | Out-String
+          $runtime = $imports | Select-String -Pattern 'MSVCP[0-9_]*\.dll|VCRUNTIME[0-9_]*\.dll'
+          if ($runtime) { throw "Tidalfast imports an MSVC runtime:`n$runtime" }
+          # The updater picks its download by the running executable's
+          # architecture, so a binary of the wrong one under this name would
+          # keep every copy installed from it on the wrong architecture.
+          $headers = & dumpbin /headers $binary | Out-String
+          if ($headers -notmatch '${{ matrix.pe-machine }}') { throw "$binary is not built for ${{ matrix.target }}:`n$headers" }
+          # Each Windows build runs on its own processor: start it once.
+          $version = (& $binary --version | Out-String).Trim()
+          if ($version -notmatch '^tidalfast \d+\.\d+\.\d+') { throw "Unexpected --version output: $version" }
+
+      - name: Package
+        shell: bash
+        run: |
+          name="tidalfast-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${{ matrix.target }}/release/tidalfast.exe" "dist/$name/"
+          else
+            cp "target/${{ matrix.target }}/release/tidalfast" "dist/$name/"
+          fi
+          cp README.md LICENSE "dist/$name/"
+          cp packaging/tidalfast-portable.txt "dist/$name/"
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            # Desktop integration for package builds and hand-installs.
+            cp --parents packaging/applications/tidalfast.desktop packaging/icons/tidalfast.svg "dist/$name/"
+            cp -r --parents packaging/icons/hicolor "dist/$name/"
+          fi
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "$name.zip" "$name"
+          else
+            tar czf "$name.tar.gz" "$name"
+          fi
+
+      # Inno Setup ships with the runner image. PowerShell, because bash on
+      # Windows rewrites /D... arguments as paths.
+      - name: Installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart("v")
+          $arch = "${{ matrix.target }}".Split("-")[0]
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DVersion=$version" "/DArch=$arch" `
+            "/DBinary=$PWD\target\${{ matrix.target }}\release\tidalfast.exe" `
+            "/DOutputDir=$PWD\dist" packaging\windows\tidalfast.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # The Windows Installer package, from the same binary. One release ships
+      # it beside the setup program: earlier versions update through the setup
+      # program, and their next update moves them to the package (PACKAGING.md).
+      - uses: ruby/setup-ruby@v1
+        if: runner.os == 'Windows'
+        with:
+          ruby-version: '4.0'
+      - name: Windows Installer package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          dotnet tool install wix --version 5.0.2 --tool-path "$env:RUNNER_TEMP\wix"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:PATH = "$env:RUNNER_TEMP\wix;$env:PATH"
+          gem install native-packages --version 0.9.0 --no-document
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $version = $env:GITHUB_REF_NAME.TrimStart("v")
+          $payload = "dist\msi-input-${{ matrix.target }}"
+          New-Item -ItemType Directory -Force $payload | Out-Null
+          $files = "target\${{ matrix.target }}\release\tidalfast.exe", "README.md", "LICENSE", "packaging\windows\tidalfast-installer.txt"
+          Copy-Item $files $payload
+          $packages = "$env:RUNNER_TEMP\windows-packages"
+          native-packages build --version $version --target ${{ matrix.package-target }} --defer-recipes --output $packages
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item "$packages\packages\${{ matrix.package-target }}\msi\*.msi" dist\
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*-setup.exe
+            dist/*.msi
+          if-no-files-found: error
+
+  # The Linux build packaged as a Flatpak bundle: the same binary, in the
+  # sandbox packaging/flatpak describes, so nothing compiles twice. Flathub
+  # builds from source on its own machines, from the manifest beside it.
+  flatpak:
+    name: Flatpak bundle
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: x86_64-unknown-linux-gnu
+          path: dist
+      - name: Unpack the Linux build
+        run: |
+          tar xzf dist/tidalfast-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu.tar.gz -C packaging/flatpak "tidalfast-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu"
+          mv packaging/flatpak/tidalfast-${GITHUB_REF_NAME}-x86_64-unknown-linux-gnu packaging/flatpak/built
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: packaging/flatpak/rocks.tidalfast.Tidalfast.bundle.yml
+          bundle: tidalfast-${{ github.ref_name }}-x86_64.flatpak
+          cache: false
+          upload-artifact: false
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flatpak
+          path: "*.flatpak"
+          if-no-files-found: error
+
+  publish:
+    name: GitHub release
+    # The bundle is welcome but not required: a Flatpak failure must not
+    # hold the release.
+    needs: [build, flatpak]
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    # Publishing waits for the maintainer's approval, and only this job can
+    # read the release signing key (v* tags only).
+    environment: release-signing
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+      # Include the source package so source distributions can verify it
+      # against the same published checksums as the binaries.
+      - name: Source archive
+        run: |
+          curl --fail --location --retry 3 \
+            "https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz" \
+            --output "dist/tidalfast-${GITHUB_REF_NAME}-source.tar.gz"
+      - name: Public filenames, updater compatibility and checksums
+        run: python3 packaging/release-names.py dist "$GITHUB_REF_NAME"
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+      # Sign the manifest release-names.py wrote (checksums.txt.sig), then
+      # check the signature and every listed file against the committed key.
+      # Updaters that carry the key refuse releases without a valid one.
+      - name: Sign checksums
+        env:
+          TIDALFAST_UPDATE_SIGNING_KEY: ${{ secrets.TIDALFAST_UPDATE_SIGNING_KEY }}
+        run: |
+          gem install native-packages --version 0.9.0 --no-document
+          native-packages sign-checksums dist/checksums.txt \
+            --public-key assets/update-public-key.hex \
+            --key-env TIDALFAST_UPDATE_SIGNING_KEY
+          native-packages verify-checksums dist/checksums.txt \
+            --public-key assets/update-public-key.hex
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          name: Tidalfast ${{ github.ref_name }}
+          # Publish reviewed notes immediately, not a generated PR-only summary.
+          body_path: packaging/release-notes/${{ github.ref_name }}.md
+          generate_release_notes: false
+          # A tag with a suffix (v0.4.0-rc1) is a pre-release: it stays
+          # off "latest", so the app's update check never offers it.
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
+  packaging:
+    # The optional Flatpak job may fail without blocking native packages.
+    if: ${{ !cancelled() && needs.publish.result == 'success' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') }}
+    needs: publish
+    uses: ./.github/workflows/packaging.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets: inherit

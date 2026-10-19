@@ -1,0 +1,13 @@
+{
+ "sessionId": "5c7e1c49-0000-4000-8000-000000000000",
+ "userId": 12345678,
+ "countryCode": "NO",
+ "channelId": 0,
+ "partnerId": 0,
+ "client": {
+  "id": 8888,
+  "name": "TIDAL_TEST",
+  "authorizedForOffline": false,
+  "authorizedForOfflineDate": null
+ }
+}

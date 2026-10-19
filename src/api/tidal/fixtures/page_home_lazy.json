@@ -1,0 +1,27 @@
+{
+ "id": "home",
+ "title": "Home",
+ "rows": [
+  {"modules": [{
+   "id": "m-lazy",
+   "type": "PLAYLIST_LIST",
+   "title": "Recommended for you",
+   "showMore": {"title": "View all", "apiPath": "pages/data/aaaaaaaa-0000-4000-8000-000000000001"},
+   "pagedList": {"limit": 20, "offset": 0, "totalNumberOfItems": 0, "items": [],
+                 "dataApiPath": "pages/data/aaaaaaaa-0000-4000-8000-000000000002?limit=20"}
+  }]},
+  {"modules": [{
+   "id": "m-loaded",
+   "type": "ALBUM_LIST",
+   "title": "New Albums",
+   "pagedList": {"limit": 10, "offset": 0, "totalNumberOfItems": 1, "items": [
+    {"id": 1000001, "title": "Sample Album", "cover": "aaaa1111-2222-3333-4444-555566667777",
+     "artists": [{"id": 2000001, "name": "Sample Artist", "type": "MAIN"}]}
+   ]}
+  }]},
+  {"modules": [{"id": "m-new", "type": "BRAND_NEW_MODULE", "title": "Something new",
+   "pagedList": {"items": [], "dataApiPath": "pages/data/ignored"}}]},
+  {"modules": [{"id": "m-dead", "type": "MIX_LIST", "title": "Nothing here",
+   "pagedList": {"items": []}}]}
+ ]
+}

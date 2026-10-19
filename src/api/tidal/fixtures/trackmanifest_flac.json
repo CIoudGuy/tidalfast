@@ -1,0 +1,25 @@
+{
+ "data": {
+  "id": "77646168",
+  "type": "trackManifests",
+  "attributes": {
+   "trackPresentation": "FULL",
+   "uri": "data:application/dash+xml;base64,PD94bWwgdmVyc2lvbj0nMS4wJyBlbmNvZGluZz0nVVRGLTgnPz48TVBEIHhtbG5zPSJ1cm46bXBlZzpkYXNoOnNjaGVtYTptcGQ6MjAxMSIgeG1sbnM6eHNpPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL1hNTFNjaGVtYS1pbnN0YW5jZSIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHhtbG5zOmNlbmM9InVybjptcGVnOmNlbmM6MjAxMyIgeHNpOnNjaGVtYUxvY2F0aW9uPSJ1cm46bXBlZzpkYXNoOnNjaGVtYTptcGQ6MjAxMSBEQVNILU1QRC54c2QiIHByb2ZpbGVzPSJ1cm46bXBlZzpkYXNoOnByb2ZpbGU6aXNvZmYtbWFpbjoyMDExIiB0eXBlPSJzdGF0aWMiIG1pbkJ1ZmZlclRpbWU9IlBUMy45OTNTIiBtZWRpYVByZXNlbnRhdGlvbkR1cmF0aW9uPSJQVDNNMzQuNzM2UyI+PFBlcmlvZCBpZD0iMCI+PEFkYXB0YXRpb25TZXQgaWQ9IjAiIGNvbnRlbnRUeXBlPSJhdWRpbyIgbWltZVR5cGU9ImF1ZGlvL21wNCIgbGFuZz0idW5kIiBncm91cD0ibWFpbiIgc2VnbWVudEFsaWdubWVudD0idHJ1ZSI+PFJvbGUgc2NoZW1lSWRVcmk9InVybjptcGVnOmRhc2g6cm9sZToyMDExIiB2YWx1ZT0ibWFpbiIvPjxSZXByZXNlbnRhdGlvbiBpZD0iRkxBQyw0NDEwMCwxNiIgY29kZWNzPSJmbGFjIiBiYW5kd2lkdGg9IjQ4Mzc4OSIgYXVkaW9TYW1wbGluZ1JhdGU9IjQ0MTAwIj48QXVkaW9DaGFubmVsQ29uZmlndXJhdGlvbiBzY2hlbWVJZFVyaT0idXJuOm1wZWc6ZGFzaDoyMzAwMzozOmF1ZGlvX2NoYW5uZWxfY29uZmlndXJhdGlvbjoyMDExIiB2YWx1ZT0iMiIvPjxTZWdtZW50VGVtcGxhdGUgdGltZXNjYWxlPSI0NDEwMCIgaW5pdGlhbGl6YXRpb249Imh0dHBzOi8vc3AtYWQtZmEuYXVkaW8udGlkYWwuY29tL21lZGlhdHJhY2tzL2FiYy8wLm1wND90b2tlbj10JmFtcDt4PTEiIG1lZGlhPSJodHRwczovL3NwLWFkLWZhLmF1ZGlvLnRpZGFsLmNvbS9tZWRpYXRyYWNrcy9hYmMvJE51bWJlciQubXA0P3Rva2VuPXQmYW1wO3g9MSIgc3RhcnROdW1iZXI9IjEiPjxTZWdtZW50VGltZWxpbmU+PFMgZD0iMTc2MTI4IiByPSI1MiIvPjxTIGQ9IjEzNTExMSIvPjwvU2VnbWVudFRpbWVsaW5lPjwvU2VnbWVudFRlbXBsYXRlPjwvUmVwcmVzZW50YXRpb24+PC9BZGFwdGF0aW9uU2V0PjwvUGVyaW9kPjwvTVBEPg==",
+   "hash": "aGFzaA==",
+   "formats": [
+    "FLAC"
+   ],
+   "albumAudioNormalizationData": {
+    "replayGain": -5.22,
+    "peakAmplitude": 1.0
+   },
+   "trackAudioNormalizationData": {
+    "replayGain": 7.0,
+    "peakAmplitude": 0.381491
+   }
+  }
+ },
+ "links": {
+  "self": "/trackManifests/77646168?uriScheme=DATA&adaptive=false&formats=AACLC%2CFLAC%2CHEAACV1&usage=PLAYBACK&manifestType=MPEG_DASH"
+ }
+}

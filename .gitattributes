@@ -1,0 +1,6 @@
+.github/workflows/*.lock.yml linguist-generated=true
+# Protobuf fixtures must retain every wire byte across Windows checkouts.
+*.pb binary
+
+# Shell scripts run in WSL and containers from Windows checkouts.
+*.sh text eol=lf

@@ -1,0 +1,117 @@
+title: Tidalfast
+tidalfast_version: "0.12.0"
+description: A fast, lightweight, native TIDAL client for Linux and Windows.
+lang: en-US
+timezone: Europe/Berlin
+url: https://cioudguy.github.io/tidalfast
+baseurl: ""
+logo: /assets/images/logo.svg
+image: /assets/images/readme-home-dark.jpg
+
+markdown: kramdown
+kramdown:
+  input: GFM
+
+permalink: pretty
+theme: jekyll-vitepress-theme
+
+collections:
+  guide:
+    output: true
+    permalink: "/:name/"
+  reference:
+    output: true
+    permalink: "/:name/"
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+      image: /assets/images/readme-home-dark.jpg
+      topics:
+        - TIDAL client
+        - Rust
+        - egui
+        - fastframe
+        - TidaLuna
+        - Linux music player
+  - scope:
+      type: guide
+    values:
+      layout: default
+  - scope:
+      type: reference
+    values:
+      layout: default
+
+jekyll_vitepress:
+  seo:
+    page_type: TechArticle
+    image:
+      path: /assets/images/readme-home-dark.jpg
+      alt: Tidalfast Home with the library, recommendations and the player bar
+    publisher:
+      type: Organization
+      name: Tidalfast
+      url: https://github.com/CIoudGuy/tidalfast
+      same_as:
+        - https://github.com/CIoudGuy/tidalfast
+  llms:
+    title: Tidalfast
+    description: >-
+      Documentation for a native TIDAL client for Linux
+      and Windows. It covers lossless playback, your TIDAL library, plugins,
+      and the now-playing view.
+    full: true
+    details: >-
+      Covers installation, sign-in, everyday use, plugins, and settings.
+      Source is on
+      [GitHub](https://github.com/CIoudGuy/tidalfast).
+  branding:
+    site_title: Tidalfast
+    logo:
+      default: /assets/images/logo.svg
+      alt: Tidalfast
+  syntax:
+    light_theme: github
+    dark_theme: github.dark
+  footer:
+    enabled: true
+    show_on_docs: false
+    message: >-
+      Free and open source under the MIT licence. Based on the work of Carmine Paolino.
+    copyright: >-
+      <span class="footer-built-with">Docs built with <a href="https://jekyll-vitepress.dev" target="_blank" rel="noreferrer">Jekyll VitePress</a>. Tidalfast is an independent project, not affiliated with or endorsed by TIDAL. TIDAL is a trademark of its owner.</span>
+  doc_footer:
+    enabled: true
+    previous_label: Previous page
+    next_label: Next page
+  last_updated:
+    enabled: true
+    text: Last updated
+    format: "%Y-%m-%d %H:%M"
+  edit_link:
+    enabled: true
+    pattern: "https://github.com/CIoudGuy/tidalfast/edit/main/docs/:path"
+    text: Edit this page on GitHub
+  github_star:
+    enabled: true
+    repository: CIoudGuy/tidalfast
+    text: Star
+    show_count: true
+  github_sponsor:
+    enabled: false
+
+plugins:
+  - jekyll-redirect-from
+  - jekyll-vitepress-theme
+
+exclude:
+  - _site
+  - .jekyll-cache
+  - .sass-cache
+  - .bundle
+  - vendor
+  - Gemfile
+  - Gemfile.lock

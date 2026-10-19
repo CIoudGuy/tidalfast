@@ -1,0 +1,223 @@
+# Shared CLI: gem install native-packages --version 0.9.0
+---
+schema: 1
+tool:
+  version: 0.9.0
+  nfpm: 2.47.0
+# Ubuntu 24.04 and Debian 13 use the ALSA t64 package name. Override ELF
+# inference as well as the explicit dependencies below.
+libraries:
+  libasound.so.2:
+    deb: libasound2t64
+    rpm: alsa-lib
+nfpm:
+  name: tidalfast
+  maintainer: Tidalfast contributors <245264566+CIoudGuy@users.noreply.github.com>
+  homepage: https://github.com/CIoudGuy/tidalfast
+  description: A native TIDAL client
+  license: MIT
+  contents:
+  # A glob source makes nFPM append its basename to the destination directory.
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/tidalfast"
+    dst: "/usr/bin/"
+    file_info:
+      mode: 493
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/LICENSE"
+    dst: "/usr/share/licenses/tidalfast/"
+    file_info:
+      mode: 420
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/README.md"
+    dst: "/usr/share/doc/tidalfast/"
+    file_info:
+      mode: 420
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/packaging/applications/*.desktop"
+    dst: "/usr/share/applications/"
+    file_info:
+      mode: 420
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/packaging/icons/*.svg"
+    dst: "/usr/share/icons/hicolor/scalable/apps/"
+    file_info:
+      mode: 420
+  # Raster sizes rendered from the SVG by the icon script into packaging/icons/hicolor.
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/packaging/icons/hicolor/16x16/apps/tidalfast.png"
+    dst: "/usr/share/icons/hicolor/16x16/apps/tidalfast.png"
+    file_info:
+      mode: 420
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/packaging/icons/hicolor/24x24/apps/tidalfast.png"
+    dst: "/usr/share/icons/hicolor/24x24/apps/tidalfast.png"
+    file_info:
+      mode: 420
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/packaging/icons/hicolor/32x32/apps/tidalfast.png"
+    dst: "/usr/share/icons/hicolor/32x32/apps/tidalfast.png"
+    file_info:
+      mode: 420
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/packaging/icons/hicolor/48x48/apps/tidalfast.png"
+    dst: "/usr/share/icons/hicolor/48x48/apps/tidalfast.png"
+    file_info:
+      mode: 420
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/packaging/icons/hicolor/64x64/apps/tidalfast.png"
+    dst: "/usr/share/icons/hicolor/64x64/apps/tidalfast.png"
+    file_info:
+      mode: 420
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/packaging/icons/hicolor/128x128/apps/tidalfast.png"
+    dst: "/usr/share/icons/hicolor/128x128/apps/tidalfast.png"
+    file_info:
+      mode: 420
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/packaging/icons/hicolor/256x256/apps/tidalfast.png"
+    dst: "/usr/share/icons/hicolor/256x256/apps/tidalfast.png"
+    file_info:
+      mode: 420
+  - src: "@PAYLOAD@/*-v@VERSION@-@TARGET@/packaging/icons/hicolor/512x512/apps/tidalfast.png"
+    dst: "/usr/share/icons/hicolor/512x512/apps/tidalfast.png"
+    file_info:
+      mode: 420
+  overrides:
+    # ELF inspection cannot discover the GUI's dlopen dependencies. Keep
+    # these aligned with winit/glutin/rfd and packaging/check-runtime-libs.c.
+    deb:
+      depends:
+      - libdbus-1-3
+      - libc6 (>= 2.39)
+      - libgl1
+      - libegl1
+      - libxkbcommon0
+      - libxkbcommon-x11-0
+      - libwayland-client0
+      - libwayland-cursor0
+      - libwayland-egl1
+      - libx11-6
+      - libx11-xcb1
+      - libxcursor1
+      - libxi6
+      - libxrandr2
+      - libasound2t64
+      - libpulse0
+      - libgcc-s1
+      - libstdc++6
+    rpm:
+      depends:
+      - dbus-libs
+      - glibc >= 2.39
+      - libglvnd-glx
+      - libglvnd-egl
+      - libxkbcommon
+      - libxkbcommon-x11
+      - libwayland-client
+      - libwayland-cursor
+      - libwayland-egl
+      - libX11
+      - libX11-xcb
+      - libXcursor
+      - libXi
+      - libXrandr
+      - alsa-lib
+      - pulseaudio-libs
+      - libgcc
+      - libstdc++
+  rpm:
+    buildhost: github-actions
+targets:
+  linux-amd64:
+    platform: linux
+    arch: amd64
+    libc: glibc
+    compiler_target: x86_64-unknown-linux-gnu
+    formats:
+    - deb
+    - rpm
+    - appimage
+    input:
+      local: dist/tidalfast-v@VERSION@-x86_64-unknown-linux-gnu.tar.gz
+      release_asset: tidalfast-v@VERSION@-x86_64-unknown-linux-gnu.tar.gz
+  linux-arm64:
+    platform: linux
+    arch: arm64
+    libc: glibc
+    compiler_target: aarch64-unknown-linux-gnu
+    formats:
+    - deb
+    - rpm
+    - appimage
+    input:
+      local: dist/tidalfast-v@VERSION@-aarch64-unknown-linux-gnu.tar.gz
+      release_asset: tidalfast-v@VERSION@-aarch64-unknown-linux-gnu.tar.gz
+  # Windows Installer packages, built on each Windows release runner from the
+  # binary it built; the input folder holds what the package installs.
+  windows-amd64:
+    platform: windows
+    arch: amd64
+    compiler_target: x86_64-pc-windows-msvc
+    formats: [msi]
+    input:
+      kind: directory
+      local: dist/msi-input-x86_64-pc-windows-msvc
+    native:
+      command: [python, packaging/windows/build-msi.py, '@PAYLOAD@', '@PACKAGE@', '@VERSION@', '@ARCH@']
+      output: 'tidalfast-@TAG@-@TARGET@.msi'
+  windows-arm64:
+    platform: windows
+    arch: arm64
+    compiler_target: aarch64-pc-windows-msvc
+    formats: [msi]
+    input:
+      kind: directory
+      local: dist/msi-input-aarch64-pc-windows-msvc
+    native:
+      command: [python, packaging/windows/build-msi.py, '@PAYLOAD@', '@PACKAGE@', '@VERSION@', '@ARCH@']
+      output: 'tidalfast-@TAG@-@TARGET@.msi'
+release:
+  repository: CIoudGuy/tidalfast
+  prereleases: true
+  checksums: checksums.txt
+assets:
+  AMD64:
+    file: tidalfast-v@VERSION@-x86_64-unknown-linux-gnu.tar.gz
+    local: dist/tidalfast-v@VERSION@-x86_64-unknown-linux-gnu.tar.gz
+  ARM64:
+    file: tidalfast-v@VERSION@-aarch64-unknown-linux-gnu.tar.gz
+    local: dist/tidalfast-v@VERSION@-aarch64-unknown-linux-gnu.tar.gz
+  SOURCE:
+    file: tidalfast-v@VERSION@-source.tar.gz
+    local: dist/tidalfast-v@VERSION@-source.tar.gz
+templates:
+  arch/tidalfast/PKGBUILD: packaging/arch/tidalfast/PKGBUILD.in
+  arch/tidalfast/tidalfast.install: packaging/arch/tidalfast.install
+  arch/tidalfast-bin/PKGBUILD: packaging/arch/tidalfast-bin/PKGBUILD.in
+  arch/tidalfast-bin/tidalfast-bin.install: packaging/arch/tidalfast.install
+  arch/tidalfast-git/PKGBUILD: packaging/arch/tidalfast-git/PKGBUILD.in
+  arch/tidalfast-git/tidalfast-git.install: packaging/arch/tidalfast.install
+repositories:
+  aur-source:
+    group: aur
+    url: https://aur.archlinux.org/tidalfast.git
+    push_url: ssh://aur@aur.archlinux.org/tidalfast.git
+    branch: master
+    package_path: "."
+    files:
+      arch/tidalfast: "."
+    version_file: ".SRCINFO"
+    version_pattern: "^\\s*pkgver = (\\S+)"
+    publish: push
+  aur-bin:
+    group: aur
+    url: https://aur.archlinux.org/tidalfast-bin.git
+    push_url: ssh://aur@aur.archlinux.org/tidalfast-bin.git
+    branch: master
+    package_path: "."
+    files:
+      arch/tidalfast-bin: "."
+    version_file: ".SRCINFO"
+    version_pattern: "^\\s*pkgver = (\\S+)"
+    publish: push
+  aur-git:
+    group: aur
+    url: https://aur.archlinux.org/tidalfast-git.git
+    push_url: ssh://aur@aur.archlinux.org/tidalfast-git.git
+    branch: master
+    package_path: "."
+    files:
+      arch/tidalfast-git: "."
+    version_file: ".SRCINFO"
+    version_pattern: "^\\s*pkgver = (\\S+)"
+    publish: push
+version_file: Cargo.toml
