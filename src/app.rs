@@ -22092,6 +22092,11 @@ mod tests {
     #[test]
     fn a_covered_window_stops_the_background_and_resumes_when_shown() {
         let mut app = headless_app();
+        // Held at full motion: the logic pass would otherwise read the
+        // system's wish for less motion, which stops the background
+        // turning, and a server (CI's Windows and macOS runners) has
+        // animations off.
+        app.motion.force(false);
         app.local.track = Some(crate::player::LocalTrack {
             uri: "tidal:track:a".into(),
             ..Default::default()
