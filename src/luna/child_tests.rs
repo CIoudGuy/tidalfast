@@ -515,9 +515,17 @@ fn a_program_that_cannot_start_reports_an_error_not_a_hang() {
     let dir = data_dir("nostart");
     let (notify, events) = collector();
     let mut hub = ChildHub::default();
-    // A file that exists and counts as a program but is not one.
+    // A file that exists and counts as a program but is not one. macOS's
+    // posix_spawnp, which Rust starts programs with there, runs a file the
+    // system cannot execute with /bin/sh, as execvp does; so there it names
+    // an interpreter that does not exist, which no fallback runs.
     let junk = dir.join(if cfg!(windows) { "junk.exe" } else { "junk" });
-    std::fs::write(&junk, b"not a program").unwrap();
+    let body: &[u8] = if cfg!(target_os = "macos") {
+        b"#!/nonexistent/tidalfast-test-interpreter\n"
+    } else {
+        b"not a program"
+    };
+    std::fs::write(&junk, body).unwrap();
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
