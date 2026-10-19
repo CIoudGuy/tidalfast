@@ -29,6 +29,7 @@ def payload(root):
     shutil.copyfile(ROOT / "packaging/applications/tidalfast.desktop",
                     root / "packaging/applications/tidalfast.desktop")
     shutil.copyfile(ROOT / "packaging/icons/tidalfast.svg", root / "packaging/icons/tidalfast.svg")
+    shutil.copytree(ROOT / "packaging/icons/hicolor", root / "packaging/icons/hicolor")
     (root / "target/release").mkdir(parents=True)
     for name in ["tidalfast", "target/release/tidalfast"]:
         shutil.copyfile(shutil.which("true"), root / name)
@@ -106,16 +107,23 @@ class LauncherInstallTest(unittest.TestCase):
     def test_native_manifest_installs_the_launcher_and_icon(self):
         config = yaml(ROOT / "native-packages.yaml")
         entries = [c for c in config["nfpm"]["contents"] if "/packaging/" in c["src"]]
-        self.assertEqual(len(entries), 2)
+        # The launcher, the scalable icon, and a PNG for every size the
+        # release ships (desktops that skip SVG icons use those).
+        sizes = sorted(p.name for p in (ROOT / "packaging/icons/hicolor").iterdir())
+        destinations = sorted(e["dst"] for e in entries)
+        self.assertEqual(destinations, sorted(
+            ["/usr/share/applications/", "/usr/share/icons/hicolor/scalable/apps/"]
+            + [f"/usr/share/icons/hicolor/{size}/apps/tidalfast.png" for size in sizes]))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             payload(root / "tidalfast-v9.8.7-linux-amd64")
             for entry in entries:
                 pattern = entry["src"].replace("@PAYLOAD@/", "").replace("@VERSION@", "9.8.7").replace("@TARGET@", "linux-amd64")
                 files = list(root.glob(pattern))
-                self.assertEqual(len(files), 1)
+                self.assertEqual(len(files), 1, pattern)
                 self.assertEqual(files[0].stem, "tidalfast")
-                self.assertTrue(entry["dst"].endswith("/"))
+                if not entry["dst"].endswith("/"):
+                    self.assertEqual(Path(entry["dst"]).name, files[0].name)
 
 
 if __name__ == "__main__":
