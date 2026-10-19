@@ -155,7 +155,8 @@ fn a_request_is_resolved_to_one_program_path() {
     assert!(!exe.starts_with(r"\\?\"), "{exe}");
     assert_eq!(p.program, exe);
     assert!(!p.shell && p.remember);
-    // (/bin/sh may be a link to dash: the resolved file is what counts.)
+    // (/bin/sh may be a link to dash: the link is what runs and is asked
+    // about, so the name stays sh.)
     assert!(!p.name.is_empty());
     assert!(p.command.contains("echo hi"), "{}", p.command);
     // The folder is the plugin's own, unless it said otherwise.
@@ -235,9 +236,8 @@ fn a_program_in_the_plugins_own_folder_cannot_be_remembered() {
     }
     // The folder can be reached by another name for it: an 8.3 short name
     // on Windows (CI's C:\Users\RUNNER~1), a link on macOS (/var is
-    // /private/var). prepare resolves the program before asking, as
-    // is_inside resolves the folder, so it compares the program as
-    // resolve_program finds it.
+    // /private/var). is_inside compares the program and the folder both
+    // as given and as resolved.
     let asked = Request {
         file: inside.to_string_lossy().into_owned(),
         ..Request::default()
@@ -245,6 +245,11 @@ fn a_program_in_the_plugins_own_folder_cannot_be_remembered() {
     assert!(!prepare(&asked, &dir).unwrap().remember);
     let found = resolve_program(&inside.to_string_lossy(), None).unwrap();
     assert!(is_inside(&found, &dir));
+    assert!(is_inside(&inside, &dir));
+    assert!(is_inside(
+        &clean(std::fs::canonicalize(&inside).unwrap()),
+        &dir
+    ));
     assert!(!is_inside(Path::new("/usr/bin/sh"), &dir));
     let resolved = clean(std::fs::canonicalize(&dir).unwrap());
     let sibling = PathBuf::from(format!("{}-other/run.exe", resolved.display()));
@@ -253,6 +258,72 @@ fn a_program_in_the_plugins_own_folder_cannot_be_remembered() {
         "a folder that only shares the prefix"
     );
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A program reached through a link starts by the link's name: a
+/// multi-call program (coreutils on NixOS, BusyBox) is a link to one binary
+/// that acts by the name it was started as, and started by the file the
+/// link points to, `sleep` is `coreutils` and only prints its usage. The
+/// link is also what the user is asked about, and a link in the plugin's
+/// own folder is the plugin's: it could point anywhere next time.
+#[test]
+fn a_program_reached_through_a_link_starts_by_the_links_name() {
+    let dir = data_dir("link");
+    let bin = data_dir("link-bin");
+    let (real, link, own) = if cfg!(windows) {
+        (
+            bin.join("multi.cmd"),
+            bin.join("applet.cmd"),
+            dir.join("applet.cmd"),
+        )
+    } else {
+        (bin.join("multi"), bin.join("applet"), dir.join("applet"))
+    };
+    let body = if cfg!(windows) {
+        "@echo %~n0\r\n"
+    } else {
+        "#!/bin/sh\necho \"${0##*/}\"\n"
+    };
+    std::fs::write(&real, body).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        std::os::unix::fs::symlink(&real, &own).unwrap();
+    }
+    #[cfg(windows)]
+    {
+        // Links need Developer Mode or an administrator (CI has both).
+        if let Err(e) = std::os::windows::fs::symlink_file(&real, &link)
+            .and_then(|()| std::os::windows::fs::symlink_file(&real, &own))
+        {
+            eprintln!("skipped: this account cannot make links ({e})");
+            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::remove_dir_all(&bin);
+            return;
+        }
+    }
+    let request = |file: &Path| Request {
+        file: file.to_string_lossy().into_owned(),
+        pipes: [true, true, true],
+        ..Request::default()
+    };
+    let p = prepare(&request(&link), &dir).unwrap();
+    assert_eq!(p.spec.exe, link);
+    assert_eq!(p.program, link.to_string_lossy());
+    assert_eq!(
+        Some(p.name.as_str()),
+        link.file_name().and_then(|n| n.to_str())
+    );
+    assert!(p.remember);
+    let r = run_sync(&p.spec, None, Duration::from_secs(20), 1 << 20);
+    assert_eq!(r.status, Some(0), "{r:?}");
+    assert_eq!(String::from_utf8_lossy(&r.stdout).trim(), "applet", "{r:?}");
+
+    assert!(!prepare(&request(&own), &dir).unwrap().remember);
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&bin);
 }
 
 #[test]
