@@ -86,7 +86,7 @@
 
 ## Install
 
-Download from the **[latest release](https://github.com/CIoudGuy/tidalfast/releases/latest)**. Each file names its processor: `x86_64` for most PCs, `aarch64` for ARM.
+Download from the **[latest release](https://github.com/CIoudGuy/tidalfast/releases/latest)**. Builds are for 64-bit Intel and AMD PCs (`x86_64`).
 
 > [!NOTE]
 > You need a TIDAL subscription to play music.
@@ -95,7 +95,7 @@ Download from the **[latest release](https://github.com/CIoudGuy/tidalfast/relea
 
 | File | |
 |---|---|
-| `.msi` | Installer. Adds Tidalfast to the Start menu, no administrator password needed. |
+| `-setup.exe` | Installer. Adds Tidalfast to the Start menu, no administrator password needed. |
 | `.zip` | Portable. Extract it and run `tidalfast.exe`. |
 
 > [!TIP]
@@ -107,7 +107,6 @@ Download from the **[latest release](https://github.com/CIoudGuy/tidalfast/relea
 |---|---|
 | `.AppImage` | One file: `chmod +x` it and run it. Adds itself to your app menu. |
 | `.deb` / `.rpm` | Debian, Ubuntu, Fedora and similar. |
-| `.flatpak` | `flatpak install --user tidalfast-v1.0.0-x86_64.flatpak` (x86_64 only). |
 | `.tar.gz` | Unpack and run `tidalfast`. |
 
 The AppImage, `.deb`, `.rpm` and `.tar.gz` need glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 or later), ALSA, PulseAudio or PipeWire, and Wayland or X11.
