@@ -7,7 +7,7 @@ nav_order: 3
 
 ## Middle-click autoscroll
 
-On Windows, since 0.8.0, and on Linux once turned on, middle-click anywhere
+On Windows, and on Linux once turned on, middle-click anywhere
 in a scrolling list, then move the pointer away from the starting point. That
 list follows the pointer, faster as the distance grows, and the pointer shows
 the direction it is scrolling. Speed and dead zone match Chromium's
@@ -32,20 +32,20 @@ the surrounding page stays put. Release `Shift` to scroll the page normally.
 
 ## Dragging beyond the visible list
 
-Since 0.8.0, hold a dragged song near the top or
+Hold a dragged song near the top or
 bottom of an editable playlist's visible area to scroll. Scrolling gets faster
 closer to the edge and stops when you move away or release the mouse. This
 lets you move a song from the end to the beginning without dropping it along
 the way. Clear filters and sorting before reordering playlist songs.
 
-Since 0.8.0, drag a song from the player bar, the queue, or another
+Drag a song from the player bar, the queue, or another
 list into an open editable playlist. The line between rows marks its insertion
 position. Dropping below the last row appends; the blank area of an empty
 playlist accepts its first song. The source song stays in its list or queue,
 and playback continues unchanged. Dragging a row within the same playlist
 still moves that row.
 
-Since 0.8.0, select several songs with `Ctrl`-click (`Cmd`-click
+Select several songs with `Ctrl`-click (`Cmd`-click
 on macOS) or `Shift`-click, then drag any selected row. The whole selection
 travels together in its displayed order, even if you selected the rows in
 a different order. The preview names the first song and counts the rest.
@@ -96,7 +96,7 @@ menu, or double-click to play it.
 
 ## Starting a playlist and resuming
 
-Since 0.8.0, with Shuffle off and the playlist in its original
+With Shuffle off and the playlist in its original
 order, its **Play** button explicitly starts at the first available song.
 The selected song appears in the player immediately, including while local
 playback reconnects. The full playlist remains the playback source, even
@@ -165,7 +165,7 @@ plugin adds.
 
 ## Refreshing a playlist
 
-Since 0.8.0, choose **Refresh** in a playlist's **…** menu to reload
+Choose **Refresh** in a playlist's **…** menu to reload
 its details and songs, including changes made elsewhere. The
 menu item reads **Refreshing…** and is disabled while loading. Current songs,
 filtering and sorting stay visible. Tidalfast finishes saving your edits before
@@ -189,7 +189,7 @@ field to see everything again.
 Right-click a search, filter, settings or playlist-editing text field for
 **Cut**, **Copy**, **Paste** and **Select all**. Cut and Copy require a text
 selection. The usual keyboard shortcuts, including Undo, still work.
-Since 0.8.0, Ctrl, Cmd and Alt arrow keys move the caret while
+Ctrl, Cmd and Alt arrow keys move the caret while
 a text field has focus. Playback and navigation shortcuts on those keys
 remain available from song rows and other controls.
 
@@ -220,12 +220,12 @@ the fade to the queued audio. Natural track transitions remain gapless.
 Left and right arrows adjust a focused volume slider by five percentage
 points, or the seek slider by one percent of the song. Screen readers can
 also read and set these sliders' values. `Ctrl+F` (`Cmd+F` on macOS) focuses
-search. Since 0.9.0, `Space` plays or pauses the current song even
+search. `Space` plays or pauses the current song even
 when a song row or control has focus. Text fields keep Space for typing.
 Unmodified letter shortcuts still yield to the focused control.
 
-This is the first part of screen-reader support. Windows testing with NVDA
-remains tracked in [#262](https://github.com/CIoudGuy/tidalfast/issues/262).
+This is the first part of screen-reader support; testing with NVDA on
+Windows is still to do.
 
 ## Keyboard shortcuts
 
@@ -335,13 +335,13 @@ and a new theme replaces the old one without the reveal. Spinners still turn.
 
 ## Windows taskbar controls
 
-Since 0.8.0, hovering Tidalfast's taskbar button offers **Previous**,
+Hovering Tidalfast's taskbar button offers **Previous**,
 **Play/Pause**, and **Next** beneath its window preview. They control the same
 playing device as the player bar, update immediately, and are disabled when
 there is no song or the device refuses controls. The icons follow the system
 appearance and display scaling.
 
-Since 0.8.0, clicking or double-clicking the Windows tray icon shows
+Clicking or double-clicking the Windows tray icon shows
 and raises Tidalfast. Use **Show or hide Tidalfast** in the tray menu to hide
 it again.
 
@@ -373,7 +373,7 @@ player bar again, use the collapse chevron, or press `Esc` to close it.
 
 ## The top bar
 
-Since 0.8.0, the top bar reserves room for the update badge beside Search.
+The top bar reserves room for the update badge beside Search.
 The bar stays above the page. Library, Queue and Lyrics keep their full height.
 When the window narrows, Library, Queue and Lyrics give up width before the
 top bar runs out of room, and return to the widths you chose once it widens.
@@ -492,11 +492,11 @@ choose **Follow** to resume it, or choose a line to jump to that part of the son
 The expand button opens lyrics in full screen. Press **Esc** or choose the
 shrink button to return to your previous window size. Full-screen lyrics
 scroll smoothly and highlight the playing line automatically. Scrolling by
-hand pauses following; choose **Follow** to resume. Since 0.11.0, a wide
+hand pauses following; choose **Follow** to resume. A wide
 window shows the song's cover beside the lyrics, the two centred together,
 and a song without words, such as an instrumental, shows just its cover in
 the middle of the screen.
-Since 0.10.0, quitting while lyrics are full screen no longer leaves
+Quitting while lyrics are full screen no longer leaves
 the next launch stuck in full screen: the window returns to its previous size.
 
 | Dark theme | Light theme |
