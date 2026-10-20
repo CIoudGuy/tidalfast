@@ -1107,9 +1107,23 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         plugin_slots::positioned_in(&mut slider_ui, keys::PROGRESS_BAR);
         SliderEvent::None
     } else {
+        // `#progressBar`'s colour is the fill's (`currentColor`): Tidal
+        // Tags tints it with the quality's colour.
+        let tinted;
+        let palette = match plugin_dom::color(keys::PROGRESS_BAR) {
+            Some(color) => {
+                tinted = crate::theme::Palette {
+                    text: color,
+                    accent: color,
+                    ..palette
+                };
+                &tinted
+            }
+            None => &palette,
+        };
         thin_slider(
             &mut slider_ui,
-            &palette,
+            palette,
             egui::Id::new("seek-slider"),
             &gettext(app.locale, "Playback position (%)"),
             fraction,
@@ -1178,14 +1192,12 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
             text @ std::borrow::Cow::Owned(_) => text,
             _ => plugin_dom::text(keys::QUALITY_TEXT, &badge.label),
         };
-        let color = [
-            keys::QUALITY_LABEL,
-            keys::QUALITY_TEXT,
-            keys::QUALITY_BADGE,
-            keys::QUALITY,
-        ]
-        .into_iter()
-        .find_map(plugin_dom::color);
+        // The text's colour is its own span's (`._badgeText_` sets TIDAL's
+        // teal or gold): a colour on the badge or its container (Tidal
+        // Tags' quality colour) does not reach it.
+        let color = [keys::QUALITY_LABEL, keys::QUALITY_TEXT]
+            .into_iter()
+            .find_map(plugin_dom::color);
         // A pill that does not fit is sized aside and left out.
         let show_pill = run.shown[PILL];
         let pill_from = ui.cursor().right();
@@ -1204,6 +1216,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         let pill = super::quality_pill::show(
             pill_ui,
             &label,
+            &badge.label,
             &badge.detail,
             badge.tone,
             color,
@@ -2089,5 +2102,99 @@ mod narrow_tests {
             let rect = pill(&ctx, &mut app, width).expect("the pill with room");
             assert!(rect.left() >= width / 2.0 + 108.0, "{width}: {rect:?}");
         }
+    }
+
+    /// Every shape drawn in a window `width` wide once the bar settled.
+    fn shapes(ctx: &egui::Context, app: &mut App, width: f32) -> Vec<egui::epaint::Shape> {
+        fn flat(shape: &egui::epaint::Shape, out: &mut Vec<egui::epaint::Shape>) {
+            match shape {
+                egui::epaint::Shape::Vec(shapes) => shapes.iter().for_each(|s| flat(s, out)),
+                other => out.push(other.clone()),
+            }
+        }
+        let mut found = Vec::new();
+        for _ in 0..6 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(width, 820.0))),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(app, ui),
+            );
+            output.textures_delta.clear();
+            found.clear();
+            for clipped in &output.shapes {
+                flat(&clipped.shape, &mut found);
+            }
+        }
+        found
+    }
+
+    /// Tidal Tags writes "16-bit 44.1kHz 951kb/s" into the quality pill's
+    /// label and gives the pill's container and `#progressBar` the
+    /// quality's colour. In TIDAL the pill keeps its size and the text
+    /// wraps inside it onto two centred 18-point lines, the text keeps the
+    /// pill's own teal (its span's class colour), and the progress fill
+    /// (`currentColor`) turns #33FFEE. Tidalfast drew the text on one line,
+    /// in the container's colour, and left the fill white.
+    #[test]
+    fn tidal_tags_text_wraps_in_the_pill_and_tints_the_progress_fill() {
+        use crate::luna::dom::{HostOverride, Style};
+        let (ctx, mut app) = setup();
+        let tinted = |text: Option<&str>| HostOverride {
+            style: Style {
+                color: text.is_none().then(|| "#33FFEE".into()),
+                text_align: text.is_none().then(|| "center".into()),
+                ..Style::default()
+            },
+            text: text.map(str::to_string),
+            ..HostOverride::default()
+        };
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            hosts: [
+                (keys::QUALITY.to_string(), tinted(None)),
+                (
+                    keys::QUALITY_LABEL.to_string(),
+                    tinted(Some("16-bit 44.1kHz 951kb/s")),
+                ),
+                (keys::PROGRESS_BAR.to_string(), tinted(None)),
+            ]
+            .into_iter()
+            .collect(),
+            ..DomOverlay::default()
+        }));
+        crate::demo::apply_flags(&mut app, Some("home"), Some("quality-pill"));
+        let drawn = shapes(&ctx, &mut app, 2000.0);
+        let label = drawn
+            .iter()
+            .find_map(|s| match s {
+                egui::epaint::Shape::Text(t) if t.galley.text() == "16-bit 44.1kHz 951kb/s" => {
+                    Some(t.clone())
+                }
+                _ => None,
+            })
+            .expect("the plugin's text in the pill");
+        assert_eq!(label.galley.rows.len(), 2, "two lines");
+        let size = label.galley.rect.size();
+        assert!((size.y - 36.0).abs() < 1.0, "18-point lines: {size:?}");
+        assert!(
+            size.x <= super::super::quality_pill::MIN_WIDTH - 32.0 + 0.5,
+            "within the pill's 121 less its padding: {size:?}"
+        );
+        assert_eq!(
+            label.galley.job.sections[0].format.color,
+            super::super::quality_pill::TEAL,
+            "the text keeps the pill's teal"
+        );
+        let teal = egui::Color32::from_rgb(0x33, 0xff, 0xee);
+        assert!(
+            drawn.iter().any(|s| matches!(
+                s,
+                egui::epaint::Shape::Rect(r) if r.fill == teal && r.rect.top() > 700.0
+            )),
+            "the progress fill takes #progressBar's colour"
+        );
+        crate::ui::plugin_dom::test_overlay(None);
     }
 }

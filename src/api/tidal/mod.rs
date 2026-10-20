@@ -1973,6 +1973,30 @@ impl TidalClient {
 
     // ---- catalogue -------------------------------------------------------------
 
+    /// The size in bytes of a stream file TIDAL handed out (the URL of a
+    /// BTS manifest), from a HEAD request: what TidaLuna reads to work out
+    /// a FLAC's bit rate (Tidal Tags' "951kb/s"). `None` when the server
+    /// does not say.
+    pub async fn stream_size(&self, url: &str) -> Option<u64> {
+        let client = self.http.client().ok()?;
+        let response = client
+            .head(url)
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await
+            .ok()?;
+        if !response.status().is_success() {
+            return None;
+        }
+        response
+            .headers()
+            .get(reqwest::header::CONTENT_LENGTH)?
+            .to_str()
+            .ok()?
+            .parse()
+            .ok()
+    }
+
     /// A v1 catalogue answer as TIDAL sends it (`tracks/{id}`,
     /// `albums/{id}/items`, ...), for the Luna plugin runtime, whose plugins
     /// read TIDAL's own JSON. GET only; `path` is relative to the v1 base.

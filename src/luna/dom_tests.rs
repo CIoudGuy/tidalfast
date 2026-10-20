@@ -2264,3 +2264,68 @@ window.addEventListener("click", () => {
     });
     finish(luna, dir);
 }
+
+/// Tidal Tags' format columns clone TIDAL's time heading and write their
+/// title into its `firstChild.firstChild` (TIDAL's heading holds the label
+/// one level down). Tidalfast's heading had the text on the span itself,
+/// so the clone threw "cannot set property 'textContent' of null" and no
+/// BITRATE / SAMPLE RATE / DEPTH heading appeared. The clones go before
+/// the time heading with their `min-width`, which sizes the columns.
+#[test]
+fn tidal_tags_clones_the_time_heading_and_titles_it() {
+    let (luna, _host, dir) = start(
+        r##"
+lib.observe(unloads, 'div[aria-label="Tracklist"]', (e) => {
+	if (R.done) return;
+	const time = e.querySelector('span[class^="_timeColumn"][role="columnheader"]');
+	let before = time;
+	for (const [title, min] of [["Depth", "40px"], ["Sample Rate", "110px"], ["Bitrate", "100px"]]) {
+		const r = time.cloneNode(true);
+		(r.firstChild?.childNodes?.length ?? -1) > 1 && r.firstChild?.lastChild?.remove();
+		r.setAttribute("data-test", title);
+		r.firstChild.firstChild.textContent = title;
+		r.style.setProperty("min-width", min);
+		time.parentElement.insertBefore(r, before);
+		before = r;
+	}
+	R.done = true;
+});
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["done"], json!(true), "{r}");
+    let o = overlay_until(&luna, 10, |o| {
+        o.injected
+            .iter()
+            .any(|i| i.anchor.ends_with(":artist-col") && i.nodes.len() == 3)
+    });
+    let heads = o
+        .injected
+        .iter()
+        .find(|i| i.anchor.ends_with(":artist-col"))
+        .unwrap();
+    let text = |n: &super::dom::VNode| -> String {
+        fn all(n: &super::dom::VNode, out: &mut String) {
+            out.push_str(n.text.as_deref().unwrap_or(""));
+            n.children.iter().for_each(|c| all(c, out));
+        }
+        let mut out = String::new();
+        all(n, &mut out);
+        out
+    };
+    let got: Vec<(String, Option<String>)> = heads
+        .nodes
+        .iter()
+        .map(|n| (text(n), n.style.min_width.clone()))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            ("Bitrate".to_string(), Some("100px".to_string())),
+            ("Sample Rate".to_string(), Some("110px".to_string())),
+            ("Depth".to_string(), Some("40px".to_string())),
+        ]
+    );
+    finish(luna, dir);
+}

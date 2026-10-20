@@ -125,6 +125,10 @@ pub struct PlaybackSnapshot {
     pub bit_depth: Option<u32>,
     pub sample_rate: Option<u32>,
     pub codec: Option<String>,
+    /// The stream's bit rate, bits a second (not in TIDAL's
+    /// `playbackContext`: `MediaItem` formats read it, as TidaLuna reads it
+    /// from the manifest and the file's size).
+    pub bitrate: Option<u32>,
     pub country_code: Option<String>,
     pub user_id: Option<String>,
     /// The account's public name (`user.meta.profileName`).

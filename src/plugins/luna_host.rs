@@ -237,6 +237,18 @@ fn stream_summary(manifest: &str) -> Value {
     })
 }
 
+/// The one file a BTS manifest (`application/vnd.tidal.bts`) names, for
+/// asking its size; a DASH manifest has none.
+fn bts_url(manifest: &str) -> Option<String> {
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(manifest.trim())
+        .ok()?;
+    let bts: Value = serde_json::from_slice(&bytes).ok()?;
+    let url = bts["urls"].as_array()?.first()?.as_str()?;
+    url.starts_with("https://").then(|| url.to_string())
+}
+
 /// TIDAL's numeric ids (tracks, albums, artists).
 fn numeric(id: &str) -> Option<&str> {
     (!id.is_empty() && id.len() <= 20 && id.chars().all(|c| c.is_ascii_digit())).then_some(id)
@@ -427,12 +439,22 @@ impl LunaHost for AppHost {
         )?;
         // Plugins get the format, never the stream itself: what the manifest
         // says about the codec and bit rate is kept (as `stream`), its URLs
-        // and keys never leave.
+        // and keys never leave. A single file's size is asked of the server
+        // (as TidaLuna does), for its bit rate.
         if let Some(o) = info.as_object_mut() {
-            let stream = o
-                .remove("manifest")
-                .and_then(|m| m.as_str().map(stream_summary));
-            if let Some(stream) = stream {
+            let manifest = o.remove("manifest");
+            let manifest = manifest.as_ref().and_then(Value::as_str);
+            if let Some(mut stream) = manifest.map(stream_summary) {
+                if let Some(url) = manifest.and_then(bts_url)
+                    && let Some(tidal) = self.tidal.as_ref()
+                    && let Some(bytes) = tidal
+                        .block_on(move |client| async move {
+                            Ok::<_, crate::api::client::ApiError>(client.stream_size(&url).await)
+                        })
+                        .flatten()
+                {
+                    stream["bytes"] = json!(bytes);
+                }
                 o.insert("stream".into(), stream);
             }
         }

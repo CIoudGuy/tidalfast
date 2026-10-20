@@ -922,6 +922,7 @@ pub(crate) mod tests {
             quality: None,
             origin: Default::default(),
             video_size: None,
+            bitrate: None,
         }
     }
 

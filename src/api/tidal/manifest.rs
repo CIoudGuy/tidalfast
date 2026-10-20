@@ -457,6 +457,7 @@ fn dash(text: &str) -> Result<StreamInfo, StreamError> {
         codec,
         sample_rate,
         bit_depth,
+        bitrate: bandwidth.parse().ok(),
         ..Default::default()
     })
 }
@@ -608,6 +609,8 @@ mod tests {
         assert_eq!(stream.urls[1], "https://cdn/x/r-0.mp4");
         assert_eq!(stream.urls[7], "https://cdn/x/r-6.mp4");
         assert_eq!(infer_quality(&stream), Quality::High);
+        // The representation's bandwidth: the stream's bit rate.
+        assert_eq!(stream.bitrate, Some(320_000));
     }
 
     fn document(text: &str) -> TrackManifestDocument {

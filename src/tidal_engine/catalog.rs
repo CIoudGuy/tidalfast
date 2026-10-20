@@ -71,6 +71,8 @@ pub struct StreamInfo {
     pub codec: String,
     pub sample_rate: Option<u32>,
     pub bit_depth: Option<u32>,
+    /// The bit rate a DASH manifest names (`bandwidth`), in bits a second.
+    pub bitrate: Option<u32>,
     /// What TIDAL actually gave, which can be less than was asked for.
     pub quality: Quality,
     pub track_gain_db: Option<f32>,

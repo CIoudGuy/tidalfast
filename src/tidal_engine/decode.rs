@@ -535,6 +535,8 @@ struct Opened {
     loudness: Loudness,
     quality: Option<Quality>,
     bit_depth: Option<u32>,
+    /// The bit rate the manifest names (DASH), bits a second.
+    bitrate: Option<u32>,
     from: AudioOrigin,
 }
 
@@ -626,7 +628,12 @@ impl Worker {
             generation: self.generation,
             loudness: opened.loudness,
             duration_ms,
-            format: decoding.media.format(&opened),
+            format: StreamFormat {
+                bitrate: opened
+                    .bitrate
+                    .or_else(|| average_bitrate(decoding.download.progress().1, duration_ms)),
+                ..decoding.media.format(&opened)
+            },
         }) {
             return;
         }
@@ -710,6 +717,7 @@ impl Worker {
                 quality: None,
                 origin: AudioOrigin::Stream,
                 video_size: Some(media.size()).filter(|(w, h)| *w > 0 && *h > 0),
+                bitrate: None,
             },
         }) {
             return;
@@ -884,6 +892,7 @@ fn open(source: Source, uri: &str, meter: &Arc<Meter>) -> Result<Opened> {
                     loudness: entry.loudness(),
                     quality: entry.quality,
                     bit_depth: entry.bit_depth,
+                    bitrate: None,
                     from,
                 });
             }
@@ -914,6 +923,7 @@ fn open(source: Source, uri: &str, meter: &Arc<Meter>) -> Result<Opened> {
                 loudness: entry.loudness(),
                 quality: Some(info.quality),
                 bit_depth: info.bit_depth,
+                bitrate: info.bitrate,
                 from: AudioOrigin::Stream,
             })
         }
@@ -930,6 +940,7 @@ fn open(source: Source, uri: &str, meter: &Arc<Meter>) -> Result<Opened> {
             loudness: Loudness::default(),
             quality: None,
             bit_depth: None,
+            bitrate: None,
             from: AudioOrigin::Plugin,
         }),
         #[cfg(test)]
@@ -944,6 +955,7 @@ fn open(source: Source, uri: &str, meter: &Arc<Meter>) -> Result<Opened> {
                 loudness: Loudness::default(),
                 quality: None,
                 bit_depth: None,
+                bitrate: None,
                 from: AudioOrigin::Stream,
             })
         }
@@ -980,6 +992,13 @@ fn open_video(source: Source, uri: &str, start_ms: u32) -> Result<HlsMedia> {
         #[cfg(test)]
         Source::Bytes { .. } => bail!("test bytes are not a video"),
     }
+}
+
+/// A whole file's average bit rate, bits a second: its size over its
+/// length.
+fn average_bitrate(bytes: Option<u64>, duration_ms: Option<u32>) -> Option<u32> {
+    let (bytes, ms) = (bytes?, u64::from(duration_ms?));
+    (bytes > 0 && ms > 0).then(|| u32::try_from(bytes * 8 * 1000 / ms).unwrap_or(u32::MAX))
 }
 
 fn mime_of(mime: &str, codec: &str) -> String {
@@ -1223,6 +1242,7 @@ impl Media {
             quality: opened.quality,
             origin: opened.from,
             video_size: None,
+            bitrate: None,
         }
     }
 
@@ -1510,6 +1530,10 @@ pub(crate) mod tests {
         assert_eq!(format.channels, 2);
         assert!(format.codec.starts_with("pcm"), "{}", format.codec);
         assert_eq!(format.origin, AudioOrigin::Stream);
+        // The file's size over its length (Tidal Tags' "951kb/s"): 16-bit
+        // stereo at 44.1 kHz is 1411.2 kb/s, plus the header.
+        let bitrate = format.bitrate.expect("the stream's bit rate") as f64;
+        assert!((bitrate / 1_411_200.0 - 1.0).abs() < 0.01, "{bitrate}");
     }
 
     #[test]

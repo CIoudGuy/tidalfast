@@ -107,7 +107,12 @@ impl LunaHost for CatalogueHost {
                 "stream": { "mimeType": "audio/mp4", "codec": "aac", "bitrate": 222222, "encrypted": false },
             }));
         }
-        Some(json!({ "audioQuality": "LOSSLESS", "bitDepth": 16, "sampleRate": 44100 }))
+        // A single FLAC file (BTS): the host asked its size, 951 kb/s over
+        // the song's 200 seconds.
+        Some(json!({
+            "audioQuality": "LOSSLESS", "bitDepth": 16, "sampleRate": 44100,
+            "stream": { "mimeType": "audio/flac", "codec": "flac", "encrypted": false, "bytes": 23_775_000 },
+        }))
     }
     fn notify(&self, _plugin: Option<&str>, _level: NotifyLevel, message: &str) {
         self.notes.lock().unwrap().push(message.to_string());

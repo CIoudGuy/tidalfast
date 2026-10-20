@@ -847,6 +847,8 @@ struct Inherit {
     /// The family an element's `font-family` named, numbered by
     /// [`plugin_dom::element_font_id`]; `None` is the app's face.
     family: Option<u32>,
+    /// `text-transform: uppercase`.
+    upper: bool,
 }
 
 impl Inherit {
@@ -859,7 +861,67 @@ impl Inherit {
             weight: 400,
             italic: false,
             family: None,
+            upper: false,
         }
+    }
+}
+
+/// The text a host element's own class gives what plugins put in it (a
+/// clone of TIDAL's time heading reads as a heading: 12-point semibold
+/// capitals; a cell cloned from a row's time reads as the row's text).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Look {
+    pub color: Color32,
+    pub size: f32,
+    pub weight: u16,
+    pub upper: bool,
+}
+
+/// Elements injected at `key`/`position` laid out as table columns: the
+/// n-th in a cell `widths[n]` wide, one after another from `point` (the
+/// left edge, at the row's middle), each clipped to its cell, its text in
+/// `look`. Nodes past `widths` are left out.
+pub fn columns(
+    ui: &mut egui::Ui,
+    key: &str,
+    position: Position,
+    point: Pos2,
+    widths: &[f32],
+    look: Look,
+) {
+    let Some(overlay) = plugin_dom::overlay() else {
+        return;
+    };
+    let vars = plugin_dom::vars();
+    let cx = Cx {
+        vars: &vars,
+        viewport: plugin_dom::viewport(),
+        keyframes: &overlay.keyframes,
+    };
+    let inherit = Inherit {
+        color: look.color,
+        size: look.size,
+        weight: look.weight,
+        upper: look.upper,
+        ..Inherit::root(ui)
+    };
+    let mut x = point.x;
+    for (n, (node, width)) in overlay.at(key, position).zip(widths).enumerate() {
+        // One line of the text, centred on the row.
+        let line = (look.size * 1.25).round();
+        let cell = Rect::from_min_size(egui::pos2(x, point.y - line / 2.0), vec2(*width, line));
+        x += width;
+        if !ui.is_rect_visible(cell) {
+            continue;
+        }
+        let mut child = ui.new_child(
+            UiBuilder::new()
+                .id_salt(("luna-column", key, position as u8, n))
+                .max_rect(cell)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+        child.set_clip_rect(cell.intersect(ui.clip_rect()));
+        draw_at(&mut child, node, key, inherit, &cx);
     }
 }
 
@@ -3104,6 +3166,9 @@ fn draw_box(
     if let Some(f) = &style.font_family {
         inherit.family = plugin_dom::element_font_id(f);
     }
+    if let Some(t) = &style.text_transform {
+        inherit.upper = t.trim() == "uppercase";
+    }
     if node.tag == "#text" {
         let Some(text) = node.text.as_deref().filter(|t| !t.trim().is_empty()) else {
             return false;
@@ -3928,7 +3993,13 @@ fn rich(text: &str, inherit: Inherit, style: &Style) -> RichText {
         Some(family) => egui::FontId::new(inherit.size, family),
         None => font,
     };
-    let mut text = RichText::new(text).font(font).color(inherit.color);
+    let mut text = if inherit.upper {
+        RichText::new(text.to_uppercase())
+    } else {
+        RichText::new(text)
+    }
+    .font(font)
+    .color(inherit.color);
     if inherit.italic {
         text = text.italics();
     }
@@ -6065,5 +6136,83 @@ mod tests {
             })
             .count();
         assert!(boxes >= 2, "{rects:#?}");
+    }
+
+    /// Plugin columns in a track table (Tidal Tags' clones of the time
+    /// heading): each node gets its own cell of the given width, side by
+    /// side, and `text-transform: uppercase` (CSS, inherited) or the
+    /// host's heading look writes capitals; `none` turns them off again.
+    /// Before, `text-transform` was ignored and the clones ran together.
+    #[test]
+    fn plugin_columns_sit_in_their_cells_and_honour_text_transform() {
+        let cell = |id: u64, label: &str, transform: Option<&str>| VNode {
+            id,
+            tag: "span".into(),
+            style: Style {
+                text_transform: transform.map(str::to_string),
+                ..Style::default()
+            },
+            children: vec![text(id + 100, label)],
+            ..VNode::default()
+        };
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: "cols".into(),
+                position: Position::After,
+                nodes: vec![
+                    cell(1, "Bitrate", None),
+                    cell(2, "Sample Rate", Some("uppercase")),
+                    cell(3, "kept", Some("none")),
+                ],
+            }],
+            ..DomOverlay::default()
+        }));
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut shapes = Vec::new();
+        for upper in [true, false] {
+            for _ in 0..3 {
+                let input = egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 200.0))),
+                    ..egui::RawInput::default()
+                };
+                let mut out = ctx.run_ui(input, |ui| {
+                    columns(
+                        ui,
+                        "cols",
+                        Position::After,
+                        egui::pos2(100.0, 50.0),
+                        &[100.0, 110.0, 77.0],
+                        Look {
+                            color: Color32::WHITE,
+                            size: 12.0,
+                            weight: 600,
+                            upper,
+                        },
+                    );
+                });
+                out.textures_delta.clear();
+                shapes = out.shapes;
+            }
+            let mut texts: Vec<(String, f32)> = shapes
+                .iter()
+                .filter_map(|s| match &s.shape {
+                    egui::Shape::Text(t) => Some((t.galley.text().to_string(), t.pos.x)),
+                    _ => None,
+                })
+                .collect();
+            texts.sort_by(|a, b| a.1.total_cmp(&b.1));
+            let first = if upper { "BITRATE" } else { "Bitrate" };
+            assert_eq!(
+                texts.iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>(),
+                vec![first, "SAMPLE RATE", "kept"],
+                "upper {upper}"
+            );
+            for ((_, x), left) in texts.iter().zip([100.0, 200.0, 310.0]) {
+                assert!((x - left).abs() < 1.0, "{texts:?}");
+            }
+        }
+        plugin_dom::test_overlay(None);
     }
 }

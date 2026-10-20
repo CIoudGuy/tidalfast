@@ -18,6 +18,27 @@
 	g.window = g;
 	g.self = g;
 	g.global = g;
+	// QuickJS has no Intl: its Number#toLocaleString is toString. TIDAL's
+	// Chromium groups thousands ("1,530", Tidal Tags' "1,530kb/s") and
+	// keeps at most three decimals unless the options say otherwise.
+	Object.defineProperty(Number.prototype, "toLocaleString", {
+		configurable: true,
+		writable: true,
+		value: function toLocaleString(_locales, options) {
+			const n = Number(this);
+			if (Number.isNaN(n)) return "NaN";
+			if (!Number.isFinite(n)) return n > 0 ? "∞" : "-∞";
+			const o = options ?? {};
+			const minF = Math.min(20, Math.max(0, Number(o.minimumFractionDigits ?? 0) || 0));
+			const maxF = Math.min(20, Math.max(minF, Number(o.maximumFractionDigits ?? Math.max(minF, 3)) || 0));
+			const fixed = Math.abs(n).toFixed(maxF);
+			let [whole, frac = ""] = fixed.split(".");
+			frac = frac.replace(/0+$/, "");
+			while (frac.length < minF) frac += "0";
+			if (o.useGrouping !== false) whole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+			return (n < 0 && Number(fixed) !== 0 ? "-" : "") + whole + (frac ? `.${frac}` : "");
+		},
+	});
 	const native = {
 		op: g.__op,
 		opAsync: g.__op_async,
