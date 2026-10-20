@@ -78,8 +78,9 @@ struct State {
     /// What the installed plugin fonts were made from.
     fonts_key: Option<u64>,
     fonts_loading: Option<Receiver<FontsDone>>,
-    /// The `font-family` values plugin elements carry, for this overlay
-    /// version (read once per version, not per frame).
+    /// The `font-family` values plugin elements have carried while Luna
+    /// runs, as of this overlay version (read once per version, not per
+    /// frame; tidal-genres' `monospace` pills).
     element_families: Option<(u64, Arc<Vec<String>>)>,
     /// The family each of those values draws in: the first of its list
     /// that is loaded or installed (`system-ui` is Segoe UI on Windows).
@@ -4509,7 +4510,9 @@ fn fonts_tick(ctx: &egui::Context) {
             return Some(result);
         }
         // The `font-family` values plugin elements carry, read once per
-        // overlay version.
+        // overlay version and kept while Luna runs: elements that come and
+        // go (radiant-lyrics' lines) must not reload the fonts each time; a
+        // family is loaded once, when it is first named.
         let version = s.overlay.version;
         let elements = match &s.element_families {
             Some((v, list)) if *v == version => list.clone(),
@@ -4525,7 +4528,11 @@ fn fonts_tick(ctx: &egui::Context) {
                         walk(c, seen);
                     }
                 }
-                let mut seen = std::collections::BTreeSet::new();
+                let mut seen: std::collections::BTreeSet<String> = s
+                    .element_families
+                    .as_ref()
+                    .map(|(_, list)| list.iter().cloned().collect())
+                    .unwrap_or_default();
                 for i in &s.overlay.injected {
                     for n in &i.nodes {
                         walk(n, &mut seen);
@@ -4897,6 +4904,52 @@ mod tests {
         );
         assert_eq!(other, None);
         assert_eq!(again, playing);
+    }
+
+    /// A family plugin elements name is loaded once: an element that goes
+    /// away and comes back (radiant-lyrics' lines) does not reload the
+    /// fonts, which rebuilds every glyph the app draws.
+    #[test]
+    fn element_fonts_reload_only_when_a_new_family_is_named() {
+        use crate::luna::dom::{Injected, Position, VNode};
+        let with_pill = |version: u64, pill: bool| DomOverlay {
+            version,
+            injected: if pill {
+                vec![Injected {
+                    anchor: "main".into(),
+                    position: Position::Append,
+                    nodes: vec![VNode {
+                        id: 1,
+                        tag: "span".into(),
+                        style: Style {
+                            font_family: Some("NoSuchFamily, monospace".into()),
+                            ..Style::default()
+                        },
+                        ..VNode::default()
+                    }],
+                }]
+            } else {
+                Vec::new()
+            },
+            ..DomOverlay::default()
+        };
+        let ctx = egui::Context::default();
+        let key = |o: DomOverlay| {
+            with(|s| {
+                s.vars = Arc::new(o.vars.clone());
+                s.overlay = Arc::new(o);
+            });
+            fonts_tick(&ctx);
+            with(|s| s.fonts_key)
+        };
+        test_overlay(Some(with_pill(1, true)));
+        let first = key(with_pill(1, true));
+        let gone = key(with_pill(2, false));
+        let back = key(with_pill(3, true));
+        test_overlay(None);
+        assert!(first.is_some_and(|k| k != 0), "{first:?}");
+        assert_eq!(gone, first);
+        assert_eq!(back, first);
     }
 
     /// While some rule uses `:hover`, sending new boxes asks for one more
