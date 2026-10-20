@@ -3435,9 +3435,18 @@ fn draw_box(
     } else {
         !block(&node.tag)
     };
-    let gap = cx
-        .len(&style.gap, font, 0.0)
-        .unwrap_or(if row { 4.0 } else { 2.0 });
+    // A flex or grid container's `gap` is 0 unless set (star-ratings'
+    // five stars touch); other boxes keep a little room between what
+    // they hold, as the spaces between inline elements give.
+    let gap = cx.len(&style.gap, font, 0.0).unwrap_or(
+        if display.contains("flex") || display.contains("grid") {
+            0.0
+        } else if row {
+            4.0
+        } else {
+            2.0
+        },
+    );
     let center = style
         .align_items
         .as_deref()
@@ -6437,5 +6446,76 @@ mod tests {
         let gap = green.top() - red.bottom();
         assert!((15.5..20.0).contains(&gap), "{red:?} {green:?}");
         assert!((blue.right() - 500.0).abs() < 1.0, "{blue:?}");
+    }
+
+    /// star-ratings' five stars sit in `display: flex` with no `gap`:
+    /// they touch, 16 + 16 + ..., as in TIDAL. Tidalfast put 4 points
+    /// between them.
+    #[test]
+    fn a_flex_row_without_a_gap_puts_its_items_side_by_side() {
+        let star = |id, c: &str| VNode {
+            id,
+            tag: "div".into(),
+            style: Style {
+                width: Some("16px".into()),
+                height: Some("16px".into()),
+                background_color: Some(c.into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: "stars".into(),
+                position: Position::After,
+                nodes: vec![VNode {
+                    id: 1,
+                    tag: "span".into(),
+                    style: Style {
+                        display: Some("flex".into()),
+                        ..Style::default()
+                    },
+                    children: vec![star(2, "#ff0000"), star(3, "#00ff00")],
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        }));
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0))),
+                ..egui::RawInput::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                at(
+                    ui,
+                    "stars",
+                    Position::After,
+                    egui::pos2(10.0, 50.0),
+                    Align2::LEFT_CENTER,
+                );
+            });
+            out.textures_delta.clear();
+            shapes = out.shapes;
+        }
+        plugin_dom::test_overlay(None);
+        let rect_of = |c: Color32| {
+            shapes
+                .iter()
+                .find_map(|s| match &s.shape {
+                    egui::Shape::Rect(r) if r.fill == c => Some(r.rect),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("no {c:?} box"))
+        };
+        let (a, b) = (
+            rect_of(Color32::from_rgb(255, 0, 0)),
+            rect_of(Color32::from_rgb(0, 255, 0)),
+        );
+        assert!((b.left() - a.right()).abs() < 0.5, "{a:?} {b:?}");
     }
 }
