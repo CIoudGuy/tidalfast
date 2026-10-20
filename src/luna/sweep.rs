@@ -589,7 +589,99 @@ pub(crate) struct SweepReport {
     pub opened: Vec<String>,
     pub plugin_message: Option<String>,
     pub duplicate_of: Option<String>,
+    /// What the plugin left in the page after its uninstall, against the
+    /// page before it was installed (`None`: nothing).
+    pub leftover: Option<String>,
     pub verdict: String,
+}
+
+/// An overlay as compared between two moments: without the counters that
+/// change on their own.
+fn overlay_shape(o: &super::dom::DomOverlay) -> Value {
+    let mut v = serde_json::to_value(o).unwrap_or_default();
+    if let Some(m) = v.as_object_mut() {
+        for k in ["version", "clicks", "scroll_to", "scroll_top"] {
+            m.remove(k);
+        }
+    }
+    v
+}
+
+/// `v` without its `null` fields, for a readable report.
+fn without_nulls(v: &Value) -> Value {
+    match v {
+        Value::Object(m) => Value::Object(
+            m.iter()
+                .filter(|(_, v)| !v.is_null())
+                .map(|(k, v)| (k.clone(), without_nulls(v)))
+                .collect(),
+        ),
+        Value::Array(a) => Value::Array(a.iter().map(without_nulls).collect()),
+        v => v.clone(),
+    }
+}
+
+/// What differs between two [`overlay_shape`]s: the overlay's fields, and
+/// the host keys of `hosts` (`None` when they are the same).
+fn overlay_diff(a: &Value, b: &Value) -> Option<String> {
+    if a == b {
+        return None;
+    }
+    let empty = serde_json::Map::new();
+    let (am, bm) = (
+        a.as_object().unwrap_or(&empty),
+        b.as_object().unwrap_or(&empty),
+    );
+    let keys: BTreeSet<&String> = am.keys().chain(bm.keys()).collect();
+    let mut out = Vec::new();
+    for k in keys {
+        let (x, y) = (am.get(k), bm.get(k));
+        if x == y {
+            continue;
+        }
+        if k == "hosts" {
+            let (hx, hy) = (
+                x.and_then(Value::as_object).unwrap_or(&empty),
+                y.and_then(Value::as_object).unwrap_or(&empty),
+            );
+            let hosts: BTreeSet<&String> = hx.keys().chain(hy.keys()).collect();
+            let changed: Vec<&str> = hosts
+                .into_iter()
+                .filter(|h| hx.get(*h) != hy.get(*h))
+                .map(String::as_str)
+                .collect();
+            out.push(format!(
+                "hosts[{}]: {}",
+                changed.len(),
+                changed
+                    .iter()
+                    .take(8)
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            ));
+            // What the first one is now, to tell a style from a class or text.
+            if let Some(h) = changed.first() {
+                let now: String = hy
+                    .get(*h)
+                    .map(|v| without_nulls(v).to_string())
+                    .unwrap_or_default()
+                    .chars()
+                    .take(300)
+                    .collect();
+                out.push(format!("{h} = {now}"));
+            }
+        } else {
+            let now: String = y
+                .map(|v| without_nulls(v).to_string())
+                .unwrap_or_default()
+                .chars()
+                .take(200)
+                .collect();
+            out.push(format!("{k} = {now}"));
+        }
+    }
+    Some(out.join(", "))
 }
 
 fn find<'a>(s: &'a LunaSnapshot, name: &str) -> Option<&'a PluginInfo> {
@@ -756,6 +848,8 @@ fn run_one(store: &str, store_name: Option<String>, sp: &StorePlugin, pipe: &str
         main.scroll = Some([0.0, 3000.0]);
     }
     luna.sync_dom(tree);
+    settle(&luna, 200);
+    let page_before = overlay_shape(&luna.dom_overlay());
 
     // install + load
     luna.install(&sp.url);
@@ -1042,6 +1136,9 @@ fn run_one(store: &str, store_name: Option<String>, sp: &StorePlugin, pipe: &str
             "still listed".into()
         },
     );
+    // Nothing of it stays in the page: no style, slot, variable or class.
+    settle(&luna, 500);
+    r.leftover = overlay_diff(&page_before, &overlay_shape(&luna.dom_overlay()));
     luna.shutdown();
     r.net = std::mem::take(&mut *host.net.lock().unwrap());
     r.commands = std::mem::take(&mut *host.commands.lock().unwrap());
@@ -1203,4 +1300,172 @@ fn store_sweep() {
     .unwrap();
     eprintln!("sweep: {counts:?} -> {}", out.display());
     assert!(!reports.is_empty(), "no plugins found");
+}
+
+/// One catalogue theme's turn in [`theme_sweep`], in Dark or Light.
+#[derive(Debug, Default, Serialize)]
+struct ThemeReport {
+    name: String,
+    url: String,
+    light: bool,
+    /// "ok", the theme's load error, or "timed out".
+    loaded: String,
+    errors: Vec<String>,
+    /// Hosts the theme restyled, variables it set, its CSS's size.
+    restyled: usize,
+    vars: usize,
+    css_bytes: usize,
+    /// The page differs from the page without a theme.
+    changed: bool,
+    /// What stayed after every theme was turned off, against no theme.
+    leftover_off: Option<String>,
+    /// What the page switched to from the previous theme has that the same
+    /// theme turned on alone has not (the previous theme's leftovers).
+    leftover_switch: Option<String>,
+}
+
+/// Settle with the page synced again, as the window does every frame.
+fn pump(luna: &Luna, tree: &super::dom::HostTree, ms: u64) {
+    let end = Instant::now() + Duration::from_millis(ms);
+    loop {
+        luna.sync_dom(tree.clone());
+        luna.sync(Duration::from_secs(5));
+        if Instant::now() >= end {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// Every catalogue theme, installed the way the Themes tab does (a
+/// colourway with its base), in Dark and in Light, one after the other
+/// (each switch turns the previous theme off): whether it loads, changes the
+/// page, and leaves nothing behind when turned off or switched from, and
+/// whether uninstalling them all gives the page back as it was. Writes
+/// `LUNA_THEME_SWEEP_OUT` (default `<temp>/luna-theme-sweep.json`).
+/// Needs the network: `cargo test --lib luna::sweep::theme_sweep --
+/// --ignored --nocapture`; `LUNA_SWEEP_FILTER=a,b` limits it to names or
+/// URLs containing one of them.
+#[test]
+#[ignore]
+fn theme_sweep() {
+    let filter = std::env::var("LUNA_SWEEP_FILTER").ok();
+    let mut reports = Vec::new();
+    let mut uninstall = BTreeMap::new();
+    for light in [false, true] {
+        let dir =
+            std::env::temp_dir().join(format!("luna-theme-sweep-{}-{light}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let host = Arc::new(SweepHost {
+            snap: Mutex::new(base_snapshot()),
+            ..Default::default()
+        });
+        let mut cfg = LunaConfig::new(dir.clone());
+        cfg.auto_update = false;
+        cfg.default_stores = false;
+        let luna = Luna::start(cfg, host).unwrap();
+        let mut tree = super::dom_anchors::sample_tree();
+        tree.light = light;
+        pump(&luna, &tree, 500);
+        let none = overlay_shape(&luna.dom_overlay());
+        for entry in crate::plugins::store_index::CATALOG.iter().filter(|e| {
+            filter.as_deref().is_none_or(|f| {
+                f.split(',')
+                    .any(|f| e.name.contains(f) || e.url().contains(f))
+            })
+        }) {
+            let url = entry.url();
+            let mut r = ThemeReport {
+                name: entry.name.to_string(),
+                url: url.clone(),
+                light,
+                ..ThemeReport::default()
+            };
+            let seen = luna.snapshot().runtime_log.len();
+            luna.install_theme(&url);
+            let id = super::themes::identity(&url);
+            let (s, done) = wait(&luna, 90.0, |s| {
+                s.themes
+                    .iter()
+                    .any(|t| super::themes::identity(&t.url) == id && !t.loading)
+            });
+            pump(&luna, &tree, 400);
+            let th = s
+                .themes
+                .iter()
+                .find(|t| super::themes::identity(&t.url) == id);
+            r.loaded = match (done, th.and_then(|t| t.error.clone())) {
+                (false, _) => "timed out".into(),
+                (true, Some(e)) => e,
+                (true, None) => "ok".into(),
+            };
+            r.errors = luna
+                .snapshot()
+                .runtime_log
+                .iter()
+                .skip(seen)
+                .filter(|l| l.level == LogLevel::Error)
+                .map(|l| l.message.chars().take(400).collect())
+                .collect();
+            let o = luna.dom_overlay();
+            r.restyled = o
+                .hosts
+                .values()
+                .filter(|h| !h.style.is_empty() || !h.classes.is_empty())
+                .count();
+            r.vars = o.vars.len();
+            r.css_bytes = o.css_bytes;
+            let switched = overlay_shape(&o);
+            r.changed = switched != none;
+            // Every theme off: the page as without one.
+            luna.disable_themes();
+            pump(&luna, &tree, 400);
+            r.leftover_off = overlay_diff(&none, &overlay_shape(&luna.dom_overlay()));
+            // On again alone: as it was when switched to.
+            if let Some(th) = th {
+                luna.set_theme_enabled(&th.url, true);
+                pump(&luna, &tree, 400);
+                r.leftover_switch = overlay_diff(&overlay_shape(&luna.dom_overlay()), &switched);
+            }
+            eprintln!(
+                "{} {:<48} {:<8} changed={} restyled={} vars={} off={:?} switch={:?} errors={}",
+                if light { "L" } else { "D" },
+                r.name,
+                r.loaded,
+                r.changed,
+                r.restyled,
+                r.vars,
+                r.leftover_off,
+                r.leftover_switch,
+                r.errors.len()
+            );
+            reports.push(r);
+        }
+        // Every theme uninstalled: the page as it was.
+        for t in luna.snapshot().themes {
+            luna.uninstall_theme(&t.url);
+        }
+        let (s, _) = wait(&luna, 180.0, |s| s.themes.is_empty());
+        pump(&luna, &tree, 400);
+        uninstall.insert(
+            if light { "light" } else { "dark" },
+            json!({
+                "themes_left": s.themes.len(),
+                "leftover": overlay_diff(&none, &overlay_shape(&luna.dom_overlay())),
+            }),
+        );
+        luna.shutdown();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+    let out = std::env::var("LUNA_THEME_SWEEP_OUT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir().join("luna-theme-sweep.json"));
+    std::fs::write(
+        &out,
+        serde_json::to_string_pretty(&json!({ "themes": reports, "uninstall": uninstall }))
+            .unwrap(),
+    )
+    .unwrap();
+    eprintln!("theme sweep: {} turns -> {}", reports.len(), out.display());
+    assert!(!reports.is_empty(), "no themes matched");
 }
