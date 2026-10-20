@@ -7,7 +7,8 @@ natively, and of every theme in the Plugins page's catalogue. The sweep of
 community stores with a `store.json` release: CIoudGuy, thororen1234,
 ZakME/ScrobbleFix, 0xVacent, SowrenCode, np3ir), 103 store entries, **86
 distinct plugins** (Inrixia's `dev` channel repeats its `latest` plugins with the
-same results). Rounds 6 to 15 re-checked them live; later rounds override earlier
+same results; since 2026-10-21 only `dev` is listed, as TidaLuna does, see "Store
+channels" under History). Rounds 6 to 15 re-checked them live; later rounds override earlier
 ones, and each row says which round last verified it. How a round worked is under
 "History" at the end; the API surface is checked in
 [luna-api-coverage.md](luna-api-coverage.md) (71 rows: 65 works, 6 refused).
@@ -1156,6 +1157,29 @@ above are the current state; this section is the why).
 
 ### Plugin rounds
 
+- **Store channels (2026-10-21).** The built-in store list is TidaLuna's, entry
+  by entry and in its order (`DEFAULT_STORES`, read from the `to(...)` calls
+  in `luna.ui.mjs` of TidaLuna 1.17.1-beta; a test holds a copy of it).
+  Tidalfast had listed Inrixia's store as `releases/download/latest`; TidaLuna
+  lists `releases/download/dev` (and wont-stream's `dev`; every other store is
+  `latest`). The `latest` builds are older (Tidal Tags drew its own bordered
+  quality box next to the pill, the `dev` build writes inside the pill), and
+  every comparison in this file was made against `dev`. Nothing else differs:
+  the same 23 stores, spelled the same. Not in TidaLuna's list and kept on
+  purpose: CIoudGuy's store (pinned, the owner's, `PINNED_STORES`), the
+  catalogue themes and the other community stores of the sweep
+  (`sweep::EXTRA_STORES`; `visiuun` is in TidaLuna's list too).
+  Migration: a saved `stores.json` entry that is exactly the old Inrixia
+  `latest` address becomes `dev` where it stood (one entry if both were
+  listed); a plugin installed from exactly `.../Inrixia/luna-plugins/releases/download/latest/<file>`
+  moves to `.../dev/<file>` in the update check, only when `dev` answers with
+  a plugin of the same name, and then takes the `dev` build through the normal
+  update. Settings, storage, permissions and the enabled state are kept by
+  plugin name, so none of them is touched. A plugin the user installed from
+  any other address, including a fork or another tag, stays where it is
+  (`RETIRED_DEFAULT_STORES`, `migrated_plugin_url`).
+  Of Inrixia's 16 plugins 15 serve a different build on `dev` (SmallWindow is
+  the same file).
 - **Sweep 5 to 8 (2026-10-15).** The whole-store sweep (30 stores, 103 entries,
   87 distinct plugins; `luna::sweep`, ignored, network) runs every plugin
   against a scripted fake host and the DOM bridge. Automatic verdicts by store

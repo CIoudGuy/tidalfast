@@ -78,6 +78,10 @@ pub(crate) enum Fetched {
     UpdateInfo {
         name: String,
         url: String,
+        /// The address the plugin is installed from when `url` is the
+        /// replacement for it ([`super::migrated_plugin_url`]): the record
+        /// moves to `url` only when `url` answers with the same plugin.
+        from: Option<String>,
         /// Install the new build (else only flag it).
         apply: bool,
         result: Result<Value, String>,
@@ -3710,25 +3714,44 @@ impl Engine {
     }
 
     fn check_updates(&self, apply: bool) {
-        let list: Vec<(String, String)> = self
-            .inner
-            .borrow()
-            .records
-            .iter()
-            .filter(|r| r.dev.is_none())
-            .map(|r| (r.name.clone(), r.url.clone()))
-            .collect();
-        for (name, url) in list {
+        let list: Vec<(String, String, Option<String>)> = {
+            let i = self.inner.borrow();
+            let retired: &[(String, String)] = if i.cfg.default_stores {
+                &i.cfg.retired_stores
+            } else {
+                &[]
+            };
+            i.records
+                .iter()
+                .filter(|r| r.dev.is_none())
+                .map(|r| match super::migrated_plugin_url(retired, &r.url) {
+                    // Installed from a store address TidaLuna no longer lists:
+                    // look at the same plugin in its replacement, and move
+                    // there if it is the same plugin (below).
+                    Some(new) => (r.name.clone(), new, Some(r.url.clone())),
+                    None => (r.name.clone(), r.url.clone(), None),
+                })
+                .collect()
+        };
+        for (name, url, from) in list {
             self.spawn_fetch(move |c| Fetched::UpdateInfo {
                 name,
                 url: url.clone(),
+                from,
                 apply,
                 result: get_json(&c, &format!("{url}.json")),
             });
         }
     }
 
-    fn update_info(&self, name: String, url: String, apply: bool, result: Result<Value, String>) {
+    fn update_info(
+        &self,
+        name: String,
+        url: String,
+        from: Option<String>,
+        apply: bool,
+        result: Result<Value, String>,
+    ) {
         let pkg = match result {
             Ok(p) => p,
             Err(e) => {
@@ -3740,6 +3763,38 @@ impl Engine {
                 return;
             }
         };
+        if let Some(from) = from {
+            // The plugin keeps its name, so its settings, storage and
+            // permissions (all kept by name) stay with it; only where it
+            // updates from changes. A replacement that answers with another
+            // plugin, or a record that changed meanwhile, leaves it be.
+            let mut i = self.inner.borrow_mut();
+            let same = pkg["name"].as_str() == Some(name.as_str());
+            let Some(r) = i.record_mut(&name) else {
+                return;
+            };
+            if r.url != from || r.dev.is_some() {
+                return;
+            }
+            if !same {
+                i.log(
+                    Some(&name),
+                    LogLevel::Debug,
+                    format!("Stays on {from}: {url} is another plugin"),
+                );
+                return;
+            }
+            if let Some(r) = i.record_mut(&name) {
+                r.url = url.clone();
+            }
+            i.save_records();
+            i.dirty = true;
+            i.log(
+                Some(&name),
+                LogLevel::Info,
+                format!("Now updates from {url} (TidaLuna's store)"),
+            );
+        }
         let Some(current) = self
             .inner
             .borrow()
@@ -4286,9 +4341,10 @@ impl Engine {
             Msg::Fetched(Fetched::UpdateInfo {
                 name,
                 url,
+                from,
                 apply,
                 result,
-            }) => self.update_info(name, url, apply, result),
+            }) => self.update_info(name, url, from, apply, result),
             Msg::Fetched(Fetched::Dev {
                 source,
                 poll,
@@ -4394,6 +4450,37 @@ impl Engine {
         // What the unloads saved is on disk before the thread ends.
         i.storage.flush();
     }
+}
+
+/// Moves a store saved under a retired default address to its replacement
+/// (Inrixia's `latest` to TidaLuna's `dev`), where it stands in the list. A
+/// list that already has the replacement ends with it once, at the first of
+/// the two places; nothing else in the list is touched. Returns whether
+/// anything changed.
+fn migrate_stores(stores: &mut Vec<String>, retired: &[(String, String)]) -> bool {
+    let mut new_stores: Vec<String> = Vec::with_capacity(stores.len());
+    let mut changed = false;
+    for s in stores.iter() {
+        let target = super::migrated_store(retired, s);
+        let candidate = target.as_deref().unwrap_or(s);
+        let is_replacement = retired
+            .iter()
+            .any(|(_, new)| super::is_same_store(new, candidate));
+        if is_replacement
+            && new_stores
+                .iter()
+                .any(|n| super::is_same_store(n, candidate))
+        {
+            changed = true;
+        } else {
+            changed |= target.is_some();
+            new_stores.push(candidate.to_string());
+        }
+    }
+    if changed {
+        *stores = new_stores;
+    }
+    changed
 }
 
 /// Keeps one record per plugin: records with the same name (any case) or the
@@ -4781,6 +4868,7 @@ fn setup(
         None => Vec::new(),
     };
     let mut stores = stores;
+    let stores_moved = cfg.default_stores && migrate_stores(&mut stores, &cfg.retired_stores);
     let pinned_added = cfg.default_stores && super::ensure_pinned_stores(&mut stores);
     let rt = Runtime::new()?;
     rt.set_memory_limit(cfg.memory_limit);
@@ -4873,7 +4961,7 @@ fn setup(
     }));
     ext::load_saved(&inner);
     inner.borrow_mut().load_source_maps();
-    if pinned_added {
+    if pinned_added || stores_moved {
         inner.borrow_mut().save_stores();
     }
     if records_deduped {

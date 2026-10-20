@@ -85,14 +85,18 @@ pub use settings::{
 
 pub(crate) use runtime::read_capped;
 
-/// The store list TidaLuna ships with (`@luna/ui` PluginStoreTab).
+/// The store list TidaLuna ships with (`@luna/ui` PluginStoreTab), in its
+/// order and with its release channels: Inrixia's store and wont-stream's are
+/// the `dev` build, the rest `latest`. Read from the `to(...)` calls in the
+/// `luna.ui.mjs` of TidaLuna 1.17.1-beta. The `dev` builds are what TidaLuna
+/// users run and what the plugin comparisons were made against.
 pub const DEFAULT_STORES: &[&str] = &[
-    "https://github.com/Inrixia/luna-plugins/releases/download/latest",
     "https://github.com/SuperslowJelly/TIDAL-Clear-Coat/releases/download/latest",
     "https://github.com/meowarex/TidalLuna-Plugins/releases/download/latest",
     "https://github.com/wont-stream/lunar/releases/download/dev",
     "https://github.com/jxnxsdev/luna-plugins/releases/download/latest",
     "https://github.com/espeon/luna-plugins/releases/download/latest",
+    "https://github.com/Inrixia/luna-plugins/releases/download/dev",
     "https://github.com/Aztup/luna-plugins/releases/download/latest",
     "https://github.com/vMohammad24/luna-plugins/releases/download/latest",
     "https://github.com/MathDesigns/luna-plugins/releases/download/latest",
@@ -111,6 +115,39 @@ pub const DEFAULT_STORES: &[&str] = &[
     "https://github.com/visiuun/tidaluna-plugins/releases/download/latest",
     "https://github.com/Kisakay/luna-plugins/releases/download/latest",
 ];
+
+/// Store addresses an earlier Tidalfast listed by default and TidaLuna does
+/// not, each with the address TidaLuna uses for the same store: (old, new).
+/// Inrixia's store was listed as the older `latest` build; TidaLuna lists
+/// `dev`. A saved store list and a plugin installed from exactly an old
+/// address move to the new one (`migrated_store`, `migrated_plugin_url`);
+/// an address the user chose themselves is not in this list.
+pub const RETIRED_DEFAULT_STORES: &[(&str, &str)] = &[(
+    "https://github.com/Inrixia/luna-plugins/releases/download/latest",
+    "https://github.com/Inrixia/luna-plugins/releases/download/dev",
+)];
+
+/// The replacement for a store that is exactly one of the `retired` default
+/// addresses (case, a trailing slash and `/store.json` aside), else `None`.
+pub(crate) fn migrated_store(retired: &[(String, String)], url: &str) -> Option<String> {
+    retired
+        .iter()
+        .find(|(old, _)| is_same_store(old, url))
+        .map(|(_, new)| runtime::normalize_store_url(new))
+}
+
+/// The address of the same plugin in the store that replaced the retired
+/// default store it was installed from: `.../latest/Tidal.Tags` becomes
+/// `.../dev/Tidal.Tags`. Only a plugin URL that is exactly a retired store
+/// plus a file qualifies; a plugin the user installed from any other address
+/// (a fork, a raw GitHub link, another tag) is theirs and is left alone.
+pub(crate) fn migrated_plugin_url(retired: &[(String, String)], url: &str) -> Option<String> {
+    let (store, file) = url.trim().rsplit_once('/')?;
+    if file.is_empty() {
+        return None;
+    }
+    migrated_store(retired, store).map(|new| format!("{new}/{file}"))
+}
 
 /// Stores that are always listed, beside TidaLuna's own: the owner's. They
 /// cannot be removed (the remove command is ignored), and are added back to a
@@ -223,6 +260,11 @@ pub struct LunaConfig {
     pub update_interval: Duration,
     /// Seed the store list with [`DEFAULT_STORES`] on first run.
     pub default_stores: bool,
+    /// Store addresses (old, new) that a saved store list and the plugins
+    /// installed from exactly the old one move away from, while
+    /// [`default_stores`](Self::default_stores) is on
+    /// ([`RETIRED_DEFAULT_STORES`]).
+    pub retired_stores: Vec<(String, String)>,
     /// Luna's local development store (`http://127.0.0.1:3000`), listed
     /// first while it answers; `None` never asks.
     pub dev_store: Option<String>,
@@ -253,6 +295,10 @@ impl LunaConfig {
             auto_update: true,
             update_interval: Duration::from_secs(4 * 60 * 60),
             default_stores: true,
+            retired_stores: RETIRED_DEFAULT_STORES
+                .iter()
+                .map(|(old, new)| (old.to_string(), new.to_string()))
+                .collect(),
             dev_store: Some(DEV_STORE.to_string()),
             watchdog: Duration::from_secs(5),
             wasm_watchdog: Duration::from_secs(30),
