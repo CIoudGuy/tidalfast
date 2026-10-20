@@ -1484,6 +1484,21 @@ pub fn at_within(
     slot(ui, key, position, point, align, false, Some(bounds))
 }
 
+/// How wide what plugins put at `key`/`position` was when last drawn
+/// there; `None` while nothing is there.
+pub fn slot_width(ctx: &egui::Context, key: &str, position: Position) -> Option<f32> {
+    let overlay = plugin_dom::overlay()?;
+    overlay
+        .injected
+        .iter()
+        .any(|i| i.anchor == key && i.position == position && !i.nodes.is_empty())
+        .then(|| {
+            ctx.data(|d| d.get_temp::<Vec2>(egui::Id::new(("luna-slot", key, position as u8))))
+                .map(|v| v.x)
+        })
+        .flatten()
+}
+
 /// [`at`] for an anchor whose box does not clip (TIDAL's player bar cover):
 /// what plugins put there may stand out of the bar (a `position: relative`
 /// offset can lift an element past the bar's top), so it is drawn above
