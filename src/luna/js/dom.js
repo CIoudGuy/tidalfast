@@ -1949,6 +1949,10 @@
 							// ::before / ::after: the stylesheet index keeps
 							// these for the anchors' box layers.
 							if (name === "before" || name === "after") c.peName = name;
+							// A range input's track and thumb, as Chromium and
+							// Firefox name them (HorizontalVolumeSlider's bar).
+							else if (name === "-webkit-slider-runnable-track" || name === "-moz-range-track") c.peName = "track";
+							else if (name === "-webkit-slider-thumb" || name === "-moz-range-thumb") c.peName = "thumb";
 						}
 					} else if (name === "not" || name === "is" || name === "where" || name === "matches" || name === "any") c.pseudos.push({ name: name === "not" ? "not" : name === "where" ? "where" : "is", list: parseSelectors(arg ?? "") });
 					else if (name === "has") c.pseudos.push({ name, list: parseSelectors(arg ?? "", true) });
@@ -3303,6 +3307,11 @@
 		if (/^(input|textarea|select)$/.test(n.localName)) {
 			const t = (n.getAttribute("type") ?? "").toLowerCase();
 			v.value = t === "checkbox" || t === "radio" ? (n.checked ? "true" : "false") : n.value;
+			if (t === "range" && L.css?.rangeParts) {
+				const parts = L.css.rangeParts(n);
+				if (parts?.track) v.track = parts.track;
+				if (parts?.thumb) v.thumb = parts.thumb;
+			}
 		}
 		const kids = [];
 		for (const c of n.childNodes) {

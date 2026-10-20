@@ -2461,3 +2461,59 @@ lib.observe(unloads, '[data-test="sidebar-music"]', (music) => {
     );
     finish(luna, dir);
 }
+
+/// HorizontalVolumeSlider's bar is all in its range input's
+/// `::-webkit-slider-runnable-track` and `::-webkit-slider-thumb` rules: a
+/// 4-pixel track filled white up to `--volume-percentage` (set in the
+/// input's inline style) and 30 % white after it, a 3 x 12 white thumb 4
+/// pixels above the track's top. Pseudo-element rules never reached a
+/// plugin element, so the bar was drawn as egui's own slider.
+#[test]
+fn a_range_inputs_track_and_thumb_rules_reach_the_overlay() {
+    let (luna, _host, dir) = start(
+        r##"
+const style = document.createElement("style");
+style.textContent = `
+.horizontal-volume-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, white var(--volume-percentage), rgba(255,255,255,0.3) var(--volume-percentage)); }
+.horizontal-volume-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 3px; height: 12px;
+  background: white; border-radius: 1px; cursor: pointer; margin-top: -4px; }`;
+document.head.appendChild(style);
+lib.observe(unloads, "[class*='_sliderContainer']", (box) => {
+	if (R.done) return;
+	const range = document.createElement("input");
+	range.type = "range";
+	range.className = "horizontal-volume-slider";
+	range.style.width = "86px";
+	range.style.height = "24px";
+	range.style.setProperty("--volume-percentage", "40%");
+	range.value = "40";
+	box.insertAdjacentElement("afterend", range);
+	R.done = true;
+});
+"##,
+    );
+    luna.sync_dom(tree());
+    let o = overlay_until(&luna, 10, |o| {
+        o.at(keys::SLIDER, Position::After)
+            .any(|n| n.track.is_some())
+    });
+    let range = o
+        .at(keys::SLIDER, Position::After)
+        .find(|n| n.track.is_some())
+        .unwrap();
+    let track = range.track.as_ref().unwrap();
+    assert_eq!(track.height.as_deref(), Some("4px"));
+    let fill = track.background_image.as_deref().unwrap_or("");
+    assert!(
+        fill.contains("white 40%") && fill.contains("0.3) 40%"),
+        "the variable resolves at the input: {fill}"
+    );
+    let thumb = range.thumb.as_ref().unwrap();
+    assert_eq!(thumb.width.as_deref(), Some("3px"));
+    assert_eq!(thumb.height.as_deref(), Some("12px"));
+    assert_eq!(thumb.margin_top.as_deref(), Some("-4px"));
+    // The parts are the input's, not its own box's.
+    assert!(range.style.margin_top.is_none(), "{:?}", range.style);
+    finish(luna, dir);
+}

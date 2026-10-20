@@ -237,6 +237,13 @@ pub struct VNode {
     /// one was unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from: Option<Style>,
+    /// A range input's track as its `::-webkit-slider-runnable-track` rules
+    /// style it (HorizontalVolumeSlider's 4-pixel bar).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub track: Option<Style>,
+    /// A range input's thumb as its `::-webkit-slider-thumb` rules style it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thumb: Option<Style>,
 }
 
 /// Where an injected element sits relative to its host anchor.

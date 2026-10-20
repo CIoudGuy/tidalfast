@@ -1257,7 +1257,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     }
     run.slot(ui, 4, keys::UTILITY_BUTTONS, Position::Append);
     // TIDAL's compact mode: the small player window.
-    if theme::player_icon_button(
+    let compact = theme::player_icon_button(
         ui,
         Icon::PictureInPicture,
         18.0,
@@ -1268,11 +1268,11 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         },
         palette.text,
         &gettext(app.locale, "Compact mode"),
-    )
-    .clicked()
-    {
+    );
+    if compact.clicked() {
         app.actions.push(Action::ToggleCompactMode);
     }
+    plugin_dom::player_part(PlayerPart::MiniPlayer, compact.rect);
     run.slot(ui, 5, keys::SLIDER, Position::After);
     // VolumeScroll takes the wheel over the slider when it listens.
     let plugin_wheel = plugin_dom::listens(keys::SLIDER, "wheel");

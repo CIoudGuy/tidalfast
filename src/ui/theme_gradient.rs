@@ -265,16 +265,21 @@ pub fn mesh(
     };
     let ts = outline.iter().map(|p| along(*p));
     let (lo, hi) = ts.fold((f32::MAX, f32::MIN), |(lo, hi), t| (lo.min(t), hi.max(t)));
-    let colour = |t: f32| {
+    // The colour at `t` inside the band whose middle is `mid`: the band
+    // lies between two stops, and its edges take that stretch's colours, so
+    // two stops at one place (a hard stop: HorizontalVolumeSlider's fill
+    // ending at the volume) change colour at once instead of blending
+    // across the next band.
+    let colour = |t: f32, mid: f32| {
         let first = g.stops[0];
         let last = g.stops[g.stops.len() - 1];
-        if t <= first.0 {
+        if mid <= first.0 {
             return first.1;
         }
-        if t >= last.0 {
+        if mid >= last.0 {
             return last.1;
         }
-        let i = g.stops.iter().rposition(|(at, _)| *at <= t).unwrap_or(0);
+        let i = g.stops.iter().rposition(|(at, _)| *at <= mid).unwrap_or(0);
         let (a, b) = (g.stops[i], g.stops[(i + 1).min(g.stops.len() - 1)]);
         let span = (b.0 - a.0).max(1e-5);
         a.1.lerp_to_gamma(b.1, ((t - a.0) / span).clamp(0.0, 1.0))
@@ -300,7 +305,7 @@ pub fn mesh(
         }
         let first = mesh.vertices.len() as u32;
         for p in &poly {
-            mesh.colored_vertex(*p, colour(along(*p).clamp(a, b)));
+            mesh.colored_vertex(*p, colour(along(*p).clamp(a, b), (a + b) / 2.0));
         }
         for i in 1..poly.len() as u32 - 1 {
             mesh.add_triangle(first, first + i, first + i + 1);
@@ -416,6 +421,30 @@ mod tests {
         let v = painted(&g, 315.0, rect);
         let near = |p: Pos2| v.iter().find(|(q, _)| (*q - p).length() < 0.5).unwrap().1;
         assert_eq!(near(pos2(0.0, 0.0)), BLUE);
+    }
+
+    /// Two stops at one place change colour there at once: red up to 60 %,
+    /// blue after it (HorizontalVolumeSlider's fill). The band after the
+    /// stop blended from red to blue across the rest of the box.
+    #[test]
+    fn a_hard_stop_changes_colour_at_once() {
+        let g = parse("linear-gradient(to right, #ff0000 60%, #0000ff 60%)").unwrap();
+        let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 10.0));
+        let v = painted(&g, g.angle, rect);
+        for (p, c) in &v {
+            if p.x < 59.5 {
+                assert_eq!(*c, RED, "{p:?}");
+            } else if p.x > 60.5 {
+                assert_eq!(*c, BLUE, "{p:?}");
+            }
+        }
+        // The vertices on the stop belong to both bands, one of each colour.
+        let on: Vec<Color32> = v
+            .iter()
+            .filter(|(p, _)| (p.x - 60.0).abs() < 0.5)
+            .map(|(_, c)| *c)
+            .collect();
+        assert!(on.contains(&RED) && on.contains(&BLUE), "{on:?}");
     }
 
     #[test]
