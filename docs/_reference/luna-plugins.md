@@ -106,6 +106,7 @@ hooks, and checks its own `enabled` first so disabled plugins cost nothing. Sugg
 - Reason: workaround for a bug in TIDAL's web player state. Tidalfast owns its engine. Instead, make sure the sink reopens/falls back to the default output device on device loss (`src/sink.rs`, worth a separate robustness ticket, S). No plugin toggle.
 
 ## 8. Song Downloader (won't port)
+- Owner decision (2026-10-20): no native port, but the Luna plugin itself runs once the user allows it to save TIDAL audio (asked at the first download, revocable in its Permissions; unencrypted streams only). See "Permissions a plugin asks for" in `luna-compat.md`.
 - Luna: context-menu "Download N tracks"; saves FLAC (tags embedded) at chosen quality incl. Hi-Res, path template `{artist} - {album} - {title}`, optional RealMAX (swap to the highest-quality version of the track), default folder.
 - Reason: ripping licensed TIDAL streams to files is outside TIDAL's offline licence and conflicts with the project rule "only unencrypted streams, never attempt to decrypt DRM". Not offering it natively, nor RealMAX auto-swap as a download aid. (A separate, legitimate "prefer highest available version of a track when playing" option is possible later, M.)
 
@@ -116,7 +117,7 @@ Descriptions from the records. Effort in brackets if ported; "needs X" = TIDAL f
 - Foukapik: OneClickLyrics (S, shortcut to lyrics view), PlayerKeyScroller (Shift+Left/Right seek, S), HorizontalVolumeSlider (previously installed; Tidalfast already has a slider, wheel covered by #1).
 - jxnxsdev: audiovisualiser (runs as a Luna plugin: its band analysis comes from the live output tap, see `luna-compat.md`), cover-colored-ui (S via `images::accent_color`), custom-fonts (S; `fastframe-fonts` + `system_fonts.rs` exist), fadeout/crossfade (M, sink), lyrics-everywhere (overlap with `ui/lyrics.rs`), miniplayer (won't, Tidalfast has no mini player), playlist-export m3u8 (S), qr-share (S, `qrcode` crate), spinny-cover (S), streamer-tools (won't, web overlay server), syncify and squadgazzz sync plugins (M, import from another service), uwu-ifier (S, joke), tidal-wave (unfinished).
 - meowarex: radiant-lyrics, colorama-lyrics, copy-lyrics, element-hider, obsidian theme, audio-visualizer (Linux only). Lyrics ones overlap `ui/lyrics.rs`.
-- vMohammad24: mpv (won't, replaces player; its `child_process` start is allowed behind a prompt, its IPC pipe is not), noTrack (n/a), QoL, translate, quickExclusiveMode (S if sink exposes exclusive mode), betterFullscreen.
+- vMohammad24: mpv (replaces the player; runs as a Luna plugin once the user allows starting mpv, mpv's pipe and TIDAL's audio, see "Permissions a plugin asks for" in `luna-compat.md`), noTrack (n/a), QoL, translate, quickExclusiveMode (S if sink exposes exclusive mode), betterFullscreen.
 - Others: tidarr-integration (downloader, won't), DownloadManager (Kisakay, FLAC rip, won't), Deleter, Starry Night/Clear-Coat (themes: Tidalfast has `theme.rs`), TidalAPI/TidalMediaControls (Tidalfast already has media controls via `MediaControls`), star-ratings, altplay (Jellyfin), multipleplaylists, up-next, quick-queue, tidal-genres, track-radio, playlist-tools, etc.
 
 ## Suggested build order

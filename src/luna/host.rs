@@ -287,6 +287,28 @@ pub enum NotifyLevel {
     Error,
 }
 
+/// A track's unencrypted TIDAL stream ([`LunaHost::audio_source`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct AudioSource {
+    /// "audio/flac", "audio/mp4", ...
+    pub mime: String,
+    /// "flac", "mp4a.40.2", ...
+    pub codec: String,
+    /// The file name extension for these bytes: "flac", "m4a", "wav".
+    pub extension: String,
+    pub parts: AudioParts,
+}
+
+/// Where a stream's bytes are.
+#[derive(Clone, Debug, PartialEq)]
+pub enum AudioParts {
+    /// Fetched one after another and joined: one URL, or DASH's
+    /// initialisation segment and then its media segments.
+    Urls(Vec<String>),
+    /// Already here (made-up audio for the demo and tests).
+    Bytes(Vec<u8>),
+}
+
 /// A plugin wants to reach outside the app (see [`LunaHost::outbound`]).
 #[derive(Clone, Debug, PartialEq)]
 pub enum NetRequest {
@@ -299,7 +321,8 @@ pub enum NetRequest {
     },
     /// `net.createConnection` to a TCP port.
     Tcp { host: String, port: u16 },
-    /// A local IPC pipe/socket (only `discord-ipc-N` are ever allowed).
+    /// A local IPC pipe/socket: `discord-ipc-N`, or another program's pipe
+    /// the user allowed this plugin to use ([`crate::luna::Access::Pipe`]).
     Ipc { path: String },
     /// `net.createServer().listen(port)` / `http.createServer`: a TCP server
     /// on 127.0.0.1 (never other interfaces); port 0 = any free port.
@@ -424,10 +447,28 @@ pub trait LunaHost: Send + Sync + 'static {
     fn module_properties(&self) -> serde_json::Map<String, Value> {
         serde_json::Map::new()
     }
-    /// TIDAL credentials for `getCredentials()`; `None` (the default) keeps
-    /// the user's token away from plugins.
-    fn credentials(&self) -> Option<Value> {
+    /// TIDAL credentials for `getCredentials()`, for a plugin the user
+    /// allowed to have them ([`crate::luna::Access::Credentials`]; the
+    /// runtime checks that before it asks): the current access token
+    /// (refreshed when it is about to expire), in the shape TidaLuna gives
+    /// (`{ clientId, token, expires, userId, grantedScopes, requestedScopes }`).
+    /// Never log it. `None` (the default): there is none to give. Called on
+    /// a worker thread.
+    fn credentials(&self, _plugin: Option<&str>) -> Option<Value> {
         None
+    }
+    /// A track's TIDAL audio for a plugin the user allowed to save it
+    /// ([`crate::luna::Access::SaveAudio`]; the runtime checks that before
+    /// it asks). Only an unencrypted stream: a protected one (Dolby Atmos,
+    /// any DRM) is an error, never handed out. Called on a worker thread.
+    /// The default has none.
+    fn audio_source(
+        &self,
+        _plugin: Option<&str>,
+        _track_id: &str,
+        _quality: Option<&str>,
+    ) -> Result<AudioSource, String> {
+        Err("TIDAL audio is not available here".into())
     }
     /// Every plugin `fetch` and socket goes through here first (on the Luna
     /// thread for sockets, a worker thread for fetches). `plugin` is the

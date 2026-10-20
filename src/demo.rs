@@ -1778,6 +1778,42 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                     remember: true,
                 });
             }
+            // A plugin asking for a permission at first use (the TIDAL
+            // sign-in, system-wide shortcuts, mpv's pipe, saving audio).
+            "permission-credentials"
+            | "permission-shortcuts"
+            | "permission-pipe"
+            | "permission-audio" => {
+                use crate::luna::Access;
+                let (plugin, access, detail) = match surface {
+                    "permission-credentials" => {
+                        ("@jxnxsdev/discord-utils", Access::Credentials, vec![])
+                    }
+                    "permission-shortcuts" => (
+                        "MediaKeysFixer",
+                        Access::GlobalShortcuts,
+                        vec!["MediaPlayPause".to_string(), "MediaNextTrack".to_string()],
+                    ),
+                    "permission-pipe" => (
+                        "@vmohammad/mpv",
+                        Access::Pipe {
+                            path: if cfg!(windows) {
+                                r"\\.\pipe\mpvserver-1".into()
+                            } else {
+                                "/tmp/node-mpv-1.sock".into()
+                            },
+                        },
+                        vec![],
+                    ),
+                    _ => ("Song Downloader", Access::SaveAudio, vec![]),
+                };
+                app.plugins.demo_permission = Some(crate::luna::PermissionRequest {
+                    id: 1,
+                    plugin: plugin.into(),
+                    access,
+                    detail,
+                });
+            }
             "row-menu" => app.demo_open_menu = true,
             // This computer playing, on whatever page is open: for measuring
             // what a playing song costs outside the now-playing view.
@@ -7791,6 +7827,102 @@ mod tests {
         );
         assert_eq!(app.plugins.demo_answer, Some(ProgramChoice::Deny));
         app.backend.shutdown();
+    }
+
+    /// A plugin asking for a permission at first use: the question says what
+    /// the plugin gets, nothing is answered by showing it, Deny is the
+    /// filled button and has the keyboard focus (Enter denies), each button
+    /// gives its own answer, and Esc denies.
+    #[test]
+    fn the_permission_prompt_says_what_it_gives_and_denies_by_default() {
+        use crate::luna::{Access, PermissionRequest, ProgramChoice};
+        use egui::accesskit::{Action, Role};
+        let request = |access: Access| PermissionRequest {
+            id: 9,
+            plugin: "Plug".into(),
+            access,
+            detail: vec!["MediaPlayPause".into()],
+        };
+        let cases = [
+            (
+                Access::Credentials,
+                "Plug wants your TIDAL sign-in",
+                "act as you on TIDAL and send your sign-in anywhere",
+            ),
+            (
+                Access::GlobalShortcuts,
+                "Plug wants keyboard shortcuts across your whole computer",
+                "MediaPlayPause",
+            ),
+            (
+                Access::Pipe {
+                    path: "/tmp/mpv.sock".into(),
+                },
+                "Plug wants to talk to another program on your computer",
+                "/tmp/mpv.sock",
+            ),
+            (
+                Access::SaveAudio,
+                "Plug wants to save TIDAL songs as files",
+                "This may break TIDAL's terms of use",
+            ),
+        ];
+        let text_of = |tree: &egui::accesskit::TreeUpdate| -> String {
+            tree.nodes
+                .iter()
+                .filter_map(|(_, n)| n.value().or(n.label()).map(str::to_string))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        for (access, title, says) in cases {
+            for (label, expected) in [
+                ("Allow once", ProgramChoice::Once),
+                ("Always allow", ProgramChoice::Always),
+                ("Deny", ProgramChoice::Deny),
+            ] {
+                let (ctx, mut app) = accessible_app("permission-prompt");
+                app.plugins.demo_permission = Some(request(access.clone()));
+                accessible_frame(&ctx, &mut app, vec![]);
+                let tree = accessible_frame(&ctx, &mut app, vec![]);
+                let text = text_of(&tree);
+                assert!(text.contains(title), "{title} in {text}");
+                assert!(text.contains(says), "{says} in {text}");
+                assert!(
+                    app.plugins.demo_permission_answer.is_none(),
+                    "nothing is answered by showing it"
+                );
+                let deny = accessible_node(&tree, "Deny", Role::Button);
+                assert_eq!(tree.focus, deny, "Deny has the keyboard focus");
+                let button = accessible_node(&tree, label, Role::Button);
+                accessible_frame(
+                    &ctx,
+                    &mut app,
+                    vec![accessible_action(button, Action::Click, None)],
+                );
+                assert_eq!(
+                    app.plugins.demo_permission_answer,
+                    Some(expected),
+                    "{label}"
+                );
+                assert!(app.plugins.demo_permission.is_none(), "{label} closes it");
+                app.backend.shutdown();
+            }
+        }
+        // Enter on the focused button, and Esc, deny.
+        for key in [egui::Key::Enter, egui::Key::Escape] {
+            let (ctx, mut app) = accessible_app("permission-prompt-keys");
+            app.plugins.demo_permission = Some(request(Access::Credentials));
+            accessible_frame(&ctx, &mut app, vec![]);
+            accessible_frame(&ctx, &mut app, vec![]);
+            accessible_frame(&ctx, &mut app, vec![keyboard(key, egui::Modifiers::NONE)]);
+            accessible_frame(&ctx, &mut app, vec![]);
+            assert_eq!(
+                app.plugins.demo_permission_answer,
+                Some(ProgramChoice::Deny),
+                "{key:?}"
+            );
+            app.backend.shutdown();
+        }
     }
 
     /// The equalizer card in a demo window: the crossfeed row is there with

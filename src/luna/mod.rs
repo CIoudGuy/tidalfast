@@ -28,6 +28,7 @@
 //!   every [`LunaConfig::update_interval`]; changed code is reloaded (old
 //!   `unloads` run first).
 
+mod audio;
 pub mod author;
 mod caller;
 pub mod canvas;
@@ -39,8 +40,10 @@ pub mod dom;
 pub mod dom_anchors;
 mod fsops;
 pub mod host;
+pub mod hotkeys;
 pub mod import;
 mod net;
+mod permits;
 mod pool;
 pub mod redux;
 mod runtime;
@@ -65,9 +68,11 @@ use std::time::{Duration, SystemTime};
 
 pub use child::{ProgramChoice, ProgramRequest};
 pub use host::{
-    FileDialogRequest, HostCommand, LunaEvent, LunaHost, NetRequest, NetVerdict, NotifyLevel,
-    PlaybackSnapshot, PlaybackState, PrivateUrl, QueueEntry, QueueSource, RepeatMode, WindowState,
+    AudioParts, AudioSource, FileDialogRequest, HostCommand, LunaEvent, LunaHost, NetRequest,
+    NetVerdict, NotifyLevel, PlaybackSnapshot, PlaybackState, PrivateUrl, QueueEntry, QueueSource,
+    RepeatMode, WindowState,
 };
+pub use permits::{Access, PermissionRequest};
 pub use settings::{
     SETTINGS_RETRY, SelectOption, SettingValue, SettingsLink, SettingsMeta, SettingsNode,
 };
@@ -279,6 +284,18 @@ pub enum Permission {
     /// `fetch`, each plugin only after the user said yes
     /// ([`PluginInfo::account_writes`]).
     AccountWrites,
+    /// Was handed the TIDAL sign-in (`getCredentials`), only after the user
+    /// said yes ([`Access::Credentials`]).
+    TidalSignIn,
+    /// Registers keyboard shortcuts across the whole computer, only after
+    /// the user said yes ([`Access::GlobalShortcuts`]).
+    GlobalShortcuts,
+    /// Talks to another program over that program's own pipe or socket,
+    /// each path only after the user said yes ([`Access::Pipe`]).
+    ProgramPipes,
+    /// Gets TIDAL audio to save as files, only after the user said yes
+    /// ([`Access::SaveAudio`]).
+    SaveAudio,
 }
 
 impl Permission {
@@ -294,7 +311,53 @@ impl Permission {
             Permission::AccountWrites => {
                 "Changes your TIDAL playlists and favourites itself (asks you first)"
             }
+            Permission::TidalSignIn => "Uses your TIDAL sign-in (asks you first)",
+            Permission::GlobalShortcuts => {
+                "Uses keyboard shortcuts across your whole computer (asks you first)"
+            }
+            Permission::ProgramPipes => {
+                "Talks to another program over its own pipe or socket (asks you first)"
+            }
+            Permission::SaveAudio => "Saves TIDAL songs as files (asks you first)",
         }
+    }
+
+    /// [`Permission::describe`] in the app's language.
+    pub fn describe_in(self, locale: crate::i18n::Locale) -> String {
+        use crate::i18n::gettext;
+        match self {
+            Permission::Network => gettext(locale, "Connects to the internet"),
+            Permission::LocalIpc => {
+                gettext(locale, "Talks to other apps on this computer (Discord)")
+            }
+            Permission::LocalServer => gettext(
+                locale,
+                "Runs a local server other apps on this computer can use",
+            ),
+            Permission::PluginFiles => gettext(locale, "Stores files in its own data folder only"),
+            Permission::NativeCode => {
+                gettext(locale, "Runs background (native) code in the sandbox")
+            }
+            Permission::Dom => gettext(locale, "Changes the app's look or adds controls"),
+            Permission::RunPrograms => {
+                gettext(locale, "Runs programs on your computer (asks you first)")
+            }
+            Permission::AccountWrites => gettext(
+                locale,
+                "Changes your TIDAL playlists and favourites itself (asks you first)",
+            ),
+            Permission::TidalSignIn => gettext(locale, "Uses your TIDAL sign-in (asks you first)"),
+            Permission::GlobalShortcuts => gettext(
+                locale,
+                "Uses keyboard shortcuts across your whole computer (asks you first)",
+            ),
+            Permission::ProgramPipes => gettext(
+                locale,
+                "Talks to another program over its own pipe or socket (asks you first)",
+            ),
+            Permission::SaveAudio => gettext(locale, "Saves TIDAL songs as files (asks you first)"),
+        }
+        .into_owned()
     }
 }
 
@@ -308,7 +371,7 @@ pub const UNSUPPORTED: &[(&str, &str)] = &[
     ),
     (
         "DownloadManager",
-        "Not supported in Tidalfast: it saves TIDAL songs as files. Use Download in Tidalfast to listen offline",
+        "Not supported in Tidalfast: once installed it froze the app at every start",
     ),
 ];
 
@@ -326,6 +389,10 @@ pub enum Compat {
     NotSupported,
     /// It works, but a named part does not.
     PartlySupported,
+    /// It works once the user gives it a permission Tidalfast asks for
+    /// (the TIDAL sign-in, system-wide shortcuts, a program's pipe, saving
+    /// TIDAL audio); off until then.
+    NeedsPermission,
 }
 
 impl Compat {
@@ -335,6 +402,7 @@ impl Compat {
         match self {
             Compat::NotSupported => gettext(locale, "Not supported"),
             Compat::PartlySupported => gettext(locale, "Partly supported"),
+            Compat::NeedsPermission => gettext(locale, "Needs your permission"),
         }
         .into_owned()
     }
@@ -360,29 +428,33 @@ impl CompatNote {
                 locale,
                 "This build needs TIDAL's own Last.fm key, which Tidalfast does not have.",
             ),
-            "It saves TIDAL songs as files, which Tidalfast does not allow (use Download in Tidalfast to listen offline)." => gettext(
+            "It saves TIDAL songs as files, which it does only after you allow it (this may break TIDAL's terms of use)." => gettext(
                 locale,
-                "It saves TIDAL songs as files, which Tidalfast does not allow (use Download in Tidalfast to listen offline).",
+                "It saves TIDAL songs as files, which it does only after you allow it (this may break TIDAL's terms of use).",
+            ),
+            "Once installed it froze Tidalfast at every start, so Tidalfast keeps it off." => gettext(
+                locale,
+                "Once installed it froze Tidalfast at every start, so Tidalfast keeps it off.",
             ),
             "It needs TIDAL's own remote control code, which Tidalfast does not have." => gettext(
                 locale,
                 "It needs TIDAL's own remote control code, which Tidalfast does not have.",
             ),
-            "It sends your TIDAL sign-in to the author's server, which Tidalfast never allows, so its remote control cannot run." => gettext(
+            "It sends your TIDAL sign-in to its author's server, which it does only after you allow it." => gettext(
                 locale,
-                "It sends your TIDAL sign-in to the author's server, which Tidalfast never allows, so its remote control cannot run.",
+                "It sends your TIDAL sign-in to its author's server, which it does only after you allow it.",
             ),
             "Its mini player is a separate browser window, which Tidalfast does not include." => gettext(
                 locale,
                 "Its mini player is a separate browser window, which Tidalfast does not include.",
             ),
-            "It needs to listen for media keys across the whole computer, which Tidalfast does not allow (Tidalfast has its own media controls)." => gettext(
+            "It takes the media keys across the whole computer, which it does only after you allow it (Windows only)." => gettext(
                 locale,
-                "It needs to listen for media keys across the whole computer, which Tidalfast does not allow (Tidalfast has its own media controls).",
+                "It takes the media keys across the whole computer, which it does only after you allow it (Windows only).",
             ),
-            "It plays through the mpv program and talks to it over a channel Tidalfast does not allow." => gettext(
+            "It plays through mpv, which needs your permission to start mpv, talk to it over its pipe and get TIDAL's audio." => gettext(
                 locale,
-                "It plays through the mpv program and talks to it over a channel Tidalfast does not allow.",
+                "It plays through mpv, which needs your permission to start mpv, talk to it over its pipe and get TIDAL's audio.",
             ),
             "It marks playlists inside TIDAL's web \"add to playlist\" window, which Tidalfast does not have." => gettext(
                 locale,
@@ -414,6 +486,22 @@ struct CompatRow {
     note: CompatNote,
 }
 
+/// A plugin that works once the user allows what it asks for.
+const fn needs_permission(
+    repo: &'static str,
+    name: &'static str,
+    reason: &'static str,
+) -> CompatRow {
+    CompatRow {
+        repo,
+        name,
+        note: CompatNote {
+            level: Compat::NeedsPermission,
+            reason,
+        },
+    }
+}
+
 const fn not_supported(repo: &'static str, name: &'static str, reason: &'static str) -> CompatRow {
     CompatRow {
         repo,
@@ -443,42 +531,42 @@ const COMPAT: &[CompatRow] = &[
     not_supported(
         "Kisakay/luna-plugins",
         "DownloadManager",
-        "It saves TIDAL songs as files, which Tidalfast does not allow (use Download in Tidalfast to listen offline).",
+        "Once installed it froze Tidalfast at every start, so Tidalfast keeps it off.",
     ),
-    not_supported(
+    needs_permission(
         "Inrixia/luna-plugins",
         "Song Downloader",
-        "It saves TIDAL songs as files, which Tidalfast does not allow (use Download in Tidalfast to listen offline).",
+        "It saves TIDAL songs as files, which it does only after you allow it (this may break TIDAL's terms of use).",
     ),
-    not_supported(
+    needs_permission(
         "np3ir/songdownloader-store",
         "SongDownloader ElVigilante",
-        "It saves TIDAL songs as files, which Tidalfast does not allow (use Download in Tidalfast to listen offline).",
+        "It saves TIDAL songs as files, which it does only after you allow it (this may break TIDAL's terms of use).",
     ),
     not_supported(
         "Inrixia/luna-plugins",
         "DesktopConnect",
         "It needs TIDAL's own remote control code, which Tidalfast does not have.",
     ),
-    not_supported(
+    needs_permission(
         "jxnxsdev/luna-plugins",
         "@jxnxsdev/discord-utils",
-        "It sends your TIDAL sign-in to the author's server, which Tidalfast never allows, so its remote control cannot run.",
+        "It sends your TIDAL sign-in to its author's server, which it does only after you allow it.",
     ),
     not_supported(
         "jxnxsdev/luna-plugins",
         "@jxnxsdev/miniplayer",
         "Its mini player is a separate browser window, which Tidalfast does not include.",
     ),
-    not_supported(
+    needs_permission(
         "Aztup/luna-plugins",
         "MediaKeysFixer",
-        "It needs to listen for media keys across the whole computer, which Tidalfast does not allow (Tidalfast has its own media controls).",
+        "It takes the media keys across the whole computer, which it does only after you allow it (Windows only).",
     ),
-    not_supported(
+    needs_permission(
         "vMohammad24/luna-plugins",
         "@vmohammad/mpv",
-        "It plays through the mpv program and talks to it over a channel Tidalfast does not allow.",
+        "It plays through mpv, which needs your permission to start mpv, talk to it over its pipe and get TIDAL's audio.",
     ),
     not_supported(
         "squadgazzz/luna-plugins",
@@ -606,6 +694,10 @@ pub struct PluginInfo {
     /// The user allowed this plugin to change their playlists and
     /// favourites for good; taken back with [`Luna::revoke_account_writes`].
     pub account_writes: bool,
+    /// What else the user allowed this plugin for good (the TIDAL sign-in,
+    /// system-wide shortcuts, a program's pipe, saving TIDAL audio), each
+    /// revocable with [`Luna::revoke_permission`].
+    pub grants: Vec<Access>,
     pub settings: Option<SettingsNode>,
     pub logs: Vec<LogLine>,
     /// Luna's live reload: the published build is checked about once a
@@ -761,6 +853,9 @@ pub struct LunaSnapshot {
     /// Programs plugins are waiting to run, for the user to answer (oldest
     /// first).
     pub program_requests: Vec<ProgramRequest>,
+    /// Permissions plugins are waiting for (the TIDAL sign-in, system-wide
+    /// shortcuts, a program's pipe, saving TIDAL audio), oldest first.
+    pub permission_requests: Vec<PermissionRequest>,
     /// Message boxes plugins are waiting on (`confirm`, `showMessageBox`),
     /// oldest first.
     pub message_boxes: Vec<MessageBox>,
@@ -850,6 +945,21 @@ pub(crate) enum Msg {
     },
     /// The user took back the permission to change their account.
     RevokeAccountWrites(String),
+    /// The user answered a [`PermissionRequest`].
+    PermissionAnswer {
+        id: u64,
+        choice: ProgramChoice,
+    },
+    /// The user took back a permission given with Always.
+    RevokePermission {
+        plugin: String,
+        access: Access,
+    },
+    /// A plugin's system-wide shortcut was pressed.
+    Hotkey {
+        plugin: String,
+        accelerator: String,
+    },
     Fetched(runtime::Fetched),
     Sync(Sender<()>),
     /// A user action plugins may cancel; the reply says whether to go on.
@@ -981,6 +1091,30 @@ impl Luna {
     /// the plugin is asked again.
     pub fn revoke_account_writes(&self, plugin: &str) {
         let _ = self.tx.send(Msg::RevokeAccountWrites(plugin.to_string()));
+    }
+
+    /// The permission question to show the user next, if any. Cheap enough
+    /// to ask every frame.
+    pub fn pending_permission(&self) -> Option<PermissionRequest> {
+        self.shared
+            .lock()
+            .ok()
+            .and_then(|s| s.permission_requests.first().cloned())
+    }
+
+    /// The user answered the question [`Luna::pending_permission`] returned.
+    pub fn answer_permission(&self, id: u64, choice: ProgramChoice) {
+        let _ = self.tx.send(Msg::PermissionAnswer { id, choice });
+    }
+
+    /// Take back a permission given with Always: the plugin is asked again
+    /// (and its system-wide shortcuts, pipe connections or audio downloads
+    /// under it stop).
+    pub fn revoke_permission(&self, plugin: &str, access: &Access) {
+        let _ = self.tx.send(Msg::RevokePermission {
+            plugin: plugin.to_string(),
+            access: access.clone(),
+        });
     }
 
     pub fn snapshot(&self) -> LunaSnapshot {

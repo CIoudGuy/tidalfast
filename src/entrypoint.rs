@@ -60,7 +60,9 @@ struct Cli {
     /// `windows-taskbar`, `german`, `lyrics`, `lyrics-fullscreen`, `collection-loading`, `paused`, `no-playback`,
     /// `shuffle-selected`, `shuffle-started`, `undated-mix`, `signed-out`, `connecting`, `library-list`,
     /// `library-list-narrow`, `library-list-wide`, `library-grid`, `library-grid-narrow`,
-    /// `library-grid-wide`, `collection-sidebar`, `program-prompt`, `activity-past`, `profile-empty` or `profile-plain`.
+    /// `library-grid-wide`, `collection-sidebar`, `program-prompt`, `permission-credentials`,
+    /// `permission-shortcuts`, `permission-pipe`, `permission-audio`, `activity-past`, `profile-empty` or
+    /// `profile-plain`.
     #[cfg(feature = "demo")]
     #[arg(long)]
     demo_show: Option<String>,

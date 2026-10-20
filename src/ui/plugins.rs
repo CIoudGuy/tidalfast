@@ -140,6 +140,9 @@ enum Do {
     /// Take back "Always allow" for a program: plugin name, program path.
     RevokeProgram(String, String),
     RevokeAccountWrites(String),
+    /// Take back a permission given with Always (the TIDAL sign-in,
+    /// system-wide shortcuts, a program's pipe, saving TIDAL audio).
+    RevokePermission(String, crate::luna::Access),
 }
 
 const SUCCESS: Color32 = Color32::from_rgb(0x4c, 0xaf, 0x50);
@@ -349,6 +352,7 @@ fn apply(app: &mut App, runtime: &Luna, out: Vec<Do>) {
             Do::SetHideSettings(name, hide) => runtime.set_hide_settings(&name, hide),
             Do::RevokeProgram(plugin, program) => runtime.revoke_program(&plugin, &program),
             Do::RevokeAccountWrites(plugin) => runtime.revoke_account_writes(&plugin),
+            Do::RevokePermission(plugin, access) => runtime.revoke_permission(&plugin, &access),
             Do::AddStore(url) => runtime.add_store(&url),
             Do::RemoveStore(url) => runtime.remove_store(&url),
             Do::InstallTheme(url) => runtime.install_theme(&url),
@@ -1132,9 +1136,27 @@ fn extras(ui: &mut Ui, palette: &Palette, locale: Locale, info: &PluginInfo, out
                 for permission in &info.permissions {
                     caption(
                         ui,
-                        &format!("• {}", permission.describe()),
+                        &format!("• {}", permission.describe_in(locale)),
                         palette.secondary,
                     );
+                }
+                // The other permissions allowed for good, each revocable.
+                for access in &info.grants {
+                    let (what, hover) = grant_text(locale, access);
+                    ui.horizontal(|ui| {
+                        ui.add_space(14.0);
+                        let font = match access {
+                            crate::luna::Access::Pipe { .. } => egui::FontId::monospace(11.5),
+                            _ => theme::regular(11.5),
+                        };
+                        ui.label(RichText::new(what).font(font).color(palette.dim));
+                        if theme::soft_button(ui, palette, None, &t("Revoke"), false)
+                            .on_hover_text(hover)
+                            .clicked()
+                        {
+                            out.push(Do::RevokePermission(info.name.clone(), access.clone()));
+                        }
+                    });
                 }
                 // Programs allowed for good, each one revocable.
                 for program in &info.programs {
@@ -1182,6 +1204,37 @@ fn extras(ui: &mut Ui, palette: &Palette, locale: Locale, info: &PluginInfo, out
             .show(ui, |ui| log_lines(ui, palette, &info.logs, None));
         }
     });
+}
+
+/// A permission allowed for good, as the plugin's Permissions list it, and
+/// what Revoke does.
+fn grant_text(locale: Locale, access: &crate::luna::Access) -> (String, String) {
+    use crate::luna::Access;
+    let t = |s: &'static str| gettext(locale, s).into_owned();
+    match access {
+        Access::Credentials => (
+            t("Uses your TIDAL sign-in"),
+            t(
+                "Ask again before this plugin gets your TIDAL sign-in. A sign-in it already has stays valid until TIDAL expires it.",
+            ),
+        ),
+        Access::GlobalShortcuts => (
+            t("Keyboard shortcuts across your whole computer"),
+            t(
+                "Ask again before this plugin takes shortcuts across your whole computer; its shortcuts let go now",
+            ),
+        ),
+        Access::Pipe { path } => (
+            path.clone(),
+            t(
+                "Ask again before this plugin talks to the program behind this pipe; its connections close now",
+            ),
+        ),
+        Access::SaveAudio => (
+            t("Saves TIDAL songs as files"),
+            t("Ask again before this plugin saves TIDAL songs; downloads it has running stop now"),
+        ),
+    }
 }
 
 fn log_lines(ui: &mut Ui, palette: &Palette, lines: &[crate::luna::LogLine], plugin: Option<&str>) {

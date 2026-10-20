@@ -156,8 +156,9 @@ Tidalfast runs plugins and themes made for [TidaLuna](https://github.com/Inrixia
 
 - Plugins install over HTTPS only, and the Plugins page shows what each one has done (network, files, programs).
 - A plugin asks before it runs a program, and can write to the clipboard only right after you click or press a key.
+- A plugin also asks before it gets your TIDAL sign-in, saves TIDAL songs as files, takes keyboard shortcuts across your whole computer (Windows) or talks to another program over its pipe. Each is off until you allow it, and an Always allow can be revoked in the plugin's Permissions.
 - Uninstalling a plugin removes the files it saved.
-- Plugin downloaders and anything that touches DRM are not supported.
+- Protected (DRM) streams such as Dolby Atmos are never saved or decrypted.
 
 > [!WARNING]
 > Plugins share one JavaScript engine, as in TidaLuna. Install only plugins you trust.

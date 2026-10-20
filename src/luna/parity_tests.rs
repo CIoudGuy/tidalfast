@@ -538,9 +538,9 @@ export function Settings() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Owner decision: downloader plugins are refused. Kisakay's DownloadManager
-/// (it saves TIDAL songs as files) was offered by the store, and once
-/// installed it froze the app at every start: its store entry is refused,
+/// Kisakay's DownloadManager stays refused, unlike the other downloaders
+/// (they run once the user allows saving TIDAL audio): offered by the store
+/// and installed, it froze the app at every start. Its store entry is refused,
 /// and a copy already installed stays installed but off, with the reason,
 /// and is never loaded.
 #[test]
@@ -577,7 +577,7 @@ fn download_manager_is_refused_and_an_installed_copy_never_loads() {
     });
     let p = plugin(&s, "DownloadManager").unwrap();
     assert!(!p.enabled);
-    assert!(matches!(&p.status, PluginStatus::Failed(m) if m.contains("saves TIDAL songs")));
+    assert!(matches!(&p.status, PluginStatus::Failed(m) if m.contains("froze the app")));
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }

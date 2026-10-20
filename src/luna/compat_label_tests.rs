@@ -319,9 +319,56 @@ fn labels_and_reasons_are_translated() {
         Compat::PartlySupported.label(Locale::German),
         "Teilweise unterstützt"
     );
+    assert_eq!(
+        Compat::NeedsPermission.label(Locale::English),
+        "Needs your permission"
+    );
     for row in COMPAT {
         assert_eq!(row.note.reason_in(Locale::English), row.note.reason);
+        // The reasons written when these plugins became permissions go into
+        // the template and the catalogs together in the next translation
+        // pass (tests/localization.rs keeps them in step); until then they
+        // show in English.
+        if NEW_REASONS.contains(&row.name) {
+            continue;
+        }
         let german = row.note.reason_in(Locale::German);
         assert_ne!(german, row.note.reason, "{} has no translation", row.name);
+    }
+}
+
+/// Rows whose reason is newer than the translations.
+const NEW_REASONS: &[&str] = &[
+    "DownloadManager",
+    "Song Downloader",
+    "SongDownloader ElVigilante",
+    "@jxnxsdev/discord-utils",
+    "MediaKeysFixer",
+    "@vmohammad/mpv",
+];
+
+/// The plugins that run once the user gives them a permission are labelled
+/// so, and the ones Tidalfast still refuses stay "Not supported".
+#[test]
+fn plugins_behind_a_permission_say_so() {
+    let level = |name: &str| COMPAT.iter().find(|r| r.name == name).map(|r| r.note.level);
+    for name in [
+        "Song Downloader",
+        "SongDownloader ElVigilante",
+        "@jxnxsdev/discord-utils",
+        "MediaKeysFixer",
+        "@vmohammad/mpv",
+    ] {
+        assert_eq!(level(name), Some(Compat::NeedsPermission), "{name}");
+    }
+    for name in [
+        "DownloadManager",
+        "DesktopConnect",
+        "TidalMediaControls",
+        "@jxnxsdev/miniplayer",
+        "ScrobbleFix",
+        "@squadgazzz/playlist-indicator",
+    ] {
+        assert_eq!(level(name), Some(Compat::NotSupported), "{name}");
     }
 }

@@ -461,6 +461,153 @@ pub fn program_prompt(app: &mut App, ctx: &egui::Context) {
     }
 }
 
+/// The title and explanation of a permission question, in the app's
+/// language. Each says plainly what the plugin gets.
+pub(crate) fn permission_text(
+    locale: Locale,
+    request: &crate::luna::PermissionRequest,
+) -> (String, String) {
+    use crate::luna::Access;
+    let t = |s: &'static str| gettext(locale, s).replace("{plugin}", &request.plugin);
+    match &request.access {
+        Access::Credentials => (
+            t("{plugin} wants your TIDAL sign-in"),
+            t(
+                "The plugin gets your TIDAL sign-in. It can then act as you on TIDAL and send your sign-in anywhere, including to its author's server. Allow it only if you trust this plugin.",
+            ),
+        ),
+        Access::GlobalShortcuts => (
+            t("{plugin} wants keyboard shortcuts across your whole computer"),
+            t(
+                "Its shortcuts would work while you use other apps, and those keys would no longer reach other apps. Media keys stay shared with Tidalfast's own media controls, and each press counts once.",
+            ),
+        ),
+        Access::Pipe { .. } => (
+            t("{plugin} wants to talk to another program on your computer"),
+            t(
+                "It can send that program commands and read its answers through the pipe or socket below, until the plugin stops.",
+            ),
+        ),
+        Access::SaveAudio => (
+            t("{plugin} wants to save TIDAL songs as files"),
+            t(
+                "The plugin will save TIDAL streams as audio files on your computer. This may break TIDAL's terms of use. Protected streams, such as Dolby Atmos, are never saved.",
+            ),
+        ),
+    }
+}
+
+/// "<plugin> wants your TIDAL sign-in" and the other permissions a plugin
+/// asks for at first use ([`crate::luna::PermissionRequest`]): it says what
+/// the plugin gets, and Deny is the filled button with the keyboard focus.
+/// Esc and clicking outside deny too. Drawn over everything, like the
+/// program prompt (which goes first when both are waiting).
+pub fn permission_prompt(app: &mut App, ctx: &egui::Context) {
+    if app.plugins.pending_program().is_some() {
+        return;
+    }
+    let Some(request) = app.plugins.pending_permission() else {
+        return;
+    };
+    let palette = app.palette;
+    let locale = app.locale;
+    let t = |s: &'static str| gettext(locale, s).into_owned();
+    let frame = Frame::new()
+        .fill(palette.overlay)
+        .stroke(Stroke::new(1.0, palette.outline))
+        .corner_radius(CornerRadius::same(theme::RADIUS + 4))
+        .inner_margin(Margin::same(24))
+        .shadow(egui::epaint::Shadow {
+            offset: [0, 10],
+            blur: 40,
+            spread: 0,
+            color: palette.shadow,
+        });
+    let alpha = if palette.dark { 102 } else { 80 };
+    let (title, body) = permission_text(locale, &request);
+    let mut choice = None;
+    let response = egui::Modal::new(egui::Id::new(("luna-permission-prompt", request.id)))
+        .frame(frame)
+        .backdrop_color(egui::Color32::from_black_alpha(alpha))
+        .show(ctx, |ui| {
+            super::cursor::keep_arrow_around(ui);
+            ui.set_width(440.0_f32.min((ctx.content_rect().width() - 80.0).max(280.0)));
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(&title)
+                        .font(theme::bold(20.0))
+                        .color(palette.text),
+                )
+                .wrap(),
+            );
+            ui.add_space(10.0);
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(&body)
+                        .font(theme::regular(14.0))
+                        .color(palette.text),
+                )
+                .wrap(),
+            );
+            // What exactly: the pipe's path, the shortcuts.
+            let detail = match &request.access {
+                crate::luna::Access::Pipe { path } => Some(path.clone()),
+                _ if !request.detail.is_empty() => Some(request.detail.join(", ")),
+                _ => None,
+            };
+            if let Some(detail) = detail {
+                ui.add_space(10.0);
+                Frame::new()
+                    .fill(palette.surface)
+                    .corner_radius(CornerRadius::same(theme::RADIUS))
+                    .inner_margin(Margin::symmetric(10, 8))
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(detail)
+                                    .font(egui::FontId::monospace(12.0))
+                                    .color(palette.secondary),
+                            )
+                            .wrap(),
+                        );
+                    });
+            }
+            ui.add_space(12.0);
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(t("Allow once lasts until the plugin stops. Always allow can be taken back later in the plugin's Permissions."))
+                        .font(theme::regular(13.0))
+                        .color(palette.secondary),
+                )
+                .wrap(),
+            );
+            ui.add_space(20.0);
+            buttons(ui, |ui| {
+                let deny = theme::pill_button(ui, &palette, &t("Deny"), true);
+                // Deny has the focus: Enter or Space refuses.
+                if ui.ctx().memory(|m| m.focused().is_none()) {
+                    deny.request_focus();
+                }
+                if deny.clicked() {
+                    choice = Some(crate::luna::ProgramChoice::Deny);
+                }
+                if theme::pill_button(ui, &palette, &t("Always allow"), false).clicked() {
+                    choice = Some(crate::luna::ProgramChoice::Always);
+                }
+                if theme::pill_button(ui, &palette, &t("Allow once"), false).clicked() {
+                    choice = Some(crate::luna::ProgramChoice::Once);
+                }
+            });
+        });
+    if response.should_close() {
+        choice = Some(crate::luna::ProgramChoice::Deny);
+    }
+    if let Some(choice) = choice {
+        app.plugins.answer_permission(request.id, choice);
+    }
+}
+
 /// A plugin's question with buttons (`confirm`, `showMessageBox`): its title,
 /// text, and one pill per button, the default one filled. Esc answers
 /// "none", which the plugin reads as its cancel button. Like the program

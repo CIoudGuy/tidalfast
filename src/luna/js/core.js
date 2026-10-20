@@ -1143,6 +1143,12 @@
 	// everything and answers with the button clicked (null: Esc), which the
 	// `dialog` host call hands to the waiting promise.
 	const dialogWaiters = new Map();
+	// A permission the user gives (the TIDAL sign-in, system-wide
+	// shortcuts, another program's pipe, saving TIDAL audio): resolves once
+	// allowed (at once when it already is), rejects with EACCES when
+	// denied. The question is asked by the app (permits.rs); `plugin` is
+	// taken by the caller before any await, and Rust checks it.
+	L.permit = (access) => callOpAsync("permit", { ...access, plugin: access?.plugin ?? null });
 	L.askUser = ({ title = "", message = "", detail = "", buttons, defaultId = 0, cancelId }) =>
 		new Promise((resolve) => {
 			const list = Array.isArray(buttons) && buttons.length ? buttons.map(String) : ["OK"];
@@ -1234,8 +1240,16 @@
 		showErrorBox: (title, content) => void L.askUser({ title: String(title ?? "Error"), message: String(content ?? ""), buttons: ["OK"] }),
 		clipboardWriteText: async (text) => callOp("clipboard", { text: String(text) }),
 		openExternal: async (url) => callOp("open_url", { url: String(url) }),
-		fetchMediaItemStream: async () => {
-			throw new Error("Streaming TIDAL media to plugins is not supported in Tidalfast");
+		// A track's TIDAL audio as a Node Readable, for a plugin the user
+		// allowed to save TIDAL audio (asked here at first use). Only an
+		// unencrypted stream; the plugin never sees a stream URL.
+		fetchMediaItemStream: async (playbackInfo, opts) => {
+			const plugin = L.pluginFromStack() ?? L.running ?? null;
+			const id = playbackInfo?.trackId ?? playbackInfo?.id ?? playbackInfo?.mediaItemId;
+			if (id === undefined || id === null) throw new Error("fetchMediaItemStream needs a track's playback info");
+			await L.permit({ plugin, kind: "save_audio" });
+			const info = await callOpAsync("audio.open", { plugin, id: String(id), quality: playbackInfo?.audioQuality ?? null });
+			return L.node.audioStream(plugin, info, opts);
 		},
 	};
 	nativeExports["@luna/lib.native"] = libNative;
@@ -1661,6 +1675,8 @@
 				return void L.contextMenuClick(arg);
 			case "dialog":
 				return void L.dialogAnswer(arg);
+			case "shortcut":
+				return void L.node.globalShortcutFired(arg);
 			default:
 				throw new Error(`Unknown host call ${kind}`);
 		}

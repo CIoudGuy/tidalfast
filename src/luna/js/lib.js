@@ -828,15 +828,24 @@
 			return this.tidalItem.duration;
 		}
 		async downloadProgress() {
-			return undefined;
+			const plugin = L.pluginFromStack() ?? L.running ?? null;
+			if (plugin === null) return undefined;
+			return callOp("audio.progress", { plugin, id: String(this.id) }) ?? undefined;
 		}
-		async download() {
+		async download(path, audioQuality) {
 			// A plugin that downloads only to analyse the audio, whose
 			// analysis Tidalfast answers from the live output (media.js),
-			// gets nothing saved and no error. Every other download is
-			// refused.
-			if (L.media?.liveAnalysis?.has(L.pluginFromStack())) return;
-			throw new Error("Downloading tracks is not supported in Tidalfast");
+			// gets nothing saved and no error.
+			const plugin = L.pluginFromStack() ?? L.running ?? null;
+			if (L.media?.liveAnalysis?.has(plugin)) return;
+			// Every other download needs the user's permission (asked here
+			// at first use) and goes only where the user picked for this
+			// plugin (otherwise the app asks for a folder first).
+			const target = Array.isArray(path) ? path.filter((p) => p !== undefined && p !== null && p !== "").map(String).join("/") : path;
+			if (typeof target !== "string" || target === "") throw new Error("MediaItem.download needs a file path");
+			await L.permit({ plugin, kind: "save_audio" });
+			const r = await callOpAsync("audio.save", { plugin, id: String(this.id), quality: audioQuality ?? null, path: target });
+			return r?.path;
 		}
 		async fileExtension() {
 			return "flac";
@@ -1336,9 +1345,13 @@
 		},
 	};
 	const ACCOUNT_TOKEN = "tidalfast-account";
+	// The TIDAL sign-in, only for a plugin the user allowed to have it
+	// (asked at first use): TidaLuna's shape, with the current token.
 	const getCredentials = async () => {
-		const c = callOp("credentials", null);
-		if (!c) throw new Error("Tidalfast does not share TIDAL credentials with plugins");
+		const plugin = L.pluginFromStack() ?? L.running ?? null;
+		await L.permit({ plugin, kind: "credentials" });
+		const c = await callOpAsync("host.credentials", { plugin });
+		if (!c) throw new Error("You are not signed in to TIDAL");
 		return c;
 	};
 	// Luna's `Tidal`: PlayState, and TIDAL's feature flags from the store

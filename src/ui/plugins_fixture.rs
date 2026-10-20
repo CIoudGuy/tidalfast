@@ -53,6 +53,7 @@ pub(super) fn installed(p: &StorePlugin, update: bool) -> PluginInfo {
         permissions: vec![],
         programs: vec![],
         account_writes: false,
+        grants: vec![],
         settings: None,
         logs: vec![],
         live_reload: false,

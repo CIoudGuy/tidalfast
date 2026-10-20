@@ -196,6 +196,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     plugins::editor_window(app, ctx);
     dialogs::show(app, ctx);
     dialogs::program_prompt(app, ctx);
+    dialogs::permission_prompt(app, ctx);
     dialogs::plugin_message_box(app, ctx);
     update::show(app, ctx);
     widgets::cancel_drag_on_escape(ctx);

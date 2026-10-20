@@ -1,6 +1,8 @@
 //! Sockets for plugin `.native` code (`net.createConnection`): TCP, and local
 //! IPC to Discord (Windows named pipes `\\?\pipe\discord-ipc-N`, Unix
-//! sockets named `discord-ipc-N`). Each connection runs on its own thread
+//! sockets named `discord-ipc-N`), or to another program's own pipe or
+//! socket once the user allowed that plugin that path (`permits.rs`; the
+//! runtime checks it before [`NetHub::connect`]). Each connection runs on its own thread
 //! with a small current-thread Tokio runtime and reports back to the Luna
 //! thread as [`NetEvent`]s.
 
@@ -112,6 +114,9 @@ pub fn is_discord_ipc_path(path: &str) -> bool {
 pub struct NetHub {
     next: std::sync::Arc<std::sync::atomic::AtomicU32>,
     conns: HashMap<u32, Conn>,
+    /// Connections to another program's pipe, by handle: (plugin, the
+    /// pipe's key as allowed), so a revoke closes exactly those.
+    pipes: HashMap<u32, (String, String)>,
 }
 
 /// Why a free-looking port cannot be bound: on Windows, error 10013
@@ -148,13 +153,18 @@ impl NetHub {
     }
 
     /// Start connecting; events arrive through `notify`.
+    /// `pipe`: the key of another program's pipe the user allowed (the
+    /// caller checked it); without one only Discord's IPC paths connect.
     pub fn connect(
         &mut self,
         plugin: &str,
         target: Target,
+        pipe: Option<String>,
         notify: impl Fn(NetEvent) + Send + 'static,
     ) -> Result<u32, String> {
-        if let Target::Ipc(p) = &target {
+        if let Target::Ipc(p) = &target
+            && pipe.is_none()
+        {
             check_ipc_path(p)?;
         }
         self.room_for(plugin)?;
@@ -167,6 +177,9 @@ impl NetHub {
                 tx,
             },
         );
+        if let Some(key) = pipe {
+            self.pipes.insert(handle, (plugin.to_string(), key));
+        }
         std::thread::Builder::new()
             .name(format!("luna-net-{handle}"))
             .spawn(move || {
@@ -327,6 +340,21 @@ impl NetHub {
     /// The socket's thread finished.
     pub fn forget(&mut self, handle: u32) {
         self.conns.remove(&handle);
+        self.pipes.remove(&handle);
+    }
+
+    /// The user took back `plugin`'s permission for pipe `key`: its
+    /// connections there close.
+    pub fn close_pipe(&mut self, plugin: &str, key: &str) {
+        let handles: Vec<u32> = self
+            .pipes
+            .iter()
+            .filter(|(_, (p, k))| p == plugin && k == key)
+            .map(|(h, _)| *h)
+            .collect();
+        for h in handles {
+            self.close(h);
+        }
     }
 
     pub fn close_plugin(&mut self, plugin: &str) {
@@ -548,6 +576,7 @@ mod tests {
                     host: "127.0.0.1".into(),
                     port: 9,
                 },
+                None,
                 |_| {},
             )
             .unwrap_err();
@@ -570,6 +599,7 @@ mod tests {
                     host: "127.0.0.1".into(),
                     port: 9,
                 },
+                None,
                 |_| {},
             )
             .unwrap();

@@ -83,7 +83,12 @@ Tidalfast connects only to the services below.
 - **TidaLuna plugins (optional, off by default).** Plugins you install after
   turning on **Enable TidaLuna plugins** run with the permissions they list
   and may contact the services they were written for (a Discord status plugin
-  talks to your local Discord app, for example).
+  talks to your local Discord app, for example). A plugin gets your TIDAL
+  sign-in, TIDAL's audio, keyboard shortcuts across the whole computer or a
+  connection to another program on your computer only after you allow it in
+  a question the app asks; a sign-in you allowed can be sent wherever the
+  plugin sends it. Answers given with Always allow can be taken back in the
+  plugin's Permissions.
 
 Links you open from the app, such as this website,
 open in your browser.
