@@ -168,7 +168,11 @@ fn read_capped(
     }
     loop {
         if ticket.as_ref().is_some_and(Ticket::cancelled) {
-            drop(file.take());
+            // What was spooled so far goes with it.
+            if let Some((f, path)) = file.take() {
+                drop(f);
+                let _ = std::fs::remove_file(path);
+            }
             return Err("fetch failed: the plugin stopped".into());
         }
         let n = match body.read(&mut buf) {
@@ -319,16 +323,21 @@ impl Drop for Ticket {
 mod tests {
     use super::*;
 
-    /// A body that arrives in pieces, and can wait on a gate between them.
+    /// A body that arrives in pieces. With `reads`, each piece waits until
+    /// the test allows one more (the count goes down by one per piece), so
+    /// the test decides how far the download gets, whatever the load.
     struct Slow {
         left: usize,
-        gate: Option<Arc<AtomicBool>>,
+        reads: Option<Arc<std::sync::atomic::AtomicUsize>>,
     }
 
     impl Read for Slow {
         fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-            if let Some(g) = &self.gate {
-                while !g.load(Ordering::Relaxed) {
+            if let Some(reads) = &self.reads {
+                while reads
+                    .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1))
+                    .is_err()
+                {
                     std::thread::sleep(Duration::from_millis(2));
                 }
             }
@@ -354,7 +363,7 @@ mod tests {
         let body = read_body(
             Slow {
                 left: 1000,
-                gate: None,
+                reads: None,
             },
             Some(1000),
             Some("p"),
@@ -378,7 +387,7 @@ mod tests {
         let Body::File { token, size: got } = read_body(
             Slow {
                 left: size,
-                gate: None,
+                reads: None,
             },
             Some(size as u64),
             Some("@a/b"),
@@ -411,7 +420,7 @@ mod tests {
             read_body(
                 Slow {
                     left: 0,
-                    gate: None
+                    reads: None
                 },
                 Some(MAX_DOWNLOAD + 1),
                 None,
@@ -424,7 +433,7 @@ mod tests {
         let r = read_capped(
             Slow {
                 left: cap as usize + 1,
-                gate: None,
+                reads: None,
             },
             None,
             None,
@@ -439,16 +448,21 @@ mod tests {
 
     #[test]
     fn a_download_shows_its_progress_and_stops_with_its_plugin() {
+        use std::sync::atomic::AtomicUsize;
         let d = dir("stop");
-        let gate = Arc::new(AtomicBool::new(true));
-        let g = gate.clone();
+        // Pieces of 64 KB: enough of them to pass the spool line, so the
+        // download is on disk when it is stopped.
+        const PIECE: usize = 64 << 10;
+        let allowed = SPOOL_AT / PIECE + 2;
+        let reads = Arc::new(AtomicUsize::new(allowed));
+        let r2 = reads.clone();
         let d2 = d.clone();
         let size = SPOOL_AT * 2;
         let run = std::thread::spawn(move || {
             read_body(
                 Slow {
                     left: size,
-                    gate: Some(g),
+                    reads: Some(r2),
                 },
                 Some(size as u64),
                 Some("@stop/me"),
@@ -456,21 +470,30 @@ mod tests {
                 &d2,
             )
         });
-        // It shows up once it is under way.
-        let mut seen = None;
-        for _ in 0..500 {
-            seen = active().into_iter().find(|p| p.plugin == "@stop/me");
-            if seen.as_ref().is_some_and(|p| p.received > 0) {
-                break;
+        // It shows up once it is under way, and holds still once it has
+        // read every piece it was allowed: the next read waits.
+        let end = std::time::Instant::now() + Duration::from_secs(60);
+        let seen = loop {
+            let seen = active().into_iter().find(|p| p.plugin == "@stop/me");
+            if let Some(p) = seen.filter(|p| p.received == (allowed * PIECE) as u64) {
+                break p;
             }
+            assert!(
+                std::time::Instant::now() < end,
+                "listed while it runs: {:?}",
+                active()
+            );
             std::thread::sleep(Duration::from_millis(2));
-        }
-        let seen = seen.expect("listed while it runs");
+        };
         assert_eq!(seen.total, Some(size as u64));
         assert_eq!(seen.url, "https://example.com/model.onnx");
-        gate.store(false, Ordering::Relaxed);
+        assert_eq!(
+            std::fs::read_dir(&d).map(|r| r.count()).unwrap_or(0),
+            1,
+            "past the spool line, on disk"
+        );
         stop_plugin("@stop/me");
-        gate.store(true, Ordering::Relaxed);
+        reads.store(usize::MAX, Ordering::SeqCst);
         let r = run.join().unwrap();
         assert!(r.unwrap_err().contains("stopped"));
         assert!(
@@ -492,7 +515,7 @@ mod tests {
         let Body::File { token, .. } = read_body(
             Slow {
                 left: size,
-                gate: None,
+                reads: None,
             },
             None,
             Some("@left/x"),
