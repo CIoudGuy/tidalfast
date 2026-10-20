@@ -189,6 +189,36 @@ pub fn read_moov(reader: &mut (impl Read + Seek)) -> Option<Vec<u8>> {
     None
 }
 
+/// Whether every sample table in `moov` (the body of a `moov` box) has room
+/// for the entries its count claims. symphonia sets aside memory for the
+/// count before it reads one entry, so a damaged count of four billion
+/// asks for tens of gigabytes, and a failed allocation ends the app.
+pub fn sample_tables_fit(moov: &[u8]) -> bool {
+    let holds = |body: &[u8], at: usize, entry: usize| {
+        let Some(count) = body.get(at..at + 4) else {
+            // Too short to have a count: symphonia stops there itself.
+            return true;
+        };
+        let count = u32::from_be_bytes([count[0], count[1], count[2], count[3]]) as usize;
+        count
+            .checked_mul(entry)
+            .is_some_and(|need| need <= body.len() - (at + 4))
+    };
+    children(moov)
+        .filter(|(kind, _)| kind == b"trak")
+        .filter_map(|(_, trak)| child(child(child(trak, b"mdia")?, b"minf")?, b"stbl"))
+        .all(|stbl| {
+            children(stbl).all(|(kind, body)| match &kind {
+                // One size for every sample has no table.
+                b"stsz" => body.get(4..8).is_some_and(|size| size != [0; 4]) || holds(body, 8, 4),
+                b"stco" => holds(body, 4, 4),
+                b"co64" | b"stts" => holds(body, 4, 8),
+                b"stsc" => holds(body, 4, 12),
+                _ => true,
+            })
+        })
+}
+
 /// What to cut, from the sound track's edit list (`trak/edts/elst`) or,
 /// when that cuts nothing, from iTunes' `iTunSMPB` tag. `moov` is the
 /// body of a `moov` box.

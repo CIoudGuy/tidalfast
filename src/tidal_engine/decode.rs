@@ -1152,6 +1152,12 @@ struct Media {
 impl Media {
     fn open(download: &Download, mime: &str, cancel: &AtomicBool) -> Result<Self> {
         let mp4 = mime.contains("mp4") || mime.contains("m4a") || mime.starts_with("mp4a");
+        if mp4 {
+            let (mut reader, _) = download.reader(true);
+            if dash::read_moov(&mut reader).is_some_and(|moov| !dash::sample_tables_fit(&moov)) {
+                bail!("the stream's index is damaged");
+            }
+        }
         // MP4 is opened as a stream: a seekable source makes symphonia walk
         // every top-level box first, which for DASH means every segment.
         // A file with its index at the end needs the walk, so falls back.
@@ -1725,6 +1731,35 @@ pub(crate) mod tests {
         let moved = at - onset(&later);
         assert!((2_204..=2_206).contains(&moved), "after a seek: {moved}");
         assert!(later.len().abs_diff(44_100 - 2_205) <= 1, "{}", later.len());
+    }
+
+    /// A sample time table that claims four billion entries in a box of a
+    /// few dozen bytes is a damaged stream, and the track fails. symphonia
+    /// set aside room for the count before reading any of it, and the
+    /// 34 GB it asked for ended the app.
+    #[test]
+    fn a_sample_table_count_past_its_box_fails_the_track() {
+        let mut file = include_bytes!("fixtures/aac-lc.mp4").to_vec();
+        let at = file
+            .windows(4)
+            .position(|kind| kind == b"stts")
+            .expect("a sample time table");
+        file[at + 8..at + 12].copy_from_slice(&u32::MAX.to_be_bytes());
+        let mut track = mp4_stream(&file, 0);
+        loop {
+            match track.wait(Duration::from_secs(10)) {
+                Poll::Failed(error) => {
+                    assert!(error.contains("damaged"), "{error}");
+                    break;
+                }
+                Poll::Pending => {}
+                other => panic!("unexpected {other:?}"),
+            }
+        }
+        let mut reader = std::io::Cursor::new(include_bytes!("fixtures/aac-lc.mp4"));
+        assert!(dash::sample_tables_fit(
+            &dash::read_moov(&mut reader).unwrap()
+        ));
     }
 
     /// TIDAL's Low is HE-AAC: an AAC-LC core at 22.05 kHz and SBR data that
