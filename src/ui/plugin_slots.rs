@@ -2433,22 +2433,20 @@ fn box_shape(
         return egui::Shape::Vec(shapes);
     }
     let w = t;
-    if radius > 0.0 || e.dash.is_some() {
-        if e.colours.iter().all(|k| *k == e.colours[0]) {
-            let mut path: Vec<Pos2> = rounded_points(r.shrink(w / 2.0), radius - w / 2.0)
-                .into_iter()
-                .map(at)
-                .collect();
-            let stroke = Stroke::new(w, e.colours[0]);
-            match e.dash {
-                Some((dash, gap)) => {
-                    path.push(path[0]);
-                    shapes.extend(egui::Shape::dashed_line(&path, stroke, dash, gap));
-                }
-                None => shapes.push(egui::Shape::closed_line(path, stroke)),
+    if (radius > 0.0 || e.dash.is_some()) && e.colours.iter().all(|k| *k == e.colours[0]) {
+        let mut path: Vec<Pos2> = rounded_points(r.shrink(w / 2.0), radius - w / 2.0)
+            .into_iter()
+            .map(at)
+            .collect();
+        let stroke = Stroke::new(w, e.colours[0]);
+        match e.dash {
+            Some((dash, gap)) => {
+                path.push(path[0]);
+                shapes.extend(egui::Shape::dashed_line(&path, stroke, dash, gap));
             }
-            return egui::Shape::Vec(shapes);
+            None => shapes.push(egui::Shape::closed_line(path, stroke)),
         }
+        return egui::Shape::Vec(shapes);
     }
     let k = corners(r.shrink(w / 2.0));
     for side in 0..4 {
