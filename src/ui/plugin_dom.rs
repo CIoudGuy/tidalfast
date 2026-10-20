@@ -444,17 +444,22 @@ pub fn end_frame(ctx: &egui::Context) {
                 _ => true,
             };
             if send {
+                // `:hover` was worked out this frame from the boxes sent
+                // before: once more with these, or a list that scrolled
+                // under a still pointer (scroll-to-playing's auto-scroll)
+                // keeps quick-queue's button on the row that was there.
+                // With the pointer outside the window, or the same boxes
+                // (the clock's text changed), the answer cannot change.
+                let rehover = s.overlay.hover
+                    && ctx.input(|i| i.pointer.hover_pos()).is_some()
+                    && s.sent.as_ref().is_none_or(|old| !same_boxes(old, &tree));
                 if let Some(luna) = &s.luna {
                     luna.sync_dom(tree.clone());
                 }
                 s.sent = Some(tree);
                 s.sent_at = Some(Instant::now());
                 s.last_frame = Some(frame.clone());
-                // `:hover` was worked out this frame from the boxes sent
-                // before: once more with these, or a list that scrolled
-                // under a still pointer (scroll-to-playing's auto-scroll)
-                // keeps quick-queue's button on the row that was there.
-                if s.overlay.hover {
+                if rehover {
                     ctx.request_repaint();
                 }
             }
@@ -838,6 +843,16 @@ fn same_but_rects(a: &HostTree, b: &HostTree) -> bool {
                 && x.text == y.text
                 && x.value == y.value
         })
+}
+
+/// The trees have the same anchors in the same boxes (what `:hover` is
+/// worked out from), whatever their text and attributes.
+fn same_boxes(a: &HostTree, b: &HostTree) -> bool {
+    a.nodes.len() == b.nodes.len()
+        && a.nodes
+            .iter()
+            .zip(&b.nodes)
+            .all(|(x, y)| x.key == y.key && x.rect == y.rect)
 }
 
 /// TIDAL's `location.pathname` for a page.
@@ -5434,16 +5449,27 @@ mod tests {
             }));
             let ctx = egui::Context::default();
             let mut out = None;
-            // The first frame always asks for another; the second sends
-            // boxes again (the window changed size).
-            for size in [
-                [800.0, 600.0],
-                [800.0, 600.0],
-                [800.0, 600.0],
-                [900.0, 600.0],
-            ] {
-                test_viewport(size);
-                let mut o = ctx.run_ui(egui::RawInput::default(), |ui| {
+            // The first frame always asks for another; the last sends
+            // boxes again (the bar moved under the still pointer, with a
+            // new song, so it goes at once).
+            for (step, y) in [500.0, 500.0, 500.0, 510.0].into_iter().enumerate() {
+                note(|f| {
+                    f.viewport = [800.0, 600.0];
+                    f.player = Some(dom_anchors::PlayerBar {
+                        rect: Some([0.0, y, 800.0, 90.0]),
+                        title: if step == 3 { "Two" } else { "One" }.into(),
+                        ..Default::default()
+                    });
+                });
+                let input = egui::RawInput {
+                    events: if step == 0 {
+                        vec![egui::Event::PointerMoved(egui::pos2(400.0, 520.0))]
+                    } else {
+                        Vec::new()
+                    },
+                    ..Default::default()
+                };
+                let mut o = ctx.run_ui(input, |ui| {
                     let _ = ui;
                     end_frame(&ctx);
                 });
@@ -5795,6 +5821,66 @@ mod tests {
                 .iter()
                 .any(|n| n.text.as_deref() == Some("Two"))
         );
+        test_overlay(None);
+    }
+
+    /// Under a theme's `:hover` rules, a tree sent because the player's
+    /// clock moved asks for no second pass when nothing under the pointer
+    /// can have changed: the pointer is outside the window, or every box is
+    /// where it was. A box that moved under the pointer still gets one.
+    #[test]
+    fn hover_rules_ask_again_only_when_a_box_moved_under_the_pointer() {
+        test_overlay(Some(DomOverlay {
+            version: 1,
+            hover: true,
+            ..DomOverlay::default()
+        }));
+        let ctx = egui::Context::default();
+        let mut time = 0.0;
+        let mut pass = |pointer: Option<egui::Pos2>, y: f32, seconds: f32| {
+            time += 1.0;
+            let sent_before = with(|s| s.sent_at);
+            ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(800.0, 600.0),
+                    )),
+                    time: Some(time),
+                    events: pointer
+                        .map(|p| vec![egui::Event::PointerMoved(p)])
+                        .unwrap_or_default(),
+                    ..Default::default()
+                },
+                |ui| {
+                    note(|f| {
+                        f.viewport = [800.0, 600.0];
+                        f.player = Some(dom_anchors::PlayerBar {
+                            rect: Some([0.0, y, 800.0, 90.0]),
+                            title: "One".into(),
+                            playing: true,
+                            position: seconds,
+                            duration: 200.0,
+                            ..Default::default()
+                        });
+                    });
+                    end_frame(ui.ctx());
+                },
+            )
+            .textures_delta
+            .clear();
+            assert_ne!(with(|s| s.sent_at), sent_before, "each pass sends a tree");
+            // egui reports a pass's causes during the pass after it.
+            let _ = ctx.run_ui(egui::RawInput::default(), |_| {});
+            ctx.repaint_causes()
+                .iter()
+                .any(|cause| cause.file.replace('\\', "/").ends_with("ui/plugin_dom.rs"))
+        };
+        assert!(!pass(None, 500.0, 1.0), "the first tree, no pointer");
+        assert!(!pass(None, 500.0, 2.0), "the clock moved, no pointer");
+        let inside = Some(egui::pos2(400.0, 520.0));
+        assert!(!pass(inside, 500.0, 3.0), "the clock moved, same boxes");
+        assert!(pass(inside, 510.0, 4.0), "the bar moved under the pointer");
         test_overlay(None);
     }
 
