@@ -24,6 +24,7 @@ mod keys;
 pub mod library;
 pub mod login;
 mod luna_canvas;
+pub(crate) mod luna_settings;
 mod luna_video;
 mod lyrics;
 pub mod lyrics_follow;

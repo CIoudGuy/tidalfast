@@ -4744,6 +4744,17 @@ fn fonts_tick(ctx: &egui::Context) {
                 list
             }
         };
+        // MUI's font, once a plugin's settings in `@luna/ui`'s look were
+        // drawn.
+        let elements = if super::luna_settings::font_wanted()
+            && !elements.iter().any(|e| e == super::luna_settings::MUI_FONT)
+        {
+            let mut more = (*elements).clone();
+            more.push(super::luna_settings::MUI_FONT.to_string());
+            Arc::new(more)
+        } else {
+            elements
+        };
         let o = &s.overlay;
         // Hashed as written, so nothing is parsed per frame: the page's
         // families are read below only once the fonts change.
