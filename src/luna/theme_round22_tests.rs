@@ -187,10 +187,12 @@ fn the_play_queue_is_tidals_side_panel_and_themes_reach_it() {
         o.hosts[QUEUE_WRAPPER].style.color.as_deref(),
         Some("#fedcba")
     );
-    // The backdrop's brightness is a dark veil under the panel's fill.
+    // The backdrop's brightness darkens only what shows through the
+    // panel: under this opaque fill nothing does, so no veil is laid over
+    // it (round 23: it darkened the fill itself).
     let layers = box_layers(panel, &o.vars, [2137.0, 1183.0]);
     assert!(
-        layers.iter().any(|l| matches!(
+        !layers.iter().any(|l| matches!(
             l,
             BoxLayer::Fill(c, _) if *c == egui::Color32::from_black_alpha(64)
         )),
