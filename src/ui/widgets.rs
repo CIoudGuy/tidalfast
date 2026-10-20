@@ -660,6 +660,11 @@ pub(crate) fn menu_row_tinted(
     close: bool,
     tint: Option<Color32>,
 ) -> (egui::Response, bool) {
+    // The words a plugin wrote over the row's DOM label (a translation);
+    // the DOM keeps the native label.
+    let native = label;
+    let label = super::plugin_dom::next_menu_label(native);
+    let label = label.as_ref();
     let need = ui
         .painter()
         .layout_no_wrap(label.to_string(), theme::semibold(12.0), palette.text)
@@ -730,7 +735,7 @@ pub(crate) fn menu_row_tinted(
         crate::autoscroll::row(ui, &response);
     }
     // Luna's `[data-test=contextmenu]` items.
-    super::plugin_dom::menu_item(ui, label, enabled, &response);
+    super::plugin_dom::menu_item(ui, native, enabled, &response);
     let clicked = enabled && response.clicked();
     if clicked && close {
         ui.close();
@@ -2822,13 +2827,14 @@ fn tidal_row_cells(
         );
         child.set_clip_rect(artist_rect.intersect(ui.clip_rect()));
         let PlayableItem::Track(track) = row.item;
-        artist_links_clipped(
-            &mut child,
-            app,
-            &track.artists,
-            text_font.clone(),
-            artist_color,
-        );
+        let list = super::plugin_dom::on().then(|| super::plugin_dom::list_id(row.context));
+        let artists = match &list {
+            Some(list) => super::plugin_dom::artist_names(&track.artists, |i| {
+                crate::luna::dom_anchors::keys::row_cell(list, row.index, &format!("artist:{i}"))
+            }),
+            None => std::borrow::Cow::Borrowed(track.artists.as_slice()),
+        };
+        artist_links_clipped(&mut child, app, &artists, text_font.clone(), artist_color);
         x += cols.artist;
     }
     // Album.
@@ -2843,13 +2849,17 @@ fn tidal_row_cells(
                     .layout(Layout::left_to_right(Align::Center)),
             );
             child.set_clip_rect(album_rect.intersect(ui.clip_rect()));
-            if theme::link(
-                &mut child,
-                album.name.clone(),
-                text_font.clone(),
-                album_color,
-            )
-            .clicked()
+            let name = if super::plugin_dom::on() {
+                let key = crate::luna::dom_anchors::keys::row_cell(
+                    &super::plugin_dom::list_id(row.context),
+                    row.index,
+                    "album-link",
+                );
+                super::plugin_dom::text(&key, &album.name).into_owned()
+            } else {
+                album.name.clone()
+            };
+            if theme::link(&mut child, name, text_font.clone(), album_color).clicked()
                 && !album.id.is_empty()
             {
                 app.actions

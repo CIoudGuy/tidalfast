@@ -1170,7 +1170,7 @@ pub fn top_tracks(app: &mut App, ui: &mut egui::Ui, id: &str) {
     let title_rect = ui.painter().text(
         heading.left_center(),
         egui::Align2::LEFT_CENTER,
-        title.as_ref(),
+        super::plugin_dom::page_title_text(title.as_ref()),
         theme::bold(27.0),
         palette.text,
     );
@@ -1263,7 +1263,7 @@ pub fn section(app: &mut App, ui: &mut egui::Ui, id: &str, section: ArtistSectio
     let title_rect = ui.painter().text(
         heading.left_center(),
         egui::Align2::LEFT_CENTER,
-        title.as_ref(),
+        super::plugin_dom::page_title_text(title.as_ref()),
         theme::bold(27.0),
         palette.text,
     );

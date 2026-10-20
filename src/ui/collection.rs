@@ -219,7 +219,7 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
     let mut title_size: f32 = if cover_size > 200.0 { 32.0 } else { 24.0 };
     let title = loop {
         let galley = ui.painter().layout_no_wrap(
-            hero.title.to_string(),
+            super::plugin_dom::page_title_text(hero.title).into_owned(),
             theme::bold(title_size),
             hero.title_color.unwrap_or(palette.text),
         );
@@ -3394,7 +3394,7 @@ pub fn liked(app: &mut App, ui: &mut egui::Ui) {
     let title_rect = ui.painter().text(
         heading.left_center(),
         egui::Align2::LEFT_CENTER,
-        gettext(locale, "Tracks"),
+        super::plugin_dom::page_title_text(&liked_title),
         theme::bold(27.0),
         palette.text,
     );

@@ -949,6 +949,48 @@ pub fn page_title(ui: &mut egui::Ui, title: &str, r: Rect, alone: bool) -> f32 {
     x
 }
 
+/// Artist links with the names plugins wrote over their DOM links (a
+/// translation, uwu-ifier), `key(i)` being the `i`th link's anchor; the
+/// links themselves unchanged while no plugin touched them.
+pub fn artist_names<'a>(
+    artists: &'a [crate::api::models::ArtistRef],
+    key: impl Fn(usize) -> String,
+) -> Cow<'a, [crate::api::models::ArtistRef]> {
+    if !on() {
+        return Cow::Borrowed(artists);
+    }
+    let written: Vec<Option<String>> = artists
+        .iter()
+        .enumerate()
+        .map(|(i, a)| match text(&key(i), &a.name) {
+            Cow::Owned(name) => Some(name),
+            Cow::Borrowed(_) => None,
+        })
+        .collect();
+    if written.iter().all(Option::is_none) {
+        return Cow::Borrowed(artists);
+    }
+    Cow::Owned(
+        artists
+            .iter()
+            .zip(written)
+            .map(|(a, name)| {
+                let mut a = a.clone();
+                if let Some(name) = name {
+                    a.name = name;
+                }
+                a
+            })
+            .collect(),
+    )
+}
+
+/// The page's `h1` as a plugin left it (a translation, uwu-ifier), else
+/// `native`. The anchor keeps the native title ([`page_title`]).
+pub fn page_title_text(native: &str) -> Cow<'_, str> {
+    text(dom_anchors::keys::PAGE_TITLE, native)
+}
+
 /// An album or playlist header: its `_dataContainer_` and, when it has one,
 /// the meta line with the release date.
 pub fn page_header(data: Rect, meta: Option<(Rect, &str)>) {
@@ -2371,6 +2413,18 @@ pub fn fill_row(
         id: a.id.clone(),
         name: a.name.clone(),
     });
+}
+
+/// The label of the next row of the open context menu as a plugin left it
+/// on the row's DOM label (a translation, uwu-ifier), else `native`.
+pub fn next_menu_label(native: &str) -> Cow<'_, str> {
+    if !on() {
+        return Cow::Borrowed(native);
+    }
+    let key = with(|s| {
+        dom_anchors::keys::menu_item(s.frame.context_menu.as_ref().map_or(0, |m| m.items.len()))
+    });
+    text(&format!("{key}:label"), native)
 }
 
 /// A theme's style for the next row of the open context menu (see
@@ -4896,6 +4950,82 @@ mod tests {
             },
             ..HostOverride::default()
         }));
+    }
+
+    /// uwu-ifier and korean-translation rewrite every text node they meet.
+    /// Of the texts Tidalfast gives plugins, the page's title, the play
+    /// queue's heading, a menu row's label and the artist and album links
+    /// of rows and the player bar were drawn native whatever the plugin
+    /// wrote; they show its words now, and the DOM keeps the native ones.
+    #[test]
+    fn words_plugins_write_over_titles_menus_and_links_are_drawn() {
+        use crate::api::models::ArtistRef;
+        use crate::luna::dom::HostOverride;
+        let written = |t: &str| HostOverride {
+            text: Some(t.into()),
+            ..HostOverride::default()
+        };
+        let list = "playlist:pl1";
+        let mut o = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        for (key, t) in [
+            (
+                dom_anchors::keys::PAGE_TITLE.to_string(),
+                "Wate nyight focus",
+            ),
+            (
+                format!("{}:label", dom_anchors::keys::menu_item(0)),
+                "재생 다음",
+            ),
+            (
+                dom_anchors::keys::row_cell(list, 0, "artist:1"),
+                "Khwuangbin",
+            ),
+        ] {
+            o.hosts.insert(key, written(t));
+        }
+        test_overlay(Some(o));
+        assert_eq!(page_title_text("Late night focus"), "Wate nyight focus");
+        assert_eq!(next_menu_label("Play next"), "재생 다음");
+        let artists = [
+            ArtistRef {
+                id: Some("a".into()),
+                name: "Bonobo".into(),
+                ..ArtistRef::default()
+            },
+            ArtistRef {
+                id: Some("b".into()),
+                name: "Khruangbin".into(),
+                ..ArtistRef::default()
+            },
+        ];
+        let shown = artist_names(&artists, |i| {
+            dom_anchors::keys::row_cell(list, 0, &format!("artist:{i}"))
+        });
+        let names: Vec<&str> = shown.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, ["Bonobo", "Khwuangbin"]);
+        assert_eq!(shown[1].id.as_deref(), Some("b"), "the link stays");
+        // A menu row draws the plugin's words.
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let palette = crate::theme::Palette::dark();
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            super::super::widgets::menu_item(ui, &palette, None, "Play next");
+        });
+        out.textures_delta.clear();
+        let drawn: Vec<String> = out
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+                _ => None,
+            })
+            .collect();
+        test_overlay(None);
+        assert!(drawn.iter().any(|t| t == "재생 다음"), "{drawn:?}");
+        assert_eq!(page_title_text("Late night focus"), "Late night focus");
     }
 
     /// scroll-to-playing colours the playing row's text only. That row's
