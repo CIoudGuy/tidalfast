@@ -106,6 +106,17 @@ fn resolve(home: &Path, p: &str) -> Result<PathBuf, String> {
             "EACCES: permission denied, '{p}' is outside this plugin's data folder"
         ));
     }
+    // An NTFS alternate data stream (`file.txt:name`) is not in the
+    // folder's file sizes, so the quota would never see it.
+    #[cfg(windows)]
+    if norm
+        .strip_prefix(&home_norm)
+        .is_ok_and(|rest| rest.as_os_str().to_string_lossy().contains(':'))
+    {
+        return Err(format!(
+            "EINVAL: invalid argument, '{p}' names a file stream"
+        ));
+    }
     // No symlink escapes: the deepest existing ancestor must still be inside.
     let mut probe = norm.clone();
     while !probe.exists() {
