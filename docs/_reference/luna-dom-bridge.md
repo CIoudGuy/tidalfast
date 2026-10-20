@@ -267,12 +267,19 @@ row for inline elements and `display:flex`, a column for blocks and
 `flex-direction:column`, with `gap`. Styles: `color`, `background(-color)`
 (first gradient colour), `font-size/weight/style/family` (loaded plugin
 fonts), `text-decoration`, `padding`, `margin`, `border`, `border-radius`,
-`opacity`, `width`, `height`, `cursor`, `display:none`. A range input with
+`opacity`, `width`, `height`, `cursor`, `display:none`, `line-height`
+(inherited; a number scales each element's font size; a line is that tall
+with its glyphs in its middle, even when that is less than the face's own
+row, up-next's two 1.3 em lines). A range input with
 styled parts draws its track across its width, centred, with its background
 (gradients with hard stops change colour at once), and its thumb inside the
 track's ends, its top at the track's top plus its `margin-top`. A text field
 with `border: none` has no box of its own; its text takes the element's
-font, colour and `text-align`. Colours: hex,
+font, colour and `text-align`. A `font-family` list draws its text in
+the first family loaded, an installed family it names or a generic one in
+the system's face (`monospace` is Consolas on Windows: tidal-genres' pills);
+the family is inherited by the text inside. A `display: flex` box has no
+gap unless it sets one. Colours: hex,
 `rgb[a]()`, `hsl[a]()`, `color-mix(in srgb, ...)`, named, `transparent`;
 `var()` is resolved from `overlay.vars`. Events forwarded for nodes that
 listen: `click`, `dblclick`, `contextmenu`, `mouseenter/leave/over/out`,
@@ -306,7 +313,19 @@ the anchor's native content, clipped as their slot is (betterFullscreen's
 player over the now-playing view). `position: relative` offsets and
 `transform` translations (px or % of the element's own size) and scale
 move the drawing; rotation applies to images, background images and a
-box's own fill and border (see Motion).
+box's own fill and border (see Motion). The
+clip stays where it was on the screen (CatJam's cat flows in under the
+player bar's cover, past the window's foot, and `top: -52px` lifts all of
+it back over the cover, as in TIDAL).
+`mouseenter`/`mouseleave` follow the pointer over an element even when a
+box round it listens too (element-hider's menu item).
+
+Outlines plugin CSS puts on app elements (`outline`, `outline-offset`, and
+a `box-shadow` glow with it) are drawn round the anchor's box over the page:
+element-hider's red ring round the element "Hide This Element" would hide.
+Elements plugins append to an open context menu (`contextmenu` Append) are
+laid out as a block's children under its rows, in every menu that has
+plugin entries: element-hider's divider and two full-width buttons.
 
 Images: `background-image: url()` (data:, http(s), GIF included) is drawn
 under the element's content with `background-size` (`cover`, `contain`,

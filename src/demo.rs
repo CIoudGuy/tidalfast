@@ -159,6 +159,15 @@ fn artist(index: usize) -> Artist {
     }
 }
 
+/// A demo artist (`art3`) as TIDAL's v1 artist JSON, for the off-screen
+/// Luna demo: plugins asking who sings the next song (up-next) get the name
+/// a signed-in session would.
+pub fn artist_json(id: &str) -> Option<serde_json::Value> {
+    let index: usize = id.strip_prefix("art")?.parse().ok()?;
+    let a = artist(index);
+    Some(serde_json::json!({ "id": a.id, "name": a.name, "picture": null }))
+}
+
 fn album(index: usize) -> Album {
     let (name, artist_index, year) = ALBUMS[index % ALBUMS.len()];
     Album {
@@ -15006,6 +15015,85 @@ mod tests {
             );
             app.backend.shutdown();
         }
+    }
+
+    /// CatJam appends its cat (52 points tall, `position: relative; top:
+    /// -52px`) to the player bar's cover figure. In TIDAL it flows in under
+    /// the cover picture and is lifted back over it: the cat covers the
+    /// cover, inside the bar. It stood above the bar, then (anchored at the
+    /// cover's foot) was cut to the strip that had been inside the window.
+    #[test]
+    fn an_element_appended_to_the_bar_cover_and_lifted_lies_over_the_cover() {
+        use crate::luna::dom::{DomOverlay, Injected, Position, Style, VNode};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let size = egui::vec2(1400.0, 900.0);
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            ..Default::default()
+        };
+        let cat = egui::Color32::from_rgb(7, 8, 9);
+        let (ctx, mut app) = accessible_app("catjam-cover");
+        super::play_here(&mut app);
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: keys::COVER.into(),
+                position: Position::Append,
+                nodes: vec![VNode {
+                    id: 1,
+                    tag: "div".into(),
+                    style: Style {
+                        position: Some("relative".into()),
+                        top: Some("-52px".into()),
+                        left: Some("-8px".into()),
+                        margin: Some("0 0 0 8px".into()),
+                        height: Some("52px".into()),
+                        width: Some("68px".into()),
+                        background_color: Some("rgb(7, 8, 9)".into()),
+                        ..Style::default()
+                    },
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        }));
+        let mut shapes = Vec::new();
+        for _ in 0..4 {
+            let mut out = ctx.run_ui(input.clone(), |ui| crate::ui::show(&mut app, ui));
+            out.textures_delta.clear();
+            shapes = out.shapes;
+        }
+        plugin_dom::test_overlay(None);
+        fn walk(
+            shape: &egui::Shape,
+            clip: egui::Rect,
+            fill: egui::Color32,
+            out: &mut Vec<egui::Rect>,
+        ) {
+            match shape {
+                egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, clip, fill, out)),
+                egui::Shape::Rect(r) if r.fill == fill => out.push(r.rect.intersect(clip)),
+                _ => {}
+            }
+        }
+        let mut seen = Vec::new();
+        for s in &shapes {
+            walk(&s.shape, s.clip_rect, cat, &mut seen);
+        }
+        let bar_top = size.y - crate::theme::PLAYER_BAR_HEIGHT;
+        assert_eq!(seen.len(), 1, "{seen:?}");
+        let r = seen[0];
+        assert!(
+            r.top() > bar_top && r.bottom() < size.y,
+            "inside the bar: {r:?}"
+        );
+        assert!(
+            (r.height() - 52.0).abs() < 1.0,
+            "the whole cat shows: {r:?}"
+        );
+        assert!(r.left() < 40.0, "over the cover: {r:?}");
+        app.backend.shutdown();
     }
 
     /// A theme's cards behind the player bar's title and artists

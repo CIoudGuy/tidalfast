@@ -1616,12 +1616,6 @@ fn track_row_contents(
             } else {
                 item_menu(ui, app, row.item, Some(row.context), Some(row.index));
             }
-            // Items Luna plugins add to the menu (element-hider).
-            super::plugin_slots::inline(
-                ui,
-                crate::luna::dom_anchors::keys::CONTEXT_MENU,
-                crate::luna::dom::Position::Append,
-            );
         });
     crate::autoscroll::row(ui, &response);
     (response, pick)

@@ -487,6 +487,52 @@ cancelAnimationFrame(id);
     finish(luna, dir);
 }
 
+/// element-hider: a right-click anywhere opens its menu; hovering "Hide
+/// This Element" puts a class on the element right-clicked, whose rule
+/// rings it (`outline`, `outline-offset`, a `box-shadow` glow). The ring
+/// reaches the UI on that app element.
+#[test]
+fn a_class_a_plugin_puts_on_an_app_element_outlines_it() {
+    let (luna, _host, dir) = start(
+        r##"
+new lib.StyleTag("dom-test", unloads, `.t-target { outline: 2px solid #ff6b6b; outline-offset: 2px; box-shadow: 0 0 10px rgba(255,107,107,.6); }`);
+let target = null;
+document.addEventListener("contextmenu", (e) => {
+	target = e.target;
+	const menu = document.createElement("div");
+	menu.style.cssText = "position: fixed; left: 10px; top: 10px;";
+	const hide = document.createElement("button");
+	hide.textContent = "Hide This Element";
+	hide.addEventListener("mouseenter", () => target.classList.add("t-target"));
+	menu.appendChild(hide);
+	document.body.appendChild(menu);
+}, true);
+"##,
+    );
+    luna.sync_dom(tree());
+    luna.dom_event(DomEvent {
+        target: DomTarget::Host(keys::FAVORITE.into()),
+        kind: "contextmenu".into(),
+        data: json!({ "clientX": 5, "clientY": 5, "button": 2 }),
+    });
+    let o = overlay_until(&luna, 10, |o| o.at("", Position::Append).next().is_some());
+    let button = o.at("", Position::Append).next().unwrap().children[0].id;
+    luna.dom_event(DomEvent {
+        target: DomTarget::Node(button),
+        kind: "mouseenter".into(),
+        data: json!({}),
+    });
+    let o = overlay_until(&luna, 10, |o| {
+        o.host(keys::FAVORITE)
+            .is_some_and(|h| h.style.outline.is_some())
+    });
+    let ring = &o.host(keys::FAVORITE).unwrap().style;
+    assert_eq!(ring.outline.as_deref(), Some("2px solid #ff6b6b"));
+    assert_eq!(ring.outline_offset.as_deref(), Some("2px"));
+    assert!(ring.box_shadow.is_some());
+    finish(luna, dir);
+}
+
 #[test]
 fn plugin_css_restyles_hosts_and_sets_variables() {
     let (luna, _host, dir) = start(

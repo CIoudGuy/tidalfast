@@ -458,14 +458,14 @@ fn now_playing_block(
     plugin_dom::player_part(PlayerPart::Cover, cover_rect);
     plugin_dom::host_clicks(ui, keys::COVER, &cover_response);
     // CatJam and the like append their element to the cover's figure,
-    // which TIDAL does not clip. Its picture is laid over the figure, so an
-    // appended element starts at the cover's top left (CatJam's cat then
-    // rises one cover height, `top: -52px`, and stands above the bar).
+    // which TIDAL does not clip. The picture is a block in that figure, so
+    // an appended element flows in under it, from the cover's bottom left;
+    // CatJam's `top: -52px` lifts its cat back over the cover, as in TIDAL.
     plugin_slots::at_unclipped(
         ui,
         keys::COVER,
         Position::Append,
-        cover_rect.left_top(),
+        cover_rect.left_bottom(),
         egui::Align2::LEFT_TOP,
     );
     // TIDAL: the cover opens the now-playing view, or closes it.

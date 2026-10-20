@@ -156,6 +156,9 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
     // A theme's rules on the header art (Tidal Light's coloured shadow)
     // replace TIDAL's own shadow and corners.
     let themed = super::plugin_dom::hero_cover(rect, hero.radio);
+    // A plugin hid the art (element-hider's `display: none`): its place
+    // stays empty, as in TIDAL.
+    let art_hidden = themed.as_ref().is_some_and(|s| s.opacity <= 0.0);
     let art_filter = themed.as_ref().and_then(|s| s.filter.clone());
     let art_themed = themed.is_some();
     let radius = if hero.round {
@@ -174,13 +177,13 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
                 color: egui::Color32::from_black_alpha(102),
             }]
         });
-    for shadow in shadows {
+    for shadow in shadows.into_iter().filter(|_| !art_hidden) {
         ui.painter()
             .add(shadow.as_shape(rect, egui::CornerRadius::same(radius as u8)));
     }
-    if hero.liked {
+    if hero.liked && !art_hidden {
         super::sidebar::liked_cover(ui, rect, radius);
-    } else {
+    } else if !art_hidden {
         widgets::paint_cover_with_thumbnail(
             ui,
             &palette,

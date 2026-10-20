@@ -845,12 +845,48 @@ struct Inherit {
     weight: u16,
     italic: bool,
     /// The family an element's `font-family` named, numbered by
-    /// [`plugin_dom::element_font_id`]; `None` is the app's face.
+    /// [`plugin_dom::element_font_id`] and inherited by the text inside;
+    /// `None` is the app's face.
     family: Option<u32>,
     /// `text-transform: uppercase`.
     upper: bool,
     /// SVG `fill` set by CSS on the element or an ancestor.
     fill: Option<Color32>,
+    /// `line-height`, inherited as CSS does: a number scales each
+    /// element's own font size, a length is kept. `None` is `normal` (the
+    /// face's own row height).
+    line_height: Option<LineHeight>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum LineHeight {
+    Factor(f32),
+    Points(f32),
+}
+
+impl LineHeight {
+    /// A `line-height` value for an element whose font is `font` points:
+    /// `Some(None)` for `normal`, `None` when it cannot be read.
+    fn parse(value: &str, font: f32, viewport: [f32; 2]) -> Option<Option<Self>> {
+        let v = value.trim().trim_end_matches("!important").trim();
+        if v.eq_ignore_ascii_case("normal") {
+            return Some(None);
+        }
+        if let Ok(f) = v.parse::<f32>() {
+            return (f >= 0.0).then_some(Some(Self::Factor(f)));
+        }
+        let px = css::length(v, font, font, viewport)?;
+        (px >= 0.0).then_some(Some(Self::Points(px)))
+    }
+
+    /// The row height for text `size` points tall.
+    fn points(self, size: f32) -> f32 {
+        match self {
+            Self::Factor(f) => f * size,
+            Self::Points(p) => p,
+        }
+        .max(1.0)
+    }
 }
 
 impl Inherit {
@@ -865,6 +901,7 @@ impl Inherit {
             family: None,
             upper: false,
             fill: None,
+            line_height: None,
         }
     }
 }
@@ -1060,6 +1097,75 @@ pub fn inline_range(
         return false;
     }
     inline_with(ui, key, position, false, Some(range))
+}
+
+/// Elements injected at `key`/`position` of a block container (TIDAL's
+/// context menu), laid out as a browser lays a block's children: each
+/// block-level element on a line of its own, as wide as the container, and
+/// runs of inline-level ones side by side. element-hider's divider and its
+/// two `display: flex` buttons stack under the menu's rows, as in TIDAL.
+pub fn column(ui: &mut egui::Ui, key: &str, position: Position) -> bool {
+    let Some(overlay) = plugin_dom::overlay() else {
+        return false;
+    };
+    if !overlay
+        .injected
+        .iter()
+        .any(|i| i.anchor == key && i.position == position)
+    {
+        return false;
+    }
+    let vars = plugin_dom::vars();
+    let cx = Cx {
+        vars: &vars,
+        viewport: plugin_dom::viewport(),
+        keyframes: &overlay.keyframes,
+    };
+    let inherit = Inherit::root(ui);
+    let nodes: Vec<&VNode> = overlay.at(key, position).collect();
+    let mut drawn = false;
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = 0.0;
+        let mut i = 0;
+        while i < nodes.len() {
+            if !flows_in_line(nodes[i]) {
+                // A block is as wide as the menu (element-hider's divider).
+                IN_COLUMN.with(|s| s.set(true));
+                drawn |= draw_at(ui, nodes[i], key, inherit, &cx);
+                IN_COLUMN.with(|s| s.set(false));
+                i += 1;
+                continue;
+            }
+            let start = i;
+            while i < nodes.len() && flows_in_line(nodes[i]) {
+                i += 1;
+            }
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                for node in &nodes[start..i] {
+                    drawn |= draw_at(ui, node, key, inherit, &cx);
+                }
+            });
+        }
+    });
+    drawn
+}
+
+/// Whether a top-level element sits in a line with its inline-level
+/// neighbours: an inline element, or a replaced or form element (`button`,
+/// `img`, `input`, ...) with no `display` of its own, which a browser lays
+/// out inline.
+fn flows_in_line(n: &VNode) -> bool {
+    inline_level(n)
+        || (n
+            .style
+            .display
+            .as_deref()
+            .is_none_or(|d| d.trim().is_empty())
+            && matches!(
+                n.tag.as_str(),
+                "button" | "img" | "input" | "select" | "textarea" | "svg" | "video" | "canvas"
+            ))
 }
 
 /// [`inline`] that also tells each top-level element's own width to its
@@ -1379,9 +1485,9 @@ pub fn at_within(
 }
 
 /// [`at`] for an anchor whose box does not clip (TIDAL's player bar cover):
-/// what plugins put there may stand out of the bar (CatJam's cat sits
-/// above the cover, raised by `top: -52px`), so it is drawn above the page
-/// and clipped only by the window.
+/// what plugins put there may stand out of the bar (a `position: relative`
+/// offset can lift an element past the bar's top), so it is drawn above
+/// the page and clipped only by the window.
 pub fn at_unclipped(
     ui: &mut egui::Ui,
     key: &str,
@@ -3080,8 +3186,14 @@ fn draw_styled(ui: &mut egui::Ui, node: &VNode, style: &Style, parent: Inherit, 
             * egui::emath::TSTransform::from_scaling(xf.scale)
             * egui::emath::TSTransform::from_translation(-c.to_vec2());
         let mut shown = false;
+        // The clip stays where it is on the screen, as an ancestor's clip
+        // does for a moved box: egui moves a clip with the shapes, which
+        // cut CatJam's cat, lifted 52 points from under the cover, to the
+        // strip that had been inside the window before the move.
+        let clip = t.inverse().mul_rect(ui.clip_rect());
         let r = ui
             .with_visual_transform(t, |ui| {
+                ui.set_clip_rect(clip);
                 shown = draw_box(ui, node, style, xf.rot, stretch, parent, cx);
             })
             .response
@@ -3184,16 +3296,19 @@ fn draw_box(
     if let Some(fill) = cx.color(&style.fill) {
         inherit.fill = Some(fill);
     }
+    if let Some(lh) = style
+        .line_height
+        .as_deref()
+        .and_then(|v| LineHeight::parse(v, inherit.size, cx.viewport))
+    {
+        inherit.line_height = lh;
+    }
     if node.tag == "#text" {
         let Some(text) = node.text.as_deref().filter(|t| !t.trim().is_empty()) else {
             return false;
         };
-        let label = egui::Label::new(rich(text, inherit, style));
-        ui.add(if breakable(text) {
-            label
-        } else {
-            label.extend()
-        });
+        let wrap = (!breakable(text)).then_some(egui::TextWrapMode::Extend);
+        add_text(ui, rich(text, inherit, style), wrap, inherit);
         return true;
     }
 
@@ -3436,8 +3551,9 @@ fn draw_box(
         !block(&node.tag)
     };
     // A flex or grid container's `gap` is 0 unless set (star-ratings'
-    // five stars touch); other boxes keep a little room between what
-    // they hold, as the spaces between inline elements give.
+    // five stars touch, up-next's title and artist lines sit one on the
+    // other); other boxes keep a little room between what they hold, as
+    // the spaces between inline elements give.
     let gap = cx.len(&style.gap, font, 0.0).unwrap_or(
         if display.contains("flex") || display.contains("grid") {
             0.0
@@ -3567,8 +3683,10 @@ fn draw_box(
                         wrapped
                             .unwrap_or(ui.available_width())
                             .min(ui.available_width()),
+                        // A line box is `line-height` tall when it says.
                         height
                             .or(min_height)
+                            .or(inherit.line_height.map(|l| l.points(inherit.size)))
                             .unwrap_or_else(|| {
                                 held.unwrap_or(0.0).max(ui.spacing().interact_size.y)
                             })
@@ -3620,13 +3738,12 @@ fn draw_box(
                             "input" | "textarea" | "select" | "svg" | "img"
                         )
                     {
-                        let mut label = egui::Label::new(rich(text, inherit, style));
-                        if ellipsis {
-                            label = label.truncate();
-                        } else if !breakable(text) {
-                            label = label.extend();
-                        }
-                        ui.add(label);
+                        let wrap = if ellipsis {
+                            Some(egui::TextWrapMode::Truncate)
+                        } else {
+                            (!breakable(text)).then_some(egui::TextWrapMode::Extend)
+                        };
+                        add_text(ui, rich(text, inherit, style), wrap, inherit);
                         drawn = true;
                     }
                     // A grid's gap is its own (none unless set).
@@ -3942,7 +4059,13 @@ fn events(ui: &egui::Ui, node: &VNode, response: &egui::Response) {
     }
     let hover_kinds = ["mouseenter", "mouseleave", "mouseover", "mouseout"];
     if hover_kinds.iter().any(|k| listens(k)) {
-        match plugin_dom::hover_change(plugin_dom::HoverKey::Node(node.id), response.hovered()) {
+        // The pointer is over an element whatever lies inside or around it
+        // on the same layer: egui counts as hovered only the last widget
+        // laid there, which is the outermost box when that box listens too
+        // (element-hider's menu item under its menu), so `mouseenter` never
+        // reached the item.
+        let over = response.contains_pointer();
+        match plugin_dom::hover_change(plugin_dom::HoverKey::Node(node.id), over) {
             Some(true) => {
                 for kind in ["mouseenter", "mouseover"] {
                     if listens(kind) {
@@ -3994,6 +4117,53 @@ fn breakable(text: &str) -> bool {
     })
 }
 
+/// A text label. With a `line-height` taller than the face's own row each
+/// line is that tall and its glyphs sit in its middle, as CSS splits the
+/// leading above and below them (egui puts the room under the glyphs).
+/// A line shorter than the face's row (`line-height: 1.3` in a face with a
+/// tall row) takes only its own height, the glyphs centred in it.
+fn add_text(
+    ui: &mut egui::Ui,
+    text: RichText,
+    wrap: Option<egui::TextWrapMode>,
+    inherit: Inherit,
+) -> egui::Response {
+    let Some(lh) = inherit.line_height else {
+        let mut label = egui::Label::new(text);
+        if let Some(wrap) = wrap {
+            label = label.wrap_mode(wrap);
+        }
+        return ui.add(label);
+    };
+    let line = lh.points(inherit.size);
+    let font = font_of(inherit, &Style::default());
+    let face = ui.ctx().fonts_mut(|f| f.row_height(&font));
+    let galley = egui::WidgetText::from(text).into_galley(
+        ui,
+        wrap,
+        ui.available_width(),
+        egui::FontSelection::Default,
+    );
+    let one_line = galley.rows.len() <= 1;
+    let size = if one_line {
+        vec2(galley.size().x, line)
+    } else {
+        galley.size()
+    };
+    let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
+    if ui.is_rect_visible(rect) {
+        // egui puts a tall line's room under the glyphs.
+        let top = if one_line {
+            rect.center().y - face / 2.0
+        } else {
+            rect.top() + ((line - face) / 2.0).max(0.0)
+        };
+        ui.painter()
+            .galley(egui::pos2(rect.left(), top), galley, inherit.color);
+    }
+    response
+}
+
 /// The font plugin text is drawn in: its weight and size, or a font the
 /// plugin declared.
 fn font_of(inherit: Inherit, style: &Style) -> egui::FontId {
@@ -4025,6 +4195,9 @@ fn rich(text: &str, inherit: Inherit, style: &Style) -> RichText {
     }
     .font(font)
     .color(inherit.color);
+    if let Some(lh) = inherit.line_height {
+        text = text.line_height(Some(lh.points(inherit.size)));
+    }
     if inherit.italic {
         text = text.italics();
     }
@@ -5980,6 +6153,286 @@ mod tests {
         }
         plugin_dom::test_overlay(None);
         size
+    }
+
+    /// element-hider's own menu listens for clicks (its document listener
+    /// reaches it) and its "Hide This Element" item for `mouseenter`, which
+    /// rings the element it would hide. The item gets `mouseenter` when the
+    /// pointer comes over it, though the menu round it is the widget egui
+    /// counts as hovered.
+    #[test]
+    fn mouseenter_reaches_an_item_inside_a_box_that_listens_too() {
+        let item = VNode {
+            id: 2,
+            tag: "button".into(),
+            listens: vec!["click".into(), "mouseenter".into(), "mouseleave".into()],
+            style: Style {
+                display: Some("flex".into()),
+                width: Some("100%".into()),
+                padding: Some("8px 16px".into()),
+                ..Style::default()
+            },
+            children: vec![text(102, "Hide This Element")],
+            ..VNode::default()
+        };
+        let menu = VNode {
+            id: 1,
+            tag: "div".into(),
+            listens: vec!["click".into()],
+            style: Style {
+                position: Some("fixed".into()),
+                left: Some("300px".into()),
+                top: Some("100px".into()),
+                min_width: Some("180px".into()),
+                padding: Some("8px 0".into()),
+                background_color: Some("#2a2a2a".into()),
+                z_index: Some("999999".into()),
+                ..Style::default()
+            },
+            children: vec![item],
+            ..VNode::default()
+        };
+        plugin_dom::test_viewport([1400.0, 900.0]);
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: String::new(),
+                position: Position::Append,
+                nodes: vec![menu],
+            }],
+            ..DomOverlay::default()
+        }));
+        let ctx = egui::Context::default();
+        let _ = plugin_dom::take_test_events();
+        for _ in 0..5 {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 900.0))),
+                events: vec![egui::Event::PointerMoved(egui::pos2(340.0, 120.0))],
+                ..egui::RawInput::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| floating(ui));
+            out.textures_delta.clear();
+            plugin_dom::end_frame(&ctx);
+        }
+        let entered: Vec<_> = plugin_dom::take_test_events()
+            .into_iter()
+            .filter(|e| e.kind == "mouseenter")
+            .map(|e| e.target)
+            .collect();
+        plugin_dom::test_overlay(None);
+        assert_eq!(entered, vec![DomTarget::Node(2)]);
+    }
+
+    /// element-hider appends a 1-point divider and two `display: flex`,
+    /// `width: 100%` buttons to TIDAL's context menu: they stack under its
+    /// rows, the divider across the menu (less its margins) and the buttons
+    /// as wide as the menu, one under the other. They sat side by side in a
+    /// row, the divider not drawn.
+    #[test]
+    fn blocks_appended_to_a_menu_stack_and_fill_its_width() {
+        let st = |f: &dyn Fn(&mut Style)| {
+            let mut s = Style::default();
+            f(&mut s);
+            s
+        };
+        let divider = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: st(&|s| {
+                s.height = Some("1px".into());
+                s.background_color = Some("#444444".into());
+                s.margin = Some("4px 8px".into());
+            }),
+            ..VNode::default()
+        };
+        let item = |id, label: &str| VNode {
+            id,
+            tag: "button".into(),
+            style: st(&|s| {
+                s.display = Some("flex".into());
+                s.width = Some("100%".into());
+                s.padding = Some("8px 16px".into());
+                s.background_color = Some("#00ff00".into());
+            }),
+            children: vec![text(id + 100, label)],
+            ..VNode::default()
+        };
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: "contextmenu".into(),
+                position: Position::Append,
+                nodes: vec![divider, item(2, "Hide This Element"), item(3, "Unhide All")],
+            }],
+            ..DomOverlay::default()
+        }));
+        let ctx = egui::Context::default();
+        let mut shapes = Vec::new();
+        for _ in 0..4 {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
+                ..egui::RawInput::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                ui.allocate_ui_with_layout(
+                    vec2(240.0, 400.0),
+                    Layout::top_down(Align::Min),
+                    |ui| {
+                        ui.set_width(240.0);
+                        column(ui, "contextmenu", Position::Append);
+                    },
+                );
+            });
+            out.textures_delta.clear();
+            shapes = out.shapes;
+        }
+        plugin_dom::test_overlay(None);
+        let fills = |c: Color32| {
+            shapes
+                .iter()
+                .filter_map(|s| match &s.shape {
+                    egui::Shape::Rect(r) if r.fill == c => Some(r.rect),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        let line = fills(Color32::from_rgb(0x44, 0x44, 0x44));
+        assert_eq!(line.len(), 1, "the divider is drawn: {line:?}");
+        assert!((line[0].width() - 224.0).abs() < 2.0, "{line:?}");
+        assert!(line[0].height() <= 1.5, "{line:?}");
+        let items = fills(Color32::from_rgb(0, 255, 0));
+        assert_eq!(items.len(), 2, "{items:?}");
+        for i in &items {
+            assert!((i.width() - 240.0).abs() < 2.0, "{i:?}");
+        }
+        assert!(
+            items[0].top() > line[0].bottom(),
+            "{items:?} under {line:?}"
+        );
+        assert!(
+            items[1].top() >= items[0].bottom() - 0.5,
+            "stacked: {items:?}"
+        );
+    }
+
+    /// tidal-genres' pills are `font-family: monospace, system-ui,
+    /// sans-serif` spans: their text is drawn in the system's monospace
+    /// face (Consolas on Windows), as a browser draws it, not in the app's
+    /// own. A list with no installed family keeps the app's face.
+    #[test]
+    fn a_generic_monospace_family_draws_text_in_the_system_face() {
+        let pill = |family: &str| VNode {
+            id: 1,
+            tag: "span".into(),
+            style: Style {
+                font_family: Some(family.into()),
+                ..Style::default()
+            },
+            children: vec![VNode {
+                id: 2,
+                tag: "#text".into(),
+                text: Some("R&B/Soul".into()),
+                ..VNode::default()
+            }],
+            ..VNode::default()
+        };
+        let families = |family: &str| {
+            plugin_dom::test_overlay(Some(DomOverlay {
+                version: 1,
+                injected: vec![Injected {
+                    anchor: "main".into(),
+                    position: Position::Prepend,
+                    nodes: vec![pill(family)],
+                }],
+                ..DomOverlay::default()
+            }));
+            plugin_dom::test_font_families(&["Consolas"]);
+            let ctx = egui::Context::default();
+            let mut fonts = egui::FontDefinitions::default();
+            let mono = fonts.families[&egui::FontFamily::Monospace].clone();
+            fonts
+                .families
+                .insert(egui::FontFamily::Name("Consolas".into()), mono);
+            ctx.set_fonts(fonts);
+            let mut found = Vec::new();
+            for _ in 0..3 {
+                let input = egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
+                    ..egui::RawInput::default()
+                };
+                let mut out = ctx.run_ui(input, |ui| {
+                    inline(ui, "main", Position::Prepend);
+                });
+                out.textures_delta.clear();
+                found = out
+                    .shapes
+                    .iter()
+                    .filter_map(|s| match &s.shape {
+                        egui::Shape::Text(t) if t.galley.text() == "R&B/Soul" => {
+                            Some(t.galley.job.sections[0].format.font_id.family.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect();
+            }
+            plugin_dom::test_overlay(None);
+            found
+        };
+        assert_eq!(
+            families("monospace, system-ui, sans-serif"),
+            vec![egui::FontFamily::Name("Consolas".into())]
+        );
+        assert!(
+            !families("system-ui, sans-serif").contains(&egui::FontFamily::Name("Consolas".into()))
+        );
+    }
+
+    /// up-next's title and artist: two lines in a `flex-direction: column`
+    /// box with no gap and `line-height: 1.3`, so each line is 1.3 times its
+    /// font size tall (TIDAL: 16 points between a 12 and an 11 point line)
+    /// and the box is as tall as the two together.
+    #[test]
+    fn line_height_sets_each_lines_height_and_a_flex_column_has_no_gap() {
+        let line = |id, size: &str, block: bool| {
+            let mut s = text(id, "Tears in the Rain");
+            s.style.font_size = Some(size.into());
+            s.style.white_space = Some("nowrap".into());
+            if block {
+                s.style.display = Some("block".into());
+            }
+            s
+        };
+        let column = |line_height: Option<&str>| VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                line_height: line_height.map(Into::into),
+                ..Style::default()
+            },
+            children: vec![line(10, "12px", false), line(20, "11px", true)],
+            ..VNode::default()
+        };
+        // egui lays rows out on whole points.
+        let tall = drawn_size(column(Some("1.3")));
+        assert!(
+            (tall.y - (12.0 + 11.0) * 1.3).abs() < 2.5,
+            "two lines of 1.3 em: {tall:?}"
+        );
+        let wide = drawn_size(column(Some("30px")));
+        assert!((wide.y - 60.0).abs() < 2.5, "two 30-point lines: {wide:?}");
+        // `normal` is the face's own height.
+        let normal = drawn_size(column(Some("normal")));
+        assert!(normal.y < 40.0, "{normal:?}");
+        let double = drawn_size(column(Some("2")));
+        assert!(
+            (double.y - 46.0).abs() < 2.5,
+            "two lines of 2 em: {double:?}"
+        );
+        // Lines shorter than the face's own row take only their height.
+        let tight = drawn_size(column(Some("1")));
+        assert!((tight.y - 23.0).abs() < 1.5, "two lines of 1 em: {tight:?}");
     }
 
     /// radiant-lyrics' words are `display: inline-block` spans in a `<p>`:

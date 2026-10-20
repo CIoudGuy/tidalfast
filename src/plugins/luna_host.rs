@@ -356,6 +356,11 @@ impl LunaHost for AppHost {
     }
 
     fn artist(&self, id: &str) -> Option<Value> {
+        // The off-screen Luna demo's artists are made up (`art3`).
+        #[cfg(feature = "demo")]
+        if luna_demo() {
+            return crate::demo::artist_json(id);
+        }
         self.get(format!("artists/{}", numeric(id)?), Vec::new())
     }
 
