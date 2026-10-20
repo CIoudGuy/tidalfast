@@ -379,12 +379,19 @@
 	// ---------------------------------------------------------------- rule index
 	// What TIDAL's own stylesheet does to its containers that a plugin can
 	// take over by copying their class: the fullscreen now-playing container
-	// covers the view (betterFullscreen swaps in its own player).
+	// covers the view (betterFullscreen swaps in its own player). A button a
+	// plugin puts among the player bar's utility buttons gets TIDAL's
+	// button look there: a transparent 32 x 32 box with its icon at 16 x 16
+	// (OneClickLyrics' button, whose SVG says 32px).
 	let tidal = null;
 	const tidalSheet = () => {
 		if (!tidal) {
 			tidal = new CSSStyleSheet();
-			tidal.replaceSync('[class^="_fullscreen_"] { position: absolute; inset: 0; z-index: 10; }');
+			tidal.replaceSync(
+				'[class^="_fullscreen_"] { position: absolute; inset: 0; z-index: 10; }\n' +
+					'[class^="_utilityButtons_"] > button { display: flex; width: 32px; height: 32px; padding: 1px 6px; border: 0; background-color: transparent; align-items: center; justify-content: center; cursor: pointer; }\n' +
+					'[class^="_utilityButtons_"] > button svg { width: 16px; height: 16px; }',
+			);
 		}
 		return tidal;
 	};

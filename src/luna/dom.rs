@@ -333,11 +333,13 @@ pub struct DomOverlay {
     /// call, names the row nearest the middle of the new view).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scroll_top: Option<(String, f32, u64)>,
-    /// A native widget a plugin clicked with `element.click()` (the "..."
-    /// button of a row, the lyrics sync button): host key and a sequence
-    /// number, so the same widget can be clicked twice.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub click: Option<(String, u64)>,
+    /// The native widgets plugins clicked with `element.click()` (the "..."
+    /// button of a row, the lyrics sync button), oldest first: host key and
+    /// a sequence number, so the same widget can be clicked twice and two
+    /// clicks in one turn both arrive (OneClickLyrics clicks the player bar,
+    /// then the Lyrics toggle). The last few only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub clicks: Vec<(String, u64)>,
     /// The raw stylesheets plugins added, for diagnostics.
     pub css_bytes: usize,
     /// `@keyframes` used by styled elements: name -> `(offset 0..1, style)`

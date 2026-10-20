@@ -52,7 +52,8 @@ struct State {
     luna: Option<Luna>,
     scroll_seq: u64,
     scroll_pending: Option<String>,
-    /// `overlay.click` not handled yet.
+    /// The newest of `overlay.clicks` taken; those after it are not
+    /// handled yet.
     click_seq: u64,
     click_pending: Vec<String>,
     /// A confirm modal was open last frame (`modal/SHOW_CONFIRM` is sent when
@@ -254,11 +255,24 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
                 s.scroll_seq = *seq;
                 s.scroll_pending = Some(key.clone());
             }
-            if let Some((key, seq)) = &s.overlay.click
-                && *seq != s.click_seq
+            // A restarted runtime counts from 1 again.
+            if s.overlay
+                .clicks
+                .last()
+                .is_some_and(|(_, seq)| *seq < s.click_seq)
             {
-                s.click_seq = *seq;
-                s.click_pending.push(key.clone());
+                s.click_seq = 0;
+            }
+            let fresh: Vec<(String, u64)> = s
+                .overlay
+                .clicks
+                .iter()
+                .filter(|(_, seq)| *seq > s.click_seq)
+                .cloned()
+                .collect();
+            for (key, seq) in fresh {
+                s.click_seq = seq;
+                s.click_pending.push(key);
             }
             s.extra_cols = extra_columns_width(&s.overlay);
             if let Some((key, top, seq)) = &s.overlay.scroll_top
@@ -1936,6 +1950,12 @@ pub struct HeaderPill {
 /// The account button in the top bar.
 pub fn profile(r: Rect) {
     note(|f| f.shell.profile = rect(r));
+}
+
+/// Tests: a plugin's `element.click()` on the native widget `key`.
+#[cfg(test)]
+pub fn test_click(key: &str) {
+    with(|s| s.click_pending.push(key.to_string()));
 }
 
 /// A plugin clicked the native widget `key` with `element.click()`: true
