@@ -385,6 +385,15 @@ fn forget_usage(home: &Path) {
     }
 }
 
+/// A plugin was removed along with its data folder `home`: the size kept
+/// for the folder and the file dialog picks kept for the plugin go too.
+pub fn forget_plugin(plugin: &str, home: &Path) {
+    forget_usage(home);
+    if let Some(all) = GRANTS.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+        all.remove(plugin);
+    }
+}
+
 /// Run one fs operation in the sandbox `home`, with no dialog picks.
 #[cfg(test)]
 pub fn fs_op(home: &Path, arg: &Value) -> Result<Value, String> {

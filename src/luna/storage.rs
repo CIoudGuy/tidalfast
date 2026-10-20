@@ -8,6 +8,9 @@
 //! - `settings/<plugin>.json`: a plugin's `ReactiveStore.getPluginStorage`
 //! - `storage/<store>.json`: other `ReactiveStore.getStore(name)` stores
 //! - `data/<plugin>/`: the only directory a plugin's `fs` can reach
+//!
+//! Removing a plugin deletes all of it: the code, its data folder, and
+//! what it kept in the stores, which [`StoredClaims`] remembers per plugin.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::Write;
@@ -15,6 +18,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -97,6 +101,83 @@ pub struct Storage {
 }
 
 pub const PLUGIN_STORAGE: &str = "@luna/pluginStorage";
+
+/// The store holding the shared `localStorage`: one object under `data`.
+pub const LOCAL_STORAGE: &str = "@luna/localStorage";
+const LOCAL_KEY: &str = "data";
+
+/// The most of each kind one plugin may have remembered (a record is saved
+/// whole every time it changes).
+const MAX_CLAIMS: usize = 512;
+
+/// What one plugin keeps in Luna's stores, remembered so that removing the
+/// plugin deletes it: a plugin chooses its own storage names (3d-cover
+/// keeps its settings under `3DCover`, not under its package name), so the
+/// name alone cannot say what is its.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StoredClaims {
+    /// Keys of its `getPluginStorage` settings.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub settings: BTreeSet<String>,
+    /// Stores it opened by name (`getStore`, IndexedDB-style `idbStore`),
+    /// whole.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub stores: BTreeSet<String>,
+    /// Items it set in the shared `localStorage`.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub local: BTreeSet<String>,
+}
+
+impl StoredClaims {
+    pub fn is_empty(&self) -> bool {
+        self.settings.is_empty() && self.stores.is_empty() && self.local.is_empty()
+    }
+
+    /// The plugin used `key` of `store`. Luna's own stores (`@luna/...`)
+    /// belong to no plugin. True when this was new.
+    pub fn claim(&mut self, store: &str, key: &str) -> bool {
+        let (set, name) = if store == PLUGIN_STORAGE {
+            (&mut self.settings, key)
+        } else if store.starts_with("@luna/") {
+            return false;
+        } else {
+            (&mut self.stores, store)
+        };
+        set.len() < MAX_CLAIMS && set.insert(name.to_string())
+    }
+
+    /// The plugin set these items of `localStorage`.
+    pub fn claim_local(&mut self, items: impl IntoIterator<Item = String>) -> bool {
+        let mut new = false;
+        for item in items {
+            if self.local.len() < MAX_CLAIMS {
+                new |= self.local.insert(item);
+            }
+        }
+        new
+    }
+
+    /// Everything of `self` that `others` do not also use.
+    pub fn alone(&self, others: &[&StoredClaims]) -> Self {
+        let only = |mine: &BTreeSet<String>, theirs: fn(&StoredClaims) -> &BTreeSet<String>| {
+            mine.iter()
+                .filter(|k| !others.iter().any(|o| theirs(o).contains(*k)))
+                .cloned()
+                .collect()
+        };
+        Self {
+            settings: only(&self.settings, |c| &c.settings),
+            stores: only(&self.stores, |c| &c.stores),
+            local: only(&self.local, |c| &c.local),
+        }
+    }
+
+    pub fn merge(&mut self, other: &StoredClaims) {
+        self.settings.extend(other.settings.iter().cloned());
+        self.stores.extend(other.stores.iter().cloned());
+        self.local.extend(other.local.iter().cloned());
+    }
+}
 
 enum Job {
     Write(PathBuf, Vec<u8>),
@@ -251,8 +332,8 @@ impl Storage {
         let Some(map) = self.cache.get(file) else {
             return;
         };
-        // A plugin's settings with nothing left in them go away.
-        let job = if map.is_empty() && file.parent() == Some(&self.root.join("settings")) {
+        // A store with nothing left in it is no file (it reads the same).
+        let job = if map.is_empty() {
             Job::Remove(file.to_path_buf())
         } else {
             let snapshot = Value::Object(map.clone().into_iter().collect());
@@ -348,6 +429,31 @@ impl Storage {
         }
         let (file, _) = self.file(store, "");
         self.load(&file).keys().cloned().collect()
+    }
+
+    /// Delete what a removed plugin kept in the stores (`doomed`: its
+    /// claims that no other plugin shares): its settings, the named stores
+    /// it opened, and the `localStorage` items it set.
+    pub fn purge(&mut self, doomed: &StoredClaims) {
+        for key in &doomed.settings {
+            let _ = self.delete(PLUGIN_STORAGE, key);
+        }
+        for store in &doomed.stores {
+            for key in self.keys(store) {
+                let _ = self.delete(store, &key);
+            }
+        }
+        if !doomed.local.is_empty()
+            && let Some(Value::Object(mut items)) = self.get(LOCAL_STORAGE, LOCAL_KEY)
+        {
+            let before = items.len();
+            items.retain(|k, _| !doomed.local.contains(k));
+            if items.is_empty() {
+                let _ = self.delete(LOCAL_STORAGE, LOCAL_KEY);
+            } else if items.len() != before {
+                let _ = self.set(LOCAL_STORAGE, LOCAL_KEY, Value::Object(items));
+            }
+        }
     }
 
     /// The plugin's sandbox directory for `fs`.
@@ -478,6 +584,62 @@ mod tests {
         s.flush();
         assert!(!a.exists());
         assert_eq!(s.keys(PLUGIN_STORAGE), vec!["B"]);
+        drop(s);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A removed plugin's claims are deleted unless another plugin uses the
+    /// same; Luna's own stores belong to nobody; emptied files are removed.
+    #[test]
+    fn purging_a_plugins_claims_leaves_the_others() {
+        let root = dir("purge");
+        let mut s = Storage::new(root.clone());
+        s.set(PLUGIN_STORAGE, "Mine", json!({ "a": 1 })).unwrap();
+        s.set(PLUGIN_STORAGE, "Shared", json!(1)).unwrap();
+        s.set(PLUGIN_STORAGE, "Theirs", json!(1)).unwrap();
+        s.set("my-db", "k", json!("v")).unwrap();
+        s.set("their-db", "k", json!("v")).unwrap();
+        s.set(
+            LOCAL_STORAGE,
+            LOCAL_KEY,
+            json!({ "mine": "1", "theirs": "2" }),
+        )
+        .unwrap();
+        s.flush();
+        let mut mine = StoredClaims::default();
+        assert!(mine.claim(PLUGIN_STORAGE, "Mine"));
+        assert!(!mine.claim(PLUGIN_STORAGE, "Mine"), "claimed once");
+        mine.claim(PLUGIN_STORAGE, "Shared");
+        mine.claim("my-db", "k");
+        assert!(!mine.claim("@luna/storage", "themes"), "Luna's own");
+        assert!(!mine.claim("@luna/plugins", "x"), "Luna's own");
+        mine.claim_local(["mine".to_string()]);
+        let mut theirs = StoredClaims::default();
+        theirs.claim(PLUGIN_STORAGE, "Shared");
+        theirs.claim(PLUGIN_STORAGE, "Theirs");
+        theirs.claim("their-db", "k");
+        theirs.claim_local(["theirs".to_string()]);
+        let doomed = mine.alone(&[&theirs]);
+        assert_eq!(doomed.settings, BTreeSet::from(["Mine".to_string()]));
+        s.purge(&doomed);
+        s.flush();
+        let file = |dir: &str, name: &str| root.join(dir).join(format!("{}.json", safe_name(name)));
+        assert!(!file("settings", "Mine").exists());
+        assert!(file("settings", "Shared").exists());
+        assert!(file("settings", "Theirs").exists());
+        assert!(
+            !file("storage", "my-db").exists(),
+            "an emptied store is no file"
+        );
+        assert!(file("storage", "their-db").exists());
+        assert_eq!(
+            s.get(LOCAL_STORAGE, LOCAL_KEY),
+            Some(json!({ "theirs": "2" }))
+        );
+        // Taking the last item removes the file.
+        s.purge(&theirs.alone(&[]));
+        s.flush();
+        assert!(!file("storage", LOCAL_STORAGE).exists());
         drop(s);
         let _ = std::fs::remove_dir_all(&root);
     }

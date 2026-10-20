@@ -1624,6 +1624,23 @@
 				// A load still in flight is cancelled with it.
 				delete loadTokens[arg.name];
 				return void unloadPlugin(arg).catch(L.reportError);
+			case "forget_storage": {
+				// A removed plugin's settings and stores are deleted on disk:
+				// the objects opened from them (and a save waiting to run)
+				// must not bring them back.
+				for (const [name, keys] of [["@luna/pluginStorage", arg.settings ?? []], ...(arg.stores ?? []).map((s) => [s, null])]) {
+					const store = ReactiveStore.Storages[name];
+					if (!store) continue;
+					for (const key of keys ?? Object.keys(store.reactiveCache)) {
+						delete store.reactiveCache[key];
+						if (store.saveTimers[key]) {
+							clearTimeout(store.saveTimers[key]);
+							delete store.saveTimers[key];
+						}
+					}
+				}
+				return;
+			}
 			case "render_settings":
 				return void renderSettings(arg.name);
 			case "settings_input": {

@@ -427,10 +427,35 @@ test (`src/luna/harden_tests.rs` unless named).
   writer thread: the first change at once, later ones at most twice a
   second together, everything on sync and shutdown; a store is capped at
   16 MB (`QuotaExceededError`; `storage::tests`). A plugin may keep 256 MB in
-  its data folder (`ENOSPC` past that; `fsops::tests`); uninstalling it
-  removes the folder (its settings stay, for a reinstall). `fs.readFile`,
+  its data folder (`ENOSPC` past that; `fsops::tests`). `fs.readFile`,
   `writeFile` and `appendFile` carry the bytes as they are, not as base64
   (a 100 MB model's base64 copies would not fit the 256 MB plugin heap).
+- Removing a plugin deletes everything it left (the trash button, or the
+  plugin's own `uninstall()`); disabling it keeps all of it. Nothing is kept
+  for a reinstall: a plugin installed again starts as new. What goes, and
+  where it was kept:
+  - its code `code/<name>.mjs` (and a dev plugin's source map) and its record
+    in `plugins.json` (enabled, hidden settings, programs and permissions it
+    was given with Always, what it has done);
+  - its data folder `data/<name>/` (files, downloaded models, depth caches),
+    its size and file dialog picks kept in memory;
+  - its settings in `settings/*.json`. A plugin names its own settings
+    (3d-cover keeps them under `3DCover`), so the runtime remembers the keys
+    each plugin used (`stored` in its record, `storage::StoredClaims`), and
+    always the one under its package name;
+  - the named stores it opened (`ReactiveStore.getStore`, the IndexedDB-style
+    `idbStore`) in `storage/*.json`, whole, and the items it set in the
+    shared `localStorage`;
+  - its downloads under way (cut off) and their files in `spool/`, its
+    running programs, sockets, shortcuts and TIDAL audio streams, the loaded
+    depth models, and its answers to permission questions.
+  A setting, store or item that another installed plugin also used stays
+  until that plugin is removed too. The JS side drops the opened settings
+  objects, so a reinstall reads the disk and not the old copies. Nothing of
+  other plugins, the user's settings or themes is touched. There is no Cache
+  API, IndexedDB or per-plugin `localStorage` besides these.
+  (`harden_tests::removing_a_plugin_deletes_everything_it_left_and_only_that`,
+  `storage::tests::purging_a_plugins_claims_leaves_the_others`).
 - Downloads. A `fetch` response up to 8 MB is read into memory; a larger one
   is written to `luna/spool/` as it arrives, up to 512 MB (a body that says
   it is larger is refused before it is read, one that turns out larger is

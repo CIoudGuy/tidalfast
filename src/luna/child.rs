@@ -1100,6 +1100,15 @@ impl ChildHub {
         self.waiting.retain(|w| w.request.plugin != plugin);
     }
 
+    /// A plugin was removed: the answers kept for it (a recent No, an Allow
+    /// once) go as well, so a plugin installed later under that name starts
+    /// with no history.
+    pub fn forget_plugin(&mut self, plugin: &str) {
+        self.close_plugin(plugin);
+        self.denied.retain(|(p, _), _| p != plugin);
+        self.once.retain(|(p, _)| p != plugin);
+    }
+
     /// The user took the permission back: running programs of that plugin
     /// stop too.
     pub fn revoke(&mut self, plugin: &str, program: &str) {

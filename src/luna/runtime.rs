@@ -37,7 +37,7 @@ use super::redux::{
     redux_state,
 };
 use super::settings::{SettingValue, SettingsNode};
-use super::storage::{self, Storage};
+use super::storage::{self, LOCAL_STORAGE, PLUGIN_STORAGE, Storage, StoredClaims};
 use super::{
     ContextMenuItem, ContextTarget, LogLevel, LogLine, LunaConfig, LunaSnapshot, Msg, Permission,
     PluginInfo, PluginStatus, StoreInfo, StorePlugin,
@@ -143,6 +143,10 @@ struct PluginRecord {
     /// code), recorded by the ops that did it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     used: Vec<Permission>,
+    /// What the plugin keeps in Luna's stores, so removing it can delete
+    /// that and nothing else (see [`StoredClaims`]). Never exported.
+    #[serde(default, skip_serializing_if = "StoredClaims::is_empty")]
+    stored: StoredClaims,
 }
 
 #[derive(Default)]
@@ -334,6 +338,49 @@ impl Inner {
 
     fn record_mut(&mut self, name: &str) -> Option<&mut PluginRecord> {
         self.records.iter_mut().find(|r| r.name == name)
+    }
+
+    /// The plugin an op acts for used `key` of `store`: remembered, so that
+    /// removing the plugin deletes it (see [`StoredClaims`]).
+    fn claim_storage(&mut self, who: &Who, store: &str, key: &str) {
+        let Some(plugin) = who.attributed() else {
+            return;
+        };
+        let Some(r) = self.record_mut(&plugin) else {
+            return;
+        };
+        if r.stored.claim(store, key) {
+            self.save_records();
+        }
+    }
+
+    /// [`Inner::claim_storage`] for a write: for the shared `localStorage`
+    /// the items whose value changed are the plugin's.
+    fn claim_storage_set(&mut self, who: &Who, store: &str, key: &str, value: &Value) {
+        if store != LOCAL_STORAGE {
+            return self.claim_storage(who, store, key);
+        }
+        let Some(plugin) = who.attributed() else {
+            return;
+        };
+        let before = self.storage.get(store, key);
+        let before = before.as_ref().and_then(Value::as_object);
+        let changed: Vec<String> = value
+            .as_object()
+            .into_iter()
+            .flatten()
+            .filter(|(k, v)| before.is_none_or(|b| b.get(*k) != Some(*v)))
+            .map(|(k, _)| k.clone())
+            .collect();
+        if changed.is_empty() {
+            return;
+        }
+        let Some(r) = self.record_mut(&plugin) else {
+            return;
+        };
+        if r.stored.claim_local(changed) {
+            self.save_records();
+        }
     }
 
     /// A plugin stopped (unloaded, disabled, failed, the app closing): what
@@ -1514,29 +1561,36 @@ It is installed and switched on; what it may do is asked when it does it, and it
                 Value::Null
             })
         }
-        "storage.get" => Ok(inner
-            .borrow_mut()
-            .storage
-            .get(str_of(a, "store"), str_of(a, "key"))
-            .unwrap_or(Value::Null)),
+        "storage.get" => {
+            let (store, key) = (str_of(a, "store"), str_of(a, "key"));
+            let mut i = inner.borrow_mut();
+            i.claim_storage(who, store, key);
+            Ok(i.storage.get(store, key).unwrap_or(Value::Null))
+        }
         "storage.set" => {
             let v = a.get("value").cloned().unwrap_or(Value::Null);
-            inner
-                .borrow_mut()
-                .storage
-                .set(str_of(a, "store"), str_of(a, "key"), v)
-                .map_err(|e| e.to_string())?;
+            let (store, key) = (str_of(a, "store"), str_of(a, "key"));
+            let mut i = inner.borrow_mut();
+            i.claim_storage_set(who, store, key, &v);
+            i.storage.set(store, key, v).map_err(|e| e.to_string())?;
             Ok(Value::Null)
         }
         "storage.del" => {
-            inner
-                .borrow_mut()
-                .storage
-                .delete(str_of(a, "store"), str_of(a, "key"))
-                .map_err(|e| e.to_string())?;
+            let (store, key) = (str_of(a, "store"), str_of(a, "key"));
+            let mut i = inner.borrow_mut();
+            i.claim_storage(who, store, key);
+            i.storage.delete(store, key).map_err(|e| e.to_string())?;
             Ok(Value::Null)
         }
-        "storage.keys" => Ok(json!(inner.borrow_mut().storage.keys(str_of(a, "store")))),
+        "storage.keys" => {
+            let store = str_of(a, "store");
+            let mut i = inner.borrow_mut();
+            // Listing every plugin's settings claims none of them.
+            if store != PLUGIN_STORAGE {
+                i.claim_storage(who, store, "");
+            }
+            Ok(json!(i.storage.keys(store)))
+        }
         "plugin.status" => {
             let name = str_of(a, "name").to_string();
             let state = str_of(a, "state");
@@ -3513,6 +3567,7 @@ impl Engine {
                         account_writes: false,
                         grants: Vec::new(),
                         used: Vec::new(),
+                        stored: StoredClaims::default(),
                     });
                     true
                 }
@@ -3573,19 +3628,85 @@ impl Engine {
         }
     }
 
+    /// Forget the plugin's code and record. Its stored data is
+    /// [`Self::remove_plugin`]'s.
     fn uninstall(&self, name: &str) {
         self.unload_plugin(name);
         let mut i = self.inner.borrow_mut();
         let path = i.storage.code_path(name);
         let _ = std::fs::remove_file(path);
         i.set_source_map(name, None);
+        let urls: Vec<String> = i
+            .records
+            .iter()
+            .filter(|r| r.name == name)
+            .map(|r| r.url.clone())
+            .collect();
         i.records.retain(|r| r.name != name);
+        for url in urls {
+            i.pending_import.remove(&url);
+            i.pending_hide.remove(&url);
+        }
         i.permits.forget(name);
+        i.writes.revoke(name);
+        i.children.forget_plugin(name);
         i.rts.remove(name);
         i.live.remove(name);
         i.live_off_dev.remove(name);
+        i.latest.remove(name);
+        i.warned_actions.retain(|(p, _)| p != name);
         i.save_records();
         i.log(None, LogLevel::Info, format!("Uninstalled {name}"));
+    }
+
+    /// The user removed a plugin (or it removed itself): everything it left
+    /// goes. Its code and record ([`Self::uninstall`]), its data folder
+    /// (files, downloaded models, caches), what it kept in the stores
+    /// (settings, named stores, `localStorage` items) unless another plugin
+    /// uses the same, and its downloads under way and their leftovers.
+    /// Disabling a plugin deletes none of this.
+    fn remove_plugin(&self, name: &str) {
+        let (claims, others) = {
+            let i = self.inner.borrow();
+            let mut mine = i.record(name).map(|r| r.stored.clone()).unwrap_or_default();
+            // A plugin's settings are often under its own package name too,
+            // whether or not it was seen using them.
+            mine.settings.insert(name.to_string());
+            let others: Vec<StoredClaims> = i
+                .records
+                .iter()
+                .filter(|r| r.name != name)
+                .map(|r| {
+                    let mut c = r.stored.clone();
+                    c.settings.insert(r.name.clone());
+                    c
+                })
+                .collect();
+            (mine, others)
+        };
+        // Downloads under way are cut off, and their files go, with the
+        // unload.
+        self.uninstall(name);
+        let doomed = {
+            let others: Vec<&StoredClaims> = others.iter().collect();
+            claims.alone(&others)
+        };
+        let home = {
+            let mut i = self.inner.borrow_mut();
+            i.storage.purge(&doomed);
+            i.storage.data_dir(name)
+        };
+        let _ = std::fs::remove_dir_all(&home);
+        super::fsops::forget_plugin(name, &home);
+        super::downloads::stop_plugin(name);
+        super::depth::drop_plugin(name);
+        // The shims keep each opened setting object (and a save waiting to
+        // run) for the next `getPluginStorage`; a reinstall must not get the
+        // old values back from them.
+        self.host_call(
+            "forget_storage",
+            json!({ "settings": doomed.settings, "stores": doomed.stores }),
+        );
     }
 
     fn check_updates(&self, apply: bool) {
@@ -3837,13 +3958,7 @@ impl Engine {
         match msg {
             Msg::Event(ev) => self.handle_event(ev),
             Msg::Install(url) => self.install(&url, false),
-            Msg::Uninstall(name) => {
-                self.uninstall(&name);
-                // What the plugin kept in its data folder goes with it (its
-                // settings stay, as in Luna, for a reinstall).
-                let dir = self.inner.borrow().storage.data_dir(&name);
-                let _ = std::fs::remove_dir_all(dir);
-            }
+            Msg::Uninstall(name) => self.remove_plugin(&name),
             Msg::SetEnabled(name, on) => self.set_enabled(&name, on),
             Msg::Reload(name) => {
                 if self.inner.borrow().record(&name).is_some_and(|r| r.enabled) {
@@ -4318,6 +4433,7 @@ fn dedupe_records(records: &mut Vec<PluginRecord>, data_dir: &std::path::Path) -
             }
         }
         winner.account_writes |= loser.account_writes;
+        winner.stored.merge(&loser.stored);
         for g in &loser.grants {
             if !winner.grants.contains(g) {
                 winner.grants.push(g.clone());

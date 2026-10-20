@@ -1169,7 +1169,9 @@ impl Luna {
         let _ = self.tx.send(Msg::Install(url.to_string()));
     }
 
-    /// Unload, forget the code. Settings are kept for a reinstall.
+    /// Remove a plugin and everything it left: its code, its data folder
+    /// (downloaded models included), its settings and stores, its
+    /// permissions. Disabling it ([`Luna::set_enabled`]) deletes none of that.
     pub fn uninstall(&self, name: &str) {
         let _ = self.tx.send(Msg::Uninstall(name.to_string()));
     }

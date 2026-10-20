@@ -160,6 +160,20 @@ pub(super) fn submit(
     }
 }
 
+/// A plugin stopped for good: the models it had loaded go now, not when
+/// the idle thread ends. Nothing starts if the thread is not running.
+pub(super) fn drop_plugin(plugin: &str) {
+    let worker = WORKER.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(tx) = worker.as_ref() {
+        let _ = tx.send(Job {
+            name: "depth.drop".into(),
+            args: Value::Null,
+            plugin: plugin.to_string(),
+            done: Box::new(|_| {}),
+        });
+    }
+}
+
 fn work(rx: &Receiver<Job>) {
     super::video::step_back();
     let mut models: HashMap<u64, Loaded> = HashMap::new();
@@ -236,6 +250,10 @@ fn run_job(
             if models.get(&id).is_some_and(|m| m.plugin == plugin) {
                 models.remove(&id);
             }
+            Ok(Value::Null)
+        }
+        "depth.drop" => {
+            models.retain(|_, m| m.plugin != plugin);
             Ok(Value::Null)
         }
         "depth.run" => {
