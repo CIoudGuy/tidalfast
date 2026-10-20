@@ -888,11 +888,16 @@
 		for (const [name, raw] of decls) {
 			if (name.startsWith("--")) continue;
 			const v = resolveVars(raw, vars);
-			if (STYLE_FIELDS.has(name)) set(name, v);
+			if (name === "background-color" && /^(initial|unset)$/i.test(v.trim())) set(name, "transparent");
+			else if (STYLE_FIELDS.has(name)) set(name, v);
 			else if (name === "background") {
 				if (isImage(v)) set("background-image", v);
 				else if (/^none$/i.test(v.trim())) set("background-image", "none");
-				else if (/^(inherit|initial|unset|revert|revert-layer)$/i.test(v.trim())) set("background-color", v);
+				// Backgrounds are not inherited: `unset` is `initial`, which is
+				// no colour (radiant-lyrics' `main { background: unset }` takes
+				// TIDAL's black away so its backdrop shows).
+				else if (/^(initial|unset)$/i.test(v.trim())) set("background-color", "transparent");
+				else if (/^(inherit|revert|revert-layer)$/i.test(v.trim())) set("background-color", v);
 				else set("background-color", bgColor(v));
 			} else if (name === "inset") {
 				const p = v.split(/\s+/);

@@ -1405,6 +1405,48 @@ fn theme_gradients_turn_and_pictures_blur_and_cast_shadows() {
     let _ = std::fs::remove_dir_all(&data);
 }
 
+/// radiant-lyrics clears TIDAL's own backgrounds (`main, body, #wimp {
+/// background: unset !important }`) so its backdrop shows through: an
+/// unset or initial background is no colour, not the native one kept.
+#[test]
+fn an_unset_background_is_transparent() {
+    use dom_anchors::keys::*;
+    let css = r#"/* {"name": "Unset"} */
+main { background: unset !important; }
+[data-test=main-layout-sidebar-wrapper] { background-color: initial !important; }
+"#;
+    let files: Files = Arc::default();
+    files
+        .lock()
+        .unwrap()
+        .insert("/unset.css".into(), css.as_bytes().to_vec());
+    let base = serve(files);
+    let data = temp_dir("theme-unset-background");
+    let luna = Luna::start(config(&data), Arc::new(MockHost::default())).unwrap();
+    let tree = dom_anchors::build(&dom_anchors::sample_frame());
+    luna.install_theme(&format!("{base}/unset.css"));
+    let end = Instant::now() + Duration::from_secs(20);
+    let o = loop {
+        luna.sync_dom(tree.clone());
+        luna.sync(Duration::from_secs(5));
+        let o = luna.dom_overlay();
+        if o.css_bytes > 0 && o.hosts.contains_key(MAIN) && o.hosts.contains_key(SIDEBAR) {
+            break o;
+        }
+        assert!(Instant::now() < end, "the backgrounds were never styled");
+        std::thread::sleep(Duration::from_millis(30));
+    };
+    for key in [MAIN, SIDEBAR] {
+        assert_eq!(
+            o.hosts[key].style.background_color.as_deref(),
+            Some("transparent"),
+            "{key}"
+        );
+    }
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&data);
+}
+
 /// The cotton candy family hides TIDAL's three backdrop layers of the now
 /// playing view with exact plain classes, and Mocha Blue highlights the
 /// playing row through `data-test-is-playing`: both reach the anchors.
