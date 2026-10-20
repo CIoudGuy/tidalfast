@@ -601,14 +601,6 @@ const COMPAT: &[CompatRow] = &[
             reason: "The lyrics bubble over the player bar works, but its separate lyrics window does not, because that needs a browser engine.",
         },
     },
-    CompatRow {
-        repo: "visiuun/tidaluna-plugins",
-        name: "@visiuun/3d-cover",
-        note: CompatNote {
-            level: Compat::PartlySupported,
-            reason: "The Small depth model works, but the Base model (about 100 MB) is more than a plugin may download here.",
-        },
-    },
 ];
 
 /// What is known about a plugin that is not fully working here, by the

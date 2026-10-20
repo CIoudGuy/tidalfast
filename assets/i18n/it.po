@@ -3787,14 +3787,6 @@ msgstr ""
 "Il fumetto dei testi sopra la barra del player funziona, ma la sua finestra "
 "dei testi separata no, perché richiede un motore del browser."
 
-#: src/luna/mod.rs:410
-msgid ""
-"The Small depth model works, but the Base model (about 100 MB) is more than "
-"a plugin may download here."
-msgstr ""
-"Il modello di profondità Small funziona, ma il modello Base (circa 100 MB) "
-"supera quanto un plugin può scaricare qui."
-
 #: src/app/plugins.rs:444
 #, rust-format
 msgid "{name} updated to {version}"

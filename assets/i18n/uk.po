@@ -3795,14 +3795,6 @@ msgstr ""
 "Бульбашка з текстом пісні над панеллю програвача працює, а окреме вікно з "
 "текстом ні, бо для нього потрібен рушій браузера."
 
-#: src/luna/mod.rs:410
-msgid ""
-"The Small depth model works, but the Base model (about 100 MB) is more than "
-"a plugin may download here."
-msgstr ""
-"Модель глибини Small працює, але модель Base (близько 100 МБ) більша, ніж "
-"плагіну дозволено тут завантажити."
-
 #: src/app/plugins.rs:444
 #, rust-format
 msgid "{name} updated to {version}"

@@ -3782,14 +3782,6 @@ msgstr ""
 "O balão de letras sobre a barra do leitor funciona, mas a janela de letras "
 "separada não, porque precisa de um motor de navegador."
 
-#: src/luna/mod.rs:410
-msgid ""
-"The Small depth model works, but the Base model (about 100 MB) is more than "
-"a plugin may download here."
-msgstr ""
-"O modelo de profundidade Small funciona, mas o modelo Base (cerca de 100 MB) "
-"é maior do que um plugin pode transferir aqui."
-
 #: src/app/plugins.rs:444
 #, rust-format
 msgid "{name} updated to {version}"
