@@ -868,8 +868,9 @@ pub fn page_filter(r: Rect, value: &str) {
 /// (corners as the theme rounds them, else `native`). False while no theme
 /// styles the box, so nothing is drawn and the native look stays.
 pub fn paint_themed_box(ui: &egui::Ui, key: &str, r: Rect, native: egui::CornerRadius) -> bool {
-    // Styled, not merely listed: a plugin listening on `window` lists every
-    // host (discord-utils' socket hid the filter field's outline).
+    // Styled, not merely listed: a plugin listening on `window` or for
+    // events on the page lists every host (discord-utils' socket,
+    // star-ratings and AltPlay hid the filter field's outline).
     let styled = |h: &HostOverride| !h.style.is_empty() || h.before.is_some() || h.after.is_some();
     if host(key, |h, _| styled(h).then_some(())).is_none() {
         return false;
@@ -4651,6 +4652,47 @@ pub(crate) fn test_overlay(overlay: Option<DomOverlay>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// star-ratings and AltPlay listen for clicks on the page, which gives
+    /// the filter pill's anchor an override with only `listens`: the
+    /// Tracks and playlist filter lost its native outline, as if a theme
+    /// had styled the box. Only a rule that styles it takes it away.
+    #[test]
+    fn a_listener_alone_keeps_the_filters_outline() {
+        let key = dom_anchors::keys::PAGE_FILTER_BOX;
+        let styled_with = |o: HostOverride| {
+            test_overlay(Some(DomOverlay {
+                version: 1,
+                hosts: [(key.to_string(), o)].into_iter().collect(),
+                ..DomOverlay::default()
+            }));
+            let ctx = egui::Context::default();
+            let mut styled = false;
+            for _ in 0..2 {
+                ctx.run_ui(egui::RawInput::default(), |ui| {
+                    styled = filter_box(
+                        ui,
+                        Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(300.0, 42.0)),
+                    );
+                })
+                .textures_delta
+                .clear();
+            }
+            test_overlay(None);
+            styled
+        };
+        assert!(!styled_with(HostOverride {
+            listens: vec!["click".into(), "mousedown".into()],
+            ..HostOverride::default()
+        }));
+        assert!(styled_with(HostOverride {
+            style: Style {
+                background_color: Some("#ff000033".into()),
+                ..Style::default()
+            },
+            ..HostOverride::default()
+        }));
+    }
 
     /// A theme that declares a family's regular and bold faces gets both: its
     /// bold text is drawn in the bold file, not in the regular one (the
