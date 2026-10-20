@@ -58,6 +58,9 @@ pub mod keys {
     pub const PROFILE: &str = "profile-picture";
     pub const PROFILE_SVG: &str = "profile-picture:svg";
     pub const FIXED_NAV: &str = "sidebar-fixed-nav";
+    /// `div._collectionWrapper_` around the Collection entry and its menu
+    /// button (AltPlay puts its link after it).
+    pub const COLLECTION_WRAPPER: &str = "sidebar-collection-wrapper";
 
     pub const FOOTER: &str = "footer-player";
     pub const PLAYER_CONTENT: &str = "player-content";
@@ -998,12 +1001,24 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
     );
     for item in &side.items {
         // TIDAL's Collection entry is a button; the rest are links.
-        let tag = if item.test == "sidebar-collection-menu" {
-            "button"
+        let collection = item.test == "sidebar-collection-menu";
+        let tag = if collection { "button" } else { "a" };
+        // TIDAL wraps the Collection entry in `div._collectionWrapper_`
+        // (AltPlay inserts its link after `button[...collection-menu]`'s
+        // parent).
+        if collection {
+            out.push(
+                el(COLLECTION_WRAPPER, Some(FIXED_NAV), "div")
+                    .modules(&["collectionWrapper"])
+                    .at(item.rect),
+            );
+        }
+        let parent = if collection {
+            COLLECTION_WRAPPER
         } else {
-            "a"
+            FIXED_NAV
         };
-        let mut node = el(keys::sidebar_item(&item.test), Some(FIXED_NAV), tag)
+        let mut node = el(keys::sidebar_item(&item.test), Some(parent), tag)
             // TIDAL's navigation rows carry both modules (`_sidebarItem_`
             // for Tidal Light, `_navigationItem_` for the cotton candy
             // family and Solo).
@@ -2504,6 +2519,11 @@ mod tests {
             find(&tree, "sidebar:sidebar-collection-menu")
                 .parent
                 .as_deref(),
+            Some(keys::COLLECTION_WRAPPER),
+            "TIDAL's `div._collectionWrapper_` holds the Collection entry"
+        );
+        assert_eq!(
+            find(&tree, keys::COLLECTION_WRAPPER).parent.as_deref(),
             Some(keys::FIXED_NAV)
         );
     }

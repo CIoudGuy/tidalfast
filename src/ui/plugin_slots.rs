@@ -2661,6 +2661,15 @@ pub fn has_backdrop() -> bool {
     plugin_dom::overlay().is_some_and(|o| behind(&o).next().is_some())
 }
 
+/// Whether anything is injected at `key` in `position`.
+pub fn any_at(key: &str, position: Position) -> bool {
+    plugin_dom::overlay().is_some_and(|o| {
+        o.injected
+            .iter()
+            .any(|i| i.anchor == key && i.position == position && !i.nodes.is_empty())
+    })
+}
+
 /// Whether anything is injected at `key` in any position.
 pub fn any(key: &str) -> bool {
     plugin_dom::overlay().is_some_and(|o| o.injected.iter().any(|i| i.anchor == key))
@@ -4118,8 +4127,15 @@ fn sprite_paint(markup: &str, paint: Color32) -> String {
 fn source_of(markup: &str, color: Color32) -> Option<ImageSource> {
     let markup = markup.trim();
     if markup.starts_with('<') {
-        let [r, g, b, _] = color.to_srgba_unmultiplied();
-        let svg = markup.replace("currentColor", &format!("#{r:02x}{g:02x}{b:02x}"));
+        let [r, g, b, a] = color.to_srgba_unmultiplied();
+        // `currentColor` keeps the colour's alpha (AltPlay's icon in its
+        // 55 % white link).
+        let current = if a == 255 {
+            format!("#{r:02x}{g:02x}{b:02x}")
+        } else {
+            format!("rgba({r},{g},{b},{:.3})", f32::from(a) / 255.0)
+        };
+        let svg = markup.replace("currentColor", &current);
         // `fill="var(--star-off, ...)"` (star-ratings): the SVG renderer
         // knows no CSS variables.
         let svg = if svg.contains("var(") {
@@ -5569,6 +5585,17 @@ mod tests {
         let svg = String::from_utf8(bytes).unwrap();
         assert!(svg.contains("xmlns=\"http://www.w3.org/2000/svg\""));
         assert!(svg.contains("#ff0000"));
+        // AltPlay's icon in its 55 % white link: `currentColor` keeps the
+        // alpha (it was drawn white).
+        let Some(ImageSource::Bytes(_, bytes)) = image_source(
+            &node,
+            Color32::from_rgba_unmultiplied(255, 255, 255, 140),
+            None,
+        ) else {
+            panic!("svg source");
+        };
+        let svg = String::from_utf8(bytes).unwrap();
+        assert!(svg.contains("rgba(255,255,255,0.549)"), "{svg}");
     }
 
     /// The audiovisualiser's bars: `flex: 1 1 0` items of a fixed-width row,

@@ -2453,6 +2453,18 @@ fn host<R>(
     with(|s| s.overlay.hosts.get(key).and_then(|h| f(h, &s.vars)))
 }
 
+/// A plugin took the anchor's TIDAL class starting `prefix` away
+/// (`_selected_`: the row no longer shows as the open page).
+pub fn class_removed(key: &str, prefix: &str) -> bool {
+    host(key, |h, _| {
+        h.removed
+            .iter()
+            .any(|c| c.starts_with(prefix))
+            .then_some(())
+    })
+    .is_some()
+}
+
 /// A plugin hid the anchor (`display: none`, `visibility: hidden`).
 #[inline]
 pub fn hidden(key: &str) -> bool {

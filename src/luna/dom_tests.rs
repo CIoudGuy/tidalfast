@@ -2387,3 +2387,77 @@ lib.observe(unloads, "div[data-track--page-id='album']", (page) => {
     assert_eq!(o.var("--wave-color-opacity-contrast-fill-thick"), None);
     finish(luna, dir);
 }
+
+/// AltPlay's sidebar link: it goes after the parent of TIDAL's Collection
+/// menu button (`div._collectionWrapper_`) and copies the Music link's
+/// classes, so it looks like TIDAL's navigation rows (TIDAL's stylesheet
+/// gives `_navigationItem_` its 208 x 40 row, 55 % white). With its page
+/// open it moves `_selected_` from Music to itself. Tidalfast had no
+/// wrapper, so the link went after the whole navigation, where nothing
+/// draws; nothing gave the copied class TIDAL's look; and a class taken
+/// from a TIDAL element was not reported.
+#[test]
+fn altplay_sidebar_link_follows_the_collection_wrapper_and_takes_tidals_look() {
+    let (luna, _host, dir) = start(
+        r##"
+lib.observe(unloads, '[data-test="sidebar-music"]', (music) => {
+	if (R.done) return;
+	const wrap = document.querySelector('button[data-test="sidebar-collection-menu"]')?.parentElement;
+	R.wrapper = wrap?.className ?? null;
+	const a = document.createElement("a");
+	a.id = "altplay-sidebar-link";
+	a.className = music.className.split(/\s+/).filter((c) => c && !c.includes("_selected")).join(" ");
+	a.textContent = "AltPlay";
+	wrap.insertAdjacentElement("afterend", a);
+	const selected = [...music.classList].find((c) => c.startsWith("_selected_"));
+	if (selected) {
+		music.classList.remove(selected);
+		a.classList.add(selected);
+	}
+	R.done = true;
+});
+"##,
+    );
+    // Music is the open page; Collection follows it.
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.items[0].selected = true;
+    frame.sidebar.items.push(dom_anchors::SidebarItem {
+        test: "sidebar-collection-menu".into(),
+        label: "Collection".into(),
+        ..dom_anchors::SidebarItem::default()
+    });
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert!(
+        r["wrapper"]
+            .as_str()
+            .is_some_and(|c| c.starts_with("_collectionWrapper_")),
+        "{r}"
+    );
+    let o = overlay_until(&luna, 10, |o| {
+        o.at(keys::FIXED_NAV, Position::Append).next().is_some()
+            || o.at(keys::COLLECTION_WRAPPER, Position::After)
+                .next()
+                .is_some()
+    });
+    let link = o
+        .at(keys::FIXED_NAV, Position::Append)
+        .chain(o.at(keys::COLLECTION_WRAPPER, Position::After))
+        .next()
+        .unwrap();
+    assert_eq!(
+        link.style.color.as_deref(),
+        Some("rgb(255, 255, 255)"),
+        "selected: white"
+    );
+    assert_eq!(link.style.padding.as_deref(), Some("8px"));
+    assert_eq!(link.style.border_radius.as_deref(), Some("12px"));
+    // TIDAL's look is for plugin elements: Tidalfast draws its own rows.
+    let music = o.host(&keys::sidebar_item("sidebar-music"));
+    assert!(music.is_none_or(|h| h.style.padding.is_none()), "{music:?}");
+    assert!(
+        music.is_some_and(|h| h.removed.iter().any(|c| c.starts_with("_selected_"))),
+        "{music:?}"
+    );
+    finish(luna, dir);
+}

@@ -395,6 +395,24 @@
 		}
 		return tidal;
 	};
+	// TIDAL's look of its own elements, for plugin elements that copy their
+	// class (AltPlay's sidebar link takes `a[data-test=sidebar-music]`'s
+	// `_navigationItem_`), measured in TIDAL 2.43.2: a 208 x 40 row (its box
+	// with the padding), 16 in
+	// from the sidebar's edges, 8 padding and gap, 12 corners, 14-point
+	// semibold at 55 % white; white on a 10 % white fill when selected.
+	// Tidalfast draws its own elements itself, so these never apply to them.
+	let looks = null;
+	const looksSheet = () => {
+		if (!looks) {
+			looks = new CSSStyleSheet();
+			looks.replaceSync(
+				'[class*="_navigationItem_"] { display: flex; align-items: center; gap: 8px; padding: 8px; margin: 0 16px; width: 192px; height: 24px; border-radius: 12px; font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.55); }' +
+					'[class*="_navigationItem_"][class*="_selected_"] { color: rgb(255, 255, 255); background-color: rgba(255, 255, 255, 0.1); }',
+			);
+		}
+		return looks;
+	};
 	let index = null;
 	let indexKey = "";
 	// Nothing in the document changed since the index was checked: reuse it
@@ -409,7 +427,7 @@
 		indexSize = size;
 		const key = `${D.cssVersion()}|${size}`;
 		const els = styleElements();
-		const sheets = [tidalSheet(), ...els.map(sheetOf), ...(g.document.adoptedStyleSheets ?? [])];
+		const sheets = [tidalSheet(), looksSheet(), ...els.map(sheetOf), ...(g.document.adoptedStyleSheets ?? [])];
 		const srcKey = `${key}|${els.length}|${sheets.map((s) => (s._src ?? "").length).join(",")}`;
 		if (index && srcKey === indexKey) return index;
 		indexKey = srcKey;
@@ -446,6 +464,8 @@
 		const attrNames = new Set();
 		let order = 0;
 		let bytes = 0;
+		// Rules of `looksSheet`: plugin elements only.
+		let pluginOnly = false;
 		const add = (m, k, r) => {
 			let a = m.get(k);
 			if (!a) m.set(k, (a = []));
@@ -484,7 +504,7 @@
 							ix = p;
 							p.size++;
 						}
-						const entry = { steps, spec: sel.spec, order: order++, decls };
+						const entry = { steps, spec: sel.spec, order: order++, decls, pluginOnly };
 						if (last.ids.length) add(ix.byId, last.ids[0], entry);
 						else if (last.classes.length) add(ix.byClass, D.canonClass(last.classes[0]), entry);
 						else if (last.tag && last.tag !== "*") add(ix.byTag, last.tag.toLowerCase(), entry);
@@ -511,7 +531,8 @@
 		for (const sh of sheets) {
 			if (!sh || sh.disabled) continue;
 			if (sh._media && !D.evalMedia(sh._media)) continue;
-			if (sh !== tidal) {
+			pluginOnly = sh === looks;
+			if (sh !== tidal && sh !== looks) {
 				const size = (sh._src ?? "").length || sh.cssRules.reduce((n, r) => n + (r.cssText?.length ?? 0), 0);
 				if (bytes + size > MAX_CSS_BYTES) {
 					skipped++;
@@ -661,7 +682,7 @@
 		// Counted for the tests that check what a change keeps.
 		D.cascadeRuns = (D.cascadeRuns ?? 0) + 1;
 		const live = el.isConnected;
-		const matched = ix.size ? candidates(ix, el).filter((r) => D.sel.matchSteps(el, r.steps, null, live)) : [];
+		const matched = ix.size ? candidates(ix, el).filter((r) => !(r.pluginOnly && el._hostKey !== undefined) && D.sel.matchSteps(el, r.steps, null, live)) : [];
 		const inline = el._style?._m;
 		if (!matched.length && !inline?.size) return null;
 		matched.sort((a, b) => D.sel.cmpSpec(a.spec, b.spec) || a.order - b.order);

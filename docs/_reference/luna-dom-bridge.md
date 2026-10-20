@@ -351,7 +351,12 @@ oneko), and right-clicks as `contextmenu` (element-hider).
 - Spans TIDAL has: `button[toggle-lyrics] > span`, `request-fullscreen >
   span`, `div[footer-track-title] > a > span` (holds the title text).
 - Sidebar: `div._fixedNavigation_` around the nav items (Append),
-  `button[data-test=sidebar-collection-menu]` (After). Top bar:
+  `button[data-test=sidebar-collection-menu]` (After) inside TIDAL's
+  `div._collectionWrapper_` (After: AltPlay's link). Rows plugins add there
+  follow the native 40-point rows with no gap; a plugin element that copies
+  `_navigationItem_` gets TIDAL's row look from a built-in stylesheet that
+  applies to plugin elements only, and a plugin that takes a row's
+  `_selected_` class away (`overlay.hosts[..].removed`) unselects it. Top bar:
   `button._profilePicture_ > svg`; a plugin `background-image: url()` on it
   is drawn as the avatar.
 - Pages: `h1[data-test=title]` on collection grids, Tracks and album/

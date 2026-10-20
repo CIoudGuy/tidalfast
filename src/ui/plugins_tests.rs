@@ -2217,7 +2217,8 @@ fn a_plugin_on_the_new_shelf_and_in_all_has_distinct_widget_ids() {
 
 /// A plugin's empty text field shows as a box on its card. Its default
 /// fill was the card's own colour, with no outline, so AltPlay's empty
-/// Jellyfin sign-in fields could not be seen at all.
+/// Jellyfin sign-in fields could not be seen at all. Empty, it shows its
+/// title inside, as TidaLuna's does.
 #[test]
 fn an_empty_text_setting_shows_its_box_on_the_card() {
     for palette in [Palette::dark(), Palette::light()] {
@@ -2290,6 +2291,19 @@ fn an_empty_text_setting_shows_its_box_on_the_card() {
             "dark {}: field boxes {boxes:?} on a {:?} card",
             palette.dark,
             palette.surface
+        );
+        // TidaLuna's empty field shows its title inside (MUI's label).
+        let field_rect = egui::Rect::from_min_max(
+            egui::pos2(field.x0 as f32, field.y0 as f32),
+            egui::pos2(field.x1 as f32, field.y1 as f32),
+        );
+        assert!(
+            output.shapes.iter().any(|c| matches!(
+                &c.shape,
+                egui::Shape::Text(t) if t.galley.text() == "Username"
+                    && field_rect.expand(4.0).contains(t.pos)
+            )),
+            "the title inside the empty field"
         );
     }
 }
