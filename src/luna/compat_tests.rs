@@ -21,6 +21,9 @@ mod wasm_tests;
 #[path = "harden_tests.rs"]
 mod harden_tests;
 
+#[path = "security_tests.rs"]
+mod security_tests;
+
 /// Records every outbound request; `fake.test` is answered by the host,
 /// `deny.test` and private TCP addresses are refused.
 #[derive(Default)]
