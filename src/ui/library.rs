@@ -60,7 +60,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
         heading.left_center(),
         egui::Align2::LEFT_CENTER,
         super::plugin_dom::page_title_text(title.as_ref()),
-        theme::bold(27.0),
+        super::plugin_dom::headline_font(27.0),
         palette.text,
     );
     let title_end = super::plugin_dom::page_title(ui, title.as_ref(), title_rect, true);

@@ -218,9 +218,10 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
     let width = (row.right() - left).max(0.0);
     let mut title_size: f32 = if cover_size > 200.0 { 32.0 } else { 24.0 };
     let title = loop {
-        let galley = ui.painter().layout_no_wrap(
+        let galley = super::plugin_dom::headline_galley(
+            ui,
             super::plugin_dom::page_title_text(hero.title).into_owned(),
-            theme::bold(title_size),
+            super::plugin_dom::headline_font(title_size),
             hero.title_color.unwrap_or(palette.text),
         );
         if galley.size().x <= width || title_size <= 18.0 {
@@ -1138,18 +1139,20 @@ pub(super) fn header_pill_width(
     }
     let galley = ui.painter().layout_no_wrap(
         super::plugin_dom::pill_label(primary, label).into_owned(),
-        theme::semibold(16.0),
+        super::plugin_dom::pill_font(primary, theme::semibold(16.0), 600),
         ink,
     );
     let content = 16.0 + 8.0 + galley.size().x;
     let start = rect.center().x - content / 2.0;
-    // Lucide's glyphs sit inside a padded box; 20 draws TIDAL's 16.
+    // Lucide's glyphs sit inside a padded box; 20 draws TIDAL's 16. A
+    // theme may fill the icon apart from the label (the cotton candy
+    // family's pale glyph on a pink pill).
     theme::paint_icon(
         ui,
         icon,
         Rect::from_center_size(pos2(start + 8.0, rect.center().y), Vec2::splat(20.0)),
         20.0,
-        ink,
+        super::plugin_dom::pill_icon(primary).unwrap_or(ink),
     );
     ui.painter().galley(
         pos2(start + 24.0, rect.center().y - galley.size().y / 2.0),
@@ -1842,6 +1845,23 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
             .is_some_and(|last| last.start + last.len == table.items.len())
         && rows == table.items.len();
     let volume_layout = grouped.then(|| volume_layout(table.volumes, row_height));
+    if rows > 0 {
+        // A theme's panel behind the whole list, its header row included
+        // (TIDAL's `.TRACK_LIST` holds both), painted before them.
+        let header = if grouped { 0.0 } else { 36.0 };
+        let panel = egui::Rect::from_min_size(
+            ui.cursor().min,
+            egui::vec2(
+                ui.available_width(),
+                header
+                    + volume_layout
+                        .as_ref()
+                        .and_then(|layout| layout.last())
+                        .map_or(rows as f32 * row_height, |last| last.top + last.height),
+            ),
+        );
+        super::plugin_dom::list_panel(ui, panel);
+    }
     let header_clicked = if rows > 0 && !grouped {
         widgets::table_header(
             ui,
@@ -1945,20 +1965,6 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
     let mut row_responses = Vec::new();
     let mut missing = None;
     let mut retry_shown = false;
-    if rows > 0 {
-        // A theme's panel behind the whole list.
-        let panel = egui::Rect::from_min_size(
-            ui.cursor().min,
-            egui::vec2(
-                ui.available_width(),
-                volume_layout
-                    .as_ref()
-                    .and_then(|layout| layout.last())
-                    .map_or(rows as f32 * row_height, |last| last.top + last.height),
-            ),
-        );
-        super::plugin_dom::list_panel(ui, panel);
-    }
     let mut draw_row = |ui: &mut egui::Ui, row: usize, first: usize| {
         let Some(index) = item_index(row) else {
             let unavailable = finite.is_some_and(|page| {
@@ -3399,7 +3405,7 @@ pub fn liked(app: &mut App, ui: &mut egui::Ui) {
         heading.left_center(),
         egui::Align2::LEFT_CENTER,
         super::plugin_dom::page_title_text(&liked_title),
-        theme::bold(27.0),
+        super::plugin_dom::headline_font(27.0),
         palette.text,
     );
     super::plugin_dom::page_title(ui, &liked_title, title_rect, false);
@@ -4626,6 +4632,22 @@ mod tests {
         );
 
         assert_eq!(view_context(&base, None), base);
+    }
+
+    /// A theme's panel behind a track list (the cotton candy family's
+    /// `.TRACK_LIST` glass) holds the header row too, as TIDAL's does: it
+    /// began at the first row, leaving the column names outside its border
+    /// and rounded top.
+    #[test]
+    fn a_themes_track_list_panel_holds_the_header_row() {
+        super::super::plugin_dom::test_overlay(Some(crate::luna::dom::DomOverlay::default()));
+        super::super::plugin_dom::test_page_frame();
+        let mut t = KeyboardTable::new();
+        t.frame(vec![]);
+        let panel = super::super::plugin_dom::test_list_panel().expect("the panel is noted");
+        super::super::plugin_dom::test_overlay(None);
+        let rows = t.items.len() as f32 * theme::COMPACT_ROW_HEIGHT;
+        assert!((panel[3] - (36.0 + rows)).abs() < 0.5, "{panel:?}");
     }
 
     fn test_app() -> App {

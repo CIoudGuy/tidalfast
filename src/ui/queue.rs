@@ -22,7 +22,7 @@ pub fn page(app: &mut App, ui: &mut egui::Ui) {
         theme::text(
             ui,
             gettext(app.locale, "Queue"),
-            theme::bold(28.0),
+            super::plugin_dom::headline_font(28.0),
             palette.text,
         );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -772,7 +772,11 @@ fn floating_contents(app: &mut App, ui: &mut egui::Ui) {
                 ui,
                 super::plugin_dom::text(crate::luna::dom_anchors::keys::QUEUE_TITLE, &native)
                     .as_ref(),
-                theme::bold(19.0),
+                super::plugin_dom::themed_font(
+                    crate::luna::dom_anchors::keys::QUEUE_TITLE,
+                    super::plugin_dom::subheadline_font(19.0),
+                    700,
+                ),
                 palette.text,
             );
             if luna {

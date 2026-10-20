@@ -57,6 +57,12 @@ pub mod keys {
     pub const PAGE_PLAY_LABEL: &str = "page-play-button:label";
     pub const PAGE_SHUFFLE: &str = "page-shuffle-button";
     pub const PAGE_SHUFFLE_LABEL: &str = "page-shuffle-button:label";
+    /// The pills' icons, `svg._icon_77f3f89 > use`, which themes fill
+    /// apart from the label (the cotton candy family's pale glyphs).
+    pub const PAGE_PLAY_ICON: &str = "page-play-button:icon";
+    pub const PAGE_PLAY_ICON_USE: &str = "page-play-button:icon:use";
+    pub const PAGE_SHUFFLE_ICON: &str = "page-shuffle-button:icon";
+    pub const PAGE_SHUFFLE_ICON_USE: &str = "page-shuffle-button:icon:use";
     pub const PROFILE: &str = "profile-picture";
     pub const PROFILE_SVG: &str = "profile-picture:svg";
     pub const FIXED_NAV: &str = "sidebar-fixed-nav";
@@ -90,6 +96,11 @@ pub mod keys {
     pub const QUALITY_GLOW: &str = "quality-badge-glow";
     pub const ACTIONS: &str = "track-actions";
     pub const FAVORITE: &str = "favorite";
+    /// The heart's `svg._icon_77f3f89 > use`, which themes fill.
+    pub const FAVORITE_ICON: &str = "favorite:icon";
+    pub const FAVORITE_ICON_USE: &str = "favorite:icon:use";
+    /// The "..." after the heart, `button._contextMenuButton_9741d3a`.
+    pub const TRACK_MORE: &str = "track-more";
     pub const CONTROLS: &str = "player-controls";
     pub const SHUFFLE: &str = "shuffle";
     pub const PREVIOUS: &str = "previous";
@@ -172,8 +183,17 @@ pub mod keys {
     pub const THEME_TEXT: &str = "theme-roles:text";
     /// `span.wave-text-body-medium[data-wave-color=textSecondary]`
     pub const THEME_SECONDARY: &str = "theme-roles:secondary";
-    /// `div._contextMenu_` (the menu surface).
+    /// `span.wave-text-headline-bold`: a page's title (an album's, a
+    /// playlist's, an artist's), whose size and spacing themes set there.
+    pub const THEME_HEADLINE: &str = "theme-roles:headline";
+    /// `span.wave-text-subheadline-bold`: a section's title on a page
+    /// ("Your favorite artists") and the play queue's.
+    pub const THEME_SUBHEADLINE: &str = "theme-roles:subheadline";
+    /// `div._contextMenu_[role=menu]` (the menu surface).
     pub const THEME_MENU: &str = "theme-roles:menu";
+    /// `span._actionTextInner_` in it: a menu row's words, whose size and
+    /// weight themes set there (Tidal TUI's 14px).
+    pub const THEME_MENU_TEXT: &str = "theme-roles:menu-text";
     /// TIDAL's popover around a menu, `div._container_d3060bb._visible_4bed23e`,
     /// which themes paint as the menu's surface (the cotton candy family's
     /// gradient glass).
@@ -905,12 +925,21 @@ pub fn theme_roles(out: &mut Vec<HostNode>) {
             .class("wave-text-body-medium")
             .attr("data-wave-color", "textSecondary"),
     );
+    out.push(el(THEME_HEADLINE, Some(THEME_ROLES), "span").class("wave-text-headline-bold"));
+    out.push(el(THEME_SUBHEADLINE, Some(THEME_ROLES), "span").class("wave-text-subheadline-bold"));
     out.push(
         el(THEME_MENU_BOX, Some(THEME_ROLES), "div")
             .class("_container_d3060bb")
             .class("_visible_4bed23e"),
     );
-    out.push(el(THEME_MENU, Some(THEME_MENU_BOX), "div").modules(&["contextMenu"]));
+    // TIDAL's context menu is `div[role=menu]` (Tidal TUI and Lunallena
+    // style menus by `[role="menu"]`).
+    out.push(
+        el(THEME_MENU, Some(THEME_MENU_BOX), "div")
+            .modules(&["contextMenu"])
+            .attr("role", "menu"),
+    );
+    out.push(el(THEME_MENU_TEXT, Some(THEME_MENU), "span").modules(&["actionTextInner"]));
 }
 
 /// `#wimp > div` with the top bar, main container, `#main`, header and search.
@@ -1398,9 +1427,21 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 .at(around),
         );
     }
-    for (key, label_key, button, primary) in [
-        (PAGE_PLAY, PAGE_PLAY_LABEL, &page.play, true),
-        (PAGE_SHUFFLE, PAGE_SHUFFLE_LABEL, &page.shuffle, false),
+    for (key, label_key, (icon, icon_use), button, primary) in [
+        (
+            PAGE_PLAY,
+            PAGE_PLAY_LABEL,
+            (PAGE_PLAY_ICON, PAGE_PLAY_ICON_USE),
+            &page.play,
+            true,
+        ),
+        (
+            PAGE_SHUFFLE,
+            PAGE_SHUFFLE_LABEL,
+            (PAGE_SHUFFLE_ICON, PAGE_SHUFFLE_ICON_USE),
+            &page.shuffle,
+            false,
+        ),
     ] {
         let Some(button) = button else { continue };
         let node = el(key, Some(PAGE_HEADER_CONTROLS), "button")
@@ -1415,6 +1456,10 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
             .attr("aria-label", button.label.clone())
             .at(button.rect);
         out.push(node);
+        // The icon before the label: TIDAL's `svg._icon_77f3f89` with its
+        // sprite `use`.
+        out.push(el(icon, Some(key), "svg").modules(&["icon"]));
+        out.push(el(icon_use, Some(icon), "use"));
         out.push(
             el(label_key, Some(key), "span")
                 .class("_label_1d16h_1")
@@ -1831,7 +1876,11 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
                 .at(p.rect(P::Quality)),
         );
     }
-    out.push(el(ACTIONS, Some(TRACK_INFO), "div").modules(&["actions"]));
+    // The heart and the "..." sit inside `._trackContent_` in TIDAL 2.43.2:
+    // Cotton Candy Twilight colours them by `[class="_trackContent_7b758a9"]
+    // { ._contextMenuButton_9741d3a, ._button_c372e89 svg }`, which TIDAL
+    // draws dark on its light bar.
+    out.push(el(ACTIONS, Some(TRACK_CONTENT), "div").modules(&["actions"]));
     out.push(
         el(FAVORITE, Some(ACTIONS), "button")
             .test("footer-favorite-button")
@@ -1845,7 +1894,24 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             )
             .attr("aria-pressed", p.favorite.to_string())
             .modules(&["favoriteButton"])
+            // TIDAL 2.43.2's heart: `._favoriteButton_499c518._button_c372e89`,
+            // `._favorite_e54272d` once liked, else `._gray_c82f8e6`, with its
+            // sprite in `svg._icon_77f3f89 > use` (the cotton candy family
+            // fills them).
+            .class(if p.favorite {
+                "_favorite_e54272d"
+            } else {
+                "_gray_c82f8e6"
+            })
+            .class("_button_c372e89")
             .at(p.rect(P::Favorite)),
+    );
+    out.push(el(FAVORITE_ICON, Some(FAVORITE), "svg").modules(&["icon"]));
+    out.push(el(FAVORITE_ICON_USE, Some(FAVORITE_ICON), "use"));
+    out.push(
+        el(TRACK_MORE, Some(ACTIONS), "button")
+            .class("_contextMenuButton_9741d3a")
+            .attr("aria-label", "More"),
     );
 
     // Centre: transport and progress.
@@ -1915,9 +1981,12 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .modules(&["progressContainer"])
             .at(p.rect(P::Progress)),
     );
-    out.push(el(CURRENT_TIME_WRAP, Some(PROGRESS), "p").modules(&["time"]));
+    // TIDAL 2.43.2's clock: `._scrubberTime_` round
+    // `._scrubberTimeText_` (Cotton Candy Twilight colours them).
+    out.push(el(CURRENT_TIME_WRAP, Some(PROGRESS), "p").modules(&["time", "scrubberTime"]));
     out.push(
         el(CURRENT_TIME, Some(CURRENT_TIME_WRAP), "time")
+            .modules(&["scrubberTimeText"])
             .test("current-time")
             .text(format_time(p.position))
             .at(p.rect(P::CurrentTime)),
@@ -1950,9 +2019,10 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .at(p.rect(P::Progress)),
     );
     out.push(el(PROGRESS_KNOB, Some(PROGRESS_BAR), "div").modules(&["knob"]));
-    out.push(el(DURATION_WRAP, Some(PROGRESS), "p").modules(&["time"]));
+    out.push(el(DURATION_WRAP, Some(PROGRESS), "p").modules(&["time", "scrubberTime"]));
     out.push(
         el(DURATION, Some(DURATION_WRAP), "time")
+            .modules(&["scrubberTimeText"])
             .test("duration")
             .text(format_time(p.duration))
             .at(p.rect(P::Duration)),
@@ -1989,7 +2059,7 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     );
     out.push(
         el(MUTE, Some(SLIDER), "button")
-            .test("volume-mute")
+            .test("volume")
             .attr("aria-label", if p.muted { "Unmute" } else { "Mute" })
             .attr("aria-pressed", p.muted.to_string())
             .at(p.rect(P::Mute)),

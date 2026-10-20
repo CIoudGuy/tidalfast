@@ -637,11 +637,19 @@ fn now_playing_block(
     {
         app.actions.push(Action::Open(Page::Album(id.clone())));
     }
-    let artist_color = if palette.tidal_dark() {
-        Color32::from_white_alpha(140)
-    } else {
-        palette.secondary
-    };
+    // A theme's colour for the artist links (Cotton Candy Twilight's
+    // `._trackContent_ a { color }`).
+    let artist_color = plugin_dom::on()
+        .then(|| {
+            plugin_dom::color(&format!("{}:0", keys::ARTIST))
+                .or_else(|| plugin_dom::color(keys::ARTIST))
+        })
+        .flatten()
+        .unwrap_or(if palette.tidal_dark() {
+            Color32::from_white_alpha(140)
+        } else {
+            palette.secondary
+        });
     let artist_row = text_ui.horizontal_top(|ui| {
         if plugin_dom::hidden(keys::ARTIST) {
             return;
@@ -769,6 +777,12 @@ fn now_playing_block(
             .max_rect(heart_rect)
             .layout(Layout::centered_and_justified(egui::Direction::LeftToRight)),
     );
+    // A theme's fill for the heart's sprite (Cotton Candy Twilight's
+    // `._button_c372e89 svg { fill }`, dark on its light bar).
+    let themed_heart = plugin_dom::on()
+        .then(|| plugin_dom::icon_fill(keys::FAVORITE_ICON, keys::FAVORITE_ICON_USE))
+        .flatten();
+    let (color, hover) = themed_heart.map_or((color, hover), |c| (c, c));
     if !plugin_dom::hidden(keys::FAVORITE)
         && theme::player_icon_button(&mut heart_ui, icon, 14.0, color, hover, &tooltip).clicked()
     {
@@ -836,12 +850,17 @@ fn now_playing_block(
                 .max_rect(more_rect)
                 .layout(Layout::centered_and_justified(egui::Direction::LeftToRight)),
         );
+        // A theme's colour for it (Cotton Candy Twilight's
+        // `._contextMenuButton_9741d3a { color }`).
+        let themed_more = plugin_dom::on()
+            .then(|| plugin_dom::color(keys::TRACK_MORE))
+            .flatten();
         let more = theme::player_icon_button(
             &mut more_ui,
             Icon::Ellipsis,
             14.0,
-            palette.secondary,
-            palette.text,
+            themed_more.unwrap_or(palette.secondary),
+            themed_more.unwrap_or(palette.text),
             &gettext(app.locale, "More"),
         );
         egui::Popup::menu(&more)
@@ -995,15 +1014,19 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         app.actions.push(Action::ToggleShuffle);
     }
 
+    // A theme's colour for the skip glyphs (Tidal TUI's `[data-test=next]
+    // { color: transparent }` leaves only Play and the clock in TIDAL).
+    let skip_glyph = |key: &str| plugin_dom::on().then(|| plugin_dom::color(key)).flatten();
     let previous_slot = slot(widths[1]);
     plugin_dom::player_part(PlayerPart::Previous, previous_slot);
     let mut cell = centered(ui, previous_slot);
+    let previous_color = skip_glyph(keys::PREVIOUS);
     if theme::player_icon_button(
         &mut cell,
         Icon::SkipBackFilled,
         16.0,
-        bright,
-        palette.text,
+        previous_color.unwrap_or(bright),
+        previous_color.unwrap_or(palette.text),
         &gettext(app.locale, "Previous"),
     )
     .clicked()
@@ -1074,12 +1097,13 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     let next_slot = slot(widths[3]);
     plugin_dom::player_part(PlayerPart::Next, next_slot);
     let mut cell = centered(ui, next_slot);
+    let next_color = skip_glyph(keys::NEXT);
     if theme::player_icon_button(
         &mut cell,
         Icon::SkipForwardFilled,
         16.0,
-        bright,
-        palette.text,
+        next_color.unwrap_or(bright),
+        next_color.unwrap_or(palette.text),
         &gettext(app.locale, "Next"),
     )
     .clicked()
@@ -1145,6 +1169,12 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     } else {
         palette.dim
     };
+    // A theme's colour for the times (Cotton Candy Twilight's
+    // `._scrubberTime_ { color }`).
+    let time_color = plugin_dom::on()
+        .then(|| plugin_dom::color(keys::CURRENT_TIME))
+        .flatten()
+        .unwrap_or(time_color);
     let slider_left = region.center().x - slider_width / 2.0;
     ui.painter().text(
         pos2(seek_start(region), row_cy),
@@ -1350,16 +1380,17 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     }
     run.slot(ui, 4, keys::UTILITY_BUTTONS, Position::Append);
     // TIDAL's compact mode: the small player window.
+    let compact_color = utility_glyph(keys::MINI_PLAYER);
     let compact = theme::player_icon_button(
         ui,
         Icon::PictureInPicture,
         18.0,
-        if app.compact_mode {
+        compact_color.unwrap_or(if app.compact_mode {
             palette.text
         } else {
             palette.secondary
-        },
-        palette.text,
+        }),
+        compact_color.unwrap_or(palette.text),
         &gettext(app.locale, "Compact mode"),
     );
     if compact.clicked() {
@@ -1441,29 +1472,35 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     // TIDAL desktop: three lines, on a 32-point disc of white at 8 % while
     // the queue is open. The disc goes under the button, drawn first.
     let disc = ui.painter().add(egui::Shape::Noop);
+    let queue_color = utility_glyph(keys::QUEUE);
     let queue_button = theme::player_icon_button(
         ui,
         Icon::QueueLines,
         18.0,
-        if queue_open {
+        queue_color.unwrap_or(if queue_open {
             palette.text
         } else {
             palette.secondary
-        },
-        palette.text,
+        }),
+        queue_color.unwrap_or(palette.text),
         &gettext(app.locale, "Queue"),
     );
-    if queue_open {
+    // A theme's background for the button (Tidal TUI's `[data-test=
+    // play-queue-button] { background: transparent }`) replaces the disc.
+    let disc_fill = plugin_dom::on()
+        .then(|| plugin_dom::fill(keys::QUEUE))
+        .flatten();
+    if queue_open && disc_fill.is_none_or(|c| c.a() > 0) {
         ui.painter().set(
             disc,
             egui::Shape::circle_filled(
                 queue_button.rect.center(),
                 16.0,
-                if palette.dark {
+                disc_fill.unwrap_or(if palette.dark {
                     egui::Color32::from_white_alpha(20)
                 } else {
                     egui::Color32::from_black_alpha(16)
-                },
+                }),
             ),
         );
     }
@@ -1517,6 +1554,16 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     let spacing = ui.spacing().item_spacing.x;
     let all: f32 = after.widths.iter().filter(|w| **w > 0.0).sum();
     (after.natives + all - spacing).max(0.0)
+}
+
+/// A theme's colour for a button on the bar's right (Cotton Candy
+/// Twilight's `._utilityButtons_ button { color }`): the button's own, else
+/// the one its rules give TIDAL's utility buttons, among which TIDAL 2.43.2
+/// lays the queue and sound output buttons too.
+pub(crate) fn utility_glyph(key: &str) -> Option<Color32> {
+    plugin_dom::on()
+        .then(|| plugin_dom::color(key).or_else(|| plugin_dom::color(keys::MINI_PLAYER)))
+        .flatten()
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

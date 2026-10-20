@@ -196,7 +196,18 @@ pub(crate) mod css {
     }
 
     /// Numbers of a colour function, with whether each was a percentage.
+    /// A `calc()` argument is its value (the cotton candy family's
+    /// `rgb(47, 10, 61, calc(.1 * .7))`: an alpha of .07, not opaque).
     fn numbers(args: &str) -> Vec<(f32, bool)> {
+        let mut args = args.to_string();
+        while let Some(at) = args.find("calc(") {
+            let Some(end) = matching_paren(&args, at + 4) else {
+                break;
+            };
+            let value = length(&args[at..=end], 14.0, 100.0, [0.0, 0.0])
+                .map_or_else(String::new, |n| n.to_string());
+            args.replace_range(at..=end, &value);
+        }
         args.split(|c: char| c == ',' || c == '/' || c.is_whitespace())
             .filter(|p| !p.is_empty())
             .filter_map(|p| {

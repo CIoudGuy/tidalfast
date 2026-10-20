@@ -1514,11 +1514,54 @@ pub fn header_pill(primary: bool) -> Option<HeaderPill> {
             css::border(&css::resolve_vars(h.style.border.as_deref()?, vars))
                 .filter(|(width, color)| *width > 0.0 && color.a() > 0)
         }),
-        // The theme's corners (the cotton candy family's `.9em`), with its
-        // fill: TIDAL's own pill is fully round.
-        radius: fill.and_then(|_| radius(key)),
+        // The theme's corners (the cotton candy family's `.9em`, Tidal
+        // TUI's square `border-radius: var(--border-radius)` with that
+        // variable undefined): TIDAL's own pill is fully round.
+        radius: radius(key),
     };
-    (pill.fill.is_some() || pill.ink.is_some() || pill.border.is_some()).then_some(pill)
+    (pill.fill.is_some() || pill.ink.is_some() || pill.border.is_some() || pill.radius.is_some())
+        .then_some(pill)
+}
+
+/// The colour a theme fills a header pill's icon with (`._icon_77f3f89 >
+/// use { fill }`, or the icon's own `fill` or `color`), else `None`: the
+/// icon takes the label's colour.
+pub fn pill_icon(primary: bool) -> Option<Color32> {
+    use dom_anchors::keys::{
+        PAGE_PLAY_ICON, PAGE_PLAY_ICON_USE, PAGE_SHUFFLE_ICON, PAGE_SHUFFLE_ICON_USE,
+    };
+    let (icon, icon_use) = if primary {
+        (PAGE_PLAY_ICON, PAGE_PLAY_ICON_USE)
+    } else {
+        (PAGE_SHUFFLE_ICON, PAGE_SHUFFLE_ICON_USE)
+    };
+    icon_fill(icon, icon_use)
+}
+
+/// The colour a theme fills one of TIDAL's sprite icons with: its `use`'s
+/// `fill`, else the `svg`'s own `fill` or `color`.
+pub fn icon_fill(icon: &str, icon_use: &str) -> Option<Color32> {
+    let fill = |key: &str| {
+        host(key, |h, vars| {
+            style_color(&h.style, |s| s.fill.as_ref(), vars)
+                .or_else(|| style_color(&h.style, |s| s.color.as_ref(), vars))
+        })
+    };
+    fill(icon_use).or_else(|| fill(icon))
+}
+
+/// A header pill's label font: the theme's size and weight on the label
+/// (Tidal TUI's 14-point labels), else `native`.
+pub fn pill_font(primary: bool, native: egui::FontId, weight: u16) -> egui::FontId {
+    themed_font(
+        if primary {
+            dom_anchors::keys::PAGE_PLAY_LABEL
+        } else {
+            dom_anchors::keys::PAGE_SHUFFLE_LABEL
+        },
+        native,
+        weight,
+    )
 }
 
 /// A pill's fill: its `background-color`, or where that is see-through
@@ -3006,6 +3049,169 @@ pub fn radius(key: &str) -> Option<f32> {
     })
 }
 
+/// What a theme does to the box of TIDAL's context menus, besides its
+/// colour (which the palette's `overlay` carries).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MenuLook {
+    /// Nothing paints the box: the menu's own background is see-through
+    /// and neither its `::before` nor the popover round it has a fill (Tidal
+    /// TUI's `[role="menu"] { background-color: var(--tui-main) }` with
+    /// that variable undefined): the rows float over the page.
+    pub clear: bool,
+    /// The menu keeps its drop shadow (`box-shadow: none` takes it).
+    pub shadow: bool,
+    /// The theme's corners.
+    pub radius: Option<f32>,
+}
+
+/// [`MenuLook`] while a theme styles the menu box, else `None`.
+pub fn menu_look() -> Option<MenuLook> {
+    if !on() {
+        return None;
+    }
+    with(|s| menu_look_in(&s.overlay, &s.vars))
+}
+
+fn menu_look_in(o: &DomOverlay, vars: &BTreeMap<String, String>) -> Option<MenuLook> {
+    let h = o.hosts.get(dom_anchors::keys::THEME_MENU)?;
+    let own = style_color(&h.style, |s| s.background_color.as_ref(), vars);
+    let before = h
+        .before
+        .as_ref()
+        .and_then(|b| style_color(b, |s| s.background_color.as_ref(), vars))
+        .filter(|c| c.a() > 0);
+    let popover = o
+        .hosts
+        .get(dom_anchors::keys::THEME_MENU_BOX)
+        .and_then(|b| pill_fill(b, vars))
+        .filter(|c| c.a() > 0);
+    let clear = own.is_some_and(|c| c.a() == 0) && before.is_none() && popover.is_none();
+    let shadow = !h.style.box_shadow.as_deref().is_some_and(|v| {
+        css::resolve_vars(v, vars)
+            .trim()
+            .eq_ignore_ascii_case("none")
+    });
+    let look = MenuLook {
+        clear,
+        shadow,
+        radius: radius_of(&h.style, vars),
+    };
+    (look.clear || !look.shadow || look.radius.is_some()).then_some(look)
+}
+
+fn radius_of(style: &Style, vars: &BTreeMap<String, String>) -> Option<f32> {
+    let v = css::resolve_vars(style.border_radius.as_deref()?, vars);
+    css::length(&v, 14.0, 0.0, [0.0, 0.0])
+}
+
+/// The text size a theme gives an anchor, in points (`em` and `%` of
+/// TIDAL's 14-point body text). `None` without a size, or for `inherit`
+/// with nothing to inherit: the native size stays.
+pub fn font_size(key: &str) -> Option<f32> {
+    host(key, |h, vars| {
+        let v = css::resolve_vars(h.style.font_size.as_deref()?, vars);
+        css::length(&v, 14.0, 14.0, [0.0, 0.0]).filter(|s| *s > 0.0)
+    })
+}
+
+/// The text weight a theme gives an anchor (`700`, `bold`).
+pub fn font_weight(key: &str) -> Option<u16> {
+    host(key, |h, vars| {
+        let v = css::resolve_vars(h.style.font_weight.as_deref()?, vars);
+        (!matches!(v.trim(), "inherit" | "")).then(|| css::weight(v.trim()))
+    })
+}
+
+/// The app's font at `size` in the weight CSS `weight` names.
+pub fn font_at(size: f32, weight: u16) -> egui::FontId {
+    match weight {
+        w if w >= 700 => crate::theme::bold(size),
+        w if w >= 600 => crate::theme::semibold(size),
+        w if w >= 500 => crate::theme::medium(size),
+        _ => crate::theme::regular(size),
+    }
+}
+
+/// A theme's text size and weight for an anchor laid over the native
+/// `font` (TIDAL's heading or label), or `font` as it is: the size alone
+/// keeps the native weight and the weight alone the native size.
+pub fn themed_font(key: &str, font: egui::FontId, weight: u16) -> egui::FontId {
+    if !on() {
+        return font;
+    }
+    let size = font_size(key);
+    let w = font_weight(key);
+    if size.is_none() && w.is_none() {
+        return font;
+    }
+    font_at(size.unwrap_or(font.size), w.unwrap_or(weight))
+}
+
+/// A menu row's font: TIDAL's 12-point semibold, or the size and weight a
+/// theme gives its `._actionTextInner_` words (Tidal TUI: 14, weight 500).
+pub fn menu_text_font() -> egui::FontId {
+    themed_font(
+        dom_anchors::keys::THEME_MENU_TEXT,
+        crate::theme::semibold(12.0),
+        600,
+    )
+}
+
+/// A page title's font (an album's, an artist's): bold at `size`, or the
+/// size and weight a theme gives TIDAL's headline text (Tidal TUI: 14,
+/// its `var(--font-size)` undefined).
+pub fn headline_font(size: f32) -> egui::FontId {
+    themed_font(
+        dom_anchors::keys::THEME_HEADLINE,
+        crate::theme::bold(size),
+        700,
+    )
+}
+
+/// A section title's font ("Your favorite artists", the play queue's
+/// title), as [`headline_font`] for TIDAL's section headings.
+pub fn subheadline_font(size: f32) -> egui::FontId {
+    themed_font(
+        dom_anchors::keys::THEME_SUBHEADLINE,
+        crate::theme::bold(size),
+        700,
+    )
+}
+
+/// The `letter-spacing` a theme gives page titles, in points (Tidal TUI's
+/// 6px).
+pub fn headline_spacing() -> Option<f32> {
+    host(dom_anchors::keys::THEME_HEADLINE, |h, vars| {
+        let v = css::resolve_vars(h.style.letter_spacing.as_deref()?, vars);
+        css::length(&v, 14.0, 0.0, [0.0, 0.0]).filter(|s| *s != 0.0)
+    })
+}
+
+/// A page title laid out in `font` with the theme's letter spacing.
+pub fn headline_galley(
+    ui: &egui::Ui,
+    text: String,
+    font: egui::FontId,
+    color: Color32,
+) -> Arc<egui::Galley> {
+    match headline_spacing() {
+        Some(spacing) => {
+            let mut job = egui::text::LayoutJob::single_section(
+                text,
+                egui::TextFormat {
+                    font_id: font,
+                    color,
+                    extra_letter_spacing: spacing,
+                    ..Default::default()
+                },
+            );
+            job.wrap.max_width = f32::INFINITY;
+            ui.painter().layout_job(job)
+        }
+        None => ui.painter().layout_no_wrap(text, font, color),
+    }
+}
+
 /// Plugins listen for `kind` on the anchor (or the document for `""`).
 #[inline]
 pub fn listens(key: &str, kind: &str) -> bool {
@@ -3590,6 +3796,16 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         .and_then(|h| h.style.background_color.as_deref())
         .and_then(|v| css::color(&css::resolve_vars(v, &o.vars)))
         .filter(|c| c.a() > 0)
+        // A see-through menu painted by its `::before` (Lunallena's glass).
+        .or_else(|| {
+            o.hosts
+                .get(dom_anchors::keys::THEME_MENU)?
+                .before
+                .as_ref()
+                .and_then(|b| b.background_color.as_deref())
+                .and_then(|v| css::color(&css::resolve_vars(v, &o.vars)))
+                .filter(|c| c.a() > 0)
+        })
         .or_else(|| {
             o.hosts
                 .get(dom_anchors::keys::THEME_MENU_BOX)
@@ -5262,6 +5478,18 @@ pub(crate) fn test_overlay_keep(o: DomOverlay) {
         s.vars = Arc::new(o.vars.clone());
         s.overlay = Arc::new(o);
     });
+}
+
+/// Starts a page in the frame being noted, as `begin_frame` does.
+#[cfg(test)]
+pub(crate) fn test_page_frame() {
+    with(|s| s.frame.page = Some(dom_anchors::Page::default()));
+}
+
+/// The track list panel noted this frame.
+#[cfg(test)]
+pub(crate) fn test_list_panel() -> Option<[f32; 4]> {
+    with(|s| s.frame.page.as_ref()?.list_panel)
 }
 
 #[cfg(test)]

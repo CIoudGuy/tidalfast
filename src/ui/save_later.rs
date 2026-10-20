@@ -8,7 +8,7 @@ use crate::app::App;
 use crate::i18n::gettext;
 use crate::model::{Action, Page};
 use crate::save_later::{SaveTab, Saved};
-use crate::theme::{self, Icon};
+use crate::theme::Icon;
 
 use super::{skeleton, widgets};
 
@@ -77,7 +77,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         heading.left_center(),
         Align2::LEFT_CENTER,
         title.as_ref(),
-        theme::bold(27.0),
+        super::plugin_dom::headline_font(27.0),
         palette.text,
     );
     super::plugin_dom::page_title(ui, title.as_ref(), title_rect, true);
