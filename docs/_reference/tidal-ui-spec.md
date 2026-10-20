@@ -146,3 +146,26 @@ Measured on tidal.com signed in (Cole World: The Sideline Story, 1440 and 2000 w
 2. Adopt exact values: sidebar 240, nav item 40/r12, row 48, hover white@10% r5, header 56, cover 240 r2, card 204 r2 gap 16, Play/Shuffle 160x48 pill, quality badge colours.
 3. Album header background = cover darkened gradient (0.6 -> 1.0 black) 450px high, NOT blurred; artist = blur(10) brightness .3 masked.
 4. Logged-in-only surfaces (home shelves with user data, collection, context menu, queue, lyrics, settings) not measured here; screenshots of a signed-in account are kept outside the public docs.
+## 15. TIDAL desktop 2.43 (Windows), signed in
+Measured on the desktop app (2137x1183 window, 30-point title bar, DPR 1) with no plugins enabled, 2026-10.
+Where it differs from tidal.com above, Tidalfast follows the desktop app.
+- Home and artist page: the column is padded 4 % of the window each side (`widgets::feed_gutter`), with the
+  play queue open or not. Artist portraits centre on the page column beside the queue.
+- Home and Settings tabs, "View all": white 55 % at rest, white when chosen or hovered.
+- Play queue panel: 334 wide with its border, 8 from the window's right, from 4 under the top bar to 20 above
+  the player bar; #171717 with a #2e2e2e border, radius 12; "Play queue" 19/26 w700; rows 60 apart with
+  44-point covers. Over the now-playing view it is black 30 % instead. Page backdrops stop at its left edge.
+- Search: the focused field has a 1-point white ring; the dropdown sits 17 under it, #171717 with a white 10 %
+  border; Recent Searches rows are 72 high. On the results, the Top results pill stays grey; a narrower
+  filter's pill is white.
+- Settings: cards #0e0e10 with a #18181b border, radius 16, 16 inside, hairlines inset by the same 16;
+  switches 42x26 with an 18-point black knob on a #313038 (off) or #e4e4e7 (on) track; dropdowns 32 high,
+  #18181a, radius 8, a chevron.
+- Now playing: the player bar shows no cover while the view does. With a tab the cover is half the view's
+  width less 320 (572 at x 259 in a 1787-wide view) and the tab starts at x 926; too narrow, the cover goes.
+- Dialogs dim the window to black 80 %. Keyboard shortcuts: 1020-wide #18181b card, radius 16, two columns of
+  #b0b0b2 descriptions with #464648 keycaps (10-point bold white capitals, 26 high), rows 55 apart.
+- Player bar: the seek bar's played part is the accent (#33ffee) on a white 15 % rail; the queue button shows
+  three lines on a 32-point white 8 % disc while the queue is open.
+- My Collection grids: six cards a row in a 1451-wide column (229 each).
+- Artist header: "19.1K fans".
