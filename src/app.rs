@@ -13873,10 +13873,12 @@ fn evict_lru_map<V>(
 /// second on the clock, a little after it (egui takes a predicted frame off
 /// every delay) so the frame lands on the new second. Playback's own pass
 /// waits this long; the progress bar asks for its own pixel steps while it
-/// is drawn.
+/// is drawn. Up to 1030 ms: a pass in the first 30 ms of a second that
+/// waited only 1000 would land a predicted frame before the next second,
+/// and need another pass 50 ms later to show it.
 fn next_clock_tick(position_ms: u32) -> Duration {
     let into = u64::from(position_ms % 1000);
-    Duration::from_millis((1000 - into + 30).clamp(50, 1000))
+    Duration::from_millis((1000 - into + 30).max(50))
 }
 
 mod downloads;
@@ -20086,8 +20088,8 @@ mod tests {
         app.local.playback = Playback::Playing;
         assert_eq!(
             app.headless_wait(),
-            Headless::WaitFor(Duration::from_secs(1)),
-            "the clock's next second"
+            Headless::WaitFor(Duration::from_millis(1030)),
+            "just after the clock's next second"
         );
     }
 
@@ -22178,7 +22180,7 @@ mod tests {
         let budget = app.budget;
         let covered = pass(&mut app, 4.0, true).unwrap();
         assert!(
-            covered > Duration::from_millis(40) && covered <= Duration::from_secs(1),
+            covered > Duration::from_millis(40) && covered <= Duration::from_millis(1030),
             "covered: only the logic's next pass, asked for {covered:?}"
         );
         assert!(crate::theme::unseen(&ctx));
@@ -22192,9 +22194,30 @@ mod tests {
     /// times a second whatever the clock shows.
     #[test]
     fn playback_wakes_for_the_next_second_on_the_clock() {
-        assert_eq!(next_clock_tick(83_000), Duration::from_millis(1000));
+        assert_eq!(next_clock_tick(83_000), Duration::from_millis(1030));
         assert_eq!(next_clock_tick(83_400), Duration::from_millis(630));
         assert_eq!(next_clock_tick(83_990), Duration::from_millis(50));
+    }
+
+    /// egui brings every timed pass back a predicted frame (1/60 s) early.
+    /// Playback alone (a song on another device, or a bar that steps once
+    /// a second) still wakes once a second, each pass just after the new
+    /// second: a pass early in a second that waited only 1000 ms landed
+    /// just before the next one and took a second pass to show it.
+    #[test]
+    fn playback_alone_wakes_once_a_second_on_the_new_second() {
+        let early = 1000.0 / 60.0;
+        for start in [0u32, 5, 13, 29, 400, 990] {
+            let mut at = f64::from(start);
+            let mut passes = 0;
+            while at < f64::from(start) + 10_000.0 {
+                let wait = next_clock_tick(at as u32).as_secs_f64() * 1000.0;
+                at += (wait - early).max(0.0);
+                passes += 1;
+                assert!(at % 1000.0 < 100.0, "from {start}: a pass at {at:.0} ms");
+            }
+            assert!(passes <= 11, "from {start}: {passes} passes in 10 s");
+        }
     }
 
     #[test]
