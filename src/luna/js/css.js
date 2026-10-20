@@ -447,11 +447,15 @@
 		// box layers (TIDAL paints header art and glass in them).
 		const pseudoIx = () => ({ byId: new Map(), byClass: new Map(), byTag: new Map(), byAttr: new Map(), any: [], size: 0 });
 		// A range input's `::-webkit-slider-runnable-track` and
-		// `::-webkit-slider-thumb` (and Firefox's names) go the same way.
-		const pseudo = { before: pseudoIx(), after: pseudoIx(), track: pseudoIx(), thumb: pseudoIx() };
+		// `::-webkit-slider-thumb` (and Firefox's names) go the same way, and
+		// `::selection` too: the colours of selected text.
+		const pseudo = { before: pseudoIx(), after: pseudoIx(), track: pseudoIx(), thumb: pseudoIx(), selection: pseudoIx() };
 		const fonts = [];
 		const keyframes = new Map();
 		let hover = false;
+		// Some rule sets `user-select` (copy-lyrics makes the lyrics
+		// selectable): the hosts it reaches are marked.
+		let userSelect = false;
 		// A selector that reads the `style` attribute: inline style changes
 		// then may change which rules match anywhere.
 		let styleAttr = false;
@@ -493,6 +497,7 @@
 					for (const m of r._sel.matchAll(/\[\s*([\w-]+)/g)) attrNames.add(m[1].toLowerCase());
 					const decls = [...r._decl._m].map(([name, d]) => ({ name, value: d.value, important: d.important }));
 					if (!decls.length) continue;
+					if (!userSelect && decls.some((d) => /^(-webkit-)?user-select$/.test(d.name))) userSelect = true;
 					if (r._sel.includes(":has("))
 						for (const sel of list)
 							for (const st of sel.steps)
@@ -553,7 +558,7 @@
 		}
 		if (skipped && !warnedCss) L.callOp("log", { plugin: null, level: "warn", msg: `${skipped} style sheet(s) left out: plugin and theme CSS is capped at ${MAX_CSS_BYTES >> 20} MB` });
 		warnedCss = skipped > 0;
-		index = { byId, byClass, byTag, byAttr, any, fonts, keyframes, hover, styleAttr, structural, hasSteps, hasStyleSteps, styleSiblings, attrNames, bytes, size: order, pseudo };
+		index = { byId, byClass, byTag, byAttr, any, fonts, keyframes, hover, styleAttr, structural, hasSteps, hasStyleSteps, styleSiblings, attrNames, bytes, size: order, pseudo, userSelect };
 		return index;
 	};
 	// `@keyframes` body -> [[offset 0..1, Map name -> value]], sorted.
@@ -1002,11 +1007,16 @@
 	const pseudoOf = (ix, el) => {
 		D.pseudoRuns = (D.pseudoRuns ?? 0) + 1;
 		let o = null;
-		for (const kind of ["before", "after"]) {
+		for (const kind of ["before", "after", "selection"]) {
 			const px = ix.pseudo[kind];
 			if (!px.size) continue;
 			const decls = pseudoCascade(px, el);
 			if (!decls) continue;
+			if (kind === "selection") {
+				const st = toStyle(decls, el._cc?.myVars ?? NO_VARS, null);
+				if (st) (o ??= {}).selection = st;
+				continue;
+			}
 			// A pseudo-element exists only with a `content`. TIDAL's own
 			// stylesheet gives most anchors theirs (`_dataContainer_::before`,
 			// `_smallHeader_::before`), which a theme restyles without one;
@@ -1118,7 +1128,7 @@
 		// An anchor whose cascade and variables are as they were keeps the
 		// boxes it had (the page's clock rewrites the tree every second).
 		const pseudo = new Map();
-		if (D.hosts && (ix.pseudo.before.size || ix.pseudo.after.size)) {
+		if (D.hosts && (ix.pseudo.before.size || ix.pseudo.after.size || ix.pseudo.selection.size)) {
 			const t2 = L.stat ? Date.now() : 0;
 			for (const el of D.hosts.values()) {
 				if (!el.isConnected) continue;
@@ -1177,7 +1187,21 @@
 				}
 			}
 		if (L.stat) L.stat("css: keyframes", t4);
-		return { styles, vars, page, wimpFill, fonts: ix.fonts, bytes: ix.bytes, keyframes, hover: ix.hover, pseudo };
+		// The hosts whose text can be selected: the nearest `user-select`
+		// up the tree says so (`auto` looks further up), as a browser has it.
+		const selectable = new Set();
+		if (D.hosts && ix.userSelect)
+			for (const el of D.hosts.values()) {
+				if (!el.isConnected) continue;
+				for (let n = el; n instanceof g.Element; n = n.parentNode) {
+					const d = cascade(ix, n);
+					const v = String(d?.get("user-select") ?? d?.get("-webkit-user-select") ?? "auto").replace(/!important/i, "").trim().toLowerCase();
+					if (v === "auto") continue;
+					if (v !== "none") selectable.add(el);
+					break;
+				}
+			}
+		return { styles, vars, page, wimpFill, fonts: ix.fonts, bytes: ix.bytes, keyframes, hover: ix.hover, pseudo, selectable };
 	};
 	// For the tests that count what a build works out again.
 	D.computeOverlayStyles = compute;

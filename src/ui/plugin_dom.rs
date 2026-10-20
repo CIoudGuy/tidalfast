@@ -122,6 +122,9 @@ struct State {
     mouse_sent: Option<(egui::Pos2, Instant)>,
     /// Where the primary button went down (a drag is a release far from it).
     press_at: Option<egui::Pos2>,
+    /// Where in a selectable host's text the pointer is this frame (host
+    /// key, UTF-16 offset), as the UI that drew the text measured it.
+    text_point: Option<(String, usize)>,
     /// Anchors' colours and opacities on their way by the anchor's
     /// `transition` (a theme's hover fill fading in).
     host_motion: HostMotion,
@@ -712,6 +715,9 @@ fn pointer_events(ctx: &egui::Context, s: &mut State, floats: &[(String, Rect)])
                 "buttons": u8::from(kind == "mousedown"),
                 "shiftKey": m.shift, "ctrlKey": m.ctrl, "altKey": m.alt, "metaKey": m.mac_cmd,
             });
+            if let Some((key, offset)) = &s.text_point {
+                data["textPoint"] = json!({ "key": key, "offset": offset });
+            }
             if kind == "mousedown" {
                 s.press_at = Some(p);
             } else {
@@ -731,6 +737,7 @@ fn pointer_events(ctx: &egui::Context, s: &mut State, floats: &[(String, Rect)])
             );
         }
     }
+    s.text_point = None;
     // Moves go out while a document-level listener wants them (oneko), or
     // to a plugin element under the pointer that listens itself.
     let moves = under.is_some_and(|(_, _, m)| m)
@@ -3600,6 +3607,36 @@ pub fn surface(key: &str, native: Color32) -> Color32 {
         native.gamma_multiply(0.35)
     } else {
         native
+    }
+}
+
+/// Whether a plugin made `key`'s text selectable (`user-select: text`).
+pub fn selectable(key: &str) -> bool {
+    on() && with(|s| s.overlay.hosts.get(key).is_some_and(|h| h.selectable))
+}
+
+/// The `::selection` colours on `key`: highlight and text, each when set.
+pub fn selection_colors(key: &str) -> (Option<Color32>, Option<Color32>) {
+    if !on() {
+        return (None, None);
+    }
+    with(|s| {
+        let Some(st) = s.overlay.hosts.get(key).and_then(|h| h.selection.as_ref()) else {
+            return (None, None);
+        };
+        (
+            style_color(st, |s| s.background_color.as_ref(), &s.vars),
+            style_color(st, |s| s.color.as_ref(), &s.vars),
+        )
+    })
+}
+
+/// The pointer is `offset` UTF-16 units into `key`'s text this frame: a
+/// press or release now tells plugins where in the text it was, and the
+/// runtime selects the characters between press and release.
+pub fn text_point(key: &str, offset: usize) {
+    if on() {
+        with(|s| s.text_point = Some((key.to_string(), offset)));
     }
 }
 

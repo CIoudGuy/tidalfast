@@ -952,7 +952,24 @@ impl App {
                     self.apply_cleared(Action::OpenUrl(url), ctx);
                 }
             }
-            HostRequest::Clipboard(text) => ctx.copy_text(text),
+            HostRequest::Clipboard(text) => {
+                // Demo builds: `TIDALFAST_DEMO_CLIPBOARD=<file>` keeps an
+                // off-screen check's copies (copy-lyrics) out of the
+                // computer's clipboard.
+                #[cfg(feature = "demo")]
+                let text = match std::env::var_os("TIDALFAST_DEMO_CLIPBOARD") {
+                    Some(path) => {
+                        let _ = std::fs::write(path, &text);
+                        None
+                    }
+                    None => Some(text),
+                };
+                #[cfg(not(feature = "demo"))]
+                let text = Some(text);
+                if let Some(text) = text {
+                    ctx.copy_text(text);
+                }
+            }
             HostRequest::PlaylistChanged(id) => self.plugin_changed_playlist(id),
         }
     }

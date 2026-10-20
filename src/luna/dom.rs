@@ -305,6 +305,13 @@ pub struct HostOverride {
     /// The element's `::after` box.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub after: Option<Style>,
+    /// The element's `::selection` colours (copy-lyrics' `#48003c`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selection: Option<Style>,
+    /// The element's text can be selected: a plugin's `user-select` (the
+    /// nearest one up the tree that is not `auto`) is not `none`.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub selectable: bool,
 }
 
 impl HostOverride {
