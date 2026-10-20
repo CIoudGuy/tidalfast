@@ -38,6 +38,29 @@ const MAX_FPS: f64 = 30.0;
 /// The fastest while the window is not focused.
 const UNFOCUSED_FPS: f64 = 15.0;
 
+/// The most Cisco's OpenH264 library may unpack to; its builds are under
+/// 2 MB.
+#[cfg_attr(windows, allow(dead_code))]
+const LIBRARY_LIMIT: u64 = 32 * 1024 * 1024;
+
+/// Reads Cisco's library out of its unpacking stream (Linux and macOS),
+/// no further than [`LIBRARY_LIMIT`]: the download comes over plain HTTP
+/// and its hash is checked only once it is unpacked, and a few bytes of
+/// bzip2 can unpack to more than the memory holds.
+#[cfg_attr(windows, allow(dead_code))]
+fn unpack_library(unpacked: impl std::io::Read) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    let mut library = Vec::new();
+    unpacked
+        .take(LIBRARY_LIMIT + 1)
+        .read_to_end(&mut library)
+        .map_err(|error| format!("unpack: {error}"))?;
+    if library.len() as u64 > LIBRARY_LIMIT {
+        return Err("unpack: larger than any OpenH264 build".into());
+    }
+    Ok(library)
+}
+
 /// A decoded frame, ready for the texture (opaque, so premultiplied
 /// already). Built on the decoder thread, so the interface only uploads it.
 pub(crate) type Frame = egui::ColorImage;
@@ -1312,9 +1335,7 @@ mod platform {
         let bytes = art.fetch_blocking(&url)?;
         let packed = art.cached_file(&url).ok_or("not cached")?;
         art.release_bytes(&url);
-        let mut library = Vec::new();
-        std::io::Read::read_to_end(&mut bzip2::read::BzDecoder::new(&bytes[..]), &mut library)
-            .map_err(|error| format!("unpack: {error}"))?;
+        let library = super::unpack_library(bzip2::read::BzDecoder::new(&bytes[..]))?;
         let path = unpacked(&packed);
         let partial = path.with_extension("part");
         std::fs::write(&partial, &library).map_err(|error| format!("write: {error}"))?;
@@ -1898,6 +1919,18 @@ mod tests {
         assert_eq!(track.samples, [(0, 8), (8, 8), (16, 8), (24, 8)]);
         assert_eq!(track.size, (64, 48));
         assert!((track.fps - 25.0).abs() < 1e-9);
+    }
+
+    /// Cisco's library comes over plain HTTP (Cisco serves it no other
+    /// way) and its hash is checked once it is unpacked, so a few bytes of
+    /// bzip2 that unpack without end were read into memory whole. Unpacking
+    /// stops past the largest library there can be.
+    #[test]
+    fn an_unpacked_library_past_its_limit_is_refused() {
+        use std::io::Read;
+        let endless = std::io::repeat(0).take(LIBRARY_LIMIT + 1);
+        assert!(unpack_library(endless).is_err());
+        assert_eq!(unpack_library(&[1u8, 2, 3][..]).unwrap(), [1, 2, 3]);
     }
 
     /// A sample table that says every sample has one size claims as many
