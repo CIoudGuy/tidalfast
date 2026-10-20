@@ -2680,6 +2680,9 @@ fn positioned(ui: &mut egui::Ui, node: &VNode, container: Rect, inherit: Inherit
         }
         .css()
     });
+    // Its position and translation are worked out here and taken off the
+    // style below; whether it forms a stacking context goes with it.
+    let context = stacking_context(style);
     styled.style.position = None;
     let max = vec2(
         width.unwrap_or(w.max(last.x).max(1.0)),
@@ -2691,7 +2694,9 @@ fn positioned(ui: &mut egui::Ui, node: &VNode, container: Rect, inherit: Inherit
             .max_rect(Rect::from_min_size(min, max))
             .layout(Layout::top_down(Align::Min)),
     );
+    OWN_CONTEXT.with(|c| c.set(context));
     draw_styled(&mut child, &styled, &styled.style, inherit, cx);
+    OWN_CONTEXT.with(|c| c.set(false));
     let used = child.min_rect();
     if (used.size() - last).length() > 0.5 {
         ui.ctx().data_mut(|d| d.insert_temp(id, used.size()));
@@ -2754,6 +2759,31 @@ fn behind(overlay: &crate::luna::dom::DomOverlay) -> impl Iterator<Item = &VNode
             placed && z_index(&n.style) < 0 && !n.style.hidden()
         })
         .map(|(_, n)| n)
+}
+
+/// Whether an element forms a stacking context (CSS 2.1 9.9.1, CSS
+/// Positioned Layout 3): positioned with an integer `z-index`, or with an
+/// `opacity` under 1, a `transform`, a `filter` or a `backdrop-filter`. Its
+/// children with a negative `z-index` paint over its own background.
+fn stacking_context(style: &Style) -> bool {
+    let set = |v: &Option<String>| {
+        v.as_deref()
+            .map(str::trim)
+            .is_some_and(|v| !v.is_empty() && !v.eq_ignore_ascii_case("none"))
+    };
+    let z = style
+        .z_index
+        .as_deref()
+        .is_some_and(|z| z.trim().parse::<i64>().is_ok());
+    (positioned_kind(style).is_some() && z)
+        || style
+            .opacity
+            .as_deref()
+            .and_then(|o| o.trim().parse::<f32>().ok())
+            .is_some_and(|o| o < 1.0)
+        || set(&style.transform)
+        || set(&style.filter)
+        || set(&style.backdrop_filter)
 }
 
 /// A `position: fixed` element behind the page: drawn by [`backdrop`], not
@@ -3216,6 +3246,10 @@ thread_local! {
     /// or border is as wide as the column, as in CSS (multipleplaylists'
     /// song box was as wide as its words).
     static IN_COLUMN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The next box is a positioned element [`positioned`] placed, whose
+    /// position and transform it took off the style: whether it forms a
+    /// stacking context, read before they went.
+    static OWN_CONTEXT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// [`draw`] after animation and transforms are worked out. `stretch`
@@ -3231,6 +3265,7 @@ fn draw_box(
 ) -> bool {
     let shrink = SHRINK.with(|s| s.replace(false));
     let in_column = IN_COLUMN.with(|s| s.replace(false));
+    let placed_context = OWN_CONTEXT.with(|s| s.replace(false));
     if style.hidden()
         || matches!(node.tag.as_str(), "style" | "script" | "template" | "audio")
         || (node.tag == "canvas" && !super::luna_canvas::has_frame(node))
@@ -3598,23 +3633,32 @@ fn draw_box(
         .iter()
         .partition(|c| positioned_kind(&c.style).is_none());
     // Positioned children with a negative `z-index` go under the flow
-    // (betterFullscreen's background layer under its art and title): drawn
-    // first, in the box this element took last frame.
+    // (betterFullscreen's background layer under its art and title), in
+    // the box this element took last frame. An element that forms a
+    // stacking context paints its own background first and them over it
+    // (radiant-lyrics' backdrop canvas over its container's black); one
+    // that does not leaves them under its background too.
     let (under, placed): (Vec<&VNode>, Vec<&VNode>) =
         placed.into_iter().partition(|c| z_index(&c.style) < 0);
     let flows = inline_flow(&node.tag, display, &flow);
     let box_id = egui::Id::new(("luna-box", node.id));
     let mut drawn = false;
-    if !under.is_empty() {
-        let last: Option<Rect> = ui.data(|d| d.get_temp(box_id));
-        for child in &under {
-            if let Some(r) = last
-                && !child.style.hidden()
-            {
+    let under_box: Option<Rect> = (!under.is_empty())
+        .then(|| ui.data(|d| d.get_temp(box_id)))
+        .flatten();
+    let paint_under = |ui: &mut egui::Ui| {
+        let mut drawn = false;
+        if let Some(r) = under_box {
+            for child in under.iter().filter(|c| !c.style.hidden()) {
                 positioned(ui, child, r, parent, cx);
                 drawn = true;
             }
         }
+        drawn
+    };
+    let own_context = placed_context || stacking_context(style);
+    if !own_context {
+        drawn |= paint_under(ui);
     }
     let inner = ui.scope(|ui| {
         if let Some(o) = opacity {
@@ -3624,6 +3668,9 @@ fn draw_box(
         let bg = (has_url || gradient.is_some()).then(|| ui.painter().add(egui::Shape::Noop));
         let shown = frame
             .show(ui, |ui| {
+                if own_context {
+                    drawn |= paint_under(ui);
+                }
                 if let Some(w) = width {
                     ui.set_min_width(w);
                     ui.set_max_width(w.max(1.0));
@@ -5443,6 +5490,131 @@ mod tests {
             .position(|s| matches!(&s.shape, egui::Shape::Text(_)));
         assert!(fill.is_some() && text.is_some(), "{fill:?} {text:?}");
         assert!(fill < text, "the layer is under the text");
+    }
+
+    /// radiant-lyrics' backdrop: a fixed `#000` box with `z-index: -3` (a
+    /// stacking context) holding its canvas at `z-index: -1`. The canvas is
+    /// painted over the box's black, as in a browser; under a box that
+    /// forms no stacking context the child stays under its background.
+    #[test]
+    fn negative_z_children_paint_over_their_stacking_contexts_background() {
+        let layer = |id| VNode {
+            id,
+            tag: "div".into(),
+            style: Style {
+                position: Some("absolute".into()),
+                top: Some("0".into()),
+                left: Some("0".into()),
+                width: Some("100%".into()),
+                height: Some("100%".into()),
+                z_index: Some("-1".into()),
+                background_color: Some("rgb(1, 2, 3)".into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let container = |context: bool| VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                width: Some("100px".into()),
+                height: Some("100px".into()),
+                background_color: Some("#000".into()),
+                transform: context.then(|| "translateZ(0)".into()),
+                ..Style::default()
+            },
+            children: vec![layer(2)],
+            ..VNode::default()
+        };
+        let order = |context: bool| {
+            let overlay = DomOverlay {
+                version: 1,
+                injected: vec![Injected {
+                    anchor: "x".into(),
+                    position: Position::Append,
+                    nodes: vec![container(context)],
+                }],
+                ..DomOverlay::default()
+            };
+            plugin_dom::test_overlay(Some(overlay));
+            let ctx = egui::Context::default();
+            let mut shapes = Vec::new();
+            for _ in 0..3 {
+                let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                    inline(ui, "x", Position::Append);
+                });
+                out.textures_delta.clear();
+                shapes = out.shapes;
+            }
+            plugin_dom::test_overlay(None);
+            let find = |c: Color32| {
+                shapes
+                    .iter()
+                    .position(|s| matches!(&s.shape, egui::Shape::Rect(r) if r.fill == c))
+            };
+            (find(Color32::BLACK), find(Color32::from_rgb(1, 2, 3)))
+        };
+        let (black, canvas) = order(true);
+        assert!(black.is_some() && canvas.is_some(), "{black:?} {canvas:?}");
+        assert!(black < canvas, "the canvas is over its container's black");
+        let (black, canvas) = order(false);
+        assert!(black.is_some() && canvas.is_some(), "{black:?} {canvas:?}");
+        assert!(canvas < black, "no stacking context: under the background");
+        // As radiant-lyrics places it: a fixed box in `main`, drawn by
+        // [`backdrop`] under the panels.
+        let fixed = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                left: Some("0".into()),
+                top: Some("0".into()),
+                width: Some("100px".into()),
+                height: Some("100px".into()),
+                z_index: Some("-3".into()),
+                background_color: Some("#000".into()),
+                transform: Some("translateZ(0)".into()),
+                ..Style::default()
+            },
+            children: vec![layer(2)],
+            ..VNode::default()
+        };
+        let overlay = DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: "main".into(),
+                position: Position::Append,
+                nodes: vec![fixed],
+            }],
+            ..DomOverlay::default()
+        };
+        plugin_dom::test_overlay(Some(overlay));
+        let ctx = egui::Context::default();
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| backdrop(ui));
+            out.textures_delta.clear();
+            shapes = out.shapes;
+        }
+        plugin_dom::test_overlay(None);
+        let find = |c: Color32| {
+            shapes
+                .iter()
+                .position(|s| matches!(&s.shape, egui::Shape::Rect(r) if r.fill == c))
+        };
+        let (black, canvas) = (find(Color32::BLACK), find(Color32::from_rgb(1, 2, 3)));
+        assert!(black.is_some() && canvas.is_some(), "{black:?} {canvas:?}");
+        assert!(black < canvas, "the backdrop's canvas is over its black");
+        let mut style = Style {
+            position: Some("fixed".into()),
+            z_index: Some("-3".into()),
+            ..Style::default()
+        };
+        assert!(stacking_context(&style));
+        style.z_index = Some("auto".into());
+        assert!(!stacking_context(&style));
+        style.opacity = Some("0.75".into());
+        assert!(stacking_context(&style));
     }
 
     /// Draws the slot `x` of `overlay` at each of `times` (seconds) and
