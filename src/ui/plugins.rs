@@ -22,7 +22,7 @@ use crate::luna::{
 use crate::model::{Action, Page};
 use crate::theme::{self, Icon, Palette};
 
-use super::{skeleton, widgets};
+use super::{scroll_anchor, skeleton, widgets};
 
 #[cfg(any(test, feature = "demo"))]
 #[path = "plugins_fixture.rs"]
@@ -90,6 +90,8 @@ struct PageState {
     install: InstallField,
     import: ImportState,
     looked: bool,
+    /// Where each tab was scrolled to when the page left it, by [`Tab`].
+    scrolls: [f32; 4],
     include_code: bool,
     import_path: String,
     confirm: Option<Confirm>,
@@ -321,6 +323,7 @@ fn draw(
     page: &mut PageState,
 ) -> Vec<Do> {
     let mut out = Vec::new();
+    scroll_anchor::begin(ui);
     store::paging_tabs(ui, palette, locale, page);
     ui.add_space(32.0);
     match page.tab {
@@ -329,6 +332,8 @@ fn draw(
         Tab::Themes => store::themes_tab(ui, palette, locale, snapshot, index, now, page, &mut out),
         Tab::Settings => settings_tab(ui, palette, locale, snapshot, page, &mut out),
     }
+    // What is looked at stays put when the content above it grows or shrinks.
+    scroll_anchor::settle(ui);
     out
 }
 
@@ -965,6 +970,7 @@ fn plugins_tab(
     store::updates_bar(ui, palette, locale, snapshot, out);
     for info in &snapshot.plugins {
         let updated = index.dates(&info.url).updated;
+        let (top, done) = (ui.cursor().top(), out.len());
         plugin_card(
             ui,
             palette,
@@ -972,6 +978,13 @@ fn plugins_tab(
             info,
             updated.map(|then| (now, then)),
             out,
+        );
+        scroll_anchor::block(
+            ui,
+            ("plugin", &info.url),
+            top,
+            ui.cursor().top(),
+            out.len() > done,
         );
         ui.add_space(16.0);
     }

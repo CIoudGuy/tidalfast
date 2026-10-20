@@ -51,6 +51,7 @@ pub mod queue;
 pub mod radio;
 pub mod release_notes;
 pub mod save_later;
+pub mod scroll_anchor;
 pub mod search;
 pub mod settings;
 pub mod sidebar;
@@ -628,6 +629,7 @@ fn page_panel(app: &mut App, ui: &mut egui::Ui, under: f32) {
             }
             let scroll =
                 crate::autoscroll::show(&mut host, area, egui::Vec2b::new(false, true), |ui| {
+                    scroll_anchor::content_start(ui);
                     // A plugin's own page (AltPlay's library) goes first in
                     // `main`, across its width; while it hides the page it
                     // stands in for, it is the page.
@@ -740,6 +742,15 @@ fn page_panel(app: &mut App, ui: &mut egui::Ui, under: f32) {
                         ui.add_space(under);
                     }
                 });
+            // A page that moved what is above the view asks for the view to
+            // follow (see `scroll_anchor`).
+            scroll_anchor::finish(
+                ui.ctx(),
+                scroll.id,
+                scroll.state.offset.y,
+                scroll.content_size.y - scroll.inner_rect.height(),
+                scroll.inner_rect.top(),
+            );
             plugin_dom::main_scroll(
                 ui,
                 scroll.state.offset.y,
