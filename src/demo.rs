@@ -11839,8 +11839,9 @@ mod tests {
             &mut app,
             vec![egui::Event::PointerMoved(egui::pos2(
                 start.x,
-                // The floating queue ends 12 above the bar, inside 16.
-                800.0 - crate::theme::PLAYER_BAR_HEIGHT - 34.0,
+                // The floating queue ends 20 above the bar (TIDAL desktop's),
+                // inside 16.
+                800.0 - crate::theme::PLAYER_BAR_HEIGHT - 42.0,
             ))],
         );
         for _ in 0..400 {

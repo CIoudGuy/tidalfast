@@ -596,10 +596,13 @@ fn queue_row(app: &mut App, ui: &mut egui::Ui, index: usize, compact: bool, shif
     );
 }
 
-/// TIDAL's floating play queue: 318 wide at the right, radius 12, from
-/// under the top bar to 12 above the player bar.
-pub const FLOATING_WIDTH: f32 = 318.0;
-const FLOATING_MARGIN: f32 = 10.0;
+/// TIDAL desktop's floating play queue: 334 wide (its border included) and
+/// 8 from the window's right edge, radius 12, from 4 under the top bar to
+/// 20 above the player bar.
+pub const FLOATING_WIDTH: f32 = 334.0;
+const FLOATING_MARGIN: f32 = 8.0;
+/// The room above the panel's title.
+const FLOATING_TOP_PAD: f32 = 22.0;
 
 /// The floating panel's rect in a window of `screen`.
 pub fn floating_rect(ctx: &egui::Context, screen: egui::Rect) -> egui::Rect {
@@ -607,12 +610,12 @@ pub fn floating_rect(ctx: &egui::Context, screen: egui::Rect) -> egui::Rect {
         + theme::titlebar_inset(ctx)
         + super::titlebar::height(ctx)
         + theme::top_bar_height()
-        + 2.0;
+        + 4.0;
     egui::Rect::from_min_max(
         egui::pos2(screen.right() - FLOATING_MARGIN - FLOATING_WIDTH, top),
         egui::pos2(
             screen.right() - FLOATING_MARGIN,
-            screen.bottom() - super::player_bar::reserved_height(ctx) - 12.0,
+            screen.bottom() - super::player_bar::reserved_height(ctx) - 20.0,
         ),
     )
 }
@@ -679,19 +682,35 @@ pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
             if shown < 1.0 {
                 ui.multiply_opacity(shown);
             }
+            let over_now_playing = app.now_playing_view;
             let frame = Frame::new()
-                .fill(floating_fill(&palette))
-                .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(26)))
+                .fill(floating_fill(&palette, over_now_playing))
+                .stroke(egui::Stroke::new(
+                    1.0,
+                    floating_border(&palette, over_now_playing),
+                ))
                 .corner_radius(12)
-                .shadow(egui::epaint::Shadow {
-                    offset: [0, 10],
-                    blur: 24,
-                    spread: 0,
-                    color: egui::Color32::from_black_alpha(60),
+                // Over the now-playing view the panel is see-through, and a
+                // shadow would show through it.
+                .shadow(if over_now_playing {
+                    egui::epaint::Shadow::NONE
+                } else {
+                    egui::epaint::Shadow {
+                        offset: [0, 10],
+                        blur: 24,
+                        spread: 0,
+                        color: egui::Color32::from_black_alpha(60),
+                    }
                 })
-                .inner_margin(Margin::same(16));
+                // TIDAL's title sits lower than its sides' 16 points.
+                .inner_margin(Margin {
+                    left: 16,
+                    right: 16,
+                    top: FLOATING_TOP_PAD as i8,
+                    bottom: 16,
+                });
             frame.show(ui, |ui| {
-                let inner = rect.size() - egui::vec2(32.0, 32.0);
+                let inner = rect.size() - egui::vec2(32.0, FLOATING_TOP_PAD + 16.0);
                 ui.set_min_size(inner);
                 ui.set_max_size(inner);
                 floating_contents(app, ui);
@@ -699,12 +718,26 @@ pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
         });
 }
 
-/// The panel is fully opaque, so page text behind it never shows through.
-fn floating_fill(palette: &theme::Palette) -> egui::Color32 {
-    if palette.tidal_dark() {
-        egui::Color32::from_rgb(38, 38, 40)
+/// The panel is fully opaque, so page text behind it never shows through:
+/// TIDAL desktop's #171717. Over the now-playing view, where only the
+/// view's backdrop lies behind it, TIDAL darkens what is behind by 30 %
+/// instead.
+fn floating_fill(palette: &theme::Palette, over_now_playing: bool) -> egui::Color32 {
+    if over_now_playing && palette.tidal_dark() {
+        egui::Color32::from_black_alpha(77)
+    } else if palette.tidal_dark() {
+        egui::Color32::from_gray(23)
     } else {
         palette.panel.to_opaque()
+    }
+}
+
+/// The panel's 1-point border: #2e2e2e on TIDAL's black.
+fn floating_border(palette: &theme::Palette, over_now_playing: bool) -> egui::Color32 {
+    if over_now_playing || !palette.tidal_dark() {
+        egui::Color32::from_white_alpha(26)
+    } else {
+        egui::Color32::from_gray(46)
     }
 }
 
@@ -721,7 +754,7 @@ fn floating_contents(app: &mut App, ui: &mut egui::Ui) {
             let title = theme::text(
                 ui,
                 gettext(locale, "Play queue"),
-                theme::bold(18.0),
+                theme::bold(19.0),
                 palette.text,
             );
             if luna {
@@ -820,8 +853,11 @@ impl Default for QueueFollow {
     }
 }
 
-/// A row is 56 apart: a 40-point cover with two lines beside it.
-const ROW: f32 = 56.0;
+/// A row is 60 apart: a 44-point cover with two lines beside it (TIDAL
+/// desktop's play queue).
+const ROW: f32 = 60.0;
+/// The cover at the left of a row.
+const ROW_COVER: f32 = 44.0;
 
 fn floating_history(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
@@ -986,8 +1022,8 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
         );
     }
     let cover = egui::Rect::from_min_size(
-        egui::pos2(rect.left() + 2.0, rect.center().y - 20.0),
-        egui::vec2(40.0, 40.0),
+        egui::pos2(rect.left() + 2.0, rect.center().y - ROW_COVER / 2.0),
+        egui::vec2(ROW_COVER, ROW_COVER),
     );
     widgets::paint_cover(
         ui,
@@ -1034,7 +1070,7 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
     );
     let mut title_ui = ui.new_child(
         egui::UiBuilder::new()
-            .max_rect(line(8.0))
+            .max_rect(line(10.0))
             .layout(Layout::left_to_right(Align::Center)),
     );
     title_ui.add(egui::Label::new(title).selectable(false));
@@ -1042,7 +1078,7 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
     let artists = track.artists.clone();
     let mut artists_ui = ui.new_child(
         egui::UiBuilder::new()
-            .max_rect(line(28.0))
+            .max_rect(line(30.0))
             .layout(Layout::left_to_right(Align::Center)),
     );
     super::now_playing::names(app, &mut artists_ui, &artists, theme::medium(13.0));
@@ -1295,8 +1331,21 @@ mod opaque_tests {
     #[test]
     fn the_floating_panel_is_opaque_in_both_themes() {
         for palette in [theme::Palette::dark(), theme::Palette::light()] {
-            assert_eq!(floating_fill(&palette).a(), 255);
+            assert_eq!(floating_fill(&palette, false).a(), 255);
         }
+        // TIDAL desktop's #171717 over the page.
+        assert_eq!(
+            floating_fill(&theme::Palette::dark(), false),
+            egui::Color32::from_gray(23)
+        );
+    }
+
+    #[test]
+    fn over_the_now_playing_view_the_panel_darkens_what_is_behind_as_tidal_does() {
+        let dark = floating_fill(&theme::Palette::dark(), true);
+        assert_eq!(dark, egui::Color32::from_black_alpha(77));
+        // Light keeps its opaque panel.
+        assert_eq!(floating_fill(&theme::Palette::light(), true).a(), 255);
     }
 }
 
