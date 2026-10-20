@@ -1570,6 +1570,29 @@ fn config_for(version: &str) -> UpdateConfig {
     }
 }
 
+/// The configuration `fastframe_update::intercept` checks a launch with.
+///
+/// As the update helper (`--apply-update <job>`) it must accept the staged
+/// version, which on the beta and dev channels is a pre-release: fastframe
+/// accepts one only on its pre-release channel, so the helper reports this
+/// copy as a pre-release, as the download does. Otherwise it reports the
+/// real version, which the relaunched app's receipt is compared with, and
+/// accepts pre-releases when it is one.
+pub fn launch_config(arguments: &[std::ffi::OsString]) -> UpdateConfig {
+    let helper = arguments
+        .iter()
+        .any(|argument| argument == fastframe_update::APPLY_UPDATE_FLAG);
+    if helper {
+        UpdateConfig {
+            prereleases: Prereleases::WhenRunningPrerelease,
+            current_version: download_version(),
+            ..CONFIG
+        }
+    } else {
+        config_for(env!("CARGO_PKG_VERSION"))
+    }
+}
+
 /// Checks for, downloads and installs updates. Every call blocks.
 #[derive(Clone)]
 pub struct Updater {
@@ -2048,6 +2071,36 @@ mod tests {
         ] {
             assert!(Semver::parse(bad).is_none(), "{bad}");
         }
+    }
+
+    /// The helper of any copy, stable included, installs a beta or dev
+    /// release: fastframe accepts a pre-release only when the config is on
+    /// its pre-release channel (`WhenRunningPrerelease` and a pre-release
+    /// current version). 1.0.0's helper used `CONFIG` and refused
+    /// 1.0.1-alpha.1 with "Invalid update version".
+    #[test]
+    fn the_update_helper_accepts_a_prerelease_and_a_launch_reports_the_real_version() {
+        let helper = launch_config(&[
+            "tidalfast.exe".into(),
+            "--apply-update".into(),
+            "job".into(),
+        ]);
+        assert_eq!(helper.prereleases, Prereleases::WhenRunningPrerelease);
+        assert!(
+            Semver::parse(helper.current_version).is_some_and(|v| v.is_prerelease()),
+            "{}",
+            helper.current_version
+        );
+        // A normal launch acknowledges the receipt with its real version.
+        let launch = launch_config(&["tidalfast.exe".into()]);
+        assert_eq!(launch.current_version, env!("CARGO_PKG_VERSION"));
+        let prerelease =
+            Semver::parse(env!("CARGO_PKG_VERSION")).is_some_and(|v| v.is_prerelease());
+        assert_eq!(
+            launch.prereleases == Prereleases::WhenRunningPrerelease,
+            prerelease,
+            "a pre-release build accepts its own pre-release receipt"
+        );
     }
 
     #[test]
