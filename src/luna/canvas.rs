@@ -376,6 +376,12 @@ fn cmd_error(c: &GlCmd) -> Option<u32> {
     }
 }
 
+/// Sets the frame canvas `id` shows, as a draw would.
+#[cfg(test)]
+pub fn test_frame(id: u64, f: Option<Frame>) {
+    set_frame(id, f);
+}
+
 fn set_frame(id: u64, f: Option<Frame>) {
     let mut m = FRAMES.lock().unwrap_or_else(PoisonError::into_inner);
     match f {
