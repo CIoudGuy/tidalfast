@@ -532,6 +532,101 @@ Left, measured and not worth the risk or the change:
   and shaping text, building shapes), which the app cannot cut without
   drawing less.
 
+## Plugins, the pointer and covered windows (2026-10-20)
+
+An installed 1.0.1 build was seen at about 57% of one core with seven Luna
+plugins (DiscordRPC, no-remix, total-play-time, tidal-genres, Tidal Tags,
+CatJam, oneko), animated covers and the Blur background. Release demo builds
+of `4745d29` (before) and this pass (after), window 1240 by 800 at
+`-7300,-5300` (a spot of its own: other test windows at `-4000,-4000` covered
+it), the song playing here, 15 seconds settled then 15 sampled, interleaved,
+on a machine busy with other builds. CPU is exact cycles over the sample
+(`QueryProcessCycleTime`, per thread with `QueryThreadCycleTime`); passes from
+`TIDALFAST_REPAINT_TRACE`; "allocations" there count every thread. "Seven
+plugins" is the set above, installed in the demo with `TIDALFAST_DEMO_LUNA`;
+"eight plugins" is no-remix, total-play-time, scroll-to-playing,
+DeviceDisconnectFix, NativeFullscreen, Song Downloader, Tidal Tags and
+VolumeScroll. "Pointer moving" plays a dev script that moves the pointer
+every few milliseconds, which runs passes faster than a display would (about
+400 a second off-screen): its pass counts are the harness's, the Luna
+thread's share is not, because pointer moves reach plugins at most 30 times
+a second either way. "Covered" opens an opaque test window over it.
+
+| Scenario | Before: CPU, passes a second | After: CPU, passes a second |
+| --- | --- | --- |
+| Home, nothing playing | 0.08%, 0.2 | 0.09%, 0.2 |
+| Home, playing | 0.60%, 2 | 0.58%, 2 |
+| Now playing (Blur) | 5.4%, 30 | 5.9%, 30 (noise) |
+| Now playing, animated cover | 6.3%, 15 | 6.5%, 15 |
+| Queue panel open, playing | 0.67%, 2 | 0.62%, 2 |
+| Eight plugins, Home playing / idle | 0.71% / 0.12% | 0.72% / 0.13% |
+| Seven plugins, Home playing (CatJam's frames) | 7.2 to 7.6%, 20 | 6.7 to 8.3%, 20 |
+| Seven plugins, now playing | 7.0%, 29 | 6.5 to 7.1%, 29 |
+| Cotton Candy / Tidal TUI theme, Home playing | 0.96% / 0.70%, 2 | 0.93% / 0.69%, 2 |
+| Seven plugins, now playing, pointer moving: Luna thread | 32% of a core | 9.1 to 9.5% |
+| Seven plugins, now playing, pointer moving: process | 88 to 90% | 55 to 69% |
+| Seven plugins, Home playing, covered | 7.4 to 8.0%, 21 to 24 | 1.0 to 1.6%, 2 to 4 |
+| Seven plugins, now playing, covered | 5.3%, 23 | 1.1 to 1.3%, 4 to 5 |
+| Private memory, Home playing (none / seven plugins) | 112 / 144 to 151 MB | 111 / 144 to 151 MB |
+
+Where it went, each change with a test that fails without it:
+
+- **The now-playing cover's lean.** While the pointer moves over the
+  now-playing view the cover leans anew on every pass, and the lean is an
+  inline style on TIDAL's tilt box, so the anchor tree went to the runtime
+  on every pass, each a reconcile on the Luna thread (2,386 trees in 10
+  seconds). The lean now goes out at most every 33 ms, as often as pointer
+  moves reach plugins, and the pass after the wait sends the latest one
+  (157 trees in 10 seconds).
+- **A covered window and plugins.** A plugin's `<video>` (CatJam's cat)
+  asked for each of its frames, 20 to 30 passes a second, while other windows
+  covered the window; it now asks for none while the window is covered or
+  hidden, and plugins see the page hidden then (frames paused, timers at
+  most once a second), as they did while it was minimised.
+- **An anchor tree per pass.** The player bar noted the playing song's
+  position to the millisecond, so with plugins on every pass that came while
+  a song played (a frame of CatJam, of the background, of a moving pointer)
+  built the whole anchor tree to find it the same as the one sent, which
+  shows whole seconds. Drawing Home with the seven plugins' overlay: 2,613
+  allocations a pass before, 1,629 after; a playlist, 3,598 and 1,963;
+  Home with Cotton Candy, 2,497 and 1,532. The demo's own song does not
+  advance its position, so the table above does not show this; a real song
+  does.
+- **Themes' hover recheck.** With a `:hover` rule (most themes), every tree
+  sent asked for one more pass to work out the element under the pointer,
+  also with the pointer outside the window or the boxes unchanged (a tree
+  goes out each second while a song plays). It is asked for now only with
+  the pointer over the window and a box moved.
+- **The clock's pass.** The clock asked for its next pass at most 1000 ms
+  ahead; egui brings timed passes back a predicted frame early, so a pass
+  early in a second landed just before the next and needed a second one
+  50 ms later. Playback alone (a song on another device, a bar stepping once
+  a second) now wakes the window once a second.
+
+Screenshots of Home, a playlist, an album, Home in Light, the queue panel
+and lyrics at 1280 by 800 are byte for byte the same before and after;
+Home with Cotton Candy differs from itself between runs of the same build
+by at most 1 of 255 in a few pixels, and before and after differ the same.
+
+Memory over time: seven minutes of cycling Home, Tracks, the queue and
+lyrics panels, Settings, the next song and Back (`TIDALFAST_DEV_SCRIPT`)
+grow private memory by about 7 MB without plugins and by 7 to 10 MB a
+minute with Tidal Tags installed. Playing on Home without navigating stays
+flat with the same plugins. The growth is Tidal Tags' own: each time a
+track row appears it registers a format listener
+(`MediaItem.withFormat(unloads, ...)`) that holds the row's cells and is
+released only when the plugin unloads, about 4 listeners a second while
+navigating (931 after three and a half minutes, the document itself steady
+at 343 nodes). TidaLuna's `withFormat` keeps listeners the same way, so the
+plugin grows the same in TIDAL; the fix belongs in the plugin (let go of a
+row's previous listener when it fills the row again). The plugin runtime's
+heap is capped at 256 MB.
+
+Not measured here: a visible window at the display's rate (the off-screen
+window's passes are not paced by the display), and the owner's own
+profile; the 57% was not reproduced as such, the nearest being now playing
+with the seven plugins and a moving pointer.
+
 ## Animated covers
 
 TIDAL's animated covers (Settings, Appearance) stay **off by default**: on
