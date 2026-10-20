@@ -188,3 +188,38 @@ fn an_install_redirected_to_plain_http_elsewhere_is_refused() {
     assert!(!installed, "installed over plain HTTP: {outcomes}");
     assert!(outcomes.contains("Err("), "{outcomes}");
 }
+
+/// S3: on Windows a plugin's `fs` cannot write NTFS alternate data streams
+/// (`file.txt:name`). Their bytes are not in the folder's file sizes, so
+/// the 256 MB quota never saw them: a plugin could fill the disk 256 MB at
+/// a time (here 300 MB went in beside an otherwise empty folder).
+#[cfg(windows)]
+#[test]
+fn alternate_data_streams_cannot_get_past_the_data_folder_quota() {
+    use crate::luna::fsops::{PLUGIN_QUOTA, fs_op, write_bytes};
+    let home = temp_dir("s3-ads");
+    std::fs::create_dir_all(&home).unwrap();
+    let chunk = vec![0u8; 150 << 20];
+    let mut stored = 0u64;
+    for (i, name) in ["big.bin:s1", "big.bin:s2"].iter().enumerate() {
+        if write_bytes("Ads", &home, name, &chunk, true).is_ok() {
+            stored += chunk.len() as u64;
+        }
+        // A removal makes the folder be measured again.
+        let t = format!("t{i}.txt");
+        let _ = fs_op(&home, &json!({ "op": "write", "path": t, "data": "eA==" }));
+        let _ = fs_op(&home, &json!({ "op": "remove", "path": t }));
+    }
+    let plain = fs_op(
+        &home,
+        &json!({ "op": "write", "path": "ok.txt", "data": "eA==" }),
+    );
+    let _ = std::fs::remove_dir_all(&home);
+    assert!(plain.is_ok(), "{plain:?}");
+    assert!(
+        stored <= PLUGIN_QUOTA,
+        "{} MB went into streams past the {} MB quota",
+        stored >> 20,
+        PLUGIN_QUOTA >> 20
+    );
+}
