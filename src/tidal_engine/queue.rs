@@ -605,10 +605,15 @@ impl Queue {
     /// What was played in the last `recent::AUTOPLAY_WINDOW` songs, or
     /// is listed twice, is left out. Nothing changes, and `false` comes
     /// back, when nothing is left.
-    pub fn continue_with(&mut self, tracks: Vec<LocalTrack>) -> bool {
+    /// `station` is the radio the songs come from (the seed song's): from
+    /// here on the queue plays from it, not from the context that ended.
+    pub fn continue_with(&mut self, tracks: Vec<LocalTrack>, station: Option<String>) -> bool {
         let tracks = self.autoplay_fresh(tracks);
         if tracks.is_empty() {
             return false;
+        }
+        if station.is_some() {
+            self.context_uri = station;
         }
         self.context = tracks;
         self.order = (0..self.context.len()).collect();
@@ -1028,7 +1033,7 @@ mod tests {
         queue.advance(true);
         assert_eq!(queue.advance(true), Advance::NeedAutoplay);
         assert_eq!(queue.seed().unwrap().uri, "tidal:track:2");
-        queue.continue_with(vec![track(50), track(51)]);
+        queue.continue_with(vec![track(50), track(51)], None);
         assert!(queue.is_autoplay());
         assert_eq!(uri(queue.advance(true)), "tidal:track:50");
         assert_eq!(uri(queue.advance(true)), "tidal:track:51");
@@ -1493,13 +1498,13 @@ mod tests {
         let played = play_all(&mut queue);
         assert_eq!(played.len(), 5);
         let station: Vec<LocalTrack> = (3..=9).map(track).collect();
-        assert!(queue.continue_with(station));
+        assert!(queue.continue_with(station, None));
         let next: Vec<usize> = queue.view(20).next_up.iter().map(number).collect();
         assert_eq!(next, vec![6, 7, 8, 9]);
         // Nothing fresh: the music does not restart on old songs.
         let mut again = loaded(5);
         play_all(&mut again);
-        assert!(!again.continue_with(album(5)));
+        assert!(!again.continue_with(album(5), None));
         assert!(!again.is_autoplay());
     }
 
