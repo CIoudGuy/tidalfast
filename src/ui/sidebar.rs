@@ -1857,6 +1857,16 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
                 crate::luna::dom::Position::Append,
             ),
         ] {
+            // TIDAL's fixed navigation lays its content 16 points in, where
+            // the nav rows start (miniplayer's button, with its own 8 point
+            // margin, sits at 24).
+            if key == crate::luna::dom_anchors::keys::FIXED_NAV && super::plugin_slots::any(&key) {
+                ui.horizontal(|ui| {
+                    ui.add_space(16.0);
+                    super::plugin_slots::inline(ui, &key, position);
+                });
+                continue;
+            }
             super::plugin_slots::inline(ui, &key, position);
         }
     }

@@ -14,7 +14,7 @@
 
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
@@ -41,6 +41,9 @@ pub enum HoverKey {
 }
 
 type LoadedFonts = Vec<(String, [Arc<egui::FontData>; 4])>;
+/// What the fonts thread hands back: the faces, the page's family, and
+/// which loaded family each element `font-family` value draws in.
+type FontsDone = (LoadedFonts, Option<String>, HashMap<String, String>);
 
 #[derive(Default)]
 struct State {
@@ -73,8 +76,19 @@ struct State {
     theme: Option<(u64, Palette, Palette)>,
     /// What the installed plugin fonts were made from.
     fonts_key: Option<u64>,
-    fonts_loading: Option<Receiver<(LoadedFonts, Option<String>)>>,
-    font_families: HashSet<String>,
+    fonts_loading: Option<Receiver<FontsDone>>,
+    /// The `font-family` values plugin elements carry, for this overlay
+    /// version (read once per version, not per frame).
+    element_families: Option<(u64, Arc<Vec<String>>)>,
+    /// The family each of those values draws in: the first of its list
+    /// that is loaded or installed (`system-ui` is Segoe UI on Windows).
+    element_fonts: HashMap<String, String>,
+    /// The loaded families in install order, numbered for
+    /// [`element_font_id`].
+    font_names: Vec<String>,
+    /// The next `font_names` and `element_fonts`, taken at the next frame,
+    /// when egui has the families.
+    fonts_next: Option<(Vec<String>, HashMap<String, String>)>,
     /// `overlay.scroll_top` not applied yet: (container key, top).
     scroll_top_seq: u64,
     scroll_top_pending: Option<(String, f32)>,
@@ -845,7 +859,10 @@ pub fn page_filter(r: Rect, value: &str) {
 /// (corners as the theme rounds them, else `native`). False while no theme
 /// styles the box, so nothing is drawn and the native look stays.
 pub fn paint_themed_box(ui: &egui::Ui, key: &str, r: Rect, native: egui::CornerRadius) -> bool {
-    if host(key, |_, _| Some(())).is_none() {
+    // Styled, not merely listed: a plugin listening on `window` lists every
+    // host (discord-utils' socket hid the filter field's outline).
+    let styled = |h: &HostOverride| !h.style.is_empty() || h.before.is_some() || h.after.is_some();
+    if host(key, |h, _| styled(h).then_some(())).is_none() {
         return false;
     }
     let corner = radius(key).map_or(native, |r| {
@@ -2540,12 +2557,36 @@ pub fn listens(key: &str, kind: &str) -> bool {
     .is_some()
 }
 
-/// A font family a plugin loaded, usable in a `FontId`.
-pub fn font_family(name: &str) -> Option<egui::FontFamily> {
+/// The family an element's `font-family` value draws in, as a number
+/// [`font_by_id`] turns back into the family: the first of its list that is
+/// loaded (by a plugin, or installed on the computer), else its first
+/// family if a plugin loaded that. `None` draws in the app's face.
+pub fn element_font_id(value: &str) -> Option<u32> {
     with(|s| {
-        s.font_families
-            .contains(name)
-            .then(|| egui::FontFamily::Name(name.into()))
+        let name = match s.element_fonts.get(value.trim()) {
+            Some(name) => name.clone(),
+            None => css::first_family(value)?,
+        };
+        s.font_names
+            .iter()
+            .position(|n| *n == name)
+            .map(|i| i as u32)
+    })
+}
+
+/// The family [`element_font_id`] numbered, at the CSS `weight` (its
+/// bold face for 700).
+pub fn font_by_id(id: u32, weight: u16) -> Option<egui::FontFamily> {
+    let weight = match weight {
+        w if w >= 700 => fastframe_fonts::Weight::Bold,
+        w if w >= 600 => fastframe_fonts::Weight::SemiBold,
+        w if w >= 500 => fastframe_fonts::Weight::Medium,
+        _ => fastframe_fonts::Weight::Regular,
+    };
+    with(|s| {
+        s.font_names
+            .get(id as usize)
+            .map(|name| egui::FontFamily::Name(crate::theme::weighted_family(name, weight).into()))
     })
 }
 
@@ -4238,6 +4279,12 @@ fn paint_radial(painter: &egui::Painter, r: Rect, center: egui::Pos2, stops: &[C
 /// Load the fonts plugins declared (custom-fonts) off the UI thread and
 /// install them once per change; put the user's fonts back when they go.
 fn fonts_tick(ctx: &egui::Context) {
+    with(|s| {
+        if let Some((names, element_fonts)) = s.fonts_next.take() {
+            s.font_names = names;
+            s.element_fonts = element_fonts;
+        }
+    });
     let done = with(|s| {
         if let Some(rx) = &s.fonts_loading
             && let Ok(result) = rx.try_recv()
@@ -4245,11 +4292,39 @@ fn fonts_tick(ctx: &egui::Context) {
             s.fonts_loading = None;
             return Some(result);
         }
+        // The `font-family` values plugin elements carry, read once per
+        // overlay version.
+        let version = s.overlay.version;
+        let elements = match &s.element_families {
+            Some((v, list)) if *v == version => list.clone(),
+            _ => {
+                fn walk(
+                    n: &crate::luna::dom::VNode,
+                    seen: &mut std::collections::BTreeSet<String>,
+                ) {
+                    if let Some(f) = n.style.font_family.as_deref() {
+                        seen.insert(f.trim().to_string());
+                    }
+                    for c in &n.children {
+                        walk(c, seen);
+                    }
+                }
+                let mut seen = std::collections::BTreeSet::new();
+                for i in &s.overlay.injected {
+                    for n in &i.nodes {
+                        walk(n, &mut seen);
+                    }
+                }
+                let list = Arc::new(seen.into_iter().collect::<Vec<_>>());
+                s.element_families = Some((version, list.clone()));
+                list
+            }
+        };
         let o = &s.overlay;
         // Hashed as written, so nothing is parsed per frame: the page's
         // families are read below only once the fonts change.
         let family = o.page.font_family.as_deref().map(str::trim).unwrap_or("");
-        let key = if o.fonts.is_empty() && family.is_empty() {
+        let key = if o.fonts.is_empty() && family.is_empty() && elements.is_empty() {
             0
         } else {
             use std::hash::{Hash, Hasher};
@@ -4259,6 +4334,7 @@ fn fonts_tick(ctx: &egui::Context) {
                 f.src.hash(&mut h);
             }
             family.hash(&mut h);
+            elements.hash(&mut h);
             h.finish() | 1
         };
         if s.fonts_key == Some(key) || (s.fonts_key.is_none() && key == 0) {
@@ -4266,7 +4342,7 @@ fn fonts_tick(ctx: &egui::Context) {
         }
         s.fonts_key = Some(key);
         if key == 0 {
-            return Some((Vec::new(), None));
+            return Some((Vec::new(), None, HashMap::new()));
         }
         let fonts = o.fonts.clone();
         let primary = o.page.font_family.as_deref().and_then(css::first_family);
@@ -4324,15 +4400,49 @@ fn fonts_tick(ctx: &egui::Context) {
                         primary = Some(name);
                     }
                 }
-                let _ = tx.send((loaded, primary));
+                // An element's own `font-family` draws in the first of its
+                // list that a plugin loaded or the computer has, as in a
+                // browser: `system-ui` is the system's face, `"Comic Sans
+                // MS"` the installed font.
+                let mut element_fonts = HashMap::new();
+                for value in elements.iter() {
+                    let list = css::family_list(value);
+                    let installed = |name: &str| crate::fonts::installed_faces(name);
+                    let picked = pick_family(&list, &mut |name| {
+                        loaded.iter().any(|(l, _)| l == name) || installed(name).is_some()
+                    });
+                    if let Some(name) = picked {
+                        if !loaded.iter().any(|(l, _)| *l == name)
+                            && let Some(faces) = installed(&name)
+                        {
+                            loaded.push((name.clone(), faces));
+                        }
+                        element_fonts.insert(value.clone(), name);
+                    }
+                }
+                let _ = tx.send((loaded, primary, element_fonts));
                 waker.request_repaint();
             })
             .ok();
         None
     });
-    if let Some((fonts, primary)) = done {
+    if let Some((fonts, primary, element_fonts)) = done {
         let primary = primary.filter(|p| fonts.iter().any(|(n, _)| n == p));
-        with(|s| s.font_families = fonts.iter().map(|(n, _)| n.clone()).collect());
+        // Elements draw in the new families from the next frame on, once
+        // egui has them (a family egui does not have yet panics), and only
+        // in those it can parse (the others are left out).
+        let names: Vec<String> = fonts
+            .iter()
+            .filter(|(_, faces)| faces.iter().all(|d| font_parses(&d.font, d.index)))
+            .map(|(n, _)| n.clone())
+            .collect();
+        let element_fonts = element_fonts
+            .into_iter()
+            .filter(|(_, name)| names.contains(name))
+            .collect();
+        with(|s| {
+            s.fonts_next = Some((names, element_fonts));
+        });
         crate::theme::install_plugin_fonts(ctx, &fonts, primary.as_deref());
     }
 }
@@ -4574,6 +4684,66 @@ mod tests {
         // `sans-serif` is the app's own face: nothing is picked for it.
         let sans = css::family_list("\"Nope\", sans-serif");
         assert_eq!(pick_family(&sans, &mut |_| false), None);
+    }
+
+    /// lyrics-everywhere's bubble says `font-family: system-ui, sans-serif`:
+    /// a browser draws it in the system's interface face (Segoe UI on
+    /// Windows), not in the app's.
+    #[test]
+    fn system_ui_is_the_systems_interface_face() {
+        let list = css::family_list("system-ui, sans-serif");
+        assert_eq!(list, [css::Family::Generic(css::Generic::SystemUi)]);
+        let installed = ["Segoe UI", "Arial"];
+        let mut has = |name: &str| installed.contains(&name);
+        assert_eq!(pick_family(&list, &mut has).as_deref(), Some("Segoe UI"));
+    }
+
+    /// discord-utils listens on `window` (its socket's `offline`), which
+    /// lists every host element in the overlay. The playlist filter's
+    /// outline was left out as if a theme had styled its box.
+    #[test]
+    fn a_host_listed_only_for_listeners_keeps_its_native_look() {
+        let mut overlay = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        overlay.hosts.insert(
+            dom_anchors::keys::PAGE_FILTER_BOX.into(),
+            HostOverride {
+                listens: vec!["offline".into(), "unload".into()],
+                ..HostOverride::default()
+            },
+        );
+        test_overlay(Some(overlay.clone()));
+        let ctx = egui::Context::default();
+        let mut themed = None;
+        ctx.run_ui(egui::RawInput::default(), |ui| {
+            themed = Some(filter_box(
+                ui,
+                Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(300.0, 40.0)),
+            ));
+        })
+        .textures_delta
+        .clear();
+        assert_eq!(themed, Some(false), "nothing styled the filter's box");
+        // A theme's fill does replace it.
+        overlay
+            .hosts
+            .get_mut(dom_anchors::keys::PAGE_FILTER_BOX)
+            .unwrap()
+            .style
+            .background_color = Some("#ff0000".into());
+        test_overlay(Some(overlay));
+        ctx.run_ui(egui::RawInput::default(), |ui| {
+            themed = Some(filter_box(
+                ui,
+                Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(300.0, 40.0)),
+            ));
+        })
+        .textures_delta
+        .clear();
+        assert_eq!(themed, Some(true));
+        test_overlay(None);
     }
 
     /// A theme's header tab is drawn over the page: under the pointer there

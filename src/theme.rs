@@ -455,6 +455,11 @@ fn install_fonts(ctx: &egui::Context) {
 /// The app's fonts plus fonts Luna plugins loaded (custom-fonts), each as
 /// its own named family falling back to Hanken; `primary` also leads the
 /// proportional family. Empty `extra` restores the app's own fonts.
+/// The name [`install_plugin_fonts`] gives a plugin family at one weight.
+pub fn weighted_family(name: &str, weight: fastframe_fonts::Weight) -> String {
+    format!("{name}#{}", weight.name())
+}
+
 pub fn install_plugin_fonts(
     ctx: &egui::Context,
     extra: &[(String, [std::sync::Arc<egui::FontData>; 4])],
@@ -490,6 +495,16 @@ pub fn install_plugin_fonts(
         fonts
             .families
             .insert(egui::FontFamily::Name(name.as_str().into()), family);
+        // The family at each weight, for plugin text that is bold in it
+        // (custom-fonts' bold Comic Sans tag): `"<name>#<weight>"`.
+        for (weight, key) in fastframe_fonts::Weight::ALL.iter().zip(&keys) {
+            let mut family = vec![key.clone()];
+            family.extend(proportional.iter().cloned());
+            fonts.families.insert(
+                egui::FontFamily::Name(weighted_family(name, *weight).into()),
+                family,
+            );
+        }
         if primary == Some(name.as_str()) {
             lead_with(&mut fonts, &keys);
         }

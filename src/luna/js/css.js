@@ -580,12 +580,15 @@
 	};
 	// Writes a declaration so the map's order is the cascade's: a property
 	// written again moves to the end (a Map keeps a key's first place), and
-	// the `background` shorthand resets its longhands, as in CSS.
+	// the `background`, `margin` and `padding` shorthands reset their
+	// longhands, as in CSS.
 	const put = (m, name, value) => {
 		m.delete(name);
 		if (name === "background") {
 			m.delete("background-color");
 			m.delete("background-image");
+		} else if (name === "margin" || name === "padding") {
+			for (const side of ["top", "right", "bottom", "left"]) m.delete(`${name}-${side}`);
 		}
 		m.set(name, value);
 	};
@@ -704,7 +707,7 @@
 		return out + value.slice(i);
 	};
 	D.resolveVars = resolveVars;
-	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "column-gap", "padding-top", "padding-left", "padding-right", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "border-color", "letter-spacing", "text-transform", "white-space", "flex", "order", "pointer-events", "background-position", "background-size", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns"]);
+	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "margin-left", "margin-right", "column-gap", "padding-top", "padding-left", "padding-right", "padding-bottom", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "border-color", "letter-spacing", "text-transform", "white-space", "flex", "order", "pointer-events", "background-position", "background-size", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns"]);
 	const ANIM_LONG = ["animation-name", "animation-duration", "animation-delay", "animation-iteration-count", "animation-direction", "animation-timing-function", "animation-play-state", "animation-fill-mode"];
 	const seconds = (t) => (/ms$/i.test(t) ? parseFloat(t) / 1000 : parseFloat(t));
 	// A timing function as one word for the lists below: lower case, no spaces
