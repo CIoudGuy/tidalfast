@@ -3421,6 +3421,7 @@
 		const docLs = [...new Set([...listenTypes(doc), ...listenTypes(winTarget), ...listenTypes(body), ...listenTypes(html)])].sort();
 		if (docLs.length) hostsOut[""] = { listens: docLs };
 		const ov = { vars: css.vars, page: css.page, hosts: hostsOut, injected, fonts: [...css.fonts, ...fontFaces()], scroll_to: scrollTo, css_bytes: css.bytes };
+		if (css.wimpFill) ov.wimp_fill = css.wimpFill;
 		if (scrollTop) ov.scroll_top = scrollTop;
 		if (hostClicks.length) ov.clicks = hostClicks.slice();
 		if (css.keyframes && Object.keys(css.keyframes).length) ov.keyframes = css.keyframes;
