@@ -5,8 +5,8 @@
 //! shows the frame for the clip's clock, uploading it into the element's
 //! texture only when the frame changed, and asks for the next pass when the
 //! next frame falls due: at most 30 a second, 15 while the window is not
-//! focused, none while the clip is paused. With reduced motion the first
-//! frame stands still.
+//! focused, none while the clip is paused or nobody can see the window
+//! (covered, hidden). With reduced motion the first frame stands still.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -142,7 +142,9 @@ pub fn show(ui: &mut egui::Ui, node: &VNode, width: Option<f32>, height: Option<
     if !frames.done() {
         // Frames still arriving: the newest is shown as it comes.
         ctx.request_repaint_after(Duration::from_millis(100));
-    } else if runs && !reduced {
+    } else if runs && !reduced && !crate::theme::unseen(&ctx) {
+        // Nobody sees a covered or hidden window: the clip's clock runs on,
+        // and the pass that shows the window again draws the frame it is at.
         let rate = clip.rate().max(0.01);
         let next = frames.next_time(index).unwrap_or(clip.duration());
         let due = Duration::from_secs_f64(((next - time) / rate).clamp(0.0, 10.0));
@@ -157,4 +159,52 @@ pub fn show(ui: &mut egui::Ui, node: &VNode, width: Option<f32>, height: Option<
 /// while no plugin has a clip.
 pub fn end_pass() {
     video::release_idle(IDLE);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Whether drawing the clip asked for the next pass.
+    fn asks_for_frames(budget: crate::power::Budget) -> bool {
+        let id = video::test_clip([52, 40], 25, 25.0);
+        let node = VNode {
+            tag: "video".into(),
+            markup: Some(format!("video:{id}")),
+            ..VNode::default()
+        };
+        let ctx = egui::Context::default();
+        crate::theme::set_budget(&ctx, budget);
+        for step in 0..3 {
+            ctx.run_ui(
+                egui::RawInput {
+                    time: Some(f64::from(step) / 10.0),
+                    ..Default::default()
+                },
+                |ui| {
+                    assert!(show(ui, &node, Some(52.0), Some(40.0)));
+                },
+            )
+            .textures_delta
+            .clear();
+        }
+        // egui reports a pass's causes during the pass after it.
+        let _ = ctx.run_ui(egui::RawInput::default(), |_| {});
+        video::free(id);
+        ctx.repaint_causes().iter().any(|cause| {
+            cause
+                .file
+                .replace('\\', "/")
+                .ends_with("src/ui/luna_video.rs")
+        })
+    }
+
+    /// A playing clip (CatJam's cat) asks for its next frame while the
+    /// window can be seen, and for none while it is covered or hidden, as
+    /// the app's own animations do.
+    #[test]
+    fn a_clip_asks_for_frames_only_while_the_window_is_seen() {
+        assert!(asks_for_frames(crate::power::Budget::Normal));
+        assert!(!asks_for_frames(crate::power::Budget::Background));
+    }
 }
