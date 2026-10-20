@@ -385,7 +385,8 @@ pub(crate) fn run() -> eframe::Result<()> {
     // First of all: `--apply-update <job>` makes this process the update
     // helper, which installs and exits; otherwise the receipt and error an
     // update relaunch carries are taken out of the arguments.
-    let launch = fastframe_update::intercept(&tidalfast::updates::CONFIG);
+    let arguments: Vec<std::ffi::OsString> = std::env::args_os().collect();
+    let launch = fastframe_update::intercept(&tidalfast::updates::launch_config(&arguments));
 
     let cli = Cli::from_arg_matches(&Cli::command().get_matches_from(&launch.arguments))
         .unwrap_or_else(|error| error.exit());
