@@ -69,6 +69,7 @@ pub mod save_later;
 pub mod settings;
 pub mod single_instance;
 pub mod sink;
+pub mod texture_fit;
 pub mod theme;
 pub mod thumbbar;
 pub mod tidal_engine;

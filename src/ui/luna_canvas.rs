@@ -80,9 +80,14 @@ pub fn show(ui: &mut egui::Ui, node: &VNode, width: Option<f32>, height: Option<
                         e.handle.clone()
                     }
                     other => {
-                        let img = egui::ColorImage::from_rgba_premultiplied(
-                            [p.w as usize, p.h as usize],
-                            &p.rgba,
+                        // A canvas may be wider than the GPU takes (its
+                        // limit is on area): scaled to fit.
+                        let img = crate::texture_fit::fit(
+                            ui.ctx(),
+                            egui::ColorImage::from_rgba_premultiplied(
+                                [p.w as usize, p.h as usize],
+                                &p.rgba,
+                            ),
                         );
                         match other {
                             Some(e) => {
@@ -1073,5 +1078,48 @@ mod tests {
         assert!(has_frame(&node));
         let plain = VNode::default();
         assert!(!has_frame(&plain));
+    }
+
+    /// A canvas the runtime allows (its limit is on area, 16 million
+    /// pixels) can be wider than the GPU's largest texture: it is drawn
+    /// from a texture scaled to fit, as the glow painter asserts on a
+    /// larger one (and release builds abort on a panic).
+    #[test]
+    fn a_canvas_wider_than_the_gpu_takes_is_scaled_to_fit() {
+        let id = 9_000_001;
+        let (w, h) = (3000u32, 1u32);
+        lc::test_frame(
+            id,
+            Some(Frame::Pixels(Arc::new(lc::Pixels {
+                w,
+                h,
+                version: 1,
+                rgba: vec![255; (w * h * 4) as usize],
+            }))),
+        );
+        let node = VNode {
+            markup: Some(format!("canvas:{id}")),
+            ..Default::default()
+        };
+        let ctx = egui::Context::default();
+        let most = ctx.input(|i| i.max_texture_side);
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            show(ui, &node, Some(300.0), Some(10.0));
+        });
+        lc::test_frame(id, None);
+        let sizes: Vec<[usize; 2]> = output
+            .textures_delta
+            .set
+            .values()
+            .flat_map(|d| d.iter().map(|d| d.image.size()))
+            .collect();
+        output.textures_delta.clear();
+        assert!(
+            sizes.iter().any(|s| s[1] == 1),
+            "no canvas texture: {sizes:?}"
+        );
+        for s in &sizes {
+            assert!(s[0] <= most && s[1] <= most, "{s:?} is over {most}");
+        }
     }
 }

@@ -323,6 +323,8 @@ pub fn text_rendering() -> fastframe_text::TextRendering {
 pub fn install(ctx: &egui::Context) {
     install_fonts(ctx);
     egui_extras::install_image_loaders(ctx);
+    // Asked before egui's own: an image too large for the GPU is scaled.
+    ctx.add_texture_loader(std::sync::Arc::new(crate::texture_fit::Loader::default()));
     fastframe_icons::install::<Icon>(ctx);
     // Colour emoji over every text egui draws (see `crate::emoji`).
     ctx.add_plugin(fastframe_emoji::EmojiPlugin::default());

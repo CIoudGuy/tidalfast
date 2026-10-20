@@ -8478,6 +8478,85 @@ mod tests {
         }
     }
 
+    /// An image wider or taller than the GPU's largest texture (a plugin's
+    /// or a theme's, here a 3000 by 3 PNG as a box's background against the
+    /// harness's 2048) reaches the painter scaled to fit. The glow painter
+    /// asserts on a larger texture, and release builds abort on a panic, so
+    /// one such image used to close the app at every start.
+    #[test]
+    fn an_image_larger_than_the_gpu_takes_is_scaled_to_fit() {
+        use crate::luna::dom::{DomOverlay, Injected, Position, Style, VNode};
+        use base64::Engine as _;
+        let mut png = Vec::new();
+        image::RgbaImage::from_pixel(3000, 3, image::Rgba([200, 30, 30, 255]))
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+        let data = base64::engine::general_purpose::STANDARD.encode(&png);
+        let (ctx, mut app) = accessible_app("huge-texture");
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: String::new(),
+                position: Position::Append,
+                nodes: vec![VNode {
+                    id: 78,
+                    tag: "div".into(),
+                    style: Style {
+                        position: Some("fixed".into()),
+                        z_index: Some("10".into()),
+                        left: Some("0px".into()),
+                        top: Some("0px".into()),
+                        width: Some("600px".into()),
+                        height: Some("40px".into()),
+                        background_image: Some(format!("url(data:image/png;base64,{data})")),
+                        background_size: Some("cover".into()),
+                        ..Style::default()
+                    },
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        }));
+        let most = ctx.input(|i| i.max_texture_side);
+        let mut sizes = Vec::new();
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while std::time::Instant::now() < end
+            && !sizes.iter().any(|s: &[usize; 2]| s[0] >= 1000 && s[1] <= 3)
+        {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280.0, 800.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(&mut app, ui),
+            );
+            sizes.extend(
+                output
+                    .textures_delta
+                    .set
+                    .values()
+                    .flat_map(|d| d.iter().map(|d| d.image.size())),
+            );
+            output.textures_delta.clear();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        crate::ui::plugin_dom::test_overlay(None);
+        app.backend.shutdown();
+        assert!(
+            sizes.iter().any(|s| s[0] >= 1000 && s[1] <= 3),
+            "the image never arrived: {sizes:?}"
+        );
+        for s in &sizes {
+            assert!(
+                s[0] <= most && s[1] <= most,
+                "{s:?} is over {most}: {sizes:?}"
+            );
+        }
+    }
+
     /// The equalizer card in a demo window: the crossfeed row is there with
     /// its strengths, the switch is as the state left it, and a click on a
     /// strength asks for it.
