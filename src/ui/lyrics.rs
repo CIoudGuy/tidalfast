@@ -563,7 +563,8 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
                 };
                 if let Some(p) = pointer {
                     let below = egui::pos2(rect.right(), rect.bottom() + lyrics_follow::LINE_GAP);
-                    if pressed && ui.rect_contains_pointer(egui::Rect::from_min_max(rect.min, below))
+                    if pressed
+                        && ui.rect_contains_pointer(egui::Rect::from_min_max(rect.min, below))
                     {
                         let c = char_at(p);
                         selecting = Some(Selecting {
@@ -580,8 +581,8 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
                 if let Some(range) = selecting.and_then(|s| s.range(index, len)) {
                     let (fill, _) = super::plugin_dom::selection_colors(key);
                     let fill = fill.unwrap_or(ui.visuals().selection.bg_fill);
-                    let opacity = (style.opacity * dim * edge * edge * (3.0 - 2.0 * edge))
-                        .clamp(0.0, 1.0);
+                    let opacity =
+                        (style.opacity * dim * edge * edge * (3.0 - 2.0 * edge)).clamp(0.0, 1.0);
                     let xf = (style.scale != 1.0).then(|| {
                         egui::emath::TSTransform::new(
                             origin.to_vec2() * (1.0 - style.scale),

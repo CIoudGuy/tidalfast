@@ -5817,7 +5817,10 @@ mod tests {
         let ctx = egui::Context::default();
         let mut out = ctx.run_ui(
             egui::RawInput {
-                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
+                screen_rect: Some(Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
                 ..Default::default()
             },
             |ui| paint_page(ui),
