@@ -155,7 +155,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             // The sides' content must stay clear of the transport buttons:
             // it may use what the centre has beyond them.
             let slack = slack(center.width());
-            let left_reach = now_playing_block(app, ui, left, slack, now.as_ref());
+            // The track info ends before the seek row's start time: what
+            // plugins add at its end (up-next's pill) takes room from the
+            // title, as TIDAL's flex row does, and is left out whole when
+            // it still does not fit.
+            let tail_limit = seek_start(center) - TAIL_GAP;
+            let left_reach = now_playing_block(app, ui, left, slack, tail_limit, now.as_ref());
 
             transport(app, ui, now.as_ref(), center);
 
@@ -398,6 +403,7 @@ fn now_playing_block(
     ui: &mut egui::Ui,
     region: Rect,
     slack: f32,
+    tail_limit: f32,
     now: Option<&NowPlaying>,
 ) -> f32 {
     let palette = bar_palette(app, ui.ctx());
@@ -530,7 +536,21 @@ fn now_playing_block(
     } else {
         region.left() + NOW_PLAYING_TEXT_INSET
     };
+    // Plugin elements after the "…" (up-next's pill): the words give way
+    // to them, down to a little.
+    let tail = {
+        let width = |key, position| plugin_slots::slot_width(ui.ctx(), key, position);
+        match (
+            width(keys::ACTIONS, Position::Append),
+            width(keys::TRACK_INFO, Position::Append),
+        ) {
+            (None, None) => None,
+            (actions, info) => Some(actions.map_or(0.0, |w| w + 8.0) + info.unwrap_or(0.0)),
+        }
+    };
+    let words_cap = words_room(tail_limit, text_left, more_shift, tail);
     let text_width = (region.right() - text_left - heart_width).max(40.0);
+    let text_width = words_cap.map_or(text_width, |cap| text_width.min(cap));
     // TIDAL's third line: where the playing thing comes from.
     let source = app.playing_from();
     let text_height = if source.is_some() { 52.0 } else { 36.0 };
@@ -800,7 +820,7 @@ fn now_playing_block(
         Position::Append,
         pos2(actions_end, heart_rect.center().y),
         egui::Align2::LEFT_CENTER,
-        reachable,
+        x_range(region.left(), tail_limit.min(region.right() + slack)),
     ) {
         reach = reach.max(r.right());
     }
@@ -832,6 +852,34 @@ fn now_playing_block(
         reach = reach.max(line_end + 64.0 + (more_shift - 28.0));
     }
     reach
+}
+
+/// Room kept between the end of the track info's plugin elements and the
+/// seek row's start time.
+const TAIL_GAP: f32 = 2.0;
+
+/// The least room the title keeps beside the cover when plugin elements at
+/// the track info's end take the rest.
+const LEAST_WORDS: f32 = 24.0;
+
+/// The width of the seek bar in a centre `width` wide: TIDAL's 704 points
+/// once there is room, leaving the times beside it.
+fn slider_width(width: f32) -> f32 {
+    (width - 112.0).clamp(120.0, 704.0)
+}
+
+/// Where the seek row's start time begins in the centre `region`.
+fn seek_start(region: Rect) -> f32 {
+    region.center().x - slider_width(region.width()) / 2.0 - 40.0
+}
+
+/// How wide the title's column may be beside the cover so that `tail`
+/// (plugin elements after the "…") still ends by `limit`: the actions
+/// after the words take 68 and `more_shift` (the heart's place, the
+/// "…" and their gaps). `None` when nothing is there to make room for.
+fn words_room(limit: f32, text_left: f32, more_shift: f32, tail: Option<f32>) -> Option<f32> {
+    let tail = tail?;
+    Some((limit - tail - text_left - 68.0 - more_shift).max(LEAST_WORDS))
 }
 
 /// A horizontal span for [`plugin_slots::at_within`], any height.
@@ -1074,7 +1122,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     // TIDAL: a 704-point bar 67 under the top, the times 12-point in white
     // at 35 %, 8 into 40-point cells 8 off the bar's ends.
     let row_cy = region.top() + 67.0;
-    let slider_width = (region.width() - 112.0).clamp(120.0, 704.0);
+    let slider_width = slider_width(region.width());
     let (position, duration) = now
         .map(|now| (now.position_ms, now.duration_ms))
         .unwrap_or((0, 0));
@@ -1094,7 +1142,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     };
     let slider_left = region.center().x - slider_width / 2.0;
     ui.painter().text(
-        pos2(slider_left - 40.0, row_cy),
+        pos2(seek_start(region), row_cy),
         egui::Align2::LEFT_CENTER,
         plugin_dom::text(
             keys::CURRENT_TIME,
@@ -1997,6 +2045,69 @@ mod narrow_tests {
             (under - 820.0).abs() < 0.5,
             "the page reaches the window's bottom: {under}"
         );
+        crate::ui::plugin_dom::test_overlay(None);
+    }
+
+    /// up-next's card at the end of the track info, which in a narrowing
+    /// window ran on into the centre over the seek row's start time. Now
+    /// the title gives it room (TIDAL's flex row shrinks the words) and it
+    /// ends before that time, or is left out whole; a wide bar keeps the
+    /// whole title.
+    #[test]
+    fn the_up_next_card_never_covers_the_start_time() {
+        let (ctx, mut app) = setup();
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 2,
+            injected: vec![Injected {
+                anchor: keys::TRACK_INFO.into(),
+                position: Position::Append,
+                nodes: vec![chip(3, MARKS[2])],
+            }],
+            ..DomOverlay::default()
+        }));
+        let title = app.now_playing().expect("the demo plays a song").title;
+        // How wide the bar's title is drawn (an elided label keeps its text
+        // and draws narrower).
+        let title_width = |found: &[(String, Rect)]| {
+            found
+                .iter()
+                .find(|(text, rect)| text == &title && rect.top() > 700.0)
+                .map(|(_, rect)| rect.width())
+                .expect("the bar's title")
+        };
+        let whole = title_width(&settled(&ctx, &mut app, 2400.0));
+        let mut shown_narrowed = false;
+        for width in (1000..=1600).step_by(25).map(|w| w as f32) {
+            let found = settled(&ctx, &mut app, width);
+            let start = found
+                .iter()
+                .filter(|(text, rect)| {
+                    rect.top() > 700.0
+                        && text.split(':').count() == 2
+                        && text
+                            .split(':')
+                            .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+                })
+                .map(|(_, rect)| *rect)
+                .min_by(|a, b| a.left().total_cmp(&b.left()))
+                .expect("the start time");
+            if let Some((_, card)) = found.iter().find(|(text, _)| text.contains(MARKS[2])) {
+                assert!(
+                    card.right() <= start.left(),
+                    "at {width}: the card {card:?} covers the start time {start:?}"
+                );
+                if title_width(&found) < whole - 1.0 {
+                    shown_narrowed = true;
+                }
+            }
+            if width >= 1600.0 {
+                assert!(
+                    title_width(&found) >= whole - 0.5,
+                    "a wide bar keeps the whole title"
+                );
+            }
+        }
+        assert!(shown_narrowed, "somewhere the title made room for the card");
         crate::ui::plugin_dom::test_overlay(None);
     }
 
