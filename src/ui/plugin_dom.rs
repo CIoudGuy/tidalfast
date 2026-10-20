@@ -2996,13 +2996,14 @@ fn painted_container(o: &DomOverlay) -> Option<Color32> {
             Some(average(&stops, 1.0))
         }
         PageLayer::Radial { stops, .. } => Some(average(stops, 0.5)),
-        PageLayer::Url(_) => None,
+        // Dots leave the colour under them as it is.
+        PageLayer::Url(_) | PageLayer::Dot { .. } => None,
     };
     let covers = |layer: &PageLayer| match layer {
         PageLayer::Color(c) => c.a() == 255,
         PageLayer::Linear { stops, .. } => stops.iter().all(|c| c.a() == 255),
         PageLayer::Angled(g) => g.stops.iter().all(|(_, c)| c.a() == 255),
-        PageLayer::Radial { .. } | PageLayer::Url(_) => false,
+        PageLayer::Radial { .. } | PageLayer::Url(_) | PageLayer::Dot { .. } => false,
     };
     let top = layers.iter().position(covers)?;
     let (mut shown, _) = flat(&layers[top])?;
@@ -3411,7 +3412,7 @@ fn image_layers(style: &Style, vars: &BTreeMap<String, String>, out: &mut Vec<Bo
         return;
     };
     let value = css::resolve_vars(&super::theme_gradient::keep_spin(image, vars), vars);
-    for layer in css::split_top(&value, ',').iter().rev() {
+    for (index, layer) in css::split_top(&value, ',').iter().enumerate().rev() {
         let layer = layer.trim();
         if layer.is_empty() || layer.eq_ignore_ascii_case("none") {
             continue;
@@ -3425,6 +3426,7 @@ fn image_layers(style: &Style, vars: &BTreeMap<String, String>, out: &mut Vec<Bo
         {
             let l = sized(
                 l,
+                index,
                 style.background_size.as_deref(),
                 style.background_position.as_deref(),
             );
@@ -3456,9 +3458,19 @@ fn image_layers(style: &Style, vars: &BTreeMap<String, String>, out: &mut Vec<Bo
 
 /// A gradient at an angle takes its box's `background-size` and
 /// `background-position` (a longer image, shown from where the position puts
-/// it); other layers are as they were.
-fn sized(layer: PageLayer, size: Option<&str>, position: Option<&str>) -> PageLayer {
+/// it); a dot takes its own entry (`index`) of the box's sizes as its tile;
+/// other layers are as they were.
+fn sized(layer: PageLayer, index: usize, size: Option<&str>, position: Option<&str>) -> PageLayer {
     match layer {
+        // Its own of the box's comma-separated sizes.
+        PageLayer::Dot {
+            at, radius, color, ..
+        } => PageLayer::Dot {
+            at,
+            radius,
+            color,
+            tile: tile_size(size, index),
+        },
         PageLayer::Angled(mut g) => {
             g.size = super::theme_gradient::size_of(size);
             g.position = position
@@ -3685,6 +3697,91 @@ pub enum PageLayer {
         center: [f32; 2],
         stops: Vec<Color32>,
     },
+    /// A radial gradient whose colour ends a few points from its centre
+    /// (`hsla(...) 1px, transparent 0`): a dot, once per `background-size`
+    /// tile (Cotton Candy Nights' stars), not a glow over the whole box.
+    Dot {
+        /// Centre as fractions of the tile.
+        at: [f32; 2],
+        radius: f32,
+        color: Color32,
+        /// The tile in points; `None` is one dot in the box.
+        tile: Option<[f32; 2]>,
+    },
+}
+
+/// The largest radius, in points, a radial gradient's colour may end at to
+/// be drawn as a dot.
+const DOT_MAX: f32 = 12.0;
+
+/// A radial gradient that is a dot: one colour ending at a length in `px`
+/// of at most [`DOT_MAX`], then transparent.
+fn radial_dot(layer: &str) -> Option<PageLayer> {
+    let lower = layer.to_ascii_lowercase();
+    let inner = lower.strip_prefix("radial-gradient(")?.strip_suffix(')')?;
+    let parts = css::split_top(inner, ',');
+    let (head, stops) = match parts.first() {
+        Some(first) if css::colors_in(first).is_empty() => (Some(first.trim()), &parts[1..]),
+        _ => (None, &parts[..]),
+    };
+    let [first, rest @ ..] = stops else {
+        return None;
+    };
+    let (color, length) = first.trim().rsplit_once(' ')?;
+    let radius = length
+        .trim()
+        .strip_suffix("px")?
+        .trim()
+        .parse::<f32>()
+        .ok()?;
+    let color = css::color(color.trim())?;
+    let clear = |s: &str| css::colors_in(s).iter().all(|c| c.a() == 0);
+    if !(0.0..=DOT_MAX).contains(&radius) || rest.is_empty() || !rest.iter().all(|s| clear(s)) {
+        return None;
+    }
+    // `circle at 10% 20%`, or keywords.
+    let at = head
+        .and_then(|h| h.split_once("at "))
+        .map(|(_, at)| at.split_whitespace().collect::<Vec<_>>())
+        .unwrap_or_default();
+    let axis = |word: Option<&&str>, low: &str, high: &str| match word.copied() {
+        Some(w) if w == low => 0.0,
+        Some(w) if w == high => 1.0,
+        Some(w) => w
+            .strip_suffix('%')
+            .and_then(|p| p.parse::<f32>().ok())
+            .map_or(0.5, |p| p / 100.0),
+        None => 0.5,
+    };
+    // Keywords may come in either order (`top left`).
+    let (x, y) = match (at.first().copied(), at.get(1).copied()) {
+        (Some("top" | "bottom"), second) => (
+            axis(second.as_ref(), "left", "right"),
+            axis(at.first(), "top", "bottom"),
+        ),
+        _ => (
+            axis(at.first(), "left", "right"),
+            axis(at.get(1), "top", "bottom"),
+        ),
+    };
+    Some(PageLayer::Dot {
+        at: [x, y],
+        radius,
+        color,
+        tile: None,
+    })
+}
+
+/// The `i`th of a box's `background-size` values (the list repeats), as a
+/// tile in points when both lengths are in `px`.
+fn tile_size(size: Option<&str>, i: usize) -> Option<[f32; 2]> {
+    let list = css::split_top(size?, ',');
+    let one = list.get(i % list.len().max(1))?;
+    let px = |v: &str| v.strip_suffix("px")?.parse::<f32>().ok();
+    let mut words = one.split_whitespace();
+    let w = px(words.next()?)?;
+    let h = words.next().map_or(Some(w), px)?;
+    (w >= 1.0 && h >= 1.0).then_some([w, h])
 }
 
 pub(crate) type PageLayers = (Option<Color32>, Vec<PageLayer>);
@@ -3702,10 +3799,12 @@ pub(crate) fn page_layers(o: &DomOverlay, vars: &BTreeMap<String, String>) -> Pa
     let value = css::resolve_vars(&super::theme_gradient::keep_spin(image, vars), vars);
     let layers = css::split_top(&value, ',')
         .iter()
-        .filter_map(|layer| page_layer(layer.trim()))
-        .map(|layer| {
+        .enumerate()
+        .filter_map(|(index, layer)| Some((index, page_layer(layer.trim())?)))
+        .map(|(index, layer)| {
             sized(
                 layer,
+                index,
                 o.page.background_size.as_deref(),
                 o.page.background_position.as_deref(),
             )
@@ -3727,6 +3826,9 @@ fn page_layer(layer: &str) -> Option<PageLayer> {
     }
     if let Some(g) = super::theme_gradient::parse(layer) {
         return Some(PageLayer::Angled(g));
+    }
+    if let Some(dot) = radial_dot(layer) {
+        return Some(dot);
     }
     let colors = css::colors_in(layer);
     match colors.as_slice() {
@@ -3784,6 +3886,42 @@ pub(crate) fn paint_layer(ui: &egui::Ui, r: Rect, layer: &PageLayer) {
             );
             paint_radial(painter, r, center, stops);
         }
+        PageLayer::Dot {
+            at,
+            radius,
+            color,
+            tile,
+        } => paint_dots(painter, r, *at, *radius, *color, *tile),
+    }
+}
+
+/// A dot once per tile over `r`, tiles from its top left corner.
+fn paint_dots(
+    painter: &egui::Painter,
+    r: Rect,
+    at: [f32; 2],
+    radius: f32,
+    color: Color32,
+    tile: Option<[f32; 2]>,
+) {
+    if color.a() == 0 || radius <= 0.0 {
+        return;
+    }
+    let [w, h] = tile.unwrap_or([r.width(), r.height()]);
+    // A tile this small is a texture, not stars: nothing a dot would show.
+    if w < 4.0 || h < 4.0 {
+        return;
+    }
+    let painter = painter.with_clip_rect(painter.clip_rect().intersect(r));
+    let mut y = r.top();
+    while y < r.bottom() {
+        let mut x = r.left();
+        while x < r.right() {
+            let c = egui::pos2(x + w * at[0], y + h * at[1]);
+            painter.circle_filled(c, radius.max(0.5), color);
+            x += w;
+        }
+        y += h;
     }
 }
 
@@ -4788,5 +4926,68 @@ mod tests {
         let page = page_root(&Page::Search);
         assert_eq!(page.test.as_deref(), Some("search-results-top"));
         assert_eq!(page_root(&Page::Home).test, None);
+    }
+
+    /// Cotton Candy Nights' colourways draw stars on the main container: a
+    /// radial gradient per star whose colour ends at `1px`, tiled by a
+    /// `background-size` per layer, their alpha a registered property the
+    /// app does not resolve. Each was a glow over the whole window, opaque
+    /// white, which made the window light and its text dark (Milky Way's
+    /// sidebar names went black on the black sidebar). They are dots now,
+    /// one per tile, and leave the window's colour alone.
+    #[test]
+    fn a_one_pixel_radial_gradient_is_a_tiled_dot_not_a_glow() {
+        let star = "radial-gradient(circle at 10% 20%, hsla(0, 0%, 100%, ) 1px, transparent 0)";
+        assert_eq!(
+            page_layer(star),
+            Some(PageLayer::Dot {
+                at: [0.1, 0.2],
+                radius: 1.0,
+                color: Color32::WHITE,
+                tile: None,
+            })
+        );
+        let size = Some("100% 100%, 450px 240px, 350px");
+        assert_eq!(
+            sized(page_layer(star).unwrap(), 1, size, None),
+            PageLayer::Dot {
+                at: [0.1, 0.2],
+                radius: 1.0,
+                color: Color32::WHITE,
+                tile: Some([450.0, 240.0]),
+            }
+        );
+        assert_eq!(tile_size(size, 2), Some([350.0, 350.0]));
+        assert_eq!(tile_size(size, 0), None, "a percentage is the box");
+        assert_eq!(tile_size(size, 4), Some([450.0, 240.0]), "the list repeats");
+        // Keywords either way round.
+        let corner = "radial-gradient(circle at top right, #fff 2px, transparent 3px)";
+        assert!(matches!(
+            page_layer(corner),
+            Some(PageLayer::Dot { at: [1.0, 0.0], .. })
+        ));
+        // Glows stay glows: a stop in percent, a large radius, or a second
+        // colour.
+        for glow in [
+            "radial-gradient(ellipse at top left, rgb(10, 0, 23), transparent 70%)",
+            "radial-gradient(circle at 50% 50%, #fff 40px, transparent 0)",
+            "radial-gradient(circle, #fff 1px, #f00 2px)",
+        ] {
+            assert!(
+                matches!(page_layer(glow), Some(PageLayer::Radial { .. })),
+                "{glow}"
+            );
+        }
+
+        // The main container's colour is the black under the stars.
+        let mut o = DomOverlay::default();
+        let mut host = HostOverride::default();
+        host.style.background_image = Some(format!(
+            "{star}, {}, linear-gradient(180deg, rgb(0, 0, 0), rgb(0, 0, 0))",
+            star.replace("10% 20%", "70% 10%")
+        ));
+        o.hosts
+            .insert(dom_anchors::keys::MAIN_CONTAINER.to_string(), host);
+        assert_eq!(painted_container(&o), Some(Color32::BLACK));
     }
 }
