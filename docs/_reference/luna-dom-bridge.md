@@ -68,7 +68,13 @@ inherit and `var()` resolves with fallbacks; a variable nobody defines stays
 written as `var(--x)` so the UI can supply its theme value. Rules whose
 subject is a pseudo-element (`::-webkit-scrollbar`, `::placeholder`) never
 apply to elements; `::before` and `::after` rules are indexed separately and
-resolved for the anchors only (`HostOverride::before`/`after`, see Theme).
+resolved for the anchors (`HostOverride::before`/`after`, see Theme) and
+for plugin elements: an element's own `::before` and `::after` with a
+`content` that is shown come out as its first and last child (tag
+`::before`/`::after`, the `content` string as its text, events going to the
+element), so a CSS triangle or an icon box is drawn (lyrics-everywhere's
+bubble tail). `::selection` and `user-select` reach the anchors
+(`HostOverride::selection`, `selectable`, see "Selection").
 A class written as TIDAL's full hashed module class (`._dataContainer_5bb6028`,
 `[class="_wrapper_512d5f4"]`, `[class^="_player_8c80ae6"]`) matches the
 anchor of that module whatever its hash, because TIDAL's hashes change
@@ -331,7 +337,8 @@ Images: `background-image: url()` (data:, http(s), GIF included) is drawn
 under the element's content with `background-size` (`cover`, `contain`,
 lengths) and `background-position` (keywords, %, px, so sprite sheets work:
 oneko), nearest filtering for `image-rendering: pixelated`; `img` rotates
-with its transform and rounds with `border-radius: 50%`. `filter: blur(r)`
+with its transform and rounds by its `border-radius` (any length, or a share
+of its shorter side: qr-share's 12-pixel card). `filter: blur(r)`
 on a background image draws a copy scaled to about one texel per radius and
 smoothed, made off the UI thread (spinny-cover); `filter: brightness(<1)`
 dims the box and what it holds. Other filters are not drawn. `var()` in
@@ -370,7 +377,10 @@ transition ends at once, a finite animation shows how it ends and an
 endless one its start. A box turned by its transform has its fill and
 border drawn turned, and a round box with sides of different colours is
 drawn as arcs, so a CSS spinner turns (`border-radius: 50%` of a bordered
-box is a circle). Text and children inside a turned box are not turned.
+box is a circle). A turned box holding words or elements (custom-fonts'
+tag, `rotate(-3deg)`) is drawn upright, then everything it painted, words
+included, is turned about its centre; its place in the layout stays
+upright. `skew()` is not drawn.
 Anchors a theme restyles fade too: a fill (`fill`, `surface`), text
 colour, opacity and the sidebar rows' fill and words move by the anchor's
 `transition` (a theme's hover colour on rows and navigation); covers keep
@@ -379,6 +389,54 @@ their own (`transition` on covers, Round 13).
 Pointer: while a document-level listener wants them, pointer moves go to
 the element under the pointer as `pointermove`/`mousemove` (~30 a second;
 oneko), and right-clicks as `contextmenu` (element-hider).
+
+### Boxes and words (batch 3)
+
+- Borders: a side's own width (`border-bottom: 0`, `border-left-width`)
+  makes `Style::border_width` the four widths, and a box whose sides differ
+  in width is drawn as four trapezoids (a box with no size, `border: 10px
+  solid transparent; border-top-color: #111; border-bottom: 0` is a 20 by 10
+  triangle). `dashed` borders are dashes three widths long with two widths
+  between, `dotted` one and one; rounded, and over the box's gradient.
+- A positioned box is never smaller than its padding and border (as a
+  `border-box`), and positioned children sit in their parent's padding box
+  (inside its border) at the parent's opacity. Opacity is still per shape:
+  where a child overlaps its parent's fill the two do not merge into one
+  layer as in a browser.
+- `text-shadow`: up to two sharp layers (blur at most 1 px; a glow is left
+  out) are painted under the words in their colours, the first on top; it
+  is inherited, as in CSS.
+- Fonts: the `font` shorthand gives its parts (`italic bold 12px/1.5
+  Georgia`), and an `inherit` no plugin style above resolves is passed on as
+  `inherit`, which keeps the parent's. A `<button>` with no font of its own
+  draws in the browser's control font, Arial 13.33 px at normal weight
+  (`plugin_slots::BUTTON_FONT`, qr-share's Save and Close), unless it wears
+  TIDAL's module classes (LangRomanizer's copy of the Lyrics pill: TIDAL's
+  stylesheet gives it the page's font) or resets with `font: inherit`.
+- What plugins append to the title bar's name inherits its 12-pixel size.
+- Canvas text in a generic family (`system-ui` is Segoe UI) or a named one
+  takes that family's cut for its weight (qr-share's `bold 32px system-ui`).
+
+### Layers behind the page (spinny-cover)
+
+With a plugin layer under the panels (`has_backdrop()`), TIDAL's nested
+surfaces each paint their own see-through fill over it, as in a browser:
+`#wimp`'s own `background-color` (`DomOverlay::wimp_fill`, apart from the
+page style), the main container's over its own rect, the sidebar wrapper's
+and the aside's one over the other (`plugin_dom::nested`), the header's in
+the top bar. spinny-cover's 30 % fill so darkens the cover as in TIDAL (the
+sidebar and header 4 layers, the page 3). Themes with no layer behind the
+page are unchanged.
+
+### Selection (copy-lyrics)
+
+A rule's `user-select` (the nearest one up the tree that is not `auto`)
+marks an anchor `selectable`, and `::selection` gives its colours. The
+now-playing lyrics are the only selectable host: a drag from a line (or
+the gap under it) highlights the characters between press and release per
+wrapped row, at each line's opacity and size, and `mousedown`/`mouseup`
+carry `textPoint {key, offset}` (UTF-16), from which the runtime builds the
+exact `Range` (`selectBetween`). The selected words keep their colour.
 
 ### More anchors (2026-10-14)
 
