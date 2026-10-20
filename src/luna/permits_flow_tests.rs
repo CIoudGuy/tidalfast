@@ -469,6 +469,39 @@ R.done = run;
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Combinations of keys nobody uses (F13 to F24 under three or two
+/// modifiers), all but the hotkeys unit test's, starting at a place picked
+/// by `seed`.
+fn shortcut_candidates(seed: u32) -> Vec<String> {
+    let mut all = Vec::new();
+    for mods in ["Ctrl+Alt+Shift", "Ctrl+Alt", "Alt+Shift", "Ctrl+Shift"] {
+        for f in 13..=24 {
+            let keys = format!("{mods}+F{f}");
+            if keys != "Ctrl+Alt+Shift+F23" {
+                all.push(keys);
+            }
+        }
+    }
+    let start = seed as usize % all.len();
+    all.rotate_left(start);
+    all
+}
+
+#[test]
+fn shortcut_candidates_are_distinct_and_leave_the_unit_tests_keys() {
+    let a = shortcut_candidates(0);
+    let mut sorted = a.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), a.len());
+    assert!(!a.iter().any(|k| k == "Ctrl+Alt+Shift+F23"));
+    assert!(
+        a.iter().all(|k| super::hotkeys::parse(k).is_some()),
+        "{a:?}"
+    );
+    assert_ne!(shortcut_candidates(1)[0], a[0], "the start moves");
+}
+
 /// System-wide shortcuts: on Windows the plugin's shortcut is taken for real
 /// only after the user allows it (another registration of the same keys
 /// fails while it is held) and let go when the plugin stops or the
@@ -476,21 +509,28 @@ R.done = run;
 /// working while the window has focus.
 #[test]
 fn system_wide_shortcuts_are_taken_only_as_the_user_allows() {
-    // Keys nobody uses, distinct from the hotkeys unit test.
-    const KEYS: &str = "Ctrl+Alt+Shift+F22";
-    let free = || {
+    let free_now = |keys: &str| {
         let mut probe = super::hotkeys::Hotkeys::new(Arc::new(|_, _| {}));
-        let ok = probe.register("probe", KEYS).is_ok();
+        let ok = probe.register("probe", keys).is_ok();
         probe.stop_all();
         ok
     };
+    // Keys nobody uses, distinct from the hotkeys unit test's: the first
+    // combination free now, from a place that depends on this process, so
+    // another program (or another run of this test) holding one does not
+    // decide the outcome.
+    let keys = shortcut_candidates(std::process::id())
+        .into_iter()
+        .find(|keys| !super::hotkeys::SUPPORTED || free_now(keys))
+        .expect("a free combination of keys");
+    let free = || free_now(&keys);
     let body = format!(
         r#"
 R.n = (R.n ?? 0) + 1;
 const run = R.n;
 const n = await native("Compat/keys.native.ts", `"use strict";
 const {{ globalShortcut }} = require("electron");
-exports.take = () => globalShortcut.register("{KEYS}", () => {{}});`);
+exports.take = () => globalShortcut.register("{keys}", () => {{}});`);
 R["took" + run] = await n("take");
 R.done = run;
 "#
@@ -505,7 +545,7 @@ R.done = run;
     }
     let q = question(&luna);
     assert_eq!(q.access, Access::GlobalShortcuts);
-    assert_eq!(q.detail, [KEYS]);
+    assert_eq!(q.detail, std::slice::from_ref(&keys));
     assert!(free(), "nothing is taken before the answer");
     luna.answer_permission(q.id, ProgramChoice::Deny);
     assert_eq!(
