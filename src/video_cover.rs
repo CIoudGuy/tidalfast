@@ -999,6 +999,11 @@ mod mp4 {
         let stsz = child(stbl, b"stsz")?;
         let fixed = u32_at(stsz, 4)? as usize;
         let (count, rows) = table(stsz, 4)?;
+        // Every sample lies in the file, so there are no more of them than
+        // it has room for. One size for all has no rows to run out of.
+        if count > file.len() / fixed.max(1) {
+            return None;
+        }
         let sizes: Vec<usize> = (0..count)
             .map(|i| {
                 if fixed != 0 {
@@ -1832,6 +1837,78 @@ mod tests {
         assert!(mp4::parse(b"").is_none());
         assert!(mp4::parse(&[0, 0, 0, 8, b'f', b'r', b'e', b'e']).is_none());
         assert!(mp4::parse(&[0, 0, 0, 3, b'm', b'o', b'o', b'v']).is_none());
+    }
+
+    fn mp4_box(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
+        let mut out = u32::try_from(body.len() + 8)
+            .unwrap()
+            .to_be_bytes()
+            .to_vec();
+        out.extend_from_slice(kind);
+        out.extend_from_slice(body);
+        out
+    }
+
+    /// A full box: version and flags, then `rest`.
+    fn full_box(kind: &[u8; 4], rest: &[u8]) -> Vec<u8> {
+        mp4_box(kind, &[&[0u8; 4][..], rest].concat())
+    }
+
+    /// A one-track H.264 clip of four 8-byte samples in one chunk. With
+    /// `fixed` other than 0, `stsz` says every sample is that size and
+    /// that there are `count` of them, as the box allows.
+    fn clip(fixed: u32, count: u32) -> Vec<u8> {
+        let words = |values: &[u32]| -> Vec<u8> {
+            values
+                .iter()
+                .flat_map(|value| value.to_be_bytes())
+                .collect()
+        };
+        let hdlr = [&[0u8; 8][..], b"vide", &[0; 12]].concat();
+        let mdhd = [&[0u8; 12][..], &1000u32.to_be_bytes(), &[0; 8]].concat();
+        // One SPS and one PPS, four-byte NAL lengths.
+        let avcc = [
+            1, 66, 0, 30, 0xff, 0xe1, 0, 4, 0x67, 1, 2, 3, 1, 0, 2, 0x68, 4,
+        ];
+        let mut avc1 = vec![0u8; 78];
+        avc1[24..26].copy_from_slice(&64u16.to_be_bytes());
+        avc1[26..28].copy_from_slice(&48u16.to_be_bytes());
+        avc1.extend(mp4_box(b"avcC", &avcc));
+        let stsd = full_box(b"stsd", &[words(&[1]), mp4_box(b"avc1", &avc1)].concat());
+        let rows = if fixed == 0 { vec![8; 4] } else { Vec::new() };
+        let stsz = full_box(b"stsz", &words(&[&[fixed, count][..], &rows].concat()));
+        let stco = full_box(b"stco", &words(&[1, 0]));
+        let stsc = full_box(b"stsc", &words(&[1, 1, 4, 1]));
+        let stts = full_box(b"stts", &words(&[1, 4, 40]));
+        let stbl = mp4_box(b"stbl", &[stsd, stsz, stco, stsc, stts].concat());
+        let mdia = [
+            mp4_box(b"hdlr", &hdlr),
+            mp4_box(b"mdhd", &mdhd),
+            mp4_box(b"minf", &stbl),
+        ]
+        .concat();
+        let moov = mp4_box(b"moov", &mp4_box(b"trak", &mp4_box(b"mdia", &mdia)));
+        [moov, mp4_box(b"mdat", &[0u8; 64])].concat()
+    }
+
+    #[test]
+    fn reads_the_samples_of_a_made_clip() {
+        let file = clip(0, 4);
+        let track = mp4::parse(&file).expect("an H.264 track");
+        assert_eq!(track.samples, [(0, 8), (8, 8), (16, 8), (24, 8)]);
+        assert_eq!(track.size, (64, 48));
+        assert!((track.fps - 25.0).abs() < 1e-9);
+    }
+
+    /// A sample table that says every sample has one size claims as many
+    /// samples as its count field holds, up to four billion, with no rows
+    /// to run out of. Each became a size in memory before any was checked
+    /// against the file: 32 GB for the largest count, which ends the app.
+    /// More samples than the file has bytes for is not a clip.
+    #[test]
+    fn a_sample_count_the_file_cannot_hold_is_refused() {
+        assert!(mp4::parse(&clip(8, 4)).is_some());
+        assert!(mp4::parse(&clip(1, 5_000_000)).is_none());
     }
 
     /// Decodes a clip from `TIDALFAST_VIDEO_COVER_SAMPLE` (a TIDAL
