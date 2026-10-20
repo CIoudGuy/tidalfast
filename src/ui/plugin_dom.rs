@@ -725,11 +725,10 @@ fn page_root(page: &Page) -> dom_anchors::Page {
         Page::Shelf(_) => ("view", None),
         Page::Queue => ("queue", None),
         Page::Settings => ("settings", None),
-        // TidaLuna's own settings page: its title is Luna's heading.
+        // TidaLuna's own settings page.
         Page::Plugins => {
             return dom_anchors::Page {
                 page_id: Some("settings".into()),
-                luna_settings: true,
                 ..dom_anchors::Page::default()
             };
         }

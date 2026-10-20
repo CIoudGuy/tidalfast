@@ -1249,10 +1249,12 @@ setInterval(() => { R.q = sels.map((s) => document.querySelectorAll(s).length); 
     finish(luna, dir);
 }
 
-/// custom-fonts: its settings look up TidaLuna's page title
-/// (`._title_a453dad`) and rewrite it; on the Plugins page it exists.
+/// custom-fonts: its settings look up `._title_a453dad`, which in TIDAL is
+/// the app's name in the title bar, and rewrite it ("TIDALuna" and its
+/// Comic Sans tag). It used to be the Plugins page's heading, which TIDAL's
+/// is not; the page's heading is left alone.
 #[test]
-fn luna_settings_page_title_can_be_rewritten() {
+fn the_title_bars_name_can_be_rewritten() {
     let (luna, _host, dir) = start(
         r##"
 lib.observe(unloads, "._title_a453dad", (e) => {
@@ -1267,20 +1269,31 @@ lib.observe(unloads, "._title_a453dad", (e) => {
     frame.page = Some(dom_anchors::Page {
         page_id: Some("settings".into()),
         title: Some("Plugins".into()),
-        luna_settings: true,
         ..dom_anchors::Page::default()
     });
     frame.lists.clear();
     luna.sync_dom(dom_anchors::build(&frame));
     let r = results_until(&luna, &dir, 10, |r| r["before"].is_string());
-    assert_eq!(r["before"], json!("Plugins"));
+    assert_eq!(r["before"], json!("Tidalfast"));
     let o = overlay_until(&luna, 10, |o| {
         serde_json::to_string(&o.injected)
             .unwrap()
             .contains("Comic Sans Edition")
     });
-    let text = o.host(keys::PAGE_TITLE).unwrap().text.clone();
+    let text = o.host(keys::BAR_TITLE).unwrap().text.clone();
     assert!(text.unwrap_or_default().starts_with("TIDA"));
+    assert!(o.at(keys::BAR_TITLE, Position::Append).count() > 0);
+    // The rewritten words are the title's own text, drawn once: not also
+    // an element beside it.
+    assert!(
+        o.at(keys::BAR_TITLE, Position::Append)
+            .all(|n| n.tag != "#text"),
+        "{:?}",
+        o.at(keys::BAR_TITLE, Position::Append)
+            .map(|n| (&n.tag, &n.text))
+            .collect::<Vec<_>>()
+    );
+    assert!(o.host(keys::PAGE_TITLE).is_none_or(|h| h.text.is_none()));
     finish(luna, dir);
 }
 
