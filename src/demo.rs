@@ -4476,6 +4476,91 @@ mod tests {
         found
     }
 
+    /// The colour every text shape reading `text` is painted in: its
+    /// glyphs' own colour, or the shape's fallback where they have none.
+    fn text_colors(ctx: &egui::Context, app: &mut App, text: &str) -> Vec<egui::Color32> {
+        fn collect(shape: &egui::epaint::Shape, text: &str, out: &mut Vec<egui::Color32>) {
+            match shape {
+                egui::epaint::Shape::Text(shape) if shape.galley.job.text == text => {
+                    let glyph = shape
+                        .galley
+                        .rows
+                        .iter()
+                        .flat_map(|row| row.row.visuals.mesh.vertices.iter())
+                        .map(|vertex| vertex.color)
+                        .next()
+                        .unwrap_or(egui::Color32::PLACEHOLDER);
+                    out.push(if glyph == egui::Color32::PLACEHOLDER {
+                        shape.override_text_color.unwrap_or(shape.fallback_color)
+                    } else {
+                        glyph
+                    });
+                }
+                egui::epaint::Shape::Vec(shapes) => {
+                    shapes.iter().for_each(|s| collect(s, text, out));
+                }
+                _ => {}
+            }
+        }
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1280.0, 800.0),
+                )),
+                ..Default::default()
+            },
+            |ui| app.frame_ui(ui),
+        );
+        output.textures_delta.clear();
+        let mut found = Vec::new();
+        for shape in &output.shapes {
+            collect(&shape.shape, text, &mut found);
+        }
+        assert!(!found.is_empty(), "{text:?} was not painted");
+        found
+    }
+
+    #[test]
+    fn home_tabs_at_rest_are_grey_as_in_tidal() {
+        let (ctx, mut app) = accessible_app("home-tab-colours");
+        app.open(Page::Home);
+        text_colors(&ctx, &mut app, "Staff Picks");
+        let secondary = app.palette.secondary;
+        let text = app.palette.text;
+        assert_eq!(text_colors(&ctx, &mut app, "For you"), vec![text]);
+        assert_eq!(text_colors(&ctx, &mut app, "Staff Picks"), vec![secondary]);
+        app.backend.shutdown();
+    }
+
+    #[test]
+    fn view_all_at_rest_is_grey_as_in_tidal() {
+        let (ctx, mut app) = accessible_app("view-all-colour");
+        app.open(crate::ui::explore::page());
+        text_colors(&ctx, &mut app, "View all");
+        let secondary = app.palette.secondary;
+        let colors = text_colors(&ctx, &mut app, "View all");
+        assert!(colors.iter().all(|color| *color == secondary), "{colors:?}");
+        app.backend.shutdown();
+    }
+
+    #[test]
+    fn settings_tabs_at_rest_are_grey_as_in_tidal() {
+        let (ctx, mut app) = accessible_app("settings-tab-colours");
+        app.open(Page::Settings);
+        text_colors(&ctx, &mut app, "Account");
+        let secondary = app.palette.secondary;
+        let text = app.palette.text;
+        assert_eq!(text_colors(&ctx, &mut app, "General"), vec![text]);
+        // The tab's colour fades (0.1 s); a settled frame is grey.
+        assert!(
+            text_colors(&ctx, &mut app, "Account")
+                .iter()
+                .all(|color| *color == secondary)
+        );
+        app.backend.shutdown();
+    }
+
     #[test]
     fn a_disabled_row_is_painted_at_half_opacity_like_tidals() {
         let (ctx, mut app) = accessible_app("disabled-row-opacity");
