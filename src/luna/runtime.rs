@@ -544,6 +544,19 @@ impl Inner {
             .user_agent(concat!("Tidalfast-Luna/", env!("CARGO_PKG_VERSION")))
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(15))
+            // Every hop of a plugin's, store's or theme's download is held
+            // to the rule its first address was: HTTPS, or plain HTTP only
+            // from this computer.
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                if attempt.previous().len() >= 10 {
+                    attempt.error("too many redirects")
+                } else if is_secure_source(attempt.url().as_str()) {
+                    attempt.follow()
+                } else {
+                    let why = insecure_source_error(attempt.url().as_str());
+                    attempt.error(why)
+                }
+            }))
             .build()
             .map_err(|e| e.to_string())?;
         self.http = Some(c.clone());
