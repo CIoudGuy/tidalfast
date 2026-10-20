@@ -3448,7 +3448,9 @@ fn draw_box(
     // The box is its content with padding and border round it, as the
     // frame draws it, so `50%` of a bordered box is a circle.
     let radius = match (style.border_radius.as_deref(), width, height) {
-        (Some(r), Some(w), Some(h)) => radius_share(r, w + inset, h + block_inset).unwrap_or(radius),
+        (Some(r), Some(w), Some(h)) => {
+            radius_share(r, w + inset, h + block_inset).unwrap_or(radius)
+        }
         _ => radius,
     };
     let is_link = node.tag == "a";
