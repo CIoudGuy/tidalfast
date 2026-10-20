@@ -3659,8 +3659,9 @@ pub(crate) fn card_overlay(ui: &Ui, response: &egui::Response, hovered: bool) ->
 }
 
 /// The narrowest card of a My Collection grid (TIDAL: six 232-point cards
-/// across its 1472-point column).
-pub const COLLECTION_CARD_MIN: f32 = 232.0;
+/// across its 1472-point column, and still six, 229 wide, across TIDAL
+/// desktop's 1451 beside its open play queue).
+pub const COLLECTION_CARD_MIN: f32 = 212.0;
 
 /// A wrapping My Collection grid: as many cards of at least
 /// [`COLLECTION_CARD_MIN`] as fit, 16 apart, each `text_height` taller than
