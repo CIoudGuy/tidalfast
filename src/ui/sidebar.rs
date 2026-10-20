@@ -1011,6 +1011,17 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
 }
 
 pub(super) fn place(app: &mut App, ui: &mut egui::Ui) -> Placed {
+    // Under a theme the sidebar's words are TIDAL's own colours (white on
+    // its dark panel unless the theme's root tokens say otherwise), not the
+    // page's.
+    let page_palette = app.palette;
+    app.palette = super::plugin_dom::tidal_panel_text(page_palette);
+    let placed = place_panel(app, ui);
+    app.palette = page_palette;
+    placed
+}
+
+fn place_panel(app: &mut App, ui: &mut egui::Ui) -> Placed {
     // Collapsing leaves TIDAL's icon rail, not nothing.
     let collapse = crate::motion::progress(
         ui.ctx(),

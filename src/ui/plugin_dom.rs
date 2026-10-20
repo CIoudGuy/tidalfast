@@ -1063,6 +1063,89 @@ pub fn filter_box(ui: &egui::Ui, r: Rect) -> bool {
     paint_themed_box(ui, key, r, egui::CornerRadius::same(12))
 }
 
+/// The open play queue panel is drawn in `r` (`over_now_playing` while the
+/// now-playing view is behind it): gives it TIDAL's side panel anchors and
+/// paints a theme's box for it (`._container_b3e8f28`: the cotton candy
+/// family's tinted glass, radiant-lyrics' darkening). Whether a theme
+/// styled it, so the native fill, border and shadow are left out.
+pub fn queue_panel(ui: &egui::Ui, r: Rect, over_now_playing: bool) -> bool {
+    if !on() {
+        return false;
+    }
+    note(|f| f.queue_panel = Some((rect(r), over_now_playing)));
+    paint_themed_box(
+        ui,
+        dom_anchors::keys::QUEUE_PANEL,
+        r,
+        egui::CornerRadius::same(12),
+    )
+}
+
+/// The text colours TIDAL's own rules give its sidebar and play queue
+/// while a theme is applied: TIDAL's tokens at the document's root (a
+/// theme's `:root { --wave-color-solid-contrast-fill }`), else TIDAL's
+/// own, white on its dark panels. Themes that colour only the page
+/// (`#main { --wave-color-text-main: black }`, the cotton candy family)
+/// leave those panels' words white in TIDAL, where the app's palette would
+/// make them the page's dark. Without a theme `palette` is returned as is.
+pub fn tidal_panel_text(palette: Palette) -> Palette {
+    if !on() || !palette.themed {
+        return palette;
+    }
+    let (text, secondary, dim) = with(|s| {
+        let version = s.overlay.version;
+        if let Some((v, boxes)) = &s.theme_boxes
+            && *v == version
+            && let Some(roles) = boxes.panel_text
+        {
+            return roles;
+        }
+        let roles = tidal_text_roles(&s.overlay);
+        let boxes = match &mut s.theme_boxes {
+            Some((v, boxes)) if *v == version => boxes,
+            slot => &mut slot.insert((version, ThemeBoxes::default())).1,
+        };
+        boxes.panel_text = Some(roles);
+        roles
+    });
+    Palette {
+        text,
+        secondary,
+        dim,
+        ..palette
+    }
+}
+
+fn tidal_text_roles(o: &DomOverlay) -> (Color32, Color32, Color32) {
+    let var = |names: &[&str]| {
+        names.iter().find_map(|n| {
+            let v = o.vars.get(*n)?;
+            css::color(&css::resolve_vars(v, &o.vars)).filter(|c| c.a() > 0)
+        })
+    };
+    // TIDAL's white text and its 55 % and 30 % whites, which let the
+    // panel's colour show through (`rgba(255, 255, 255, 0.55)` on a nav row).
+    (
+        var(&[
+            "--wave-color-text-main",
+            "--wave-color-text",
+            "--wave-color-solid-contrast-fill",
+        ])
+        .unwrap_or(Color32::WHITE),
+        var(&[
+            "--wave-color-text-secondary",
+            "--wave-color-solid-contrast-darker",
+            "--wave-color-opacity-contrast-fill-ultra-thick",
+        ])
+        .unwrap_or(Color32::from_white_alpha(140)),
+        var(&[
+            "--wave-color-text-tertiary",
+            "--wave-color-solid-contrast-darkest",
+        ])
+        .unwrap_or(Color32::from_white_alpha(77)),
+    )
+}
+
 /// The page's track list is drawn in `r` (all its rows, scrolled or not):
 /// paints a theme's panel behind them (the cotton candy family's
 /// translucent, bordered `TRACK_LIST` box).
@@ -1379,6 +1462,9 @@ pub fn header_pill(primary: bool) -> Option<HeaderPill> {
             css::border(&css::resolve_vars(h.style.border.as_deref()?, vars))
                 .filter(|(width, color)| *width > 0.0 && color.a() > 0)
         }),
+        // The theme's corners (the cotton candy family's `.9em`), with its
+        // fill: TIDAL's own pill is fully round.
+        radius: fill.and_then(|_| radius(key)),
     };
     (pill.fill.is_some() || pill.ink.is_some() || pill.border.is_some()).then_some(pill)
 }
@@ -1443,6 +1529,9 @@ struct ThemeBoxes {
     row_text: std::collections::HashMap<String, std::collections::HashMap<usize, Option<RowText>>>,
     /// What a theme made of the sidebar's navigation rows and library rows.
     nav: std::collections::HashMap<String, Option<NavStyle>>,
+    /// The text, secondary and dim colours TIDAL's sidebar and play queue
+    /// take ([`tidal_panel_text`]).
+    panel_text: Option<(Color32, Color32, Color32)>,
 }
 
 fn theme_boxes<R>(f: impl FnOnce(&mut ThemeBoxes) -> R) -> R {
@@ -2149,6 +2238,7 @@ pub struct HeaderPill {
     pub fill: Option<Color32>,
     pub ink: Option<Color32>,
     pub border: Option<(f32, Color32)>,
+    pub radius: Option<f32>,
 }
 
 /// The account button in the top bar.
@@ -2767,6 +2857,28 @@ pub fn outline(key: &str, fallback: Color32) -> Option<(f32, Color32)> {
     })
 }
 
+/// [`outline`] side by side, top right bottom left: a theme's border on
+/// some sides only (`border-style: solid none none none`, the cotton candy
+/// family's line over each track row) is drawn on those sides.
+pub fn outline_sides(key: &str, fallback: Color32) -> Option<([f32; 4], Color32)> {
+    let (width, color) = outline(key, fallback)?;
+    let sides = host(key, |h, vars| {
+        let v = css::resolve_vars(h.style.border_width.as_deref()?, vars);
+        let lengths: Vec<f32> = css::words(&v)
+            .iter()
+            .filter_map(|w| css::length(w, 14.0, 0.0, [0.0, 0.0]))
+            .collect();
+        match lengths.as_slice() {
+            [a] => Some([*a; 4]),
+            [v, h] => Some([*v, *h, *v, *h]),
+            [t, h, b] => Some([*t, *h, *b, *h]),
+            [t, r, b, l, ..] => Some([*t, *r, *b, *l]),
+            [] => None,
+        }
+    });
+    Some((sides.unwrap_or([width; 4]), color))
+}
+
 /// A plugin's inset edge on an anchor: a sharp `box-shadow: inset Xpx 0 0
 /// <colour>` (scroll-to-playing's 3-point bar down the playing row's left),
 /// as its width (negative for the right edge) and colour.
@@ -3288,6 +3400,14 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         .and_then(|h| h.style.background_color.as_deref())
         .and_then(|v| css::color(&css::resolve_vars(v, &o.vars)))
         .filter(|c| c.a() >= 128);
+    // `#main`, the page itself: a theme that paints it (TidalCustomTheme's
+    // pink) and names no token puts the page's text on that colour.
+    let main_bg = o
+        .hosts
+        .get(dom_anchors::keys::MAIN)
+        .and_then(|h| h.style.background_color.as_deref())
+        .and_then(|v| css::color(&css::resolve_vars(v, &o.vars)))
+        .filter(|c| c.a() >= 128);
     if let Some(c) = var(&[
         "--wave-color-solid-base-fill",
         "--wave-color-solid-base-base",
@@ -3296,6 +3416,7 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
     ])
     .or(painted_container(o))
     .or(container_bg)
+    .or(main_bg)
     .or(page_bg)
     {
         p.window = opaque(c);
@@ -3408,13 +3529,21 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
     if let Some(c) = var(&["--wave-color-solid-rainbow-yellow-fill"]) {
         p.warning = opaque(c);
     }
-    // Menus: what a theme gives TIDAL's context menu.
+    // Menus: what a theme gives TIDAL's context menu, or the popover round
+    // it when the menu itself is see-through (the cotton candy family's
+    // gradient: its mean colour).
     if let Some(c) = o
         .hosts
         .get(dom_anchors::keys::THEME_MENU)
         .and_then(|h| h.style.background_color.as_deref())
         .and_then(|v| css::color(&css::resolve_vars(v, &o.vars)))
         .filter(|c| c.a() > 0)
+        .or_else(|| {
+            o.hosts
+                .get(dom_anchors::keys::THEME_MENU_BOX)
+                .and_then(|h| pill_fill(h, &o.vars))
+                .filter(|c| c.a() > 0)
+        })
     {
         p.overlay = opaque_over(c, p.window);
     }
@@ -3751,6 +3880,25 @@ pub enum BoxLayer {
     },
 }
 
+/// The product of the `brightness()` functions in a `backdrop-filter`
+/// (`blur(.8em) brightness(.75) saturate(1.1)` is 0.75); `None` without one.
+fn backdrop_brightness(filter: &str) -> Option<f32> {
+    let mut found = None;
+    let mut rest = filter;
+    while let Some(at) = rest.find("brightness(") {
+        let args = &rest[at + "brightness(".len()..];
+        let end = args.find(')')?;
+        let v = args[..end].trim();
+        let b = match v.strip_suffix('%') {
+            Some(p) => p.trim().parse::<f32>().ok()? / 100.0,
+            None => v.parse::<f32>().ok()?,
+        };
+        found = Some(found.unwrap_or(1.0) * b);
+        rest = &args[end..];
+    }
+    found
+}
+
 /// What themes paint on an anchor's box beyond its fill colour: frosted
 /// glass (`backdrop-filter: blur()`) over a picture the page paints
 /// behind, the box's `background-image` layers (gradients and `url()`
@@ -3909,9 +4057,30 @@ pub fn box_layers(
     {
         out.push(BoxLayer::Frost(r));
     }
-    image_layers(&h.style, vars, &mut out);
     // One to four corners (`0 20px 20px 0`, a sidebar card's).
     let radius = super::theme_layout::radii(h.style.border_radius.as_deref(), vars, viewport);
+    // `backdrop-filter: brightness()` changes what shows through the box
+    // before its own background is laid on: darker is exactly black laid
+    // over at `1 - b`; lighter is white laid over at half the gain (the
+    // cotton candy family's track list, brightness(1.2), its queue
+    // panel's .75).
+    if let Some(b) = h
+        .style
+        .backdrop_filter
+        .as_deref()
+        .map(|f| css::resolve_vars(f, vars))
+        .and_then(|f| backdrop_brightness(&f))
+    {
+        let tint = if b < 1.0 {
+            Color32::from_black_alpha(((1.0 - b).clamp(0.0, 1.0) * 255.0).round() as u8)
+        } else {
+            Color32::from_white_alpha((((b - 1.0) * 0.5).clamp(0.0, 0.5) * 255.0).round() as u8)
+        };
+        if tint.a() > 0 {
+            out.push(BoxLayer::Fill(tint, radius));
+        }
+    }
+    image_layers(&h.style, vars, &mut out);
     for p in pseudo {
         let opacity = p.opacity.as_deref().and_then(css::opacity).unwrap_or(1.0);
         if let Some(c) = p
@@ -4691,6 +4860,21 @@ fn paint_radial(painter: &egui::Painter, r: Rect, center: egui::Pos2, stops: &[C
 
 // ---- Fonts --------------------------------------------------------------------
 
+/// The page's font: the one a theme gives the document (`html`, `body`,
+/// `#wimp`), else the one it gives TIDAL's text, read from the text role's
+/// stand-in (`span.wave-text-body-medium`). Tidal TUI sets its monospace
+/// only on elements (`[class*="wave-text"]`, `[class*="Text"]`, `button`),
+/// which in TIDAL is every word on the page.
+pub(crate) fn page_font_family(o: &DomOverlay) -> Option<&str> {
+    o.page.font_family.as_deref().or_else(|| {
+        o.hosts
+            .get(dom_anchors::keys::THEME_TEXT)?
+            .style
+            .font_family
+            .as_deref()
+    })
+}
+
 /// Load the fonts plugins declared (custom-fonts) off the UI thread and
 /// install them once per change; put the user's fonts back when they go.
 fn fonts_tick(ctx: &egui::Context) {
@@ -4758,7 +4942,7 @@ fn fonts_tick(ctx: &egui::Context) {
         let o = &s.overlay;
         // Hashed as written, so nothing is parsed per frame: the page's
         // families are read below only once the fonts change.
-        let family = o.page.font_family.as_deref().map(str::trim).unwrap_or("");
+        let family = page_font_family(o).map(str::trim).unwrap_or("");
         let key = if o.fonts.is_empty() && family.is_empty() && elements.is_empty() {
             0
         } else {
@@ -4780,13 +4964,10 @@ fn fonts_tick(ctx: &egui::Context) {
             return Some((Vec::new(), None, HashMap::new()));
         }
         let fonts = o.fonts.clone();
-        let primary = o.page.font_family.as_deref().and_then(css::first_family);
+        let primary = page_font_family(o).and_then(css::first_family);
         // The families the page lists, in order, for installed fonts no
         // `@font-face` declares (a theme's `font-family: "Comic Sans MS"`).
-        let listed = o
-            .page
-            .font_family
-            .as_deref()
+        let listed = page_font_family(o)
             .map(css::family_list)
             .unwrap_or_default();
         let (tx, rx) = channel();

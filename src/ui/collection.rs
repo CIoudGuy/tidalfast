@@ -1122,12 +1122,16 @@ pub(super) fn header_pill_width(
     } else {
         fill.gamma_multiply(0.4)
     };
-    ui.painter()
-        .rect_filled(rect, egui::CornerRadius::same(24), fill);
+    let corner = themed
+        .and_then(|t| t.radius)
+        .map_or(egui::CornerRadius::same(24), |r| {
+            egui::CornerRadius::same(r.clamp(0.0, 24.0).round() as u8)
+        });
+    ui.painter().rect_filled(rect, corner, fill);
     if let Some((width, color)) = themed.and_then(|t| t.border) {
         ui.painter().rect_stroke(
             rect.shrink(width / 2.0),
-            egui::CornerRadius::same(24),
+            corner,
             egui::Stroke::new(width, color),
             egui::StrokeKind::Middle,
         );

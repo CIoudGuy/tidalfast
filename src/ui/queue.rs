@@ -683,16 +683,27 @@ pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
                 ui.multiply_opacity(shown);
             }
             let over_now_playing = app.now_playing_view;
+            // A theme's box for TIDAL's side panel replaces the native one.
+            let themed = super::plugin_dom::queue_panel(
+                ui,
+                egui::Rect::from_min_size(ui.max_rect().min, rect.size()),
+                over_now_playing,
+            );
             let frame = Frame::new()
-                .fill(floating_fill(&palette, over_now_playing))
-                .stroke(egui::Stroke::new(
-                    1.0,
-                    floating_border(&palette, over_now_playing),
-                ))
+                .fill(if themed {
+                    egui::Color32::TRANSPARENT
+                } else {
+                    floating_fill(&palette, over_now_playing)
+                })
+                .stroke(if themed {
+                    egui::Stroke::NONE
+                } else {
+                    egui::Stroke::new(1.0, floating_border(&palette, over_now_playing))
+                })
                 .corner_radius(12)
                 // Over the now-playing view the panel is see-through, and a
                 // shadow would show through it.
-                .shadow(if over_now_playing {
+                .shadow(if over_now_playing || themed {
                     egui::epaint::Shadow::NONE
                 } else {
                     egui::epaint::Shadow {
@@ -713,7 +724,11 @@ pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
                 let inner = rect.size() - egui::vec2(32.0, FLOATING_TOP_PAD + 16.0);
                 ui.set_min_size(inner);
                 ui.set_max_size(inner);
+                // Under a theme the panel's words are TIDAL's own colours.
+                let page_palette = app.palette;
+                app.palette = super::plugin_dom::tidal_panel_text(page_palette);
                 floating_contents(app, ui);
+                app.palette = page_palette;
             });
         });
 }
