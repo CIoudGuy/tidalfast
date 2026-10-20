@@ -1,7 +1,13 @@
 //! TIDAL's tilt on the now-playing cover: under the pointer the cover
-//! leans away from it in perspective (`perspective: 1000px`, up to 12°),
-//! with a soft glare opposite the pointer, and springs back flat when the
-//! pointer leaves (stiffness 200, damping 30).
+//! leans away from it in perspective (`perspective: 1000px`, up to 5° about
+//! each axis), with a soft glare opposite the pointer, and springs back flat
+//! when the pointer leaves (stiffness 200, damping 30).
+//!
+//! The amount is measured from TIDAL 2.43's own cover (the shots in
+//! `.internal/luna-reference/visiuun-3d-cover`): the cover's corners there
+//! fit `rotateX`/`rotateY` within a pixel at 4.5° with the pointer near the
+//! right edge and -3.8°/3.7° near the bottom right, and the 3d-cover plugin,
+//! which reads TIDAL's matrix, expects about 4°.
 //!
 //! The tilt works on whatever is painted while its guard lives: the still
 //! cover, its stand-in, or an animated cover's current frame. Textured
@@ -15,8 +21,9 @@ use super::player_background::stops;
 
 /// `perspective: 1000px` on the cover's parent.
 const PERSPECTIVE: f32 = 1000.0;
-/// The largest lean, in degrees, in either axis.
-const MAX_TILT: f32 = 12.0;
+/// The largest lean, in degrees, about either axis: reached where the edge
+/// band starts, and never passed.
+const MAX_TILT: f32 = 5.0;
 /// Within this fraction of an edge the lean fades out.
 const EDGE: f32 = 0.15;
 const STIFFNESS: f32 = 200.0;
@@ -82,15 +89,14 @@ struct State {
 
 /// The lean and glare for a pointer at `(x, y)` over the cover (0 to 1),
 /// as TIDAL works them out: degrees about x and y, and the glare's
-/// opacity.
+/// opacity. The lean grows from the centre to [`MAX_TILT`] where the edge
+/// band begins, and fades out across the band.
 pub(crate) fn targets(x: f32, y: f32) -> (f32, f32, f32) {
     let edge = x.min(1.0 - x).min(y.min(1.0 - y)).max(0.0);
     let f = (edge / EDGE).min(1.0);
-    (
-        (0.5 - y) * MAX_TILT * 2.0 * f,
-        (x - 0.5) * MAX_TILT * 2.0 * f,
-        f,
-    )
+    let reach = 0.5 - EDGE;
+    let lean = |d: f32| (d / reach).clamp(-1.0, 1.0) * MAX_TILT * f;
+    (lean(0.5 - y), lean(x - 0.5), f)
 }
 
 /// Projects points of `rect` turned by `rotate_x` then `rotate_y` degrees
@@ -439,15 +445,30 @@ mod tests {
     #[test]
     fn the_lean_fades_out_towards_the_edges() {
         assert_eq!(targets(0.5, 0.5), (0.0, 0.0, 1.0));
-        // Near the top-right, inside the edge band: full lean.
+        // Near the top-right, short of the edge band: most of the lean.
         let (x, y, glare) = targets(0.8, 0.2);
-        assert!((x - 0.3 * 24.0).abs() < 1e-4 && (y - 0.3 * 24.0).abs() < 1e-4);
+        let share = 0.3 / 0.35 * MAX_TILT;
+        assert!((x - share).abs() < 1e-4 && (y - share).abs() < 1e-4);
         assert_eq!(glare, 1.0);
         // On the very edge the lean is gone.
         assert_eq!(targets(1.0, 0.5).2, 0.0);
         let (_, y, glare) = targets(0.95, 0.5);
         assert!((glare - 1.0 / 3.0).abs() < 1e-4);
-        assert!((y - 0.45 * 24.0 / 3.0).abs() < 1e-4);
+        assert!((y - MAX_TILT / 3.0).abs() < 1e-4);
+    }
+
+    /// TIDAL leans its cover about 5° at most (its own cover, measured in
+    /// the 3d-cover reference shots); Tidalfast leaned it up to 12°.
+    #[test]
+    fn the_lean_never_passes_tidals_five_degrees() {
+        let mut most = 0.0_f32;
+        for i in 0..=100 {
+            for j in 0..=100 {
+                let (x, y, _) = targets(i as f32 / 100.0, j as f32 / 100.0);
+                most = most.max(x.abs()).max(y.abs());
+            }
+        }
+        assert!((most - 5.0).abs() < 1e-3, "{most}");
     }
 
     #[test]
