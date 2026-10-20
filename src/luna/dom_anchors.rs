@@ -18,6 +18,9 @@ use super::dom::{HostNode, HostTree, Rect};
 pub mod keys {
     pub const SHELL: &str = "shell";
     pub const BAR: &str = "bar";
+    /// The title bar's app name (`._title_a453dad`): custom-fonts rewrites
+    /// it to "TIDALuna" and appends its Comic Sans tag.
+    pub const BAR_TITLE: &str = "bar-title";
     pub const MAIN_CONTAINER: &str = "main-container";
     pub const CONTAINER_ROW: &str = "container-row";
     pub const SIDEBAR: &str = "sidebar";
@@ -445,6 +448,8 @@ pub struct Shell {
     pub rect: Option<Rect>,
     /// The top window bar (`[class^=_bar]`).
     pub bar: Option<Rect>,
+    /// The app's name in it (`._title_a453dad`).
+    pub bar_title: Option<Rect>,
     /// Sidebar + page row.
     pub main: Option<Rect>,
     /// The page header (`[data-test=main-layout-header]`).
@@ -510,9 +515,6 @@ pub struct Page {
     pub play: Option<HeaderButton>,
     /// The header's Shuffle pill.
     pub shuffle: Option<HeaderButton>,
-    /// TidaLuna's settings page (Tidalfast's Plugins page): its `h1` is
-    /// Luna's `._title_a453dad` heading, which plugins look up.
-    pub luna_settings: bool,
     /// The visible cards (albums, playlists, mixes, artists) of shelves
     /// and grids, in drawing order.
     pub cards: Vec<GridCard>,
@@ -853,6 +855,13 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     }
     out.push(root);
     out.push(el(BAR, Some(SHELL), "div").modules(&["bar"]).at(s.bar));
+    // TIDAL's title bar names the app in `div._title_a453dad`.
+    out.push(
+        el(BAR_TITLE, Some(BAR), "div")
+            .modules(&["title"])
+            .text("Tidalfast")
+            .at(s.bar_title),
+    );
     out.push(
         el(MAIN_CONTAINER, Some(SHELL), "div")
             .modules(&["mainContainer"])
@@ -1249,14 +1258,9 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         }
     }
     if let Some(title) = &page.title {
-        let modules: &[&str] = if page.luna_settings {
-            &["pageTitle", "title"]
-        } else {
-            &["pageTitle"]
-        };
         out.push(
             el(PAGE_TITLE, Some(PAGE), "h1")
-                .modules(modules)
+                .modules(&["pageTitle"])
                 .test("title")
                 .text(title.clone())
                 .at(page.title_rect),

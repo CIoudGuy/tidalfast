@@ -62,7 +62,20 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     ui.spacing_mut().item_spacing.x = 4.0;
                     ui.add_space(6.0);
                     menu_button(app, ui, &palette);
-                    theme::text(ui, "Tidalfast", theme::semibold(12.0), palette.secondary);
+                    // The app's name is TIDAL's `._title_a453dad`: custom-fonts
+                    // rewrites it ("TIDALuna") and appends its Comic Sans tag.
+                    let key = crate::luna::dom_anchors::keys::BAR_TITLE;
+                    let shown = super::plugin_dom::text(key, "Tidalfast");
+                    let color = super::plugin_dom::color(key).unwrap_or(palette.secondary);
+                    let name = theme::text(ui, shown.as_ref(), theme::semibold(12.0), color);
+                    super::plugin_dom::note(|f| {
+                        f.shell.bar_title = super::plugin_dom::rect(name.rect)
+                    });
+                    // What a plugin writes into the name runs on from it.
+                    let spacing = ui.spacing().item_spacing.x;
+                    ui.add_space(-spacing);
+                    super::plugin_slots::inline(ui, key, crate::luna::dom::Position::Append);
+                    ui.add_space(spacing);
                     // discord-utils and the like append to the top bar.
                     super::plugin_slots::inline(
                         ui,

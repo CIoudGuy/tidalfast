@@ -3324,6 +3324,11 @@
 			kids.forEach((k, i) => {
 				if (isHost(k)) return scan(k, k._hostKey);
 				if (k === parent._hostText) return;
+				// Text a plugin wrote straight into a host element is the
+				// element's own text (`text` below), not an element beside
+				// it: custom-fonts' `title.innerHTML += ...` showed the
+				// title twice.
+				if (k instanceof Text && isHost(parent) && parent._textTouched) return;
 				if (k._sprite || (k instanceof Element && SKIP.has(k.localName))) return;
 				if (k === wimp || k === body || k === html) return scan(k, "");
 				const before = hostIdx.filter((j) => j < i);

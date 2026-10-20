@@ -190,8 +190,7 @@ fn page(app: &mut App, ui: &mut Ui) {
         {
             app.actions.push(Action::Open(Page::Settings));
         }
-        // TidaLuna's page title (`._title_a453dad`): plugins rewrite it
-        // (custom-fonts appends its "Comic Sans Edition" tag) and add to it.
+        // The page's title: plugins may rewrite it and add to it.
         let title = t("Plugins");
         let shown = super::plugin_dom::text(crate::luna::dom_anchors::keys::PAGE_TITLE, &title);
         let color = super::plugin_dom::color(crate::luna::dom_anchors::keys::PAGE_TITLE)
