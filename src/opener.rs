@@ -8,6 +8,19 @@
 use std::ffi::OsStr;
 use std::io;
 
+/// `address` as a web page to open (`http:` or `https:` with a host, in
+/// its normalized form, quotes and spaces percent-encoded), or `None`.
+/// Links that come from TIDAL or a plugin are opened only through this:
+/// the system's opener runs whatever an address names, so a settings page
+/// (`ms-settings:`), a program on a network share (`\\host\share`) or a
+/// local file would open as readily as a page.
+pub fn web_address(address: &str) -> Option<String> {
+    let url = url::Url::parse(address.trim()).ok()?;
+    (matches!(url.scheme(), "http" | "https")
+        && url.host_str().is_some_and(|host| !host.is_empty()))
+    .then(|| url.into())
+}
+
 /// Opens a URL or a path in whatever the desktop uses for it.
 #[cfg(not(windows))]
 pub fn open(target: impl AsRef<OsStr>) -> io::Result<()> {
@@ -48,5 +61,40 @@ pub fn open(target: impl AsRef<OsStr>) -> io::Result<()> {
         Ok(())
     } else {
         Err(io::Error::last_os_error())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::web_address;
+
+    #[test]
+    fn only_web_pages_are_web_addresses() {
+        assert_eq!(
+            web_address(" https://tidal.com/browse/track/1 ").as_deref(),
+            Some("https://tidal.com/browse/track/1")
+        );
+        assert_eq!(
+            web_address("http://example.com").as_deref(),
+            Some("http://example.com/")
+        );
+        // Quotes and spaces cannot reach a browser's command line whole.
+        assert_eq!(
+            web_address("https://e.com/a\" --x b").as_deref(),
+            Some("https://e.com/a%22%20--x%20b")
+        );
+        for address in [
+            "",
+            "ms-settings:privacy",
+            "file:///C:/Windows/System32/calc.exe",
+            r"\\host\share\run.exe",
+            "javascript:alert(1)",
+            "tidal://track/1",
+            "mailto:a@b.c",
+            r"C:\Windows\notepad.exe",
+            "https://",
+        ] {
+            assert_eq!(web_address(address), None, "{address}");
+        }
     }
 }

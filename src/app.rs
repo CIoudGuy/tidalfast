@@ -11892,13 +11892,20 @@ impl App {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fullscreen));
             }
             Action::OpenUrl(url) => {
-                // Open links off the UI thread with the platform-specific
-                // launcher used elsewhere in the app.
-                std::thread::spawn(move || {
-                    if let Err(error) = crate::opener::open(&url) {
-                        log::warn!("unable to open {url}: {error}");
+                // Only web pages: the system's opener would run anything
+                // else an address names.
+                match crate::opener::web_address(&url) {
+                    // Open links off the UI thread with the platform-specific
+                    // launcher used elsewhere in the app.
+                    Some(url) => {
+                        std::thread::spawn(move || {
+                            if let Err(error) = crate::opener::open(&url) {
+                                log::warn!("unable to open {url}: {error}");
+                            }
+                        });
                     }
-                });
+                    None => log::warn!("not opening a link that is not a web address"),
+                }
             }
             Action::DownloadOffline { uris, context } => self.download_songs(uris, context),
             Action::RemoveOffline(uris) => self.remove_songs(uris),
