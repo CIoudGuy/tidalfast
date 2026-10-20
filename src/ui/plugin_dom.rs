@@ -446,6 +446,13 @@ pub fn end_frame(ctx: &egui::Context) {
                 s.sent = Some(tree);
                 s.sent_at = Some(Instant::now());
                 s.last_frame = Some(frame.clone());
+                // `:hover` was worked out this frame from the boxes sent
+                // before: once more with these, or a list that scrolled
+                // under a still pointer (scroll-to-playing's auto-scroll)
+                // keeps quick-queue's button on the row that was there.
+                if s.overlay.hover {
+                    ctx.request_repaint();
+                }
             }
         }
         // Keep the allocations for the next frame's notes.
@@ -1082,7 +1089,11 @@ pub fn row_text(list: &str, index: usize, window: Color32) -> Option<RowText> {
     if !on() {
         return None;
     }
-    if let Some(hit) = theme_boxes(|b| b.row_text) {
+    if let Some(hit) = theme_boxes(|b| {
+        b.row_text
+            .get(list)
+            .and_then(|rows| rows.get(&index).copied())
+    }) {
         return hit;
     }
     // The anchors carry only the declarations written for them, so a colour
@@ -1109,7 +1120,12 @@ pub fn row_text(list: &str, index: usize, window: Color32) -> Option<RowText> {
         time: read(&["duration"]),
     };
     let made = (made != RowText::default()).then_some(made);
-    theme_boxes(|b| b.row_text = Some(made));
+    theme_boxes(|b| {
+        b.row_text
+            .entry(list.to_string())
+            .or_default()
+            .insert(index, made);
+    });
     made
 }
 
@@ -1365,9 +1381,10 @@ struct ThemeBoxes {
     /// What the theme makes of a track row's thumbnail (the same for every
     /// row).
     row_cover: Option<Option<CoverStyle>>,
-    /// The text colours a theme gives a track row's cells (the same for
-    /// every row).
-    row_text: Option<Option<RowText>>,
+    /// The text colours rules give a track row's cells, by list and row:
+    /// a theme colours every row alike, but a plugin may colour one
+    /// (scroll-to-playing's playing row).
+    row_text: std::collections::HashMap<String, std::collections::HashMap<usize, Option<RowText>>>,
     /// What a theme made of the sidebar's navigation rows and library rows.
     nav: std::collections::HashMap<String, Option<NavStyle>>,
 }
@@ -2659,6 +2676,37 @@ pub fn outline(key: &str, fallback: Color32) -> Option<(f32, Color32)> {
             return css::border(&css::resolve_vars(b, vars));
         }
         (!h.classes.is_empty()).then_some((2.0, fallback))
+    })
+}
+
+/// A plugin's inset edge on an anchor: a sharp `box-shadow: inset Xpx 0 0
+/// <colour>` (scroll-to-playing's 3-point bar down the playing row's left),
+/// as its width (negative for the right edge) and colour.
+pub fn inset_edge(key: &str) -> Option<(f32, Color32)> {
+    host(key, |h, vars| {
+        let v = css::resolve_vars(h.style.box_shadow.as_deref()?, vars);
+        let v = v.trim().trim_end_matches("!important").trim().to_string();
+        css::split_top(&v, ',').into_iter().find_map(|layer| {
+            let words = css::words(layer.trim());
+            if !words.iter().any(|w| w.eq_ignore_ascii_case("inset")) {
+                return None;
+            }
+            let mut lengths = Vec::new();
+            let mut colour = None;
+            for w in words.iter().filter(|w| !w.eq_ignore_ascii_case("inset")) {
+                if let Some(n) = css::length(w, 14.0, 0.0, [0.0, 0.0]) {
+                    lengths.push(n);
+                } else if let Some(c) = css::color(w) {
+                    colour = Some(c);
+                }
+            }
+            let x = *lengths.first()?;
+            let rest_zero = lengths.iter().skip(1).all(|n| n.abs() < 0.01);
+            (x.abs() >= 0.5 && rest_zero)
+                .then_some(())
+                .and(colour.filter(|c| c.a() > 0))
+                .map(|c| (x.clamp(-32.0, 32.0), c))
+        })
     })
 }
 
@@ -4815,6 +4863,113 @@ mod tests {
             },
             ..HostOverride::default()
         }));
+    }
+
+    /// scroll-to-playing colours the playing row's text only. That row's
+    /// colours were kept for the whole list, so every row turned turquoise.
+    #[test]
+    fn a_colour_on_one_rows_text_stays_on_that_row() {
+        use crate::luna::dom::HostOverride;
+        let list = "playlist:pl1";
+        let mut o = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        o.hosts.insert(
+            dom_anchors::keys::row_cell(list, 0, "title-link"),
+            HostOverride {
+                style: Style {
+                    color: Some("rgb(126, 251, 238)".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        test_overlay(Some(o));
+        let window = Color32::from_rgb(10, 10, 10);
+        let playing = row_text(list, 0, window);
+        let other = row_text(list, 1, window);
+        let again = row_text(list, 0, window);
+        test_overlay(None);
+        assert_eq!(
+            playing.and_then(|t| t.title),
+            Some(Color32::from_rgb(126, 251, 238))
+        );
+        assert_eq!(other, None);
+        assert_eq!(again, playing);
+    }
+
+    /// While some rule uses `:hover`, sending new boxes asks for one more
+    /// frame, so the element under a pointer that did not move is worked out
+    /// from them (a list scrolled under it); without such rules it does not.
+    #[test]
+    fn new_boxes_recheck_hover_once_while_hover_rules_exist() {
+        let delay = |hover: bool| {
+            test_overlay(Some(DomOverlay {
+                version: 1,
+                hover,
+                ..DomOverlay::default()
+            }));
+            let ctx = egui::Context::default();
+            let mut out = None;
+            // The first frame always asks for another; the second sends
+            // boxes again (the window changed size).
+            for size in [
+                [800.0, 600.0],
+                [800.0, 600.0],
+                [800.0, 600.0],
+                [900.0, 600.0],
+            ] {
+                test_viewport(size);
+                let mut o = ctx.run_ui(egui::RawInput::default(), |ui| {
+                    let _ = ui;
+                    end_frame(&ctx);
+                });
+                o.textures_delta.clear();
+                out = Some(o);
+            }
+            let out = out.unwrap();
+            test_overlay(None);
+            out.viewport_output[&egui::ViewportId::ROOT].repaint_delay
+        };
+        assert_eq!(delay(true), std::time::Duration::ZERO);
+        assert_ne!(delay(false), std::time::Duration::ZERO);
+    }
+
+    /// scroll-to-playing marks the playing row with `box-shadow: inset 3px 0
+    /// 0 rgb(126, 251, 238)`: a 3-point bar down its left edge. A blurred or
+    /// outer shadow is no such edge.
+    #[test]
+    fn a_sharp_inset_shadow_is_an_edge_bar() {
+        use crate::luna::dom::HostOverride;
+        let mut o = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        for (key, shadow) in [
+            ("a", "inset 3px 0 0 rgb(126, 251, 238) !important"),
+            ("b", "inset -2px 0 0 #ff0000"),
+            ("c", "0 0 10px rgba(255,107,107,.6)"),
+            ("d", "inset 0 0 12px #ff0000"),
+        ] {
+            o.hosts.insert(
+                key.into(),
+                HostOverride {
+                    style: Style {
+                        box_shadow: Some(shadow.into()),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            );
+        }
+        test_overlay(Some(o));
+        let edges = ["a", "b", "c", "d"].map(inset_edge);
+        test_overlay(None);
+        assert_eq!(edges[0], Some((3.0, Color32::from_rgb(126, 251, 238))));
+        assert_eq!(edges[1], Some((-2.0, Color32::from_rgb(255, 0, 0))));
+        assert_eq!(edges[2], None);
+        assert_eq!(edges[3], None);
     }
 
     /// A theme that declares a family's regular and bold faces gets both: its
