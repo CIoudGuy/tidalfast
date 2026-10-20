@@ -427,7 +427,21 @@ test (`src/luna/harden_tests.rs` unless named).
   second together, everything on sync and shutdown; a store is capped at
   16 MB (`QuotaExceededError`; `storage::tests`). A plugin may keep 256 MB in
   its data folder (`ENOSPC` past that; `fsops::tests`); uninstalling it
-  removes the folder (its settings stay, for a reinstall).
+  removes the folder (its settings stay, for a reinstall). `fs.readFile`,
+  `writeFile` and `appendFile` carry the bytes as they are, not as base64
+  (a 100 MB model's base64 copies would not fit the 256 MB plugin heap).
+- Downloads. A `fetch` response up to 8 MB is read into memory; a larger one
+  is written to `luna/spool/` as it arrives, up to 512 MB (a body that says
+  it is larger is refused before it is read, one that turns out larger is
+  cut off there; @visiuun/3d-cover's 102 MB "Base" depth model passed the
+  old 64 MB cap). Its first `arrayBuffer()`, `text()` or `blob()` reads the
+  file into one buffer and deletes it; only the plugin that fetched it can.
+  While it downloads, the plugin's card on the Plugins page shows
+  "Downloading 45 of 102 MB (model.onnx)"; when the plugin stops (disabled,
+  reloaded, uninstalled, Luna off) the download is cut off and its files
+  deleted, and leftovers of a run that ended abruptly go when Luna starts
+  (`downloads::tests`,
+  `compat_tests::a_large_download_is_spooled_and_cached_without_base64`).
 - Page. The overlay carries at most 10000 plugin elements and 4 MB of plugin
   and theme CSS; the rest is left out with a log line, and a single sheet
   over 4 MB is not parsed (`dom_tests::the_overlay_is_capped`). The runtime

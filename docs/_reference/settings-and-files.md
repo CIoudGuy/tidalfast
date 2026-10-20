@@ -20,6 +20,7 @@ Tidalfast follows each platform's conventions. On Linux:
 | Kept albums, playlists, mixes and artists | `~/.local/state/tidalfast/downloads.json` | Yes, their songs stay but no longer follow changes |
 | Songs still waiting to download | `~/.local/state/tidalfast/download-queue.json` | Yes, the next sync queues what is missing again |
 | Luna compatibility data | `~/.local/state/tidalfast/luna/` | Yes, installed Luna plugins and their storage are removed |
+| Large plugin downloads waiting to be read (an AI model a plugin fetched; deleted once the plugin reads it, when it stops, and at start) | `~/.local/state/tidalfast/luna/spool/` | Yes |
 | Last session | `~/.local/state/tidalfast/session.json` | Yes |
 | Play history | `~/.local/state/tidalfast/history.json` | Yes |
 | Listening statistics log | `~/.local/state/tidalfast/listens.jsonl` | Yes, the local statistics start over |

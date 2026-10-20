@@ -39,6 +39,7 @@ mod depth;
 mod dnsq;
 pub mod dom;
 pub mod dom_anchors;
+pub mod downloads;
 mod fsops;
 pub mod host;
 pub mod hotkeys;

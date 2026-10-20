@@ -1115,11 +1115,40 @@ fn plugin_card(
     });
 }
 
+/// "Downloading 45 of 102 MB (model.onnx)" for a plugin's large download.
+fn download_line(locale: Locale, d: &crate::luna::downloads::Progress) -> String {
+    let mb = |b: u64| format!("{:.0}", b as f64 / f64::from(1u32 << 20));
+    let file = d
+        .url
+        .split(['?', '#'])
+        .next()
+        .and_then(|u| u.rsplit('/').next())
+        .filter(|f| !f.is_empty())
+        .unwrap_or(&d.url);
+    let line = match d.total {
+        Some(total) => gettext(locale, "Downloading {got} of {total} MB ({file})")
+            .replace("{total}", &mb(total)),
+        None => gettext(locale, "Downloading {got} MB ({file})").into_owned(),
+    };
+    line.replace("{got}", &mb(d.received))
+        .replace("{file}", file)
+}
+
 /// Tidalfast's additions, kept small: update, permissions, logs.
 fn extras(ui: &mut Ui, palette: &Palette, locale: Locale, info: &PluginInfo, out: &mut Vec<Do>) {
     let t = |s: &'static str| gettext(locale, s).into_owned();
     if info.update_available && info.dev.is_none() {
         store::update_row(ui, palette, locale, info, out);
+    }
+    // A large download under way (an AI model): how far it got. It stops
+    // when the plugin does.
+    for d in crate::luna::downloads::active()
+        .iter()
+        .filter(|d| d.plugin == info.name)
+    {
+        caption(ui, &download_line(locale, d), palette.secondary);
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(250));
     }
     if info.permissions.is_empty() && info.logs.is_empty() {
         return;

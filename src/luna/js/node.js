@@ -1230,12 +1230,24 @@
 				throw fsErr(e, name, p);
 			}
 		};
-		const toBuf = (b64, enc) => {
-			const b = Buffer.from(L.b64dec(b64));
+		// Reads and writes carry the bytes beside the JSON, not as base64: a
+		// 100 MB model's base64 copies would not fit the plugins' memory.
+		const bytesOp = (name, p, extra, data) => {
+			try {
+				return L.fsBytes({ op: name, path: String(p instanceof URL ? url.fileURLToPath(p) : p), ...extra, plugin }, data);
+			} catch (e) {
+				throw fsErr(e, name, p);
+			}
+		};
+		const bufferOf = (d, enc) => {
+			const u8 = typeof d === "string" ? Buffer.from(d, typeof enc === "string" ? enc : enc?.encoding) : d instanceof ArrayBuffer ? new Uint8Array(d) : ArrayBuffer.isView(d) ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : Buffer.from(String(d));
+			return u8.byteOffset === 0 && u8.byteLength === u8.buffer.byteLength ? u8.buffer : u8.slice().buffer;
+		};
+		const readBytes = (p, enc) => {
+			const b = Buffer.from(bytesOp("read", p, {}));
 			const e = typeof enc === "string" ? enc : enc?.encoding;
 			return e ? b.toString(e) : b;
 		};
-		const dataOf = (d, enc) => L.b64enc(typeof d === "string" ? Buffer.from(d, typeof enc === "string" ? enc : enc?.encoding) : d);
 		const statOf = (s) => ({
 			...s,
 			isFile: () => s.file,
@@ -1258,9 +1270,9 @@
 					return false;
 				}
 			},
-			readFileSync: (p, enc) => toBuf(op("read", p), enc),
-			writeFileSync: (p, d, enc) => void op("write", p, { data: dataOf(d, enc), append: false }),
-			appendFileSync: (p, d, enc) => void op("write", p, { data: dataOf(d, enc), append: true }),
+			readFileSync: (p, enc) => readBytes(p, enc),
+			writeFileSync: (p, d, enc) => void bytesOp("write", p, { append: false }, bufferOf(d, enc)),
+			appendFileSync: (p, d, enc) => void bytesOp("write", p, { append: true }, bufferOf(d, enc)),
 			mkdirSync: (p, o) => void op("mkdir", p, { recursive: !!o?.recursive }),
 			readdirSync: (p, o) => {
 				const list = op("readdir", p);

@@ -355,6 +355,12 @@ impl Storage {
         self.root.join("data").join(safe_name(plugin))
     }
 
+    /// Where large fetched bodies wait for their plugin to read them
+    /// ([`super::downloads`]).
+    pub fn spool_dir(&self) -> PathBuf {
+        self.root.join("spool")
+    }
+
     /// A dev plugin's source map, beside its code.
     pub fn map_path(&self, plugin: &str) -> PathBuf {
         self.root
