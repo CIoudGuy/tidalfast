@@ -660,17 +660,22 @@ impl State {
 
     /// Makes room in memory for a stream of `len` bytes; a spill file needs
     /// none.
+    /// The length is the server's word: when the memory cannot hold it,
+    /// nothing is reserved and the bytes grow as they arrive.
     fn reserve_whole(&mut self, len: u64) {
         if let Body::Memory(data) = &mut self.data {
             let data = Arc::make_mut(data);
-            data.reserve_exact((len as usize).saturating_sub(data.len()));
+            let more = usize::try_from(len)
+                .unwrap_or(usize::MAX)
+                .saturating_sub(data.len());
+            let _ = data.try_reserve_exact(more);
         }
     }
 
-    /// Room for `rest` more bytes after those written.
+    /// Room for `rest` more bytes after those written, when there is.
     fn reserve_more(&mut self, rest: usize) {
         if let Body::Memory(data) = &mut self.data {
-            Arc::make_mut(data).reserve_exact(rest);
+            let _ = Arc::make_mut(data).try_reserve_exact(rest);
         }
     }
 }
@@ -1225,7 +1230,7 @@ fn fetch_span(
     {
         let mut state = shared.lock();
         if state.len.is_none() {
-            let len = response.content_length().map(|len| len + at);
+            let len = response.content_length().map(|len| len.saturating_add(at));
             if let Some(len) = len {
                 state.reserve_whole(len);
                 state.len = Some(len);
@@ -1430,6 +1435,19 @@ pub(crate) mod slow_disk {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Room for a stream is made from the length the server states, which
+    /// no stream needs to be true about. A length the memory cannot hold
+    /// reserved outright panicked (and short of the address space it ends
+    /// the app); now nothing is reserved and the bytes grow as they come.
+    #[test]
+    fn a_stated_length_beyond_memory_reserves_nothing() {
+        let mut state = State::default();
+        state.reserve_whole(u64::MAX);
+        state.reserve_more(usize::MAX);
+        state.write(0, b"sound").unwrap();
+        assert_eq!(state.data.len(), 5);
+    }
 
     #[test]
     fn ranges_merge_and_report_gaps() {
