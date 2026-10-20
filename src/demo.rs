@@ -8403,6 +8403,81 @@ mod tests {
         }
     }
 
+    /// A plugin cannot draw over the permission prompt: a box it shows once
+    /// the prompt is up (`position: fixed`, a positive `z-index`, clicks
+    /// passing through) would otherwise be drawn above it, with whatever
+    /// words it likes over the prompt's buttons, while the clicks still went
+    /// to the buttons under it.
+    #[test]
+    fn a_plugin_box_is_never_drawn_over_the_permission_prompt() {
+        use crate::luna::dom::{DomOverlay, Injected, Position, Style, VNode};
+        use crate::luna::{Access, PermissionRequest};
+        let (ctx, mut app) = accessible_app("permission-cover");
+        // As `ui::show` draws it, with Luna's overlay as the test sets it.
+        let frame = |ctx: &egui::Context, app: &mut App| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280.0, 800.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(app, ui),
+            );
+            output.textures_delta.clear();
+        };
+        app.plugins.demo_permission = Some(PermissionRequest {
+            id: 9,
+            plugin: "Plug".into(),
+            access: Access::Credentials,
+            detail: vec![],
+        });
+        frame(&ctx, &mut app);
+        frame(&ctx, &mut app);
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: String::new(),
+                position: Position::Append,
+                nodes: vec![VNode {
+                    id: 77,
+                    tag: "div".into(),
+                    style: Style {
+                        position: Some("fixed".into()),
+                        z_index: Some("10".into()),
+                        left: Some("0px".into()),
+                        top: Some("0px".into()),
+                        width: Some("1280px".into()),
+                        height: Some("800px".into()),
+                        background_color: Some("#ff0000".into()),
+                        pointer_events: Some("none".into()),
+                        ..Style::default()
+                    },
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        }));
+        let mut orders = Vec::new();
+        for _ in 0..3 {
+            frame(&ctx, &mut app);
+            orders.push(ctx.memory(|m| m.layer_ids().collect::<Vec<_>>()));
+        }
+        crate::ui::plugin_dom::test_overlay(None);
+        app.backend.shutdown();
+        for order in orders {
+            let at = |id: egui::Id| order.iter().position(|l| l.id == id);
+            let prompt = at(egui::Id::new(("luna-permission-prompt", 9u64)));
+            let cover = at(egui::Id::new(("luna-float", 77u64)));
+            assert!(prompt.is_some() && cover.is_some(), "{order:?}");
+            assert!(
+                prompt > cover,
+                "the plugin's box is over the prompt: {order:?}"
+            );
+        }
+    }
+
     /// The equalizer card in a demo window: the crossfeed row is there with
     /// its strengths, the switch is as the state left it, and a click on a
     /// strength asks for it.
