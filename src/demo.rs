@@ -1388,7 +1388,7 @@ fn scripted_lyrics() -> Option<Vec<(u32, &'static str)>> {
 /// Words to go with the sample track, timed so that the one being sung
 /// sits mid-panel at the demo's playback position.
 #[cfg(any(test, feature = "demo"))]
-fn sample_lyrics() -> crate::lyrics::Lyrics {
+pub(crate) fn sample_lyrics() -> crate::lyrics::Lyrics {
     let lines: Vec<(u32, &str)> = if let Some(lines) = scripted_lyrics() {
         lines
     } else {
