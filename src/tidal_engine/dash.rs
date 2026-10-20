@@ -108,11 +108,13 @@ fn children(data: &[u8]) -> impl Iterator<Item = ([u8; 4], &[u8])> {
         } else if size == 0 {
             size = data.len() - at;
         }
-        if size < header || at + size > data.len() {
+        // A size past the end, however large, ends the boxes.
+        let end = at.checked_add(size).filter(|&end| end <= data.len())?;
+        if size < header {
             return None;
         }
-        let body = &data[at + header..at + size];
-        at += size;
+        let body = &data[at + header..end];
+        at = end;
         Some((kind, body))
     })
 }
@@ -300,6 +302,23 @@ pub(crate) mod tests {
         out.extend_from_slice(kind);
         out.extend_from_slice(body);
         out
+    }
+
+    /// A 64-bit box size past the end of the data ends the boxes. Added to
+    /// the offset it wrapped around, and the slice taken with the result
+    /// panicked, which in a release build ends the app.
+    #[test]
+    fn a_box_size_past_the_end_is_the_end_of_the_boxes() {
+        let huge = [
+            &1u32.to_be_bytes()[..],
+            b"trak",
+            &(u64::MAX - 7).to_be_bytes(),
+        ]
+        .concat();
+        let moov = [mp4_box(b"free", b""), huge].concat();
+        assert_eq!(trim(&moov), None);
+        assert_eq!(timescale(&mp4_box(b"moov", &moov)), None);
+        assert_eq!(decode_time(&moov), None);
     }
 
     /// An initialisation segment with one sound track at `timescale`.
