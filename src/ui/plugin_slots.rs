@@ -856,6 +856,9 @@ struct Inherit {
     /// element's own font size, a length is kept. `None` is `normal` (the
     /// face's own row height).
     line_height: Option<LineHeight>,
+    /// `text-shadow` layers (inherited, as in CSS), offset and colour; the
+    /// first is painted on top.
+    shadow: [Option<(Vec2, Color32)>; 2],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -902,6 +905,7 @@ impl Inherit {
             upper: false,
             fill: None,
             line_height: None,
+            shadow: [None; 2],
         }
     }
 }
@@ -963,6 +967,88 @@ pub fn columns(
         child.set_clip_rect(cell.intersect(ui.clip_rect()));
         draw_at(&mut child, node, key, inherit, &cx);
     }
+}
+
+/// `text-shadow` as up to two sharp layers (offset, colour), first on top.
+/// A blurred layer (a glow) is left out: drawn sharp it would be a second
+/// copy of the words, not a glow.
+fn text_shadows(value: &str, font: f32, current: Color32) -> [Option<(Vec2, Color32)>; 2] {
+    let mut out = [None; 2];
+    if value.trim().eq_ignore_ascii_case("none") {
+        return out;
+    }
+    let mut n = 0;
+    for layer in css::split_top(value, ',') {
+        let mut lengths = Vec::new();
+        let mut colour = None;
+        for w in css::words(layer) {
+            if let Some(c) = css::color(w) {
+                colour = Some(c);
+            } else if let Some(v) = css::length(w, font, 0.0, plugin_dom::viewport()) {
+                lengths.push(v);
+            }
+        }
+        let (Some(x), Some(y)) = (lengths.first(), lengths.get(1)) else {
+            continue;
+        };
+        if lengths.get(2).is_some_and(|b| *b > 1.0) {
+            continue;
+        }
+        if n < out.len() {
+            out[n] = Some((vec2(*x, *y), colour.unwrap_or(current)));
+            n += 1;
+        }
+    }
+    out
+}
+
+/// Add a text label, with the `text-shadow` it inherits painted under it:
+/// copies of its glyphs at each layer's offset in the layer's colour, the
+/// last layer lowest (custom-fonts' gold and pink Comic Sans tag).
+fn add_text(
+    ui: &mut egui::Ui,
+    text: RichText,
+    wrap: Option<egui::TextWrapMode>,
+    inherit: Inherit,
+) -> egui::Response {
+    let layers: Vec<(Vec2, Color32)> = inherit.shadow.iter().flatten().copied().collect();
+    if layers.is_empty() {
+        return add_line(ui, text, wrap, inherit);
+    }
+    let slots: Vec<egui::layers::ShapeIdx> = layers
+        .iter()
+        .map(|_| ui.painter().add(egui::Shape::Noop))
+        .collect();
+    let layer = ui.layer_id();
+    let from = ui.ctx().graphics_mut(|g| g.entry(layer).next_idx().0);
+    let response = add_line(ui, text, wrap, inherit);
+    ui.ctx().graphics_mut(|g| {
+        let list = g.entry(layer);
+        let texts: Vec<(Rect, egui::epaint::TextShape)> = list
+            .all_entries()
+            .skip(from)
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Text(t) => Some((c.clip_rect, t.clone())),
+                _ => None,
+            })
+            .collect();
+        let clip = texts.first().map(|(c, _)| *c);
+        for (slot, (offset, colour)) in slots.iter().zip(layers.iter().rev()) {
+            let copies: Vec<egui::Shape> = texts
+                .iter()
+                .map(|(_, t)| {
+                    let mut t = t.clone();
+                    t.pos += *offset;
+                    t.override_text_color = Some(*colour);
+                    egui::Shape::Text(t)
+                })
+                .collect();
+            if let Some(clip) = clip {
+                list.set(*slot, clip, egui::Shape::Vec(copies));
+            }
+        }
+    });
+    response
 }
 
 /// `top` laid over `under`.
@@ -1036,7 +1122,13 @@ impl Cx<'_> {
 /// (a horizontal run). Returns whether anything was drawn. Costs one bool
 /// check while Luna is off.
 pub fn inline(ui: &mut egui::Ui, key: &str, position: Position) -> bool {
-    inline_with(ui, key, position, false, None)
+    inline_with(ui, key, position, false, None, None)
+}
+
+/// [`inline`] for elements inside a host element whose text is `size`
+/// points, which they inherit (custom-fonts' tag in TIDAL's 12-pixel title).
+pub fn inline_sized(ui: &mut egui::Ui, key: &str, position: Position, size: f32) -> bool {
+    inline_with(ui, key, position, false, None, Some(size))
 }
 
 /// Which side of a flex row's free space the elements at `key`/`position`
@@ -1096,7 +1188,7 @@ pub fn inline_range(
     if range.is_empty() {
         return false;
     }
-    inline_with(ui, key, position, false, Some(range))
+    inline_with(ui, key, position, false, Some(range), None)
 }
 
 /// Elements injected at `key`/`position` of a block container (TIDAL's
@@ -1173,7 +1265,7 @@ fn flows_in_line(n: &VNode) -> bool {
 /// of its own): a plugin sizing a pill from its mark's width must not read
 /// the pill's.
 pub fn inline_measured(ui: &mut egui::Ui, key: &str, position: Position) -> bool {
-    inline_with(ui, key, position, true, None)
+    inline_with(ui, key, position, true, None, None)
 }
 
 /// [`inline`] for a run with a limit (the player bar's right side): when
@@ -1215,6 +1307,7 @@ fn inline_with(
     position: Position,
     measure: bool,
     range: Option<std::ops::Range<usize>>,
+    size: Option<f32>,
 ) -> bool {
     let Some(overlay) = plugin_dom::overlay() else {
         return false;
@@ -1232,7 +1325,10 @@ fn inline_with(
         viewport: plugin_dom::viewport(),
         keyframes: &overlay.keyframes,
     };
-    let inherit = Inherit::root(ui);
+    let mut inherit = Inherit::root(ui);
+    if let Some(size) = size {
+        inherit.size = size;
+    }
     let mut drawn = false;
     // A run as tall as what it held last frame, so a centred row centres
     // it: an element taller than egui's 18-point row used to hang down
@@ -2193,13 +2289,53 @@ fn moved_length(
 /// `animation: spin 1s linear infinite`) turns as in a browser. A round box
 /// is a circle whose sides are its quarters; any other is its rectangle
 /// (corners of a turned box are not rounded).
+/// A hand-drawn box's border: each side's width and colour, and the dash
+/// and gap lengths of a `dashed` or `dotted` one.
+#[derive(Clone, Copy)]
+struct Edges {
+    widths: [f32; 4],
+    colours: [Color32; 4],
+    dash: Option<(f32, f32)>,
+}
+
+/// The outline of `q` with corners rounded by `radius`, clockwise from the
+/// top-left corner's arc.
+fn rounded_points(q: Rect, radius: f32) -> Vec<Pos2> {
+    use std::f32::consts::{FRAC_PI_2, PI};
+    let rad = radius.min(q.width() / 2.0).min(q.height() / 2.0).max(0.0);
+    if rad <= 0.0 {
+        return vec![
+            q.left_top(),
+            q.right_top(),
+            q.right_bottom(),
+            q.left_bottom(),
+        ];
+    }
+    let centres = [
+        (q.left_top() + vec2(rad, rad), PI),
+        (q.right_top() + vec2(-rad, rad), PI + FRAC_PI_2),
+        (q.right_bottom() + vec2(-rad, -rad), 0.0),
+        (q.left_bottom() + vec2(rad, -rad), FRAC_PI_2),
+    ];
+    let steps = 8;
+    let mut points = Vec::with_capacity(4 * (steps + 1));
+    for (c, begin) in centres {
+        for i in 0..=steps {
+            let a = begin + FRAC_PI_2 * i as f32 / steps as f32;
+            points.push(c + vec2(a.cos(), a.sin()) * rad);
+        }
+    }
+    points
+}
+
 fn box_shape(
     r: Rect,
     radius: f32,
     fill: Option<Color32>,
-    border: Option<(f32, [Color32; 4])>,
+    edges: Option<Edges>,
     rot: f32,
 ) -> egui::Shape {
+    let border = edges.map(|e| (e.widths[0], e.colours));
     use std::f32::consts::{FRAC_PI_2, FRAC_PI_4};
     let mut shapes = Vec::new();
     let c = r.center();
@@ -2262,20 +2398,64 @@ fn box_shape(
         .map(at)
     };
     if let Some(f) = fill {
-        shapes.push(egui::Shape::convex_polygon(
-            corners(r).to_vec(),
-            f,
-            Stroke::NONE,
-        ));
+        let outline: Vec<Pos2> = rounded_points(r, radius).into_iter().map(at).collect();
+        shapes.push(egui::Shape::convex_polygon(outline, f, Stroke::NONE));
     }
-    if let Some((w, colours)) = border {
-        let k = corners(r.shrink(w / 2.0));
+    let Some(e) = edges else {
+        return egui::Shape::Vec(shapes);
+    };
+    let [t, rt, b, l] = e.widths;
+    if e.widths.iter().any(|w| *w != t) {
+        // Sides of their own widths (a CSS triangle: a box with no size,
+        // `border: 10px solid transparent; border-top-color: #111;
+        // border-bottom: 0`): each side is the trapezoid between the outer
+        // and the inner corners.
+        let outer = corners(r);
+        let inner = corners(Rect::from_min_max(
+            r.min + vec2(l, t),
+            egui::pos2(
+                (r.max.x - rt).max(r.min.x + l),
+                (r.max.y - b).max(r.min.y + t),
+            ),
+        ));
         for side in 0..4 {
-            shapes.push(egui::Shape::line_segment(
-                [k[side], k[(side + 1) % 4]],
-                Stroke::new(w, colours[side]),
+            let colour = e.colours[side];
+            if e.widths[side] <= 0.0 || colour.a() == 0 {
+                continue;
+            }
+            let next = (side + 1) % 4;
+            shapes.push(egui::Shape::convex_polygon(
+                vec![outer[side], outer[next], inner[next], inner[side]],
+                colour,
+                Stroke::NONE,
             ));
         }
+        return egui::Shape::Vec(shapes);
+    }
+    let w = t;
+    if radius > 0.0 || e.dash.is_some() {
+        if e.colours.iter().all(|k| *k == e.colours[0]) {
+            let mut path: Vec<Pos2> = rounded_points(r.shrink(w / 2.0), radius - w / 2.0)
+                .into_iter()
+                .map(at)
+                .collect();
+            let stroke = Stroke::new(w, e.colours[0]);
+            match e.dash {
+                Some((dash, gap)) => {
+                    path.push(path[0]);
+                    shapes.extend(egui::Shape::dashed_line(&path, stroke, dash, gap));
+                }
+                None => shapes.push(egui::Shape::closed_line(path, stroke)),
+            }
+            return egui::Shape::Vec(shapes);
+        }
+    }
+    let k = corners(r.shrink(w / 2.0));
+    for side in 0..4 {
+        shapes.push(egui::Shape::line_segment(
+            [k[side], k[(side + 1) % 4]],
+            Stroke::new(w, e.colours[side]),
+        ));
     }
     egui::Shape::Vec(shapes)
 }
@@ -2647,6 +2827,11 @@ fn positioned(ui: &mut egui::Ui, node: &VNode, container: Rect, inherit: Inherit
         (Some(t), Some(b)) => Some((h - t - b).max(0.0)),
         _ => None,
     });
+    // A `border-box` is never smaller than its padding and border (a CSS
+    // triangle: `width: 0; height: 0` with a 10 px border is 20 by 10).
+    let least = frame_extent(style, font, cx);
+    let width = width.map(|w| w.max(least.x));
+    let height = height.map(|h| h.max(least.y));
     let size = vec2(width.unwrap_or(last.x), height.unwrap_or(last.y));
     let x = match (left, right) {
         (Some(l), _) => container.left() + l,
@@ -2718,6 +2903,47 @@ fn positioned(ui: &mut egui::Ui, node: &VNode, container: Rect, inherit: Inherit
         ui.ctx().request_repaint();
     }
     used
+}
+
+/// The room a box's padding and border take, across and down.
+fn frame_extent(style: &Style, font: f32, cx: &Cx) -> Vec2 {
+    let mut pad = style.padding.as_deref().map_or([0.0; 4], |p| {
+        css::sides(&css::resolve_vars(p, cx.vars), font)
+    });
+    for (i, side) in [
+        &style.padding_top,
+        &style.padding_right,
+        &style.padding_bottom,
+        &style.padding_left,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        if let Some(v) = cx.len(side, font, 0.0) {
+            pad[i] = v;
+        }
+    }
+    let border = style
+        .border
+        .as_deref()
+        .and_then(|b| css::border(&css::resolve_vars(b, cx.vars)))
+        .map_or(0.0, |(w, _)| w);
+    let mut bw = [border; 4];
+    if border > 0.0
+        && let Some(v) = style.border_width.as_deref()
+    {
+        let w: Vec<f32> = css::words(&css::resolve_vars(v, cx.vars))
+            .iter()
+            .map(|w| css::length(w, font, 0.0, cx.viewport).unwrap_or(0.0))
+            .collect();
+        if let [t, r, b, l] = w.as_slice() {
+            bw = [*t, *r, *b, *l];
+        }
+    }
+    vec2(
+        pad[1] + pad[3] + bw[1] + bw[3],
+        pad[0] + pad[2] + bw[0] + bw[2],
+    )
 }
 
 /// Fixed/absolute elements plugins put in `body` with a negative `z-index`
@@ -3239,7 +3465,7 @@ fn draw_styled(ui: &mut egui::Ui, node: &VNode, style: &Style, parent: Inherit, 
         let r = ui
             .with_visual_transform(t, |ui| {
                 ui.set_clip_rect(clip);
-                shown = draw_box(ui, node, style, xf.rot, stretch, parent, cx);
+                shown = draw_turned(ui, node, style, xf.rot, stretch, parent, cx);
             })
             .response
             .rect;
@@ -3248,7 +3474,101 @@ fn draw_styled(ui: &mut egui::Ui, node: &VNode, style: &Style, parent: Inherit, 
         }
         return shown;
     }
-    draw_box(ui, node, style, xf.rot, stretch, parent, cx)
+    draw_turned(ui, node, style, xf.rot, stretch, parent, cx)
+}
+
+/// [`draw_box`] for a box its transform turns. A box holding words or other
+/// elements (custom-fonts' tilted Comic Sans tag) is drawn upright, then
+/// everything it painted is turned about its centre, words included, as a
+/// browser turns the whole box; its place in the layout stays upright. A
+/// picture or an empty box (a spinner's ring) turns itself.
+fn draw_turned(
+    ui: &mut egui::Ui,
+    node: &VNode,
+    style: &Style,
+    rot: f32,
+    stretch: Vec2,
+    parent: Inherit,
+    cx: &Cx,
+) -> bool {
+    let holds = node.children.iter().any(|c| !c.tag.starts_with("::"))
+        || node.text.as_deref().is_some_and(|t| !t.trim().is_empty());
+    if rot == 0.0
+        || !holds
+        || matches!(
+            node.tag.as_str(),
+            "img" | "svg" | "canvas" | "video" | "input" | "textarea" | "select"
+        )
+    {
+        return draw_box(ui, node, style, rot, stretch, parent, cx);
+    }
+    let layer = ui.layer_id();
+    let from = ui.ctx().graphics_mut(|g| g.entry(layer).next_idx().0);
+    let r = ui.scope(|ui| draw_box(ui, node, style, 0.0, stretch, parent, cx));
+    let to = ui.ctx().graphics_mut(|g| g.entry(layer).next_idx().0);
+    let centre = r.response.rect.center();
+    ui.ctx().graphics_mut(|g| {
+        let list = g.entry(layer);
+        for i in from..to {
+            list.mutate_shape(egui::layers::ShapeIdx(i), |c| {
+                turn_shape(&mut c.shape, centre, rot);
+            });
+        }
+    });
+    r.inner
+}
+
+/// Turn a painted shape by `rot` radians clockwise about `centre`.
+fn turn_shape(shape: &mut egui::Shape, centre: Pos2, rot: f32) {
+    let turn = egui::emath::Rot2::from_angle(rot);
+    let at = |p: Pos2| centre + turn * (p - centre);
+    match shape {
+        egui::Shape::Vec(shapes) => {
+            for s in shapes {
+                turn_shape(s, centre, rot);
+            }
+        }
+        egui::Shape::Rect(r) => {
+            r.rect = Rect::from_center_size(at(r.rect.center()), r.rect.size());
+            r.angle += rot;
+        }
+        egui::Shape::Text(t) => {
+            t.pos = at(t.pos);
+            t.angle += rot;
+        }
+        egui::Shape::Circle(c) => c.center = at(c.center),
+        egui::Shape::Ellipse(e) => {
+            e.center = at(e.center);
+            e.angle += rot;
+        }
+        egui::Shape::LineSegment { points, .. } => {
+            for p in points {
+                *p = at(*p);
+            }
+        }
+        egui::Shape::Path(p) => {
+            for q in &mut p.points {
+                *q = at(*q);
+            }
+        }
+        egui::Shape::Mesh(m) => {
+            let m = std::sync::Arc::make_mut(m);
+            for v in &mut m.vertices {
+                v.pos = at(v.pos);
+            }
+        }
+        egui::Shape::QuadraticBezier(b) => {
+            for p in &mut b.points {
+                *p = at(*p);
+            }
+        }
+        egui::Shape::CubicBezier(b) => {
+            for p in &mut b.points {
+                *p = at(*p);
+            }
+        }
+        egui::Shape::Noop | egui::Shape::Callback(_) => {}
+    }
 }
 
 thread_local! {
@@ -3364,6 +3684,9 @@ fn draw_box(
     {
         inherit.line_height = lh;
     }
+    if let Some(t) = &style.text_shadow {
+        inherit.shadow = text_shadows(&css::resolve_vars(t, cx.vars), inherit.size, inherit.color);
+    }
     if node.tag == "#text" {
         let Some(text) = node.text.as_deref().filter(|t| !t.trim().is_empty()) else {
             return false;
@@ -3450,10 +3773,44 @@ fn draw_box(
         (b, _) => b,
     };
     let sides = sides.filter(|s| s.iter().any(|c| *c != s[0]));
-    // Drawn by hand: a box turned by its transform (a spinner's ring) and
-    // sides of different colours; otherwise egui's frame draws it.
-    let by_hand =
-        (rot != 0.0 && (border.is_some() || style.background_color.is_some())) || sides.is_some();
+    // Sides of their own widths (`border-bottom: 0`), when they differ.
+    let widths: Option<[f32; 4]> = border.and_then(|_| {
+        let v = css::resolve_vars(style.border_width.as_deref()?, cx.vars);
+        let w: Vec<f32> = css::words(&v)
+            .iter()
+            .map(|w| css::length(w, font, 0.0, cx.viewport).unwrap_or(0.0))
+            .collect();
+        let four = match w.as_slice() {
+            [a] => [*a; 4],
+            [t, r] => [*t, *r, *t, *r],
+            [t, r, b] => [*t, *r, *b, *r],
+            [t, r, b, l, ..] => [*t, *r, *b, *l],
+            [] => return None,
+        };
+        four.iter().any(|x| *x != four[0]).then_some(four)
+    });
+    // `dashed` and `dotted` borders: Chromium's dashes are three widths long
+    // with about two widths between (custom-fonts' pink tag: 6 and 4 points
+    // at 2), dots one width with one between.
+    let dash = border.and_then(|(w, _)| {
+        let v = style.border.as_deref()?.to_ascii_lowercase();
+        if v.contains("dashed") {
+            Some((3.0 * w, 2.0 * w))
+        } else if v.contains("dotted") {
+            Some((w, w))
+        } else {
+            None
+        }
+    });
+    // Drawn by hand: a box turned by its transform (a spinner's ring),
+    // sides of different colours or widths, a dashed or dotted border;
+    // otherwise egui's frame draws it.
+    let by_hand = (rot != 0.0 && (border.is_some() || style.background_color.is_some()))
+        || sides.is_some()
+        || widths.is_some()
+        || dash.is_some();
+    // Each side's border width (`[top, right, bottom, left]`).
+    let bw = widths.unwrap_or([border.map_or(0.0, |(w, _)| w); 4]);
     let radius = cx.len(&style.border_radius, font, 0.0).unwrap_or(0.0);
     // TIDAL's CSS sizes every box `border-box`: a width or height includes
     // the padding and border (AltPlay's `width: 100%` filter field with
@@ -3464,9 +3821,8 @@ fn draw_box(
     // playing's 40-point round button is 40 points.
     let is_button = node.tag == "button" || attr(node, "role") == Some("button");
     let pads = padding.or(is_button.then_some([1.0, 6.0, 1.0, 6.0]));
-    let edge = border.map_or(0.0, |(w, _)| 2.0 * w);
-    let inset = pads.map_or(0.0, |p| p[1] + p[3]) + edge;
-    let block_inset = pads.map_or(0.0, |p| p[0] + p[2]) + edge;
+    let inset = pads.map_or(0.0, |p| p[1] + p[3]) + bw[1] + bw[3];
+    let block_inset = pads.map_or(0.0, |p| p[0] + p[2]) + bw[0] + bw[2];
     let outer_w = cx.len(&style.width, font, ui.available_width());
     let outer_h = cx.len(&style.height, font, ui.available_height().min(400.0));
     // A growing flex item without a width fills the share its row gave it.
@@ -3550,8 +3906,7 @@ fn draw_box(
             && !display.contains("inline"))
         .then(|| {
             let sides = |s: Option<[f32; 4]>| s.map_or(0.0, |s| s[1] + s[3]);
-            let edge = border.map_or(0.0, |(w, _)| 2.0 * w);
-            (ui.available_width() - sides(padding) - sides(margin) - edge).max(0.0)
+            (ui.available_width() - sides(padding) - sides(margin) - bw[1] - bw[3]).max(0.0)
         })
     });
     // As in CSS, a width gives way to `max-width`, then `min-width`
@@ -3583,7 +3938,17 @@ fn draw_box(
     }
     // A bare `<button>` as TIDAL draws one: its stylesheet takes away the
     // background and border, Chromium's `padding: 1px 6px` stays.
-    if let Some(p) = padding {
+    if let Some(w) = widths {
+        // The frame's stroke is one width all round: the sides' own widths
+        // are room inside it instead, and drawn by hand.
+        let p = pads.unwrap_or([0.0; 4]);
+        frame = frame.inner_margin(margin_of([
+            p[0] + w[0],
+            p[1] + w[1],
+            p[2] + w[2],
+            p[3] + w[3],
+        ]));
+    } else if let Some(p) = padding {
         frame = frame.inner_margin(margin_of(p));
     } else if is_button {
         frame = frame.inner_margin(Margin::symmetric(6, 1));
@@ -3591,7 +3956,9 @@ fn draw_box(
     if let Some(m) = margin {
         frame = frame.outer_margin(margin_of(m));
     }
-    if let Some((w, c)) = border {
+    if let Some((w, c)) = border
+        && widths.is_none()
+    {
         frame = frame.stroke(Stroke::new(
             w,
             if by_hand { Color32::TRANSPARENT } else { c },
@@ -3669,14 +4036,39 @@ fn draw_box(
     let flows = inline_flow(&node.tag, display, &flow);
     let box_id = egui::Id::new(("luna-box", node.id));
     let mut drawn = false;
+    // Positioned children sit in the padding box, inside the border, and
+    // take the element's opacity (lyrics-everywhere's bubble tail).
+    let padding_box = |r: Rect| {
+        Rect::from_min_max(
+            r.min + vec2(bw[3], bw[0]),
+            egui::pos2(
+                (r.max.x - bw[1]).max(r.min.x + bw[3]),
+                (r.max.y - bw[2]).max(r.min.y + bw[0]),
+            ),
+        )
+    };
+    let place = |ui: &mut egui::Ui, child: &VNode, r: Rect, inherit: Inherit| {
+        ui.scope(|ui| {
+            if let Some(o) = opacity {
+                ui.multiply_opacity(o);
+            }
+            positioned(ui, child, padding_box(r), inherit, cx);
+        });
+    };
     let under_box: Option<Rect> = (!under.is_empty())
         .then(|| ui.data(|d| d.get_temp(box_id)))
         .flatten();
-    let paint_under = |ui: &mut egui::Ui| {
+    // Under the element's own background (inside its opacity already) or,
+    // with no stacking context of its own, under it at its opacity.
+    let paint_under = |ui: &mut egui::Ui, inside: bool| {
         let mut drawn = false;
         if let Some(r) = under_box {
             for child in under.iter().filter(|c| !c.style.hidden()) {
-                positioned(ui, child, r, parent, cx);
+                if inside {
+                    positioned(ui, child, padding_box(r), parent, cx);
+                } else {
+                    place(ui, child, r, parent);
+                }
                 drawn = true;
             }
         }
@@ -3684,7 +4076,7 @@ fn draw_box(
     };
     let own_context = placed_context || stacking_context(style);
     if !own_context {
-        drawn |= paint_under(ui);
+        drawn |= paint_under(ui, false);
     }
     let inner = ui.scope(|ui| {
         if let Some(o) = opacity {
@@ -3692,10 +4084,13 @@ fn draw_box(
         }
         let hand = by_hand.then(|| ui.painter().add(egui::Shape::Noop));
         let bg = (has_url || gradient.is_some()).then(|| ui.painter().add(egui::Shape::Noop));
+        // A border goes over the background picture (custom-fonts' dashed
+        // pink border round its gradient).
+        let hand_edge = (by_hand && bg.is_some()).then(|| ui.painter().add(egui::Shape::Noop));
         let shown = frame
             .show(ui, |ui| {
                 if own_context {
-                    drawn |= paint_under(ui);
+                    drawn |= paint_under(ui, true);
                 }
                 if let Some(w) = width {
                     ui.set_min_width(w);
@@ -3995,7 +4390,11 @@ fn draw_box(
             .response;
         if let Some(idx) = hand {
             let r = shown.rect - margin.map_or(Margin::ZERO, margin_of);
-            let edges = border.map(|(w, c)| (w, sides.unwrap_or([c; 4])));
+            let edges = border.map(|(_, c)| Edges {
+                widths: bw,
+                colours: sides.unwrap_or([c; 4]),
+                dash,
+            });
             // `border-radius: 50%` rounds the whole box, border included.
             let half = style
                 .border_radius
@@ -4007,8 +4406,14 @@ fn draw_box(
             } else {
                 radius
             };
-            ui.painter()
-                .set(idx, box_shape(r, radius, fill, edges, rot));
+            if let Some(edge) = hand_edge {
+                ui.painter().set(idx, box_shape(r, radius, fill, None, rot));
+                ui.painter()
+                    .set(edge, box_shape(r, radius, None, edges, rot));
+            } else {
+                ui.painter()
+                    .set(idx, box_shape(r, radius, fill, edges, rot));
+            }
         }
         if let Some(idx) = bg {
             let r = shown.rect - margin.map_or(Margin::ZERO, margin_of);
@@ -4052,7 +4457,7 @@ fn draw_box(
     // Absolutely positioned children sit in this element's box.
     for child in placed {
         if !child.style.hidden() {
-            positioned(ui, child, rect, inherit, cx);
+            place(ui, child, rect, inherit);
             drawn = true;
         }
     }
@@ -4193,12 +4598,12 @@ fn breakable(text: &str) -> bool {
     })
 }
 
-/// A text label. With a `line-height` taller than the face's own row each
+/// A text label, without its shadows. With a `line-height` taller than the face's own row each
 /// line is that tall and its glyphs sit in its middle, as CSS splits the
 /// leading above and below them (egui puts the room under the glyphs).
 /// A line shorter than the face's row (`line-height: 1.3` in a face with a
 /// tall row) takes only its own height, the glyphs centred in it.
-fn add_text(
+fn add_line(
     ui: &mut egui::Ui,
     text: RichText,
     wrap: Option<egui::TextWrapMode>,
@@ -6076,6 +6481,223 @@ mod tests {
         assert_eq!(size("Plain"), 20.0);
         assert!((size("Save") - 40.0 / 3.0).abs() < 0.01, "{}", size("Save"));
         assert_eq!(size("Close"), 16.0);
+    }
+
+    /// The shapes a floating overlay of `nodes` paints in an 800 by 600
+    /// window, nested lists flattened.
+    fn floating_shapes(nodes: Vec<VNode>) -> Vec<egui::Shape> {
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: String::new(),
+                position: Position::Append,
+                nodes,
+            }],
+            ..DomOverlay::default()
+        }));
+        plugin_dom::test_viewport([800.0, 600.0]);
+        let ctx = egui::Context::default();
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
+                    ..egui::RawInput::default()
+                },
+                |ui| floating(ui),
+            );
+            out.textures_delta.clear();
+            shapes = out.shapes;
+        }
+        plugin_dom::test_overlay(None);
+        fn flat(s: egui::Shape, out: &mut Vec<egui::Shape>) {
+            match s {
+                egui::Shape::Vec(v) => v.into_iter().for_each(|s| flat(s, out)),
+                s => out.push(s),
+            }
+        }
+        let mut out = Vec::new();
+        for c in shapes {
+            flat(c.shape, &mut out);
+        }
+        out
+    }
+
+    /// The same colour, whatever opacity it was painted at.
+    fn same_hue(painted: Color32, colour: Color32) -> bool {
+        let [r, g, b, a] = painted.to_srgba_unmultiplied();
+        a > 0
+            && [r, g, b]
+                .iter()
+                .zip([colour.r(), colour.g(), colour.b()])
+                .all(|(x, y)| x.abs_diff(y) <= 4)
+    }
+
+    fn text_node(id: u64, t: &str) -> VNode {
+        VNode {
+            id,
+            tag: "#text".into(),
+            text: Some(t.into()),
+            ..VNode::default()
+        }
+    }
+
+    /// lyrics-everywhere's CatJam bubble: its tail is an `::after` box with
+    /// no size, `border: 10px solid transparent`, a dark top and no bottom
+    /// border, 10 points under the bubble's padding box and 20 in. It is
+    /// drawn as a 20 by 10 triangle hanging from inside the bubble's 3-point
+    /// border (a box with no size had no height to hang it by, and one
+    /// border width all round drew four 10-point lines).
+    #[test]
+    fn a_css_triangle_is_drawn_from_its_sides_own_widths() {
+        let dark = Color32::from_rgb(0x11, 0x11, 0x11);
+        let tail = VNode {
+            id: 3,
+            tag: "::after".into(),
+            style: Style {
+                position: Some("absolute".into()),
+                bottom: Some("-10px".into()),
+                left: Some("20px".into()),
+                width: Some("0".into()),
+                height: Some("0".into()),
+                border: Some("10px solid transparent".into()),
+                border_color: Some("#111 transparent transparent transparent".into()),
+                border_width: Some("10px 10px 0px 10px".into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let bubble = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                top: Some("100px".into()),
+                left: Some("20px".into()),
+                padding: Some("10px 16px".into()),
+                border: Some("3px solid #111".into()),
+                background_color: Some("#ffffff".into()),
+                ..Style::default()
+            },
+            children: vec![text_node(2, "line"), tail],
+            ..VNode::default()
+        };
+        let shapes = floating_shapes(vec![bubble]);
+        let frame = shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::Shape::Rect(r) if r.stroke.width == 3.0 => Some(r.rect),
+                _ => None,
+            })
+            .unwrap_or_else(|| {
+                let rects: Vec<_> = shapes
+                    .iter()
+                    .filter(|s| matches!(s, egui::Shape::Rect(_)))
+                    .collect();
+                panic!("no bubble box: {rects:?}")
+            });
+        let points: Vec<Pos2> = shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::Path(p) if same_hue(p.fill, dark) => Some(p.points.clone()),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        assert!(!points.is_empty(), "no filled triangle: {shapes:?}");
+        let tri = Rect::from_points(&points);
+        assert!((tri.width() - 20.0).abs() < 0.5, "{tri:?}");
+        assert!((tri.height() - 10.0).abs() < 0.5, "{tri:?}");
+        // The bubble's border box ends at its frame's outer edge; the
+        // padding box 3 points above it.
+        let border_box_bottom = frame.bottom();
+        assert!(
+            (tri.top() - (border_box_bottom - 3.0)).abs() < 1.0,
+            "{tri:?} under {frame:?}"
+        );
+        assert!((tri.left() - (20.0 + 3.0 + 20.0)).abs() < 1.0, "{tri:?}");
+        // Its tip is at the middle of its foot.
+        let tip = points
+            .iter()
+            .max_by(|a, b| a.y.total_cmp(&b.y))
+            .copied()
+            .unwrap();
+        assert!((tip.x - tri.center().x).abs() < 0.5, "{points:?}");
+    }
+
+    /// custom-fonts' Comic Sans tag: `transform: rotate(-3deg)` turns the
+    /// whole box, its words and their two `text-shadow` copies included
+    /// (gold under pink, the first layer on top), and its `2px dashed`
+    /// border is drawn as dashes, over its gradient.
+    #[test]
+    fn a_turned_box_turns_its_words_and_their_shadows() {
+        let tag = VNode {
+            id: 1,
+            tag: "span".into(),
+            style: Style {
+                display: Some("inline-block".into()),
+                color: Some("#1E90FF".into()),
+                text_shadow: Some("1px 1px 0 #FFD700,-1px -1px 0 #FF69B4".into()),
+                transform: Some("rotate(-3deg) skew(-3deg)".into()),
+                padding: Some("0.1em 0.3em".into()),
+                border: Some("2px dashed #FF69B4".into()),
+                border_radius: Some("8px".into()),
+                background_image: Some("linear-gradient(45deg,#FFB6C1,#87CEFA)".into()),
+                ..Style::default()
+            },
+            children: vec![text_node(2, "Edition")],
+            ..VNode::default()
+        };
+        let holder = VNode {
+            id: 3,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                top: Some("10px".into()),
+                left: Some("10px".into()),
+                ..Style::default()
+            },
+            children: vec![tag],
+            ..VNode::default()
+        };
+        let shapes = floating_shapes(vec![holder]);
+        let texts: Vec<&egui::epaint::TextShape> = shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::Text(t) if t.galley.text() == "Edition" => Some(t),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(texts.len(), 3, "the words and two shadows");
+        let turn = (-3.0f32).to_radians();
+        for t in &texts {
+            assert!((t.angle - turn).abs() < 1e-4, "{}", t.angle);
+        }
+        let pink = Color32::from_rgb(0xFF, 0x69, 0xB4);
+        let gold = Color32::from_rgb(0xFF, 0xD7, 0x00);
+        assert_eq!(texts[0].override_text_color, Some(pink));
+        assert_eq!(texts[1].override_text_color, Some(gold));
+        assert_eq!(texts[2].override_text_color, None);
+        let dashes = shapes
+            .iter()
+            .filter(|s| match s {
+                egui::Shape::LineSegment { stroke, .. } => same_hue(stroke.color, pink),
+                _ => false,
+            })
+            .count();
+        assert!(dashes > 12, "{dashes} dashes");
+        // The dashes come after the gradient.
+        let gradient = shapes
+            .iter()
+            .position(|s| matches!(s, egui::Shape::Mesh(_)))
+            .expect("the gradient");
+        let first_dash = shapes
+            .iter()
+            .position(
+                |s| matches!(s, egui::Shape::LineSegment { stroke, .. } if same_hue(stroke.color, pink)),
+            )
+            .expect("a dash");
+        assert!(first_dash > gradient);
     }
 
     /// An image keeps the corners its `border-radius` gives it: qr-share's

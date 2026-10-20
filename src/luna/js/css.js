@@ -974,6 +974,39 @@
 			});
 			st["border-color"] = four.join(" ");
 		}
+		// A side's own width (`border-bottom: 0`, `border-left-width`) makes
+		// `border-width` the four sides' widths, top right bottom left, in
+		// the order the declarations were written: a CSS triangle (a box with
+		// no size and `border: 10px solid transparent; border-bottom: 0`).
+		if (st.border && [...decls.keys()].some((k) => k === "border-width" || /^border-(top|right|bottom|left)(-width)?$/.test(k))) {
+			const widthOf = (v) => {
+				let w = null;
+				let none = false;
+				for (const word of String(v).trim().split(/\s+/)) {
+					if (/^(none|hidden)$/i.test(word)) none = true;
+					else if (/^(thin|medium|thick)$/i.test(word)) w = { thin: "1px", medium: "3px", thick: "5px" }[word.toLowerCase()];
+					else if (/^-?[\d.]+[a-z%]*$/i.test(word) || /^(calc|min|max|clamp)\(/i.test(word)) w = /^0+(\.0*)?[a-z%]*$/i.test(word) ? "0px" : word;
+				}
+				return none ? "0px" : w;
+			};
+			const four = Array(4).fill(widthOf(st.border) ?? "3px");
+			for (const [k, raw] of decls) {
+				const v = resolveVars(raw, vars);
+				if (k === "border") four.fill(widthOf(v) ?? "3px");
+				else if (k === "border-width") {
+					const p = v.trim().split(/\s+/);
+					const [t, r = t, b = t, l = r] = p;
+					four.splice(0, 4, t, r, b, l);
+				} else {
+					const m = /^border-(top|right|bottom|left)(-width)?$/.exec(k);
+					if (!m) continue;
+					const w = widthOf(v);
+					if (w !== null) four[SIDES.indexOf(m[1])] = w;
+					else if (!m[2]) four[SIDES.indexOf(m[1])] = "3px";
+				}
+			}
+			if (four.some((w) => w !== four[0])) st["border-width"] = four.join(" ");
+		}
 		// The individual transform properties apply before `transform`.
 		const parts = [];
 		if (st["-translate"]) parts.push(`translate(${st["-translate"].trim().split(/\s+/).join(",")})`);
@@ -1061,6 +1094,38 @@
 		}
 		return o;
 	};
+	// The text a `content` value draws: its quoted strings (`""` is an
+	// empty box, a CSS triangle's); anything else draws nothing here.
+	const contentText = (v) => {
+		let out = "";
+		String(v ?? "").replace(/"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'/g, (_, a, b) => {
+			out += (a ?? b ?? "").replace(/\\(.)/g, "$1");
+			return "";
+		});
+		return out;
+	};
+	// A plugin element's own `::before` / `::after` boxes (lyrics-everywhere's
+	// speech-bubble tail): drawn as the element's first and last child, so
+	// only a box with a `content` that is shown exists, as in CSS.
+	const ownPseudoOf = (ix, el) => {
+		let o = null;
+		for (const kind of ["before", "after"]) {
+			const px = ix.pseudo[kind];
+			if (!px.size) continue;
+			const decls = pseudoCascade(px, el);
+			if (!decls || !hasContent(decls)) continue;
+			let vars = el._cc?.myVars ?? NO_VARS;
+			for (const [k, v] of decls)
+				if (k.startsWith("--")) {
+					if (vars === (el._cc?.myVars ?? NO_VARS)) vars = new Map(vars);
+					vars.set(k, v);
+				}
+			const st = toStyle(decls, vars, el._cc?.inh ?? null) ?? {};
+			if (/^none$/i.test(String(st.display ?? "").trim())) continue;
+			(o ??= {})[kind] = { style: st, text: contentText(resolveVars(decls.get("content"), vars)) };
+		}
+		return o;
+	};
 	const ROOTS = () => [g.document.documentElement, g.document.body, D.wimp];
 	// Resolved style of every element plugins styled, plus :root variables,
 	// the page style and fonts.
@@ -1086,6 +1151,9 @@
 		// canvas), it paints over elements behind the page (negative
 		// `z-index`), so it is kept apart from `page` as well.
 		let wimpFill;
+		// Plugin elements' own `::before` / `::after` boxes.
+		const boxes = new Map();
+		const ownPseudo = ix.pseudo.before.size > 0 || ix.pseudo.after.size > 0;
 		const walk = (el, vars, parentStyle) => {
 			if (L.stat) L.stat("css: visit", Date.now());
 			const decls = cascade(ix, el);
@@ -1112,6 +1180,16 @@
 				el._cc = { decls, vars, parent: parentStyle, myVars, st, inh };
 			}
 			if (st) styles.set(el, st);
+			if (ownPseudo && el._hostKey === undefined && !roots.includes(el)) {
+				const hit = pmemo.get(el);
+				let o;
+				if (hit && hit.cc === el._cc && hit.ix === ix) o = hit.o;
+				else {
+					o = ownPseudoOf(ix, el);
+					pmemo.set(el, { cc: el._cc, ix, o });
+				}
+				if (o) boxes.set(el, o);
+			}
 			if (roots.includes(el)) {
 				if (decls) for (const [k, v] of decls) if (k.startsWith("--")) rootVars.set(k, v);
 				if (st) Object.assign(page, st);
@@ -1201,7 +1279,7 @@
 					break;
 				}
 			}
-		return { styles, vars, page, wimpFill, fonts: ix.fonts, bytes: ix.bytes, keyframes, hover: ix.hover, pseudo, selectable };
+		return { styles, vars, page, wimpFill, fonts: ix.fonts, bytes: ix.bytes, keyframes, hover: ix.hover, pseudo, boxes, selectable };
 	};
 	// For the tests that count what a build works out again.
 	D.computeOverlayStyles = compute;

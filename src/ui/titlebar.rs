@@ -74,7 +74,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     // What a plugin writes into the name runs on from it.
                     let spacing = ui.spacing().item_spacing.x;
                     ui.add_space(-spacing);
-                    super::plugin_slots::inline(ui, key, crate::luna::dom::Position::Append);
+                    super::plugin_slots::inline_sized(
+                        ui,
+                        key,
+                        crate::luna::dom::Position::Append,
+                        12.0,
+                    );
                     ui.add_space(spacing);
                     // discord-utils and the like append to the top bar.
                     super::plugin_slots::inline(
