@@ -2137,6 +2137,67 @@ R.ready = true;
     finish(luna, dir);
 }
 
+/// copy-lyrics' drag, as a browser selects it: the UI says where in the
+/// lines' text the press and the release were (`textPoint`, UTF-16
+/// offsets), and the selection holds exactly the characters between them,
+/// whichever way the drag went. The host its rule makes selectable is
+/// marked, with its `::selection` colours, so the UI can draw the
+/// highlight.
+#[test]
+fn a_drag_selects_the_characters_between_the_measured_points() {
+    let (luna, _host, dir) = start(
+        r##"
+const st = document.createElement("style");
+st.textContent = '[data-test="footer-track-title"] { user-select: text; } ::selection { background: #48003c; color: #fff; }';
+document.head.appendChild(st);
+const seen = [];
+document.addEventListener("mouseup", () => {
+	seen.push(String(window.getSelection()));
+	R.seen = seen;
+});
+R.ready = true;
+"##,
+    );
+    luna.sync_dom(tree());
+    results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
+    let o = overlay_until(&luna, 10, |o| {
+        o.hosts.get(keys::TITLE_SPAN).is_some_and(|h| h.selectable)
+    });
+    let title = o.hosts.get(keys::TITLE_SPAN).unwrap();
+    assert_eq!(
+        title
+            .selection
+            .as_ref()
+            .and_then(|s| s.background_color.as_deref()),
+        Some("#48003c"),
+        "{title:?}"
+    );
+    assert!(
+        !o.hosts.get(keys::ARTIST).is_some_and(|h| h.selectable),
+        "a host no rule makes selectable is not"
+    );
+    let event = |kind: &str, offset: usize| {
+        luna.dom_event(DomEvent {
+            target: DomTarget::Host(keys::TITLE_SPAN.into()),
+            kind: kind.into(),
+            data: json!({
+                "clientX": 5, "clientY": 5, "button": 0, "dragged": kind == "mouseup",
+                "textPoint": { "key": keys::TITLE_SPAN, "offset": offset },
+            }),
+        });
+    };
+    // "Song One": from after "So" to before "ne", then the same backwards.
+    event("mousedown", 2);
+    event("mouseup", 6);
+    event("mousedown", 6);
+    event("mouseup", 2);
+    let r = results_until(&luna, &dir, 10, |r| {
+        r["seen"].as_array().is_some_and(|a| a.len() == 2)
+    });
+    assert_eq!(r["seen"], json!(["ng O", "ng O"]), "{r}");
+    finish(luna, dir);
+}
+
 /// uwu-ifier rewrites the document's text once at load and in nodes added
 /// later; in TIDAL the page is there when a plugin loads. With the app's
 /// first host tree awaited, a plugin enabled at start sees the page's text

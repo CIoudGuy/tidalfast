@@ -19,6 +19,70 @@ const LINE_GAP: f32 = 10.0;
 /// the top (TIDAL: a quarter).
 const SUNG_LINE_AT: f32 = super::lyrics_follow::LINE_REST_AT;
 
+/// A drag over lyric lines a plugin made selectable (`user-select: text`,
+/// copy-lyrics): line and character where it was pressed, and where the
+/// pointer is now.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Selecting {
+    anchor: (usize, usize),
+    focus: (usize, usize),
+}
+
+impl Selecting {
+    /// The selected characters of line `index` (`len` characters long).
+    fn range(&self, index: usize, len: usize) -> Option<(usize, usize)> {
+        let (a, b) = if self.anchor <= self.focus {
+            (self.anchor, self.focus)
+        } else {
+            (self.focus, self.anchor)
+        };
+        if index < a.0 || index > b.0 {
+            return None;
+        }
+        let from = if index == a.0 { a.1 } else { 0 };
+        let to = if index == b.0 { b.1 } else { len };
+        (to > from).then_some((from, to))
+    }
+}
+
+/// The UTF-16 offset (the DOM's) of character `chars` in `text`.
+fn utf16_at(text: &str, chars: usize) -> usize {
+    text.chars().take(chars).map(char::len_utf16).sum()
+}
+
+/// The highlight behind characters `from..to` of `galley` drawn at `at`,
+/// one box per row, as a browser paints `::selection`; `xf` is the line's
+/// scale.
+fn selection_shapes(
+    galley: &egui::Galley,
+    at: egui::Pos2,
+    (from, to): (usize, usize),
+    fill: egui::Color32,
+    xf: Option<egui::emath::TSTransform>,
+) -> Vec<egui::Shape> {
+    use egui::epaint::text::CharIndex;
+    let mut out = Vec::new();
+    let mut start = 0;
+    for row in &galley.rows {
+        let len = row.char_count_excluding_newline().0;
+        let (a, b) = (from.max(start), to.min(start + len));
+        if b > a {
+            let x0 = row.pos.x + row.x_offset(CharIndex(a - start));
+            let x1 = row.pos.x + row.x_offset(CharIndex(b - start));
+            let rect =
+                egui::Rect::from_x_y_ranges(x0.min(x1)..=x0.max(x1), row.min_y()..=row.max_y())
+                    .translate(at.to_vec2());
+            let mut shape = egui::Shape::rect_filled(rect, 0.0, fill);
+            if let Some(xf) = xf {
+                shape.transform(xf);
+            }
+            out.push(shape);
+        }
+        start += row.char_count_including_newline().0;
+    }
+    out
+}
+
 fn blend(from: egui::Color32, to: egui::Color32, t: f32) -> egui::Color32 {
     let t = t.clamp(0.0, 1.0);
     egui::Color32::from(egui::Rgba::from(from) * (1.0 - t) + egui::Rgba::from(to) * t)
@@ -355,13 +419,20 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
     let heard = app.lyrics_position_ms(&now);
     let active = lyrics.active_line(heard);
     let viewport = ui.available_rect_before_wrap();
+    let scope = egui::Id::new(("fullscreen-lyrics-follow", &now.uri));
+    // A drag selecting text is not a scroll by hand.
+    let selecting_text = ui
+        .data(|d| d.get_temp::<Option<Selecting>>(scope.with("selecting")))
+        .flatten()
+        .is_some();
     let manual_scroll = ui.rect_contains_pointer(viewport)
         && ui.input(|input| {
             input.smooth_scroll_delta.y != 0.0
-                || (input.pointer.primary_down() && input.pointer.delta().y != 0.0)
+                || (input.pointer.primary_down()
+                    && input.pointer.delta().y != 0.0
+                    && !selecting_text)
         });
     let following = app.lyrics_following && !manual_scroll;
-    let scope = egui::Id::new(("fullscreen-lyrics-follow", &now.uri));
     let mut target = None;
     // TIDAL: 40 points across a 740-point column.
     let size = (ui.available_width() * 0.054).clamp(28.0, 42.0);
@@ -389,6 +460,19 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
             (12.0, 60.0)
         };
         ui.add_space(padding);
+        // A drag selecting lines a plugin made selectable.
+        let selecting_id = scope.with("selecting");
+        let mut selecting: Option<Selecting> = ui.data(|d| d.get_temp(selecting_id)).flatten();
+        let (pointer, pressed, down, released) = ui.input(|i| {
+            (
+                i.pointer.interact_pos(),
+                i.pointer.primary_pressed(),
+                i.pointer.primary_down(),
+                i.pointer.primary_released(),
+            )
+        });
+        // The selectable lines drawn: index, rect, key, text, length.
+        let mut selectable_lines: Vec<(usize, egui::Rect, String, String, usize)> = Vec::new();
         // Luna: lyrics plugins (radiant-lyrics) may hide TIDAL's lines and
         // draw their own in the container.
         let luna = super::plugin_dom::on();
@@ -425,10 +509,14 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
             } else {
                 line.text.as_str()
             };
-            let sense = if lyrics.synced {
-                Sense::click()
-            } else {
-                Sense::hover()
+            let selectable = line_key
+                .as_deref()
+                .is_some_and(super::plugin_dom::selectable);
+            // A selectable line takes the drag (it selects, not scrolls).
+            let sense = match (lyrics.synced, selectable) {
+                (_, true) => Sense::click_and_drag(),
+                (true, false) => Sense::click(),
+                (false, false) => Sense::hover(),
             };
             // Translators and romanizers rewrite a line's text.
             let text = match &line_key {
@@ -454,6 +542,62 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
             let rtl = crate::bidi::is_rtl(text.as_ref());
             let (rect, response) =
                 ui.allocate_exact_size(egui::vec2(ui.available_width(), galley.size().y), sense);
+            if let Some(key) = line_key.as_deref().filter(|_| selectable) {
+                let at = crate::bidi::galley_pos(rect, &galley);
+                let anchor_x = if rtl { rect.right() } else { rect.left() };
+                let origin = egui::pos2(anchor_x, rect.center().y);
+                let len = galley
+                    .rows
+                    .iter()
+                    .map(|r| r.char_count_including_newline().0)
+                    .sum::<usize>();
+                // Where in the text a point is: the line's scale undone.
+                let char_at = |p: egui::Pos2| {
+                    let p = origin + (p - origin) / style.scale.max(0.01);
+                    galley.cursor_from_pos(p - at).index.0.min(len)
+                };
+                // The line and the gap under it: a press or drag there
+                // lands in this line's text, nearest the pointer.
+                let band = |p: egui::Pos2| {
+                    p.y >= rect.top() && p.y < rect.bottom() + lyrics_follow::LINE_GAP
+                };
+                if let Some(p) = pointer {
+                    let below = egui::pos2(rect.right(), rect.bottom() + lyrics_follow::LINE_GAP);
+                    if pressed && ui.rect_contains_pointer(egui::Rect::from_min_max(rect.min, below))
+                    {
+                        let c = char_at(p);
+                        selecting = Some(Selecting {
+                            anchor: (index, c),
+                            focus: (index, c),
+                        });
+                        super::plugin_dom::text_point(key, utf16_at(text.as_ref(), c));
+                    } else if let Some(sel) = selecting.as_mut()
+                        && band(p)
+                    {
+                        sel.focus = (index, char_at(p));
+                    }
+                }
+                if let Some(range) = selecting.and_then(|s| s.range(index, len)) {
+                    let (fill, _) = super::plugin_dom::selection_colors(key);
+                    let fill = fill.unwrap_or(ui.visuals().selection.bg_fill);
+                    let opacity = (style.opacity * dim * edge * edge * (3.0 - 2.0 * edge))
+                        .clamp(0.0, 1.0);
+                    let xf = (style.scale != 1.0).then(|| {
+                        egui::emath::TSTransform::new(
+                            origin.to_vec2() * (1.0 - style.scale),
+                            style.scale,
+                        )
+                    });
+                    ui.painter().extend(selection_shapes(
+                        &galley,
+                        at,
+                        range,
+                        fill.gamma_multiply(opacity),
+                        xf,
+                    ));
+                }
+                selectable_lines.push((index, rect, key.to_string(), text.to_string(), len));
+            }
             if ui.is_rect_visible(rect) {
                 lyrics_follow::paint_line(
                     ui,
@@ -491,6 +635,33 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
             }
             ui.add_space(lyrics_follow::LINE_GAP);
         }
+        // Past the first or last selectable line the drag reaches its
+        // start or end, as in a browser.
+        if let (Some(sel), Some(p)) = (selecting.as_mut(), pointer)
+            && let (Some(first), Some(last)) = (selectable_lines.first(), selectable_lines.last())
+        {
+            if p.y < first.1.top() {
+                sel.focus = (first.0, 0);
+            } else if p.y >= last.1.bottom() + lyrics_follow::LINE_GAP {
+                sel.focus = (last.0, last.4);
+            }
+        }
+        if let Some(sel) = selecting {
+            if released {
+                // The release tells plugins where the drag ended.
+                if let Some((_, _, key, text, _)) =
+                    selectable_lines.iter().find(|l| l.0 == sel.focus.0)
+                {
+                    super::plugin_dom::text_point(key, utf16_at(text, sel.focus.1));
+                }
+            }
+            if down {
+                ui.ctx().request_repaint();
+            }
+        }
+        // The highlight shows while the button is held.
+        let keep = selecting.filter(|_| down && !selectable_lines.is_empty());
+        ui.data_mut(|d| d.insert_temp(selecting_id, keep));
         // Before the first line there is nothing to highlight, so the
         // panel sits at the top rather than wherever it was left.
         if lyrics.synced && active.is_none() {
@@ -604,5 +775,76 @@ pub(crate) fn failure_message(locale: crate::i18n::Locale, error: &str) -> Strin
             "Couldn't fetch the lyrics: {error}",
         )
         .replace("{error}", error)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A drag from line 1 into line 3 selects the end of line 1, all of
+    /// line 2 and the start of line 3, whichever way it went.
+    #[test]
+    fn a_drag_selects_from_the_press_to_the_pointer_across_lines() {
+        let down = Selecting {
+            anchor: (1, 4),
+            focus: (3, 2),
+        };
+        let up = Selecting {
+            anchor: (3, 2),
+            focus: (1, 4),
+        };
+        for sel in [down, up] {
+            assert_eq!(sel.range(0, 10), None);
+            assert_eq!(sel.range(1, 10), Some((4, 10)));
+            assert_eq!(sel.range(2, 7), Some((0, 7)));
+            assert_eq!(sel.range(3, 9), Some((0, 2)));
+            assert_eq!(sel.range(4, 9), None);
+        }
+        // Pressed and not moved: nothing.
+        let still = Selecting {
+            anchor: (2, 3),
+            focus: (2, 3),
+        };
+        assert_eq!(still.range(2, 9), None);
+        // The DOM counts UTF-16 units.
+        assert_eq!(utf16_at("a\u{1F600}b", 2), 3);
+    }
+
+    /// The highlight is a box behind the selected characters of each row of
+    /// a wrapped line, in the `::selection` colour.
+    #[test]
+    fn the_highlight_covers_the_selected_characters_of_each_row() {
+        let ctx = egui::Context::default();
+        let mut count = 0;
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let galley = ui.painter().layout(
+                "Some flowers never get to bloom".into(),
+                egui::FontId::proportional(20.0),
+                egui::Color32::WHITE,
+                130.0,
+            );
+            assert!(galley.rows.len() >= 2, "wraps");
+            let first = galley.rows[0].char_count_including_newline().0;
+            let fill = egui::Color32::from_rgb(0x48, 0x00, 0x3c);
+            let shapes =
+                selection_shapes(&galley, egui::pos2(10.0, 20.0), (2, first + 3), fill, None);
+            let rects: Vec<egui::Rect> = shapes
+                .iter()
+                .filter_map(|s| match s {
+                    egui::Shape::Rect(r) if r.fill == fill => Some(r.rect),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(rects.len(), 2, "{rects:?}");
+            let row0 = &galley.rows[0];
+            let x2 = 10.0 + row0.pos.x + row0.x_offset(egui::epaint::text::CharIndex(2));
+            assert!((rects[0].left() - x2).abs() < 0.5, "{rects:?}");
+            assert!(rects[1].top() >= rects[0].bottom() - 0.5, "{rects:?}");
+            assert!((rects[1].left() - 10.0).abs() < 0.5, "{rects:?}");
+            count = rects.len();
+        });
+        out.textures_delta.clear();
+        assert_eq!(count, 2);
     }
 }

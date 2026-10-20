@@ -1948,7 +1948,7 @@
 							c.pe = true;
 							// ::before / ::after: the stylesheet index keeps
 							// these for the anchors' box layers.
-							if (name === "before" || name === "after") c.peName = name;
+							if (name === "before" || name === "after" || name === "selection") c.peName = name;
 							// A range input's track and thumb, as Chromium and
 							// Firefox name them (HorizontalVolumeSlider's bar).
 							else if (name === "-webkit-slider-runnable-track" || name === "-moz-range-track") c.peName = "track";
@@ -3209,12 +3209,12 @@
 			focused = el;
 		} else if (type === "blur" && focused === el) focused = null;
 		if (type === "mousedown" && !(d.button > 0)) {
-			dragFrom = el;
+			dragFrom = { el, point: textPoint(d) };
 			selection.removeAllRanges();
 		} else if (type === "mouseup" && !(d.button > 0) && dragFrom) {
 			const from = dragFrom;
 			dragFrom = null;
-			selectBetween(from, el, d.dragged === true);
+			selectBetween(from.el, el, d.dragged === true, from.point, textPoint(d));
 		}
 		if (type === "click") clickWith(el, eventFor(type, d));
 		else dispatch(el, eventFor(type, d));
@@ -3395,6 +3395,8 @@
 			const ps = css.pseudo?.get(el);
 			if (ps?.before) o.before = ps.before;
 			if (ps?.after) o.after = ps.after;
+			if (ps?.selection) o.selection = ps.selection;
+			if (css.selectable?.has(el)) o.selectable = true;
 			if (el._pluginRemoved || (!el.isConnected && !el._pluginMoved)) o.style = { ...(o.style ?? {}), display: "none" };
 			const hostCls = (el._hostAttrs.get("class") ?? "").split(/\s+/);
 			const curCls = (el._attrs.get("class") ?? "").split(/\s+/);
@@ -3873,12 +3875,34 @@
 		},
 	};
 	let dragFrom = null;
+	// Where in a host's text the UI measured the pointer (a character
+	// offset, UTF-16 as in the DOM): `{ el, offset }`, or null.
+	const textPoint = (d) => {
+		const p = d?.textPoint;
+		const el = p && typeof p.key === "string" ? hosts.get(p.key) : null;
+		return el && Number.isFinite(p.offset) ? { el, offset: Math.max(0, Math.floor(p.offset)) } : null;
+	};
+	// The text node and offset in it `offset` characters into `el`'s text.
+	const textAt = (el, offset) => {
+		const ts = textNodes(el);
+		for (const t of ts) {
+			if (offset <= t._data.length) return [t, offset];
+			offset -= t._data.length;
+		}
+		const last = ts.at(-1);
+		return last ? [last, last._data.length] : null;
+	};
 	// A press on one element and a release on another select the text from
 	// one to the other, whole elements (the UI draws lyrics as one piece, so
 	// no character positions come with a press): what a drag over text does
 	// in a browser, for elements that allow it (`user-select`).
-	const selectBetween = (a, b, dragged) => {
-		if (a === b && !dragged) return;
+	const selectBetween = (a, b, dragged, pa, pb) => {
+		// The UI measured both ends in characters (lyric lines): the
+		// characters between them, as a browser selects them.
+		if (pa && pb) {
+			a = pa.el;
+			b = pb.el;
+		} else if (a === b && !dragged) return;
 		const allowed = (el) => {
 			try {
 				return String(L.css?.computedStyle(el)?.getPropertyValue("user-select") ?? "").trim() !== "none";
@@ -3887,6 +3911,18 @@
 			}
 		};
 		if (!allowed(a) || !allowed(b)) return;
+		if (pa && pb) {
+			let s = textAt(pa.el, pa.offset);
+			let e = textAt(pb.el, pb.offset);
+			if (!s || !e) return;
+			if (cmpPath(pointPath(...s), pointPath(...e)) > 0) [s, e] = [e, s];
+			const r = new Range();
+			r.setStart(...s);
+			r.setEnd(...e);
+			selection._control = null;
+			selection._ranges = r.collapsed ? [] : [r];
+			return;
+		}
 		if (a !== b && a.compareDocumentPosition(b) & 2) [a, b] = [b, a];
 		const ta = textNodes(a);
 		const tb = textNodes(b);
