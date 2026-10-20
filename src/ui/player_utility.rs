@@ -67,14 +67,15 @@ pub(super) fn volume(
     wheel: bool,
 ) -> VolumeOutcome {
     let palette = super::player_bar::bar_palette(app, ui.ctx());
+    let glyph = super::player_bar::utility_glyph(crate::luna::dom_anchors::keys::MUTE);
     let button = ui
         .add_enabled_ui(adjustable, |ui| {
             theme::player_icon_button(
                 ui,
                 volume_icon(shown),
                 18.0,
-                palette.secondary,
-                palette.text,
+                glyph.unwrap_or(palette.secondary),
+                glyph.unwrap_or(palette.text),
                 &if shown == 0 {
                     gettext(app.locale, "Unmute")
                 } else {
@@ -330,16 +331,17 @@ pub(super) fn sound_output(app: &mut App, ui: &mut egui::Ui) -> egui::Response {
     let open = ui
         .data(|data| data.get_temp::<bool>(open_id))
         .unwrap_or_else(|| demo_popup("sound-output"));
+    let glyph = super::player_bar::utility_glyph("");
     let button = theme::player_icon_button(
         ui,
         Icon::Speaker,
         18.0,
-        if open {
+        glyph.unwrap_or(if open {
             palette.text
         } else {
             palette.secondary
-        },
-        palette.text,
+        }),
+        glyph.unwrap_or(palette.text),
         &gettext(app.locale, "Sound output"),
     );
     let devices = super::settings::DeviceList::current(ui.ctx());

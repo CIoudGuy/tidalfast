@@ -760,10 +760,20 @@
 		for (const m of v.matchAll(/var\((--[\w-]+)\)/g)) {
 			if (m[1].startsWith("--wave-") || registered.has(m[1])) continue;
 			if (/gradient\(\s*$/i.test(v.slice(0, m.index))) continue;
-			return true;
+			return m[1];
 		}
 		return false;
 	};
+	// Variable families TIDAL itself declares below the root (`--market-*`
+	// on its market components, `--frosted-*`, `--player-*`, ...): one a
+	// theme names may well be defined in TIDAL where Tidalfast has no value,
+	// so a declaration naming one is only left out, never made `unset`.
+	const TIDAL_VAR = /^--(market|frosted|player|rounded|desktop|z|floating|os|swiper|spotlight|headliners|onboarding|user)-/;
+	// What an `unset` declaration computes to where Tidalfast has no parent
+	// value: TIDAL's body text (14px, weight 500, 20px lines) for inherited
+	// properties, the initial value for the boxes the app paints.
+	const UNSET_INHERITED = { "font-size": "14px", "font-weight": "500", "line-height": "20px" };
+	const UNSET_INITIAL = { "background-color": "transparent", "background-image": "none", "border-radius": "0px", "box-shadow": "none" };
 	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "margin-left", "margin-right", "column-gap", "padding-top", "padding-left", "padding-right", "padding-bottom", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "outline-offset", "border-color", "letter-spacing", "text-transform", "fill", "white-space", "flex", "order", "pointer-events", "background-position", "background-size", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns"]);
 	const ANIM_LONG = ["animation-name", "animation-duration", "animation-delay", "animation-iteration-count", "animation-direction", "animation-timing-function", "animation-play-state", "animation-fill-mode"];
 	const seconds = (t) => (/ms$/i.test(t) ? parseFloat(t) / 1000 : parseFloat(t));
@@ -924,8 +934,25 @@
 			// `unset` (inherited from the parent or its initial value), as in
 			// a browser. Tidal TUI's `outline: 14px solid var(--tui-main)`
 			// draws nothing in TIDAL when its settings file is not installed.
-			if (undefinedVar(v)) {
-				if (INHERITED.has(name) && parentStyle?.[name] !== undefined) st[name] = parentStyle[name];
+			const missing = undefinedVar(v);
+			if (missing) {
+				// Inherited properties take the parent's value; with none
+				// known, TIDAL's body text (Tidal TUI's `font-size:
+				// var(--font-size)` on every heading and label: 14px in TIDAL).
+				// Others take their initial value: its `[role="menu"] {
+				// background-color: var(--tui-main) }` leaves TIDAL's menus
+				// see-through and `border-radius: var(--border-radius)` its
+				// Play and Shuffle square.
+				if (INHERITED.has(name)) {
+					if (parentStyle?.[name] !== undefined) st[name] = parentStyle[name];
+					else if (!TIDAL_VAR.test(missing) && UNSET_INHERITED[name]) st[name] = UNSET_INHERITED[name];
+				} else if (!TIDAL_VAR.test(missing)) {
+					if (UNSET_INITIAL[name]) st[name] = UNSET_INITIAL[name];
+					else if (name === "background") {
+						st["background-color"] = "transparent";
+						st["background-image"] = "none";
+					}
+				}
 				continue;
 			}
 			if (name === "background-color" && /^(initial|unset)$/i.test(v.trim())) set(name, "transparent");

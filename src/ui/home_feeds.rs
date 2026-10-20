@@ -137,7 +137,11 @@ fn heading(
     if shelf.info {
         let width = ui
             .painter()
-            .layout_no_wrap(shelf.title.clone(), theme::bold(19.0), palette.text)
+            .layout_no_wrap(
+                shelf.title.clone(),
+                super::plugin_dom::subheadline_font(19.0),
+                palette.text,
+            )
             .size()
             .x;
         let rect = Rect::from_center_size(pos2(left + width + 14.0, top + 13.0), Vec2::splat(16.0));

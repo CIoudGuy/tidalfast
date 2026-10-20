@@ -60,7 +60,7 @@ pub fn review_block(
     theme::text(
         ui,
         gettext(locale, "Review"),
-        theme::bold(19.0),
+        super::plugin_dom::subheadline_font(19.0),
         palette.text,
     );
     ui.add_space(12.0);

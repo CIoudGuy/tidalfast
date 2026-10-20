@@ -667,7 +667,11 @@ pub(crate) fn menu_row_tinted(
     let label = label.as_ref();
     let need = ui
         .painter()
-        .layout_no_wrap(label.to_string(), theme::semibold(12.0), palette.text)
+        .layout_no_wrap(
+            label.to_string(),
+            super::plugin_dom::menu_text_font(),
+            palette.text,
+        )
         .size()
         .x
         + 24.0;
@@ -709,7 +713,7 @@ pub(crate) fn menu_row_tinted(
         let galley = crate::bidi::layout(
             ui.painter(),
             label,
-            theme::semibold(12.0),
+            super::plugin_dom::menu_text_font(),
             color,
             (rect.right() - 12.0 - x).max(0.0),
             1,
@@ -963,7 +967,7 @@ pub const MENU_INSET: i8 = 4;
 /// TIDAL's context menu: #2d2d2d, radius 12, 4 inside, a 0 4 20 black
 /// 30 % shadow, no border (the light theme keeps its own surface).
 pub fn menu_frame(palette: &Palette) -> egui::Frame {
-    egui::Frame::new()
+    let frame = egui::Frame::new()
         .fill(palette.menu_bg())
         .stroke(palette.menu_border())
         .corner_radius(CornerRadius::same(12))
@@ -973,7 +977,26 @@ pub fn menu_frame(palette: &Palette) -> egui::Frame {
             blur: 20,
             spread: 0,
             color: Color32::from_black_alpha(77),
-        })
+        });
+    // A theme's box for TIDAL's menus: see-through, without the shadow,
+    // its corners (Tidal TUI's rows floating over the page).
+    match super::plugin_dom::menu_look() {
+        Some(look) => themed_menu_frame(frame, look),
+        None => frame,
+    }
+}
+
+fn themed_menu_frame(mut frame: egui::Frame, look: super::plugin_dom::MenuLook) -> egui::Frame {
+    if look.clear {
+        frame = frame.fill(Color32::TRANSPARENT).stroke(egui::Stroke::NONE);
+    }
+    if !look.shadow {
+        frame = frame.shadow(egui::epaint::Shadow::NONE);
+    }
+    if let Some(r) = look.radius {
+        frame = frame.corner_radius(CornerRadius::same(r.clamp(0.0, 24.0).round() as u8));
+    }
+    frame
 }
 
 /// A menu's narrowest content width (TIDAL: 200 less its 4 inside).
@@ -4030,7 +4053,7 @@ fn section_header_parts(
         pos2(rect.left(), rect.center().y),
         egui::Align2::LEFT_CENTER,
         title,
-        theme::bold(19.0),
+        super::plugin_dom::subheadline_font(19.0),
         palette.text,
     );
     let mut pressed = 0;

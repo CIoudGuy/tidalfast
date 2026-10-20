@@ -252,7 +252,12 @@ fn data_page(app: &mut App, ui: &mut egui::Ui, path: &str, shelves: &[Shelf], ti
         }
         // The page's own name is already the heading.
         if !shelf.title.is_empty() && shelf.title != title {
-            theme::text(ui, &shelf.title, theme::bold(19.0), palette.text);
+            theme::text(
+                ui,
+                &shelf.title,
+                super::plugin_dom::subheadline_font(19.0),
+                palette.text,
+            );
             ui.add_space(16.0);
         }
         let songs = shelf
