@@ -3318,9 +3318,25 @@
 			const k = buildVNode(c, comp, anchor);
 			if (k) kids.push(k);
 		}
+		// Its own `::before` and `::after` boxes, as its first and last child
+		// (ids of their own, kept with the element; events go to it).
+		const boxes = curBoxes?.get(n);
+		if (boxes) {
+			n._pv ??= { before: vidSeq++, after: vidSeq++, beforeText: vidSeq++, afterText: vidSeq++ };
+			for (const kind of ["before", "after"]) {
+				const b = boxes[kind];
+				if (!b) continue;
+				vnodes.set(n._pv[kind], n);
+				const p = { id: n._pv[kind], tag: `::${kind}`, style: b.style };
+				if (b.text) p.children = [{ id: n._pv[`${kind}Text`], tag: "#text", text: b.text }];
+				if (kind === "before") kids.unshift(p);
+				else kids.push(p);
+			}
+		}
 		if (kids.length) v.children = kids;
 		return v;
 	};
+	let curBoxes = null;
 	const vidOf = (n) => {
 		n._vid ??= vidSeq++;
 		vnodes.set(n._vid, n);
@@ -3339,6 +3355,7 @@
 		const css = L.css ? L.css.compute() : { styles: new Map(), vars: {}, page: {}, fonts: [], bytes: 0 };
 		if (L.stat) L.stat("overlay css", t0);
 		const comp = css.styles;
+		curBoxes = css.boxes ?? null;
 		const hostsOut = {};
 		const injected = [];
 		const push = (anchor, position, node) => {

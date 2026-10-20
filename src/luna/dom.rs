@@ -148,6 +148,9 @@ pub struct Style {
     /// One colour for every side, or four (top right bottom left) when a
     /// side has its own (`border-top-color`: a spinner's bright arc).
     pub border_color: Option<String>,
+    /// Four widths (top right bottom left), only when a side's own width
+    /// differs from the others (`border-bottom: 0`: a CSS triangle).
+    pub border_width: Option<String>,
     pub letter_spacing: Option<String>,
     pub text_transform: Option<String>,
     /// SVG paint (`fill`), inherited: TIDAL's sprite icons take it

@@ -2137,6 +2137,76 @@ R.ready = true;
     finish(luna, dir);
 }
 
+/// lyrics-everywhere's CatJam bubble: its tail is two CSS triangles, the
+/// element's own `::before` and `::after` (a `content` of `""`, no size, a
+/// 10 px transparent border with a coloured top and no bottom). They come
+/// out as the element's first and last child with their style, the four
+/// border widths included; a pseudo-element with `content: none` or
+/// `display: none` (the plugin's other mode) is not there at all.
+#[test]
+fn a_plugin_elements_pseudo_boxes_are_its_first_and_last_children() {
+    let (luna, _host, dir) = start(
+        r##"
+const st = document.createElement("style");
+st.textContent = `
+#bubble { position: fixed; bottom: 100px; left: 20px; border: 3px solid #111; }
+#bubble::after { content: ""; position: absolute; bottom: -10px; left: 20px; width: 0; height: 0;
+  border: 10px solid transparent; border-top-color: #111; border-bottom: 0; }
+#bubble::before { content: "\\"q\\""; position: absolute; color: #fff; }
+#plain::before, #plain::after { display: none; content: none; }
+#plain::after { color: red; }
+`;
+document.head.appendChild(st);
+const b = document.createElement("div");
+b.id = "bubble";
+b.textContent = "line";
+document.body.appendChild(b);
+const p = document.createElement("div");
+p.id = "plain";
+p.textContent = "pill";
+document.body.appendChild(p);
+R.ready = true;
+"##,
+    );
+    luna.sync_dom(tree());
+    results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
+    let o = overlay_until(&luna, 10, |o| {
+        o.injected
+            .iter()
+            .flat_map(|i| &i.nodes)
+            .any(|n| n.children.len() == 3)
+    });
+    let nodes: Vec<&super::dom::VNode> = o.injected.iter().flat_map(|i| &i.nodes).collect();
+    let by_id = |id: &str| {
+        *nodes
+            .iter()
+            .find(|n| n.attrs.iter().any(|(k, v)| k == "id" && v == id))
+            .unwrap_or_else(|| panic!("no #{id}"))
+    };
+    let bubble = by_id("bubble");
+    let tags: Vec<&str> = bubble.children.iter().map(|c| c.tag.as_str()).collect();
+    assert_eq!(tags, ["::before", "#text", "::after"], "{bubble:?}");
+    assert_eq!(
+        bubble.children[0]
+            .children
+            .first()
+            .and_then(|t| t.text.as_deref()),
+        Some("\"q\"")
+    );
+    let after = &bubble.children[2].style;
+    assert_eq!(after.position.as_deref(), Some("absolute"));
+    assert_eq!(after.bottom.as_deref(), Some("-10px"));
+    assert_eq!(after.border_width.as_deref(), Some("10px 10px 0px 10px"));
+    assert_eq!(
+        after.border_color.as_deref(),
+        Some("#111 transparent transparent transparent")
+    );
+    assert!(bubble.style.border_width.is_none(), "one width all round");
+    let plain = by_id("plain");
+    assert_eq!(plain.children.len(), 1, "{plain:?}");
+    finish(luna, dir);
+}
+
 /// copy-lyrics' drag, as a browser selects it: the UI says where in the
 /// lines' text the press and the release were (`textPoint`, UTF-16
 /// offsets), and the selection holds exactly the characters between them,
