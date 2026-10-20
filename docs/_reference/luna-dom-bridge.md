@@ -221,13 +221,13 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | `footer-track-title` > `footer-track-link` | `div[data-test=footer-track-title] > a[href="/track/<id>"]` | title; text override, colour, hidden | Append (right of the title), After (artist line) |
 | `artist-row` > `footer-artist-name` > `footer-artist-name:<i>` | `span[data-test=footer-artist-name] > a[href="/artist/<id>"]` | artists; hidden | Append, After (artist line) |
 | `quality` > `quality-badge` > `quality-badge-text` > `quality-badge-text:span`, `quality-badge-gradient`, `quality-badge-glow` | `div._qualityBadgeContainer_ > a[data-test=quality-badge-max\|high\|low][data-test-media-state-indicator-streaming-quality]` with exactly TIDAL's class list (`_badge_7b2911e _max_894bc7c`, `_badge_7b2911e _high_4b5525b`, `_badge_7b2911e` alone for the lowest tier) `> span._badgeText_1c9dd30 > span` (the label), then `div._gradientMax_9111fba` (`_gradientHigh_`, `_gradientLow_`) and `div._glowEffect_74c5e85` | quality pill; label text override (Tidal Tags), colour from any of them; a theme's fill on the badge and on its gradient layer, and the gradient's (else the badge's) corner radius, replace TIDAL's layers | Prepend, Append |
-| `track-actions` > `favorite` | `div._actions_ > button[data-test=footer-favorite-button]` | heart; hidden | `favorite` Before; `track-actions` Append past the "..." button (star-ratings) |
+| `track-actions` > `favorite` > `favorite:icon` > `favorite:icon:use`, `track-more` | inside `div._trackContent_`: `div._actions_ > button[data-test=footer-favorite-button]._favoriteButton_499c518._button_c372e89` (`._favorite_e54272d` liked, else `._gray_c82f8e6`) `> svg._icon_77f3f89 > use`, then `button._contextMenuButton_9741d3a` (the "...") | heart and "..."; hidden; the heart's sprite fill and the "..."'s colour from a theme | `favorite` Before; `track-actions` Append past the "..." button (star-ratings) |
 | `player-controls` > `shuffle`, `previous`, `play-pause-wrap` > `play-pause`, `next`, `repeat` | `button[data-test=shuffle\|previous\|play\|pause\|next\|repeat]`; the play/pause button sits in `div._playButtonWrapper_`, its `parentElement` | transport; `button.click()` on previous, play/pause and next is a click; the wrapper's Append elements are drawn over the button | `play-pause-wrap` Append (AltPlay's round element, `inset: 0`) |
-| `progress` > `current-time-wrap` > `current-time`, `progress-bar` (`#progressBar[data-test=progress-bar]`) > `progress-range`, `progress-knob`, `duration-wrap` > `duration` | progress row | seek bar and times | |
+| `progress` > `current-time-wrap` > `current-time`, `progress-bar` (`#progressBar[data-test=progress-bar]`) > `progress-range`, `progress-knob`, `duration-wrap` > `duration` | progress row; the times are `p._scrubberTime_ > time._scrubberTimeText_` | seek bar and times; the times' colour from a theme | |
 | `utility-container` | `div._utilityContainer_` | right cluster | Prepend, Append |
-| `utility-buttons` | `div._utilityButtons_` | right cluster; a theme's card behind the buttons, as for `track-content` (the quality pill stays outside it) | Prepend, Append |
+| `utility-buttons` | `div._utilityButtons_` | right cluster; a theme's card behind the buttons, as for `track-content` (the quality pill stays outside it); a theme's colour for its buttons colours the queue and sound output buttons too, which sit in it in TIDAL 2.43.2 | Prepend, Append |
 | `toggle-lyrics` | `button[data-test=toggle-lyrics][aria-pressed]` | lyrics button; hidden; clicks forwarded | Before, After |
-| `slider-container` > `mute`, `volume-range` | `div._sliderContainer_ > button + input[type=range]._nativeRange_7e12413` (value 0-100) | volume; wheel goes to plugins when they listen (VolumeScroll) and the native wheel step is off; `_nativeRange_` hidden hides the native slider (HorizontalVolumeSlider) | Before (OneClickLyrics, MusicVideoButton), After (HorizontalVolumeSlider, between the speaker and the mini player button) |
+| `slider-container` > `mute`, `volume-range` | `div._sliderContainer_ > button[data-test=volume] + input[type=range]._nativeRange_7e12413` (value 0-100) | volume; wheel goes to plugins when they listen (VolumeScroll) and the native wheel step is off; `_nativeRange_` hidden hides the native slider (HorizontalVolumeSlider) | Before (OneClickLyrics, MusicVideoButton), After (HorizontalVolumeSlider, between the speaker and the mini player button) |
 | `mini-player-button` | `button._miniPlayerButton_` after the slider container, TIDAL's last utility button | compact mode button | |
 | `more-container` > `queue-button`, `fullscreen-button` | `div._moreContainer_f6162c8 > button[data-test=play-queue-button]`, `button[data-test=request-fullscreen]` | queue button | Prepend (total-play-time), Append |
 
@@ -582,8 +582,12 @@ accent; `-solid-warning-fill` -> danger; `-rainbow-yellow-fill` -> warning;
 and widgets. Themes that colour elements instead of tokens reach the same
 roles through stand-ins every TIDAL page has (`theme-roles` under
 `main-content`, never drawn): `[data-wave-color=textDefault]` and
-`textSecondary` spans give text and secondary text, `div._contextMenu_`'s
-background gives menus. A themed palette (`Palette::themed`) drops TIDAL
+`textSecondary` spans give text and secondary text, `div._contextMenu_[role=menu]`'s
+background gives menus (see-through when a theme leaves it, its `::before`
+and its popover without a fill), `span._actionTextInner_` in it the menu
+rows' size and weight, `span.wave-text-headline-bold` the page titles' size,
+weight and letter spacing and `span.wave-text-subheadline-bold` the section
+titles'. A themed palette (`Palette::themed`) drops TIDAL
 Dark's fixed shades (menu grey, chips, hairlines, the player bar's #1e1e1e,
 artist and time greys) for ones made from its colours. Text, secondary and
 dim text and the accent keep a minimum contrast with the themed window (3,
@@ -627,7 +631,8 @@ Play and Shuffle pills are TIDAL 2.43.2's market buttons
 each with a `span._label_1d16h_1`, inside `div[data-test=header-controls]`;
 album, playlist, mix, radio and artist headers): a
 theme's `background-color` there (or, when that is see-through, the mean
-colour of the gradient that paints the pill), its label colour and its
+colour of the gradient that paints the pill), its label colour, size and
+weight, its icon's fill (`svg._icon_77f3f89 > use` in the button) and its
 border and corner radius replace the native white and grey pills; with no theme they are
 drawn as before. Fonts plugins declare (`@font-face` with a `data:` URL; never a local or
 network path, since opening a UNC path makes Windows sign in to that server,
