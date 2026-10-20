@@ -174,6 +174,7 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 |---|---|---|---|
 | `shell` | `#wimp > div.has-footer-player.is-desktop-app` (+ `is-fullscreen`, `is-now-playing`; exactly TIDAL's class list, which themes match with `[class="has-footer-player is-desktop-app"]`) | the window | |
 | `bar` | `div._bar_` | title bar (`titlebar.rs`); hidden by `display:none` (NativeFullscreen) | Append |
+| `bar-title` | `div._title_a453dad` (the app's name, TIDAL's window title) | the name in the title bar; text override and colour drawn, what plugins append runs on from it (custom-fonts' "TIDALuna" and Comic Sans tag) | Append |
 | `main-container` | `div._mainContainer_.enable-scrollbar-styles` | everything above the player bar | |
 | `container-row` | `div._containerRow_` | same | |
 | `sidebar` | `div._sidebarWrapper_[data-test=main-layout-sidebar-wrapper][style="width: 240px;"]` (TIDAL's inline width: always 240 expanded, whatever width the user dragged Tidalfast's sidebar to; the icon rail carries its own, `72px`; the real width is `--sidebarWidth` on `container-row`, with `--collapsedSidebarWidth`) | sidebar panel; background restyled; a theme's `top` and `border-radius` float it as a card, a negative `left` slides it out to the left with its contents faded as the theme says, back in under the pointer through its `:hover` rule (Lunallena; see Theme) | |
@@ -352,8 +353,8 @@ oneko), and right-clicks as `contextmenu` (element-hider).
   playlist heroes (Append/After); `div._dataContainer_` with `_metaLine_ >
   span[data-test=meta-release-date]`; `input[data-test=playlist-filter-input]`
   with the native filter text. On the Plugins page (TidaLuna's settings
-  page) the `h1` also has Luna's `_title_a453dad` class; its text override
-  and colour are drawn and what plugins append follows it (custom-fonts).
+  page) the `h1` text override and colour are drawn and what plugins append
+  follows it; `._title_a453dad` is the title bar's name (`bar-title`), as in TIDAL.
 - Now playing: `button[data-test=new-now-playing-close]` in the header
   (header Prepend/Append), `[data-test=artist-info]` (Append),
   `div._footer_` (Append), `div._fullscreen_` while fullscreen (Append),
@@ -581,3 +582,34 @@ document (`""`) when it has listeners: NativeFullscreen's F11,
 PlayerKeyScroller's Shift+arrows, Deleter's Delete. Clicks on the cover,
 the bar, the lyrics button, lyric lines and menu rows, and hover on track
 rows, go to their host keys when listened.
+
+### Layout details (round 20)
+
+- Boxes are `border-box`, as TIDAL's CSS sizes them: a `width`/`height`
+  includes padding and border (OneClickLyrics' 32-point button).
+- A slot run is as tall as what it held last frame and centred on its row;
+  in a right-to-left run each element's box is placed on the row's centre.
+  A flex row without a height centres on what it held last frame.
+- `box-shadow` (first outer layer), `linear-gradient()` fills (angled or
+  plain ramps, inside the corners), `margin-*`/`padding-*` longhands (a
+  shorthand written later resets them) are drawn for plugin elements.
+- An element's `font-family` list resolves to the first family a plugin
+  loaded or the computer has (`system-ui` is Segoe UI on Windows), loaded
+  off the UI thread and used from the next frame; text inside inherits it,
+  at its weight (`"<name>#Bold"`).
+- The built-in TIDAL sheet gives a button among the player bar's utility
+  buttons TIDAL's look: transparent, 32 by 32, its SVG 16 by 16.
+- Plugin nodes after `toggle-lyrics` (before the speaker) are drawn between
+  the sound output and the speaker.
+- `overlay.clicks` lists the last host clicks with sequence numbers, so two
+  in one turn both arrive; `#footerPlayer.click()` toggles now playing and
+  the Lyrics toggle's click opens or leaves the Lyrics tab. A disabled
+  button, input, select or text area takes no clicks.
+- A host listed in the overlay only for its listeners (a plugin listening on
+  `window`) keeps its native look.
+- Text a plugin writes straight into a host element is that element's text,
+  not also an injected node.
+- The top bar keeps its height; what plugins put after the navigation arrows
+  goes beside the search field unless an element's own auto margin keeps it
+  at the arrows (TIDAL's arrows have `margin-right: auto`). The sidebar's
+  fixed navigation lays plugin elements 16 points in.
