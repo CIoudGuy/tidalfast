@@ -7524,6 +7524,75 @@ mod tests {
         text
     }
 
+    /// With plugins on, a pass builds the anchor tree only when what it
+    /// shows changed. The player bar noted the song's position to the
+    /// millisecond, so every pass (each frame of CatJam's cat or the
+    /// now-playing background) built a tree of a few hundred anchors only to
+    /// find it the same as the one sent, which shows whole seconds.
+    #[cfg(feature = "demo")]
+    #[test]
+    fn passes_within_a_second_build_no_anchor_tree() {
+        let root = crate::paths::unique_test_dir("anchor-builds");
+        let ctx = egui::Context::default();
+        let waker = crate::backend::Waker::default();
+        waker.attach(&ctx);
+        let mut app = App::new(
+            &waker,
+            AppDirs {
+                config: root.join("config"),
+                state: root.join("state"),
+                cache: root.join("cache"),
+            },
+            Settings::default(),
+            AppOptions {
+                media_controls: false,
+                restore_sign_in: false,
+                tray: false,
+            },
+        );
+        app.attach(&ctx);
+        app.motion.force(true);
+        crate::motion::apply(&ctx, true);
+        populate(&mut app);
+        app.reveal_theme_changes = false;
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        // Paused, so the position is what the test sets.
+        app.local.playback = crate::player::Playback::Paused;
+        crate::ui::plugin_dom::test_overlay(Some(crate::luna::dom::DomOverlay {
+            version: 1,
+            ..Default::default()
+        }));
+        let pass = |app: &mut App, position_ms: u32| {
+            app.local.position_ms = position_ms;
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1240.0, 800.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| {
+                    app.refresh_frame_now();
+                    crate::ui::show(app, ui);
+                    crate::ui::plugin_dom::end_frame(ui.ctx());
+                    app.clear_frame_now();
+                },
+            );
+            output.textures_delta.clear();
+            crate::ui::plugin_dom::test_tree_builds()
+        };
+        for _ in 0..6 {
+            pass(&mut app, 61_000);
+        }
+        let settled = pass(&mut app, 61_200);
+        assert_eq!(pass(&mut app, 61_700), settled, "the same second");
+        assert!(pass(&mut app, 62_100) > settled, "the next second shows");
+        crate::ui::plugin_dom::test_overlay(None);
+        app.backend.shutdown();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
     /// Allocations this thread makes drawing `view` once, after it settled.
     #[cfg(feature = "demo")]
     fn view_allocations(page: &str, view: fn(&mut App, &mut egui::Ui)) -> u64 {
