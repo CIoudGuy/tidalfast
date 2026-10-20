@@ -4848,8 +4848,9 @@ pub fn search_pill(ctx: &egui::Context, id: egui::Id) -> Option<Rect> {
     ctx.data(|data| data.get_temp(search_pill_id(id)))
 }
 
-/// A toggle drawn as TIDAL's switch: 42 x 26, a light track with a dark
-/// knob when on, a grey track with a white knob when off.
+/// A toggle drawn as TIDAL desktop's switch: 42 x 26 with an 18-point knob
+/// in the page's colour (black in Dark), on a light track when on and a
+/// #313038 one when off.
 pub fn switch(ui: &mut Ui, palette: &Palette, label: &str, on: &mut bool) -> egui::Response {
     let size = vec2(42.0, 26.0);
     let (rect, mut response) = ui.allocate_exact_size(size, Sense::click());
@@ -4864,23 +4865,21 @@ pub fn switch(ui: &mut Ui, palette: &Palette, label: &str, on: &mut bool) -> egu
         } else {
             palette.text
         };
-        let fill = egui::lerp(
-            egui::Rgba::from(palette.surface_active)..=egui::Rgba::from(on_fill),
-            t,
-        );
+        let off_fill = if palette.tidal_dark() {
+            Color32::from_rgb(49, 48, 56)
+        } else {
+            palette.surface_active
+        };
+        let fill = egui::lerp(egui::Rgba::from(off_fill)..=egui::Rgba::from(on_fill), t);
         let fill = if ui.is_enabled() {
             Color32::from(fill)
         } else {
             Color32::from(fill).gamma_multiply(0.4)
         };
         ui.painter().rect_filled(rect, rect.height() / 2.0, fill);
-        let knob = egui::lerp(
-            egui::Rgba::from(Color32::WHITE)..=egui::Rgba::from(palette.window),
-            t,
-        );
-        let knob_x = egui::lerp(rect.left() + 13.0..=rect.right() - 13.0, t);
+        let knob_x = egui::lerp(rect.left() + 12.0..=rect.right() - 13.0, t);
         ui.painter()
-            .circle_filled(pos2(knob_x, rect.center().y), 10.0, Color32::from(knob));
+            .circle_filled(pos2(knob_x, rect.center().y), 9.0, palette.window);
     }
     response.widget_info(|| {
         egui::WidgetInfo::selected(egui::WidgetType::Checkbox, ui.is_enabled(), *on, label)
@@ -4979,7 +4978,8 @@ pub fn setting_row_separator(ui: &mut Ui, palette: &Palette) {
     if index > 0 {
         ui.add_space(SETTING_ROW_PADDING);
         let y = ui.cursor().top();
-        let rect = ui.max_rect().expand2(vec2(SETTING_CARD_MARGIN_X, 0.0));
+        // TIDAL's line stops where the rows' text does, inside the card.
+        let rect = ui.max_rect();
         ui.painter().hline(
             rect.x_range(),
             y,
@@ -4996,8 +4996,65 @@ pub fn start_setting_card(ui: &mut Ui) {
     ui.data_mut(|data| data.insert_temp(count_id, (pass, 0u32)));
 }
 
-/// A settings card's padding beside its rows.
-pub const SETTING_CARD_MARGIN_X: f32 = 20.0;
+/// TIDAL desktop's settings dropdown: a 32-point #18181a box with
+/// 8-point corners and no border. Applies to the combo boxes drawn after it
+/// in `ui`; pair it with [`combo_chevron`].
+pub fn tidal_combo_style(ui: &mut Ui, palette: &Palette) {
+    let fill = if palette.tidal_dark() {
+        Color32::from_rgb(24, 24, 26)
+    } else {
+        palette.surface
+    };
+    let hover = if palette.tidal_dark() {
+        Color32::from_rgb(36, 36, 39)
+    } else {
+        palette.surface_active
+    };
+    let style = ui.style_mut();
+    style.spacing.interact_size.y = 32.0;
+    style.spacing.button_padding = vec2(12.0, 7.0);
+    let widgets = &mut style.visuals.widgets;
+    for (look, fill) in [
+        (&mut widgets.inactive, fill),
+        (&mut widgets.hovered, hover),
+        (&mut widgets.active, hover),
+        (&mut widgets.open, hover),
+    ] {
+        look.weak_bg_fill = fill;
+        look.bg_stroke = Stroke::NONE;
+        look.corner_radius = CornerRadius::same(8);
+        look.expansion = 0.0;
+    }
+}
+
+/// TIDAL's chevron at the right of a dropdown, pointing up while it is
+/// open (egui's `ComboBox::icon`).
+pub fn combo_chevron(ui: &Ui, rect: Rect, visuals: &egui::style::WidgetVisuals, open: bool) {
+    let icon = if open {
+        Icon::ChevronUp
+    } else {
+        Icon::ChevronDown
+    };
+    theme::paint_icon(
+        ui,
+        icon,
+        Rect::from_center_size(rect.center(), Vec2::splat(14.0)),
+        14.0,
+        visuals.fg_stroke.color,
+    );
+}
+
+/// A settings card's fill: TIDAL desktop's #0e0e10 under its rows.
+pub fn setting_card_fill(palette: &Palette) -> Color32 {
+    if palette.tidal_dark() {
+        Color32::from_rgb(14, 14, 16)
+    } else {
+        Color32::TRANSPARENT
+    }
+}
+
+/// A settings card's padding beside its rows (TIDAL desktop's 16).
+pub const SETTING_CARD_MARGIN_X: f32 = 16.0;
 /// The space above and below each settings row inside its card.
 pub const SETTING_ROW_PADDING: f32 = 16.0;
 
