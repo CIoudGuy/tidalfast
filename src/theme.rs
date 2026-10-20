@@ -594,6 +594,7 @@ fastframe_icons::icons! {
         Ban => "ban",
         BadgeCheck => "badge-check",
         Bell => "bell",
+        Collection => "collection",
         Bookmark => "bookmark",
         BookmarkFilled => "bookmark-filled",
         Calendar => "calendar",
