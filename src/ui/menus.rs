@@ -779,8 +779,19 @@ fn track_download(ui: &mut Ui, app: &mut App, uri: &str) {
 }
 
 /// Luna plugins' entries for this item, last as TidaLuna adds them (No
-/// Remix's "treat as a remix", a downloader's "Download N tracks").
+/// Remix's "treat as a remix", a downloader's "Download N tracks"), then
+/// the elements plugins appended to the menu's DOM (element-hider's divider
+/// and buttons), which TIDAL shows under every context menu.
 fn plugin_entries(ui: &mut Ui, app: &mut App, target: Option<ContextTarget>) {
+    luna_entries(ui, app, target);
+    super::plugin_slots::column(
+        ui,
+        crate::luna::dom_anchors::keys::CONTEXT_MENU,
+        crate::luna::dom::Position::Append,
+    );
+}
+
+fn luna_entries(ui: &mut Ui, app: &mut App, target: Option<ContextTarget>) {
     let palette = app.palette;
     let (Some(target), Some(luna)) = (target, app.plugins.luna.as_ref()) else {
         return;

@@ -90,6 +90,8 @@ struct State {
     /// The next `font_names` and `element_fonts`, taken at the next frame,
     /// when egui has the families.
     fonts_next: Option<(Vec<String>, HashMap<String, String>)>,
+    /// Outlines plugins set on host elements, for this overlay version.
+    outlines: Option<(u64, Vec<HostOutline>)>,
     /// `overlay.scroll_top` not applied yet: (container key, top).
     scroll_top_seq: u64,
     scroll_top_pending: Option<(String, f32)>,
@@ -417,6 +419,7 @@ pub fn end_frame(ctx: &egui::Context) {
         s.hovered = std::mem::take(&mut s.hovered_now);
         let floats = std::mem::take(&mut s.floats_now);
         pointer_events(ctx, s, &floats);
+        paint_host_outlines(ctx, s);
         s.modal_open = s.frame.modal.is_some();
         s.next_playlist = None;
         let frame = std::mem::take(&mut s.frame);
@@ -501,6 +504,107 @@ fn float_under(
         }) && inside(&parents, &n.key, float)
     });
     Some(deepest.map_or_else(|| float.clone(), |n| n.key.clone()))
+}
+
+/// An outline plugins put on an app element: its ring and glow.
+#[derive(Clone, Debug, PartialEq)]
+struct HostOutline {
+    key: String,
+    width: f32,
+    color: egui::Color32,
+    offset: f32,
+    glow: Option<egui::epaint::Shadow>,
+}
+
+/// The outlines plugin CSS sets on the app's elements, for this overlay.
+fn host_outlines(
+    o: &DomOverlay,
+    vars: &BTreeMap<String, String>,
+    viewport: [f32; 2],
+) -> Vec<HostOutline> {
+    o.hosts
+        .iter()
+        .filter(|(_, h)| !h.style.hidden())
+        .filter_map(|(key, h)| {
+            let value = css::resolve_vars(h.style.outline.as_deref()?, vars);
+            let (width, color) = css::border(&value).filter(|(w, c)| *w > 0.0 && c.a() > 0)?;
+            let offset = h
+                .style
+                .outline_offset
+                .as_deref()
+                .and_then(|v| css::length(&css::resolve_vars(v, vars), 16.0, 0.0, viewport))
+                .unwrap_or(0.0);
+            let glow = super::theme_layout::shadow(h.style.box_shadow.as_deref(), vars, viewport);
+            Some(HostOutline {
+                key: key.clone(),
+                width,
+                color,
+                offset,
+                glow,
+            })
+        })
+        .collect()
+}
+
+/// Outlines plugins set on the app's elements, drawn over the page round
+/// the element's box: element-hider rings the element "Hide This Element"
+/// would hide in red (`outline: 2px solid #ff6b6b; outline-offset: 2px`)
+/// with a red glow (`box-shadow: 0 0 10px`), as TIDAL draws it. Read once
+/// per overlay; nothing is drawn while no rule sets one.
+fn paint_host_outlines(ctx: &egui::Context, s: &mut State) {
+    let version = s.overlay.version;
+    if s.outlines.as_ref().map(|(v, _)| *v) != Some(version) {
+        let list = host_outlines(&s.overlay, &s.vars, s.frame.viewport);
+        s.outlines = Some((version, list));
+    }
+    let Some((_, outlines)) = s.outlines.as_ref() else {
+        return;
+    };
+    if outlines.is_empty() {
+        return;
+    }
+    let Some(tree) = s.sent.as_ref() else {
+        return;
+    };
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Middle,
+        egui::Id::new("luna-host-outlines"),
+    ));
+    for o in outlines {
+        let Some([x, y, w, h]) = tree
+            .nodes
+            .iter()
+            .find(|n| n.key == o.key)
+            .and_then(|n| n.rect)
+        else {
+            continue;
+        };
+        let rect = Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h));
+        if let Some(glow) = o.glow {
+            // A glow outside the box only, fading over its blur.
+            let reach = f32::from(glow.blur) / 2.0 + f32::from(glow.spread);
+            let steps = reach.ceil().max(1.0) as usize;
+            let at = rect.translate(egui::vec2(
+                f32::from(glow.offset[0]),
+                f32::from(glow.offset[1]),
+            ));
+            for i in 0..steps {
+                let fade = 1.0 - i as f32 / steps as f32;
+                painter.rect_stroke(
+                    at.expand(i as f32 + 0.5),
+                    0.0,
+                    egui::Stroke::new(1.0, glow.color.gamma_multiply(fade * fade)),
+                    egui::StrokeKind::Middle,
+                );
+            }
+        }
+        painter.rect_stroke(
+            rect.expand(o.offset + o.width / 2.0),
+            0.0,
+            egui::Stroke::new(o.width, o.color),
+            egui::StrokeKind::Middle,
+        );
+    }
 }
 
 /// An anchor drawn over the page this frame, showing `r` (a theme's header
@@ -2617,9 +2721,14 @@ pub fn listens(key: &str, kind: &str) -> bool {
 /// family if a plugin loaded that. `None` draws in the app's face.
 pub fn element_font_id(value: &str) -> Option<u32> {
     with(|s| {
+        // Not picked yet (the families were bound before this value was
+        // seen): the first of its list that is loaded, a generic family
+        // (`monospace`) being its system face.
         let name = match s.element_fonts.get(value.trim()) {
             Some(name) => name.clone(),
-            None => css::first_family(value)?,
+            None => pick_family(&css::family_list(value), &mut |name| {
+                s.font_names.iter().any(|n| n == name)
+            })?,
         };
         s.font_names
             .iter()
@@ -2638,9 +2747,14 @@ pub fn font_by_id(id: u32, weight: u16) -> Option<egui::FontFamily> {
         _ => fastframe_fonts::Weight::Regular,
     };
     with(|s| {
-        s.font_names
-            .get(id as usize)
-            .map(|name| egui::FontFamily::Name(crate::theme::weighted_family(name, weight).into()))
+        s.font_names.get(id as usize).map(|name| {
+            // The regular face is the family's own name (the same faces).
+            if matches!(weight, fastframe_fonts::Weight::Regular) {
+                egui::FontFamily::Name(name.as_str().into())
+            } else {
+                egui::FontFamily::Name(crate::theme::weighted_family(name, weight).into())
+            }
+        })
     })
 }
 
@@ -4607,6 +4721,15 @@ pub(crate) fn font_parses(bytes: &[u8], index: u32) -> bool {
 #[cfg(test)]
 pub(crate) fn test_viewport(viewport: [f32; 2]) {
     with(|s| s.frame.viewport = viewport);
+}
+
+/// Families as if they had been loaded and bound (after [`test_overlay`]).
+#[cfg(test)]
+pub(crate) fn test_font_families(names: &[&str]) {
+    with(|s| {
+        s.font_names = names.iter().map(|n| (*n).to_string()).collect();
+        s.element_fonts.clear();
+    });
 }
 
 #[cfg(test)]

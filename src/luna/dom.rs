@@ -142,6 +142,9 @@ pub struct Style {
     pub line_height: Option<String>,
     pub overflow: Option<String>,
     pub outline: Option<String>,
+    /// How far out of the border box the outline is drawn (element-hider's
+    /// `2px` ring round the element it would hide).
+    pub outline_offset: Option<String>,
     /// One colour for every side, or four (top right bottom left) when a
     /// side has its own (`border-top-color`: a spinner's bright arc).
     pub border_color: Option<String>,
