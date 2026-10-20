@@ -4281,6 +4281,8 @@ mod tests {
                     external_urls: Default::default(),
                     audio_analysis: None,
                     upload: false,
+                    audio_quality: None,
+                    quality_tags: Vec::new(),
                 };
                 (
                     PlayableItem::Track(track),

@@ -349,6 +349,14 @@ pub struct Track {
     /// A TIDAL Upload (`upload`): the row shows the upload badge.
     #[serde(default)]
     pub upload: bool,
+    /// TIDAL's best quality for the track (`audioQuality`: `LOSSLESS`,
+    /// `HI_RES_LOSSLESS`, `HIGH`), for Luna plugins' media items.
+    #[serde(default)]
+    pub audio_quality: Option<String>,
+    /// TIDAL's quality tags (`mediaMetadata.tags`: `LOSSLESS`,
+    /// `HIRES_LOSSLESS`, `DOLBY_ATMOS`), for Luna plugins' media items.
+    #[serde(default)]
+    pub quality_tags: Vec<String>,
 }
 
 /// A track's tempo and musical key as TIDAL reports them

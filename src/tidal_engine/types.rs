@@ -54,6 +54,11 @@ pub struct StreamFormat {
     /// A music video's picture size, for the quality pill (1080P).
     #[serde(default)]
     pub video_size: Option<(u32, u32)>,
+    /// The stream's bit rate in bits a second: what a DASH manifest names,
+    /// else the whole file's size over its length (as TidaLuna reads it,
+    /// for Tidal Tags' "951kb/s"); `None` while neither is known.
+    #[serde(default)]
+    pub bitrate: Option<u32>,
 }
 
 /// The PCM format an output device was opened at.

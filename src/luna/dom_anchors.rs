@@ -1384,18 +1384,31 @@ pub fn track_list(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
         ("artist-col", "artistColumn", "header-artist", "Artist"),
         ("time-col", "timeColumn", "header-duration", "Time"),
     ] {
+        let rect = if cell == "time-col" {
+            list.time_header_rect
+        } else {
+            None
+        };
         out.push(
             el(format!("{table}:{cell}"), Some(&header), "span")
                 .modules(&[module])
                 .attr("id", format!("headerColumn-{test}"))
                 .attr("role", "columnheader")
                 .test(test)
-                .text(label)
-                .at(if cell == "time-col" {
-                    list.time_header_rect
-                } else {
-                    None
-                }),
+                .at(rect),
+        );
+        // TIDAL's heading holds its label one level down (`span > div >
+        // "Time"`, a sort arrow beside it when sorted): Tidal Tags clones
+        // the time heading and writes its own title into
+        // `firstChild.firstChild`.
+        out.push(
+            el(
+                format!("{table}:{cell}:label"),
+                Some(&format!("{table}:{cell}")),
+                "div",
+            )
+            .text(label)
+            .at(rect),
         );
     }
     for row in &list.rows {

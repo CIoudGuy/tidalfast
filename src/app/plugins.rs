@@ -97,6 +97,11 @@ fn track_json(track: &Track) -> Value {
         "url": format!("http://www.tidal.com/track/{id}"),
         "streamReady": true,
         "allowStreaming": true,
+        // What TIDAL said of its quality: Luna's `bestQuality` and
+        // `qualityTags` (Tidal Tags' tags and column colours, star-ratings'
+        // gold for HiRes).
+        "audioQuality": track.audio_quality,
+        "mediaMetadata": { "tags": track.quality_tags },
     })
 }
 
@@ -614,6 +619,7 @@ impl App {
             snap.bit_depth = format.bit_depth;
             snap.sample_rate = Some(format.sample_rate);
             snap.codec = Some(format.codec.clone());
+            snap.bitrate = format.bitrate;
         }
         if now.local
             && self
@@ -1321,6 +1327,28 @@ mod tests {
         assert_eq!(j["id"], 5);
         assert_eq!(j["duration"], 61);
         assert_eq!(j["title"], "Song");
+    }
+
+    /// Luna's `bestQuality` and `qualityTags` read a track's `audioQuality`
+    /// and `mediaMetadata.tags`. Tidalfast's tracks for plugins had
+    /// neither, so every song was the lowest quality: Tidal Tags drew no
+    /// HiRes tag and coloured its columns grey, star-ratings' stars never
+    /// turned gold for HiRes.
+    #[test]
+    fn plugin_tracks_carry_tidals_quality() {
+        let track = Track {
+            id: Some("5".into()),
+            uri: "tidal:track:5".into(),
+            audio_quality: Some("LOSSLESS".into()),
+            quality_tags: vec!["LOSSLESS".into(), "HIRES_LOSSLESS".into()],
+            ..Track::default()
+        };
+        let j = track_json(&track);
+        assert_eq!(j["audioQuality"], "LOSSLESS");
+        assert_eq!(
+            j["mediaMetadata"]["tags"],
+            json!(["LOSSLESS", "HIRES_LOSSLESS"])
+        );
     }
 
     fn app(name: &str) -> App {

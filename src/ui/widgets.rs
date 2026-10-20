@@ -2318,7 +2318,7 @@ pub(crate) fn tidal_columns(
     let time = if dj { 104.0 } else { 77.0 };
     let (bpm, key) = if dj { (102.0, 34.0) } else { (0.0, 0.0) };
     let actions = if numbered { 100.0 } else { 130.0 };
-    let extra = super::plugin_dom::extra_columns();
+    let extra = super::plugin_dom::extra_columns(time);
     let fixed = number + time + bpm + key + actions + extra;
     // The optional columns TIDAL shows once the table is wide enough, each
     // dropped in turn (Added by, Date added, Album) when what is left
@@ -2544,8 +2544,19 @@ pub fn table_header(
         x += cols.added;
     }
     if cols.extra > 0.0 {
-        // Luna: columns plugins put before the time heading.
-        super::plugin_dom::extra_header(ui, pos2(x, rect.center().y));
+        // Luna: columns plugins put before the time heading, cloned from
+        // it (Tidal Tags), so read as headings.
+        super::plugin_dom::extra_header(
+            ui,
+            pos2(x, rect.center().y),
+            &super::plugin_dom::extra_column_widths(cols.time),
+            super::plugin_slots::Look {
+                color,
+                size: 12.0,
+                weight: 600,
+                upper: true,
+            },
+        );
         x += cols.extra;
     }
     let time = pgettext(locale, "column heading", "TIME");
@@ -2867,6 +2878,13 @@ fn tidal_row_cells(
                 "duration",
             ),
             pos2(x, rect.center().y),
+            &super::plugin_dom::extra_column_widths(cols.time),
+            super::plugin_slots::Look {
+                color: time_color,
+                size: 14.0,
+                weight: 600,
+                upper: false,
+            },
         );
         x += cols.extra;
     }
@@ -5229,6 +5247,37 @@ mod tests {
         assert_eq!(marks_width(0), 0.0);
         assert_eq!(marks_width(1), 29.0);
         assert_eq!(marks_width(2), 47.0);
+    }
+
+    /// Tidal Tags' BITRATE, SAMPLE RATE and DEPTH headings are clones of
+    /// the time heading with `min-width` 100, 110 and 40 px: TIDAL lays the
+    /// columns out 100, 110 and the time column's own 77 wide. Tidalfast
+    /// gave each 84, so DEPTH ran into TIME.
+    #[test]
+    fn plugin_columns_take_their_min_width_or_the_time_columns() {
+        use crate::luna::dom::{DomOverlay, Injected, Position, Style, VNode};
+        let head = |min: &str| VNode {
+            tag: "span".into(),
+            style: Style {
+                min_width: Some(min.into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            injected: vec![Injected {
+                anchor: "list:playlist:pl1:artist-col".into(),
+                position: Position::After,
+                nodes: vec![head("100px"), head("110px"), head("40px")],
+            }],
+            ..DomOverlay::default()
+        }));
+        let cols = tidal_columns(1600.0, true, true, true, true, false);
+        let widths = crate::ui::plugin_dom::extra_column_widths(cols.time);
+        crate::ui::plugin_dom::test_overlay(None);
+        assert_eq!(cols.time, 77.0);
+        assert_eq!(widths, vec![100.0, 110.0, 77.0]);
+        assert_eq!(cols.extra, 287.0);
     }
 
     /// A track table that is too narrow for every column drops the least

@@ -892,10 +892,15 @@
 				}
 			}
 			const q = audioQuality ?? PlayState.playbackContext?.actualAudioQuality ?? this.bestQuality.audioQuality;
-			// The engine's figures, else what TIDAL's playback info said
-			// (when the plugin asked for it), else what the tier fixes;
-			// an info format replaces a remembered tier one.
+			// The engine's figures, else what TIDAL's playback info says
+			// (asked here as Luna asks it: bit depth, sample rate, and the
+			// bit rate from the manifest or the file's size), else what the
+			// tier fixes.
 			const tier = tierFormat(q, this.duration);
+			if (!fmt && (force || !engineKeys.has(`${id}|${q}`))) {
+				const info = await this.playbackInfo(q).catch(() => undefined);
+				if (info) fmt = formatCache.get(`${id}|${info.audioQuality ?? q}`);
+			}
 			fmt ??= (!force && knownFormat(id, q)) || formatCache.get(`${id}|${q}`) || tier;
 			if (!fmt) return undefined;
 			formatCache.set(`${id}|${fmt.audioQuality}`, fmt);
@@ -932,7 +937,7 @@
 			bitDepth: info.bitDepth ?? tier?.bitDepth,
 			sampleRate: info.sampleRate ?? tier?.sampleRate,
 			codec: stream.codec ?? tier?.codec,
-			bitrate: stream.bitrate ?? tier?.bitrate,
+			bitrate: stream.bitrate ?? (stream.bytes && item.duration ? Math.round((stream.bytes * 8) / item.duration) : tier?.bitrate),
 			duration: item.duration,
 		});
 	};
@@ -947,7 +952,10 @@
 		const codec = ctx.codec ? String(ctx.codec).toLowerCase() : undefined;
 		const fmt = { audioQuality: ctx.actualAudioQuality, sampleRate: ctx.sampleRate ?? undefined, bitDepth: ctx.bitDepth ?? undefined, codec, duration: ctx.actualDuration ?? undefined };
 		const tier = tierFormat(ctx.actualAudioQuality);
-		if (tier?.bitrate && codec !== "flac") fmt.bitrate = tier.bitrate;
+		// The engine's bit rate (the manifest's, else the file's size over
+		// its length, as TidaLuna works it out); a lossy tier fixes one.
+		if (ctx.bitrate) fmt.bitrate = ctx.bitrate;
+		else if (tier?.bitrate && codec !== "flac") fmt.bitrate = tier.bitrate;
 		return fmt;
 	};
 	// What a TIDAL quality tier fixes about its stream.
@@ -975,7 +983,7 @@
 	const formatState = () => {
 		const ctx = PlayState.playbackContext;
 		if (!ctx?.actualProductId || !ctx.sampleRate) return;
-		const key = `${ctx.actualProductId}|${ctx.actualAudioQuality}|${ctx.sampleRate}|${ctx.bitDepth}`;
+		const key = `${ctx.actualProductId}|${ctx.actualAudioQuality}|${ctx.sampleRate}|${ctx.bitDepth}|${ctx.bitrate}`;
 		if (key === lastFormatKey) return;
 		lastFormatKey = key;
 		formatCache.set(`${ctx.actualProductId}|${ctx.actualAudioQuality}`, engineFormat(ctx));

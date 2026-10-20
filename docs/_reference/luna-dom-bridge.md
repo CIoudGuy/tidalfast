@@ -361,7 +361,11 @@ oneko), and right-clicks as `contextmenu` (element-hider).
   `progress-indicator` in the progress bar.
 - Rows: `button[data-type=contextmenu-open]` in each row's actions (its
   `.click()` opens the native menu); cells plugins insert before a row's
-  duration or the header's time column draw as extra columns (Tidal Tags).
+  duration or the header's time column draw as extra columns (Tidal Tags),
+  each as wide as its `min-width` or the time column, whichever is more,
+  headings in the header's capitals. TIDAL's headings hold their label one
+  level down (`span[role=columnheader] > div > "Time"`), which Tidal Tags'
+  clones write into.
   Slots: Prepend/Append on `quality`, Append on the footer `cover`.
 - Menus: add-to-playlist rows `a[data-track--playlist-uuid][data-tracktype--playlist-uuid=string]._actionText_ > span` (Append each).
   The duplicate-add dialog emits `modal/SHOW_CONFIRM` (`{mode:

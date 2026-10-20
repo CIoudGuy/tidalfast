@@ -64,8 +64,9 @@ struct State {
     modal_open: bool,
     /// The next menu row is an Add to playlist entry for this uuid.
     next_playlist: Option<String>,
-    /// Width of the columns plugins insert before the time column.
-    extra_cols: f32,
+    /// The `min-width` of each column plugins insert before the time
+    /// column (0 where none is set), in order.
+    extra_cols: Vec<f32>,
     hovered: HashSet<HoverKey>,
     hovered_now: HashSet<HoverKey>,
     /// Anchors drawn over the page this frame (a theme's header tab), with
@@ -288,7 +289,7 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
                 s.click_seq = seq;
                 s.click_pending.push(key);
             }
-            s.extra_cols = extra_columns_width(&s.overlay);
+            s.extra_cols = extra_column_mins(&s.overlay);
             if let Some((key, top, seq)) = &s.overlay.scroll_top
                 && *seq != s.scroll_top_seq
             {
@@ -1985,26 +1986,49 @@ pub fn take_click(key: &str) -> bool {
     })
 }
 
-/// Width of the columns plugins put before the time column (header cells
-/// inserted before `span[role=columnheader]._timeColumn_`), 84 each.
-fn extra_columns_width(o: &DomOverlay) -> f32 {
-    let count = o
-        .injected
+/// The columns plugins put before the time column: header cells inserted
+/// before `span[role=columnheader]._timeColumn_`, each its `min-width` (0
+/// without one), in order.
+fn extra_column_mins(o: &DomOverlay) -> Vec<f32> {
+    o.injected
         .iter()
         .filter(|i| i.anchor.ends_with(":artist-col") && i.position == Position::After)
-        .map(|i| i.nodes.len())
-        .max()
-        .unwrap_or(0);
-    count as f32 * 84.0
+        .max_by_key(|i| i.nodes.len())
+        .map(|i| {
+            i.nodes
+                .iter()
+                .map(|n| {
+                    let read =
+                        |v: &Option<String>| css::length(v.as_deref()?, 12.0, 0.0, [0.0, 0.0]);
+                    read(&n.style.min_width)
+                        .unwrap_or(0.0)
+                        .max(read(&n.style.width).unwrap_or(0.0))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
-/// How wide the extra columns are (0 without plugins that add them).
+/// The widths of the columns plugins insert before the time column, in
+/// order. A heading cloned from TIDAL's time heading (Tidal Tags) is as
+/// wide as the time column, `time`, or its own `min-width` where that is
+/// more: Tidal Tags' BITRATE 100, SAMPLE RATE 110 and DEPTH (40) the time
+/// column's. Empty without plugins that add columns.
+pub fn extra_column_widths(time: f32) -> Vec<f32> {
+    if !on() {
+        return Vec::new();
+    }
+    with(|s| s.extra_cols.iter().map(|min| min.max(time)).collect())
+}
+
+/// How wide the extra columns are together (0 without plugins that add
+/// them), beside a time column `time` wide.
 #[inline]
-pub fn extra_columns() -> f32 {
+pub fn extra_columns(time: f32) -> f32 {
     if !on() {
         return 0.0;
     }
-    with(|s| s.extra_cols)
+    with(|s| s.extra_cols.iter().map(|min| min.max(time)).sum())
 }
 
 /// Where plugin nodes inserted just before the host element `key` are
@@ -2037,8 +2061,14 @@ pub fn slot_before(
     super::plugin_slots::at(ui, &anchor, position, point, align)
 }
 
-/// The heading cells plugins inserted before the time heading, as columns.
-pub fn extra_header(ui: &mut egui::Ui, point: egui::Pos2) {
+/// The heading cells plugins inserted before the time heading, as columns
+/// [`extra_column_widths`] wide from `point`, in the headings' `look`.
+pub fn extra_header(
+    ui: &mut egui::Ui,
+    point: egui::Pos2,
+    widths: &[f32],
+    look: super::plugin_slots::Look,
+) {
     let Some(overlay) = overlay() else { return };
     // The first table that has header cells from plugins.
     let Some(anchor) = overlay
@@ -2049,18 +2079,21 @@ pub fn extra_header(ui: &mut egui::Ui, point: egui::Pos2) {
     else {
         return;
     };
-    super::plugin_slots::at(
-        ui,
-        &anchor,
-        Position::After,
-        point,
-        egui::Align2::LEFT_CENTER,
-    );
+    super::plugin_slots::columns(ui, &anchor, Position::After, point, widths, look);
 }
 
-/// The cells plugins inserted before a row's duration, as columns.
-pub fn extra_cells(ui: &mut egui::Ui, duration_key: &str, point: egui::Pos2) {
-    slot_before(ui, duration_key, point, egui::Align2::LEFT_CENTER);
+/// The cells plugins inserted before a row's duration, as columns
+/// [`extra_column_widths`] wide from `point`, in the row's `look`.
+pub fn extra_cells(
+    ui: &mut egui::Ui,
+    duration_key: &str,
+    point: egui::Pos2,
+    widths: &[f32],
+    look: super::plugin_slots::Look,
+) {
+    if let Some((anchor, position)) = before_anchor(duration_key) {
+        super::plugin_slots::columns(ui, &anchor, position, point, widths, look);
+    }
 }
 
 /// A visible track row of `list`. `fill` adds the row's facts; rows
@@ -4583,6 +4616,7 @@ pub(crate) fn test_overlay(overlay: Option<DomOverlay>) {
             ON.with(|on| on.set(true));
             with(|s| {
                 s.vars = Arc::new(o.vars.clone());
+                s.extra_cols = extra_column_mins(&o);
                 s.overlay = Arc::new(o);
                 s.test_overlay = true;
             });

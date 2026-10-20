@@ -133,6 +133,7 @@ impl Entry {
             quality: self.quality,
             origin,
             video_size: None,
+            bitrate: None,
         }
     }
 }

@@ -22,6 +22,9 @@ fn a_track_maps_with_uri_artists_album_art_and_availability() {
         "Get Lucky (feat. Pharrell Williams & Nile Rodgers)"
     );
     assert_eq!(track.duration_ms, 369_000);
+    // TIDAL's quality, for Luna plugins' media items.
+    assert_eq!(track.audio_quality.as_deref(), Some("LOSSLESS"));
+    assert_eq!(track.quality_tags, ["LOSSLESS", "HIRES_LOSSLESS"]);
     assert_eq!(track.track_number, Some(8));
     assert_eq!(track.disc_number, Some(1));
     assert_eq!(track.is_playable, Some(true));

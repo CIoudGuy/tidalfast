@@ -192,6 +192,7 @@ pub(crate) struct RawTrack {
     pub album: Option<RawAlbum>,
     pub url: Option<String>,
     pub audio_quality: Option<String>,
+    pub media_metadata: Option<RawMediaMetadata>,
     #[serde(deserialize_with = "null_default")]
     pub mixes: HashMap<String, String>,
     pub audio_analysis_attributes: Option<RawAudioAnalysis>,
@@ -661,6 +662,11 @@ pub(crate) fn track(raw: RawTrack) -> Track {
                 key_scale: analysis.key_scale,
             }),
         upload: raw.upload.unwrap_or(false),
+        quality_tags: raw
+            .media_metadata
+            .map(|metadata| metadata.tags)
+            .unwrap_or_default(),
+        audio_quality: raw.audio_quality,
         name: titled(raw.title, raw.version),
         id: (!raw.id.is_empty()).then_some(raw.id),
     }

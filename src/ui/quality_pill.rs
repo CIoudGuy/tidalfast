@@ -93,12 +93,18 @@ impl Parts {
 }
 
 /// The pill reading `label`, a clickable control named `label` for screen
-/// readers; `detail` is its tooltip. `color` replaces the tier's text colour
-/// (a Luna plugin's `color` on the badge); `themed` replaces TIDAL's layers
-/// with a theme's fills and corners.
+/// readers; `detail` is its tooltip. `native` is what TIDAL itself writes in
+/// it: the pill is as wide as that needs (121 at least), and a longer
+/// `label` a Luna plugin wrote in its place (Tidal Tags' "16-bit 44.1kHz
+/// 951kb/s") wraps inside it onto centred 18-point lines, as in TIDAL.
+/// `color` replaces the tier's text colour (a Luna plugin's `color` on the
+/// badge's text); `themed` replaces TIDAL's layers with a theme's fills and
+/// corners.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn show(
     ui: &mut egui::Ui,
     label: &str,
+    native: &str,
     detail: &str,
     tone: PillTone,
     color: Option<Color32>,
@@ -109,6 +115,27 @@ pub(crate) fn show(
     let galley = ui
         .painter()
         .layout_no_wrap(label.to_owned(), theme::regular(12.0), text_color);
+    // TIDAL's badge keeps the size its own text gives it: a plugin's longer
+    // text wraps (`a._badge` is 121 wide, `padding: 0 16px`). Elements a
+    // plugin put inside, or a width it set, size the pill as before.
+    let galley = if parts.inside || parts.width.is_some() || parts.hide_label {
+        galley
+    } else {
+        let native_width = if native == label {
+            galley.size().x
+        } else {
+            ui.painter()
+                .layout_no_wrap(native.to_owned(), theme::regular(12.0), text_color)
+                .size()
+                .x
+        };
+        let room = native_width.max(MIN_WIDTH - 2.0 * PADDING);
+        if galley.size().x > room + 0.5 {
+            wrapped(ui, label, room, text_color)
+        } else {
+            galley
+        }
+    };
     // What plugins put inside took this wide last frame (it is laid out
     // after the pill is sized).
     let inside_id = ui.id().with("pill-inside");
@@ -166,8 +193,7 @@ pub(crate) fn show(
             Color32::from_white_alpha(18),
         );
         let ppp = ui.ctx().pixels_per_point();
-        let text_width = galley.size().x;
-        let texture = baked(ui.ctx(), rect.size(), ppp, tone, text_width);
+        let texture = baked(ui.ctx(), rect.size(), ppp, tone, galley.size());
         painter.image(
             texture.id(),
             rect,
@@ -191,6 +217,29 @@ pub(crate) fn show(
         label_and_parts(ui, rect, galley, text_color, parts, inside_id);
     }
     response.on_hover_text(detail)
+}
+
+/// `label` wrapped at `width` points into centred lines 18 points apart
+/// (TIDAL's `12px/18px`). The rows sit either side of x = 0: draw it at
+/// [`centred`].
+fn wrapped(ui: &egui::Ui, label: &str, width: f32, color: Color32) -> std::sync::Arc<egui::Galley> {
+    let mut job = egui::text::LayoutJob::single_section(
+        label.to_owned(),
+        egui::TextFormat {
+            font_id: theme::regular(12.0),
+            color,
+            line_height: Some(18.0),
+            ..Default::default()
+        },
+    );
+    job.wrap.max_width = width;
+    job.halign = egui::Align::Center;
+    ui.painter().layout_job(job)
+}
+
+/// Where to draw `galley` for it to sit in the middle of `rect`.
+fn centred(rect: Rect, galley: &egui::Galley) -> egui::Pos2 {
+    rect.center() - galley.rect.center().to_vec2()
 }
 
 fn label_id() -> egui::Id {
@@ -229,7 +278,7 @@ fn label_and_parts(
         report_label(ui, Rect::from_center_size(rect.center(), size));
         if !parts.hide_label {
             ui.painter()
-                .galley(rect.center() - galley.size() / 2.0, galley, text_color);
+                .galley(centred(rect, &galley), galley, text_color);
         }
         return;
     }
@@ -270,36 +319,39 @@ fn label_and_parts(
 }
 
 /// The pill's layers at `size` points for `tone`, cached by size, density,
-/// tone and text width.
+/// tone and the text's size.
 fn baked(
     ctx: &egui::Context,
     size: Vec2,
     ppp: f32,
     tone: PillTone,
-    text_width: f32,
+    text: Vec2,
 ) -> egui::TextureHandle {
     let w = (size.x * ppp).round().max(1.0) as usize;
     let h = (size.y * ppp).round().max(1.0) as usize;
-    let text_px = (text_width * ppp).round() as usize;
-    let id = egui::Id::new(("quality-pill-texture", w, h, tone, text_px));
+    let text_px = (text.x * ppp).round() as usize;
+    // One line of 12 points, or a wrapped run of 18-point lines.
+    let rows = ((text.y / 18.0).round() as usize).max(1);
+    let id = egui::Id::new(("quality-pill-texture", w, h, tone, text_px, rows));
     if let Some(texture) = ctx.data(|data| data.get_temp::<egui::TextureHandle>(id)) {
         return texture;
     }
-    let image = render(w, h, ppp, tone, text_width * ppp);
+    let image = render(w, h, ppp, tone, text.x * ppp, rows);
     let texture = ctx.load_texture("quality-pill", image, egui::TextureOptions::LINEAR);
     ctx.data_mut(|data| data.insert_temp(id, texture.clone()));
     texture
 }
 
 /// Paints the pill's inside, `w` x `h` pixels at `ppp` pixels a point, the
-/// text `text_px` wide: what the stylesheet layers make, outside the
-/// rounded edge transparent.
+/// text `text_px` wide in `rows` lines: what the stylesheet layers make,
+/// outside the rounded edge transparent.
 pub(crate) fn render(
     w: usize,
     h: usize,
     ppp: f32,
     tone: PillTone,
     text_px: f32,
+    rows: usize,
 ) -> egui::ColorImage {
     let (wf, hf) = (w as f32, h as f32);
     let radius = hf / 2.0;
@@ -311,11 +363,12 @@ pub(crate) fn render(
     let bar_sigma = 5.5 * ppp;
     // The text's glow: its box blurred by 10 px (sigma 5); thin 12-point
     // glyphs cover about a fifth of their box.
+    let half = (6.0 + 9.0 * rows.saturating_sub(1) as f32) * ppp;
     let text_box = (
         (wf - text_px) / 2.0,
         (wf + text_px) / 2.0,
-        hf / 2.0 - 6.0 * ppp,
-        hf / 2.0 + 6.0 * ppp,
+        hf / 2.0 - half,
+        hf / 2.0 + half,
     );
     let text_sigma = 5.0 * ppp;
     let mut pixels = Vec::with_capacity(w * h);
@@ -459,7 +512,7 @@ mod tests {
 
     #[test]
     fn the_inside_is_tidals_near_black_with_a_black_rim() {
-        let image = render(121, 40, 1.0, PillTone::Lossless, 80.0);
+        let image = render(121, 40, 1.0, PillTone::Lossless, 80.0, 1);
         // Outside the rounded corner: nothing.
         assert_eq!(at(&image, 0, 0).a(), 0);
         // The middle of the left edge is the black border.
@@ -472,9 +525,9 @@ mod tests {
 
     #[test]
     fn the_bottom_centre_takes_the_tiers_colour() {
-        let teal = render(121, 40, 1.0, PillTone::Lossless, 0.0);
-        let gold = render(121, 40, 1.0, PillTone::Max, 0.0);
-        let grey = render(121, 40, 1.0, PillTone::Lossy, 0.0);
+        let teal = render(121, 40, 1.0, PillTone::Lossless, 0.0, 1);
+        let gold = render(121, 40, 1.0, PillTone::Max, 0.0, 1);
+        let grey = render(121, 40, 1.0, PillTone::Lossy, 0.0, 1);
         let (t, g, l) = (at(&teal, 60, 36), at(&gold, 60, 36), at(&grey, 60, 36));
         assert!(t.g() > t.r() + 15, "teal {t:?}");
         assert!(g.r() > g.b() + 15, "gold {g:?}");

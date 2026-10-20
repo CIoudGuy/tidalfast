@@ -684,6 +684,7 @@ pub fn playback_context(snap: &PlaybackSnapshot, id: Option<&str>) -> Value {
         "bitDepth": snap.bit_depth,
         "sampleRate": snap.sample_rate,
         "codec": snap.codec,
+        "bitrate": snap.bitrate,
         "playbackSessionId": id.as_deref().map(|i| format!("tidalfast-{i}")),
     })
 }

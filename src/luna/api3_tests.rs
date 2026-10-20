@@ -369,15 +369,18 @@ R.done = true;
 
 /// A song's format for `withFormat` / `updateFormat` is what TIDAL's
 /// playback info says of it (figures, and the codec and bit rate of the
-/// manifest) once the plugin has asked for the info, not the tier's
-/// assumption; the manifest and its addresses never reach the plugin.
+/// manifest), asked by `updateFormat` itself as Luna asks it, not the
+/// tier's assumption; the manifest and its addresses never reach the
+/// plugin. A single file's bit rate is its size over the song's length
+/// (Tidal Tags' "951kbps" column for a song not played yet).
 #[test]
 fn media_item_formats_use_the_playback_info_a_plugin_asked_for() {
     let (r, _host) = run_catalogue(
         r##"
 const m = await lib.MediaItem.fromId(1);
-// Before any info: what the tier fixes.
+// updateFormat asks TIDAL's playback info (Tidal Tags' auto populate).
 R.tier = JSON.stringify(await m.updateFormat("HIGH"));
+R.flac = JSON.stringify(await m.updateFormat("LOSSLESS"));
 const info = await m.playbackInfo("HIGH");
 R.info = JSON.stringify({ q: info.audioQuality, rate: info.sampleRate, hasManifest: "manifest" in info, stream: info.stream });
 // A listener is told the figures TIDAL gave.
@@ -392,7 +395,17 @@ R.done = true;
     let tier: Value = serde_json::from_str(r["tier"].as_str().unwrap()).unwrap();
     assert_eq!(
         (tier["sampleRate"].clone(), tier["bitrate"].clone()),
-        (json!(44100), json!(320000)),
+        (json!(48000), json!(222222)),
+        "{r}"
+    );
+    let flac: Value = serde_json::from_str(r["flac"].as_str().unwrap()).unwrap();
+    assert_eq!(
+        (
+            flac["sampleRate"].clone(),
+            flac["bitDepth"].clone(),
+            flac["bitrate"].clone()
+        ),
+        (json!(44100), json!(16), json!(951000)),
         "{r}"
     );
     let info: Value = serde_json::from_str(r["info"].as_str().unwrap()).unwrap();
@@ -549,4 +562,33 @@ R.done = true;
     );
     assert_eq!(r["over"], "#212121|12|#eeeeee|#31d8ff|#eeeeee", "{r}");
     assert_eq!(r["apply"], "[{\"a\":1},{}]", "{r}");
+}
+
+/// QuickJS has no `Intl`, so `Number#toLocaleString` was `toString`:
+/// Tidal Tags wrote "1530kb/s" where TIDAL's Chromium writes "1,530kb/s".
+/// Thousands are grouped, at most three decimals are kept, and the
+/// fraction options are honoured.
+#[test]
+fn numbers_print_with_chromiums_locale_grouping() {
+    let (r, _host) = run_catalogue(
+        r##"
+R.list = [
+	(1530).toLocaleString(),
+	Math.floor(951000 / 1e3).toLocaleString(),
+	(1234567.891).toLocaleString(),
+	(-12345.5).toLocaleString(),
+	(0.12345).toLocaleString(),
+	(5).toLocaleString(undefined, { minimumFractionDigits: 2 }),
+	(1234.5678).toLocaleString("en-US", { maximumFractionDigits: 1 }),
+	(1234).toLocaleString("en-US", { useGrouping: false }),
+	NaN.toLocaleString(),
+].join("|");
+R.done = true;
+"##,
+        |_, _| {},
+    );
+    assert_eq!(
+        r["list"], "1,530|951|1,234,567.891|-12,345.5|0.123|5.00|1,234.6|1234|NaN",
+        "{r}"
+    );
 }

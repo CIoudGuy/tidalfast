@@ -320,6 +320,8 @@ fn track(index: usize) -> Track {
     let album_index = index % ALBUMS.len();
     let mut album = album(album_index);
     album.tracks = None;
+    // As TIDAL's v1 tracks: `audioQuality` LOSSLESS, HiRes in the tags.
+    let quality_tags = album.quality_tags.clone();
     Track {
         id: Some(format!("trk{index}")),
         name: TRACKS[index % TRACKS.len()].to_string(),
@@ -336,6 +338,8 @@ fn track(index: usize) -> Track {
             key: Some(["C", "Eb", "CSharp", "A", "Bb", "FSharp", "G"][index % 7].into()),
             key_scale: Some(if index % 3 == 1 { "MAJOR" } else { "MINOR" }.into()),
         }),
+        audio_quality: Some("LOSSLESS".into()),
+        quality_tags,
         ..Track::default()
     }
 }
@@ -1850,6 +1854,7 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                     } else {
                         crate::tidal_engine::Quality::Lossless
                     }),
+                    bitrate: Some(if max { 1_530_000 } else { 951_000 }),
                     ..Default::default()
                 });
             }
