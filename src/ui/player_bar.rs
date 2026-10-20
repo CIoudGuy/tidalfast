@@ -49,24 +49,22 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let fill = crate::motion::blend(fill, Color32::TRANSPARENT, over_view);
     // Luna plugins may restyle `#footerPlayer` (themes, radiant-lyrics).
     let fill = plugin_dom::surface(keys::FOOTER, fill);
+    // A floating bar (radiant-lyrics, a theme) is TIDAL's fixed
+    // `#footerPlayer` lifted off the window's edges: the page runs on under
+    // it and shows round it. TIDAL blurs what lies under a glass bar; that
+    // blur is not drawn, so a glass bar over the page is the glass laid over
+    // the window's colour, which the page's words do not show through.
+    let floating = floating(ui.ctx());
+    let fill = if floating.is_some() && over_view < 1.0 {
+        plugin_dom::frosted(keys::FOOTER, fill, palette.window)
+    } else {
+        fill
+    };
     let mut frame = Frame::new()
         .fill(fill)
         .inner_margin(Margin::symmetric(18, 0));
-    // A theme the user applied may float the bar: inset, lifted, rounded,
-    // shadowed. The page's colour shows round it.
-    let floating = floating(ui.ctx());
+    // Inset, lifted, rounded, shadowed.
     if let Some(f) = &floating {
-        let window = ui.available_rect_before_wrap();
-        let strip = Rect::from_min_max(
-            pos2(window.left(), window.bottom() - reserved_height(ui.ctx())),
-            window.max,
-        );
-        // Over the now-playing view the view shows round it instead.
-        ui.painter().rect_filled(
-            strip,
-            0.0,
-            plugin_dom::surface(keys::MAIN, palette.window).gamma_multiply(1.0 - over_view),
-        );
         frame = frame
             .outer_margin(f.gaps)
             .corner_radius(f.radius)
@@ -189,6 +187,34 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
 /// The floating bar a theme the user applied asks for.
 fn floating(ctx: &egui::Context) -> Option<crate::ui::theme_layout::Floating> {
     plugin_dom::theme_layout(ctx).and_then(|l| l.player_bar)
+}
+
+/// Whether the page runs on under the bar to the window's bottom: the bar
+/// floats (see [`show`]).
+pub fn page_runs_under(ctx: &egui::Context) -> bool {
+    floating(ctx).is_some()
+}
+
+/// Keeps the bar's room at the bottom of `ui` for the panels beside the
+/// page, which end above it, while the bar itself is drawn over the page
+/// later ([`show_over_page`]).
+pub fn keep_room(ui: &mut egui::Ui) {
+    egui::Panel::bottom("player-bar-room")
+        .exact_size(reserved_height(ui.ctx()))
+        .resizable(false)
+        .show_separator_line(false)
+        .frame(Frame::NONE)
+        .show(ui, |_| {});
+}
+
+/// The bar over the page that runs on under it, at the bottom of `window`.
+pub fn show_over_page(app: &mut App, ui: &mut egui::Ui, window: Rect) {
+    let strip = Rect::from_min_max(
+        pos2(window.left(), window.bottom() - reserved_height(ui.ctx())),
+        window.max,
+    );
+    let mut bar = ui.new_child(UiBuilder::new().max_rect(strip));
+    show(app, &mut bar);
 }
 
 /// The height the bar takes from the bottom of the window: its own, plus
@@ -1903,6 +1929,74 @@ mod narrow_tests {
                 );
             }
         }
+        crate::ui::plugin_dom::test_overlay(None);
+    }
+
+    /// radiant-lyrics floats the bar 10 points off the window's edges. In
+    /// TIDAL the page runs on under it to the window's bottom (it shows in
+    /// the gaps round the bar); Tidalfast ended the page above the bar. The
+    /// page is now drawn down to the bottom, the bar over it.
+    #[test]
+    fn the_page_runs_on_under_a_floating_bar() {
+        let (ctx, mut app) = setup();
+        let mut hosts = std::collections::BTreeMap::new();
+        hosts.insert(
+            keys::FOOTER.to_string(),
+            crate::luna::dom::HostOverride {
+                style: crate::luna::dom::Style {
+                    bottom: Some("10px".into()),
+                    left: Some("10px".into()),
+                    right: Some("10px".into()),
+                    width: Some("calc(100% - 20px)".into()),
+                    border_radius: Some("5px".into()),
+                    background_color: Some("rgba(0, 0, 0, 0.5)".into()),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        let page_bottom = |ctx: &egui::Context, app: &mut App| {
+            let mut bottom = 0.0f32;
+            for _ in 0..4 {
+                let mut out = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1400.0, 820.0))),
+                        ..Default::default()
+                    },
+                    |ui| crate::ui::show(app, ui),
+                );
+                out.textures_delta.clear();
+                // How far down the page's words may be drawn: the clip of
+                // the shelves' headings.
+                bottom = out
+                    .shapes
+                    .iter()
+                    .filter(|c| matches!(&c.shape, egui::Shape::Text(t) if t.galley.text() == "Recently played"))
+                    .map(|c| c.clip_rect.bottom())
+                    .fold(0.0, f32::max);
+            }
+            bottom
+        };
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 3,
+            ..DomOverlay::default()
+        }));
+        let above = page_bottom(&ctx, &mut app);
+        assert!(
+            above > 0.0 && above <= 820.0 - theme::PLAYER_BAR_HEIGHT + 0.5,
+            "{above}"
+        );
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 4,
+            hosts,
+            ..DomOverlay::default()
+        }));
+        assert!(page_runs_under(&ctx));
+        let under = page_bottom(&ctx, &mut app);
+        assert!(
+            (under - 820.0).abs() < 0.5,
+            "the page reaches the window's bottom: {under}"
+        );
         crate::ui::plugin_dom::test_overlay(None);
     }
 
