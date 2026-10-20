@@ -1018,11 +1018,24 @@
 	const streamWeb = { ReadableStream: g.ReadableStream ?? StubWebStream, WritableStream: g.WritableStream ?? StubWebStream, TransformStream: g.TransformStream ?? StubWebStream, TextEncoderStream: StubWebStream, TextDecoderStream: StubWebStream, ByteLengthQueuingStrategy: class {}, CountQueuingStrategy: class {} };
 
 	// ---------------------------------------------------------------- net
+	// Who owns each socket, server and child process: kept here, never on
+	// the object. Rust can read the plugin off the stack only while plugin
+	// code is on it; a method called from a promise job is taken at the
+	// shim's word, so a plugin that could write another plugin's name on a
+	// socket (or on an object made from the prototype) could use that
+	// plugin's connections, programs and permissions. The WeakMap's methods
+	// are the ones from before any plugin ran.
+	const owners = new WeakMap();
+	const ownersGet = WeakMap.prototype.get;
+	const ownersSet = WeakMap.prototype.set;
+	const applyFn = Reflect.apply;
+	const setOwner = (o, plugin) => void applyFn(ownersSet, owners, [o, plugin ?? null]);
+	const ownerOf = (o) => (o !== null && typeof o === "object" ? (applyFn(ownersGet, owners, [o]) ?? null) : null);
 	const sockets = new Map();
 	class Socket extends Duplex {
 		constructor(opts = {}) {
 			super(opts);
-			this.plugin = L.pluginFromStack();
+			setOwner(this, L.pluginFromStack());
 			this.readyState = "closed";
 			this.connecting = false;
 			this.handle = undefined;
@@ -1031,6 +1044,9 @@
 			this.bytesWritten = 0;
 			this.bytesRead = 0;
 			this.pending = true;
+		}
+		get plugin() {
+			return ownerOf(this);
 		}
 		connect(...args) {
 			let opts = {};
@@ -1043,7 +1059,7 @@
 			this.readyState = "opening";
 			this.connecting = true;
 			const open = () => {
-				this.handle = callOp("net.connect", { plugin: this.plugin ?? null, path: opts.path ?? null, host: opts.host ?? null, port: opts.port ?? null });
+				this.handle = callOp("net.connect", { plugin: ownerOf(this), path: opts.path ?? null, host: opts.host ?? null, port: opts.port ?? null });
 				sockets.set(this.handle, this);
 			};
 			try {
@@ -1052,7 +1068,7 @@
 				// Another program's pipe or socket: the user is asked first,
 				// and the connect goes ahead once they allowed it.
 				if (String(err?.message ?? "").startsWith("EASK") && opts.path) {
-					L.permit({ plugin: this.plugin ?? null, kind: "pipe", path: String(opts.path) })
+					L.permit({ plugin: ownerOf(this), kind: "pipe", path: String(opts.path) })
 						.then(() => {
 							if (this.destroyed || this.readyState !== "opening") return;
 							open();
@@ -1109,7 +1125,7 @@
 				// A string is written as Node does: in its encoding, UTF-8 by
 				// default (node-mpv sends its JSON commands as strings).
 				const bytes = typeof chunk === "string" ? Buffer.from(chunk, typeof enc === "string" && enc !== "buffer" ? enc : "utf8") : chunk;
-				callOp("net.write", { handle: this.handle, data: L.b64enc(bytes), plugin: this.plugin ?? null });
+				callOp("net.write", { handle: this.handle, data: L.b64enc(bytes), plugin: ownerOf(this) });
 				this.bytesWritten += bytes.length;
 				cb();
 			} catch (err) {
@@ -1118,7 +1134,7 @@
 		}
 		end(chunk, enc, cb) {
 			if (chunk !== undefined && typeof chunk !== "function") this.write(chunk, enc);
-			if (this.handle !== undefined) callOp("net.close", { handle: this.handle, plugin: this.plugin ?? null });
+			if (this.handle !== undefined) callOp("net.close", { handle: this.handle, plugin: ownerOf(this) });
 			this.writable = false;
 			this.writableEnded = true;
 			if (typeof chunk === "function") chunk();
@@ -1129,7 +1145,7 @@
 		destroy(err) {
 			if (this.destroyed) return this;
 			this.destroyed = true;
-			if (this.handle !== undefined) callOp("net.close", { handle: this.handle, plugin: this.plugin ?? null });
+			if (this.handle !== undefined) callOp("net.close", { handle: this.handle, plugin: ownerOf(this) });
 			sockets.delete(this.handle);
 			this.readyState = "closed";
 			queueMicrotask(() => {
@@ -1196,7 +1212,7 @@
 	L.node.netEvent = (handle, kind, data) => sockets.get(handle)?._event(kind, data);
 	g.__luna_net = (handle, kind, data) => L.node.netEvent(handle, kind, data);
 	L.node.closeAll = (plugin) => {
-		for (const s of [...sockets.values()]) if (s.plugin === plugin) s.destroy();
+		for (const s of [...sockets.values()]) if (ownerOf(s) === plugin) s.destroy();
 	};
 	// A native Node addon (`.node`) is machine code built against Electron's
 	// Node.js ABI; Tidalfast runs plugins in QuickJS, which has no such ABI to
@@ -1913,7 +1929,7 @@
 	class ChildProcess extends EventEmitter {
 		constructor(plugin, file, args, pipes) {
 			super();
-			this.plugin = plugin;
+			setOwner(this, plugin);
 			this.handle = undefined;
 			this.pid = undefined;
 			this.exitCode = null;
@@ -1929,7 +1945,7 @@
 						write: (chunk, enc, cb) => {
 							if (this._over) return cb();
 							try {
-								callOp("child.stdin", { plugin: this.plugin ?? null, handle: this.handle, data: L.b64enc(chunk) });
+								callOp("child.stdin", { plugin: ownerOf(this), handle: this.handle, data: L.b64enc(chunk) });
 								cb();
 							} catch (err) {
 								cb(cpError(err.message));
@@ -1938,7 +1954,7 @@
 						final: (cb) => {
 							if (!this._over && this.handle !== undefined) {
 								try {
-									callOp("child.stdinEnd", { plugin: this.plugin ?? null, handle: this.handle });
+									callOp("child.stdinEnd", { plugin: ownerOf(this), handle: this.handle });
 								} catch {}
 							}
 							cb();
@@ -1949,11 +1965,14 @@
 			this.stderr = pipes[2] ? new Readable() : null;
 			this.stdio = [this.stdin, this.stdout, this.stderr];
 		}
+		get plugin() {
+			return ownerOf(this);
+		}
 		kill(signal) {
 			if (this._over || this.handle === undefined) return false;
 			let sent = false;
 			try {
-				sent = callOp("child.kill", { plugin: this.plugin ?? null, handle: this.handle, signal: typeof signal === "string" ? signal : "SIGTERM" });
+				sent = callOp("child.kill", { plugin: ownerOf(this), handle: this.handle, signal: typeof signal === "string" ? signal : "SIGTERM" });
 			} catch {}
 			if (sent) this.killed = true;
 			return sent;
@@ -2349,12 +2368,15 @@
 			super();
 			if (typeof opts === "function") onConnection = opts;
 			if (onConnection) this.on("connection", onConnection);
-			this.plugin = L.pluginFromStack();
+			setOwner(this, L.pluginFromStack());
 			this.handle = undefined;
 			this.listening = false;
 			this._address = null;
 			this.maxConnections = undefined;
 			this._conns = new Set();
+		}
+		get plugin() {
+			return ownerOf(this);
 		}
 		listen(...args) {
 			let cb;
@@ -2364,7 +2386,7 @@
 			else if (args[0] !== undefined && args[0] !== null) port = Number(args[0]);
 			if (cb) this.once("listening", cb);
 			try {
-				this.handle = callOp("net.listen", { plugin: this.plugin ?? null, port: Number.isFinite(port) ? port : 0 });
+				this.handle = callOp("net.listen", { plugin: ownerOf(this), port: Number.isFinite(port) ? port : 0 });
 				sockets.set(this.handle, this);
 			} catch (err) {
 				const m = /^(E[A-Z]+):/.exec(err.message);
@@ -2382,7 +2404,7 @@
 				case "connection": {
 					const [h, ip, port] = String(data).split(" ");
 					const s = new Socket();
-					s.plugin = this.plugin;
+					setOwner(s, ownerOf(this));
 					s.handle = Number(h);
 					s.readyState = "open";
 					s.pending = false;
@@ -2419,7 +2441,7 @@
 			}
 			this._closing = true;
 			if (cb) this.once("close", () => cb());
-			callOp("net.close", { handle: this.handle, plugin: this.plugin ?? null });
+			callOp("net.close", { handle: this.handle, plugin: ownerOf(this) });
 			return this;
 		}
 		closeAllConnections() {
