@@ -508,6 +508,91 @@ impl LunaHost for AppHost {
         }
     }
 
+    /// The sign-in, for a plugin the user allowed to have it (the runtime
+    /// checked): the current token, refreshed first when it is about to
+    /// expire, so the plugin never gets a stale one. Never logged. The
+    /// off-screen Luna demo hands a made-up token instead.
+    fn credentials(&self, _plugin: Option<&str>) -> Option<Value> {
+        if luna_demo() {
+            return Some(json!({
+                "clientId": "tidalfast-demo",
+                "token": DEMO_TOKEN,
+                "expires": 4_102_444_800_000_u64,
+                "userId": "1",
+                "grantedScopes": ["r_usr", "w_usr"],
+                "requestedScopes": ["r_usr", "w_usr"],
+            }));
+        }
+        let tidal = self.tidal.as_ref()?;
+        tidal.block_on(|client| async move {
+            let tokens = client.tokens()?;
+            let token = tokens
+                .access_token(None)
+                .await
+                .map_err(|_| crate::api::client::ApiError::NotSignedIn)?;
+            let client_id = tokens.client_id().await;
+            let grant = tokens.snapshot().await;
+            let scopes: Vec<&str> = grant.scope.split_whitespace().collect();
+            Ok(json!({
+                "clientId": client_id,
+                "token": token,
+                // Milliseconds, as TIDAL's auth SDK keeps it.
+                "expires": grant.expires_at.saturating_mul(1000),
+                "userId": tokens.user_id().to_string(),
+                "grantedScopes": scopes,
+                "requestedScopes": scopes,
+            }))
+        })
+    }
+
+    /// A track's unencrypted stream for a plugin the user allowed to save
+    /// TIDAL audio (the runtime checked). The stream is the one the app
+    /// would play: TIDAL's answer is refused when it is protected (DRM,
+    /// Dolby Atmos), and nothing is decrypted. The off-screen Luna demo
+    /// hands a second of made-up silence instead.
+    fn audio_source(
+        &self,
+        _plugin: Option<&str>,
+        track_id: &str,
+        quality: Option<&str>,
+    ) -> Result<crate::luna::AudioSource, String> {
+        let id = numeric(track_id)
+            .ok_or_else(|| format!("not a track id: {track_id}"))?
+            .to_string();
+        if luna_demo() {
+            return Ok(crate::luna::AudioSource {
+                mime: "audio/wav".into(),
+                codec: "pcm".into(),
+                extension: "wav".into(),
+                parts: crate::luna::AudioParts::Bytes(demo_silence()),
+            });
+        }
+        let quality = quality
+            .and_then(crate::tidal_engine::Quality::from_api)
+            .unwrap_or_default();
+        let tidal = self.tidal.as_ref().ok_or("TIDAL is not signed in")?;
+        self.tidal_pace.wait();
+        let info = tidal
+            .block_on(|client| async move { client.playback_info(&id, quality).await })
+            .ok_or("TIDAL did not give an unprotected stream for this song")?;
+        if info.urls.is_empty() {
+            return Err("TIDAL did not give a stream for this song".into());
+        }
+        let extension = if info.mime.contains("flac") && !info.mime.contains("mp4") {
+            "flac"
+        } else if info.mime.contains("mp4") {
+            "m4a"
+        } else {
+            "bin"
+        };
+        Ok(crate::luna::AudioSource {
+            mime: info.mime,
+            codec: info.codec,
+            extension: extension.into(),
+            parts: crate::luna::AudioParts::Urls(info.urls),
+        })
+    }
+
     fn account_write(&self, plugin: Option<&str>, request: &NetRequest) -> NetVerdict {
         let NetRequest::Fetch { method, url, .. } = request else {
             return NetVerdict::Deny("plugins cannot change the account here".into());
@@ -535,7 +620,8 @@ impl LunaHost for AppHost {
 
     /// Plugins may reach the network (that is what the permissions on the
     /// Plugins page say), but never TIDAL's sign-in and token endpoints;
-    /// `credentials()` stays `None`, so they never see our tokens either.
+    /// a plugin sees the account's token only through `credentials()`, after
+    /// the user allowed it.
     fn outbound(&self, plugin: Option<&str>, request: &NetRequest) -> NetVerdict {
         match request {
             NetRequest::Fetch { url, .. } if denied_url(url).is_some() => {
@@ -720,6 +806,30 @@ fn tidal_v1(url: &str) -> Option<(String, Vec<(String, String)>)> {
 }
 
 /// Demo builds running Luna off-screen with `TIDALFAST_DEMO_LUNA`.
+/// The made-up token the off-screen Luna demo hands a plugin allowed the
+/// TIDAL sign-in: nothing real ever leaves in a demo.
+pub const DEMO_TOKEN: &str = "demo-token-not-a-real-tidal-sign-in";
+
+/// One second of 8 kHz mono silence as a WAV file: the demo's TIDAL audio.
+fn demo_silence() -> Vec<u8> {
+    let data = vec![0u8; 16_000];
+    let mut out = Vec::with_capacity(44 + data.len());
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&(36 + data.len() as u32).to_le_bytes());
+    out.extend_from_slice(b"WAVEfmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&8000u32.to_le_bytes());
+    out.extend_from_slice(&16000u32.to_le_bytes());
+    out.extend_from_slice(&2u16.to_le_bytes());
+    out.extend_from_slice(&16u16.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    out.extend_from_slice(&data);
+    out
+}
+
 fn luna_demo() -> bool {
     cfg!(feature = "demo") && std::env::var_os("TIDALFAST_DEMO_LUNA").is_some()
 }

@@ -98,6 +98,14 @@ as for a store plugin. The card's **Permissions** list shows what the plugin
 has actually done: network, files, programs and so on. Use it to check that
 your plugin does only what you mean it to.
 
+Some calls ask the user first, and your call waits for the answer:
+`child_process` programs, `getCredentials` (the TIDAL sign-in),
+`MediaItem.download` and `fetchMediaItemStream` (saving TIDAL audio),
+`globalShortcut` across the whole computer (Windows only; elsewhere and when
+denied it fires while the window has focus) and `net.createConnection` to
+another program's pipe or socket. A denied call fails with `EACCES`; plan for
+that answer.
+
 ## What is supported
 
 Tidalfast follows TidaLuna's plugin API (`@luna/core`, `@luna/lib`, `@luna/ui`
@@ -109,7 +117,8 @@ for every export compared with TidaLuna.
 
 Tidalfast is a native app. It has no TIDAL web page, so code that depends on
 TIDAL's web bundle or on Electron's main process cannot work. Downloading
-tracks to files is refused, and nothing that touches DRM is supported.
+tracks to files works only after the user allows it, and never for a
+protected stream: nothing that touches DRM is supported.
 
 When your plugin uses something Tidalfast does not have, it does not fail in
 silence. The plugin's log names it:

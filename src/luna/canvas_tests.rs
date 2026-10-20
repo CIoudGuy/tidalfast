@@ -621,9 +621,10 @@ fn audiovisualiser_bands_come_from_the_output_tap() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     // jxnxsdev's audiovisualiser: a native module that runs ffmpeg on a
-    // downloaded track, and MediaItem.download to fetch it. Downloads stay
-    // refused until that module is registered; then its `analyse` answers
-    // with live bands from the tap and the download saves nothing.
+    // downloaded track, and MediaItem.download to fetch it. Until that
+    // module is registered a download needs the permission to save TIDAL
+    // audio (denied here); then its `analyse` answers with live bands from
+    // the tap and the download saves nothing, without asking.
     let feed = |n: u64| {
         let s = (std::f64::consts::TAU * 1000.0 * n as f64 / 48_000.0).sin() as f32;
         // The same signal as `analysers_read_the_output_tap`, which may run
@@ -663,11 +664,23 @@ exports.analyse = async (f) => { execSync(\`ffmpeg -y -i "\${f}" -map 0:a:0 -ac 
 "##,
     );
     let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let asked = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let feeder = {
         let stop = stop.clone();
+        let (luna, asked) = (luna.clone(), asked.clone());
         std::thread::spawn(move || {
             let mut n = filled;
+            let mut last = 0;
             while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                // Each question once (the snapshot shows it until the
+                // runtime has the answer).
+                if let Some(q) = luna.pending_permission()
+                    && q.id != last
+                {
+                    last = q.id;
+                    asked.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    luna.answer_permission(q.id, ProgramChoice::Deny);
+                }
                 for _ in 0..480 {
                     feed(n);
                     n += 1;
@@ -684,9 +697,14 @@ exports.analyse = async (f) => { execSync(\`ffmpeg -y -i "\${f}" -map 0:a:0 -ac 
     assert_eq!(r["main"], Value::Null, "{r}");
     assert_eq!(
         r["before"],
-        json!("refused: Downloading tracks is not supported in Tidalfast")
+        json!("refused: EACCES: you did not allow this plugin to save TIDAL songs as files")
     );
     assert_eq!(r["after"], json!("saved nothing"));
+    assert_eq!(
+        asked.load(std::sync::atomic::Ordering::Relaxed),
+        1,
+        "only the download before the module asked"
+    );
     assert_eq!(r["other"], json!(1), "other natives still load: {r}");
     assert_eq!(r["timeline"], json!([0]));
     assert_eq!(r["length"], json!(8));

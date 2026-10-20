@@ -133,6 +133,11 @@ struct PluginRecord {
     /// with Always. Never exported and never imported.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     account_writes: bool,
+    /// What else the user allowed this plugin with Always (the TIDAL
+    /// sign-in, system-wide shortcuts, a program's pipe, saving TIDAL
+    /// audio). Never exported and never imported.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    grants: Vec<super::Access>,
     /// What the plugin has done (network, files, IPC, a server, native
     /// code), recorded by the ops that did it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -161,6 +166,10 @@ struct Inner {
     children: ChildHub,
     /// Who may change the account (see [`super::writes`]).
     writes: Arc<super::writes::Grants>,
+    /// The other permissions plugins ask for (see [`super::permits`]).
+    permits: Arc<super::permits::Permits>,
+    /// Plugins' system-wide shortcuts (see [`super::hotkeys`]).
+    hotkeys: super::hotkeys::Hotkeys,
     /// Message boxes plugins wait on, and the next id.
     boxes: Vec<super::MessageBox>,
     next_box: u64,
@@ -326,6 +335,31 @@ impl Inner {
         self.records.iter_mut().find(|r| r.name == name)
     }
 
+    /// A plugin stopped (unloaded, disabled, failed, the app closing): what
+    /// it had open outside the sandbox goes, and calls waiting for a
+    /// permission answer fail.
+    fn close_plugin_io(&mut self, name: &str) {
+        self.net.close_plugin(name);
+        self.children.close_plugin(name);
+        self.end_run(name);
+    }
+
+    /// A plugin's run ends (it stops, or loads again): Allow once and Deny
+    /// answers end with it, and so do its system-wide shortcuts and TIDAL
+    /// audio streams; calls waiting for a permission answer fail.
+    fn end_run(&mut self, name: &str) {
+        self.hotkeys.close_plugin(name);
+        super::audio::close_plugin(name);
+        for op in self.permits.close_plugin(name) {
+            let _ = self.tx.send(Msg::OpDone {
+                id: op,
+                ok: false,
+                json: json!("ECANCELED: the plugin stopped").to_string(),
+            });
+        }
+        self.dirty = true;
+    }
+
     /// `plugin` did what `p` describes (recorded once, saved with it).
     fn used(&mut self, plugin: &str, p: Permission) {
         let Some(r) = self.record_mut(plugin) else {
@@ -340,6 +374,13 @@ impl Inner {
     }
 
     fn log(&mut self, plugin: Option<&str>, level: LogLevel, message: String) {
+        // A TIDAL sign-in handed to a plugin never shows in a log, even when
+        // the plugin prints it.
+        let hidden = match super::permits::redact(&message) {
+            std::borrow::Cow::Owned(m) => Some(m),
+            std::borrow::Cow::Borrowed(_) => None,
+        };
+        let message = hidden.unwrap_or(message);
         match plugin.filter(|p| self.record(p).is_some()) {
             Some(p) => {
                 let message = match self.maps.get(p).and_then(|m| m.get()) {
@@ -480,6 +521,11 @@ impl Inner {
                 if r.account_writes && !permissions.contains(&Permission::AccountWrites) {
                     permissions.push(Permission::AccountWrites);
                 }
+                for g in &r.grants {
+                    if !permissions.contains(&g.permission()) {
+                        permissions.push(g.permission());
+                    }
+                }
                 let uses_dom = r.uses_dom || rt.is_some_and(|x| x.uses_dom);
                 if uses_dom && !permissions.contains(&Permission::Dom) {
                     permissions.push(Permission::Dom);
@@ -512,6 +558,7 @@ impl Inner {
                     permissions,
                     programs: r.programs.clone(),
                     account_writes: r.account_writes,
+                    grants: r.grants.clone(),
                     settings: rt.and_then(|x| x.settings.clone()),
                     logs: rt
                         .map(|x| x.logs.iter().cloned().collect())
@@ -572,6 +619,7 @@ impl Inner {
             background_updates: self.background_updates.clone(),
             transfer: self.transfer.clone(),
             program_requests: self.children.requests(),
+            permission_requests: self.permits.requests(),
             message_boxes: self.boxes.clone(),
         }
     }
@@ -1163,9 +1211,44 @@ It is installed and switched on; what it may do is asked when it does it, and it
             let host = inner.borrow().host.clone();
             Ok(Value::Object(host.module_properties()))
         }
-        "credentials" => {
-            let host = inner.borrow().host.clone();
-            Ok(host.credentials().unwrap_or(Value::Null))
+        // System-wide shortcuts (see `hotkeys.rs`): only for a plugin the
+        // user allowed, and only where the system has them.
+        "shortcut.supported" => Ok(json!(super::hotkeys::SUPPORTED)),
+        "shortcut.global" => {
+            let plugin = who.acting()?;
+            let accelerator: String = str_of(a, "accelerator").chars().take(100).collect();
+            let mut i = inner.borrow_mut();
+            if i.record(&plugin).is_none() {
+                return Err(format!("EACCES: unknown plugin {plugin}"));
+            }
+            if !i.permits.allowed(&plugin, &super::Access::GlobalShortcuts) {
+                return Err(denied(&super::Access::GlobalShortcuts));
+            }
+            i.hotkeys.register(&plugin, &accelerator)?;
+            i.used(&plugin, Permission::GlobalShortcuts);
+            Ok(json!(true))
+        }
+        "shortcut.release" => {
+            let plugin = who.acting()?;
+            inner
+                .borrow_mut()
+                .hotkeys
+                .unregister(&plugin, str_of(a, "accelerator"));
+            Ok(Value::Null)
+        }
+        // How far `MediaItem.download` is, and closing a TIDAL stream.
+        "audio.progress" => {
+            let plugin = who.acting()?;
+            Ok(match super::audio::progress(&plugin, str_of(a, "id")) {
+                Some((downloaded, total)) => json!({ "downloaded": downloaded, "total": total }),
+                None => Value::Null,
+            })
+        }
+        "audio.close" => {
+            let plugin = who.acting()?;
+            let handle = a["handle"].as_u64().unwrap_or_default() as u32;
+            super::audio::close(&plugin, handle);
+            Ok(Value::Null)
         }
         "state" => {
             let host = inner.borrow().host.clone();
@@ -1593,12 +1676,30 @@ It is installed and switched on; what it may do is asked when it does it, and it
                     port: *port,
                 },
             };
+            // Another program's pipe or socket (not Discord's): only after
+            // the user allowed this plugin that path. "EASK" tells the shim
+            // to ask (and wait for the answer) before it tries again.
+            let pipe = match &target {
+                Target::Ipc(path) if !super::net::is_discord_ipc_path(path) => {
+                    let key = super::permits::pipe_key(path)?;
+                    let access = super::Access::Pipe { path: key.clone() };
+                    match inner.borrow().permits.standing(&plugin, &access) {
+                        super::permits::Standing::Allowed => Some(key),
+                        super::permits::Standing::Denied => return Err(denied(&access)),
+                        super::permits::Standing::Ask => {
+                            return Err(format!("EASK: {path} needs your permission"));
+                        }
+                    }
+                }
+                _ => None,
+            };
             let target = match host.outbound(Some(&plugin), &req) {
                 NetVerdict::Allow | NetVerdict::Respond { .. } => target,
                 NetVerdict::Deny(why) | NetVerdict::Ask(why) => {
                     return Err(format!("ECONNREFUSED: {why}"));
                 }
-                NetVerdict::Redirect(path) => Target::Ipc(path),
+                NetVerdict::Redirect(path) if pipe.is_none() => Target::Ipc(path),
+                NetVerdict::Redirect(_) => target,
             };
             let mut i = inner.borrow_mut();
             if i.record(&plugin).is_none() {
@@ -1607,12 +1708,13 @@ It is installed and switched on; what it may do is asked when it does it, and it
             i.used(
                 &plugin,
                 match &target {
+                    Target::Ipc(_) if pipe.is_some() => Permission::ProgramPipes,
                     Target::Ipc(_) => Permission::LocalIpc,
                     Target::Tcp { .. } => Permission::Network,
                 },
             );
             let tx = i.tx.clone();
-            let h = i.net.connect(&plugin, target, move |ev| {
+            let h = i.net.connect(&plugin, target, pipe, move |ev| {
                 let _ = tx.send(Msg::Net(ev));
             })?;
             Ok(json!(h))
@@ -1884,7 +1986,98 @@ fn hmac(alg: &str, key: &[u8], data: &[u8]) -> Result<Vec<u8>, String> {
     })
 }
 
+/// The ops that need a permission the user gives ([`super::permits`]).
+fn gated(name: &str) -> Option<super::Access> {
+    match name {
+        "host.credentials" => Some(super::Access::Credentials),
+        "audio.save" | "audio.open" | "audio.read" => Some(super::Access::SaveAudio),
+        _ => None,
+    }
+}
+
+/// The error a plugin gets for something the user did not allow.
+fn denied(access: &super::Access) -> String {
+    format!(
+        "EACCES: you did not allow this plugin to {}",
+        access.log_name()
+    )
+}
+
+/// `L.permit(...)`: where the plugin stands for a permission. Allowed and
+/// denied answer at once; otherwise the question is put to the user and
+/// the op settles with the answer (see [`Msg::PermissionAnswer`]).
+fn permit(inner: &S, who: &Who, arg: &str, id: f64) {
+    let a: Value = serde_json::from_str(arg).unwrap_or(Value::Null);
+    let tx = inner.borrow().tx.clone();
+    let settle = |ok: bool, value: Value| {
+        let _ = tx.send(Msg::OpDone {
+            id,
+            ok,
+            json: value.to_string(),
+        });
+    };
+    let plugin = match who.acting() {
+        Ok(p) => p,
+        Err(e) => return settle(false, json!(e)),
+    };
+    let (access, detail) = match str_of(&a, "kind") {
+        "credentials" => (super::Access::Credentials, None),
+        "save_audio" => (super::Access::SaveAudio, None),
+        "global_shortcuts" => {
+            if !super::hotkeys::SUPPORTED {
+                return settle(
+                    false,
+                    json!("ENOTSUP: system-wide shortcuts are not available on this system"),
+                );
+            }
+            let accelerator: String = str_of(&a, "accelerator").chars().take(100).collect();
+            (
+                super::Access::GlobalShortcuts,
+                Some(accelerator).filter(|s| !s.is_empty()),
+            )
+        }
+        "pipe" => match super::permits::pipe_key(str_of(&a, "path")) {
+            Ok(path) => (super::Access::Pipe { path }, None),
+            Err(e) => return settle(false, json!(e)),
+        },
+        other => return settle(false, json!(format!("EINVAL: no permission {other}"))),
+    };
+    let mut i = inner.borrow_mut();
+    if i.record(&plugin).is_none() {
+        return settle(false, json!(format!("EACCES: unknown plugin {plugin}")));
+    }
+    match i.permits.ask(&plugin, access.clone(), detail, id) {
+        super::permits::Standing::Allowed => settle(true, json!(true)),
+        super::permits::Standing::Denied => settle(false, json!(denied(&access))),
+        super::permits::Standing::Ask => i.dirty = true,
+    }
+}
+
 fn op_async(inner: &S, who: Who, name: String, arg: String, id: f64) {
+    if name == "permit" {
+        return permit(inner, &who, &arg, id);
+    }
+    // The runtime checks the permission itself, whatever the shim did.
+    if let Some(access) = gated(&name) {
+        let allowed = {
+            let mut i = inner.borrow_mut();
+            match who.acting() {
+                Ok(p) if i.permits.allowed(&p, &access) => {
+                    i.used(&p, access.permission());
+                    true
+                }
+                _ => false,
+            }
+        };
+        if !allowed {
+            let _ = inner.borrow().tx.send(Msg::OpDone {
+                id,
+                ok: false,
+                json: json!(denied(&access)).to_string(),
+            });
+            return;
+        }
+    }
     let lookup = name.starts_with("host.");
     let mut a: Value = serde_json::from_str(&arg).unwrap_or(Value::Null);
     // The host's outbound policy hears who asks from the live frames.
@@ -2168,11 +2361,108 @@ fn op_async_run(
             .unwrap_or(Value::Null)),
         "host.isrc_tracks" => Ok(Value::Array(host.tracks_by_isrc(str_of(a, "isrc")))),
         "file_dialog" => file_dialog(a, host),
+        // The TIDAL sign-in, for a plugin the user allowed (`op_async`
+        // checked): the current token, never logged, and hidden from log
+        // lines from now on.
+        "host.credentials" => {
+            let plugin = a.get("plugin").and_then(Value::as_str);
+            let c = host
+                .credentials(plugin)
+                .ok_or("You are not signed in to TIDAL")?;
+            if let Some(token) = c.get("token").and_then(Value::as_str) {
+                super::permits::note_secret(token);
+            }
+            Ok(c)
+        }
+        // TIDAL audio, for a plugin the user allowed (`op_async` checked).
+        "audio.open" => {
+            let plugin = a.get("plugin").and_then(Value::as_str).ok_or("EACCES")?;
+            let source =
+                host.audio_source(Some(plugin), id, a.get("quality").and_then(Value::as_str))?;
+            let info = json!({
+                "mimeType": source.mime,
+                "codec": source.codec,
+                "extension": source.extension,
+            });
+            let handle = super::audio::open_stream(plugin, source)?;
+            let mut info = info;
+            info["handle"] = json!(handle);
+            Ok(info)
+        }
+        "audio.read" => {
+            use base64::Engine;
+            let plugin = a.get("plugin").and_then(Value::as_str).ok_or("EACCES")?;
+            let handle = a["handle"].as_u64().unwrap_or_default() as u32;
+            Ok(match super::audio::read(plugin, handle)? {
+                Some(bytes) => json!(base64::engine::general_purpose::STANDARD.encode(bytes)),
+                None => Value::Null,
+            })
+        }
+        "audio.save" => audio_save(a, host),
         "host.playback_info" => Ok(host
             .playback_info(id, a.get("quality").and_then(Value::as_str))
             .unwrap_or(Value::Null)),
         other => Err(format!("Unknown operation {other}")),
     }
+}
+
+/// `MediaItem.download(path, quality)` for a plugin the user allowed to
+/// save TIDAL audio: the file goes where the user picked for this plugin in
+/// a file dialog; elsewhere the user is asked for a folder first (once for
+/// each folder the plugin names).
+fn audio_save(a: &Value, host: &dyn LunaHost) -> Result<Value, String> {
+    let plugin = a.get("plugin").and_then(Value::as_str).ok_or("EACCES")?;
+    let id = str_of(a, "id");
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_digit()) {
+        return Err(format!("EINVAL: not a track id: {id}"));
+    }
+    let wanted = str_of(a, "path");
+    let source = host.audio_source(Some(plugin), id, a.get("quality").and_then(Value::as_str))?;
+    let target = match super::fsops::granted_for(plugin, wanted) {
+        Some(path) => path,
+        None => {
+            let wanted = std::path::Path::new(wanted);
+            let name = wanted
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .filter(|n| !n.trim().is_empty())
+                .unwrap_or_else(|| id.to_string());
+            let asked = wanted
+                .parent()
+                .map(std::path::Path::to_path_buf)
+                .unwrap_or_default();
+            let folder = match super::audio::redirect(plugin, &asked) {
+                Some(folder) => folder,
+                None => {
+                    let picked = file_dialog(
+                        &json!({
+                            "plugin": plugin,
+                            "kind": "open",
+                            "defaultPath": asked.to_string_lossy(),
+                            "properties": ["openDirectory", "createDirectory"],
+                        }),
+                        host,
+                    )?;
+                    let folder = picked["filePaths"][0]
+                        .as_str()
+                        .map(std::path::PathBuf::from)
+                        .ok_or("ECANCELED: no folder was chosen")?;
+                    super::audio::remember_redirect(plugin, &asked, &folder);
+                    folder
+                }
+            };
+            folder.join(super::audio::safe_name(&name))
+        }
+    };
+    let target = super::audio::with_extension(&target, &source);
+    if let Some(parent) = target.parent()
+        && !parent.exists()
+        && super::fsops::granted_for(plugin, &parent.to_string_lossy()).is_some()
+    {
+        std::fs::create_dir_all(parent).map_err(|e| format!("EIO: {e}"))?;
+    }
+    super::audio::save(plugin, id, source, &target)?;
+    Ok(json!({ "path": target.to_string_lossy() }))
 }
 
 /// Most buttons, dialogs per plugin and dialogs in all a plugin can put up
@@ -2620,8 +2910,7 @@ impl Engine {
                 rt.status = Some(PluginStatus::Failed(err.clone()));
                 rt.settings = None;
                 i.log(Some(&name), LogLevel::Error, format!("Disabled: {err}"));
-                i.net.close_plugin(&name);
-                i.children.close_plugin(&name);
+                i.close_plugin_io(&name);
             }
             let host = self.inner.borrow().host.clone();
             host.notify(
@@ -2731,6 +3020,8 @@ impl Engine {
             self.apply_disables();
             return;
         }
+        // A new run: what the last one was allowed once or denied is over.
+        self.inner.borrow_mut().end_run(name);
         let (url, pkg, path) = {
             let i = self.inner.borrow();
             let Some(r) = i.record(name) else { return };
@@ -2773,8 +3064,7 @@ impl Engine {
         self.host_call("unload", json!({ "name": name }));
         self.ctx.with(|ctx| super::wasm::drop_owner(&ctx, name));
         let mut i = self.inner.borrow_mut();
-        i.net.close_plugin(name);
-        i.children.close_plugin(name);
+        i.close_plugin_io(name);
         i.boxes.retain(|b| b.plugin != name);
         i.dirty = true;
         i.codes
@@ -3021,6 +3311,7 @@ impl Engine {
                         hide_settings: false,
                         programs: Vec::new(),
                         account_writes: false,
+                        grants: Vec::new(),
                         used: Vec::new(),
                     });
                     true
@@ -3089,6 +3380,7 @@ impl Engine {
         let _ = std::fs::remove_file(path);
         i.set_source_map(name, None);
         i.records.retain(|r| r.name != name);
+        i.permits.forget(name);
         i.rts.remove(name);
         i.live.remove(name);
         i.live_off_dev.remove(name);
@@ -3526,6 +3818,79 @@ impl Engine {
                 }
                 i.dirty = true;
             }
+            Msg::PermissionAnswer { id, choice } => {
+                let mut i = self.inner.borrow_mut();
+                if let Some(answer) = i.permits.answer(id, choice) {
+                    let mut added = false;
+                    if answer.always
+                        && let Some(r) = i.record_mut(&answer.plugin)
+                        && !r.grants.contains(&answer.access)
+                    {
+                        r.grants.push(answer.access.clone());
+                        r.grants.sort();
+                        added = true;
+                    }
+                    if added {
+                        i.save_records();
+                    }
+                    let what = answer.access.log_name();
+                    i.log(
+                        Some(&answer.plugin),
+                        LogLevel::Info,
+                        match (answer.allowed, answer.always) {
+                            (true, true) => format!("Allowed to {what} from now on"),
+                            (true, false) => format!("Allowed to {what} until it stops"),
+                            (false, _) => format!("Not allowed to {what}"),
+                        },
+                    );
+                    let result = if answer.allowed {
+                        (true, json!(true))
+                    } else {
+                        (false, json!(denied(&answer.access)))
+                    };
+                    for op in answer.ops {
+                        let _ = i.tx.send(Msg::OpDone {
+                            id: op,
+                            ok: result.0,
+                            json: result.1.to_string(),
+                        });
+                    }
+                }
+                i.dirty = true;
+            }
+            Msg::RevokePermission { plugin, access } => {
+                let mut i = self.inner.borrow_mut();
+                let had = i.record_mut(&plugin).is_some_and(|r| {
+                    let before = r.grants.len();
+                    r.grants.retain(|g| *g != access);
+                    r.grants.len() != before
+                });
+                if had {
+                    i.save_records();
+                }
+                i.permits.revoke(&plugin, &access);
+                // What the permission carried stops with it.
+                match &access {
+                    super::Access::GlobalShortcuts => i.hotkeys.close_plugin(&plugin),
+                    super::Access::Pipe { path } => i.net.close_pipe(&plugin, path),
+                    super::Access::SaveAudio => super::audio::close_plugin(&plugin),
+                    super::Access::Credentials => {}
+                }
+                let what = access.log_name();
+                i.log(
+                    Some(&plugin),
+                    LogLevel::Info,
+                    format!("No longer allowed to {what}"),
+                );
+                i.dirty = true;
+            }
+            Msg::Hotkey {
+                plugin,
+                accelerator,
+            } => self.host_call(
+                "shortcut",
+                json!({ "plugin": plugin, "accelerator": accelerator }),
+            ),
             Msg::RevokeAccountWrites(plugin) => {
                 let mut i = self.inner.borrow_mut();
                 let had = i.record_mut(&plugin).is_some_and(|r| {
@@ -3707,10 +4072,10 @@ impl Engine {
         }
         let mut i = self.inner.borrow_mut();
         for n in names {
-            i.net.close_plugin(&n);
-            i.children.close_plugin(&n);
+            i.close_plugin_io(&n);
         }
         i.children.stop_all();
+        i.hotkeys.stop_all();
         // What the unloads saved is on disk before the thread ends.
         i.storage.flush();
     }
@@ -3753,6 +4118,11 @@ fn dedupe_records(records: &mut Vec<PluginRecord>, data_dir: &std::path::Path) -
             }
         }
         winner.account_writes |= loser.account_writes;
+        for g in &loser.grants {
+            if !winner.grants.contains(g) {
+                winner.grants.push(g.clone());
+            }
+        }
         if loser.name != winner.name {
             let _ =
                 std::fs::remove_file(Storage::new(data_dir.to_path_buf()).code_path(&loser.name));
@@ -4113,6 +4483,20 @@ fn setup(
             .filter(|r| r.account_writes)
             .map(|r| r.name.clone()),
     );
+    let permits = Arc::new(super::permits::Permits::default());
+    permits.restore(records.iter().flat_map(|r| {
+        r.grants
+            .iter()
+            .map(|g| (r.name.clone(), g.clone()))
+            .collect::<Vec<_>>()
+    }));
+    let hotkey_tx = tx.clone();
+    let hotkeys = super::hotkeys::Hotkeys::new(Arc::new(move |plugin, accelerator| {
+        let _ = hotkey_tx.send(Msg::Hotkey {
+            plugin,
+            accelerator,
+        });
+    }));
     let inner: S = Rc::new(RefCell::new(Inner {
         storage: Storage::new(cfg.data_dir.clone()),
         cfg,
@@ -4122,6 +4506,8 @@ fn setup(
         net: NetHub::default(),
         children: ChildHub::default(),
         writes,
+        permits,
+        hotkeys,
         boxes: Vec::new(),
         next_box: 1,
         gesture_at: None,

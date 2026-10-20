@@ -4180,6 +4180,20 @@ impl App {
             return;
         };
         for command in commands {
+            // A press a plugin's system-wide media key already acted on
+            // (luna::hotkeys) is not acted on again.
+            let kind = match &command {
+                MediaCommand::Play
+                | MediaCommand::Pause
+                | MediaCommand::Stop
+                | MediaCommand::PlayPause => Some(crate::luna::hotkeys::MediaKind::PlayPause),
+                MediaCommand::Next => Some(crate::luna::hotkeys::MediaKind::Next),
+                MediaCommand::Previous => Some(crate::luna::hotkeys::MediaKind::Previous),
+                _ => None,
+            };
+            if kind.is_some_and(|kind| !crate::luna::hotkeys::native_media_command(kind)) {
+                continue;
+            }
             let playing = self.now_playing().is_some_and(|now| now.playing);
             let action = match command {
                 MediaCommand::Play => (!playing).then_some(Action::TogglePlay),

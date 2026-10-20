@@ -68,7 +68,7 @@ in `src/luna/coverage_tests.rs`.
 | `MediaItem.playbackInfo`, `TidalApi.playbackInfo`, `getPlaybackInfo` | The stream info with its manifest (URLs, key id) | works for everything but the manifest: TIDAL's answer with `audioQuality`, `bitDepth`, `sampleRate`, `manifestMimeType`, `albumReplayGain` and so on, plus `stream`: `{ mimeType, codec, bitrate?, encrypted }` read from the manifest by the app, which is then dropped | `api3_tests::media_item_formats_use_the_playback_info_a_plugin_asked_for`; `luna_host::tests::a_manifest_gives_plugins_its_codec_and_bit_rate_never_its_address` |
 | `playbackInfo` manifest (stream URLs, key id), `MediaItem.format.bytes` | The manifest, and the stream's size from reading it | refused: the app plays the stream, plugins get none of its addresses or keys, and nothing reads the file for them | `lib.js` `playbackInfo`; "Security model" |
 | `MediaItem.withFormat`, `updateFormat` | The stream's format, read from the manifest and the file | works (the playing song's format from the local engine; a song the plugin asked `playbackInfo` for, from TIDAL's figures and the manifest's codec and bit rate; otherwise what its quality tier fixes; `bytes` is not set, see the refused row above) | `media_item_formats_come_from_the_engine_and_the_quality_tier`; `api3_tests::media_item_formats_use_the_playback_info_a_plugin_asked_for` |
-| `MediaItem.download`, `downloadProgress`, `fileExtension` | Saves the song to disk | refused for songs (saving TIDAL audio; the call fails with "Downloading tracks is not supported in Tidalfast", and a plugin that only analyses audio is answered live) | `lib.js` `download`; `harden_tests`, "Security model" |
+| `MediaItem.download`, `downloadProgress`, `fileExtension` | Saves the song to disk | works after the user allows saving TIDAL audio (asked at the first download; unencrypted streams only, written where the user picked; a plugin that only analyses audio is answered live and needs no permission) | `lib.js` `download`, `audio.rs`; `permits_flow_tests` |
 | `downloadObject` | Saves a text through the browser's download | works (a save dialog over the app with the file name; the app writes the text to the file the user picks, atomically; cancelling saves nothing) | `action_tests::download_object_saves_the_text_to_the_picked_file` |
 | `MediaItems` (`fromIds`, `fromTMediaItems`, `title`, `count`, `mediaItems`) | | works | `lib.js` `MediaItems` |
 | `Album` (`fromId`, `brainzAlbum` with the track-count check, `brainzRelease`, `artist`, `artists`, `count`, `tMediaItems`, `mediaItems`, `coverUrl`, `title`, `upc`, `brainzId`, `genre`, `recordLabel`, `numberOfTracks`, `releaseDate`, `releaseYear`) | | works | `coverage_tests::content_classes_follow_lunas_source` |
@@ -80,7 +80,7 @@ in `src/luna/coverage_tests.rs`.
 | `Tidal.PlayState`, `Tidal.featureFlags` | | works | `luna_api_gaps_of_round_6` |
 | `TidalApi`: `track`, `album`, `albumItems`, `artist`, `playlist`, `playlistItems` (page object), `lyrics`, `isrc` (every track with the ISRC) | | works | `coverage_tests::content_classes_follow_lunas_source` |
 | `TidalApi.fetch`, `getAuthHeaders`, `queryArgs` | Authorised requests to TIDAL | works (requests to TIDAL's v1 API that carry these headers are answered with the app's own session; a read passes TIDAL's status and `ETag`; writes to playlists and favourites are asked per plugin (Deny, Allow for a minute, Always allow); the sign-in, token, session and profile endpoints stay refused and the token itself is never handed over) | `luna_host::tests::account_reads_go_through_the_app_and_writes_are_refused`; `action_tests::an_allowed_account_write_goes_through_and_can_be_revoked` |
-| `getCredentials` | The signed-in session's token | refused (the token stays with the app; the call fails with "Tidalfast does not share TIDAL credentials with plugins") | `lib.js` `getCredentials` |
+| `getCredentials` | The signed-in session's token | works after the user allows the TIDAL sign-in (the current token in TidaLuna's shape; hidden from log lines) | `lib.js` `getCredentials`; `permits_flow_tests` |
 | `redux.actions` | Dispatch any TIDAL action | works (all 694 types of TIDAL's desktop app, `action-types.txt`: 57 act (playback, queue, favourites, add to playlist, search, navigation, fullscreen and minimize, play by id, messages) and the rest answer with a line in the plugin's log that names the reason (TIDAL's page loading, its request cache, analytics, TIDAL Connect, the account session, settings, playlist edits that go through `fetch`, web UI state); a name TIDAL does not have is told so; every dispatch first runs the plugins' interceptors) | `api3_tests::every_tidal_action_acts_or_says_why_it_does_not`; `api3_tests::a_dispatch_that_does_nothing_leaves_a_line_in_the_plugins_log`; `plugin_dispatches_become_host_commands` |
 | `redux.intercept`, `interceptPromise`, `store`, `RepeatMode`, `actionTypes` | | works | `cancel_and_redispatch_add_now`; `luna_api_gaps_of_round_6` |
 | `redux.interceptActionResp` | One call at a time per response type; resolves on a response or a failure action; rejects on the timeout | works | `coverage_tests::core_helpers_follow_lunas_source` |
@@ -112,11 +112,12 @@ in `src/luna/coverage_tests.rs`.
 | `showMessageBox` (and Electron's `dialog.showMessageBox`) | A system dialog with buttons; resolves `{ response, checkboxChecked }` | works (a dialog over the app, drawn like the program prompt; `type`, `checkboxLabel` and icons are ignored; the `...Sync` forms answer 0 without asking) | `coverage_tests::message_boxes_ask_the_user_and_return_the_button` |
 | `showErrorBox` | A system error dialog | works (a dialog over the app with the title, the text and an OK button; returns nothing, as Electron's does; also `dialog.showErrorBox`) | `api2_tests::messager_dispatches_message_actions_and_error_boxes_ask_the_user` |
 | `showOpenDialog`, `showSaveDialog` | A system file dialog | works (the system dialog (`rfd`; the portal or zenity on Linux) with `title`, `defaultPath`, `filters` and `properties` for files, folders and several picks; the plugin's `fs` reaches exactly the picked path; a second dialog meanwhile and a cancel answer `canceled: true`) | `action_tests::file_dialogs_answer_with_the_users_pick_and_open_only_that_path`; `coverage_tests` |
-| `fetchMediaItemStream` | Streams the song's bytes to the plugin | refused: "Streaming TIDAL media to plugins is not supported in Tidalfast" | `lib.js`, "Security model" |
+| `fetchMediaItemStream` | Streams the song's bytes to the plugin | works after the user allows saving TIDAL audio (a Node `Readable` of the unencrypted stream; no URL is handed out) | `core.js`, `audio.rs`; `permits_flow_tests` |
 | Node modules in `.native` code (`fs`, `os`, `path`, `crypto`, `zlib`, `stream`, `stream/consumers`, `events`, `util`, `url`, `http`/`https` clients, `net`, `child_process`, `process`, `buffer`, `timers`, `assert`, `electron`, ...) | | works (`fs` and `child_process` behind their permissions; `child_process` asks first) | `node_builtin_shims`; `coverage_tests::core_helpers_follow_lunas_source` |
 | `https.createServer`, `tls`, `http2`, `dgram`, `vm`, `worker_threads.Worker`, `inspector`, `.node` addons | | refused: each throws with its reason (TLS servers, real UDP, running code in a context, threads, debugging the process, machine code for another ABI) | `native_addons_fail_with_the_reason_on_the_card`; `node_builtin_shims` |
 | `dns`, `v8` | | works (`dns`: `lookup` by the system resolver after the same question as a connection to the name; `resolve4/6` (with real TTLs), `resolveMx`, `resolveTxt`, `resolveSrv`, `resolveNs`, `resolveCname`, `resolvePtr`, `resolveSoa`, `resolveCaa`, `resolveNaptr`, `resolveTlsa`, `resolveAny`, `resolve(name, rrtype)` and `reverse` ask a DNS server through the app (UDP, then TCP when the answer is cut short), as plugins have no UDP: the servers a plugin gave `setServers` (each asked as a connection to it) or else the system's (`/etc/resolv.conf`, Windows `GetNetworkParams`); each `Resolver` keeps its own servers; c-ares error codes (`ENOTFOUND`, `ENODATA`, `ESERVFAIL`, `EREFUSED`, `ETIMEOUT`, ...) with Node's shapes. `v8`: `serialize`/`deserialize` round trip (the bytes are Tidalfast's own format, which no plugin can tell), `Serializer`/`Deserializer`, `getHeapStatistics` and `getHeapSpaceStatistics` from QuickJS's own accounting (used, total, available, code), `writeHeapSnapshot` and `getHeapSnapshot` refused: a snapshot would hand over the whole process) | `api3_tests::dns_record_types_are_asked_of_a_dns_server_by_the_host`; `dnsq::tests`; `api2_tests::dns_and_v8_answer_like_node`; `api3_tests::v8_heap_statistics_follow_the_runtimes_memory` |
-| `BrowserWindow` other than the main window, `globalShortcut` system-wide | | refused: windows stay inert, shortcuts fire while the window has focus | luna-compat.md "Electron and window" |
+| `BrowserWindow` other than the main window | | refused: windows stay inert | luna-compat.md "Electron and window" |
+| `globalShortcut` system-wide | | works on Windows after the user allows it (`RegisterHotKey`); elsewhere shortcuts fire while the window has focus | `hotkeys.rs`; `permits_flow_tests` |
 
 ## @luna/dev
 
@@ -134,6 +135,13 @@ Rows above (an API family is one row), by round (2026-10-16):
 | after round 1 | 47 | 13 | 1 | 6 | 67 |
 | after round 2 | 52 | 8 | 1 | 6 | 67 |
 | after round 3 | 61 | 0 | 0 | 9 | 70 |
+| after the permissions (2026-10-20) | 65 | 0 | 0 | 6 | 71 |
+
+The permissions (owner decision, 2026-10-20) moved three refused rows to
+works once the user allows them (`MediaItem.download`, `getCredentials`,
+`fetchMediaItemStream`), and system-wide `globalShortcut` (Windows only) left
+the `BrowserWindow` row as a works row of its own; see
+"Permissions a plugin asks for" in `luna-compat.md`.
 
 Round 3 recounted the rows above (the table of round 2 added up to 67; the
 page held 66, 51 of them works) and closed all eight partial rows and the missing one, and split the
@@ -164,10 +172,11 @@ upstream exports that the shim lacks (upstream `master` is still 1.17.1-beta,
 
 What is left, and why (all refused on purpose):
 
-- **Saving or streaming TIDAL audio**: `MediaItem.download`,
-  `fetchMediaItemStream`, the manifest in `playbackInfo` and `format.bytes`.
-- **The account's secrets**: `getCredentials`, the sign-in and token endpoints
-  through `fetch`.
+- **TIDAL's stream addresses and keys**: the manifest in `playbackInfo` and
+  `format.bytes` (saving or streaming TIDAL audio works only after the user
+  allows it, and never for a protected stream).
+- **The sign-in and token endpoints** through `fetch` (the sign-in itself is
+  handed over only after the user allows it).
 - **Running code or reaching the machine beyond a permission**: `dgram`, TLS
   servers, `vm`, `worker_threads`, `inspector`, native `.node` addons, windows
   other than the app's, heap snapshots.

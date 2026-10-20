@@ -70,6 +70,12 @@ pub struct Plugins {
     /// What the user answered to [`Plugins::demo_program`].
     #[cfg(any(test, feature = "demo"))]
     pub demo_answer: Option<crate::luna::ProgramChoice>,
+    /// A made-up permission question (demo shots and tests).
+    #[cfg(any(test, feature = "demo"))]
+    pub demo_permission: Option<crate::luna::PermissionRequest>,
+    /// What the user answered to [`Plugins::demo_permission`].
+    #[cfg(any(test, feature = "demo"))]
+    pub demo_permission_answer: Option<crate::luna::ProgramChoice>,
 }
 
 /// A code editor a plugin opened in a window of its own (Themer's CSS
@@ -99,6 +105,33 @@ impl Plugins {
             demo_program: None,
             #[cfg(any(test, feature = "demo"))]
             demo_answer: None,
+            #[cfg(any(test, feature = "demo"))]
+            demo_permission: None,
+            #[cfg(any(test, feature = "demo"))]
+            demo_permission_answer: None,
+        }
+    }
+
+    /// The permission question the user should answer next, if a plugin
+    /// asked one.
+    pub fn pending_permission(&self) -> Option<crate::luna::PermissionRequest> {
+        #[cfg(any(test, feature = "demo"))]
+        if let Some(request) = &self.demo_permission {
+            return Some(request.clone());
+        }
+        self.luna.as_ref()?.pending_permission()
+    }
+
+    /// The user answered [`Plugins::pending_permission`].
+    pub fn answer_permission(&mut self, id: u64, choice: crate::luna::ProgramChoice) {
+        #[cfg(any(test, feature = "demo"))]
+        if self.demo_permission.as_ref().is_some_and(|r| r.id == id) {
+            self.demo_permission = None;
+            self.demo_permission_answer = Some(choice);
+            return;
+        }
+        if let Some(luna) = &self.luna {
+            luna.answer_permission(id, choice);
         }
     }
 

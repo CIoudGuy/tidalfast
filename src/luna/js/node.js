@@ -1042,10 +1042,29 @@
 			if (cb) this.once("connect", cb);
 			this.readyState = "opening";
 			this.connecting = true;
-			try {
+			const open = () => {
 				this.handle = callOp("net.connect", { plugin: this.plugin ?? null, path: opts.path ?? null, host: opts.host ?? null, port: opts.port ?? null });
 				sockets.set(this.handle, this);
+			};
+			try {
+				open();
 			} catch (err) {
+				// Another program's pipe or socket: the user is asked first,
+				// and the connect goes ahead once they allowed it.
+				if (String(err?.message ?? "").startsWith("EASK") && opts.path) {
+					L.permit({ plugin: this.plugin ?? null, kind: "pipe", path: String(opts.path) })
+						.then(() => {
+							if (this.destroyed || this.readyState !== "opening") return;
+							open();
+						})
+						.catch((e) => {
+							this.readyState = "closed";
+							this.connecting = false;
+							this.emit("error", e);
+							this.emit("close", true);
+						});
+					return this;
+				}
 				queueMicrotask(() => {
 					this.readyState = "closed";
 					this.emit("error", err);
@@ -1087,8 +1106,11 @@
 		_write(chunk, enc, cb) {
 			if (this.handle === undefined || this.readyState === "closed") return cb(new Error("This socket has been ended by the other party"));
 			try {
-				callOp("net.write", { handle: this.handle, data: L.b64enc(chunk), plugin: this.plugin ?? null });
-				this.bytesWritten += chunk.length;
+				// A string is written as Node does: in its encoding, UTF-8 by
+				// default (node-mpv sends its JSON commands as strings).
+				const bytes = typeof chunk === "string" ? Buffer.from(chunk, typeof enc === "string" && enc !== "buffer" ? enc : "utf8") : chunk;
+				callOp("net.write", { handle: this.handle, data: L.b64enc(bytes), plugin: this.plugin ?? null });
+				this.bytesWritten += bytes.length;
 				cb();
 			} catch (err) {
 				cb(err);
@@ -3187,9 +3209,75 @@
 			this._handlers.delete(ch);
 		},
 	});
-	// Shortcuts work while Tidalfast's window has focus and never as
-	// system-wide hooks: they fire from the key events the window delivers.
+	// Shortcuts work while Tidalfast's window has focus, from the key events
+	// the window delivers. Where the system has them (Windows), a plugin the
+	// user allowed also holds them system-wide (asked at the first
+	// register; hotkeys.rs): a press then arrives as the "shortcut" host
+	// call, and the window never sees that key.
 	const shortcuts = new Map();
+	let globalSupport;
+	const globalSupported = () => (globalSupport ??= !!callOp("shortcut.supported", null));
+	const takeGlobally = (acc, plugin) => {
+		if (!plugin || !globalSupported()) return;
+		L.permit({ plugin, kind: "global_shortcuts", accelerator: acc })
+			.then(() => {
+				const s = shortcuts.get(acc);
+				if (s === undefined || s.plugin !== plugin) return;
+				callOp("shortcut.global", { plugin, accelerator: acc });
+				s.global = true;
+			})
+			.catch((err) => callOp("log", { plugin, level: "warn", msg: `globalShortcut ${acc} works only while Tidalfast has focus: ${err?.message ?? err}` }));
+	};
+	const releaseGlobally = (acc, s) => {
+		if (s?.global) callOp("shortcut.release", { plugin: s.plugin, accelerator: acc });
+	};
+	L.node.globalShortcutFired = ({ plugin, accelerator }) => {
+		const s = shortcuts.get(accelerator);
+		if (s === undefined || s.plugin !== plugin) return;
+		try {
+			s.cb();
+		} catch (err) {
+			L.reportError?.(err);
+		}
+	};
+	// A track's TIDAL audio as a Readable (fetchMediaItemStream): read from
+	// the app chunk by chunk; destroying it closes the stream there.
+	L.node.audioStream = (plugin, info, opts) => {
+		let downloaded = 0;
+		let closed = false;
+		const close = () => {
+			if (closed) return;
+			closed = true;
+			try {
+				callOp("audio.close", { plugin, handle: info.handle });
+			} catch {}
+		};
+		const r = new Readable({ destroy: (err, cb) => (close(), cb?.(err)) });
+		Object.assign(r, { mimeType: info.mimeType, codec: info.codec, extension: info.extension });
+		const signal = opts?.signal;
+		(async () => {
+			try {
+				for (;;) {
+					if (closed || r.destroyed) return close();
+					if (signal?.aborted) throw signal.reason ?? new Error("aborted");
+					const chunk = await L.callOpAsync("audio.read", { plugin, handle: info.handle });
+					if (chunk === null || chunk === undefined) break;
+					const b = Buffer.from(L.b64dec(chunk));
+					downloaded += b.length;
+					r.push(b);
+					try {
+						opts?.onProgress?.({ total: undefined, downloaded, percent: undefined });
+					} catch {}
+				}
+				closed = true;
+				r.push(null);
+			} catch (err) {
+				close();
+				r.destroy(err);
+			}
+		})();
+		return r;
+	};
 	const accelKeys = { commandorcontrol: "ctrl", cmdorctrl: "ctrl", control: "ctrl", ctrl: "ctrl", command: "meta", cmd: "meta", super: "meta", meta: "meta", option: "alt", alt: "alt", altgr: "alt", shift: "shift" };
 	const parseAccel = (acc) => {
 		const want = { ctrl: false, meta: false, alt: false, shift: false, key: "" };
@@ -3229,16 +3317,24 @@
 		register: (acc, cb) => {
 			if (typeof acc !== "string" || typeof cb !== "function") return false;
 			if (shortcuts.has(acc)) return false;
-			shortcuts.set(acc, { want: parseAccel(acc), cb, plugin: L.pluginFromStack() });
+			const plugin = L.pluginFromStack();
+			shortcuts.set(acc, { want: parseAccel(acc), cb, plugin });
 			hookShortcuts();
+			takeGlobally(acc, plugin);
 			return true;
 		},
 		registerAll: (list, cb) => {
 			for (const a of list ?? []) globalShortcut.register(a, cb);
 		},
 		isRegistered: (acc) => shortcuts.has(acc),
-		unregister: (acc) => void shortcuts.delete(acc),
-		unregisterAll: () => shortcuts.clear(),
+		unregister: (acc) => {
+			releaseGlobally(acc, shortcuts.get(acc));
+			shortcuts.delete(acc);
+		},
+		unregisterAll: () => {
+			for (const [acc, s] of shortcuts) releaseGlobally(acc, s);
+			shortcuts.clear();
+		},
 	};
 	class Menu {
 		constructor() {

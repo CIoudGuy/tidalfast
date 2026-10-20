@@ -176,6 +176,12 @@ fn granted_to(plugin: &str) -> Vec<Pick> {
         .unwrap_or_default()
 }
 
+/// `p` as the plugin may write it, when a file dialog pick for `plugin`
+/// covers it (where a TIDAL download may go, see `audio.rs`).
+pub fn granted_for(plugin: &str, p: &str) -> Option<PathBuf> {
+    granted_path(&granted_to(plugin), p)
+}
+
 /// The path a plugin named when a dialog pick covers it.
 fn granted_path(granted: &[Pick], p: &str) -> Option<PathBuf> {
     let raw = Path::new(p);

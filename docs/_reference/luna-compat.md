@@ -10,14 +10,21 @@ distinct plugins** (Inrixia's `dev` channel repeats its `latest` plugins with th
 same results). Rounds 6 to 15 re-checked them live; later rounds override earlier
 ones, and each row says which round last verified it. How a round worked is under
 "History" at the end; the API surface is checked in
-[luna-api-coverage.md](luna-api-coverage.md) (70 rows: 61 works, 9 refused).
+[luna-api-coverage.md](luna-api-coverage.md) (71 rows: 65 works, 6 refused).
 
 ## Summary (round 19)
 
-| | ✅ live | ✅ tests only | ⛔ by design | ⚠️ external | ❌ open | total |
-|---|---|---|---|---|---|---|
-| Plugins | 73 | 1 | 11 | 1 | 0 | 86 |
-| Catalogue themes | 9 | 0 | 0 | 0 | 0 | 9 |
+| | ✅ live | ✅ tests only | 🔑 your permission | ⛔ by design | ⚠️ external | ❌ open | total |
+|---|---|---|---|---|---|---|---|
+| Plugins | 73 | 1 | 5 | 6 | 1 | 0 | 86 |
+| Catalogue themes | 9 | 0 | 0 | 0 | 0 | 0 | 9 |
+
+Since 2026-10-20 (owner decision) five plugins that were refused by design
+run once the user allows what they ask for: discord-utils (the TIDAL
+sign-in), MediaKeysFixer (system-wide shortcuts), mpv (mpv's own pipe, after
+starting mpv behind the `child_process` prompt, and TIDAL's audio), and the
+Song Downloader and SongDownloader ElVigilante downloaders (saving TIDAL
+audio). See "Permissions a plugin asks for".
 
 The one ⚠️ left is spotify-sync (needs the user's Spotify account; its
 `tidaLuna://` sign-in redirect is handled since round 19, see its row).
@@ -28,12 +35,11 @@ Open gaps (❌): none. The last three closed in round 17: Hunminjeongeum and
 LangRomanizer were seen working live on a Korean song, and DesktopConnect is a
 by-design refusal (it needs TIDAL's closed remote-desktop code).
 
-Nothing is open in the plugin rows; the by-design refusals are the
-downloaders (Song Downloader, SongDownloader ElVigilante, DownloadManager),
-DesktopConnect (TIDAL's closed remote-desktop controller),
-mpv's IPC pipe, TidalMediaControls' native addon, discord-utils' token hand-over,
-ScrobbleFix's Last.fm credentials, miniplayer's browser-engine window,
-MediaKeysFixer's system-wide key hook and playlist-indicator's TIDAL web modal.
+Nothing is open in the plugin rows; the by-design refusals are
+DownloadManager (it froze the app at every start), DesktopConnect (TIDAL's
+closed remote-desktop controller), TidalMediaControls' native addon,
+ScrobbleFix's Last.fm credentials, miniplayer's browser-engine window and
+playlist-indicator's TIDAL web modal.
 
 ## Status key
 
@@ -41,7 +47,8 @@ MediaKeysFixer's system-wide key hook and playlist-indicator's TIDAL web modal.
 |---|---|
 | ✅ live | Run in the real app (a demo window off-screen, or a signed-in test profile) and its feature seen working; the round is in the cell |
 | ✅ tests | Covered by tests that run the plugin or its API surface; not seen on screen |
-| ⛔ | Refused by design (saving TIDAL audio, TIDAL's credentials, a browser engine, native `.node` addons, child-process IPC pipes), with the reason |
+| 🔑 | Works once the user allows what it asks for (the TIDAL sign-in, system-wide shortcuts, another program's pipe, saving TIDAL audio); checked by tests with stand-ins and the prompt seen live in the demo, the plugin itself not run live since |
+| ⛔ | Refused by design (a browser engine, native `.node` addons, TIDAL code Tidalfast does not have, a plugin that froze the app), with the reason |
 | ⚠️ | Works as far as it can, but something outside Tidalfast stops the rest (an outside service, the user's own account on another service, a machine-specific port, a UI language) |
 | ❌ | A gap: the plugin's behaviour was never seen, or cannot work yet |
 
@@ -50,7 +57,8 @@ and "Partly supported" pills on the store's cards and on the installed plugin's
 row (the reason shows on hover, and on the installed row under the description).
 The data is `COMPAT` in `src/luna/mod.rs`, keyed by the store's repository and
 the plugin's exact package name, so a similarly named plugin from another store
-is never labelled. "Not supported" is every ⛔ row (the plugin cannot do its job
+is never labelled. "Needs your permission" is every 🔑 row: the plugin works
+once the user allows what it asks for at first use. "Not supported" is every ⛔ row (the plugin cannot do its job
 here); "Partly supported" is a row that names a part that does not work
 (lyrics-everywhere's separate window). ⚠️ rows, plugins that only need the
 user's own account elsewhere, and "tests only" rows work and carry no label.
@@ -91,7 +99,7 @@ Notes that apply to every plugin:
 | Themer | Inrixia/luna-plugins | ✅ live r13 | Ctrl+E opens the 'TIDAL CSS Editor' window inside the app; typing `:root { --wave-color-solid-accent-fill: #ff2020 }` turned the accent red as typed (`themers_editor_window_is_tidalfasts_editor`). |
 | Tidal Tags | Inrixia/luna-plugins | ✅ live r13 | '16-bit/44.1kHz' beside the player bar's quality badge, from `MediaItem.withFormat`/`updateFormat` (no manifest). |
 | VolumeScroll | Inrixia/luna-plugins | ✅ live r13 | The wheel over the volume control changes the volume in 10 percent steps. |
-| Song Downloader | Inrixia/luna-plugins | ⛔ by design | Saves TIDAL streams to files: `MediaItem.download` is refused (no saving of TIDAL audio). |
+| Song Downloader | Inrixia/luna-plugins | 🔑 permission | Saves TIDAL streams to files with `MediaItem.download`: asks to save TIDAL songs as files at the first download; the file goes where the user picked (a folder dialog when the plugin names a folder it was not given), unencrypted streams only. |
 | DesktopConnect | Inrixia/luna-plugins | ⛔ by design | Fails at load with a clear reason: it requires TIDAL's own main-process code (`original.asar/app/main/remoteDesktop/...`, mDNS broadcast, websocket), which Tidalfast does not include and never reads from a TIDAL install. A receiver would need its own TIDAL Connect implementation (undocumented protocol, TIDAL's closed controller): a separate project, not a bounded fix. By design: the plugin drives TIDAL's own closed remote-desktop controller and a Connect receiver, which Tidalfast neither ships nor reads from a TIDAL install (round 17). |
 | NoPlaylistBackgroundImage | SuperslowJelly/TIDAL-Clear-Coat | ✅ live r13 | CSS only: the playlist header shows no blurred art behind it. |
 | @meowarex/audio-visualizer | meowarex/TidalLuna-Plugins | ✅ live r13 | All five modes draw (spectrum line/bars through the WebGL2 subset, oscilloscope/vectorscope/loudness on canvas 2D) from the post-EQ output tap (silent in exclusive mode). |
@@ -100,27 +108,27 @@ Notes that apply to every plugin:
 | @meowarex/element-hider | meowarex/TidalLuna-Plugins | ✅ live r13 | Right-click menu opens at the pointer, compact; Hide stores the selector and hid an artist picture. A plugin rule hiding a native picture, card, tile, row or cover hides it on screen. |
 | @meowarex/radiant-lyrics | meowarex/TidalLuna-Plugins | ✅ live r13 | Blurred cover background and restyled lines show; it takes over native lyrics (`entities.tracks` now holds the playing song), its inline-block words flow and wrap, each line is a pointer target. |
 | @seth/CatJam | wont-stream/lunar (dev) | ✅ live r13 | The cat (790x604 VP9 WebM with alpha) shows above the player bar's cover and follows the song; see 'Plugin <video>'. |
-| @jxnxsdev/utils | jxnxsdev/luna-plugins | ✅ live r13 | Library. A probe plugin called its exports: LRC parser, `clamp`, `toRgbString`, `sanitizeSearchQuery`, `retryWithBackoff`, QR data URL, media snapshot and cover colours all work; `getTidalCredentials` is refused by design. |
+| @jxnxsdev/utils | jxnxsdev/luna-plugins | ✅ live r13 | Library. A probe plugin called its exports: LRC parser, `clamp`, `toRgbString`, `sanitizeSearchQuery`, `retryWithBackoff`, QR data URL, media snapshot and cover colours all work; `getTidalCredentials` asks for the TIDAL sign-in permission first. |
 | @jxnxsdev/streamer-tools | jxnxsdev/luna-plugins | ✅ live r13 | With its port setting moved off 2403 the overlay, widgets and `/_plugins` answer; unmatched routes answer 404. The default port 2403 fails with EACCES on PCs where Windows reserves it (machine-specific). |
 | @jxnxsdev/qr-share | jxnxsdev/luna-plugins | ✅ live r8 | 'Share via QR Code' in a track's menu opens the dialog, QR code over the cover, centred. |
 | @jxnxsdev/audiovisualiser | jxnxsdev/luna-plugins | ✅ live r13 | Coloured bars along the bottom edge follow the music; its native analyser is answered from the post-EQ tap and its `MediaItem.download` saves nothing (every other plugin's download stays refused). |
 | @jxnxsdev/cover-colored-ui | jxnxsdev/luna-plugins | ✅ live r8 | Tints the window from the playing song's cover. |
 | @jxnxsdev/custom-fonts | jxnxsdev/luna-plugins | ✅ live r13 | With Impact set (name and file) every text is drawn in Impact. The font file must be inside the plugin's data folder (a path like `C:\Windows\Fonts\...` is refused with EACCES, by design); the installed-font list is short (canvas text cannot measure system fonts). |
-| @jxnxsdev/discord-utils | jxnxsdev/luna-plugins | ⛔ by design | Connects to its author's bridge server and hands it TIDAL's access token (`getCredentials`); Tidalfast does not share TIDAL credentials with plugins, so it stops at that refusal and its remote control cannot run. |
+| @jxnxsdev/discord-utils | jxnxsdev/luna-plugins | 🔑 permission | Connects to its author's bridge server and hands it TIDAL's access token (`getCredentials`): asks for the TIDAL sign-in first; the prompt says the plugin can act as the user on TIDAL and send the sign-in anywhere. Its bridge itself was not run. |
 | @jxnxsdev/lyrics-everywhere | jxnxsdev/luna-plugins | ✅ live r13 | The speech-bubble `#lyewLyrics` over the player bar shows the current line and follows the song. Its separate lyrics window is a page of HTML in a second BrowserWindow: needs a browser engine (by design, as miniplayer). |
 | @jxnxsdev/miniplayer | jxnxsdev/luna-plugins | ⛔ by design | Its Open Miniplayer button shows; the mini-player is a second transparent, always-on-top BrowserWindow with HTML, CSS and a preload bridge, plus a taskbar widget window: a browser engine, which Tidalfast does not include. |
 | @jxnxsdev/spinny-cover | jxnxsdev/luna-plugins | ✅ live r13 | The blurred, spinning cover shows behind the panels; the helicopter easter egg's audio does not play. |
 | @jxnxsdev/total-play-time | jxnxsdev/luna-plugins | ✅ live r9 | Pill with the time left in the queue counting down each second, on one line in a crowded bar. Paused right after a restart it shows the full length until playback starts. The queue it sums is the engine's from the first second of each song (the app asks for it at every song change while Luna runs, and the queue's own rows give the store every song's length): before, a new context or autoplay left the previous rows (or none) for up to a minute, and lengths fetched from TIDAL one song at a time arrived late, so the time left froze and jumped (00:02:56 to 02:56:37), or alternated between two sums. |
 | @jxnxsdev/uwu-ifier | jxnxsdev/luna-plugins | ✅ live r13 | Track rows and covers added after its observer starts are uwuified; plugins enabled at start now wait up to 3 s for the first host tree. Text that changes in place (the player bar's title) is not revisited, as in TIDAL. |
 | @espeon/eddyapi | espeon/luna-plugins | ✅ live r13 | Serves the viewer it fetches from eddyviewer.pages.dev and `GET /now-playing` answers the playing song (checked on a free port). Its port 3665 is fixed in the plugin and Windows reserves 3627-3726 on the test PC (machine-specific). |
-| MediaKeysFixer | Aztup/luna-plugins | ⛔ by design | Registers the system-wide media keys (`globalShortcut`) and forwards them to `PlayState`: a system-wide key hook is refused (shortcuts fire only while the window is focused) and Tidalfast has native media controls. Loads clean live (r12). |
+| MediaKeysFixer | Aztup/luna-plugins | 🔑 permission | Registers the media keys system-wide (`globalShortcut`) and forwards them to `PlayState`: on Windows asks for system-wide shortcuts first, then holds them; each press is acted on once together with Tidalfast's own media controls. Linux and macOS: not asked, the keys fire only while the window has focus (Tidalfast's media controls answer them anyway). |
 | DeviceDisconnectFix | Aztup/luna-plugins | ✅ live r13 | Loads; its trigger `client.playback.playersignal` from TIDAL Connect never fires in Tidalfast, so there is nothing to fix. |
 | @vmohammad/api | vMohammad24/luna-plugins | ✅ live r13 | GET answers the playing song; play, pause, toggle and resume work since `webContents.executeJavaScript` on TIDAL's window runs the code (they did nothing before). |
 | @vmohammad/QoL | vMohammad24/luna-plugins | ✅ live r13 | Loads; its `player/SET_AVAILABLE_DEVICES` interceptor registers, Tidalfast has no Connect devices and never dispatches it. |
 | @vmohammad/noTrack | vMohammad24/luna-plugins | ✅ live r13 | Loads; blocks Sentry, event-batch and DataDome requests, which Tidalfast sends none of. |
 | @vmohammad/betterFullscreen | vMohammad24/luna-plugins | ✅ live r13 | Its bar button and React player draw (art, title, artist, album, lyrics), its first mount logs no error (single-child React path fixed); with NativeFullscreen on, its `view/REQUEST_FULLSCREEN` is cancelled as in Luna. The real window change is blocked off-screen. Its lyrics API (vmohammad.dev) answered 503 (external). |
 | @vmohammad/quickExclusiveMode | vMohammad24/luna-plugins | ✅ live r13 | Its button toggles `player.activeDeviceMode`, which switches the Bit-perfect setting (saved, engine restarted) and the icon follows both ways; checked on Windows via the settings file, no audio played in exclusive mode. Without an exclusive output the store goes back to shared and the log says why. |
-| @vmohammad/mpv | vMohammad24/luna-plugins | ⛔ by design | Replaces the player with an mpv child process. Starting mpv works behind the `child_process` prompt, but the plugin then talks to mpv over its own named pipe or socket, which is refused (only Discord's IPC endpoints are reachable). |
+| @vmohammad/mpv | vMohammad24/luna-plugins | 🔑 permission | Replaces the player with an mpv child process: starting mpv asks behind the `child_process` prompt, talking to it over its own pipe (`\\.\pipe\mpvserver-1`, `/tmp/node-mpv-1.sock`) asks for that pipe, and the audio it streams to mpv (`fetchMediaItemStream`) asks to save TIDAL audio. Checked with a stand-in program on a pipe, not with mpv. |
 | Deleter | MathDesigns/luna-plugins | ✅ live r9 | The Delete key removes the selected rows from the open playlist; exactly the selected song went. |
 | @otomir23/oneko | otomir23/luna-plugins | ✅ live r13 | The cat runs toward the pointer, frame by frame. |
 | @dantraynor/multipleplaylists | dantraynor/lunaplugins | ✅ live r9 | 'Add to Multiple Playlists' dialog (500 wide, centred) lists the user's playlists, ticks them, and added the song to the chosen playlist. Slow for accounts with huge playlists (it reads each whole first, as in TIDAL). |
@@ -162,8 +170,8 @@ Notes that apply to every plugin:
 | ScrobbleFix | ZakME/ScrobbleFix | ⛔ by design | Last.fm scrobbling needs TIDAL's own Last.fm API credentials from TIDAL's web bundle, which Tidalfast does not have (Last.fm is not part of Tidalfast). Loads and says so. |
 | obs-now-playing | 0xVacent/tidal-luna-plugins | ✅ live r13 | `song.txt`, `songtime.txt` and `cover.png` are written to its output folder and follow the song and time every second; 17 settings render. |
 | WhyArentYouLooping | SowrenCode/luna-plugins | ✅ live r12 | Loads clean; it only loops `<video>` elements in the document (TIDAL's web player videos), of which Tidalfast has none, so there is nothing to do. |
-| SongDownloader ElVigilante | np3ir/songdownloader-store | ⛔ by design | FLAC downloader: refused; loads and shows its settings. |
-| DownloadManager | Kisakay/luna-plugins | ⛔ by design | FLAC downloader: refused; also stops at load on a missing TIDAL DOM node. |
+| SongDownloader ElVigilante | np3ir/songdownloader-store | 🔑 permission | FLAC downloader over `fetchMediaItemStream` and `fs` write streams: asks to save TIDAL songs as files at the first download, then writes into the folder the user picked in its dialog. Its remux and M4A tagging were not run. |
+| DownloadManager | Kisakay/luna-plugins | ⛔ by design | FLAC downloader: refused because once installed it froze the app at every start (`download_manager_is_refused_and_an_installed_copy_never_loads`); also stops at load on a missing TIDAL DOM node. The save-audio permission would cover its downloads; lifting the refusal is the owner's call. |
 
 ## Themes
 
@@ -233,7 +241,19 @@ chosen one loads from the system).
 
 ## API changes for the app (read first)
 
-All backward compatible; nothing in the app has to change to keep building.
+All backward compatible; nothing in the app has to change to keep building,
+except where a line says so.
+
+- Permissions (2026-10-20): `luna::Access`, `luna::PermissionRequest`,
+  `Luna::pending_permission`, `answer_permission`, `revoke_permission`,
+  `LunaSnapshot::permission_requests`, `PluginInfo::grants`, and the
+  `Permission` variants `TidalSignIn`, `GlobalShortcuts`, `ProgramPipes`,
+  `SaveAudio` (a UI that matches `Permission` exhaustively needs arms for
+  them; `Permission::describe_in` gives the translated text).
+  `LunaHost::credentials` now takes the plugin (`credentials(&self, plugin)`,
+  an implementor has to change its signature), and `LunaHost::audio_source`
+  is new with a default that has no audio. `Compat::NeedsPermission` is the
+  store's "Needs your permission" pill.
 
 - `LunaHost::outbound(&self, plugin: Option<&str>, request: &NetRequest) -> NetVerdict`
   is a new trait method with a default (`NetVerdict::Allow`). Every plugin
@@ -254,6 +274,66 @@ All backward compatible; nothing in the app has to change to keep building.
 - Plugin servers (`net.createServer`, `http.createServer`) always bind
   `127.0.0.1`, whatever host the plugin asks for (`net::LISTEN_HOST`).
   `https.createServer` (TLS) stays unavailable.
+
+## Permissions a plugin asks for
+
+Owner decision (2026-10-20): what the runtime refused by design for a few
+plugins is a permission the user gives per plugin, with the same dialog as
+`child_process` (Allow once, Always allow, Deny). Each is off by default and
+asked at its first use; the plugin's call waits for the answer. Deny is the
+filled button and has the keyboard focus; Esc and clicking outside deny too.
+Allow once lasts until the plugin stops (unloaded, reloaded, disabled, the
+app closing); a Deny lasts as long, so a plugin retrying in a loop does not
+ask again. Always is kept in `plugins.json` (`grants`, optional, skipped when
+empty, written atomically with the rest of the record), listed in the
+plugin's Permissions with a Revoke button each, never exported by Settings
+Transfer and never imported. Code: `src/luna/permits.rs`, the prompt in
+`src/ui/dialogs.rs` (`permission_prompt`), tests in `permits.rs`,
+`permits_flow_tests.rs` and the demo test
+`the_permission_prompt_says_what_it_gives_and_denies_by_default`.
+
+- **The TIDAL sign-in** (`getCredentials`, @jxnxsdev/utils'
+  `getTidalCredentials`). The prompt says the plugin gets the sign-in, can act
+  as the user on TIDAL and send it anywhere, its author's server included.
+  Allowed, the plugin gets TidaLuna's shape (`clientId`, `token`, `expires` in
+  milliseconds, `userId`, `grantedScopes`, `requestedScopes`) with the current
+  access token, refreshed first when it is about to expire. The token is never
+  logged, kept in plugin storage or snapshots; a plugin log line that carries
+  it shows `[TIDAL sign-in hidden]`. A token already handed over stays valid
+  until TIDAL expires it, Revoke or not. `getAuthHeaders` keeps its
+  placeholder token (the app answers those requests itself).
+- **System-wide shortcuts** (Electron `globalShortcut`). Windows only
+  (`RegisterHotKey` on a thread of its own, `src/luna/hotkeys.rs`): allowed,
+  the plugin's accelerators are taken system-wide and let go when the plugin
+  stops or the permission is revoked. Linux and macOS have no hotkey backend
+  wired up (not tested there): the user is never asked and shortcuts keep
+  firing only while the window has focus. Media keys: Tidalfast's own media
+  controls answer them everywhere already, so a plugin holding a media key
+  must not make one press count twice. Both sides note each press
+  (`hotkeys::plugin_media_key`, `native_media_command`), and whichever
+  reports the same press second within 400 ms is dropped: one press is acted
+  on once, by whichever got it first.
+- **Another program's pipe or socket** (`net.createConnection(path)`, the
+  mpv plugin's `\\.\pipe\mpvserver-1` or `/tmp/node-mpv-1.sock` after it
+  started mpv behind the `child_process` prompt). Allowed per plugin and per
+  path; only the local pipe namespace on Windows (no UNC, no further `\` in the
+  name) and an absolute path without `.` or `..` elsewhere. Connections close
+  when the plugin stops, and Revoke closes the ones to that path. Discord's
+  IPC pipes need no permission, as before. Strings written to a socket are
+  sent as UTF-8 bytes, as Node does (node-mpv writes its commands as strings).
+- **Saving TIDAL audio** (`MediaItem.download`, `downloadProgress`,
+  `fetchMediaItemStream`). The prompt says the plugin will save TIDAL streams
+  as files and that this may break TIDAL's terms of use. Only an unencrypted
+  stream, the one the app would play: protected streams (Dolby Atmos, any
+  DRM) are refused where the app asks TIDAL and nothing is decrypted; the
+  plugin never sees a stream URL. `download` writes only where the user
+  picked for that plugin in a file dialog; a folder the plugin names without
+  that gets a folder dialog first (once per folder), and the file takes the
+  extension its bytes have (`.m4a` for a DASH stream). It is written as
+  `.part` and renamed when whole. `fetchMediaItemStream` is a Node `Readable`
+  of the same bytes. Downloads and streams stop with the plugin and on
+  Revoke. Files are saved without tags. The audiovisualiser's analysis-only
+  download still saves nothing and needs no permission.
 
 ## Security model and limits
 
@@ -284,9 +364,14 @@ test (`src/luna/harden_tests.rs` unless named).
   (plain HTTP from this computer, for dev servers). Downloads stop at their
   size cap while reading. A plugin `fetch` follows redirects itself and puts
   every hop to the host's outbound policy (TIDAL's sign-in and token hosts
-  are refused, however the address is spelled). Discord IPC is reached only
-  on this computer: a network (UNC) pipe or path is refused before Windows
-  would sign in to that host.
+  are refused, however the address is spelled). Discord IPC, and another
+  program's pipe a plugin was allowed, are reached only on this computer: a
+  network (UNC) pipe or path is refused before Windows would sign in to that
+  host.
+- Permissions asked at first use (see "Permissions a plugin asks for"): the
+  TIDAL sign-in, system-wide shortcuts, another program's pipe and saving
+  TIDAL audio are off until the user answers; the runtime checks the answer
+  itself before it acts (`permits_flow_tests`).
 - Plugin requests speak HTTP/1.1 only, as Node's `https` does. Google's
   translate endpoint answers every HTTP/2 request from this client with 429
   and the same request over HTTP/1.1 with 200 (TranslateLyrics,
@@ -488,8 +573,9 @@ http(s) links only. `clipboard.writeText` works within 5 s of a user action
 (see "Security model and limits"); `clipboard.readText()` returns what was
 last copied through the app. `Notification` (the web global and electron's) shows an
 in-app toast. `globalShortcut.register` returns true and fires while the
-window has focus, from its key events (no system-wide hook; unloaded
-plugins' shortcuts are dropped).
+window has focus, from its key events; on Windows a plugin the user allowed
+also holds it system-wide (see "Permissions a plugin asks for"). Unloaded
+plugins' shortcuts are dropped.
 
 ## Player bar at narrow widths
 
@@ -522,8 +608,8 @@ Plugin elements in the player bar (a genre chip after the title, star ratings an
   samples whenever the plugin reads them, on its own scale. The tap is armed
   only while it reads (it reads only while a song plays). `MediaItem.download`
   saves nothing and resolves for a plugin whose analysis is answered this way
-  (only after its analyser module registers); for every other plugin it is
-  refused as before. The DOM renderer gained what its bars need: `flex-grow`
+  (only after its analyser module registers); every other plugin needs the
+  permission to save TIDAL audio (see "Permissions a plugin asks for"). The DOM renderer gained what its bars need: `flex-grow`
   shares in a fixed-width row, `align-items: flex-end`, and `scaleX`/`scaleY`
   as a stretch of the box.
 
@@ -627,13 +713,12 @@ Plugin elements in the player bar (a genre chip after the title, star ratings an
     platform; `signal` is only what the plugin sees), and programs stop when the plugin is
     unloaded, disabled, uninstalled or its permission revoked, and when the app closes.
     Grandchildren of a killed program are not tracked.
-  - Not covered: the mpv plugin's IPC pipe (see its row); Windows job objects.
-- Refused by design:
-  `MediaItem.download` (it saves nothing and succeeds only for a plugin
-  whose audio analysis Tidalfast answers live, the audiovisualiser) /
-  `fetchMediaItemStream`, TLS servers, real UDP
-  (`dgram` sockets error on bind/send), visible BrowserWindows, system-wide
-  global shortcuts (`globalShortcut` fires only while the window is focused).
+  - Not covered: Windows job objects. The mpv plugin's IPC pipe is its own
+    permission (see "Permissions a plugin asks for").
+- Refused by design: TLS servers, real UDP (`dgram` sockets error on
+  bind/send), visible BrowserWindows. `MediaItem.download`,
+  `fetchMediaItemStream` and system-wide `globalShortcut` need the user's
+  permission (see "Permissions a plugin asks for").
 - `zlib` Brotli: compression writes valid streams of stored (uncompressed)
   blocks, so a plugin web server answering `Accept-Encoding: br` works (an
   OBS browser source asks streamer-tools for `br`; before, that response

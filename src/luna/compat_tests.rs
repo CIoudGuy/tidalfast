@@ -13,6 +13,8 @@ use super::*;
 
 #[path = "child_flow_tests.rs"]
 mod child_flow_tests;
+#[path = "permits_flow_tests.rs"]
+mod permits_flow_tests;
 #[path = "wasm_tests.rs"]
 mod wasm_tests;
 

@@ -243,6 +243,7 @@ fn info(name: &str) -> PluginInfo {
         permissions: vec![],
         programs: vec![],
         account_writes: false,
+        grants: vec![],
         settings: None,
         logs: vec![],
         live_reload: false,
@@ -1354,6 +1355,71 @@ fn permissions_list_the_allowed_programs_with_a_revoke_button() {
     );
 }
 
+/// The other permissions a plugin was allowed for good (the TIDAL sign-in,
+/// system-wide shortcuts, a program's pipe, saving TIDAL audio) are listed
+/// in its Permissions, each with a Revoke button for exactly that one.
+#[test]
+fn permissions_list_the_other_grants_with_a_revoke_button_each() {
+    use crate::luna::Access;
+    let ctx = context();
+    let palette = Palette::dark();
+    let mut plugin = info("@vmohammad/mpv");
+    plugin.permissions = vec![crate::luna::Permission::ProgramPipes];
+    let pipe = Access::Pipe {
+        path: r"\\.\pipe\mpvserver-1".into(),
+    };
+    plugin.grants = vec![
+        Access::Credentials,
+        Access::GlobalShortcuts,
+        pipe.clone(),
+        Access::SaveAudio,
+    ];
+    let mut out = Vec::new();
+    let draw = |ctx: &egui::Context, events: Vec<egui::Event>, out: &mut Vec<Do>| {
+        run(ctx, events, |ui| {
+            extras(ui, &palette, Locale::default(), &plugin, out)
+        })
+    };
+    let tree = draw(&ctx, vec![], &mut out);
+    let header = [
+        Role::Button,
+        Role::DisclosureTriangle,
+        Role::GenericContainer,
+    ]
+    .into_iter()
+    .find_map(|role| find_opt(&tree, "Permissions", role))
+    .expect("the Permissions header");
+    draw(&ctx, vec![click(header)], &mut out);
+    let tree = draw(&ctx, vec![], &mut out);
+    assert!(has_text(
+        &tree,
+        "Talks to another program over its own pipe or socket (asks you first)"
+    ));
+    for text in [
+        "Uses your TIDAL sign-in",
+        "Keyboard shortcuts across your whole computer",
+        r"\\.\pipe\mpvserver-1",
+        "Saves TIDAL songs as files",
+    ] {
+        assert!(has_text(&tree, text), "{text}");
+    }
+    let mut revokes: Vec<(f64, NodeId)> = tree
+        .nodes
+        .iter()
+        .filter(|(_, n)| n.label() == Some("Revoke") && n.role() == Role::Button)
+        .map(|(id, n)| (top(n).0, *id))
+        .collect();
+    revokes.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    assert_eq!(revokes.len(), 4);
+    // The third row is the pipe.
+    out.clear();
+    draw(&ctx, vec![click(revokes[2].1)], &mut out);
+    assert_eq!(
+        out,
+        vec![Do::RevokePermission("@vmohammad/mpv".into(), pipe)]
+    );
+}
+
 fn listed(url: &str, name: &str, author: &str) -> StorePlugin {
     StorePlugin {
         file: format!("{name}.mjs"),
@@ -2408,10 +2474,11 @@ fn a_store_card_shows_the_compat_pill_only_for_the_listed_plugin() {
         let (update, _) = page_frame_with(&ctx, &palette, &snapshot, &index, &mut page, vec![]);
         let all = texts(&update);
         let said = |label: &str| all.iter().filter(|t| t.starts_with(label)).count();
-        // discord-utils (not supported) and lyrics-everywhere (partly): one
-        // pill each, with its reason. The same name from another store, and
-        // a plugin that works, have none.
-        assert_eq!(said("Not supported: "), 1, "{all:?}");
+        // discord-utils (needs a permission) and lyrics-everywhere (partly):
+        // one pill each, with its reason. The same name from another store,
+        // and a plugin that works, have none.
+        assert_eq!(said("Needs your permission: "), 1, "{all:?}");
+        assert_eq!(said("Not supported: "), 0, "{all:?}");
         assert_eq!(said("Partly supported: "), 1, "{all:?}");
         assert!(has_text(&update, "separate lyrics window does not"));
         assert!(has_text(&update, "sends your TIDAL sign-in"));
@@ -2436,7 +2503,7 @@ fn an_installed_plugin_row_shows_the_pill_and_its_reason() {
     let all = texts(&update);
     assert_eq!(
         all.iter()
-            .filter(|t| t.starts_with("Not supported: "))
+            .filter(|t| t.starts_with("Needs your permission: "))
             .count(),
         1,
         "{all:?}"
