@@ -439,7 +439,9 @@
 		// `::before` / `::after` rules, indexed the same way: the anchors'
 		// box layers (TIDAL paints header art and glass in them).
 		const pseudoIx = () => ({ byId: new Map(), byClass: new Map(), byTag: new Map(), byAttr: new Map(), any: [], size: 0 });
-		const pseudo = { before: pseudoIx(), after: pseudoIx() };
+		// A range input's `::-webkit-slider-runnable-track` and
+		// `::-webkit-slider-thumb` (and Firefox's names) go the same way.
+		const pseudo = { before: pseudoIx(), after: pseudoIx(), track: pseudoIx(), thumb: pseudoIx() };
 		const fonts = [];
 		const keyframes = new Map();
 		let hover = false;
@@ -1014,6 +1016,29 @@
 		}
 		return o;
 	};
+	// The styles a range input's track and thumb rules give it, with the
+	// variables in scope at the input (`--volume-percentage` in its inline
+	// style moves HorizontalVolumeSlider's fill). `null` with no such rule.
+	const rangeParts = (el) => {
+		const ix = buildIndex();
+		if (!ix.pseudo.track.size && !ix.pseudo.thumb.size) return null;
+		let o = null;
+		for (const kind of ["track", "thumb"]) {
+			const px = ix.pseudo[kind];
+			if (!px.size) continue;
+			const decls = pseudoCascade(px, el);
+			if (!decls) continue;
+			let vars = el._cc?.myVars ?? NO_VARS;
+			for (const [k, v] of decls)
+				if (k.startsWith("--")) {
+					if (vars === (el._cc?.myVars ?? NO_VARS)) vars = new Map(vars);
+					vars.set(k, v);
+				}
+			const st = toStyle(decls, vars, el._cc?.inh ?? null);
+			if (st) (o ??= {})[kind] = st;
+		}
+		return o;
+	};
 	const ROOTS = () => [g.document.documentElement, g.document.body, D.wimp];
 	// Resolved style of every element plugins styled, plus :root variables,
 	// the page style and fonts.
@@ -1245,5 +1270,5 @@
 	// Whether a rule looks at siblings, children or position: then a changed
 	// class can change what matches outside the element's own subtree.
 	const structural = () => !!buildIndex().structural;
-	L.css = { parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, structural };
+	L.css = { parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, structural, rangeParts };
 })();

@@ -3994,7 +3994,9 @@ fn breakable(text: &str) -> bool {
     })
 }
 
-fn rich(text: &str, inherit: Inherit, style: &Style) -> RichText {
+/// The font plugin text is drawn in: its weight and size, or a font the
+/// plugin declared.
+fn font_of(inherit: Inherit, style: &Style) -> egui::FontId {
     let font = if inherit.weight >= 700 {
         crate::theme::bold(inherit.size)
     } else if inherit.weight >= 600 {
@@ -4008,10 +4010,14 @@ fn rich(text: &str, inherit: Inherit, style: &Style) -> RichText {
         Some(value) => plugin_dom::element_font_id(value),
         None => inherit.family,
     };
-    let font = match family.and_then(|f| plugin_dom::font_by_id(f, inherit.weight)) {
+    match family.and_then(|f| plugin_dom::font_by_id(f, inherit.weight)) {
         Some(family) => egui::FontId::new(inherit.size, family),
         None => font,
-    };
+    }
+}
+
+fn rich(text: &str, inherit: Inherit, style: &Style) -> RichText {
+    let font = font_of(inherit, style);
     let mut text = if inherit.upper {
         RichText::new(text.to_uppercase())
     } else {
@@ -4099,8 +4105,8 @@ fn leaf(
             ui.add(image);
             true
         }
-        "input" => input(ui, node, width),
-        "textarea" => text_input(ui, node, width, true),
+        "input" => input(ui, node, inherit, width, height, _cx),
+        "textarea" => text_input(ui, node, inherit, width, true),
         "select" => select(ui, node, width),
         _ => false,
     }
@@ -4254,7 +4260,14 @@ fn hash(s: &str) -> u64 {
     h.finish()
 }
 
-fn input(ui: &mut egui::Ui, node: &VNode, width: Option<f32>) -> bool {
+fn input(
+    ui: &mut egui::Ui,
+    node: &VNode,
+    inherit: Inherit,
+    width: Option<f32>,
+    height: Option<f32>,
+    cx: &Cx,
+) -> bool {
     let kind = attr(node, "type").unwrap_or("text").to_ascii_lowercase();
     match kind.as_str() {
         "range" => {
@@ -4271,12 +4284,25 @@ fn input(ui: &mut egui::Ui, node: &VNode, width: Option<f32>) -> bool {
                 .and_then(|v| v.parse::<f64>().ok())
                 .unwrap_or(min);
             let mut value = ui.data(|d| d.get_temp::<f64>(id)).unwrap_or(shown);
-            ui.spacing_mut().slider_width = width.unwrap_or(86.0);
-            let response = ui.add(
-                egui::Slider::new(&mut value, min..=max)
-                    .step_by(step.max(1e-6))
-                    .show_value(false),
-            );
+            let response = if node.track.is_some() || node.thumb.is_some() {
+                let size = vec2(width.unwrap_or(129.0), height.unwrap_or(16.0));
+                styled_range(
+                    ui,
+                    node,
+                    size,
+                    cx,
+                    inherit.back,
+                    [min, max, step],
+                    &mut value,
+                )
+            } else {
+                ui.spacing_mut().slider_width = width.unwrap_or(86.0);
+                ui.add(
+                    egui::Slider::new(&mut value, min..=max)
+                        .step_by(step.max(1e-6))
+                        .show_value(false),
+                )
+            };
             if response.changed() {
                 ui.data_mut(|d| d.insert_temp(id, value));
                 plugin_dom::send(
@@ -4349,11 +4375,145 @@ fn input(ui: &mut egui::Ui, node: &VNode, width: Option<f32>) -> bool {
             true
         }
         "hidden" => false,
-        _ => text_input(ui, node, width, false),
+        _ => text_input(ui, node, inherit, width, false),
     }
 }
 
-fn text_input(ui: &mut egui::Ui, node: &VNode, width: Option<f32>, multiline: bool) -> bool {
+/// A range input whose track or thumb a plugin styled
+/// (`::-webkit-slider-runnable-track`, `::-webkit-slider-thumb`), drawn as
+/// Chromium draws it: the track across the input's width, centred in its
+/// height, painted with its background (a hard-stop gradient is the filled
+/// part); the thumb travels inside the track, its top at the track's top
+/// moved by its `margin-top`. A part no rule styles keeps Chromium's look (a
+/// 4-point track, a 16-point round thumb).
+fn styled_range(
+    ui: &mut egui::Ui,
+    node: &VNode,
+    size: Vec2,
+    cx: &Cx,
+    back: Color32,
+    [min, max, step]: [f64; 3],
+    value: &mut f64,
+) -> egui::Response {
+    let (rect, mut response) = ui.allocate_exact_size(size, Sense::click_and_drag());
+    let font = 14.0;
+    let empty = Style::default();
+    let track = node.track.as_ref().unwrap_or(&empty);
+    let thumb = node.thumb.as_ref();
+    let track_h = cx.len(&track.height, font, rect.height()).unwrap_or(4.0);
+    let (thumb_w, thumb_h) = match thumb {
+        Some(t) => (
+            cx.len(&t.width, font, rect.width()).unwrap_or(16.0),
+            cx.len(&t.height, font, rect.height()).unwrap_or(16.0),
+        ),
+        None => (16.0, 16.0),
+    };
+    let track_rect = Rect::from_center_size(rect.center(), vec2(rect.width(), track_h));
+    let span = (max - min).max(1e-9);
+    if let Some(pos) = response.interact_pointer_pos()
+        && (response.is_pointer_button_down_on() || response.clicked())
+    {
+        let room = (rect.width() - thumb_w).max(1.0);
+        let t = ((pos.x - rect.left() - thumb_w / 2.0) / room).clamp(0.0, 1.0) as f64;
+        let step = step.max(1e-6);
+        let next = (min + ((t * span) / step).round() * step).clamp(min, max);
+        if (next - *value).abs() > f64::EPSILON {
+            *value = next;
+            response.mark_changed();
+        }
+    }
+    let corners = |s: &Style, w: f32, h: f32| {
+        CornerRadius::same(
+            cx.len(&s.border_radius, font, w.min(h))
+                .unwrap_or(0.0)
+                .clamp(0.0, 255.0) as u8,
+        )
+    };
+    let painter = ui.painter();
+    let fill = |s: &Style| -> (Option<super::theme_gradient::Angled>, Option<Color32>) {
+        let image = s
+            .background_image
+            .as_deref()
+            .map(|v| css::resolve_vars(v, cx.vars));
+        // Colours that would not read over the bar (HorizontalVolumeSlider's
+        // white in Light) take dark ink, as plugin text does.
+        let gradient = image
+            .as_deref()
+            .and_then(super::theme_gradient::parse)
+            .map(|mut g| {
+                for stop in &mut g.stops {
+                    stop.1 = readable(stop.1, back);
+                }
+                g
+            });
+        let flat = cx
+            .color(&s.background_color)
+            .or_else(|| {
+                image
+                    .as_deref()
+                    .and_then(|v| css::colors_in(v).first().copied())
+            })
+            .map(|c| readable(c, back));
+        (gradient, flat)
+    };
+    match fill(track) {
+        (Some(g), _) => {
+            let c = corners(track, track_rect.width(), track_rect.height());
+            super::theme_gradient::paint(painter, track_rect, Some(c), &g, g.angle, [0.0, 0.0]);
+        }
+        (None, Some(flat)) => {
+            painter.rect_filled(
+                track_rect,
+                corners(track, track_rect.width(), track_rect.height()),
+                flat,
+            );
+        }
+        // Chromium's own track: grey, the part up to the thumb in its accent.
+        (None, None) if node.track.is_none() => {
+            painter.rect_filled(track_rect, CornerRadius::same(2), Color32::from_gray(0x80));
+        }
+        (None, None) => {}
+    }
+    let t = ((*value - min) / span).clamp(0.0, 1.0) as f32;
+    let left = rect.left() + (rect.width() - thumb_w) * t;
+    let top = match thumb {
+        // An unstyled thumb is centred on the track; a styled one starts at
+        // the track's top, moved by its margin.
+        Some(s) => track_rect.top() + cx.len(&s.margin_top, font, rect.width()).unwrap_or(0.0),
+        None => rect.center().y - thumb_h / 2.0,
+    };
+    let thumb_rect = Rect::from_min_size(Pos2::new(left, top), vec2(thumb_w, thumb_h));
+    match thumb {
+        Some(s) => {
+            if let (_, Some(c)) = fill(s) {
+                painter.rect_filled(thumb_rect, corners(s, thumb_w, thumb_h), c);
+            }
+        }
+        None => {
+            painter.circle_filled(thumb_rect.center(), thumb_w / 2.0, Color32::WHITE);
+        }
+    }
+    response
+}
+
+/// A `border` value that draws no border (`none`, `0`, `0px solid`,
+/// `hidden`).
+fn borderless(value: &str) -> bool {
+    let words = css::words(value.trim());
+    words.iter().any(|w| matches!(*w, "none" | "hidden"))
+        || words
+            .first()
+            .and_then(|w| w.trim_end_matches("px").parse::<f32>().ok())
+            .is_some_and(|w| w <= 0.0)
+}
+
+fn text_input(
+    ui: &mut egui::Ui,
+    node: &VNode,
+    inherit: Inherit,
+    width: Option<f32>,
+    multiline: bool,
+) -> bool {
     let id = egui::Id::new(("luna-text", node.id));
     let mut text = ui
         .data(|d| d.get_temp::<String>(id))
@@ -4368,6 +4528,34 @@ fn text_input(ui: &mut egui::Ui, node: &VNode, width: Option<f32>, multiline: bo
     }
     if let Some(max) = attr(node, "maxlength").and_then(|m| m.parse::<usize>().ok()) {
         edit = edit.char_limit(max);
+    }
+    // The field's text in the font its CSS gives it, as other plugin text.
+    edit = edit.font(font_of(inherit, &node.style));
+    // What the plugin's CSS says about the field itself: a field with
+    // `border: none` has no box of its own (HorizontalVolumeSlider's
+    // volume number sits bare beside its slider, the element's own
+    // background drawn behind it), Chromium's `padding: 1px 2px` inside.
+    let st = &node.style;
+    if st.border.as_deref().is_some_and(borderless) {
+        let fill = st
+            .background_color
+            .as_deref()
+            .and_then(css::color)
+            .unwrap_or(Color32::TRANSPARENT);
+        edit = edit.frame(
+            Frame::new()
+                .fill(fill)
+                .inner_margin(Margin::symmetric(2, 1)),
+        );
+    }
+    // Its colour, made to read over what is behind it (white in Light).
+    if st.color.is_some() {
+        edit = edit.text_color(inherit.color);
+    }
+    match st.text_align.as_deref().map(str::trim) {
+        Some("center") => edit = edit.horizontal_align(Align::Center),
+        Some("right" | "end") => edit = edit.horizontal_align(Align::Max),
+        _ => {}
     }
     let response = ui.add(edit.desired_width(width.unwrap_or(120.0)));
     if response.changed() {
@@ -6517,5 +6705,220 @@ mod tests {
             rect_of(Color32::from_rgb(0, 255, 0)),
         );
         assert!((b.left() - a.right()).abs() < 0.5, "{a:?} {b:?}");
+    }
+
+    /// Draws the nodes at `anchor` After for a few frames and returns the
+    /// last frame's shapes.
+    fn shapes_of(nodes: Vec<VNode>) -> Vec<egui::epaint::ClippedShape> {
+        shapes_in(nodes, false)
+    }
+
+    /// [`shapes_of`] on a light panel (`light`) or the dark one.
+    fn shapes_in(nodes: Vec<VNode>, light: bool) -> Vec<egui::epaint::ClippedShape> {
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: "slot".into(),
+                position: Position::After,
+                nodes,
+            }],
+            ..DomOverlay::default()
+        }));
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0))),
+                ..egui::RawInput::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                if light {
+                    ui.visuals_mut().panel_fill = Color32::from_gray(0xf5);
+                }
+                at(
+                    ui,
+                    "slot",
+                    Position::After,
+                    egui::pos2(10.0, 50.0),
+                    Align2::LEFT_CENTER,
+                );
+            });
+            out.textures_delta.clear();
+            shapes = out.shapes;
+        }
+        plugin_dom::test_overlay(None);
+        shapes
+    }
+
+    /// HorizontalVolumeSlider's bar: the track and thumb its CSS gives the
+    /// range input (a 4-point bar, white up to the value and 30 % white
+    /// after it, a 3 x 12 white thumb centred on it), not egui's slider.
+    #[test]
+    fn a_styled_range_draws_its_track_and_thumb() {
+        let range = VNode {
+            id: 1,
+            tag: "input".into(),
+            attrs: vec![
+                ("type".into(), "range".into()),
+                ("min".into(), "0".into()),
+                ("max".into(), "100".into()),
+            ],
+            value: Some("50".into()),
+            style: Style {
+                width: Some("86px".into()),
+                height: Some("24px".into()),
+                ..Style::default()
+            },
+            track: Some(Style {
+                height: Some("4px".into()),
+                border_radius: Some("2px".into()),
+                background_image: Some(
+                    "linear-gradient(to right, white 50%, rgba(255,255,255,0.3) 50%)".into(),
+                ),
+                ..Style::default()
+            }),
+            thumb: Some(Style {
+                width: Some("3px".into()),
+                height: Some("12px".into()),
+                background_color: Some("white".into()),
+                border_radius: Some("1px".into()),
+                margin_top: Some("-4px".into()),
+                ..Style::default()
+            }),
+            ..VNode::default()
+        };
+        let shapes = shapes_of(vec![range]);
+        let thumb = shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::Shape::Rect(r) if r.fill == Color32::WHITE => Some(r.rect),
+                _ => None,
+            })
+            .expect("a white thumb");
+        assert!((thumb.width() - 3.0).abs() < 0.01, "{thumb:?}");
+        assert!((thumb.height() - 12.0).abs() < 0.01, "{thumb:?}");
+        // The track: a mesh 4 high, white at its left end, 30 % white at its
+        // right end.
+        let mesh = shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::Shape::Mesh(m) if !m.vertices.is_empty() => Some(m.clone()),
+                _ => None,
+            })
+            .expect("a track");
+        let (top, bottom) = mesh
+            .vertices
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(t, b), v| {
+                (t.min(v.pos.y), b.max(v.pos.y))
+            });
+        assert!((bottom - top - 4.0).abs() < 0.01, "{top} {bottom}");
+        let (left, right) = mesh
+            .vertices
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(l, r), v| {
+                (l.min(v.pos.x), r.max(v.pos.x))
+            });
+        assert!((right - left - 86.0).abs() < 0.01, "{left} {right}");
+        let at = |x: f32| {
+            mesh.vertices
+                .iter()
+                .find(|v| (v.pos.x - x).abs() < 0.01)
+                .map(|v| v.color)
+                .unwrap()
+        };
+        assert_eq!(at(left), Color32::WHITE);
+        assert!(at(right).a() < 0x60, "{:?}", at(right));
+        // Centred: the thumb's middle is the track's.
+        let track_mid = (top + bottom) / 2.0;
+        assert!((thumb.center().y - track_mid).abs() < 0.01);
+        // The thumb is at the value, inside the track's ends.
+        assert!((thumb.left() - (left + (86.0 - 3.0) * 0.5)).abs() < 0.01);
+    }
+
+    /// The same bar in Light: its white would vanish into the light bar,
+    /// so it takes dark ink, as plugin text does (the fill, its 30 % rest
+    /// and the thumb). egui's slider read there; the styled bar did not.
+    #[test]
+    fn a_styled_range_reads_on_a_light_panel() {
+        let range = VNode {
+            id: 1,
+            tag: "input".into(),
+            attrs: vec![("type".into(), "range".into())],
+            value: Some("50".into()),
+            style: Style {
+                width: Some("86px".into()),
+                height: Some("24px".into()),
+                ..Style::default()
+            },
+            track: Some(Style {
+                height: Some("4px".into()),
+                background_image: Some(
+                    "linear-gradient(to right, white 50%, rgba(255,255,255,0.3) 50%)".into(),
+                ),
+                ..Style::default()
+            }),
+            thumb: Some(Style {
+                width: Some("3px".into()),
+                height: Some("12px".into()),
+                background_color: Some("white".into()),
+                ..Style::default()
+            }),
+            ..VNode::default()
+        };
+        let shapes = shapes_in(vec![range], true);
+        for s in &shapes {
+            match &s.shape {
+                egui::Shape::Rect(r) if r.rect.width() < 4.0 => {
+                    assert!(r.fill.r() < 0x40, "thumb {:?}", r.fill);
+                }
+                egui::Shape::Mesh(m) => {
+                    for v in &m.vertices {
+                        assert!(
+                            v.color.a() == 0 || v.color.r() < 0x40 || v.color.a() < 0x60,
+                            "{:?}",
+                            v.color
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(
+            shapes
+                .iter()
+                .any(|s| matches!(&s.shape, egui::Shape::Mesh(m) if !m.vertices.is_empty()))
+        );
+    }
+
+    /// HorizontalVolumeSlider's volume number: `border: none`, transparent,
+    /// white, centred. Tidalfast drew egui's text field box around it.
+    #[test]
+    fn a_text_field_without_a_border_has_no_box() {
+        let field = VNode {
+            id: 1,
+            tag: "input".into(),
+            attrs: vec![("type".into(), "text".into())],
+            value: Some("0".into()),
+            style: Style {
+                border: Some("none".into()),
+                background_color: Some("transparent".into()),
+                color: Some("white".into()),
+                text_align: Some("center".into()),
+                min_width: Some("28px".into()),
+                max_width: Some("28px".into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let shapes = shapes_of(vec![field]);
+        let boxed = shapes.iter().any(|s| match &s.shape {
+            egui::Shape::Rect(r) => {
+                r.fill.a() > 0 || r.stroke.width > 0.0 && r.stroke.color.a() > 0
+            }
+            _ => false,
+        });
+        assert!(!boxed, "{shapes:?}");
     }
 }

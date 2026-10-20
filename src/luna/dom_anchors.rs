@@ -111,6 +111,8 @@ pub mod keys {
     pub const TOGGLE_LYRICS: &str = "toggle-lyrics";
     pub const TOGGLE_LYRICS_SPAN: &str = "toggle-lyrics:span";
     pub const SLIDER: &str = "slider-container";
+    /// The mini player button after the volume (TIDAL's last utility button).
+    pub const MINI_PLAYER: &str = "mini-player-button";
     pub const VOLUME_RANGE: &str = "volume-range";
     pub const MUTE: &str = "mute";
     pub const MORE: &str = "more-container";
@@ -655,6 +657,8 @@ pub enum PlayerPart {
     More,
     Queue,
     Fullscreen,
+    /// The mini player button, after the volume.
+    MiniPlayer,
     /// Where the quality pill's label is drawn (its own width, not the
     /// pill's): plugins size the badge from `offsetWidth` of the label span.
     QualityLabel,
@@ -1891,6 +1895,14 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .attr("style", format!("--volume-percentage: {volume}%"))
             .value(volume.to_string())
             .at(p.rect(P::Slider)),
+    );
+    // TIDAL's mini player button follows the volume, so what a plugin puts
+    // after the volume (HorizontalVolumeSlider's bar) sits before it.
+    out.push(
+        el(MINI_PLAYER, Some(UTILITY_BUTTONS), "button")
+            .modules(&["miniPlayerButton"])
+            .attr("aria-label", "Mini player")
+            .at(p.rect(P::MiniPlayer)),
     );
     out.push(
         el(MORE, Some(UTILITY), "div")

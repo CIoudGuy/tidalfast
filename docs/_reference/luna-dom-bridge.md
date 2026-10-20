@@ -111,7 +111,11 @@ back are defined (measured in TIDAL 2.43.2:
 `--wave-color-opacity-contrast-fill-thick` `#fff9`, `-ultra-thick` `#fffc`,
 LuckyLP's icon colours); they are not a theme's and never recolour the app.
 `margin-left`/`-right` written apart fold into `margin`, and plugin elements honour `margin-top`/`-bottom` written apart; a block flex row with `justify-content` center or end takes the whole width, so its items move along; a flex or grid box without `gap` puts its items side by side (other boxes keep a few points between what they hold, as spaces would); `fill` and
-`text-transform: uppercase` are inherited and drawn.
+`text-transform: uppercase` are inherited and drawn. A range input's
+`::-webkit-slider-runnable-track` and `::-webkit-slider-thumb` rules (and
+Firefox's `::-moz-range-*`) are indexed like `::before` and resolved with the
+input's variables into `VNode::track` and `thumb` (HorizontalVolumeSlider's
+bar).
 
 **Selectors.** Type, `#id`, `.class`, attributes with `= ~= |= ^= $= *=`
 and the `i` flag, `:not :is :where :has` (relative, `> + ~`), `:scope`,
@@ -216,7 +220,8 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | `utility-container` | `div._utilityContainer_` | right cluster | Prepend, Append |
 | `utility-buttons` | `div._utilityButtons_` | right cluster; a theme's card behind the buttons, as for `track-content` (the quality pill stays outside it) | Prepend, Append |
 | `toggle-lyrics` | `button[data-test=toggle-lyrics][aria-pressed]` | lyrics button; hidden; clicks forwarded | Before, After |
-| `slider-container` > `mute`, `volume-range` | `div._sliderContainer_ > button + input[type=range]._nativeRange_7e12413` (value 0-100) | volume; wheel goes to plugins when they listen (VolumeScroll) and the native wheel step is off; `_nativeRange_` hidden hides the native slider (HorizontalVolumeSlider) | Before (OneClickLyrics, MusicVideoButton), After (HorizontalVolumeSlider) |
+| `slider-container` > `mute`, `volume-range` | `div._sliderContainer_ > button + input[type=range]._nativeRange_7e12413` (value 0-100) | volume; wheel goes to plugins when they listen (VolumeScroll) and the native wheel step is off; `_nativeRange_` hidden hides the native slider (HorizontalVolumeSlider) | Before (OneClickLyrics, MusicVideoButton), After (HorizontalVolumeSlider, between the speaker and the mini player button) |
+| `mini-player-button` | `button._miniPlayerButton_` after the slider container, TIDAL's last utility button | compact mode button | |
 | `more-container` > `queue-button`, `fullscreen-button` | `div._moreContainer_f6162c8 > button[data-test=play-queue-button]`, `button[data-test=request-fullscreen]` | queue button | Prepend (total-play-time), Append |
 
 ### Track lists (`widgets.rs` track rows: albums, playlists, collection, queue)
@@ -260,7 +265,12 @@ row for inline elements and `display:flex`, a column for blocks and
 `flex-direction:column`, with `gap`. Styles: `color`, `background(-color)`
 (first gradient colour), `font-size/weight/style/family` (loaded plugin
 fonts), `text-decoration`, `padding`, `margin`, `border`, `border-radius`,
-`opacity`, `width`, `height`, `cursor`, `display:none`. Colours: hex,
+`opacity`, `width`, `height`, `cursor`, `display:none`. A range input with
+styled parts draws its track across its width, centred, with its background
+(gradients with hard stops change colour at once), and its thumb inside the
+track's ends, its top at the track's top plus its `margin-top`. A text field
+with `border: none` has no box of its own; its text takes the element's
+font, colour and `text-align`. Colours: hex,
 `rgb[a]()`, `hsl[a]()`, `color-mix(in srgb, ...)`, named, `transparent`;
 `var()` is resolved from `overlay.vars`. Events forwarded for nodes that
 listen: `click`, `dblclick`, `contextmenu`, `mouseenter/leave/over/out`,
