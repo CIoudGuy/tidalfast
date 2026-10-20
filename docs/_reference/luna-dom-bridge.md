@@ -454,7 +454,9 @@ theme paints it opaque), `bar`, `sidebar`, `main`, `main-header`,
 `now-playing` are painted under their native content (`paint_host_layers`,
 parsed once per overlay change and cached by anchor): the box's
 `background-image` layers (linear and radial gradients, `url()` images with
-`background-size`/`-position`), its `::before`/`::after` fill and images,
+`background-size`/`-position`; a radial gradient whose colour ends within 12
+px of its centre is a dot, drawn once per tile of its own `background-size`
+entry, as the Cotton Candy Nights family's stars), its `::before`/`::after` fill and images,
 `border`s, and `backdrop-filter: blur()` as frosted glass, which blurs the
 page's `url()` picture behind the box (over plain colours and gradients a
 blur changes nothing, so nothing is drawn). A theme that removes the header
