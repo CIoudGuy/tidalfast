@@ -436,12 +436,16 @@ where
 struct CoverBackdrop {
     /// A small copy of the cover; blurred, stretched across the header.
     url: String,
+    /// An album's: TIDAL's desktop app lays the album's cover itself (a
+    /// large copy, not blurred) under a 60 % black veil.
+    sharp: Option<String>,
 }
 
 fn cover_backdrop(app: &mut App) -> Option<CoverBackdrop> {
     if !app.palette.dark {
         return None;
     }
+    let album = matches!(app.page(), Page::Album(_) | Page::AlbumCredits(_));
     let images = match app.page().clone() {
         Page::Playlist(id) => app
             .playlist_pages
@@ -463,14 +467,26 @@ fn cover_backdrop(app: &mut App) -> Option<CoverBackdrop> {
         Page::Radio(seed) => Some(app.radio_images(&seed)),
         _ => None,
     }?;
+    let sharp = album
+        .then(|| pick_image(&images, app.art_px(1280.0)))
+        .flatten()
+        .map(str::to_string);
     pick_image(&images, 80)
         .map(str::to_string)
-        .map(|url| CoverBackdrop { url })
+        .map(|url| CoverBackdrop { url, sharp })
 }
 
+/// How much black lies over the top of an album's backdrop (TIDAL's
+/// `linear-gradient(rgba(0,0,0,.6), #000)`), and over a playlist's, mix's
+/// or radio's blurred one (`.4`).
+const ALBUM_VEIL: f32 = 0.6;
+const BLURRED_VEIL: f32 = 0.4;
+
 /// TIDAL's `._dataContainer::before`: the cover scaled to cover the page's
-/// top 450 points, multiplied by black 40 % fading to solid black, blurred
-/// 50 px. Painted from a pre-blurred small texture.
+/// top 450 points, under black fading to solid black at the foot. An
+/// album's cover is laid as it is under 60 % black; a playlist's, mix's or
+/// radio's is blurred 50 px under 40 %, painted from a pre-blurred small
+/// texture.
 fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: &CoverBackdrop) {
     let header = Rect::from_min_size(page.min, vec2(page.width(), 450.0));
     let mut layer = ui.new_child(egui::UiBuilder::new().max_rect(header));
@@ -480,8 +496,25 @@ fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: 
     let key = crate::luna::dom_anchors::keys::PAGE_DATA;
     if !plugin_dom::before_image_removed(key) {
         let art = app.backend.art().clone();
-        if let Some(texture) = app.softened_covers.wash(ui.ctx(), &art, &backdrop.url) {
-            widgets::paint_cover_wash(&layer, &texture, header, 0.4);
+        let sharp = backdrop
+            .sharp
+            .as_deref()
+            .is_some_and(|url| widgets::paint_backdrop_image(&layer, url, header, Some(&art)));
+        if sharp {
+            widgets::paint_vertical_gradient(
+                &layer,
+                header,
+                Color32::from_black_alpha((ALBUM_VEIL * 255.0) as u8),
+                Color32::BLACK,
+            );
+        } else if let Some(texture) = app.softened_covers.wash(ui.ctx(), &art, &backdrop.url) {
+            // Until the large copy is in, the blurred one stands in.
+            let veil = if backdrop.sharp.is_some() {
+                ALBUM_VEIL
+            } else {
+                BLURRED_VEIL
+            };
+            widgets::paint_cover_wash(&layer, &texture, header, veil);
         }
     }
     plugin_dom::paint_host_layers(&layer, key, header);
