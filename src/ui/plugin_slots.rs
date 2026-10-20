@@ -4072,7 +4072,7 @@ fn leaf(
                     h.unwrap_or(inherit.size + 4.0),
                 ),
             };
-            let Some(source) = image_source(node, inherit.color, inherit.fill) else {
+            let Some(source) = image_source(node, inherit.color, inherit.fill, inherit.back) else {
                 let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
                 let _ = rect;
                 return true;
@@ -4121,12 +4121,77 @@ enum ImageSource {
 /// by egui_extras' resvg loader; `currentColor` takes the text colour, and
 /// TIDAL's sprite icons (`__luna-paint__`) the CSS `fill`, else the text
 /// colour.
-fn image_source(node: &VNode, color: Color32, fill: Option<Color32>) -> Option<ImageSource> {
+fn image_source(
+    node: &VNode,
+    color: Color32,
+    fill: Option<Color32>,
+    back: Color32,
+) -> Option<ImageSource> {
     let markup = node.markup.as_deref().or_else(|| attr(node, "src"))?;
-    if markup.contains(PAINT) {
-        return source_of(&sprite_paint(markup, fill.unwrap_or(color)), color);
+    let markup: std::borrow::Cow<'_, str> = if markup.contains(PAINT) {
+        sprite_paint(markup, fill.unwrap_or(color)).into()
+    } else {
+        markup.into()
+    };
+    if luminance(back) > 0.4 && markup.trim_start().starts_with('<') {
+        let resolved = if markup.contains("var(") {
+            css::resolve_vars(&markup, &plugin_dom::vars())
+        } else {
+            markup.into_owned()
+        };
+        return source_of(&light_ink(&resolved, back), color);
     }
-    source_of(markup, color)
+    source_of(&markup, color)
+}
+
+/// SVG paints a plugin chose for TIDAL's dark window (star-ratings' 28 %
+/// white empty stars, OneClickLyrics' white icon) on a light backdrop:
+/// each `fill`/`stroke` colour that would not read there takes the dark ink
+/// [`readable`] gives plugin text, with its own opacity. Only on a light
+/// backdrop: in Dark the plugin's colours are drawn as in TIDAL.
+fn light_ink(svg: &str, back: Color32) -> String {
+    let mut out = String::with_capacity(svg.len());
+    let mut rest = svg;
+    loop {
+        // The next `fill=`/`stroke=` attribute or `fill:`/`stroke:` style.
+        let next = ["fill=", "stroke=", "fill:", "stroke:"]
+            .iter()
+            .filter_map(|p| rest.find(p).map(|at| (at, p.len())))
+            .filter(|(at, _)| {
+                // Not the tail of another name (`stop-fill`, `-webkit-...`).
+                rest[..*at]
+                    .chars()
+                    .next_back()
+                    .is_none_or(|c| !(c.is_ascii_alphanumeric() || c == '-'))
+            })
+            .min_by_key(|(at, _)| *at);
+        let Some((at, len)) = next else {
+            out.push_str(rest);
+            return out;
+        };
+        let (head, tail) = rest.split_at(at + len);
+        out.push_str(head);
+        let quote = tail.chars().next().filter(|c| *c == '"' || *c == '\'');
+        let body = if quote.is_some() { &tail[1..] } else { tail };
+        let end = body
+            .find(|c: char| match quote {
+                Some(q) => c == q,
+                None => c == ';' || c == '"' || c == '\'',
+            })
+            .unwrap_or(body.len());
+        let value = &body[..end];
+        if let Some(q) = quote {
+            out.push(q);
+        }
+        match css::color(value.trim()) {
+            Some(c) if c.a() > 0 && readable(c, back) != c => {
+                let [r, g, b, a] = readable(c, back).to_srgba_unmultiplied();
+                out.push_str(&format!("rgba({r},{g},{b},{:.3})", f32::from(a) / 255.0));
+            }
+            _ => out.push_str(value),
+        }
+        rest = &body[end..];
+    }
 }
 
 /// What the DOM shim writes for the paint of a TIDAL sprite icon.
@@ -5785,7 +5850,7 @@ mod tests {
             ..VNode::default()
         };
         let Some(ImageSource::Bytes(uri, bytes)) =
-            image_source(&node, Color32::from_rgb(255, 0, 0), None)
+            image_source(&node, Color32::from_rgb(255, 0, 0), None, Color32::BLACK)
         else {
             panic!("svg source");
         };
@@ -5799,6 +5864,7 @@ mod tests {
             &node,
             Color32::from_rgba_unmultiplied(255, 255, 255, 140),
             None,
+            Color32::BLACK,
         ) else {
             panic!("svg source");
         };
@@ -6477,7 +6543,8 @@ mod tests {
             ),
             ..VNode::default()
         };
-        let svg = |fill| match image_source(&node, Color32::from_rgb(1, 2, 3), fill) {
+        let svg = |fill| match image_source(&node, Color32::from_rgb(1, 2, 3), fill, Color32::BLACK)
+        {
             Some(ImageSource::Bytes(_, bytes)) => String::from_utf8(bytes).unwrap(),
             _ => panic!("no svg"),
         };
@@ -6890,6 +6957,36 @@ mod tests {
                 .iter()
                 .any(|s| matches!(&s.shape, egui::Shape::Mesh(m) if !m.vertices.is_empty()))
         );
+    }
+
+    /// star-ratings' empty stars are 28 % white, made for TIDAL's dark
+    /// window: in Light they vanished into the bar. On a light backdrop an
+    /// SVG paint that would not read takes dark ink with its opacity; on a
+    /// dark one the plugin's colours are kept as written.
+    #[test]
+    fn svg_paints_that_would_not_read_take_dark_ink_in_light() {
+        let node = VNode {
+            id: 1,
+            tag: "svg".into(),
+            markup: Some(
+                "<svg viewBox=\"0 0 32 32\"><path fill=\"rgba(255,255,255,0.28)\" d=\"M0 0h32v32H0z\"/><path style=\"stroke:#fff;fill:#1565c0\" d=\"M0 0h1v1H0z\"/></svg>".into(),
+            ),
+            ..VNode::default()
+        };
+        let svg = |back| match image_source(&node, Color32::WHITE, None, back) {
+            Some(ImageSource::Bytes(_, bytes)) => String::from_utf8(bytes).unwrap(),
+            _ => panic!("no svg"),
+        };
+        let light = svg(Color32::from_gray(0xf5));
+        assert!(light.contains("fill=\"rgba(25,25,25,0.278)\""), "{light}");
+        assert!(light.contains("stroke:rgba(26,26,26,1.000)"), "{light}");
+        assert!(
+            light.contains("fill:#1565c0"),
+            "a blue that reads is kept: {light}"
+        );
+        let dark = svg(Color32::from_gray(0x10));
+        assert!(dark.contains("fill=\"rgba(255,255,255,0.28)\""), "{dark}");
+        assert!(dark.contains("stroke:#fff"), "{dark}");
     }
 
     /// HorizontalVolumeSlider's volume number: `border: none`, transparent,

@@ -316,7 +316,10 @@ with its transform and rounds with `border-radius: 50%`. `filter: blur(r)`
 on a background image draws a copy scaled to about one texel per radius and
 smoothed, made off the UI thread (spinny-cover); `filter: brightness(<1)`
 dims the box and what it holds. Other filters are not drawn. `var()` in
-SVG markup is resolved before drawing (star-ratings' star colours).
+SVG markup is resolved before drawing (star-ratings' star colours). On a light backdrop (Light) an SVG `fill`
+or `stroke` that would not read takes dark ink with its own opacity, as
+plugin text does (star-ratings' 28 % white empty stars, OneClickLyrics'
+white icon); in Dark the plugin's colours are drawn as written.
 
 Right-to-left slots (the player bar's right cluster) lay each element out
 left to right in a box the size it took last frame, so a box never claims
