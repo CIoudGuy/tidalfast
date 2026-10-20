@@ -113,7 +113,7 @@ Notes that apply to every plugin:
 | @meowarex/copy-lyrics | meowarex/TidalLuna-Plugins | ✅ live r21 | A drag over the now-playing lyrics highlights the characters between press and release in its `::selection` colour (#48003c), per wrapped row and at each line's opacity and size, and copies exactly those characters on mouse-up (`textPoint` offsets, `selectBetween`), as in TIDAL (r21). The highlight goes on release, as in TIDAL (the plugin clears the selection at once). Differs: the selected words keep their colour (`::selection` `color` is not applied), and only the now-playing lyrics can be selected (the only lyrics Tidalfast shows). Its document listeners no longer hide the playlist filter's outline (r20). |
 | @meowarex/element-hider | meowarex/TidalLuna-Plugins | ✅ live r21 | Compared with TidaLuna (r20): its two items and divider stack under every context menu's rows, as in TIDAL; hovering 'Hide This Element' rings the element in red with its glow; hiding works on the anchors that can be hidden (album and playlist header art too). r21: what plugins append to `[data-test=contextmenu]` is laid out from the menu's edges, as TIDAL's element is the menu's whole box, so the items' labels line up with the menu's own rows (16 in) and the divider runs 8 in from each edge (they sat 4 points right). |
 | @meowarex/radiant-lyrics | meowarex/TidalLuna-Plugins | ✅ live r21 | Restyled lines and its now-playing controls show (r13). r21, compared with TidaLuna (r20): the 'Cover Everywhere' WebGL backdrop shows behind the sidebar and the page (its canvas sits at `z-index: -1` in a fixed `#000` box that is a stacking context; the canvas was drawn under the box's black, in every window, not only off screen), `main { background: unset }` clears the page's own colour as in TIDAL, and the page runs on under the floating bar (10 points in, rounded) to the window's bottom, showing round it. Differs: TIDAL blurs what lies under the glass bar; that blur is not drawn, so the bar is its tint over the window's colour and the page does not show through it. The canvas's `contrast()` is not applied (its `brightness()` is). |
-| @seth/CatJam | wont-stream/lunar (dev) | ✅ live r13 | The cat (790x604 VP9 WebM with alpha) lies over the player bar's cover at 80 %, as in TidaLuna (r20: it stood above the bar, then showed only a strip); follows the song, see 'Plugin <video>'. |
+| @seth/CatJam | wont-stream/lunar (dev) | ✅ live r13 | The cat (790x604 VP9 WebM with alpha) lies over the player bar's cover at 80 %, as in TidaLuna (r20: it stood above the bar, then showed only a strip); follows the song, see 'Plugin <video>'. Since r24 it goes with the cover while the now-playing view is up (the bar leaves its cover out there, and the cat stayed pale over the title and artists that move to its place). |
 | @jxnxsdev/utils | jxnxsdev/luna-plugins | ✅ live r13 | Library. A probe plugin called its exports: LRC parser, `clamp`, `toRgbString`, `sanitizeSearchQuery`, `retryWithBackoff`, QR data URL, media snapshot and cover colours all work; `getTidalCredentials` asks for the TIDAL sign-in permission first. r20: no UI and no view changed, as in TIDAL. |
 | @jxnxsdev/streamer-tools | jxnxsdev/luna-plugins | ✅ live r13 | With its port setting moved off 2403 the overlay, widgets and `/_plugins` answer; unmatched routes answer 404. The default port 2403 fails with EACCES on PCs where Windows reserves it (machine-specific). 1:1 in the app (r20): no UI besides its settings, no view changed. |
 | @jxnxsdev/qr-share | jxnxsdev/luna-plugins | ✅ live r21 | 'Share via QR Code' is the last row of a track's and an album's menu, as in TIDAL. Its full-window overlay shows the 600-pixel card as TIDAL draws it (r21: the card's 12-pixel corners, the caption in Segoe UI Bold from its `bold 32px system-ui`, Save and Close in the browser's control font, Arial 13.33), Save's hover and Close checked. Differs only in the demo: the caption has no "by <artist>" and playlists have no QR row, because demo ids are not TIDAL's numbers or UUIDs. |
@@ -221,11 +221,11 @@ the screenshot.
 | Minimalist Black | anmolbyte/tidaLuna-mods (Apache-2.0) | ✅ live r20 | Token theme: black on black, green accent. |
 | Blur | Inrixia/luna-plugins `themes/blur.css` (AGPL-3.0) | ✅ live r20 | As in "Other public themes" below: glass title bar and header; made to sit on CoverTheme's gradients. |
 | Cotton Candy colourways (14: Horchata, Baja Blast, Sea Salt Ice Cream, Shasta Twist, Calavera, Strawberry Mint, Blueberry Lemon Poppyseed Muffin, Fairy Floss, Purple Paradise Punch, Raspberry Orange Sherbet, Snowcone, Sour Rainbow Strips, Ube Charcoal Ice Cream, Violet Sky Margarita) | aya-zzz-zzz/cotton-candy-colorways (MIT), each over `base-windows.css` | ✅ live r23 | Round 23: all 14 compared view by view (normal, 1000 px, close-ups; Shasta Twist's broken shots taken again): the Cotton Candy differences, nothing colourway-specific beyond them. Round 22: the Cotton Candy fixes apply to all of them (coloured pills, glass queue panel, white panel words, row lines, menu gradient); compared view by view for Horchata, Baja Blast, Sea Salt Ice Cream, Shasta Twist, Calavera and Strawberry Mint, the same differences as Cotton Candy. | Each is the Cotton Candy layout in its own colours (calavera pink and orange, fairy floss lavender, sour rainbow strips a pastel rainbow); text dark on the light windows and readable in all 14. |
-| Cotton Candy (adaptive), Cotton Candy: Horchata (adaptive) | aya-zzz-zzz/cotton-candy-colorways, over `adaptive/base/windows-adaptive.css` | ✅ live r23 | Round 23, compared with TIDAL in the light scheme: the Cotton Candy result; in TIDAL the translucent Shuffle's label is pale, Tidalfast's dark. Styled in the app's Light, stock in Dark (its `@media (prefers-color-scheme: light)`). |
+| Cotton Candy (adaptive), Cotton Candy: Horchata (adaptive) | aya-zzz-zzz/cotton-candy-colorways, over `adaptive/base/windows-adaptive.css` | ✅ live r23 | Round 23, compared with TIDAL in the light scheme: the Cotton Candy result; in TIDAL the translucent Shuffle's label is pale, Tidalfast's dark. Styled in the app's Light, stock in Dark (its `@media (prefers-color-scheme: light)`). Since r24 the Themes tab says "Shows only in Light mode" on its card, its installed row and the Applied line while the app is in Dark, so Active never looks broken. |
 | Cotton Candy Nights colourways (8: Milky Way, Lilikoi, Pop Rocks, Blueberry Cobbler, Namagashi, Ameowicano, Calavera, Hot Tamales) | aya-zzz-zzz/cottoncandynights (no licence), each over `base-windows.css` | ✅ live r23 | Round 23: all 8 compared view by view (normal, 1000 px, close-ups): as Cotton Candy Nights, the same differences; on Milky Way the track list panel's border is a plain white line where TIDAL's barely shows. Dark windows with stars, the colourway's tiles and cards. Before round 20 five of them (Milky Way, Blueberry Cobbler, Lilikoi, Hot Tamales, Calavera) painted each star as a white glow over the whole window, which turned it light and the sidebar's names dark on the dark sidebar (see round 20). |
 | Cotton Candy Twilight | aya-zzz-zzz/cotton-candy-twilight (no licence), over `base-windows.css` | ✅ live r23 | Round 23: the bar's artist line, heart, "...", clock and right-hand buttons are dark on its light bar, as in TIDAL (`._utilityButtons_ button`, `._trackContent_ a`, `._button_c372e89 svg`, `._scrubberTime_`). Differs as Cotton Candy, and its track rows keep a divider line TIDAL drops (a generic `div:nth-child(1) > div > div { border-style: none }` matches TIDAL's rows, not Tidalfast's anchors). Round 22, compared with TIDAL running Astronaut Ice Cream: the navy window with its twinkling stars (variables its `@keyframes` animate count as defined), the taupe sidebar card with TIDAL's white nav words and white playlist names, which is what TIDAL shows, the light bar and queue panel. Differs: the bar's artist line and right-hand icons stay light on the light bar where TIDAL draws them dark (`._utilityButtons_ button { color }`; Tidalfast's bar icons take no theme colour). Before r22: | Dark starry window and dark cards, light tiles, light sidebar card and bar, as the theme means. The sidebar's navigation labels (Explore, Feed, Upload, Collection) and the bar's artist line are near white on the light sidebar and bar, and the bar's right-hand buttons sit under a light box: the theme's text colours for those parts are not reached by Tidalfast's native rows. Not chased here (pixel comparison is a separate task). |
-| Cotton Candy Twilight (adaptive) | aya-zzz-zzz/cotton-candy-twilight, over `adaptive/base/windows-adaptive.css` | ✅ live r23 | Round 23, compared with TIDAL in the dark scheme: as Twilight. Styled in the app's Dark (its query is `prefers-color-scheme: dark`), stock in Light; in Dark the same open points as Twilight. |
-| Solo v2 | Solomag/tidaluna-overrides `solo-milkyway.css` (no licence), over Cotton Candy Nights' `base-windows.css` | ✅ live r20 | Black window with stars, dark tiles and cards, the floating bar; see solo-milkyway under "Other public themes" for the rules Tidalfast has no element for. |
+| Cotton Candy Twilight (adaptive) | aya-zzz-zzz/cotton-candy-twilight, over `adaptive/base/windows-adaptive.css` | ✅ live r23 | Round 23, compared with TIDAL in the dark scheme: as Twilight. Styled in the app's Dark (its query is `prefers-color-scheme: dark`), stock in Light; in Dark the same open points as Twilight. In Light the Themes tab says "Shows only in Dark mode" (r24). |
+| Solo v2 | Solomag/tidaluna-overrides `solo-milkyway.css` (no licence), over Cotton Candy Nights' `base-windows.css` | ✅ live r20 | Black window with stars, dark tiles and cards, the floating bar; see solo-milkyway under "Other public themes" for the rules Tidalfast has no element for.  Round 24 (the owner's report, 2000 x 1150, Dark, queue open): opening and closing now playing drew the sliding view's cover over the player bar and its header over the play queue (both general: the view's panel dropped the clip that keeps it above the bar, and its layer was over every floating panel); fixed for every theme. In TIDAL its starfield is on the page, the main container and the now-playing background (`.now-playing-background-container`), the now-playing wrapper is see-through and the sidebar rows plain; Tidalfast's now-playing view shows the same starfield behind the cover. No TIDAL capture of it yet.|
 
 Shared by the cotton candy family: the artist header's backdrop portrait is not
 an anchor (no catalogue file names it, and TIDAL's own class is unknown, since
@@ -1157,11 +1157,21 @@ Supporters, only lists TidaLuna's GitHub sponsors and contributors and is left o
   exceptions crossing wasm, re-entry, the error classes, `.native` code, the
   memory cap and the watchdog. `real_undici_llhttp_parses_a_response`
   (ignored, network) runs DiscordRPC's bundled parser.
+- Catalogue theme sweep (ignored, needs the network):
+  `LUNA_THEME_SWEEP_OUT=<file>.json cargo test --lib luna::sweep::theme_sweep -- --ignored --nocapture`
+  installs every catalogue theme the way the Themes tab does (a colourway
+  with its base), in Dark and in Light, one after the other, and records
+  whether it loads, what it restyles, what stays after every theme is
+  turned off and what a switch from the previous theme left behind, and
+  whether uninstalling them all gives the page back. `LUNA_SWEEP_FILTER`
+  limits it.
 - Whole-store sweep (ignored, needs the network):
   `LUNA_SWEEP_JOBS=8 LUNA_SWEEP_OUT=<file>.json cargo test --lib luna::sweep -- --ignored --nocapture`;
   `LUNA_SWEEP_FILTER=a,b` limits it to matching store URLs or file names.
   Settings text inputs get "x" appended by the sweep, which explains odd
-  URLs and file names in its logs.
+  URLs and file names in its logs. Each report's `leftover` lists what the
+  plugin left in the page after its uninstall (styles, slots, variables),
+  against the page before it was installed.
 
 ## History
 
@@ -1480,6 +1490,43 @@ shot with `bd117b49` and with this round's build is pixel-identical except
 where two runs of the same build already differ (the bar's clock and
 progress row, the page scrollbar's fade, the collection's loading rows,
 the now-playing backdrop's motion, a one-level fade on the bar's "...").
+
+### Round 24 (the owner's report: an adaptive theme, Solo v2, the player bar)
+
+The owner saw "Cotton Candy (adaptive)" Active in Dark with nothing changed,
+and a pale, misplaced cover in the player bar. Findings, each fixed in the
+general renderer with a test that fails without the fix:
+
+- The adaptive files put every rule under `@media (prefers-color-scheme:
+  light)`, and `prefers-color-scheme` follows Tidalfast's own Dark or Light
+  (System follows the computer), so in Dark they draw nothing, as in TIDAL
+  on a dark system. The Themes tab now says "Shows only in Light mode" (or
+  Dark) on such a theme's card, its installed row and the Applied line
+  while the app is in the other mode. The catalogue already installs every
+  colourway with its base, the adaptive ones with the adaptive base.
+- The pale cover is CatJam's cat (80 % over the cover, as in TidaLuna).
+  While the now-playing view was up, the bar left its cover out but the cat
+  stayed, over the title and artists that move to its place, and the theme's
+  hover outline for the hidden cover showed under the pointer.
+- The bar's source line ("Playing from", the link icon) lost the bottom of
+  its letters ("Lana Del Rey" read "Rev"): its box was shorter than the three
+  lines.
+- Opening and closing now playing (Solo v2, any theme or none): the sliding
+  view's panel dropped the clip that keeps it above the player bar, so its
+  cover was drawn over the bar, and its layer lay over the play queue, which
+  floats over the view in TIDAL. A frame captured mid-slide showed both.
+- Smoke test (`theme_sweep`, both modes, all 52 catalogue themes switched
+  one after the other): every one loads with no error; none leaves a style,
+  variable or slot behind when turned off or switched from; uninstalling all
+  gives the page back. The adaptive three draw nothing in their other mode
+  (labelled, as above). Store sweep (101 store entries, the leftover check
+  new): load results as in the rows above; after an uninstall some plugins
+  leave what they set on TIDAL's elements themselves and never undo, as in
+  TidaLuna until a reload: NativeFullscreen's hidden title bar (when its
+  setting is on), Tidal Tags' progress colour, star-ratings' row marks,
+  tidal-genres' title widths, custom-fonts' title badge, colorama-lyrics' and
+  radiant-lyrics' variables, uwu-ifier's and korean-translation's rewritten
+  text. Their stylesheets and slots go with them.
 
 ### Round 16 (final audit)
 
