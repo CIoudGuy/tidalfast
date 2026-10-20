@@ -11,6 +11,7 @@ pub mod blocked;
 pub mod collection;
 pub mod compact;
 mod cover_tilt;
+pub mod css_motion;
 pub(crate) mod cursor;
 pub(crate) mod dialogs;
 pub mod downloads;

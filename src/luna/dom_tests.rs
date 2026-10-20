@@ -604,7 +604,7 @@ window.addEventListener("mousemove", (e) => (R.move = [e.clientX, e.clientY]));
     let spin = o.at("", Position::Append).next().unwrap();
     assert_eq!(
         spin.style.animation.as_deref(),
-        Some("t-rot 4 0 infinite normal linear running")
+        Some("t-rot 4 0 infinite normal linear running none")
     );
     assert!(
         spin.style
@@ -2056,5 +2056,119 @@ R.done = true;
         json!(r#"<div class="outer"><div class="inner">Loaded</div></div>"#)
     );
     assert_eq!(r["same"], json!(true), "the node is kept between renders");
+    finish(luna, dir);
+}
+
+/// What the UI needs to run CSS motion as a browser does: the fill mode and
+/// a timing function with commas and spaces kept in the animation list, a
+/// keyframe's own easing, each side's border colour (a spinner's bright
+/// arc), `transition-property: none`, `prefers-reduced-motion` following
+/// the desktop, and, for an element inserted at `opacity: 0` and given
+/// `.visible` a frame later (3d-cover's canvas), the style its fade starts
+/// from.
+#[test]
+fn motion_reaches_the_ui_as_a_browser_runs_it() {
+    let (luna, _host, dir) = start(
+        r##"
+new lib.StyleTag("dom-test", unloads, `
+.m-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.25); border-top-color: rgba(255, 255, 255, 0.9);
+  animation: m-rot 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.1s 3 alternate both; }
+.m-lin { animation: m-rot 1s linear(0, 0.25 75%, 1) infinite; }
+.m-off { transition: opacity 1s; transition-property: none; }
+.m-fade { opacity: 0; transition: opacity 0.12s ease; }
+.m-fade.visible { opacity: 1; }
+@keyframes m-rot { from { transform: rotate(0deg); animation-timing-function: steps(4, jump-end); } to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .m-spin { animation: none; } }
+`);
+for (const c of ["m-spin", "m-lin", "m-off"]) {
+	const el = document.createElement("div");
+	el.className = c;
+	document.body.append(el);
+}
+R.reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+window.addEventListener("click", () => {
+	const f = document.createElement("canvas");
+	f.className = "m-fade";
+	document.body.append(f);
+	getComputedStyle(document.body);
+	requestAnimationFrame(() => f.classList.add("visible"));
+	R.fade = true;
+});
+"##,
+    );
+    luna.sync_dom(tree());
+    let o = overlay_until(&luna, 10, |o| o.at("", Position::Append).count() >= 3);
+    let nodes: Vec<_> = o.at("", Position::Append).collect();
+    let by = |cls: &str| {
+        nodes
+            .iter()
+            .find(|n| n.attrs.iter().any(|(k, v)| k == "class" && v == cls))
+            .copied()
+            .unwrap()
+    };
+    let spin = by("m-spin");
+    assert_eq!(
+        spin.style.animation.as_deref(),
+        Some("m-rot 0.8 0.1 3 alternate cubic-bezier(0.4,0,0.2,1) running both")
+    );
+    assert_eq!(
+        spin.style.border_color.as_deref(),
+        Some(
+            "rgba(255, 255, 255, 0.9) rgba(255, 255, 255, 0.25) rgba(255, 255, 255, 0.25) rgba(255, 255, 255, 0.25)"
+        )
+    );
+    assert_eq!(
+        by("m-lin").style.animation.as_deref(),
+        Some("m-rot 1 0 infinite normal linear(0,0.25_75%,1) running none")
+    );
+    assert_eq!(by("m-off").style.transition, None);
+    let frames = &o.keyframes["m-rot"];
+    assert_eq!(
+        frames[0]
+            .1
+            .custom
+            .as_ref()
+            .and_then(|c| c.get("animation-timing-function"))
+            .map(String::as_str),
+        Some("steps(4,jump-end)")
+    );
+    assert_eq!(dom_results(&dir)["reduce"], json!(false));
+    // Inserted at opacity 0, visible a frame later: the first overlay that
+    // shows it carries where its fade starts.
+    luna.dom_event(DomEvent {
+        target: DomTarget::Host(String::new()),
+        kind: "click".into(),
+        data: Value::Null,
+    });
+    // (An overlay built between the two shows it at 0 itself.)
+    let mut shown_at_zero = false;
+    let o = overlay_until(&luna, 10, |o| {
+        let canvas = o.at("", Position::Append).find(|n| n.tag == "canvas");
+        shown_at_zero |= canvas.is_some_and(|n| n.style.opacity.as_deref() == Some("0"));
+        canvas.is_some_and(|n| n.style.opacity.as_deref() == Some("1"))
+    });
+    let fade = o
+        .at("", Position::Append)
+        .find(|n| n.tag == "canvas")
+        .unwrap();
+    if !shown_at_zero {
+        let from = fade.from.as_ref().expect("the style of its first pass");
+        assert_eq!(from.opacity.as_deref(), Some("0"));
+        assert!(
+            from.transition
+                .as_deref()
+                .is_some_and(|t| t.starts_with("opacity 0.12"))
+        );
+    }
+    // Less motion on the desktop: the reduce rules apply.
+    let mut t = tree();
+    t.reduced_motion = true;
+    luna.sync_dom(t);
+    overlay_until(&luna, 10, |o| {
+        o.at("", Position::Append).any(|n| {
+            n.attrs.iter().any(|(k, v)| k == "class" && v == "m-spin")
+                && n.style.animation.is_none()
+        })
+    });
     finish(luna, dir);
 }

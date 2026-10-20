@@ -18,6 +18,7 @@ use serde_json::json;
 
 use crate::luna::dom::{DomTarget, Position, Style, VNode};
 
+use super::css_motion;
 use super::plugin_dom;
 
 /// CSS value parsing for the native renderer.
@@ -1498,177 +1499,433 @@ impl Xf {
     }
 }
 
-/// CSS easing of progress `p` (0..1).
-pub(super) fn ease(timing: &str, p: f32) -> f32 {
-    let bezier = |x1: f32, y1: f32, x2: f32, y2: f32| {
-        // Solve x(t) = p by bisection, then return y(t).
-        let at = |a: f32, b: f32, t: f32| {
-            let u = 1.0 - t;
-            3.0 * u * u * t * a + 3.0 * u * t * t * b + t * t * t
-        };
-        let (mut lo, mut hi) = (0.0f32, 1.0f32);
-        for _ in 0..20 {
-            let mid = (lo + hi) / 2.0;
-            if at(x1, x2, mid) < p {
-                lo = mid;
-            } else {
-                hi = mid;
-            }
-        }
-        at(y1, y2, (lo + hi) / 2.0)
-    };
-    match timing {
-        "linear" => p,
-        "ease" => bezier(0.25, 0.1, 0.25, 1.0),
-        "ease-in" => bezier(0.42, 0.0, 1.0, 1.0),
-        "ease-out" => bezier(0.0, 0.0, 0.58, 1.0),
-        "ease-in-out" => bezier(0.42, 0.0, 0.58, 1.0),
-        "step-start" => p.ceil(),
-        "step-end" => p.floor(),
-        t if t.starts_with("steps(") => {
-            let inner = t.trim_start_matches("steps(").trim_end_matches(')');
-            let mut parts = inner.split(',');
-            let n = parts
-                .next()
-                .and_then(|n| n.trim().parse::<f32>().ok())
-                .unwrap_or(1.0)
-                .max(1.0);
-            let start = parts.next().is_some_and(|s| s.contains("start"));
-            let s = (p * n).floor() + if start { 1.0 } else { 0.0 };
-            (s / n).min(1.0)
-        }
-        t if t.starts_with("cubic-bezier(") => {
-            let v: Vec<f32> = t
-                .trim_start_matches("cubic-bezier(")
-                .trim_end_matches(')')
-                .split(',')
-                .filter_map(|x| x.trim().parse().ok())
-                .collect();
-            match v.as_slice() {
-                [a, b, c, d] => bezier(*a, *b, *c, *d),
-                _ => p,
-            }
-        }
-        _ => p,
-    }
-}
-
 fn rgba(c: Color32) -> String {
     let [r, g, b, a] = c.to_srgba_unmultiplied();
     format!("rgba({r},{g},{b},{})", f32::from(a) / 255.0)
 }
 
-/// `style` with its running CSS animations applied at the current time
-/// (opacity, transform, colours), or `None` when it has none. Keeps
-/// repainting while an animation runs.
-fn animate(ctx: &egui::Context, node: u64, style: &Style, cx: &Cx) -> Option<Style> {
-    let spec = style.animation.as_deref()?;
-    if cx.keyframes.is_empty() {
+/// A `background-position` as two lengths, keywords as percentages (a share
+/// of the room around the image, as [`paint_background`] places it): what an
+/// animation moves on a sprite sheet or a gradient.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct BgPos {
+    /// (value, whether it is a percentage) per axis.
+    x: (f32, bool),
+    y: (f32, bool),
+}
+
+impl BgPos {
+    fn parse(value: &str, font: f32, viewport: [f32; 2]) -> Option<BgPos> {
+        let lower = value.to_ascii_lowercase();
+        let words = css::words(&lower);
+        let axis = |w: &str| -> Option<(f32, bool)> {
+            match w {
+                "left" | "top" => Some((0.0, true)),
+                "center" => Some((50.0, true)),
+                "right" | "bottom" => Some((100.0, true)),
+                w if w.ends_with('%') => Some((w.trim_end_matches('%').trim().parse().ok()?, true)),
+                w => Some((css::length(w, font, 0.0, viewport)?, false)),
+            }
+        };
+        let centre = (50.0, true);
+        match words.as_slice() {
+            [w] if matches!(*w, "top" | "bottom") => Some(BgPos {
+                x: centre,
+                y: axis(w)?,
+            }),
+            [w] => Some(BgPos {
+                x: axis(w)?,
+                y: centre,
+            }),
+            [a, b] if matches!(*a, "top" | "bottom") || matches!(*b, "left" | "right") => {
+                Some(BgPos {
+                    x: axis(b)?,
+                    y: axis(a)?,
+                })
+            }
+            [a, b] => Some(BgPos {
+                x: axis(a)?,
+                y: axis(b)?,
+            }),
+            _ => None,
+        }
+    }
+
+    fn css(&self) -> String {
+        let f = |(v, pct): (f32, bool)| {
+            if pct {
+                format!("{v}%")
+            } else {
+                format!("{v}px")
+            }
+        };
+        format!("{} {}", f(self.x), f(self.y))
+    }
+}
+
+impl css_motion::Lerp for BgPos {
+    /// Lengths of the same kind blend; a length and a percentage swap half
+    /// way, as CSS does for values it cannot blend.
+    fn lerp(&self, to: &Self, t: f32) -> Self {
+        let l = |a: (f32, bool), b: (f32, bool)| {
+            if a.1 == b.1 {
+                (a.0 + (b.0 - a.0) * t, a.1)
+            } else if t < 0.5 {
+                a
+            } else {
+                b
+            }
+        };
+        BgPos {
+            x: l(self.x, to.x),
+            y: l(self.y, to.y),
+        }
+    }
+}
+
+impl css_motion::Lerp for Xf {
+    fn lerp(&self, to: &Self, t: f32) -> Self {
+        Xf::lerp(*self, *to, t)
+    }
+}
+
+/// What moves one plugin element: its transitions and its animations'
+/// clock, kept while it is drawn.
+#[derive(Default)]
+struct NodeMotion {
+    /// The pass it was last drawn in.
+    pass: Option<u64>,
+    opacity: Option<css_motion::Eased<f32>>,
+    transform: Option<css_motion::Eased<Xf>>,
+    color: Option<css_motion::Eased<Color32>>,
+    background: Option<css_motion::Eased<Color32>>,
+    width: Option<css_motion::Eased<f32>>,
+    height: Option<css_motion::Eased<f32>>,
+    clock: css_motion::Clock,
+}
+
+thread_local! {
+    static MOTION: std::cell::RefCell<(u64, std::collections::HashMap<u64, NodeMotion>)> =
+        std::cell::RefCell::new((0, std::collections::HashMap::new()));
+}
+
+/// The motion of plugin element `id`. One not drawn for more than a frame
+/// starts over, as an element shown again does in CSS (its transitions do
+/// not run from what it was before it went, its animations start again);
+/// those no longer drawn are dropped every couple of seconds.
+fn with_motion<R>(ctx: &egui::Context, id: u64, f: impl FnOnce(&mut NodeMotion) -> R) -> R {
+    let pass = ctx.cumulative_pass_nr();
+    MOTION.with(|m| {
+        let (pruned, map) = &mut *m.borrow_mut();
+        if pass >= *pruned + 120 {
+            *pruned = pass;
+            map.retain(|_, s| s.pass.is_some_and(|p| p + 2 >= pass));
+        }
+        let s = map.entry(id).or_default();
+        if s.pass.is_some_and(|p| pass > p + 1) {
+            *s = NodeMotion::default();
+        }
+        s.pass = Some(pass);
+        f(s)
+    })
+}
+
+/// One property's step: towards `target` by `spec`, from `from` on first
+/// sight; the soonest wake of all goes in `wake`.
+fn step<V: css_motion::Lerp>(
+    slot: &mut Option<css_motion::Eased<V>>,
+    target: V,
+    from: Option<V>,
+    spec: Option<&css_motion::Transition>,
+    now: f64,
+    wake: &mut Option<f64>,
+) -> V {
+    let eased =
+        slot.get_or_insert_with(|| css_motion::Eased::new(from.unwrap_or_else(|| target.clone())));
+    let (value, w) = eased.step(target, spec, now);
+    if let Some(w) = w {
+        *wake = Some(wake.map_or(w, |o| o.min(w)));
+    }
+    value
+}
+
+/// The keyframes of `frames` that set what `get` reads.
+fn track<V: css_motion::Lerp>(
+    frames: &[(f32, Style)],
+    get: impl Fn(&Style) -> Option<V>,
+) -> Option<css_motion::Track<V>> {
+    let frames: Vec<_> = frames
+        .iter()
+        .filter_map(|(o, s)| Some((*o, get(s)?, css_motion::keyframe_timing(s))))
+        .collect();
+    (!frames.is_empty()).then_some(css_motion::Track { frames })
+}
+
+/// `style` as it shows now: its transitions under way (each property from
+/// where it was when it changed) and its running animations over them.
+/// `None` when nothing moves it. Asks for frames only while something
+/// moves. `inherited` is the colour it inherits.
+fn moved(
+    ctx: &egui::Context,
+    node: &VNode,
+    style: &Style,
+    inherited: Color32,
+    cx: &Cx,
+) -> Option<Style> {
+    if node.id & MEASURE_ID != 0 {
         return None;
     }
     let now = ctx.input(|i| i.time);
-    let mut out = style.clone();
-    let mut any = false;
-    for a in spec.split(',') {
-        let f: Vec<&str> = a.split(' ').collect();
-        let [name, dur, delay, count, dir, timing, state] = f.as_slice() else {
-            continue;
-        };
-        let Some(frames) = cx.keyframes.get(*name).filter(|f| !f.is_empty()) else {
-            continue;
-        };
-        let dur = dur.parse::<f64>().unwrap_or(0.0).max(0.001);
-        let delay = delay.parse::<f64>().unwrap_or(0.0);
-        let id = egui::Id::new(("luna-anim", node, *name));
-        let start = ctx.data_mut(|d| *d.get_temp_mut_or_insert_with(id, || now));
-        let paused = *state == "paused";
-        let elapsed = if paused {
-            0.0
-        } else {
-            (now - start - delay).max(0.0)
-        };
-        let total = if *count == "infinite" {
-            f64::INFINITY
-        } else {
-            count.parse::<f64>().unwrap_or(1.0)
-        };
-        let iters = elapsed / dur;
-        let done = iters >= total;
-        let (iter, p) = if done {
-            ((total.ceil() - 1.0).max(0.0), 1.0)
-        } else {
-            (iters.floor(), iters.fract())
-        };
-        let odd = iter as u64 % 2 == 1;
-        let p = match *dir {
-            "reverse" => 1.0 - p,
-            "alternate" if odd => 1.0 - p,
-            "alternate-reverse" if !odd => 1.0 - p,
-            _ => p,
-        } as f32;
-        let p = ease(timing, p);
-        // Frames around p; the element's own style stands in for a missing
-        // `from`/`to`.
-        let own = (0.0f32, style);
-        let first = (frames[0].0, &frames[0].1);
-        let last = (frames[frames.len() - 1].0, &frames[frames.len() - 1].1);
-        let (a, b) = if p <= first.0 {
-            (if first.0 > 0.0 { own } else { first }, first)
-        } else if p >= last.0 {
-            (last, if last.0 < 1.0 { (1.0, style) } else { last })
-        } else {
-            let i = frames.iter().rposition(|(o, _)| *o <= p).unwrap_or(0);
-            let j = (i + 1).min(frames.len() - 1);
-            ((frames[i].0, &frames[i].1), (frames[j].0, &frames[j].1))
-        };
-        let span = (b.0 - a.0).max(1e-4);
-        let t = ((p - a.0) / span).clamp(0.0, 1.0);
-        let font = 14.0;
-        if a.1.transform.is_some() || b.1.transform.is_some() {
-            let xa =
-                a.1.transform
-                    .as_deref()
-                    .map(|v| Xf::parse(v, font))
-                    .unwrap_or_default();
-            let xb =
-                b.1.transform
-                    .as_deref()
-                    .map(|v| Xf::parse(v, font))
-                    .unwrap_or_default();
-            out.transform = Some(Xf::lerp(xa, xb, t).css());
+    let reduced = crate::motion::reduced(ctx);
+    let font = 14.0;
+    let spec = |p: &str| {
+        (!reduced && style.transition.is_some())
+            .then(|| css_motion::transition(style, p))
+            .flatten()
+    };
+    let opacity_of = |s: &Style| s.opacity.as_deref().and_then(css::opacity).unwrap_or(1.0);
+    let xf_of = |s: &Style| {
+        s.transform
+            .as_deref()
+            .map(|t| Xf::parse(t, font))
+            .unwrap_or_default()
+    };
+    let color_of = |s: &Style| cx.color(&s.color).unwrap_or(inherited);
+    let back_of = |s: &Style| {
+        cx.color(&s.background_color)
+            .unwrap_or(Color32::TRANSPARENT)
+    };
+    let from = node.from.as_ref();
+    let anims = if style.animation.is_some() && !cx.keyframes.is_empty() {
+        css_motion::animations(style)
+    } else {
+        Vec::new()
+    };
+    let mut wake = None;
+    let out = with_motion(ctx, node.id, |m| {
+        let mut out: Option<Style> = None;
+        let target = opacity_of(style);
+        let o = step(
+            &mut m.opacity,
+            target,
+            from.map(opacity_of),
+            spec("opacity").as_ref(),
+            now,
+            &mut wake,
+        );
+        if o != target {
+            out.get_or_insert_with(|| style.clone()).opacity = Some(o.to_string());
         }
-        if a.1.opacity.is_some() || b.1.opacity.is_some() {
-            let oa = a.1.opacity.as_deref().and_then(css::opacity).unwrap_or(1.0);
-            let ob = b.1.opacity.as_deref().and_then(css::opacity).unwrap_or(1.0);
-            out.opacity = Some(format!("{}", oa + (ob - oa) * t));
+        let target = xf_of(style);
+        let x = step(
+            &mut m.transform,
+            target,
+            from.map(xf_of),
+            spec("transform").as_ref(),
+            now,
+            &mut wake,
+        );
+        if x != target {
+            out.get_or_insert_with(|| style.clone()).transform = Some(x.css());
         }
-        for pick in [
-            (|s: &Style| s.color.clone()) as fn(&Style) -> Option<String>,
-            |s: &Style| s.background_color.clone(),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let (k, get) = pick;
-            let (ca, cb) = (
-                get(a.1).and_then(|v| cx.color(&Some(v))),
-                get(b.1).and_then(|v| cx.color(&Some(v))),
-            );
-            if let (Some(ca), Some(cb)) = (ca.or(cb), cb.or(ca)) {
-                let c = rgba(ca.lerp_to_gamma(cb, t));
-                if k == 0 {
-                    out.color = Some(c);
-                } else {
-                    out.background_color = Some(c);
+        let target = color_of(style);
+        let c = step(
+            &mut m.color,
+            target,
+            from.map(color_of),
+            spec("color").as_ref(),
+            now,
+            &mut wake,
+        );
+        if c != target {
+            out.get_or_insert_with(|| style.clone()).color = Some(rgba(c));
+        }
+        let target = back_of(style);
+        let b = step(
+            &mut m.background,
+            target,
+            from.map(back_of),
+            spec("background-color").as_ref(),
+            now,
+            &mut wake,
+        );
+        if b != target {
+            out.get_or_insert_with(|| style.clone()).background_color = Some(rgba(b));
+        }
+        if !anims.is_empty() {
+            let moments = css_motion::moments_with(ctx, &mut m.clock, &anims);
+            let base = out.clone().unwrap_or_else(|| style.clone());
+            let own_opacity = opacity_of(&base);
+            let own_xf = xf_of(&base);
+            let own_color = color_of(&base);
+            let own_back = back_of(&base);
+            let own_pos = base
+                .background_position
+                .as_deref()
+                .and_then(|v| BgPos::parse(v, font, cx.viewport))
+                .unwrap_or(BgPos {
+                    x: (0.0, false),
+                    y: (0.0, false),
+                });
+            for (a, moment) in anims.iter().zip(moments) {
+                let Some(moment) = moment else {
+                    continue;
+                };
+                let Some(frames) = cx.keyframes.get(&a.name).filter(|f| !f.is_empty()) else {
+                    continue;
+                };
+                let p = moment.progress;
+                let s = out.get_or_insert_with(|| base.clone());
+                if let Some(t) = track(frames, |f| f.opacity.as_deref().and_then(css::opacity)) {
+                    s.opacity = Some(t.at(p, &own_opacity, &a.timing).to_string());
+                }
+                if let Some(t) = track(frames, |f| {
+                    f.transform.as_deref().map(|v| Xf::parse(v, font))
+                }) {
+                    s.transform = Some(t.at(p, &own_xf, &a.timing).css());
+                }
+                if let Some(t) = track(frames, |f| cx.color(&f.color)) {
+                    s.color = Some(rgba(t.at(p, &own_color, &a.timing)));
+                }
+                if let Some(t) = track(frames, |f| cx.color(&f.background_color)) {
+                    s.background_color = Some(rgba(t.at(p, &own_back, &a.timing)));
+                }
+                if let Some(t) = track(frames, |f| {
+                    f.background_position
+                        .as_deref()
+                        .and_then(|v| BgPos::parse(v, font, cx.viewport))
+                }) {
+                    s.background_position = Some(t.at(p, &own_pos, &a.timing).css());
                 }
             }
         }
-        if !done && !paused {
-            ctx.request_repaint();
-        }
-        any = true;
+        out
+    });
+    css_motion::wake(ctx, wake);
+    out
+}
+
+/// A width or height of plugin element `node` that its style transitions
+/// (`width .3s`): where it is on its way to `target` points.
+fn moved_length(
+    ctx: &egui::Context,
+    node: &VNode,
+    style: &Style,
+    property: &str,
+    target: Option<f32>,
+) -> Option<f32> {
+    let target = target?;
+    if node.id & MEASURE_ID != 0 || style.transition.is_none() {
+        return Some(target);
     }
-    any.then_some(out)
+    let spec = (!crate::motion::reduced(ctx))
+        .then(|| css_motion::transition(style, property))
+        .flatten();
+    let now = ctx.input(|i| i.time);
+    let mut wake = None;
+    let value = with_motion(ctx, node.id, |m| {
+        let slot = if property == "width" {
+            &mut m.width
+        } else {
+            &mut m.height
+        };
+        step(slot, target, None, spec.as_ref(), now, &mut wake)
+    });
+    css_motion::wake(ctx, wake);
+    Some(value)
+}
+
+/// A box's fill and border drawn by hand, turned `rot` radians about its
+/// centre, each side (top, right, bottom, left) in its own colour: the ring
+/// of a CSS spinner (`border-radius: 50%`, a bright `border-top-color`,
+/// `animation: spin 1s linear infinite`) turns as in a browser. A round box
+/// is a circle whose sides are its quarters; any other is its rectangle
+/// (corners of a turned box are not rounded).
+fn box_shape(
+    r: Rect,
+    radius: f32,
+    fill: Option<Color32>,
+    border: Option<(f32, [Color32; 4])>,
+    rot: f32,
+) -> egui::Shape {
+    use std::f32::consts::{FRAC_PI_2, FRAC_PI_4};
+    let mut shapes = Vec::new();
+    let c = r.center();
+    let round =
+        (r.width() - r.height()).abs() < 1.0 && radius >= r.width().min(r.height()) / 2.0 - 0.5;
+    if round {
+        let outer = r.width().min(r.height()) / 2.0;
+        if let Some(f) = fill {
+            shapes.push(egui::Shape::circle_filled(c, outer, f));
+        }
+        if let Some((w, colours)) = border {
+            let mid = (outer - w / 2.0).max(0.0);
+            if colours.iter().all(|k| *k == colours[0]) {
+                shapes.push(egui::Shape::circle_stroke(
+                    c,
+                    mid,
+                    Stroke::new(w, colours[0]),
+                ));
+            } else {
+                // Screen angles grow clockwise (y points down): the top side
+                // is centred at -90 degrees. Neighbouring sides of one colour
+                // are one arc, so the ring only breaks where colours change.
+                let first = (0..4)
+                    .find(|&s| colours[s] != colours[(s + 3) % 4])
+                    .unwrap_or(0);
+                let mut side = first;
+                loop {
+                    let colour = colours[side];
+                    let mut quarters = 1;
+                    while quarters < 4 && colours[(side + quarters) % 4] == colour {
+                        quarters += 1;
+                    }
+                    let begin = -FRAC_PI_2 - FRAC_PI_4 + side as f32 * FRAC_PI_2 + rot;
+                    let steps = 12 * quarters;
+                    let points: Vec<Pos2> = (0..=steps)
+                        .map(|i| {
+                            let a = begin + FRAC_PI_2 * i as f32 / 12.0;
+                            c + vec2(a.cos(), a.sin()) * mid
+                        })
+                        .collect();
+                    shapes.push(egui::Shape::line(points, Stroke::new(w, colour)));
+                    side = (side + quarters) % 4;
+                    if side == first {
+                        break;
+                    }
+                }
+            }
+        }
+        return egui::Shape::Vec(shapes);
+    }
+    let turn = egui::emath::Rot2::from_angle(rot);
+    let at = |p: Pos2| c + turn * (p - c);
+    let corners = |q: Rect| {
+        [
+            q.left_top(),
+            q.right_top(),
+            q.right_bottom(),
+            q.left_bottom(),
+        ]
+        .map(at)
+    };
+    if let Some(f) = fill {
+        shapes.push(egui::Shape::convex_polygon(
+            corners(r).to_vec(),
+            f,
+            Stroke::NONE,
+        ));
+    }
+    if let Some((w, colours)) = border {
+        let k = corners(r.shrink(w / 2.0));
+        for side in 0..4 {
+            shapes.push(egui::Shape::line_segment(
+                [k[side], k[(side + 1) % 4]],
+                Stroke::new(w, colours[side]),
+            ));
+        }
+    }
+    egui::Shape::Vec(shapes)
 }
 
 /// The first `url(...)` in a background value.
@@ -2020,7 +2277,7 @@ fn preferred_width(ui: &mut egui::Ui, node: &VNode, room: Rect, inherit: Inherit
 /// anchored and percentage-translated elements.
 fn positioned(ui: &mut egui::Ui, node: &VNode, container: Rect, inherit: Inherit, cx: &Cx) -> Rect {
     // Animate here so an animated translation moves the box once.
-    let animated = animate(ui.ctx(), node.id, &node.style, cx);
+    let animated = moved(ui.ctx(), node, &node.style, inherit.color, cx);
     let style = animated.as_ref().unwrap_or(&node.style);
     let id = egui::Id::new(("luna-pos", node.id));
     let last: Vec2 = ui.data(|d| d.get_temp(id)).unwrap_or(Vec2::ZERO);
@@ -2057,7 +2314,10 @@ fn positioned(ui: &mut egui::Ui, node: &VNode, container: Rect, inherit: Inherit
     let min = Pos2::new(x, y) + xf.offset(size);
     let mut styled = node.clone();
     styled.style = style.clone();
+    // Moved once, here.
     styled.style.animation = None;
+    styled.style.transition = None;
+    styled.from = None;
     // No width of its own: the box is as wide as its content wants (CSS 2.1
     // 10.3.7, shrink-to-fit), and a child's `width: 100%` is a share of that,
     // not of the window (element-hider's menu items made the menu as wide
@@ -2094,7 +2354,7 @@ fn positioned(ui: &mut egui::Ui, node: &VNode, container: Rect, inherit: Inherit
             .max_rect(Rect::from_min_size(min, max))
             .layout(Layout::top_down(Align::Min)),
     );
-    draw(&mut child, &styled, inherit, cx);
+    draw_styled(&mut child, &styled, &styled.style, inherit, cx);
     let used = child.min_rect();
     if (used.size() - last).length() > 0.5 {
         ui.ctx().data_mut(|d| d.insert_temp(id, used.size()));
@@ -2539,8 +2799,13 @@ fn flex_grow(style: &Style) -> f32 {
 
 /// Draw one element and its children; `true` when something showed.
 fn draw(ui: &mut egui::Ui, node: &VNode, parent: Inherit, cx: &Cx) -> bool {
-    let animated = animate(ui.ctx(), node.id, &node.style, cx);
+    let animated = moved(ui.ctx(), node, &node.style, parent.color, cx);
     let style = animated.as_ref().unwrap_or(&node.style);
+    draw_styled(ui, node, style, parent, cx)
+}
+
+/// [`draw`] with transitions and animations worked out (`style`).
+fn draw_styled(ui: &mut egui::Ui, node: &VNode, style: &Style, parent: Inherit, cx: &Cx) -> bool {
     let xf = style
         .transform
         .as_deref()
@@ -2710,6 +2975,31 @@ fn draw_box(
         .border
         .as_deref()
         .and_then(|b| css::border(&css::resolve_vars(b, cx.vars)));
+    // `border-color`: one colour for all sides, or each side's own (a
+    // spinner's bright top arc).
+    let sides: Option<[Color32; 4]> = border.and_then(|_| {
+        let v = css::resolve_vars(style.border_color.as_deref()?, cx.vars);
+        let c: Vec<Color32> = css::words(&v)
+            .iter()
+            .filter_map(|w| css::color(w))
+            .collect();
+        match c.as_slice() {
+            [a] => Some([*a; 4]),
+            [t, r] => Some([*t, *r, *t, *r]),
+            [t, r, b] => Some([*t, *r, *b, *r]),
+            [t, r, b, l] => Some([*t, *r, *b, *l]),
+            _ => None,
+        }
+    });
+    let border = match (border, sides) {
+        (Some((w, _)), Some(s)) => Some((w, s[0])),
+        (b, _) => b,
+    };
+    let sides = sides.filter(|s| s.iter().any(|c| *c != s[0]));
+    // Drawn by hand: a box turned by its transform (a spinner's ring) and
+    // sides of different colours; otherwise egui's frame draws it.
+    let by_hand =
+        (rot != 0.0 && (border.is_some() || style.background_color.is_some())) || sides.is_some();
     let radius = cx.len(&style.border_radius, font, 0.0).unwrap_or(0.0);
     // A width that is a share of the parent includes the padding and border
     // (TIDAL's CSS sizes boxes `border-box`): AltPlay's `width: 100%` filter
@@ -2732,10 +3022,43 @@ fn draw_box(
     let height = cx
         .len(&style.height, font, ui.available_height().min(400.0))
         .map(|h| h * stretch.y);
+    // `transition: width .3s` (a bar growing): the size on its way. Only a
+    // length of its own moves: a share of the window or the parent is the
+    // same value in CSS when the window resizes, so nothing transitions.
+    let fixed = |v: &Option<String>| {
+        v.as_deref().is_some_and(|v| {
+            ![
+                "%",
+                "vw",
+                "vh",
+                "vmin",
+                "vmax",
+                "auto",
+                "fit-content",
+                "content",
+            ]
+            .iter()
+            .any(|u| v.contains(u))
+        })
+    };
+    let width = if fixed(&style.width) {
+        moved_length(ui.ctx(), node, style, "width", width)
+    } else {
+        width
+    };
+    let height = if fixed(&style.height) {
+        moved_length(ui.ctx(), node, style, "height", height)
+    } else {
+        height
+    };
     // A radius that is a share of the box (`50%`: AltPlay's round play
     // button) is a share of its shorter side, when the box has a size.
+    // The box is its content with padding and border round it, as the
+    // frame draws it, so `50%` of a bordered box is a circle.
+    let round_x = padding.map_or(0.0, |p| p[1] + p[3]) + border.map_or(0.0, |(w, _)| 2.0 * w);
+    let round_y = padding.map_or(0.0, |p| p[0] + p[2]) + border.map_or(0.0, |(w, _)| 2.0 * w);
     let radius = match (style.border_radius.as_deref(), width, height) {
-        (Some(r), Some(w), Some(h)) => radius_share(r, w, h).unwrap_or(radius),
+        (Some(r), Some(w), Some(h)) => radius_share(r, w + round_x, h + round_y).unwrap_or(radius),
         _ => radius,
     };
     let is_button = node.tag == "button" || attr(node, "role") == Some("button");
@@ -2781,7 +3104,9 @@ fn draw_box(
         bottom: s[2].round().clamp(-128.0, 127.0) as i8,
     };
     let mut frame = Frame::new();
-    if let Some(fill) = fill {
+    if by_hand {
+        // Painted below; the frame keeps the border's room.
+    } else if let Some(fill) = fill {
         frame = frame.fill(fill);
     } else if is_button {
         frame = frame.fill(ui.visuals().widgets.inactive.weak_bg_fill);
@@ -2795,7 +3120,10 @@ fn draw_box(
         frame = frame.outer_margin(margin_of(m));
     }
     if let Some((w, c)) = border {
-        frame = frame.stroke(Stroke::new(w, c));
+        frame = frame.stroke(Stroke::new(
+            w,
+            if by_hand { Color32::TRANSPARENT } else { c },
+        ));
     }
     let radius = if is_button && style.border_radius.is_none() {
         6.0
@@ -2869,6 +3197,7 @@ fn draw_box(
         if let Some(o) = opacity {
             ui.multiply_opacity(o);
         }
+        let hand = by_hand.then(|| ui.painter().add(egui::Shape::Noop));
         let bg = has_url.then(|| ui.painter().add(egui::Shape::Noop));
         let shown = frame
             .show(ui, |ui| {
@@ -3149,6 +3478,23 @@ fn draw_box(
                 });
             })
             .response;
+        if let Some(idx) = hand {
+            let r = shown.rect - margin.map_or(Margin::ZERO, margin_of);
+            let edges = border.map(|(w, c)| (w, sides.unwrap_or([c; 4])));
+            // `border-radius: 50%` rounds the whole box, border included.
+            let half = style
+                .border_radius
+                .as_deref()
+                .and_then(|v| v.trim().strip_suffix('%')?.trim().parse::<f32>().ok())
+                .is_some_and(|p| p >= 50.0);
+            let radius = if half {
+                r.width().max(r.height())
+            } else {
+                radius
+            };
+            ui.painter()
+                .set(idx, box_shape(r, radius, fill, edges, rot));
+        }
         if let Some(idx) = bg {
             let r = shown.rect - margin.map_or(Margin::ZERO, margin_of);
             paint_background(ui, idx, r, style, rot, cx);
@@ -4117,6 +4463,187 @@ mod tests {
             .position(|s| matches!(&s.shape, egui::Shape::Text(_)));
         assert!(fill.is_some() && text.is_some(), "{fill:?} {text:?}");
         assert!(fill < text, "the layer is under the text");
+    }
+
+    /// Draws the slot `x` of `overlay` at each of `times` (seconds) and
+    /// returns each pass's shapes.
+    fn frames_at(
+        ctx: &egui::Context,
+        overlay: &DomOverlay,
+        times: &[f64],
+    ) -> Vec<Vec<egui::epaint::ClippedShape>> {
+        plugin_dom::test_overlay(Some(overlay.clone()));
+        let mut all = Vec::new();
+        for t in times {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    time: Some(*t),
+                    ..Default::default()
+                },
+                |ui| {
+                    inline(ui, "x", Position::Append);
+                },
+            );
+            out.textures_delta.clear();
+            all.push(out.shapes);
+        }
+        plugin_dom::test_overlay(None);
+        all
+    }
+
+    fn one_box(id: u64, style: Style) -> DomOverlay {
+        DomOverlay {
+            version: id,
+            injected: vec![Injected {
+                anchor: "x".into(),
+                position: Position::Append,
+                nodes: vec![VNode {
+                    id,
+                    tag: "div".into(),
+                    style,
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        }
+    }
+
+    /// The alpha of the red box painted in `shapes`.
+    fn red_alpha(shapes: &[egui::epaint::ClippedShape]) -> Option<u8> {
+        shapes.iter().find_map(|s| match &s.shape {
+            egui::Shape::Rect(r) if r.fill.r() > 0 && r.fill.g() == 0 && r.fill.b() == 0 => {
+                Some(r.fill.a())
+            }
+            _ => None,
+        })
+    }
+
+    /// `transition: opacity 1s linear` on a plugin element: when the style
+    /// changes, the box fades over the second instead of jumping, and a
+    /// change half way turns back from where it is.
+    #[test]
+    fn a_plugin_box_fades_by_its_transition() {
+        let style = |opacity: &str| Style {
+            width: Some("40px".into()),
+            height: Some("40px".into()),
+            background_color: Some("rgb(200, 0, 0)".into()),
+            opacity: Some(opacity.into()),
+            transition: Some("opacity 1 0 linear".into()),
+            ..Style::default()
+        };
+        let ctx = egui::Context::default();
+        let shown = frames_at(&ctx, &one_box(41, style("0")), &[10.0, 10.1]);
+        assert_eq!(red_alpha(&shown[1]), None, "at opacity 0 nothing shows");
+        let shown = frames_at(&ctx, &one_box(41, style("1")), &[10.2, 10.7, 11.3]);
+        let half = red_alpha(&shown[1]).expect("half way") as f32;
+        assert!((half - 127.0).abs() < 12.0, "{half}");
+        assert_eq!(red_alpha(&shown[2]), Some(255));
+        // Back to 0 a quarter of the way in: it turns back from a quarter.
+        frames_at(&ctx, &one_box(41, style("0")), &[20.0]);
+        let shown = frames_at(&ctx, &one_box(41, style("1")), &[21.0, 21.25]);
+        let quarter = red_alpha(&shown[1]).unwrap() as f32;
+        let shown = frames_at(&ctx, &one_box(41, style("0")), &[21.25, 21.375, 21.6]);
+        let back = red_alpha(&shown[1]).unwrap() as f32;
+        assert!(
+            (quarter - 64.0).abs() < 10.0 && (back - 32.0).abs() < 10.0,
+            "{quarter} {back}"
+        );
+        assert_eq!(red_alpha(&shown[2]), None, "a quarter second back");
+    }
+
+    /// The runtime's `from` (the style an element had before the change that
+    /// brought it in, 3d-cover's canvas) starts its transition there.
+    #[test]
+    fn a_new_element_fades_from_its_first_style() {
+        let mut overlay = one_box(
+            42,
+            Style {
+                width: Some("40px".into()),
+                height: Some("40px".into()),
+                background_color: Some("rgb(200, 0, 0)".into()),
+                opacity: Some("1".into()),
+                transition: Some("opacity 1 0 linear".into()),
+                ..Style::default()
+            },
+        );
+        overlay.injected[0].nodes[0].from = Some(Style {
+            opacity: Some("0".into()),
+            ..Style::default()
+        });
+        let ctx = egui::Context::default();
+        let shown = frames_at(&ctx, &overlay, &[5.0, 5.5]);
+        assert_eq!(red_alpha(&shown[0]), None);
+        let half = red_alpha(&shown[1]).unwrap() as f32;
+        assert!((half - 127.0).abs() < 12.0, "{half}");
+    }
+
+    /// 3d-cover's spinner: a 50% round box whose top border is brighter,
+    /// turned by `@keyframes { to { transform: rotate(360deg) } }`. Its
+    /// bright arc goes round with the time.
+    #[test]
+    fn a_css_spinner_turns_its_bright_arc() {
+        let bright = Color32::from_rgba_unmultiplied(255, 255, 255, 230);
+        let dim = "rgba(255, 255, 255, 0.25)";
+        let mut overlay = one_box(
+            43,
+            Style {
+                width: Some("40px".into()),
+                height: Some("40px".into()),
+                border_radius: Some("50%".into()),
+                border: Some(format!("4px solid {dim}")),
+                border_color: Some(format!("rgba(255, 255, 255, 0.9) {dim} {dim} {dim}")),
+                animation: Some("spin 2 0 infinite normal linear running none".into()),
+                ..Style::default()
+            },
+        );
+        overlay.keyframes.insert(
+            "spin".into(),
+            vec![(
+                1.0,
+                Style {
+                    transform: Some("rotate(360deg)".into()),
+                    ..Style::default()
+                },
+            )],
+        );
+        // Where the bright arc's middle is, in degrees (screen angles: 0 is
+        // to the right, 90 down), about the ring's centre.
+        let arc = |shapes: &[egui::epaint::ClippedShape]| -> f32 {
+            let mut lines = Vec::new();
+            for s in shapes {
+                if let egui::Shape::Vec(v) = &s.shape {
+                    for x in v {
+                        if let egui::Shape::Path(p) = x {
+                            lines.push(p.clone());
+                        }
+                    }
+                }
+            }
+            let all: Vec<Pos2> = lines.iter().flat_map(|p| p.points.clone()).collect();
+            assert!(!all.is_empty(), "the ring is drawn as arcs");
+            let centre = all.iter().fold(Vec2::ZERO, |a, p| a + p.to_vec2()) / all.len() as f32;
+            let lit = lines
+                .iter()
+                .find(|p| match &p.stroke.color {
+                    egui::epaint::ColorMode::Solid(c) => {
+                        c.a() > 200 && (c.a() as i32 - bright.a() as i32).abs() < 20
+                    }
+                    _ => false,
+                })
+                .expect("the bright arc");
+            let mid = lit.points[lit.points.len() / 2];
+            (mid.y - centre.y).atan2(mid.x - centre.x).to_degrees()
+        };
+        let ctx = egui::Context::default();
+        let shown = frames_at(&ctx, &overlay, &[3.0, 3.0, 3.5, 4.0]);
+        let (a, b, c) = (arc(&shown[1]), arc(&shown[2]), arc(&shown[3]));
+        let turned = |x: f32, y: f32| (y - x).rem_euclid(360.0);
+        assert!((a + 90.0).abs() < 2.0, "starts at the top: {a}");
+        assert!(
+            (turned(a, b) - 90.0).abs() < 2.0,
+            "a quarter turn in half a second: {a} {b}"
+        );
+        assert!((turned(a, c) - 180.0).abs() < 2.0, "{a} {c}");
     }
 
     #[test]

@@ -87,10 +87,24 @@ some rule uses it (`overlay.hover`), the UI reports the element under the
 pointer (a plugin element, else the deepest anchor whose rect holds it) as
 a `hover` event and the overlay is rebuilt (quick-queue's row buttons).
 `@keyframes` are parsed; the `animation` shorthand and longhands are
-normalised into `Style::animation` and the frames the styled elements use
-go out in `overlay.keyframes`; the UI interpolates opacity, transform and
-colours with the timing function, direction and iteration count.
-`translate`/`rotate`/`scale` properties fold into `transform`.
+normalised into `Style::animation` (name, duration, delay, count,
+direction, timing, play state, fill mode) and the frames the styled
+elements use go out in `overlay.keyframes`, with a keyframe's own
+`animation-timing-function`. `transition` and its longhands become
+`Style::transition` (`transition-property: none` drops it). Timing
+functions keep their arguments (`cubic-bezier(.4,0,.2,1)`, `steps(4,
+jump-none)`, `linear(0,0.25_75%,1)`, spaces as `_`). A side's own border
+colour (`border-top-color`, a spinner's bright arc) makes `border-color`
+the four sides' colours. `translate`/`rotate`/`scale` properties fold into
+`transform`. `prefers-reduced-motion: reduce` holds (in `@media` and
+`matchMedia`) while the desktop asks for less motion (`HostTree::
+reduced_motion`). A browser works out an inserted element's style at its
+next frame, so a change after that runs a transition (3d-cover's canvas,
+inserted at `opacity: 0` and given `.visible` a frame later, fades in);
+the overlay goes out at most every 33 ms, so the style an element with a
+`transition` had at its first style pass (each animation frame, after its
+callbacks, or when `getComputedStyle` asks) goes with the first overlay
+that shows it as `VNode::from`.
 `getComputedStyle` returns the cascade with inherited values, variables in
 scope, and the rect size.
 
@@ -273,7 +287,8 @@ label), and with a positive `z-index` they get a layer of their own over
 the anchor's native content, clipped as their slot is (betterFullscreen's
 player over the now-playing view). `position: relative` offsets and
 `transform` translations (px or % of the element's own size) and scale
-move the drawing; rotation applies to images and background images.
+move the drawing; rotation applies to images, background images and a
+box's own fill and border (see Motion).
 
 Images: `background-image: url()` (data:, http(s), GIF included) is drawn
 under the element's content with `background-size` (`cover`, `contain`,
@@ -291,6 +306,35 @@ the rest of the run. The player bar's two sides grow evenly to what their
 plugin elements took last frame (up-next, total-play-time, mode buttons
 together), so they never cover the progress row; the transport keeps at
 least 320 points and stays centred.
+
+Motion (`src/ui/css_motion.rs`, as CSS Transitions and CSS Animations
+run it): a plugin element's `opacity`, `transform` (translation, scale,
+rotation), `color`, `background-color` and fixed `width`/`height` move by
+its `transition` when the overlay changes them, from wherever they are at
+that moment, so a hover fade cut short turns back from where it got to
+and takes only as long as the way there took (the reversing shortening
+factor); a delay holds the start value. `@keyframes` animations move
+`opacity`, `transform`, `color`, `background-color` and
+`background-position` (sprite sheets, `steps()` included), each property
+between the keyframes that set it, eased per interval (a keyframe's own
+easing first), with the iteration count, direction, a negative delay,
+`animation-play-state: paused` holding the time it reached, and fill
+modes (`none` shows the element's own style outside the active time). An
+animation newly in an element's list starts then; an element not drawn
+for a while starts its animations over. Timing functions: the named ones,
+`cubic-bezier()`, `steps()` with every jump term, `linear()` with
+stops. Frames are asked for only while something moves: every frame for
+smooth motion, once per step for `steps()`, once when a delay ends;
+nothing while idle. With less motion asked for by the desktop a
+transition ends at once, a finite animation shows how it ends and an
+endless one its start. A box turned by its transform has its fill and
+border drawn turned, and a round box with sides of different colours is
+drawn as arcs, so a CSS spinner turns (`border-radius: 50%` of a bordered
+box is a circle). Text and children inside a turned box are not turned.
+Anchors a theme restyles fade too: a fill (`fill`, `surface`), text
+colour, opacity and the sidebar rows' fill and words move by the anchor's
+`transition` (a theme's hover colour on rows and navigation); covers keep
+their own (`transition` on covers, Round 13).
 
 Pointer: while a document-level listener wants them, pointer moves go to
 the element under the pointer as `pointermove`/`mousemove` (~30 a second;

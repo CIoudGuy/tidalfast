@@ -103,8 +103,85 @@ struct State {
     mouse_sent: Option<(egui::Pos2, Instant)>,
     /// Where the primary button went down (a drag is a release far from it).
     press_at: Option<egui::Pos2>,
+    /// Anchors' colours and opacities on their way by the anchor's
+    /// `transition` (a theme's hover fill fading in).
+    host_motion: HostMotion,
     #[cfg(test)]
     test_overlay: bool,
+}
+
+/// The transitions of anchors' colours and opacities, by anchor key and
+/// property, with the frame each was last asked for (one not asked for
+/// over a frame starts over, as an element shown again does).
+#[derive(Default)]
+struct HostMotion {
+    now: f64,
+    frame: u64,
+    reduced: bool,
+    wake: Option<f64>,
+    colors:
+        std::collections::HashMap<(String, &'static str), (super::css_motion::Eased<Color32>, u64)>,
+    numbers:
+        std::collections::HashMap<(String, &'static str), (super::css_motion::Eased<f32>, u64)>,
+}
+
+impl HostMotion {
+    fn begin(&mut self, ctx: &egui::Context) {
+        self.now = ctx.input(|i| i.time);
+        self.frame += 1;
+        self.reduced = crate::motion::reduced(ctx);
+        if self.frame.is_multiple_of(600) {
+            let frame = self.frame;
+            self.colors.retain(|_, (_, f)| *f + 2 >= frame);
+            self.numbers.retain(|_, (_, f)| *f + 2 >= frame);
+        }
+    }
+}
+
+/// `value`, the anchor `key`'s `property` as the cascade gives it now, on
+/// its way there by the anchor's transition for it, if any. Only an anchor
+/// with a `transition` keeps anything; a value that appears or goes (no
+/// theme colour before or after) is not moved.
+fn host_moved<V: super::css_motion::Lerp>(
+    key: &str,
+    property: &'static str,
+    value: Option<V>,
+    spec: Option<super::css_motion::Transition>,
+    map: impl Fn(
+        &mut HostMotion,
+    ) -> &mut std::collections::HashMap<
+        (String, &'static str),
+        (super::css_motion::Eased<V>, u64),
+    >,
+) -> Option<V> {
+    let value = value?;
+    // No transition (every anchor of a theme without one): nothing kept. A
+    // run left from before ends there, as CSS ends it, and is dropped when
+    // it is not asked for again.
+    let Some(spec) = spec else {
+        return Some(value);
+    };
+    with(|s| {
+        let m = &mut s.host_motion;
+        let (now, frame, reduced) = (m.now, m.frame, m.reduced);
+        let id = (key.to_string(), property);
+        if reduced {
+            map(m).remove(&id);
+            return Some(value);
+        }
+        let entry = map(m)
+            .entry(id)
+            .or_insert_with(|| (super::css_motion::Eased::new(value.clone()), frame));
+        if entry.1 + 1 < frame {
+            entry.0 = super::css_motion::Eased::new(value.clone());
+        }
+        entry.1 = frame;
+        let (shown, wake) = entry.0.step(value, Some(&spec), now);
+        if let Some(w) = wake {
+            m.wake = Some(m.wake.map_or(w, |o: f64| o.min(w)));
+        }
+        Some(shown)
+    })
 }
 
 thread_local! {
@@ -160,6 +237,7 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
     };
     ON.with(|o| o.set(true));
     with(|s| {
+        s.host_motion.begin(ctx);
         if s.luna.is_none() {
             s.luna = Some(luna.clone());
         }
@@ -192,6 +270,7 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
         }
         s.frame.viewport = [window.width(), window.height()];
         s.frame.light = ctx.theme() == egui::Theme::Light;
+        s.frame.reduced_motion = crate::motion::reduced(ctx);
         s.frame.shell.rect = rect(window);
         let fullscreen = window_fullscreen(ctx);
         s.frame.shell.fullscreen = fullscreen;
@@ -305,6 +384,7 @@ pub fn end_frame(ctx: &egui::Context) {
     }
     super::luna_video::end_pass();
     with(|s| {
+        super::css_motion::wake(ctx, s.host_motion.wake.take());
         s.hovered = std::mem::take(&mut s.hovered_now);
         let floats = std::mem::take(&mut s.floats_now);
         pointer_events(ctx, s, &floats);
@@ -904,6 +984,22 @@ pub struct NavStyle {
 /// `:hover` rule shows while the pointer is over it), read once per overlay
 /// version. `None` without Luna or a theme rule for the row.
 pub fn nav_style(key: &str) -> Option<NavStyle> {
+    let mut style = nav_style_now(key)?;
+    // A theme's hover fill and words fade in by the row's `transition`.
+    let (fill, color) = host(key, |h, _| {
+        Some((
+            moving(&h.style, "background-color"),
+            moving(&h.style, "color"),
+        ))
+    })
+    .unwrap_or((None, None));
+    style.fill = host_moved(key, "nav-fill", style.fill, fill, |m| &mut m.colors);
+    style.color = host_moved(key, "nav-color", style.color, color, |m| &mut m.colors);
+    Some(style)
+}
+
+/// [`nav_style`] as the cascade has it now, before transitions.
+fn nav_style_now(key: &str) -> Option<NavStyle> {
     if !on() {
         return None;
     }
@@ -2316,7 +2412,16 @@ fn style_color(
 /// A plugin's background colour for an anchor (first gradient colour of a
 /// background image).
 pub fn fill(key: &str) -> Option<Color32> {
-    host(key, host_fill)
+    let (value, spec) = host(key, |h, vars| {
+        Some((host_fill(h, vars), moving(&h.style, "background-color")))
+    })?;
+    host_moved(key, "background-color", value, spec, |m| &mut m.colors)
+}
+
+/// The transition an anchor's style gives `property`, if it has any.
+fn moving(style: &Style, property: &str) -> Option<super::css_motion::Transition> {
+    style.transition.as_ref()?;
+    super::css_motion::transition(style, property)
 }
 
 /// The anchor's own `background-color` when a theme sets one that is
@@ -2365,9 +2470,13 @@ pub fn outline(key: &str, fallback: Color32) -> Option<(f32, Color32)> {
 
 /// A plugin's text colour for an anchor.
 pub fn color(key: &str) -> Option<Color32> {
-    host(key, |h, vars| {
-        style_color(&h.style, |s| s.color.as_ref(), vars)
-    })
+    let (value, spec) = host(key, |h, vars| {
+        Some((
+            style_color(&h.style, |s| s.color.as_ref(), vars),
+            moving(&h.style, "color"),
+        ))
+    })?;
+    host_moved(key, "color", value, spec, |m| &mut m.colors)
 }
 
 /// The width a plugin gave an anchor, in points (`width`, held between its
@@ -2386,9 +2495,13 @@ pub fn width(key: &str) -> Option<f32> {
 
 /// A plugin's opacity for an anchor.
 pub fn opacity(key: &str) -> Option<f32> {
-    host(key, |h, _| {
-        h.style.opacity.as_deref().and_then(css::opacity)
-    })
+    let (value, spec) = host(key, |h, _| {
+        Some((
+            h.style.opacity.as_deref().and_then(css::opacity),
+            moving(&h.style, "opacity"),
+        ))
+    })?;
+    host_moved(key, "opacity", value, spec, |m| &mut m.numbers)
 }
 
 /// A plugin's corner radius for an anchor, in points.
@@ -4324,6 +4437,16 @@ pub(crate) fn test_hover() -> Option<DomTarget> {
     with(|s| s.hover_sent.clone())
 }
 
+/// A new overlay for a test, keeping what moves (an overlay arriving while
+/// transitions run).
+#[cfg(test)]
+pub(crate) fn test_overlay_keep(o: DomOverlay) {
+    with(|s| {
+        s.vars = Arc::new(o.vars.clone());
+        s.overlay = Arc::new(o);
+    });
+}
+
 #[cfg(test)]
 pub(crate) fn test_overlay(overlay: Option<DomOverlay>) {
     match overlay {
@@ -4537,6 +4660,7 @@ mod tests {
             viewport: [100.0, 100.0],
             path: "/".into(),
             light: false,
+            reduced_motion: false,
         }
     }
 
@@ -4684,6 +4808,55 @@ mod tests {
             .find(|n| n.key == key)
             .expect("the title cell");
         assert_eq!(node.rect, Some([40.0, 100.0, 400.0, 48.0]));
+    }
+
+    /// A theme's hover fill on a row with `transition: background-color
+    /// 1s linear` fades in and back out instead of jumping; a theme without
+    /// a transition keeps nothing and jumps, as before.
+    #[test]
+    fn an_anchors_themed_fill_fades_by_its_transition() {
+        let overlay = |fill: &str, transition: Option<&str>| DomOverlay {
+            version: 1,
+            hosts: BTreeMap::from([(
+                "row:x:0".to_string(),
+                HostOverride {
+                    style: Style {
+                        background_color: Some(fill.into()),
+                        transition: transition.map(Into::into),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            )]),
+            ..DomOverlay::default()
+        };
+        let ctx = egui::Context::default();
+        let at = |time: f64| {
+            let mut got = None;
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    time: Some(time),
+                    ..Default::default()
+                },
+                |ui| {
+                    with(|s| s.host_motion.begin(ui.ctx()));
+                    got = fill("row:x:0");
+                },
+            );
+            out.textures_delta.clear();
+            got.unwrap()
+        };
+        let spec = Some("background-color 1 0 linear");
+        test_overlay(Some(overlay("rgb(0, 0, 0)", spec)));
+        assert_eq!(at(1.0), Color32::from_rgb(0, 0, 0));
+        test_overlay_keep(overlay("rgb(200, 100, 0)", spec));
+        assert_eq!(at(2.0), Color32::from_rgb(0, 0, 0), "starts where it was");
+        assert_eq!(at(2.5), Color32::from_rgb(100, 50, 0));
+        assert_eq!(at(3.1), Color32::from_rgb(200, 100, 0));
+        // No transition: at once.
+        test_overlay_keep(overlay("rgb(10, 10, 10)", None));
+        assert_eq!(at(3.2), Color32::from_rgb(10, 10, 10));
+        test_overlay(None);
     }
 
     #[test]
