@@ -4572,6 +4572,13 @@ pub fn underline_tabs(
 /// 14-point semibold label; white with #101010 text when chosen, white at
 /// 8 % (15 % under the pointer) otherwise.
 pub fn tidal_pill(ui: &mut Ui, label: &str, selected: bool) -> egui::Response {
+    tidal_pill_lit(ui, label, selected, selected)
+}
+
+/// [`tidal_pill`] that is `selected` without being drawn as chosen unless
+/// `lit`: TIDAL's search results leave their Top results pill grey while
+/// it is the one shown, and light only a narrower filter.
+pub fn tidal_pill_lit(ui: &mut Ui, label: &str, selected: bool, lit: bool) -> egui::Response {
     let galley = ui.painter().layout_no_wrap(
         label.to_string(),
         theme::semibold(14.0),
@@ -4593,7 +4600,7 @@ pub fn tidal_pill(ui: &mut Ui, label: &str, selected: bool) -> egui::Response {
     let chosen = crate::motion::progress(
         ctx,
         response.id.with("selected"),
-        selected,
+        lit,
         crate::motion::tidal::PILL,
     );
     let (fill, text) = pill_colors(ui.visuals().dark_mode, hover, chosen);
@@ -4744,11 +4751,12 @@ pub fn search_field(
         .filter(|f| f.a() > 0)
         .unwrap_or_else(|| palette.chip());
     ui.painter().rect_filled(rect, corner, fill);
+    // TIDAL desktop rings the field in solid white while it has focus.
     if has_focus {
         ui.painter().rect_stroke(
             rect,
             corner,
-            Stroke::new(1.0, palette.text.gamma_multiply(0.3)),
+            Stroke::new(1.0, palette.text),
             egui::StrokeKind::Inside,
         );
     }
