@@ -47,11 +47,11 @@
     <control>keyboard</control>
   </supports>
   <releases>
-    <release version="1.0.1-alpha.2" date="2026-10-20" type="development"/>
-    <release version="1.0.1-alpha.1" date="2026-10-20" type="development"/>
     <release version="1.0.1" date="2026-10-20">
       <url>https://github.com/CIoudGuy/tidalfast/releases/tag/v1.0.1</url>
     </release>
+    <release version="1.0.1-alpha.2" date="2026-10-20" type="development"/>
+    <release version="1.0.1-alpha.1" date="2026-10-20" type="development"/>
     <release version="1.0.0" date="2026-10-19">
       <url>https://github.com/CIoudGuy/tidalfast/releases/tag/v1.0.0</url>
     </release>
