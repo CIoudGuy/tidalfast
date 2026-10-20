@@ -3749,13 +3749,6 @@ msgstr ""
 "プレーヤーバーの上に表示される歌詞の吹き出しは動作しますが、別ウィンドウの歌"
 "詞表示はブラウザエンジンが必要なため動作しません。"
 
-#: src/luna/mod.rs:410
-msgid ""
-"The Small depth model works, but the Base model (about 100 MB) is more than "
-"a plugin may download here."
-msgstr ""
-"Small の深度モデルは動作しますが、Base モデル（約 100 MB）はここでプラグインがダウンロードできるサイズを超えています。"
-
 #: src/app/plugins.rs:444
 #, rust-format
 msgid "{name} updated to {version}"

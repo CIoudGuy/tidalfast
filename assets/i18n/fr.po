@@ -3810,14 +3810,6 @@ msgstr ""
 "La bulle de paroles au-dessus de la barre du lecteur fonctionne, mais pas sa "
 "fenêtre de paroles séparée, car elle nécessite un moteur de navigateur."
 
-#: src/luna/mod.rs:410
-msgid ""
-"The Small depth model works, but the Base model (about 100 MB) is more than "
-"a plugin may download here."
-msgstr ""
-"Le modèle de profondeur Small fonctionne, mais le modèle Base (environ 100 "
-"Mo) dépasse ce qu'un plugin peut télécharger ici."
-
 #: src/app/plugins.rs:444
 #, rust-format
 msgid "{name} updated to {version}"

@@ -213,7 +213,7 @@ fn store_url(repo: &str, file: &str) -> String {
 }
 
 /// The labels hit exactly the store entries they name and no other entry of
-/// those stores: 14 of the 51 (one entry that only needs an outside account is left out of the list).
+/// those stores: 13 of the 51 (one entry that only needs an outside account is left out of the list).
 #[test]
 fn labels_match_their_store_entries_and_nothing_else() {
     let mut got: Vec<&str> = STORE_INDEX
@@ -225,7 +225,7 @@ fn labels_match_their_store_entries_and_nothing_else() {
     got.sort_unstable();
     want.sort_unstable();
     assert_eq!(got, want);
-    assert_eq!(got.len(), 14);
+    assert_eq!(got.len(), 13);
     // Every row targets an entry of the index, in the repository it names.
     for row in COMPAT {
         assert!(
@@ -267,13 +267,21 @@ fn labels_are_keyed_by_store_and_package_name() {
         )
         .is_none()
     );
-    // Only lyrics-everywhere and 3d-cover are partly supported.
+    // Only lyrics-everywhere is partly supported (3d-cover's Base model
+    // and its fade and spinner work, so it carries no label).
     let partly: Vec<&str> = COMPAT
         .iter()
         .filter(|r| r.note.level == Compat::PartlySupported)
         .map(|r| r.name)
         .collect();
-    assert_eq!(partly, ["@jxnxsdev/lyrics-everywhere", "@visiuun/3d-cover"]);
+    assert_eq!(partly, ["@jxnxsdev/lyrics-everywhere"]);
+    assert!(
+        compat_note(
+            &store_url("visiuun/tidaluna-plugins", "visiuun.3d-cover.mjs"),
+            Some("@visiuun/3d-cover")
+        )
+        .is_none()
+    );
 }
 
 /// Every reason is one plain sentence with no dash used as punctuation, and

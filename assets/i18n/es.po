@@ -3791,14 +3791,6 @@ msgstr ""
 "La burbuja de letras sobre la barra del reproductor funciona, pero su "
 "ventana de letras independiente no, porque necesita un motor de navegador."
 
-#: src/luna/mod.rs:410
-msgid ""
-"The Small depth model works, but the Base model (about 100 MB) is more than "
-"a plugin may download here."
-msgstr ""
-"El modelo de profundidad Small funciona, pero el modelo Base (unos 100 MB) "
-"supera lo que un plugin puede descargar aquí."
-
 #: src/app/plugins.rs:444
 #, rust-format
 msgid "{name} updated to {version}"
