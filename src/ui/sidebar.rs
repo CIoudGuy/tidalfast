@@ -1433,6 +1433,13 @@ fn nav_row(
         pos2(row.left() + 16.0, row.top()),
         pos2(row.right() - 16.0, row.bottom()),
     );
+    // A plugin that took the row's `_selected_` class (AltPlay showing its
+    // own page over this one) unselects it.
+    let active = active
+        && !super::plugin_dom::class_removed(
+            &crate::luna::dom_anchors::keys::sidebar_item(test),
+            "_selected_",
+        );
     if ui.is_rect_visible(rect) {
         let hovered = response.hovered();
         // TIDAL's navigation rows: `background-color .2s, color .2s`.
@@ -1840,10 +1847,15 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
                 });
             }
         });
-        // Plugin links after the Collection button (altplay), then at the
-        // end of the fixed navigation (miniplayer's button), then of the
-        // sidebar's content.
-        for (key, position) in [
+        // Plugin links after the Collection entry (AltPlay, after its
+        // wrapper), then at the end of the fixed navigation (miniplayer's
+        // button), then of the sidebar's content. They continue TIDAL's
+        // column of 40-point rows, with no gap of their own before them.
+        let slots = [
+            (
+                crate::luna::dom_anchors::keys::COLLECTION_WRAPPER.to_string(),
+                crate::luna::dom::Position::After,
+            ),
             (
                 crate::luna::dom_anchors::keys::sidebar_item("sidebar-collection-menu"),
                 crate::luna::dom::Position::After,
@@ -1856,7 +1868,14 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
                 crate::luna::dom_anchors::keys::SIDEBAR_CONTENT.to_string(),
                 crate::luna::dom::Position::Append,
             ),
-        ] {
+        ];
+        if slots
+            .iter()
+            .any(|(key, position)| super::plugin_slots::any_at(key, *position))
+        {
+            ui.add_space(-ui.spacing().item_spacing.y);
+        }
+        for (key, position) in slots {
             // TIDAL's fixed navigation lays its content 16 points in, where
             // the nav rows start (miniplayer's button, with its own 8 point
             // margin, sits at 24).

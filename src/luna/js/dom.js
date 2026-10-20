@@ -3388,8 +3388,13 @@
 			if (ps?.after) o.after = ps.after;
 			if (el._pluginRemoved || (!el.isConnected && !el._pluginMoved)) o.style = { ...(o.style ?? {}), display: "none" };
 			const hostCls = (el._hostAttrs.get("class") ?? "").split(/\s+/);
-			const added = (el._attrs.get("class") ?? "").split(/\s+/).filter((c) => c && !hostCls.includes(c));
+			const curCls = (el._attrs.get("class") ?? "").split(/\s+/);
+			const added = curCls.filter((c) => c && !hostCls.includes(c));
 			if (added.length) o.classes = added;
+			// TIDAL's own classes a plugin took away (AltPlay moves the
+			// sidebar's `_selected_` to its own link).
+			const removed = hostCls.filter((c) => c && !curCls.includes(c));
+			if (removed.length) o.removed = removed;
 			if (el._pluginAttrs?.size) {
 				const at = [];
 				for (const k of el._pluginAttrs) if (el._attrs.has(k) && el._attrs.get(k) !== el._hostAttrs.get(k)) at.push([k, el._attrs.get(k)]);

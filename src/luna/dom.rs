@@ -274,6 +274,10 @@ pub struct HostOverride {
     /// Classes plugins added (TIDAL's own are not repeated).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub classes: Vec<String>,
+    /// TIDAL's own classes plugins took away (AltPlay moves the sidebar's
+    /// `_selected_` to its own link).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub removed: Vec<String>,
     /// Attributes plugins set or changed.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attrs: Vec<(String, String)>,

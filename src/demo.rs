@@ -2338,6 +2338,99 @@ mod tests {
         );
     }
 
+    /// AltPlay's page open over Home: it took Music's `_selected_` class,
+    /// so the Music row no longer shows as selected, and its own link, a
+    /// 40-point row, follows the Collection row with no gap. Tidalfast kept
+    /// Music selected and left 8 points between them.
+    #[test]
+    fn a_plugin_row_after_collection_and_a_removed_selected_class() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Injected, Position, Style, VNode};
+        let frame = |ctx: &egui::Context, app: &mut App| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280.0, 800.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(app, ui),
+            );
+            output.textures_delta.clear();
+            output
+        };
+        let (ctx, mut app) = accessible_app("altplay-sidebar");
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            hosts: [(
+                crate::luna::dom_anchors::keys::sidebar_item("sidebar-music"),
+                HostOverride {
+                    removed: vec!["_selected_29027d1".into()],
+                    ..HostOverride::default()
+                },
+            )]
+            .into_iter()
+            .collect(),
+            injected: vec![Injected {
+                anchor: crate::luna::dom_anchors::keys::FIXED_NAV.into(),
+                position: Position::Append,
+                nodes: vec![VNode {
+                    id: 1,
+                    tag: "a".into(),
+                    style: Style {
+                        display: Some("flex".into()),
+                        height: Some("40px".into()),
+                        background_color: Some("#ff0000".into()),
+                        ..Style::default()
+                    },
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        }));
+        apply_flags(&mut app, Some("home"), None);
+        for _ in 0..3 {
+            frame(&ctx, &mut app);
+        }
+        let output = frame(&ctx, &mut app);
+        crate::ui::plugin_dom::test_overlay(None);
+        let tree = output
+            .platform_output
+            .accesskit_update
+            .expect("screen-reader tree");
+        let row = |label: &str| {
+            tree.nodes
+                .iter()
+                .find(|(_, node)| {
+                    node.label() == Some(label) && node.bounds().is_some_and(|b| b.x0 < 240.0)
+                })
+                .map(|(_, node)| node.clone())
+                .unwrap_or_else(|| panic!("no {label} row"))
+        };
+        assert_eq!(
+            row("Music").toggled(),
+            Some(egui::accesskit::Toggled::False),
+            "Music lost its selected class"
+        );
+        let collection = row("Collection").bounds().unwrap();
+        let plugin = output
+            .shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::Shape::Rect(r) if r.fill == egui::Color32::from_rgb(255, 0, 0) => {
+                    Some(r.rect)
+                }
+                _ => None,
+            })
+            .expect("the plugin's row");
+        assert!(
+            (f64::from(plugin.top()) - collection.y1).abs() < 1.0,
+            "the plugin row starts at {} and Collection ends at {}",
+            plugin.top(),
+            collection.y1
+        );
+    }
+
     fn accessible_app(name: &str) -> (egui::Context, App) {
         let root = crate::paths::unique_test_dir(&format!("a11y-{name}"));
         let ctx = egui::Context::default();

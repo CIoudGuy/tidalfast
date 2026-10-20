@@ -2089,9 +2089,13 @@ pub(crate) fn settings_tree(
                                 locale,
                                 egui::TextEdit::singleline(&mut draft)
                                     .password(*secure)
+                                    // TidaLuna's field shows its title inside
+                                    // while empty (MUI's label).
                                     .hint_text(
-                                        RichText::new(placeholder.clone().unwrap_or_default())
-                                            .color(palette.dim),
+                                        RichText::new(
+                                            placeholder.clone().unwrap_or_else(|| title.clone()),
+                                        )
+                                        .color(palette.dim),
                                     )
                                     .font(theme::regular(13.0))
                                     .frame(egui::Frame::NONE)
