@@ -457,6 +457,45 @@ export const Settings = () => {
     );
 }
 
+/// Each node says which `@luna/ui` or MUI component made it, and a
+/// button its `variant`, so the page draws it in that component's look
+/// (TidaLuna's stepper, its contained button); plain HTML says none.
+#[test]
+fn nodes_name_the_component_that_made_them() {
+    let (luna, _dir) = start(
+        r#"
+export const Settings = () =>
+	h(ui.LunaSettings, null,
+		h(ui.LunaNumberSetting, { title: "Step", value: 2, onNumber: () => {} }),
+		h(mui.Button, { variant: "outlined", onClick: () => {} }, "Go"),
+		h(mui.TextField, { label: "Name", value: "", onChange: () => {} }),
+		h("input", { type: "text", "aria-label": "Plain", value: "", onChange: () => {} }));
+"#,
+    );
+    let t = tree(&luna);
+    let mut seen = Vec::new();
+    t.walk(&mut |n| {
+        let meta = match n {
+            SettingsNode::Group { meta, .. }
+            | SettingsNode::Number { meta, .. }
+            | SettingsNode::Button { meta, .. }
+            | SettingsNode::Text { meta, .. } => meta,
+            _ => return,
+        };
+        seen.push((meta.mui.clone(), meta.variant.clone()));
+    });
+    let some = |s: &str| Some(s.to_string());
+    for want in [
+        (some("LunaSettings"), None),
+        (some("LunaNumberSetting"), None),
+        (some("Button"), some("outlined")),
+        (some("TextField"), None),
+        (None, None),
+    ] {
+        assert!(seen.contains(&want), "{want:?} in {seen:?}");
+    }
+}
+
 #[test]
 fn luna_ui_components_keep_titles_descriptions_ranges_and_options() {
     let (luna, _dir) = start(

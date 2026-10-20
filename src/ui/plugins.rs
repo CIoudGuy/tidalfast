@@ -1943,6 +1943,9 @@ pub(crate) fn settings_tree(
     changes: &mut Vec<(String, SettingValue)>,
     links: &mut Vec<String>,
 ) {
+    if luna_look(ui, palette, locale, plugin, node, changes, links) {
+        return;
+    }
     match node {
         // A `position: fixed` card (colorama-lyrics' colour picker) goes
         // where a browser puts it, over the window's centre.
@@ -2254,6 +2257,238 @@ pub(crate) fn settings_tree(
                 );
             }
         }
+    }
+}
+
+/// The option a MUI `Select` shows for `value`, and its words: none for an
+/// empty value (`""` or `null`), as MUI shows nothing then even when an
+/// item has that value (custom-fonts' "None" is an empty field in TidaLuna).
+pub(crate) fn shown_option<'a>(
+    value: &serde_json::Value,
+    options: &'a [crate::luna::SelectOption],
+) -> (Option<usize>, &'a str) {
+    let chosen = options.iter().position(|o| o.value == *value);
+    let empty = value.is_null() || value.as_str() == Some("");
+    let shown = match chosen {
+        Some(i) if !empty => options[i].label.as_str(),
+        _ => "",
+    };
+    (chosen, shown)
+}
+
+/// A node `@luna/ui` or MUI made, drawn in that component's look (see
+/// [`super::luna_settings`]): `LunaSettings`' box, switches, number
+/// steppers, text fields, selects and buttons. `false` for anything else,
+/// which keeps the app's widgets.
+fn luna_look(
+    ui: &mut Ui,
+    palette: &Palette,
+    locale: Locale,
+    plugin: &str,
+    node: &SettingsNode,
+    changes: &mut Vec<(String, SettingValue)>,
+    links: &mut Vec<String>,
+) -> bool {
+    use super::luna_settings::{self as look, FieldLabel, Place};
+    let mui = look::Mui::new(palette);
+    let named = |meta: &SettingsMeta, names: &[&str]| {
+        meta.mui.as_deref().is_some_and(|n| names.contains(&n))
+    };
+    let enabled = |meta: &SettingsMeta| meta.disabled != Some(true);
+    match node {
+        SettingsNode::Group { meta, children } if look::is_settings_box(meta) => {
+            let (title, desc) = meta_text(meta);
+            if !title.is_empty() || !desc.is_empty() {
+                look::title_block(ui, &mui, &title, &desc, ui.available_width());
+            }
+            look::settings_box(ui, &mui, |ui| {
+                for child in children {
+                    settings_tree(ui, palette, locale, plugin, child, changes, links);
+                }
+            });
+            true
+        }
+        SettingsNode::Switch { id, meta, checked }
+            if named(meta, &["LunaSwitchSetting", "LunaSwitch", "Switch"]) =>
+        {
+            let (title, desc) = meta_text(meta);
+            let mut on = *checked;
+            ui.add_enabled_ui(enabled(meta), |ui| {
+                look::row(
+                    ui,
+                    &mui,
+                    &title,
+                    &desc,
+                    Place::After { width: 58.0 },
+                    |ui, _| {
+                        if look::switch(ui, &mui, &title, &mut on).changed() {
+                            changes.push((id.clone(), SettingValue::Bool(on)));
+                        }
+                    },
+                );
+            });
+            true
+        }
+        SettingsNode::Number {
+            id,
+            meta,
+            value,
+            min,
+            max,
+            slider,
+            ..
+        } if slider != &Some(true) && named(meta, &["LunaNumberSetting", "LunaNumber"]) => {
+            let (title, desc) = meta_text(meta);
+            let key = egui::Id::new(("luna-number", plugin, id));
+            ui.add_enabled_ui(enabled(meta), |ui| {
+                look::row(
+                    ui,
+                    &mui,
+                    &title,
+                    &desc,
+                    Place::After { width: 128.0 },
+                    |ui, _| {
+                        if let Some(v) = look::number(ui, &mui, key, &title, *value, *min, *max) {
+                            changes.push((id.clone(), SettingValue::Number(v)));
+                        }
+                    },
+                );
+            });
+            true
+        }
+        SettingsNode::Text {
+            id,
+            meta,
+            value,
+            secure,
+            placeholder,
+            ..
+        } if named(
+            meta,
+            &[
+                "LunaTextSetting",
+                "LunaSecureTextSetting",
+                "LunaSecureText",
+                "TextField",
+                "OutlinedInput",
+            ],
+        ) =>
+        {
+            let (title, desc) = meta_text(meta);
+            let name = meta.mui.as_deref().unwrap_or_default();
+            let key = egui::Id::new(("luna-text", plugin, id));
+            let draft_id = egui::Id::new(("luna-setting-draft", plugin, id));
+            let mut draft: String = ui
+                .data(|d| d.get_temp(draft_id))
+                .unwrap_or_else(|| value.clone());
+            let hint = placeholder.clone().unwrap_or_default();
+            ui.add_enabled_ui(enabled(meta), |ui| {
+                let mut field = |ui: &mut Ui, width: f32| {
+                    let label = match name {
+                        // `LunaTextSetting` and MUI's TextField: the title is
+                        // the field's label.
+                        "LunaTextSetting" | "TextField" => FieldLabel::Floating(&title),
+                        // `LunaSecureTextSetting`: the title as placeholder.
+                        "LunaSecureTextSetting" => FieldLabel::Placeholder(&title),
+                        _ => FieldLabel::Placeholder(&hint),
+                    };
+                    let r = look::text_field(ui, &mui, key, &mut draft, label, *secure, width);
+                    ui.ctx()
+                        .accesskit_node_builder(r.id, |node| node.set_label(title.as_str()));
+                    let commit = r.lost_focus();
+                    if commit && draft != *value {
+                        changes.push((id.clone(), SettingValue::Text(draft.clone())));
+                    }
+                    if r.has_focus() || (commit && draft != *value) {
+                        ui.data_mut(|d| d.insert_temp(draft_id, draft.clone()));
+                    } else {
+                        ui.data_mut(|d| d.remove_temp::<String>(draft_id));
+                    }
+                };
+                if name.ends_with("Setting") {
+                    look::row(
+                        ui,
+                        &mui,
+                        &title,
+                        &desc,
+                        Place::Fill {
+                            basis: 220.0,
+                            height: 37.0,
+                        },
+                        |ui, w| field(ui, w),
+                    );
+                } else {
+                    // A field on its own, as wide as its box.
+                    field(ui, ui.available_width());
+                }
+            });
+            true
+        }
+        SettingsNode::Select {
+            id,
+            meta,
+            value,
+            options,
+            ..
+        } if named(meta, &["LunaSelectSetting", "Select", "TextField"]) => {
+            let (title, desc) = meta_text(meta);
+            let key = egui::Id::new(("luna-select", plugin, id));
+            let labels: Vec<&str> = options.iter().map(|o| o.label.as_str()).collect();
+            let (chosen, shown) = shown_option(value, options);
+            ui.add_enabled_ui(enabled(meta), |ui| {
+                let mut field = |ui: &mut Ui, width: f32| {
+                    if let Some(i) =
+                        look::select(ui, &mui, key, &title, shown, &labels, chosen, width)
+                    {
+                        changes.push((id.clone(), SettingValue::Json(options[i].value.clone())));
+                    }
+                };
+                if named(meta, &["LunaSelectSetting"]) {
+                    // The select's own width: its words and arrow.
+                    let basis = 14.0 + 32.0 + 16.0;
+                    look::row(
+                        ui,
+                        &mui,
+                        &title,
+                        &desc,
+                        Place::Fill {
+                            basis,
+                            height: 53.0,
+                        },
+                        |ui, w| field(ui, w),
+                    );
+                } else {
+                    field(ui, ui.available_width());
+                }
+            });
+            true
+        }
+        SettingsNode::Button { id, meta, label }
+            if named(meta, &["LunaButtonSetting", "LunaButton", "Button"]) =>
+        {
+            let (title, desc) = meta_text(meta);
+            let variant = meta.variant.clone().unwrap_or_else(|| {
+                if named(meta, &["Button"]) {
+                    "text".into()
+                } else {
+                    "contained".into()
+                }
+            });
+            ui.add_enabled_ui(enabled(meta), |ui| {
+                if named(meta, &["LunaButtonSetting"]) {
+                    let width = look::button_width(ui, label, &variant);
+                    look::row(ui, &mui, &title, &desc, Place::Right { width }, |ui, _| {
+                        if look::button(ui, &mui, label, &variant, Some(40.0)).clicked() {
+                            changes.push((id.clone(), SettingValue::Click));
+                        }
+                    });
+                } else if look::button(ui, &mui, label, &variant, None).clicked() {
+                    changes.push((id.clone(), SettingValue::Click));
+                }
+            });
+            true
+        }
+        _ => false,
     }
 }
 

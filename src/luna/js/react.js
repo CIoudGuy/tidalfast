@@ -524,7 +524,7 @@
 			const { type, props } = node;
 			if (type === FRAGMENT || type === STRICT || type === SUSPENSE || type === PROFILER) return this.renderChildren(props.children, path);
 			if (typeof type === "string") return this.renderHost(type, props ?? {}, path);
-			if (type && type.__luna) return this.guard(type, props, path, () => this.renderLuna(type.__luna, props ?? {}, path));
+			if (type && type.__luna) return this.guard(type, props, path, () => this.renderLuna(type.__luna, props ?? {}, path, type.displayName));
 			if (type && type.$$typeof === PROVIDER) {
 				const ctx = type._context;
 				const prev = ctx._currentValue;
@@ -787,10 +787,12 @@
 			}
 			return this.textNode(props, path);
 		}
-		renderLuna(kind, p, path) {
+		// `name`: the component (`LunaNumberSetting`, MUI's `Button`), which
+		// the page draws in that component's look.
+		renderLuna(kind, p, path, name) {
 			const title = p.title === undefined ? (typeof p.label === "string" ? p.label : undefined) : textOnly(p.title);
 			const d = p.desc === undefined && p.helperText === undefined ? undefined : textOf(p.desc ?? p.helperText);
-			const base = { title: title || undefined, desc: d?.text || undefined, links: d?.links?.length ? d.links : undefined, disabled: !!p.disabled || !!p.loading || undefined };
+			const base = { title: title || undefined, desc: d?.text || undefined, links: d?.links?.length ? d.links : undefined, disabled: !!p.disabled || !!p.loading || undefined, mui: name || undefined, variant: typeof p.variant === "string" ? p.variant : undefined };
 			switch (kind) {
 				case "group":
 				case "setting": {
@@ -854,10 +856,10 @@
 				}
 				case "text":
 				case "secure": {
-					if (p.select) return this.renderLuna("select", { ...p, children: p.children }, path);
+					if (p.select) return this.renderLuna("select", { ...p, children: p.children }, path, name);
 					if (this.isCapture(p)) return this.captureNode(p, path, base);
 					const type = String(p.type ?? "text").toLowerCase();
-					if (type === "number") return this.renderLuna("number", { ...p, onChange: p.onChange, inputProps: p.inputProps ?? p.slotProps?.htmlInput, value: p.value === undefined || p.value === "" ? undefined : Number(p.value) }, path);
+					if (type === "number") return this.renderLuna("number", { ...p, onChange: p.onChange, inputProps: p.inputProps ?? p.slotProps?.htmlInput, value: p.value === undefined || p.value === "" ? undefined : Number(p.value) }, path, name);
 					const value = String(this.ctl(path, p.value, p.defaultValue ?? "") ?? "");
 					const id = this.handler(path, (v) => {
 						const s = String(v ?? "");

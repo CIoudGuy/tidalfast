@@ -2550,3 +2550,140 @@ fn a_large_download_shows_how_far_it_got() {
         "Downloading 45 MB (model.onnx)"
     );
 }
+
+fn mui(name: &str, title: &str, desc: &str) -> SettingsMeta {
+    SettingsMeta {
+        title: Some(title.into()),
+        desc: (!desc.is_empty()).then(|| desc.into()),
+        mui: Some(name.into()),
+        ..SettingsMeta::default()
+    }
+}
+
+/// Where the node with this role and label (or, for a label, text) is.
+fn bounds(tree: &TreeUpdate, label: &str, role: Role) -> egui::accesskit::Rect {
+    tree.nodes
+        .iter()
+        .find(|(_, n)| n.role() == role && n.label().or(n.value()) == Some(label))
+        .and_then(|(_, n)| n.bounds())
+        .unwrap_or_else(|| panic!("missing {label:?} ({role:?})"))
+}
+
+/// `LunaNumberSetting` is TidaLuna's stepper: its minus and plus take 1
+/// off and add 1 (not the step), only within `min` and `max`, as
+/// `LunaNumber` does (it was a drag field).
+#[test]
+fn a_luna_number_steps_by_one_within_its_range() {
+    let ctx = context();
+    let node = |value: f64| SettingsNode::Number {
+        id: "changeBy".into(),
+        meta: mui("LunaNumberSetting", "Change by", "Seconds"),
+        value,
+        min: Some(1.0),
+        max: Some(11.0),
+        step: Some(5.0),
+        slider: None,
+    };
+    let press = |value: f64, label: &str| {
+        let (update, _) = frame(&ctx, &node(value), vec![]);
+        let id = find(&update, label, Role::Button);
+        frame(&ctx, &node(value), vec![click(id)]).1
+    };
+    assert_eq!(
+        press(10.0, "Change by +1"),
+        vec![("changeBy".to_string(), SettingValue::Number(11.0))]
+    );
+    assert_eq!(
+        press(10.0, "Change by -1"),
+        vec![("changeBy".to_string(), SettingValue::Number(9.0))]
+    );
+    assert!(press(11.0, "Change by +1").is_empty(), "past max");
+    assert!(press(1.0, "Change by -1").is_empty(), "under min");
+}
+
+/// TidaLuna's rows: a switch sits right after its title and description,
+/// a `LunaButtonSetting`'s button at the row's right 16 points in, a
+/// `LunaSelectSetting`'s select fills the rest 64 points after its words,
+/// and `LunaSettings` is a box of its own 16 points in.
+#[test]
+fn luna_settings_rows_place_their_controls_as_tidaluna_does() {
+    let ctx = context();
+    let tree = SettingsNode::Group {
+        meta: SettingsMeta {
+            mui: Some("LunaSettings".into()),
+            ..SettingsMeta::default()
+        },
+        children: vec![
+            SettingsNode::Switch {
+                id: "catjam".into(),
+                meta: mui("LunaSwitchSetting", "CatJam Compatibility", "A bubble"),
+                checked: false,
+            },
+            SettingsNode::Button {
+                id: "open".into(),
+                meta: mui("LunaButtonSetting", "Open Lyrics Window", "A window"),
+                label: "Open Lyrics Window".into(),
+            },
+            SettingsNode::Select {
+                id: "font".into(),
+                meta: mui("LunaSelectSetting", "Custom Font", ""),
+                value: json!(""),
+                options: vec![
+                    SelectOption {
+                        value: json!(""),
+                        label: "None".into(),
+                    },
+                    SelectOption {
+                        value: json!("Arial"),
+                        label: "Arial".into(),
+                    },
+                ],
+                multiple: None,
+            },
+        ],
+    };
+    let mut update = frame(&ctx, &tree, vec![]).0;
+    for _ in 0..2 {
+        update = frame(&ctx, &tree, vec![]).0;
+    }
+    let text = bounds(&update, "CatJam Compatibility\nA bubble", Role::Label);
+    let switch = bounds(&update, "CatJam Compatibility", Role::CheckBox);
+    assert!(
+        (switch.x0 - text.x1).abs() < 1.0,
+        "{switch:?} after {text:?}"
+    );
+    assert_eq!(switch.x1 - switch.x0, 58.0);
+    let row = bounds(&update, "Open Lyrics Window\nA window", Role::Label);
+    let button = bounds(&update, "Open Lyrics Window", Role::Button);
+    // The card's right edge: the panel's, less the box's 16-point padding.
+    let panel_right = 1000.0 - 8.0;
+    assert!(
+        (button.x1 - (panel_right - 16.0 - 16.0)).abs() < 1.5,
+        "{button:?}"
+    );
+    assert!((row.x0 - (8.0 + 16.0)).abs() < 1.5, "{row:?}");
+    assert_eq!((button.y1 - button.y0).round(), 40.0);
+    let words = bounds(&update, "Custom Font", Role::Label);
+    let select = bounds(&update, "Custom Font", Role::ComboBox);
+    assert!((select.x0 - (words.x1 + 64.0)).abs() < 1.0, "{select:?}");
+    assert!((select.x1 - (panel_right - 16.0)).abs() < 1.5, "{select:?}");
+}
+
+/// A MUI select shows nothing for an empty value even when an item has
+/// that value (custom-fonts' "None" is an empty field in TidaLuna).
+#[test]
+fn a_mui_select_shows_nothing_for_an_empty_value() {
+    let options = vec![
+        SelectOption {
+            value: json!(""),
+            label: "None".into(),
+        },
+        SelectOption {
+            value: json!("Arial"),
+            label: "Arial".into(),
+        },
+    ];
+    assert_eq!(shown_option(&json!(""), &options), (Some(0), ""));
+    assert_eq!(shown_option(&json!("Arial"), &options), (Some(1), "Arial"));
+    assert_eq!(shown_option(&json!("Gone"), &options), (None, ""));
+}

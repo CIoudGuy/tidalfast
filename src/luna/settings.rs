@@ -37,6 +37,14 @@ pub struct SettingsMeta {
     /// layer over the window that a click on closes.
     #[serde(default)]
     pub scrim: Option<bool>,
+    /// The `@luna/ui` or MUI component that made the node
+    /// (`LunaNumberSetting`, `LunaSettings`, `Button`): the page draws it in
+    /// that component's look. `None` for plain HTML.
+    #[serde(default)]
+    pub mui: Option<String>,
+    /// The component's `variant` prop (MUI's `contained`, `outlined`, `text`).
+    #[serde(default)]
+    pub variant: Option<String>,
 }
 
 /// The input id that renders a crashed settings panel again.
