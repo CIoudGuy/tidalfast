@@ -115,7 +115,8 @@ LuckyLP's icon colours); they are not a theme's and never recolour the app.
 `::-webkit-slider-runnable-track` and `::-webkit-slider-thumb` rules (and
 Firefox's `::-moz-range-*`) are indexed like `::before` and resolved with the
 input's variables into `VNode::track` and `thumb` (HorizontalVolumeSlider's
-bar).
+bar). A plugin element that copies a now-playing tab's `_tabButton_` class
+looks like the pills Tidalfast draws there (LangRomanizer).
 
 **Selectors.** Type, `#id`, `.class`, attributes with `= ~= |= ^= $= *=`
 and the `i` flag, `:not :is :where :has` (relative, `> + ~`), `:scope`,
@@ -242,6 +243,7 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | Key | Element | Native widget | Slots drawn |
 |---|---|---|---|
 | `now-playing` | `div#nowPlaying[data-test=new-now-playing]._nowPlayingContainer_` with `now-playing-header` (`header`), `now-playing-background` (`._background_`), `now-playing-content` (`._innerContainer_._content_`) | the now-playing view | Append (under the cover) |
+| `now-playing-buttons` > `now-playing-content-buttons` > `now-playing-tab:<name>` > `:span` | `header > div._buttons_ > div._contentButtons_ > button[data-test=toggle-similar-tracks\|toggle-credits\|toggle-lyrics][aria-pressed]._tabButton_ > span`, the tabs shown, before the close button; it comes before the player bar in the document, so `querySelector('[data-test^=toggle-lyrics]')` finds it first, as in TIDAL | the header's tab pills; `.click()` opens a tab | tab Before/After, tab box Prepend/Append (LangRomanizer after Lyrics), `now-playing-buttons` After (left of the close button) |
 | `now-playing-artwork` > `now-playing-artwork-tilt` > `now-playing-artwork-img` + `now-playing-artwork-glare` | `div._artworkWrapper_ > div._tilt_._artworkTilt_[style="transform: perspective(1000px) rotateX(..deg) rotateY(..deg)"] > img[data-test=now-playing-artwork][src] + div._glare_` (TIDAL's; the `img` is a `video` while an animated cover plays; the style follows the native tilt every frame it moves) | big cover | positioned elements after the `img` or appended to the tilt box are drawn in the cover's tilt and lean with it, a WebGL canvas too (3d-cover) |
 | `lyrics-container` > `lyrics` > `lyrics-lines` | `div._lyricsContainer_ > div[data-test=now-playing-lyrics]._lyricsText_ > div` | Lyrics tab; `lyrics` hidden hides the native lines (radiant-lyrics) | container, lyrics and lines Prepend/Append (radiant-lyrics appends its lines to `lyrics-lines`) |
 | `lyric:<i>` | `span[data-test=lyrics-line][data-current]` (+ `_current_`, `aria-current`) | one line; text override (translators), colour (colorama), hidden; clicks forwarded | Append, After (under the line) |

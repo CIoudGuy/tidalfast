@@ -2517,3 +2517,67 @@ lib.observe(unloads, "[class*='_sliderContainer']", (box) => {
     assert!(range.style.margin_top.is_none(), "{:?}", range.style);
     finish(luna, dir);
 }
+
+/// LangRomanizer puts its Romanize Lyrics button after the first
+/// `[data-test^="request-fullscreen"], [data-test^="toggle-lyrics"]` and
+/// copies that element's classes and its span's. In TIDAL that is the
+/// now-playing header's Lyrics tab, so the button sits after Lyrics and
+/// looks like the tabs. Tidalfast had no tabs in the header, so the button
+/// went into the player bar after its lyrics button, unstyled.
+#[test]
+fn a_button_after_the_now_playing_lyrics_tab_looks_like_the_tabs() {
+    let (luna, _host, dir) = start(
+        r##"
+lib.observe(unloads, '[data-test="new-now-playing-close"]', () => {
+	if (R.done) return;
+	const f = document.querySelector('[data-test^="request-fullscreen"], [data-test^="toggle-lyrics"]');
+	const n = f.querySelector("span");
+	const t = document.createElement("button");
+	const q = document.createElement("span");
+	t.id = "romanize-button";
+	t.className = "romanize-button " + f.className;
+	q.textContent = "Romanize Lyrics";
+	q.className = n.className;
+	t.appendChild(q);
+	f.parentElement.insertBefore(t, f.nextSibling);
+	R.anchor = f.closest("header") ? "header" : "player bar";
+	R.done = true;
+});
+"##,
+    );
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(np) = frame.now_playing.as_mut() {
+        for (name, label) in [
+            ("similar-tracks", "Similar tracks"),
+            ("credits", "Credits"),
+            ("lyrics", "Lyrics"),
+        ] {
+            np.tabs.push(dom_anchors::NowPlayingTab {
+                name,
+                label: label.into(),
+                ..dom_anchors::NowPlayingTab::default()
+            });
+        }
+    }
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["anchor"], json!("header"), "{r}");
+    // Lyrics is the last tab: what follows it is the tab box's Append.
+    let tab = keys::now_playing_tab("lyrics");
+    let o = overlay_until(&luna, 10, |o| {
+        o.at(keys::NP_CONTENT_BUTTONS, Position::Append)
+            .next()
+            .is_some()
+    });
+    let button = o
+        .at(keys::NP_CONTENT_BUTTONS, Position::Append)
+        .next()
+        .unwrap();
+    assert_eq!(button.style.height.as_deref(), Some("30px"));
+    assert_eq!(button.style.padding.as_deref(), Some("0 11px"));
+    assert_eq!(button.style.font_weight.as_deref(), Some("600"));
+    assert_eq!(button.style.color.as_deref(), Some("#b4b4b8"));
+    // Tidalfast's own tabs keep their native look.
+    assert!(o.host(&tab).is_none_or(|h| h.style.padding.is_none()));
+    finish(luna, dir);
+}
