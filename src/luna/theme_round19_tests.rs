@@ -212,3 +212,59 @@ fn theme_rules_reach_explores_icon_links() {
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&data);
 }
+
+/// scroll-to-playing colours every `a`, `span`, `div` and `p` of the
+/// playing row (`[role="row"]:has(a[href*="/track/<id>"]) div`): in TIDAL
+/// that reaches a playlist's Added by and Date added cells too, which
+/// Tidalfast left white (it had no element for them).
+#[test]
+fn the_playing_rows_colour_reaches_its_added_by_and_date_added_cells() {
+    use crate::ui::plugin_dom::{row_text, test_overlay};
+    let mut frame = dom_anchors::sample_frame();
+    let list = frame.lists[0].id.clone();
+    let row = &mut frame.lists[0].rows[0];
+    row.added_by = Some("Sam".into());
+    row.added = Some("Oct 20, 2026".into());
+    let id = row.track_id.clone();
+    let css = format!(
+        r#"/* {{"name": "Playing row"}} */
+[role="row"]:has(a[href*="/track/{id}"]) a,
+[role="row"]:has(a[href*="/track/{id}"]) span,
+[role="row"]:has(a[href*="/track/{id}"]) div,
+[role="row"]:has(a[href*="/track/{id}"]) p {{ color: rgb(126, 251, 238) !important; }}
+"#
+    );
+    let files: Files = Arc::default();
+    files
+        .lock()
+        .unwrap()
+        .insert("/stp.css".into(), css.into_bytes());
+    let base = serve(files);
+    let data = temp_dir("theme-playing-row-cells");
+    let luna = Luna::start(config(&data), Arc::new(MockHost::default())).unwrap();
+    let tree = dom_anchors::build(&frame);
+    let added = dom_anchors::keys::row_cell(&list, 0, "date-added");
+    luna.install_theme(&format!("{base}/stp.css"));
+    let end = Instant::now() + Duration::from_secs(20);
+    let o = loop {
+        luna.sync_dom(tree.clone());
+        luna.sync(Duration::from_secs(5));
+        let o = luna.dom_overlay();
+        if o.css_bytes > 0 && o.hosts.contains_key(&added) {
+            break o;
+        }
+        assert!(Instant::now() < end, "the row's cells were never styled");
+        std::thread::sleep(Duration::from_millis(30));
+    };
+    test_overlay(Some((*o).clone()));
+    let window = egui::Color32::from_rgb(10, 10, 12);
+    let text = row_text(&list, 0, window).expect("the playing row's colours");
+    let turquoise = Some(egui::Color32::from_rgb(126, 251, 238));
+    assert_eq!(text.title, turquoise);
+    assert_eq!(text.added_by, turquoise, "Added by");
+    assert_eq!(text.added, turquoise, "Date added");
+    assert_eq!(row_text(&list, 1, window), None, "another row");
+    test_overlay(None);
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&data);
+}

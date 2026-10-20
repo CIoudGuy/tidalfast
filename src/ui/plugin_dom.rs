@@ -1078,6 +1078,10 @@ pub struct RowText {
     pub artist: Option<Color32>,
     pub album: Option<Color32>,
     pub time: Option<Color32>,
+    /// A playlist's Added by cell.
+    pub added_by: Option<Color32>,
+    /// A playlist's Date added cell.
+    pub added: Option<Color32>,
 }
 
 /// What a theme colours in a track row's cells (`[id^="titleCell"]`,
@@ -1119,6 +1123,8 @@ pub fn row_text(list: &str, index: usize, window: Color32) -> Option<RowText> {
         artist: read(&["artist:0", "artist"]),
         album: read(&["album-link", "album"]),
         time: read(&["duration"]),
+        added_by: read(&["added-by"]),
+        added: read(&["date-added"]),
     };
     let made = (made != RowText::default()).then_some(made);
     theme_boxes(|b| {
@@ -2291,6 +2297,26 @@ pub fn row_title_rect(list: &str, index: usize, r: Rect) {
             .and_then(|l| l.rows.iter_mut().rev().find(|row| row.index == index))
         {
             row.title_rect = rect(r);
+        }
+    });
+}
+
+/// The Added by and Date added cells a row [`row`] described shows (each
+/// `None` while its column is not drawn), as the words the cells hold.
+pub fn row_added(list: &str, index: usize, added_by: Option<&str>, added: Option<&str>) {
+    if !on() {
+        return;
+    }
+    with(|s| {
+        if let Some(row) = s
+            .frame
+            .lists
+            .iter_mut()
+            .find(|l| l.id == list)
+            .and_then(|l| l.rows.iter_mut().rev().find(|row| row.index == index))
+        {
+            row.added_by = added_by.map(str::to_string);
+            row.added = added.map(str::to_string);
         }
     });
 }

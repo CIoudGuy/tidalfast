@@ -300,6 +300,7 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("tableRow", "_tableRow_299a426"),
     ("tableRowSelected", "_tableRowSelected_fb04c2a"),
     ("timeColumn", "_timeColumn_3cd7564"),
+    ("dateAddedColumn", "_dateAddedColumn_87dfbd3"),
     ("titleCell", "_titleCell_e18305f"),
     ("trackContent", "_trackContent_7b758a9"),
     ("utilityButtons", "_utilityButtons_4d7aaf9"),
@@ -625,6 +626,11 @@ pub struct TrackRow {
     /// The row's thumbnail (`_imageColumn_ > _imageContainer_ > img`), when
     /// the row shows one.
     pub image_rect: Option<Rect>,
+    /// The Added by cell's text, while the row shows that column.
+    pub added_by: Option<String>,
+    /// The Date added cell's text ("Feb 22, 2025"), while the row shows
+    /// that column.
+    pub added: Option<String>,
 }
 
 /// One track table; only the rows on screen.
@@ -1552,6 +1558,25 @@ pub fn track_row(out: &mut Vec<HostNode>, table: &str, list: &str, row: &TrackRo
             el(cell("album-link"), Some(&cell("album")), "a")
                 .attr("href", format!("/album/{}", album.id))
                 .text(album.name.clone()),
+        );
+    }
+    // A playlist's Added by and Date added cells, between the album and the
+    // time: text in the row's gridcells, which a rule on the row's `div`s
+    // colours as TIDAL's (scroll-to-playing's playing row).
+    if let Some(by) = &row.added_by {
+        out.push(
+            el(cell("added-by"), Some(&key), "div")
+                .modules(&["addedByColumn"])
+                .attr("role", "gridcell")
+                .text(by.clone()),
+        );
+    }
+    if let Some(added) = &row.added {
+        out.push(
+            el(cell("date-added"), Some(&key), "div")
+                .modules(&["dateAddedColumn"])
+                .attr("role", "gridcell")
+                .text(added.clone()),
         );
     }
     out.push(
