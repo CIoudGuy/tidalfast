@@ -44,6 +44,12 @@ pub struct ThemePreview {
     pub bar_float: Option<[f32; 3]>,
     /// A sidebar card: top and bottom gap, corner radius.
     pub side_float: Option<[f32; 2]>,
+    /// Whether any of the theme's rules apply in this app theme: false
+    /// when every rule sits under the other `prefers-color-scheme` (the
+    /// adaptive Cotton Candy files, Tidal Light), and in previews saved
+    /// before this was recorded.
+    #[serde(default)]
+    pub styled: bool,
 }
 
 /// The preview in Dark and in Light.
@@ -56,7 +62,7 @@ pub fn resolve_both(css: &str) -> Previews {
 
 /// The preview in the app's Dark (`light` false) or Light.
 pub fn resolve(css: &str, light: bool) -> ThemePreview {
-    let o = overlay(css, light);
+    let (o, styled) = overlay(css, light);
     let base = if light {
         Palette::light()
     } else {
@@ -132,6 +138,19 @@ pub fn resolve(css: &str, light: bool) -> ThemePreview {
                 f32::from(f.radius.ne.max(f.radius.se)),
             ]
         }),
+        styled,
+    }
+}
+
+/// The app theme a theme shows in when it shows in only one: `Some(true)`
+/// for a theme whose rules all apply only in Light (`@media
+/// (prefers-color-scheme: light)`), `Some(false)` for Dark only, `None`
+/// when it shows in both (or in neither, or the previews do not say).
+pub fn only_in(previews: &Previews) -> Option<bool> {
+    match (previews[0].styled, previews[1].styled) {
+        (false, true) => Some(true),
+        (true, false) => Some(false),
+        _ => None,
     }
 }
 
@@ -463,9 +482,12 @@ impl Cascade {
 
 /// The overlay the bridge would get from the theme, for the elements the
 /// preview paints.
-fn overlay(css: &str, light: bool) -> DomOverlay {
+/// What the theme paints on the previewed elements, and whether any of its
+/// rules apply in this app theme at all.
+fn overlay(css: &str, light: bool) -> (DomOverlay, bool) {
     let mut list = Vec::new();
     rules(&strip_comments(css), light, None, &mut list);
+    let styled = !list.is_empty();
     let mut by: BTreeMap<u8, Cascade> = BTreeMap::new();
     for (selector, body) in &list {
         let mut hit: Vec<Target> = selector.split(',').flat_map(targets).collect();
@@ -512,7 +534,7 @@ fn overlay(css: &str, light: bool) -> DomOverlay {
             );
         }
     }
-    o
+    (o, styled)
 }
 
 // ---------------------------------------------------------------- painting
@@ -736,6 +758,23 @@ pub fn paint(ui: &egui::Ui, rect: Rect, preview: &ThemePreview, card: Color32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A theme with every rule under one `prefers-color-scheme` shows only
+    /// in that mode; a rule outside it shows in both.
+    #[test]
+    fn a_theme_under_one_colour_scheme_shows_only_in_it() {
+        let light = "@media (prefers-color-scheme: light) { :root { --a: 1; } .x { color: red; } }";
+        assert_eq!(only_in(&resolve_both(light)), Some(true));
+        let dark = "@media (prefers-color-scheme: dark) { .x { color: red; } }";
+        assert_eq!(only_in(&resolve_both(dark)), Some(false));
+        let both = format!("{light} .y {{ color: blue; }}");
+        assert_eq!(only_in(&resolve_both(&both)), None);
+        assert_eq!(only_in(&resolve_both(".y { color: blue; }")), None);
+        // A preview saved before this was recorded says nothing.
+        let mut old = resolve_both(light);
+        old[1].styled = false;
+        assert_eq!(only_in(&old), None);
+    }
 
     #[test]
     fn rules_follow_nesting_media_and_importance() {
