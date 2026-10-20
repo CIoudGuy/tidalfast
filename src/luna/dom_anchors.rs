@@ -134,6 +134,9 @@ pub mod keys {
     pub const NP_BG_GRADIENT: &str = "now-playing-bg-gradient";
     pub const NP_CONTENT: &str = "now-playing-content";
     pub const NP_CLOSE: &str = "now-playing-close";
+    /// The header's `div._buttons_ > div._contentButtons_` around its tabs.
+    pub const NP_BUTTONS: &str = "now-playing-buttons";
+    pub const NP_CONTENT_BUTTONS: &str = "now-playing-content-buttons";
     pub const NP_FOOTER: &str = "now-playing-footer";
     pub const NP_ARTIST_INFO: &str = "now-playing-artist-info";
     pub const NP_FULLSCREEN: &str = "now-playing-fullscreen";
@@ -245,6 +248,11 @@ pub mod keys {
     /// `artist`, `duration`, `context`, `actions`).
     pub fn row_cell(list: &str, index: usize, cell: &str) -> String {
         format!("row:{list}:{index}:{cell}")
+    }
+    /// `now-playing-tab:<name>` (`button[data-test=toggle-<name>]` in the
+    /// now-playing header); its label is `now-playing-tab:<name>:span`.
+    pub fn now_playing_tab(name: &str) -> String {
+        format!("now-playing-tab:{name}")
     }
     /// `lyric:<index>`
     pub fn lyric(index: usize) -> String {
@@ -729,6 +737,19 @@ pub struct NowPlaying {
     pub footer_rect: Option<Rect>,
     /// The `_fullscreen_` container, present while the window is fullscreen.
     pub fullscreen_rect: Option<Rect>,
+    /// The header's tabs in TIDAL's order, as shown.
+    pub tabs: Vec<NowPlayingTab>,
+}
+
+/// One of the now-playing header's tabs (`button[data-test=toggle-lyrics]`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct NowPlayingTab {
+    /// `similar-tracks`, `credits` or `lyrics` (`data-test=toggle-<name>`).
+    pub name: &'static str,
+    pub label: String,
+    /// The open tab.
+    pub pressed: bool,
+    pub rect: Option<Rect>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -1946,6 +1967,32 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
             .id("nowPlayingHeader")
             .test("header-container"),
     );
+    // TIDAL's tabs: `div._buttons_ > div._contentButtons_ > button[data-test=
+    // toggle-similar-tracks|toggle-credits|toggle-lyrics] > span`, before the
+    // close button. LangRomanizer puts its Romanize Lyrics button after the
+    // first `[data-test^=toggle-lyrics]` in the document, which in TIDAL is
+    // this one (the view comes before the player bar), and copies its
+    // classes to look like it.
+    if !np.tabs.is_empty() {
+        out.push(el(NP_BUTTONS, Some(NP_HEADER), "div").modules(&["buttons"]));
+        out.push(el(NP_CONTENT_BUTTONS, Some(NP_BUTTONS), "div").modules(&["contentButtons"]));
+        for tab in &np.tabs {
+            let key = keys::now_playing_tab(tab.name);
+            out.push(
+                el(key.clone(), Some(NP_CONTENT_BUTTONS), "button")
+                    .modules(&["tabButton"])
+                    .test(&format!("toggle-{}", tab.name))
+                    .attr("aria-pressed", tab.pressed.to_string())
+                    .at(tab.rect),
+            );
+            out.push(
+                el(format!("{key}:span"), Some(&key), "span")
+                    .modules(&["tabLabel"])
+                    .text(tab.label.clone())
+                    .at(tab.rect),
+            );
+        }
+    }
     out.push(
         el(NP_CLOSE, Some(NP_HEADER), "button")
             .test("new-now-playing-close")

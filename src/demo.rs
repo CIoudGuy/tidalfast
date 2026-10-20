@@ -2338,6 +2338,85 @@ mod tests {
         );
     }
 
+    /// LangRomanizer's Romanize Lyrics button goes after the now-playing
+    /// header's Lyrics tab (the tabs' box's last child): it is drawn right of
+    /// Lyrics, left of Full screen, as in TIDAL. The header had no tabs for
+    /// plugins, so nothing was drawn there.
+    #[test]
+    fn a_plugin_button_after_the_lyrics_tab_sits_beside_it() {
+        use crate::luna::dom::{DomOverlay, Injected, Position, Style, VNode};
+        let (ctx, mut app) = accessible_app("romanize-tab");
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: crate::luna::dom_anchors::keys::NP_CONTENT_BUTTONS.into(),
+                position: Position::Append,
+                nodes: vec![VNode {
+                    id: 1,
+                    tag: "div".into(),
+                    style: Style {
+                        width: Some("40px".into()),
+                        height: Some("20px".into()),
+                        background_color: Some("#ff0000".into()),
+                        ..Style::default()
+                    },
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        }));
+        apply_flags(&mut app, None, Some("now-playing-lyrics"));
+        let frame = |ctx: &egui::Context, app: &mut App| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280.0, 800.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(app, ui),
+            );
+            output.textures_delta.clear();
+            output
+        };
+        for _ in 0..3 {
+            frame(&ctx, &mut app);
+        }
+        let output = frame(&ctx, &mut app);
+        crate::ui::plugin_dom::test_overlay(None);
+        let tree = output
+            .platform_output
+            .accesskit_update
+            .expect("screen-reader tree");
+        let bounds = |label: &str| {
+            tree.nodes
+                .iter()
+                .find(|(_, node)| {
+                    node.label() == Some(label) && node.bounds().is_some_and(|b| b.y0 < 120.0)
+                })
+                .and_then(|(_, node)| node.bounds())
+                .unwrap_or_else(|| panic!("no {label} in the header"))
+        };
+        let lyrics = bounds("Lyrics");
+        let full = bounds("Full screen");
+        let red = output
+            .shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::Shape::Rect(r) if r.fill == egui::Color32::from_rgb(255, 0, 0) => {
+                    Some(r.rect)
+                }
+                _ => None,
+            })
+            .expect("the plugin's button");
+        assert!(
+            f64::from(red.left()) >= lyrics.x1 - 0.5 && f64::from(red.right()) <= full.x0 + 0.5,
+            "{red:?} between {lyrics:?} and {full:?}"
+        );
+        assert!(f64::from(red.center().y) > lyrics.y0 && f64::from(red.center().y) < lyrics.y1);
+    }
+
     /// AltPlay's page open over Home: it took Music's `_selected_` class,
     /// so the Music row no longer shows as selected, and its own link, a
     /// 40-point row, follows the Collection row with no gap. Tidalfast kept

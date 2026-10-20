@@ -376,6 +376,12 @@ fn header(
                 position,
             );
         }
+        // Between the tabs' box and the close button.
+        super::plugin_slots::inline(
+            &mut ui,
+            crate::luna::dom_anchors::keys::NP_BUTTONS,
+            crate::luna::dom::Position::After,
+        );
     }
     ui.add_space(6.0);
     let (icon, label) = if fullscreen {
@@ -387,12 +393,61 @@ fn header(
         app.actions.push(Action::SetLyricsFullscreen(!fullscreen));
     }
     ui.add_space(12.0);
+    // Luna: TIDAL's `button[data-test=toggle-lyrics]` and its siblings; what
+    // plugins put after a tab is drawn to its right (LangRomanizer's
+    // Romanize Lyrics after Lyrics), and `.click()` on one opens it.
+    let luna = super::plugin_dom::on();
+    if luna {
+        super::plugin_slots::inline(
+            &mut ui,
+            crate::luna::dom_anchors::keys::NP_CONTENT_BUTTONS,
+            crate::luna::dom::Position::Append,
+        );
+    }
     for (shown, label) in tabs.iter().rev() {
         let selected = tab == Some(*shown);
-        if pill(&mut ui, label, selected).clicked() {
+        let key = luna.then(|| crate::luna::dom_anchors::keys::now_playing_tab(tab_name(*shown)));
+        if let Some(key) = &key {
+            super::plugin_slots::inline(&mut ui, key, crate::luna::dom::Position::After);
+        }
+        let response = pill(&mut ui, label, selected);
+        let by_plugin = key.as_deref().is_some_and(super::plugin_dom::take_click);
+        if response.clicked() || by_plugin {
             app.actions
                 .push(Action::SetNowPlayingTab((!selected).then_some(*shown)));
         }
+        if let Some(key) = &key {
+            super::plugin_dom::host_clicks(&ui, key, &response);
+            let entry = crate::luna::dom_anchors::NowPlayingTab {
+                name: tab_name(*shown),
+                label: label.to_string(),
+                pressed: selected,
+                rect: super::plugin_dom::rect(response.rect),
+            };
+            super::plugin_dom::note(|f| {
+                if let Some(np) = f.now_playing.as_mut() {
+                    // Drawn right to left: each goes in front.
+                    np.tabs.insert(0, entry);
+                }
+            });
+            super::plugin_slots::inline(&mut ui, key, crate::luna::dom::Position::Before);
+        }
+    }
+    if luna {
+        super::plugin_slots::inline(
+            &mut ui,
+            crate::luna::dom_anchors::keys::NP_CONTENT_BUTTONS,
+            crate::luna::dom::Position::Prepend,
+        );
+    }
+}
+
+/// The name in a tab's `data-test=toggle-<name>`.
+fn tab_name(tab: NowPlayingTab) -> &'static str {
+    match tab {
+        NowPlayingTab::SimilarTracks => "similar-tracks",
+        NowPlayingTab::Credits => "credits",
+        NowPlayingTab::Lyrics => "lyrics",
     }
 }
 
