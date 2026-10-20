@@ -2687,3 +2687,251 @@ fn a_mui_select_shows_nothing_for_an_empty_value() {
     assert_eq!(shown_option(&json!("Arial"), &options), (Some(1), "Arial"));
     assert_eq!(shown_option(&json!("Gone"), &options), (None, ""));
 }
+
+// ------------------------------------------------- the view stays in place
+
+/// One frame of the page in a scroll area like the app's, 500 tall; `jump`
+/// scrolls it there first. The offset it ends at comes back with it.
+fn scrolled_frame(
+    ctx: &egui::Context,
+    snapshot: &LunaSnapshot,
+    index: &Arc<Index>,
+    page: &mut PageState,
+    events: Vec<egui::Event>,
+    jump: Option<f32>,
+) -> (TreeUpdate, Vec<Do>, f32) {
+    let mut out = Vec::new();
+    let palette = Palette::dark();
+    let mut output = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1000.0, 500.0),
+            )),
+            events,
+            ..Default::default()
+        },
+        |ui| {
+            egui::CentralPanel::default().show(ui, |ui| {
+                let mut area = egui::ScrollArea::vertical()
+                    .id_salt("test-page")
+                    .auto_shrink([false, false]);
+                if let Some(y) = jump {
+                    area = area.vertical_scroll_offset(y);
+                }
+                let scroll = area.show(ui, |ui| {
+                    scroll_anchor::content_start(ui);
+                    out = draw(ui, &palette, Locale::default(), snapshot, index, NOW, page);
+                });
+                scroll_anchor::finish(
+                    ui.ctx(),
+                    scroll.id,
+                    scroll.state.offset.y,
+                    scroll.content_size.y - scroll.inner_rect.height(),
+                    scroll.inner_rect.top(),
+                );
+            });
+        },
+    );
+    output.textures_delta.clear();
+    let offset = scroll_anchor::offset(ctx);
+    (
+        output.platform_output.accesskit_update.unwrap(),
+        out,
+        offset,
+    )
+}
+
+/// The themes page scrolled to show the Lunallena card at the top, settled.
+fn scrolled_to_a_theme_card(
+    ctx: &egui::Context,
+    snapshot: &LunaSnapshot,
+    index: &Arc<Index>,
+    page: &mut PageState,
+) -> TreeUpdate {
+    scrolled_frame(ctx, snapshot, index, page, vec![], None);
+    scrolled_frame(ctx, snapshot, index, page, vec![], Some(10_000.0));
+    scrolled_frame(ctx, snapshot, index, page, vec![], None).0
+}
+
+/// Where the catalogue card of a theme sits (its label opens with the name
+/// and a comma; the installed row's does not).
+fn card_y(tree: &TreeUpdate, name: &str) -> f64 {
+    let lead = format!("{name}, ");
+    tree.nodes
+        .iter()
+        .filter(|(_, n)| {
+            n.label()
+                .or(n.value())
+                .is_some_and(|l| l.starts_with(&lead))
+        })
+        .map(|(_, n)| top(n).0)
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap_or_else(|| panic!("{name} has no card"))
+}
+
+/// The topmost button with this label that is within the 500 points shown.
+fn visible_button(tree: &TreeUpdate, label: &str) -> NodeId {
+    tree.nodes
+        .iter()
+        .filter(|(_, n)| n.label() == Some(label) && n.role() == Role::Button)
+        .filter(|(_, n)| (0.0..460.0).contains(&top(n).0))
+        .min_by(|a, b| top(&a.1).partial_cmp(&top(&b.1)).unwrap())
+        .map(|(id, _)| *id)
+        .unwrap_or_else(|| panic!("{label} is not in view"))
+}
+
+fn installed_theme(url: String, name: &str) -> ThemeInfo {
+    ThemeInfo {
+        url,
+        enabled: true,
+        name: Some(name.into()),
+        ..ThemeInfo::default()
+    }
+}
+
+#[test]
+fn installing_a_theme_keeps_the_card_clicked_where_it_was() {
+    let (snapshot, index) = fixture::sample(NOW);
+    let index = Arc::new(index);
+    let ctx = context();
+    let mut page = PageState {
+        tab: Tab::Themes,
+        ..PageState::default()
+    };
+    let tree = scrolled_to_a_theme_card(&ctx, &snapshot, &index, &mut page);
+    let (was, offset) = (card_y(&tree, "Sugarcoat"), scroll_anchor::offset(&ctx));
+    assert!(offset > 100.0, "the page is scrolled: {offset}");
+    let apply = find(&tree, "Apply Sugarcoat", Role::Button);
+    let (_, out, _) = scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![click(apply)], None);
+    assert!(matches!(out.as_slice(), [Do::ApplyTheme(..)]), "{out:?}");
+    // The runtime has installed it: a row joins the Installed list above.
+    let mut installed = snapshot.clone();
+    installed
+        .themes
+        .push(installed_theme(store_index::CATALOG[7].url(), "Sugarcoat"));
+    let (tree, _, after) = scrolled_frame(&ctx, &installed, &index, &mut page, vec![], None);
+    assert!(
+        after > offset + 50.0,
+        "the page followed: {offset} -> {after}"
+    );
+    assert_eq!(card_y(&tree, "Sugarcoat"), was);
+    // And it stays so frame after frame.
+    let (tree, _, again) = scrolled_frame(&ctx, &installed, &index, &mut page, vec![], None);
+    assert_eq!((card_y(&tree, "Sugarcoat"), again), (was, after));
+}
+
+#[test]
+fn removing_a_theme_keeps_the_cards_in_view_where_they_were() {
+    let (mut snapshot, index) = fixture::sample(NOW);
+    snapshot.themes.push(installed_theme(
+        store_index::CATALOG[5].url(),
+        "Cotton Candy",
+    ));
+    let index = Arc::new(index);
+    let ctx = context();
+    let mut page = PageState {
+        tab: Tab::Themes,
+        ..PageState::default()
+    };
+    // Scrolled to the card of a theme that stays installed.
+    scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![], None);
+    scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![], Some(10_000.0));
+    let (tree, _, offset) = scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![], None);
+    let was = card_y(&tree, "Sugarcoat");
+    let remove = visible_button(&tree, "Remove Cotton Candy");
+    let (_, out, _) = scrolled_frame(
+        &ctx,
+        &snapshot,
+        &index,
+        &mut page,
+        vec![click(remove)],
+        None,
+    );
+    assert_eq!(out, vec![Do::UninstallTheme(store_index::CATALOG[5].url())]);
+    // Its row in the Installed list is gone: the page moves up with it.
+    let (snapshot, ..) = fixture::sample(NOW);
+    let (tree, _, after) = scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![], None);
+    assert!(
+        after < offset - 50.0,
+        "the page followed: {offset} -> {after}"
+    );
+    assert_eq!(card_y(&tree, "Sugarcoat"), was);
+}
+
+#[test]
+fn removing_a_plugin_keeps_the_ones_below_where_they_were() {
+    let (mut snapshot, index) = fixture::sample(NOW);
+    snapshot
+        .plugins
+        .extend((0..8).map(|n| info(&format!("Extra{n}"))));
+    let index = Arc::new(index);
+    let ctx = context();
+    let mut page = PageState::default();
+    let last = snapshot.plugins.last().unwrap().name.clone();
+    // Scrolled to the end of the list.
+    scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![], None);
+    scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![], Some(10_000.0));
+    let (tree, _, offset) = scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![], None);
+    assert!(offset > 100.0, "the page is scrolled: {offset}");
+    let was = pos_of(&tree, &last).0;
+    let remove = visible_button(&tree, "Uninstall plugin");
+    let (_, out, _) = scrolled_frame(
+        &ctx,
+        &snapshot,
+        &index,
+        &mut page,
+        vec![click(remove)],
+        None,
+    );
+    let [Do::Uninstall(gone)] = out.as_slice() else {
+        panic!("{out:?}");
+    };
+    let mut rest = snapshot.clone();
+    rest.plugins.retain(|p| p.name != *gone);
+    let (tree, _, after) = scrolled_frame(&ctx, &rest, &index, &mut page, vec![], None);
+    eprintln!(
+        "gone {gone} offset {offset} -> {after}; {last} {was} -> {}",
+        pos_of(&tree, &last).0
+    );
+    assert!(after < offset, "the page followed: {offset} -> {after}");
+    assert_eq!(pos_of(&tree, &last).0, was);
+}
+
+#[test]
+fn each_tab_comes_back_scrolled_where_it_was_left() {
+    let (snapshot, index) = fixture::sample(NOW);
+    let index = Arc::new(index);
+    let ctx = context();
+    let mut page = PageState {
+        tab: Tab::Themes,
+        ..PageState::default()
+    };
+    let tree = scrolled_to_a_theme_card(&ctx, &snapshot, &index, &mut page);
+    let themes_at = scroll_anchor::offset(&ctx);
+    assert!(themes_at > 100.0);
+    let tab = |tree: &TreeUpdate, label: &str| {
+        tree.nodes
+            .iter()
+            .find(|(_, n)| n.label() == Some(label) && n.role() != Role::Label)
+            .map(|(id, _)| *id)
+            .unwrap()
+    };
+    // The store opens at its top.
+    let go = click(tab(&tree, "Plugin Store"));
+    let (_, _, store_at) = scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![go], None);
+    assert_eq!((page.tab, store_at), (Tab::Store, 0.0));
+    scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![], Some(150.0));
+    let (tree, _, store_at) = scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![], None);
+    assert_eq!(store_at, 150.0);
+    // The themes come back where they were.
+    let go = click(tab(&tree, "Themes"));
+    let (_, _, back) = scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![go], None);
+    assert_eq!((page.tab, back), (Tab::Themes, themes_at));
+    let (tree, _, same) = scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![], None);
+    assert_eq!(same, themes_at);
+    // And the store, where it was left.
+    let go = click(tab(&tree, "Plugin Store"));
+    let (_, _, store) = scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![go], None);
+    assert_eq!((page.tab, store), (Tab::Store, 150.0));
+}

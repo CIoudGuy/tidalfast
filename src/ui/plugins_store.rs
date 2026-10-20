@@ -428,9 +428,9 @@ fn grid(
     min_w: f32,
     row_h: f32,
     mut cell: impl FnMut(&mut Ui, usize, Rect),
-) {
+) -> Option<(f32, f32)> {
     if count == 0 {
-        return;
+        return None;
     }
     let avail = ui.available_width();
     let cols = (((avail + GRID_GAP) / (min_w + GRID_GAP)).floor() as usize).clamp(1, 3);
@@ -453,6 +453,7 @@ fn grid(
             cell(ui, i, Rect::from_min_size(pos2(left, top), vec2(w, row_h)));
         }
     }
+    Some((area.top(), area.bottom()))
 }
 
 fn card_fill(palette: &Palette, hovered: bool) -> Color32 {
@@ -765,7 +766,8 @@ fn shelf(
     new: bool,
     out: &mut Vec<Do>,
 ) {
-    grid(
+    let done = out.len();
+    let span = grid(
         ui,
         at.len(),
         PLUGIN_CARD_MIN_W,
@@ -794,6 +796,9 @@ fn shelf(
             );
         },
     );
+    if let Some((top, bottom)) = span {
+        scroll_anchor::block(ui, ("plugin-shelf", new), top, bottom, out.len() > done);
+    }
 }
 
 /// Sort chips: TIDAL's filter pills.
@@ -1107,7 +1112,15 @@ fn stores_section(
         store_card(ui, palette, locale, dev, true, out);
     }
     for store in &snapshot.stores {
+        let (top, done) = (ui.cursor().top(), out.len());
         store_card(ui, palette, locale, store, false, out);
+        scroll_anchor::block(
+            ui,
+            ("store", &store.url),
+            top,
+            ui.cursor().top(),
+            out.len() > done,
+        );
     }
 }
 
@@ -1262,7 +1275,15 @@ pub(super) fn themes_tab(
                 .as_ref()
                 .filter(|(id, _, at)| *id == themes::identity(&th.url) && now_s - at < 3.0)
                 .map(|(_, _, at)| *at);
+            let (top, done) = (ui.cursor().top(), out.len());
             installed_row(ui, palette, locale, index, th, *on, added, out);
+            scroll_anchor::block(
+                ui,
+                ("theme-row", themes::identity(&th.url)),
+                top,
+                ui.cursor().top(),
+                out.len() > done,
+            );
         }
         ui.add_space(20.0);
     }
@@ -1293,6 +1314,7 @@ pub(super) fn themes_tab(
                 now,
                 &page.install,
                 &new,
+                "new",
                 out,
             );
             ui.add_space(32.0);
@@ -1331,6 +1353,7 @@ pub(super) fn themes_tab(
         now,
         &page.install,
         &sorted,
+        "all",
         out,
     );
     if index.loading {
@@ -1449,9 +1472,11 @@ fn theme_grid(
     now: i64,
     field: &InstallField,
     list: &[&CatalogTheme],
+    shelf: &'static str,
     out: &mut Vec<Do>,
 ) {
-    grid(
+    let done = out.len();
+    let span = grid(
         ui,
         list.len(),
         THEME_CARD_MIN_W,
@@ -1462,6 +1487,9 @@ fn theme_grid(
             );
         },
     );
+    if let Some((top, bottom)) = span {
+        scroll_anchor::block(ui, ("theme-shelf", shelf), top, bottom, out.len() > done);
+    }
 }
 
 /// A theme's preview: a miniature of the app as the theme paints it (see
@@ -1899,8 +1927,13 @@ pub(super) fn paging_tabs(ui: &mut Ui, palette: &Palette, locale: Locale, page: 
                 )
             });
             if response.clicked() && !selected {
+                // Each tab comes back scrolled to where it was left.
+                let ctx = ui.ctx();
+                page.scrolls[page.tab as usize] = scroll_anchor::offset(ctx);
                 page.tab = choice;
                 page.search.clear();
+                scroll_anchor::reset(ctx);
+                scroll_anchor::goto(ctx, page.scrolls[choice as usize]);
             }
             response.on_hover_cursor(egui::CursorIcon::PointingHand);
         }
