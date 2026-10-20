@@ -28,9 +28,11 @@ OAuth client it was minted for. Tidalfast supports two sign-ins, both against
   listener. These clients are served hi-res FLAC (Max).
 
 Your TIDAL password never passes through Tidalfast; you sign in on TIDAL's own
-pages. The OAuth client ids and secret are not in the source or the binary:
-they come from `settings.json` (`tidal_client_id`, `tidal_client_secret`,
-`tidal_pkce_client_id`).
+pages. Tidalfast signs in with the public TIDAL clients other open-source
+players use (python-tidal and Mopidy-Tidal ship the same ones), built in so
+that signing in needs nothing but your account. `settings.json` can name
+others instead (`tidal_client_id`, `tidal_client_secret`,
+`tidal_pkce_client_id`); a client secret entered there stays in that file.
 
 Tokens are refreshed shortly before they expire, and once more after a `401`
 that says the token expired. A token must be refreshed with the client that
