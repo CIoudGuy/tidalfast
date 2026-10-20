@@ -55,7 +55,7 @@
 		if (ok) p.resolve(value);
 		else p.reject(new Error(typeof value === "string" ? value : stringify(value)));
 	};
-	const lunaInternal = (g.__lunaInternal = { callOp, callOpAsync, blobUrls: new Map() });
+	const lunaInternal = (g.__lunaInternal = { callOp, callOpAsync, blobUrls: new Map(), blobModules: new Map() });
 	lunaInternal.evalAs = native.eval;
 	lunaInternal.b64encRaw = native.b64enc;
 	lunaInternal.b64decRaw = native.b64dec;
@@ -701,13 +701,22 @@
 			}
 		}
 		// Blob URLs remember their blob, so an <img> or Image can load one.
+		// A blob of JavaScript can be imported (a module, a Worker's script)
+		// as the plugin that made the URL: its bytes are kept as they were
+		// then (js/ml.js).
 		static createObjectURL(blob) {
 			const url = "blob:luna/" + crypto.randomUUID();
-			if (blob && typeof blob === "object") lunaInternal.blobUrls.set(url, blob);
+			if (blob && typeof blob === "object") {
+				lunaInternal.blobUrls.set(url, blob);
+				if (blob._bytes instanceof Uint8Array && /^(text|application)\/(x-)?(java|ecma)script\b/i.test(String(blob.type ?? ""))) {
+					lunaInternal.blobModules.set(url, { owner: lunaInternal.pluginFromStack() ?? null, bytes: blob._bytes.slice() });
+				}
+			}
 			return url;
 		}
 		static revokeObjectURL(url) {
 			lunaInternal.blobUrls.delete(String(url));
+			lunaInternal.blobModules.delete(String(url));
 		}
 		get href() {
 			return this.#c.href;
@@ -1109,6 +1118,329 @@
 			this.port2 = new EventTarget();
 		}
 	};
+	// ---------------------------------------------------------------- DOMMatrix
+	// 4x4 matrices in CSS's column order (m11, m12, m13, m14, m21, ...), built
+	// from arrays or CSS transform lists, as `getComputedStyle(el).transform`
+	// gives them (3d-cover reads TIDAL's cover tilt this way).
+	const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+	const mul4 = (a, b) => {
+		const out = new Array(16);
+		for (let c = 0; c < 4; c++)
+			for (let r = 0; r < 4; r++) {
+				let s = 0;
+				for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+				out[c * 4 + r] = s;
+			}
+		return out;
+	};
+	const ANGLE = { deg: Math.PI / 180, rad: 1, grad: Math.PI / 200, turn: 2 * Math.PI };
+	// One CSS transform list as a matrix and whether it is 2-D; `box` sizes
+	// percentages (none: a percentage is a syntax error, as for DOMMatrix).
+	const parseTransform = (text, box) => {
+		const s = String(text ?? "").trim();
+		if (s === "" || s === "none") return { m: IDENTITY.slice(), is2D: true };
+		let m = IDENTITY.slice();
+		let is2D = true;
+		const re = /([a-zA-Z0-9]+)\(([^)]*)\)/gy;
+		let at = 0;
+		const bad = () => {
+			throw new DOMException(`Failed to parse '${s}' as a transform list`, "SyntaxError");
+		};
+		while (at < s.length) {
+			while (s[at] === " " || s[at] === "\t" || s[at] === "\n") at++;
+			if (at >= s.length) break;
+			re.lastIndex = at;
+			const hit = re.exec(s);
+			if (!hit) bad();
+			at = re.lastIndex;
+			const fn = hit[1].toLowerCase();
+			const args = hit[2].split(",").map((a) => a.trim()).filter((a) => a !== "");
+			const len = (a, axis) => {
+				const v = /^(-?[\d.]+(?:e[+-]?\d+)?)(px|%)?$/i.exec(a);
+				if (!v) bad();
+				if (v[2] === "%") return box ? (parseFloat(v[1]) / 100) * (axis === 1 ? box[1] : box[0]) : bad();
+				if (!v[2] && parseFloat(v[1]) !== 0 && fn !== "matrix" && fn !== "matrix3d") bad();
+				return parseFloat(v[1]);
+			};
+			const num = (a) => {
+				const v = Number(a);
+				if (!Number.isFinite(v)) bad();
+				return v;
+			};
+			const ang = (a) => {
+				const v = /^(-?[\d.]+(?:e[+-]?\d+)?)(deg|rad|grad|turn)?$/i.exec(a);
+				if (!v || (!v[2] && parseFloat(v[1]) !== 0)) bad();
+				return parseFloat(v[1]) * ANGLE[(v[2] ?? "rad").toLowerCase()];
+			};
+			const f = IDENTITY.slice();
+			const rot = (x, y, z, a) => {
+				const n = Math.hypot(x, y, z) || 1;
+				[x, y, z] = [x / n, y / n, z / n];
+				const c = Math.cos(a);
+				const sn = Math.sin(a);
+				const t = 1 - c;
+				f.splice(0, 16, t * x * x + c, t * x * y + sn * z, t * x * z - sn * y, 0, t * x * y - sn * z, t * y * y + c, t * y * z + sn * x, 0, t * x * z + sn * y, t * y * z - sn * x, t * z * z + c, 0, 0, 0, 0, 1);
+			};
+			switch (fn) {
+				case "matrix":
+					if (args.length !== 6) bad();
+					[f[0], f[1], f[4], f[5], f[12], f[13]] = args.map(num);
+					break;
+				case "matrix3d":
+					if (args.length !== 16) bad();
+					f.splice(0, 16, ...args.map(num));
+					is2D = false;
+					break;
+				case "translate":
+					f[12] = len(args[0] ?? "0", 0);
+					f[13] = len(args[1] ?? "0", 1);
+					break;
+				case "translatex":
+					f[12] = len(args[0], 0);
+					break;
+				case "translatey":
+					f[13] = len(args[0], 1);
+					break;
+				case "translatez":
+					f[14] = len(args[0], 2);
+					is2D = false;
+					break;
+				case "translate3d":
+					[f[12], f[13], f[14]] = [len(args[0], 0), len(args[1], 1), len(args[2], 2)];
+					is2D = false;
+					break;
+				case "scale":
+					f[0] = num(args[0]);
+					f[5] = num(args[1] ?? args[0]);
+					break;
+				case "scalex":
+					f[0] = num(args[0]);
+					break;
+				case "scaley":
+					f[5] = num(args[0]);
+					break;
+				case "scalez":
+					f[10] = num(args[0]);
+					is2D = false;
+					break;
+				case "scale3d":
+					[f[0], f[5], f[10]] = args.map(num);
+					is2D = false;
+					break;
+				case "rotate":
+				case "rotatez":
+					rot(0, 0, 1, ang(args[0]));
+					if (fn === "rotatez") is2D = false;
+					break;
+				case "rotatex":
+					rot(1, 0, 0, ang(args[0]));
+					is2D = false;
+					break;
+				case "rotatey":
+					rot(0, 1, 0, ang(args[0]));
+					is2D = false;
+					break;
+				case "rotate3d":
+					rot(num(args[0]), num(args[1]), num(args[2]), ang(args[3]));
+					is2D = false;
+					break;
+				case "skew":
+					f[4] = Math.tan(ang(args[0]));
+					f[1] = Math.tan(ang(args[1] ?? "0"));
+					break;
+				case "skewx":
+					f[4] = Math.tan(ang(args[0]));
+					break;
+				case "skewy":
+					f[1] = Math.tan(ang(args[0]));
+					break;
+				case "perspective": {
+					const d = args[0] === "none" ? 0 : len(args[0], 2);
+					if (d > 0) f[11] = -1 / d;
+					is2D = false;
+					break;
+				}
+				default:
+					bad();
+			}
+			m = mul4(m, f);
+		}
+		return { m, is2D };
+	};
+	lunaInternal.parseTransform = parseTransform;
+	const NAMES = [];
+	for (let c = 1; c <= 4; c++) for (let r = 1; r <= 4; r++) NAMES.push(`m${c}${r}`);
+	const ALIAS = { a: 0, b: 1, c: 4, d: 5, e: 12, f: 13 };
+	const inverse4 = (m) => {
+		const inv = new Array(16);
+		inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15] + m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
+		inv[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15] - m[8] * m[7] * m[14] - m[12] * m[6] * m[11] + m[12] * m[7] * m[10];
+		inv[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15] + m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
+		inv[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14] - m[8] * m[6] * m[13] - m[12] * m[5] * m[10] + m[12] * m[6] * m[9];
+		inv[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15] - m[9] * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
+		inv[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15] + m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
+		inv[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15] - m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
+		inv[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14] + m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
+		inv[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15] + m[5] * m[3] * m[14] + m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
+		inv[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15] - m[4] * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
+		inv[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15] + m[4] * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
+		inv[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14] - m[4] * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
+		inv[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11] - m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
+		inv[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11] + m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
+		inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11] - m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
+		inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10] + m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
+		const det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+		return det === 0 ? null : inv.map((v) => v / det);
+	};
+	class DOMMatrixReadOnly {
+		constructor(init) {
+			let m = IDENTITY.slice();
+			let is2D = true;
+			if (typeof init === "string") ({ m, is2D } = parseTransform(init));
+			else if (init != null && typeof init.length === "number") {
+				const a = Array.from(init, Number);
+				if (a.length === 6) m = [a[0], a[1], 0, 0, a[2], a[3], 0, 0, 0, 0, 1, 0, a[4], a[5], 0, 1];
+				else if (a.length === 16) {
+					m = a;
+					is2D = false;
+				} else throw new TypeError("A DOMMatrix needs 6 or 16 values");
+			} else if (init !== undefined) throw new TypeError("Unsupported DOMMatrix init");
+			Object.defineProperty(this, "_m", { value: m, writable: true });
+			Object.defineProperty(this, "_2d", { value: is2D, writable: true });
+		}
+		static fromMatrix(o) {
+			if (o instanceof DOMMatrixReadOnly) return new this(o._m.slice());
+			const v = o ?? {};
+			return new this([v.m11 ?? v.a ?? 1, v.m12 ?? v.b ?? 0, v.m13 ?? 0, v.m14 ?? 0, v.m21 ?? v.c ?? 0, v.m22 ?? v.d ?? 1, v.m23 ?? 0, v.m24 ?? 0, v.m31 ?? 0, v.m32 ?? 0, v.m33 ?? 1, v.m34 ?? 0, v.m41 ?? v.e ?? 0, v.m42 ?? v.f ?? 0, v.m43 ?? 0, v.m44 ?? 1]);
+		}
+		static fromFloat32Array(a) {
+			return new this(a);
+		}
+		static fromFloat64Array(a) {
+			return new this(a);
+		}
+		get is2D() {
+			return this._2d;
+		}
+		get isIdentity() {
+			return this._m.every((v, i) => v === IDENTITY[i]);
+		}
+		multiply(o) {
+			return new DOMMatrix(this._m.slice()).multiplySelf(o);
+		}
+		translate(x = 0, y = 0, z = 0) {
+			return new DOMMatrix(this._m.slice()).translateSelf(x, y, z);
+		}
+		scale(x = 1, y = x, z = 1) {
+			return new DOMMatrix(this._m.slice()).scaleSelf(x, y, z);
+		}
+		rotate(x = 0, y, z) {
+			return new DOMMatrix(this._m.slice()).rotateSelf(x, y, z);
+		}
+		rotateAxisAngle(x = 0, y = 0, z = 0, a = 0) {
+			return new DOMMatrix(this._m.slice()).multiplySelf(new DOMMatrix(`rotate3d(${x}, ${y}, ${z}, ${a}deg)`));
+		}
+		skewX(a = 0) {
+			return this.multiply(new DOMMatrix(`skewX(${a}deg)`));
+		}
+		skewY(a = 0) {
+			return this.multiply(new DOMMatrix(`skewY(${a}deg)`));
+		}
+		inverse() {
+			return new DOMMatrix(this._m.slice()).invertSelf();
+		}
+		flipX() {
+			return this.multiply(new DOMMatrix([-1, 0, 0, 1, 0, 0]));
+		}
+		flipY() {
+			return this.multiply(new DOMMatrix([1, 0, 0, -1, 0, 0]));
+		}
+		transformPoint(p = {}) {
+			const [x, y, z, w] = [p.x ?? 0, p.y ?? 0, p.z ?? 0, p.w ?? 1];
+			const m = this._m;
+			return { x: m[0] * x + m[4] * y + m[8] * z + m[12] * w, y: m[1] * x + m[5] * y + m[9] * z + m[13] * w, z: m[2] * x + m[6] * y + m[10] * z + m[14] * w, w: m[3] * x + m[7] * y + m[11] * z + m[15] * w };
+		}
+		toFloat32Array() {
+			return Float32Array.from(this._m);
+		}
+		toFloat64Array() {
+			return Float64Array.from(this._m);
+		}
+		toString() {
+			const m = this._m;
+			return this._2d ? `matrix(${[m[0], m[1], m[4], m[5], m[12], m[13]].join(", ")})` : `matrix3d(${m.join(", ")})`;
+		}
+		toJSON() {
+			const o = { is2D: this.is2D, isIdentity: this.isIdentity };
+			for (const [k, i] of Object.entries(ALIAS)) o[k] = this._m[i];
+			NAMES.forEach((k, i) => (o[k] = this._m[i]));
+			return o;
+		}
+	}
+	for (const [i, k] of NAMES.entries()) Object.defineProperty(DOMMatrixReadOnly.prototype, k, { get() { return this._m[i]; }, configurable: true });
+	for (const [k, i] of Object.entries(ALIAS)) Object.defineProperty(DOMMatrixReadOnly.prototype, k, { get() { return this._m[i]; }, configurable: true });
+	class DOMMatrix extends DOMMatrixReadOnly {
+		multiplySelf(o) {
+			const b = o instanceof DOMMatrixReadOnly ? o : DOMMatrixReadOnly.fromMatrix(o);
+			this._m = mul4(this._m, b._m);
+			this._2d = this._2d && b._2d;
+			return this;
+		}
+		preMultiplySelf(o) {
+			const b = o instanceof DOMMatrixReadOnly ? o : DOMMatrixReadOnly.fromMatrix(o);
+			this._m = mul4(b._m, this._m);
+			this._2d = this._2d && b._2d;
+			return this;
+		}
+		translateSelf(x = 0, y = 0, z = 0) {
+			return this.multiplySelf(new DOMMatrixReadOnly(z ? [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1] : [1, 0, 0, 1, x, y]));
+		}
+		scaleSelf(x = 1, y = x, z = 1) {
+			return this.multiplySelf(new DOMMatrixReadOnly(z !== 1 ? [x, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0, 0, 1] : [x, 0, 0, y, 0, 0]));
+		}
+		rotateSelf(x = 0, y, z) {
+			// One angle turns about z; three are x, then y, then z.
+			if (y === undefined && z === undefined) return this.multiplySelf(new DOMMatrixReadOnly(`rotate(${x}deg)`));
+			return this.multiplySelf(new DOMMatrixReadOnly(`rotateZ(${z ?? 0}deg) rotateY(${y ?? 0}deg) rotateX(${x}deg)`));
+		}
+		invertSelf() {
+			const inv = inverse4(this._m);
+			this._m = inv ?? new Array(16).fill(NaN);
+			if (!inv) this._2d = false;
+			return this;
+		}
+		setMatrixValue(text) {
+			const { m, is2D } = parseTransform(text);
+			this._m = m;
+			this._2d = is2D;
+			return this;
+		}
+	}
+	for (const [i, k] of NAMES.entries())
+		Object.defineProperty(DOMMatrix.prototype, k, {
+			get() {
+				return this._m[i];
+			},
+			set(v) {
+				this._m[i] = Number(v);
+				if (![0, 1, 4, 5, 12, 13].includes(i)) this._2d = false;
+			},
+			configurable: true,
+		});
+	for (const [k, i] of Object.entries(ALIAS))
+		Object.defineProperty(DOMMatrix.prototype, k, {
+			get() {
+				return this._m[i];
+			},
+			set(v) {
+				this._m[i] = Number(v);
+			},
+			configurable: true,
+		});
+	g.DOMMatrixReadOnly ??= DOMMatrixReadOnly;
+	g.DOMMatrix ??= DOMMatrix;
+	g.WebKitCSSMatrix ??= DOMMatrix;
+
 	// WebAssembly: js/wasm.js (on src/luna/wasm.rs).
 
 	// ---------------------------------------------------------------- misc

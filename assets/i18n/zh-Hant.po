@@ -3651,6 +3651,13 @@ msgid ""
 msgstr ""
 "播放列上方的歌詞氣泡可以使用，但它獨立的歌詞視窗不行，因為那需要瀏覽器引擎。"
 
+#: src/luna/mod.rs:410
+msgid ""
+"The Small depth model works, but the Base model (about 100 MB) is more than "
+"a plugin may download here."
+msgstr ""
+"Small 深度模型可以使用，但 Base 模型（約 100 MB）超出了外掛在此可下載的大小。"
+
 #: src/app/plugins.rs:444
 #, rust-format
 msgid "{name} updated to {version}"

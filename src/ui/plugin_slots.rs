@@ -1251,6 +1251,38 @@ pub fn positioned_in(ui: &mut egui::Ui, key: &str) {
     }
 }
 
+/// Positioned plugin elements at `key`/`position` drawn in place, in the
+/// layer being painted, whatever their `z-index`: inside the now-playing
+/// cover's tilt they lean with the cover, as children of TIDAL's `_tilt_`
+/// box do (3d-cover's canvas and spinner after the cover's `img`).
+pub fn positioned_here(ui: &mut egui::Ui, key: &str, position: Position) {
+    let Some(overlay) = plugin_dom::overlay() else {
+        return;
+    };
+    if !overlay
+        .injected
+        .iter()
+        .any(|i| i.anchor == key && i.position == position)
+    {
+        return;
+    }
+    let Some(container) = plugin_dom::host_rect(key) else {
+        return;
+    };
+    let vars = plugin_dom::vars();
+    let cx = Cx {
+        vars: &vars,
+        viewport: plugin_dom::viewport(),
+        keyframes: &overlay.keyframes,
+    };
+    let inherit = Inherit::root(ui);
+    for node in overlay.at(key, position) {
+        if positioned_kind(&node.style).is_some() && !node.style.hidden() {
+            positioned(ui, node, container, inherit, &cx);
+        }
+    }
+}
+
 /// Plugin elements appended to `body` (anchor `""`): positioned ones (`fixed`/
 /// `absolute`, scroll-to-playing's jump button, modals) float over the window
 /// at their `top`/`right`/`bottom`/`left`, above it for `z-index` > 0.

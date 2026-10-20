@@ -217,7 +217,7 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | Key | Element | Native widget | Slots drawn |
 |---|---|---|---|
 | `now-playing` | `div#nowPlaying[data-test=new-now-playing]._nowPlayingContainer_` with `now-playing-header` (`header`), `now-playing-background` (`._background_`), `now-playing-content` (`._innerContainer_._content_`) | the now-playing view | Append (under the cover) |
-| `now-playing-artwork` > `now-playing-artwork-img` | `div[data-test=now-playing-artwork]._artworkWrapper_ > img[src]` | big cover | |
+| `now-playing-artwork` > `now-playing-artwork-tilt` > `now-playing-artwork-img` + `now-playing-artwork-glare` | `div._artworkWrapper_ > div._tilt_._artworkTilt_[style="transform: perspective(1000px) rotateX(..deg) rotateY(..deg)"] > img[data-test=now-playing-artwork][src] + div._glare_` (TIDAL's; the `img` is a `video` while an animated cover plays; the style follows the native tilt every frame it moves) | big cover | positioned elements after the `img` or appended to the tilt box are drawn in the cover's tilt and lean with it, a WebGL canvas too (3d-cover) |
 | `lyrics-container` > `lyrics` > `lyrics-lines` | `div._lyricsContainer_ > div[data-test=now-playing-lyrics]._lyricsText_ > div` | Lyrics tab; `lyrics` hidden hides the native lines (radiant-lyrics) | container, lyrics and lines Prepend/Append (radiant-lyrics appends its lines to `lyrics-lines`) |
 | `lyric:<i>` | `span[data-test=lyrics-line][data-current]` (+ `_current_`, `aria-current`) | one line; text override (translators), colour (colorama), hidden; clicks forwarded | Append, After (under the line) |
 | `lyrics-sync-wrap` > `lyrics-sync` | `div._syncButtonContainer_ > button[data-test=lyrics-sync-button]` | (no native rect yet) | |
@@ -360,7 +360,7 @@ Images are read for their size when they load and decoded when first drawn
 or sampled. Canvases publish
 after the animation frame that drew on them (`markup = "canvas:<id>"`).
 `Image`/`<img>` decode data:, blob: and http(s) sources, then fire
-`load`/`error`; `createImageBitmap`, `OffscreenCanvas`, `ImageData` work.
+`load`/`error`; `createImageBitmap` (with `resizeWidth`/`resizeHeight`/`resizeQuality`), `OffscreenCanvas`, `ImageData` work. `DOMMatrix` reads CSS transform lists, and `getComputedStyle(el).transform` gives the `matrix()`/`matrix3d()` a browser reports. A WebGL canvas inside the now-playing tilt (or faded) is drawn into a texture of its own and laid on the screen as a perspective-correct quad.
 Web Audio: `AudioContext` with analyser, channel splitter, media-stream/
 media-element sources and pass-through nodes. Analysers read
 `crate::audio_tap` (the shared output after the EQ, before the volume),
@@ -370,6 +370,34 @@ and costs one atomic load per buffer otherwise; exclusive mode is not tapped
 TIDAL's player element: it follows playback, fires play/playing/pause/
 timeupdate/ended, and its `captureStream()` feeds analysers. Demo builds
 feed analysers a synthetic chord.
+
+### Module blobs, Workers, transformers.js
+
+(`src/luna/js/ml.js`, resolver in `src/luna/runtime.rs`.) A blob URL of
+JavaScript (`text/javascript` and the like) made by a plugin can be
+`import()`ed by that plugin: it runs under the plugin's name (`plugin:<name>@blob:...`),
+with the bytes the blob had when the URL was made; another plugin's blob, or
+a blob of another type, is refused as a browser refuses a non-JavaScript
+module. `new Worker(url, { type: "module" })` takes such a URL and runs the
+script on the Luna thread with a scope of its own: `self` is a
+`DedicatedWorkerGlobalScope` (`instanceof WorkerGlobalScope`; other names
+fall through to the global, so `navigator.gpu` is absent), `postMessage`
+and `onmessage` work both ways as separate tasks, messages sent before the
+script ran are queued, transferred buffers and `ImageBitmap`s pass as they
+are and the rest is cloned; each worker gets its own instance of the
+modules it imports. `importScripts` and classic workers' bare `onmessage =`
+are not available. When the imported blob is transformers.js (its bundle,
+recognised by the strings every build carries), the plugin gets a stand-in
+with `env`, `pipeline`, `RawImage` and `Tensor`: `pipeline("depth-estimation",
+model, { device: "wasm"|"cpu", dtype })` fetches `config.json`,
+`preprocessor_config.json` and `onnx/model<dtype suffix>.onnx` through
+`env.fetch` (the plugin's own when it set one) and runs the model natively
+(`src/luna/depth.rs` on `onnx.rs`/`onnx_run.rs`): the image prepared as
+transformers.js does (bilinear resize to the processor's size, rescale,
+normalise), the prediction resized back and spread over 0..255. WebGPU and
+other tasks say they are not available. The model stays loaded on one
+low-priority thread while it is used and goes after two idle minutes (the
+stand-in loads it again from the plugin's cache when asked).
 
 ### Off-screen checks
 

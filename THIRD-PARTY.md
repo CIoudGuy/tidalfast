@@ -291,6 +291,7 @@ Generated with `cargo tree --target all -e normal,build --prefix none --format "
 | [log](https://github.com/rust-lang/log) | 0.4.34 | MIT OR Apache-2.0 |
 | [mach2](https://github.com/JohnTitor/mach2) | 0.6.0 | BSD-2-Clause OR MIT OR Apache-2.0 |
 | [malloc_buf](https://github.com/SSheldon/malloc_buf) | 0.0.6 | MIT |
+| [matrixmultiply](https://github.com/bluss/matrixmultiply/) | 0.3.11 | MIT/Apache-2.0 |
 | [md-5](https://github.com/RustCrypto/hashes) | 0.10.6 | MIT OR Apache-2.0 |
 | [memchr](https://github.com/BurntSushi/memchr) | 2.8.3 | Unlicense OR MIT |
 | [memmap2](https://github.com/RazrFalcon/memmap2-rs) | 0.9.11 | MIT OR Apache-2.0 |
@@ -389,6 +390,7 @@ Generated with `cargo tree --target all -e normal,build --prefix none --format "
 | [rand_chacha](https://github.com/rust-random/rand) | 0.9.0 | MIT OR Apache-2.0 |
 | [rand_core](https://github.com/rust-random/rand) | 0.9.5 | MIT OR Apache-2.0 |
 | [raw-window-handle](https://github.com/rust-windowing/raw-window-handle) | 0.6.2 | MIT OR Apache-2.0 OR Zlib |
+| [rawpointer](https://github.com/bluss/rawpointer/) | 0.2.1 | MIT/Apache-2.0 |
 | [read-fonts](https://github.com/googlefonts/fontations) | 0.41.0 | MIT OR Apache-2.0 |
 | [redox_syscall](https://gitlab.redox-os.org/redox-os/syscall) | 0.4.1 | MIT |
 | [redox_syscall](https://gitlab.redox-os.org/redox-os/syscall) | 0.5.18 | MIT |

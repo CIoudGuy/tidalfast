@@ -183,6 +183,14 @@ rusty_vp9 = "0.1.2"
 # WHATWG URL parsing for the runtime's `URL` global and fetch. Already in the
 # tree through reqwest.
 url = "2"
+# Matrix products for the depth model a Luna plugin runs through its
+# transformers.js calls (src/luna/onnx_run.rs: @visiuun/3d-cover's
+# Depth-Anything-V2). Pure Rust SGEMM with run-time SIMD dispatch and one
+# tiny dependency (rawpointer); it keeps a cover at about a second where plain
+# loops take many. A full ONNX runtime (tract, ort) would add 18 MB or a
+# native library for one plugin, so the few operators the model needs are
+# Tidalfast's own.
+matrixmultiply = { version = "0.3", default-features = false, features = ["std"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "1.0.2", features = ["keychain"] }

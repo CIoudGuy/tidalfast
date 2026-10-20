@@ -122,11 +122,38 @@ pub fn show(ui: &mut egui::Ui, node: &VNode, width: Option<f32>, height: Option<
             );
         }
         Some(Frame::Gl(g)) if g.w > 0 && g.h > 0 && !g.cmds.is_empty() => {
-            let cb = egui_glow::CallbackFn::new(move |info, painter| {
-                replay(id, &g, &info, painter);
+            // Inside the now-playing cover's tilt, or faded, the canvas is
+            // drawn offscreen and laid on the screen as a (projected) quad:
+            // a paint callback is not something the tilt can warp.
+            let opacity = ui.opacity();
+            let corners = super::cover_tilt::projected(rect).or_else(|| {
+                (opacity < 1.0).then(|| {
+                    [
+                        rect.left_top(),
+                        rect.right_top(),
+                        rect.right_bottom(),
+                        rect.left_bottom(),
+                    ]
+                    .map(|p| (p, 1.0))
+                })
             });
+            let (area, cb) = match corners {
+                Some(corners) => {
+                    let area = Rect::from_points(&corners.map(|(p, _)| p)).expand(1.0);
+                    let cb = egui_glow::CallbackFn::new(move |info, painter| {
+                        replay_quad(id, &g, &info, painter, corners, opacity);
+                    });
+                    (area, cb)
+                }
+                None => (
+                    rect,
+                    egui_glow::CallbackFn::new(move |info, painter| {
+                        replay(id, &g, &info, painter);
+                    }),
+                ),
+            };
             ui.painter().add(egui::PaintCallback {
-                rect,
+                rect: area,
                 callback: Arc::new(cb),
             });
         }
@@ -164,7 +191,28 @@ struct GlCache {
     seen: HashMap<u64, u64>,
     vao: Option<glow::VertexArray>,
     uses: u32,
+    /// Offscreen pictures of canvases drawn as quads ([`replay_quad`]).
+    screens: HashMap<u64, Screen>,
+    /// The program and buffer laying such a picture on the screen.
+    blit: Option<Blit>,
 }
+
+/// A canvas's own picture: a texture and the framebuffer drawing into it.
+struct Screen {
+    tex: glow::Texture,
+    fb: glow::Framebuffer,
+    w: i32,
+    h: i32,
+}
+
+struct Blit {
+    prog: glow::Program,
+    alpha: Option<glow::UniformLocation>,
+    buf: glow::Buffer,
+}
+
+const BLIT_VS: &str = "in vec4 a_pos;\nin vec2 a_uv;\nout vec2 v_uv;\nvoid main() {\n  v_uv = a_uv;\n  gl_Position = a_pos;\n}\n";
+const BLIT_FS: &str = "precision mediump float;\nuniform sampler2D u_tex;\nuniform float u_alpha;\nin vec2 v_uv;\nout vec4 o_color;\nvoid main() {\n  o_color = texture(u_tex, v_uv) * u_alpha;\n}\n";
 
 thread_local! {
     /// Per GL context (the compact window has its own).
@@ -344,6 +392,7 @@ fn replay(id: u64, frame: &GlFrame, info: &egui::PaintCallbackInfo, painter: &eg
                 vp: &vp,
                 clip: &clip,
                 outer: gl.get_parameter_framebuffer(glow::FRAMEBUFFER_BINDING),
+                screen: None,
             };
             // Offscreen work of frames this context has not run yet, then
             // this frame (only its canvas draws when it ran already: a
@@ -361,7 +410,191 @@ fn replay(id: u64, frame: &GlFrame, info: &egui::PaintCallbackInfo, painter: &eg
     });
 }
 
+/// Replays the canvas into a picture of its own, then lays that on the
+/// screen at `corners` (points, each with its perspective divisor) at
+/// `opacity`: the now-playing cover's tilt leans it like the cover.
+fn replay_quad(
+    id: u64,
+    frame: &GlFrame,
+    info: &egui::PaintCallbackInfo,
+    painter: &egui_glow::Painter,
+    corners: [(egui::Pos2, f32); 4],
+    opacity: f32,
+) {
+    let gl = painter.gl();
+    let ctx_key = Arc::as_ptr(gl) as usize;
+    let vp = info.viewport_in_pixels();
+    let clip = info.clip_rect_in_pixels();
+    if vp.width_px <= 0 || vp.height_px <= 0 {
+        return;
+    }
+    let (w, h) = (frame.w as i32, frame.h as i32);
+    GL.with(|all| {
+        let mut all = all.borrow_mut();
+        let cache = all.entry(ctx_key).or_default();
+        // SAFETY: called by egui_glow while its context is current.
+        unsafe {
+            if !cache.prepare(gl) {
+                return;
+            }
+            let outer = gl.get_parameter_framebuffer(glow::FRAMEBUFFER_BINDING);
+            let Some((fb, tex)) = cache.screen(gl, id, w, h) else {
+                gl.bind_framebuffer(glow::FRAMEBUFFER, outer);
+                return;
+            };
+            let seen = cache.seen.get(&id).copied().unwrap_or(0);
+            let mut r = Replay {
+                gl,
+                xf: [0.0, 0.0, 1.0, 1.0],
+                vp: &vp,
+                clip: &clip,
+                outer,
+                screen: Some((fb, w, h)),
+            };
+            r.target(cache, None, None);
+            gl.clear_color(0.0, 0.0, 0.0, 0.0);
+            gl.clear(glow::COLOR_BUFFER_BIT);
+            for p in frame.prior.iter().filter(|p| p.version > seen) {
+                r.run(cache, &p.cmds, false, true);
+            }
+            r.run(cache, &frame.cmds, true, frame.version > seen);
+            cache.seen.insert(id, frame.version);
+            // Back to egui's framebuffer, viewport and clip.
+            r.screen = None;
+            r.target(cache, None, None);
+            cache.blit(gl, tex, info.viewport, corners, opacity);
+            gl.bind_buffer(glow::ARRAY_BUFFER, None);
+            gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, None);
+            gl.bind_vertex_array(None);
+            gl.use_program(None);
+        }
+    });
+}
+
 impl GlCache {
+    /// Canvas `id`'s own picture at `w`x`h`: its framebuffer and texture.
+    unsafe fn screen(
+        &mut self,
+        gl: &glow::Context,
+        id: u64,
+        w: i32,
+        h: i32,
+    ) -> Option<(glow::Framebuffer, glow::Texture)> {
+        if let Some(s) = self.screens.get(&id)
+            && s.w == w
+            && s.h == h
+        {
+            return Some((s.fb, s.tex));
+        }
+        unsafe {
+            if let Some(old) = self.screens.remove(&id) {
+                gl.delete_framebuffer(old.fb);
+                gl.delete_texture(old.tex);
+            }
+            let tex = gl.create_texture().ok()?;
+            gl.bind_texture(glow::TEXTURE_2D, Some(tex));
+            gl.tex_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                glow::RGBA8 as i32,
+                w,
+                h,
+                0,
+                glow::RGBA,
+                glow::UNSIGNED_BYTE,
+                glow::PixelUnpackData::Slice(None),
+            );
+            for (param, value) in [
+                (glow::TEXTURE_MIN_FILTER, glow::LINEAR),
+                (glow::TEXTURE_MAG_FILTER, glow::LINEAR),
+                (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE),
+                (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE),
+            ] {
+                gl.tex_parameter_i32(glow::TEXTURE_2D, param, value as i32);
+            }
+            gl.bind_texture(glow::TEXTURE_2D, None);
+            let Ok(fb) = gl.create_framebuffer() else {
+                gl.delete_texture(tex);
+                return None;
+            };
+            gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fb));
+            gl.framebuffer_texture_2d(
+                glow::FRAMEBUFFER,
+                glow::COLOR_ATTACHMENT0,
+                glow::TEXTURE_2D,
+                Some(tex),
+                0,
+            );
+            self.screens.insert(id, Screen { tex, fb, w, h });
+            Some((fb, tex))
+        }
+    }
+
+    /// Draws texture `tex` as the quad `corners` (premultiplied, faded to
+    /// `opacity`) into the callback's `viewport` (points).
+    unsafe fn blit(
+        &mut self,
+        gl: &glow::Context,
+        tex: glow::Texture,
+        viewport: Rect,
+        corners: [(egui::Pos2, f32); 4],
+        opacity: f32,
+    ) {
+        unsafe {
+            if self.blit.is_none() {
+                let src = lc::GlProgram {
+                    vs: format!("#version 300 es\n{BLIT_VS}"),
+                    fs: format!("#version 300 es\n{BLIT_FS}"),
+                    attribs: vec!["a_pos".into(), "a_uv".into()],
+                };
+                let (Ok(prog), Ok(buf)) = (compile(gl, &src), gl.create_buffer()) else {
+                    log::warn!("Luna canvas quad program failed");
+                    return;
+                };
+                let alpha = gl.get_uniform_location(prog, "u_alpha");
+                self.blit = Some(Blit { prog, alpha, buf });
+            }
+            let Some(b) = &self.blit else { return };
+            let mut v: Vec<f32> = Vec::with_capacity(24);
+            // A strip: left-top, right-top, left-bottom, right-bottom; the
+            // picture's first row is the canvas's bottom.
+            for (i, [u, t]) in [
+                (0, [0.0, 1.0]),
+                (1, [1.0, 1.0]),
+                (3, [0.0, 0.0]),
+                (2, [1.0, 0.0]),
+            ] {
+                let (p, w) = corners[i];
+                let x = (p.x - viewport.min.x) / viewport.width().max(1e-3) * 2.0 - 1.0;
+                let y = 1.0 - (p.y - viewport.min.y) / viewport.height().max(1e-3) * 2.0;
+                v.extend([x * w, y * w, 0.0, w, u, t]);
+            }
+            let bytes: Vec<u8> = v.iter().flat_map(|f| f.to_ne_bytes()).collect();
+            gl.use_program(Some(b.prog));
+            gl.uniform_1_f32(b.alpha.as_ref(), opacity.clamp(0.0, 1.0));
+            gl.active_texture(glow::TEXTURE0);
+            gl.bind_texture(glow::TEXTURE_2D, Some(tex));
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(b.buf));
+            gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, &bytes, glow::STREAM_DRAW);
+            gl.enable_vertex_attrib_array(0);
+            gl.vertex_attrib_pointer_f32(0, 4, glow::FLOAT, false, 24, 0);
+            gl.enable_vertex_attrib_array(1);
+            gl.vertex_attrib_pointer_f32(1, 2, glow::FLOAT, false, 24, 16);
+            gl.enable(glow::BLEND);
+            gl.blend_equation(glow::FUNC_ADD);
+            gl.blend_func_separate(
+                glow::ONE,
+                glow::ONE_MINUS_SRC_ALPHA,
+                glow::ONE,
+                glow::ONE_MINUS_SRC_ALPHA,
+            );
+            gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
+            gl.disable_vertex_attrib_array(0);
+            gl.disable_vertex_attrib_array(1);
+            gl.bind_texture(glow::TEXTURE_2D, None);
+        }
+    }
+
     /// Creates the vertex array and, now and then, drops GL objects whose
     /// canvases, buffers or textures went away. `false` when GL failed.
     unsafe fn prepare(&mut self, gl: &glow::Context) -> bool {
@@ -393,6 +626,14 @@ impl GlCache {
                     keep
                 });
                 self.seen.retain(|id, _| lc::frame(*id).is_some());
+                self.screens.retain(|id, s| {
+                    let keep = lc::frame(*id).is_some();
+                    if !keep {
+                        gl.delete_framebuffer(s.fb);
+                        gl.delete_texture(s.tex);
+                    }
+                    keep
+                });
             }
             gl.bind_vertex_array(self.vao);
             true
@@ -549,6 +790,9 @@ struct Replay<'a> {
     clip: &'a egui::epaint::ViewportInPixels,
     /// egui's framebuffer, bound again after offscreen draws.
     outer: Option<glow::Framebuffer>,
+    /// The canvas's own picture standing in for egui's framebuffer
+    /// ([`replay_quad`]): framebuffer, width, height.
+    screen: Option<(glow::Framebuffer, i32, i32)>,
 }
 
 impl Replay<'_> {
@@ -558,8 +802,8 @@ impl Replay<'_> {
     unsafe fn target(&self, cache: &mut GlCache, fb: Option<u64>, vp: Option<[i32; 4]>) -> bool {
         let gl = self.gl;
         unsafe {
-            match fb {
-                Some(key) => {
+            match (fb, self.screen) {
+                (Some(key), _) => {
                     if !cache.framebuffer(gl, key) {
                         gl.bind_framebuffer(glow::FRAMEBUFFER, self.outer);
                         return false;
@@ -574,7 +818,13 @@ impl Replay<'_> {
                     gl.viewport(x, y, w, h);
                     true
                 }
-                None => {
+                (None, Some((screen, w, h))) => {
+                    gl.bind_framebuffer(glow::FRAMEBUFFER, Some(screen));
+                    gl.disable(glow::SCISSOR_TEST);
+                    gl.viewport(0, 0, w, h);
+                    true
+                }
+                (None, None) => {
                     gl.bind_framebuffer(glow::FRAMEBUFFER, self.outer);
                     gl.viewport(
                         self.vp.left_px,
@@ -630,6 +880,12 @@ impl Replay<'_> {
                     GlCmd::Clear { color, fb: None } => {
                         // A transparent clear leaves what is behind the canvas.
                         if !screen || color[3] <= 0.0 {
+                            continue;
+                        }
+                        if self.screen.is_some() {
+                            let a = color[3].clamp(0.0, 1.0);
+                            gl.clear_color(color[0] * a, color[1] * a, color[2] * a, a);
+                            gl.clear(glow::COLOR_BUFFER_BIT);
                             continue;
                         }
                         let x0 = vp.left_px.max(clip.left_px);
@@ -695,7 +951,7 @@ impl Replay<'_> {
             gl.use_program(Some(prog));
             if let Some(l) = &p.xf {
                 // A framebuffer's gl_FragCoord is already in its own pixels.
-                let xf = if d.fb.is_some() {
+                let xf = if d.fb.is_some() || self.screen.is_some() {
                     [0.0, 0.0, 1.0, 1.0]
                 } else {
                     self.xf

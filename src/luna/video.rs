@@ -237,7 +237,7 @@ fn target(want: [usize; 2], full: [usize; 2], frames: usize) -> [usize; 2] {
 /// Puts the decoder thread behind everything else: a plugin's decoration
 /// can wait a moment, the music and the window cannot.
 #[cfg(windows)]
-fn step_back() {
+pub(super) fn step_back() {
     use windows_sys::Win32::System::Threading::{
         GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_LOWEST,
     };
@@ -251,7 +251,7 @@ fn step_back() {
 /// Puts the decoder thread behind everything else (on Linux a thread's nice
 /// value is its own).
 #[cfg(target_os = "linux")]
-fn step_back() {
+pub(super) fn step_back() {
     // SAFETY: plain system call on the calling thread; nothing is borrowed.
     unsafe {
         libc::setpriority(libc::PRIO_PROCESS, 0, 10);
@@ -259,7 +259,7 @@ fn step_back() {
 }
 
 #[cfg(not(any(windows, target_os = "linux")))]
-fn step_back() {}
+pub(super) fn step_back() {}
 
 /// The decoder thread: every frame once, then it ends.
 fn decode_all(clip: &Clip, out: &Decoded) {
