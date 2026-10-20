@@ -378,7 +378,11 @@ test (`src/luna/harden_tests.rs` unless named).
   shim function to a timer, or registering native code under another
   plugin's file name. `child_process` (spawn, its permission question and
   the Always list), files, sockets, settings and status all use that
-  identity. Plugins cannot import each other's modules.
+  identity. Plugins cannot import each other's modules. The owner of a
+  socket, server or child process is kept in the shim's own WeakMap, never
+  on the object, so a method called from a promise job (no plugin frame for
+  Rust to read) cannot be pointed at another plugin's connections
+  (`security_tests::a_plugin_cannot_use_another_plugins_sockets_through_a_forged_owner`).
 - Shared realm (as in TidaLuna). All plugins run in one JavaScript realm. A
   plugin can still change shared built-ins and shared modules
   (`luna.core.modules`, prototypes, `ReactiveStore` stores by name) and so
@@ -388,8 +392,9 @@ test (`src/luna/harden_tests.rs` unless named).
   not guessed from its code: the Plugins page lists network, IPC, server,
   files, native code, programs and DOM as each happens.
 - Sources. Plugins, stores and themes install and update over HTTPS only
-  (plain HTTP from this computer, for dev servers). Downloads stop at their
-  size cap while reading. A plugin `fetch` follows redirects itself and puts
+  (plain HTTP from this computer, for dev servers), and a redirect is held to
+  the same rule (`security_tests::an_install_redirected_to_plain_http_elsewhere_is_refused`).
+  Downloads stop at their size cap while reading. A plugin `fetch` follows redirects itself and puts
   every hop to the host's outbound policy (TIDAL's sign-in and token hosts
   are refused, however the address is spelled). Discord IPC, and another
   program's pipe a plugin was allowed, are reached only on this computer: a
@@ -429,7 +434,9 @@ test (`src/luna/harden_tests.rs` unless named).
   writer thread: the first change at once, later ones at most twice a
   second together, everything on sync and shutdown; a store is capped at
   16 MB (`QuotaExceededError`; `storage::tests`). A plugin may keep 256 MB in
-  its data folder (`ENOSPC` past that; `fsops::tests`). `fs.readFile`,
+  its data folder (`ENOSPC` past that; `fsops::tests`), and on Windows it
+  cannot write alternate data streams (`file:stream`, `EINVAL`), which the
+  quota would not see. `fs.readFile`,
   `writeFile` and `appendFile` carry the bytes as they are, not as base64
   (a 100 MB model's base64 copies would not fit the 256 MB plugin heap).
 - Removing a plugin deletes everything it left (the trash button, or the
@@ -473,7 +480,13 @@ test (`src/luna/harden_tests.rs` unless named).
 - Page. The overlay carries at most 10000 plugin elements and 4 MB of plugin
   and theme CSS; the rest is left out with a log line, and a single sheet
   over 4 MB is not parsed (`dom_tests::the_overlay_is_capped`). The runtime
-  refuses an overlay over 32 MB.
+  refuses an overlay over 32 MB. An image (plugin, theme or other) or a
+  canvas larger than the GPU's largest texture is scaled to fit
+  (`src/texture_fit.rs`): the glow painter asserts on a larger one and
+  release builds abort on a panic. The permission, program and message-box
+  questions sit on a layer above every plugin element, so a plugin's box
+  cannot cover their buttons
+  (`demo::tests::a_plugin_box_is_never_drawn_over_the_permission_prompt`).
 - Clipboard. Plugins write to the clipboard only within 5 seconds of a user
   action plugins hear about (a click or key on the page, a context menu
   entry, a setting, an intercepted user action), as browsers require
