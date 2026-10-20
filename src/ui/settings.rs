@@ -196,6 +196,7 @@ pub(crate) fn section(
 /// [`section`]'s card, for rows that sit under a heading drawn elsewhere.
 fn card(ui: &mut egui::Ui, palette: &Palette, add_contents: impl FnOnce(&mut egui::Ui)) {
     Frame::new()
+        .fill(widgets::setting_card_fill(palette))
         .stroke(Stroke::new(1.0, widgets::setting_card_line(palette)))
         .corner_radius(CornerRadius::same(16))
         .inner_margin(Margin::symmetric(
@@ -276,7 +277,10 @@ fn tabs_row(app: &App, ui: &mut egui::Ui) -> (SettingsTab, String) {
     let mut filter = ui
         .data(|data| data.get_temp::<String>(egui::Id::new(SETTINGS_FILTER_ID)))
         .unwrap_or_default();
-    ui.horizontal(|ui| {
+    // TIDAL's hairline under the tabs, painted under the open tab's line.
+    let hairline = ui.painter().add(egui::Shape::Noop);
+    let mut tabs_bottom = None;
+    let row = ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 24.0;
         for (choice, label) in [
             (SettingsTab::General, gettext(locale, "General")),
@@ -295,6 +299,7 @@ fn tabs_row(app: &App, ui: &mut egui::Ui) -> (SettingsTab, String) {
             );
             let (rect, response) =
                 ui.allocate_exact_size(Vec2::new(galley.size().x, 35.0), egui::Sense::click());
+            tabs_bottom = Some(rect.bottom());
             // TIDAL's paging tabs: `color .1s` on the enter curve, and the
             // underline grows in (`height .1s`).
             let tab_fade = crate::motion::Transition::new(0.1, crate::motion::ease::ENTER);
@@ -346,6 +351,16 @@ fn tabs_row(app: &App, ui: &mut egui::Ui) -> (SettingsTab, String) {
             );
         });
     });
+    if let Some(bottom) = tabs_bottom {
+        ui.painter().set(
+            hairline,
+            egui::Shape::hline(
+                row.response.rect.x_range(),
+                bottom - 0.5,
+                Stroke::new(1.0, palette.hairline()),
+            ),
+        );
+    }
     ui.data_mut(|data| {
         data.insert_temp(tab_id, tab);
         data.insert_temp(egui::Id::new(SETTINGS_FILTER_ID), filter.clone());
@@ -356,21 +371,23 @@ fn tabs_row(app: &App, ui: &mut egui::Ui) -> (SettingsTab, String) {
 fn page(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     let locale = app.locale;
-    ui.add_space(28.0);
+    // TIDAL desktop: the title 64 from the top of the page, its tabs 52
+    // under it and the first heading 84 under those.
+    ui.add_space(19.0);
     theme::text(
         ui,
         gettext(locale, "Settings"),
         theme::bold(28.0),
         palette.text,
     );
-    ui.add_space(24.0);
+    ui.add_space(11.0);
     let (tab, needle) = tabs_row(app, ui);
     let general = !needle.is_empty() || tab == SettingsTab::General;
     let playback_tab = !needle.is_empty() || tab == SettingsTab::Playback;
     let downloads_tab = !needle.is_empty() || tab == SettingsTab::Downloads;
     let account_tab = !needle.is_empty() || tab == SettingsTab::Account;
     let about_tab = !needle.is_empty() || tab == SettingsTab::About;
-    ui.add_space(48.0);
+    ui.add_space(44.0);
     let dirty_id = egui::Id::new(PLAYBACK_DIRTY_ID);
     let mut playback_dirty = ui
         .data(|data| data.get_temp::<bool>(dirty_id))
@@ -913,7 +930,9 @@ fn page(app: &mut App, ui: &mut egui::Ui) {
                 |ui| {
                     ui.with_layout(Layout::top_down(Align::Max), |ui| {
                         let selected = app.settings.theme.label(locale);
+                        widgets::tidal_combo_style(ui, &palette);
                         let response = egui::ComboBox::from_id_salt("appearance_theme")
+                            .icon(widgets::combo_chevron)
                             .selected_text(selected.as_ref())
                             .width(200.0_f32.min(ui.available_width()))
                             .show_ui(ui, |ui| {
@@ -1573,7 +1592,9 @@ fn page(app: &mut App, ui: &mut egui::Ui) {
                         .iter()
                         .find(|(name, _, _)| app.settings.download_quality == *name)
                         .map_or(same.clone(), |(_, label, _)| label.clone());
+                    widgets::tidal_combo_style(ui, &palette);
                     egui::ComboBox::from_id_salt("settings-download-quality")
+                        .icon(widgets::combo_chevron)
                         .selected_text(selected.as_ref())
                         .width(200.0)
                         .show_ui(ui, |ui| {
@@ -1616,7 +1637,9 @@ fn page(app: &mut App, ui: &mut egui::Ui) {
                 &downloads_rows[2],
                 |ui| {
                     let current = app.settings.download_concurrency();
+                    widgets::tidal_combo_style(ui, &palette);
                     egui::ComboBox::from_id_salt("settings-download-concurrency")
+                        .icon(widgets::combo_chevron)
                         .selected_text(current.to_string())
                         .width(80.0)
                         .show_ui(ui, |ui| {
@@ -2054,7 +2077,9 @@ fn output_device_picker(app: &mut App, ui: &mut egui::Ui, changed: &mut bool, di
         .unwrap_or_else(|| system.to_string());
     let devices = DeviceList::current(ui.ctx());
     let opened_id = egui::Id::new("settings-output-devices-opened");
+    widgets::tidal_combo_style(ui, &palette);
     let response = egui::ComboBox::from_id_salt("settings-output-device")
+        .icon(widgets::combo_chevron)
         .selected_text(selected)
         .width(240.0)
         .show_ui(ui, |ui| {
@@ -2281,7 +2306,9 @@ fn language_picker(app: &mut App, ui: &mut egui::Ui) {
         LanguageChoice::System => system.clone(),
         LanguageChoice::Locale(chosen) => chosen.native_name().into(),
     };
+    widgets::tidal_combo_style(ui, &app.palette);
     let response = egui::ComboBox::from_id_salt("interface_language")
+        .icon(widgets::combo_chevron)
         .selected_text(selected.as_ref())
         .width(200.0_f32.min(ui.available_width()))
         // As many languages as a menu holds before it scrolls, not five.
