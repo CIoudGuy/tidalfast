@@ -4434,8 +4434,9 @@ pub fn thin_slider(
             || response.dragged()
             || dragging_value.is_some();
         let bar = Rect::from_center_size(rect.center(), vec2(rect.width(), 4.0));
+        // TIDAL desktop: a #404040 rail on its #1e1e1e bar.
         let track_color = if palette.dark {
-            Color32::from_white_alpha(50)
+            Color32::from_white_alpha(38)
         } else {
             Color32::from_black_alpha(40)
         };
@@ -4452,8 +4453,8 @@ pub fn thin_slider(
             active,
             crate::motion::tidal::KNOB,
         );
-        let fill = crate::motion::blend(palette.text, palette.accent, knob);
-        ui.painter().rect_filled(filled, 2.0, fill);
+        // TIDAL desktop fills the played part in its accent, pointer or not.
+        ui.painter().rect_filled(filled, 2.0, palette.accent);
         if knob > 0.0 {
             ui.painter().circle_filled(
                 pos2(filled.right(), bar.center().y),

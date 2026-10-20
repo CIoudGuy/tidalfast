@@ -638,6 +638,7 @@ fastframe_icons::icons! {
         ListMusic => "list-music",
         ListPlus => "list-plus",
         ListVideo => "list-video",
+        QueueLines => "queue-lines",
         Loader => "loader-circle",
         LyricsSync => "lyrics-sync",
         Lock => lucide "lock",
