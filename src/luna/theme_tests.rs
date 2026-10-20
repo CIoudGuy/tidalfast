@@ -1635,6 +1635,84 @@ fn a_colourway_applies_over_its_installed_base() {
     let _ = std::fs::remove_dir_all(&data);
 }
 
+/// A catalogue colourway names its base: installing it (from its card, or
+/// by its URL, spaces in the path encoded) fetches the base the catalogue
+/// gives for this system with it, with no search of the repository and no
+/// check that the two look alike, and applies the two as one theme. A base
+/// that cannot be fetched leaves the colourway unapplied, with an error.
+/// The catalogue's raw links are served locally through the demo mirror.
+#[cfg(feature = "demo")]
+#[test]
+fn a_catalogue_colourway_installs_with_the_base_the_catalogue_names() {
+    use crate::plugins::store_index::CATALOG;
+    let entry = CATALOG
+        .iter()
+        .find(|e| e.name == "Cotton Candy: Calavera")
+        .unwrap();
+    let url = entry.url();
+    assert!(url.contains("halloween%20collection/"), "{url}");
+    let base_url = entry.base_url().unwrap();
+    let raw = "https://raw.githubusercontent.com";
+    // Small and setting colours of its own: no colourway test would pass.
+    let base_css = ":root { --own: #101010 }\n#main { color: var(--cover-Vib1) }\n";
+    let colours = ":root { --cover-Vib1: rgb(200, 20, 30); }\n";
+    let files: Files = Arc::default();
+    files.lock().unwrap().insert(
+        url.strip_prefix(raw).unwrap().to_string(),
+        colours.as_bytes().to_vec(),
+    );
+    files.lock().unwrap().insert(
+        base_url.strip_prefix(raw).unwrap().to_string(),
+        base_css.as_bytes().to_vec(),
+    );
+    // Nights' colourways: the colourway is there, its base is not.
+    let nights = CATALOG
+        .iter()
+        .find(|e| e.name == "Cotton Candy Nights: Milky Way")
+        .unwrap();
+    files.lock().unwrap().insert(
+        nights.url().strip_prefix(raw).unwrap().to_string(),
+        colours.as_bytes().to_vec(),
+    );
+    let server = serve(files);
+    // SAFETY: tests read this variable only to fetch raw GitHub links, and
+    // no other test here fetches one.
+    unsafe { std::env::set_var("TIDALFAST_DEMO_THEME_MIRROR", format!("{server}/")) };
+    let data = temp_dir("theme-catalogue-colourway");
+    let luna = Luna::start(config(&data), Arc::new(MockHost::default())).unwrap();
+    luna.sync_dom(tree());
+    luna.install_theme(&url);
+    let end = Instant::now() + Duration::from_secs(20);
+    let want = base_css.len() + 1 + colours.len();
+    while luna.dom_overlay().css_bytes != want && Instant::now() < end {
+        luna.sync_dom(tree());
+        luna.sync(Duration::from_secs(5));
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    assert_eq!(
+        luna.dom_overlay().css_bytes,
+        want,
+        "the base's CSS comes with the colourway"
+    );
+    let s = wait_until(&luna, 10, |s| s.themes.len() == 1 && !s.themes[0].loading);
+    assert_eq!(s.themes[0].url, url);
+    assert!(s.themes[0].enabled && s.themes[0].error.is_none());
+
+    luna.install_theme(&nights.url());
+    let s = wait_until(&luna, 10, |s| {
+        s.themes.len() == 2 && s.themes.iter().all(|t| !t.loading)
+    });
+    let failed = s.themes.iter().find(|t| t.url == nights.url()).unwrap();
+    assert!(
+        failed.error.as_deref().is_some_and(|e| e.contains("base")),
+        "{:?}",
+        failed.error
+    );
+    unsafe { std::env::remove_var("TIDALFAST_DEMO_THEME_MIRROR") };
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&data);
+}
+
 /// Lunallena slides TIDAL's sidebar out with `[style="width: 240px;"]`
 /// (TIDAL's expanded wrapper is a fixed 240 wide, and the rail its own
 /// width), and lays `#main` under it with a `left` of minus

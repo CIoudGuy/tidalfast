@@ -113,13 +113,7 @@ pub(crate) fn export_file_name() -> String {
 
 /// The base of a colourway at `url`, from its GitHub repository's file list.
 fn find_base(c: &reqwest::blocking::Client, url: &str, css: &str) -> Option<(String, String)> {
-    let os: &[&str] = if cfg!(windows) {
-        &["windows", "win"]
-    } else if cfg!(target_os = "macos") {
-        &["macos", "mac", "darwin"]
-    } else {
-        &["linux"]
-    };
+    let os = super::super::themes::this_os();
     super::super::themes::discover_base(
         url,
         css,
@@ -370,18 +364,35 @@ impl Engine {
             i.dirty = true;
         }
         let u = url.to_string();
+        // A colourway's base, when it is known (the catalogue's, or one
+        // found before), loads with it, so the two stay current together.
         // A theme not yet known to be a colourway may be one: its base is
         // looked for in its repository while it loads.
-        let want_base = self
-            .inner
-            .borrow()
-            .themes
-            .get(url)
-            .is_some_and(|t| t["baseCss"].is_null());
+        let (known_base, has_base) = {
+            let i = self.inner.borrow();
+            let t = i.themes.get(url);
+            (
+                t.and_then(|t| t["base"].as_str())
+                    .filter(|b| super::is_secure_source(b))
+                    .map(str::to_string),
+                t.is_some_and(|t| !t["baseCss"].is_null()),
+            )
+        };
         self.spawn_fetch(move |c| {
-            let result = fetch_text(&c, &u);
-            let base = match &result {
-                Ok(css) if want_base => find_base(&c, &u, css),
+            let mut result = fetch_text(&c, &u);
+            let base = match (&result, known_base) {
+                (Err(_), _) => None,
+                (Ok(_), Some(b)) => match fetch_text(&c, &b) {
+                    Ok(css) => Some((b, css)),
+                    // The saved copy stays; without one the colourway alone
+                    // would show uncoloured, so the theme does not load.
+                    Err(_) if has_base => None,
+                    Err(e) => {
+                        result = Err(format!("its base theme: {e}"));
+                        None
+                    }
+                },
+                (Ok(css), None) if !has_base => find_base(&c, &u, css),
                 _ => None,
             };
             Fetched::Theme {
@@ -416,10 +427,12 @@ impl Engine {
         let url = &super::super::themes::canonical_url(url);
         {
             let mut i = self.inner.borrow_mut();
-            i.themes.insert(
-                url.to_string(),
-                json!({ "enabled": true, "enabledAt": now_ms() }),
-            );
+            let mut entry = json!({ "enabled": true, "enabledAt": now_ms() });
+            // A catalogue colourway names its base: it is fetched with it.
+            if let Some(base) = crate::plugins::store_index::catalog_base(url) {
+                entry["base"] = json!(base);
+            }
+            i.themes.insert(url.to_string(), entry);
             i.save_themes();
             i.log(None, LogLevel::Info, format!("Added theme {url}"));
         }
@@ -438,14 +451,19 @@ impl Engine {
             let mut i = self.inner.borrow_mut();
             // A colourway applies over its base, and is one theme to the
             // user: the base installed already, else the one found in the
-            // repository, kept inside this theme's own entry.
+            // repository, kept inside this theme's own entry. A base named
+            // already (the catalogue's, or found before) is taken as fetched.
+            let (named, has_base) = i.themes.get(&url).map_or((false, false), |t| {
+                (t["base"].is_string(), !t["baseCss"].is_null())
+            });
             let base = match &result {
-                Ok(css) if i.themes.get(&url).is_some_and(|t| t["baseCss"].is_null()) => {
+                Ok(_) if named => found_base,
+                Ok(css) if !has_base => {
                     super::super::themes::installed_base(&i.themes, &url, css).or(found_base)
                 }
                 _ => None,
             };
-            if let Some((base_url, _)) = &base {
+            if let Some((base_url, _)) = base.as_ref().filter(|_| !has_base) {
                 i.log(
                     None,
                     LogLevel::Info,
@@ -466,11 +484,14 @@ impl Engine {
                     let applied = super::super::themes::applied_css(t);
                     let on = t["enabled"].as_bool() == Some(true);
                     i.theme_state.remove(&url);
-                    // The same CSS installed by another URL: one theme.
+                    // The same CSS installed by another URL: one theme (a
+                    // colourway over another base is another theme).
                     let twin = i
                         .themes
                         .iter()
-                        .find(|(u, t)| **u != url && t["css"].as_str() == Some(css.as_str()))
+                        .find(|(u, t)| {
+                            **u != url && super::super::themes::applied_css(t) == applied
+                        })
                         .map(|(u, _)| u.clone());
                     if let Some(twin) = twin {
                         i.themes.remove(&url);

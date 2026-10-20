@@ -12,12 +12,12 @@ ones, and each row says which round last verified it. How a round worked is unde
 "History" at the end; the API surface is checked in
 [luna-api-coverage.md](luna-api-coverage.md) (71 rows: 65 works, 6 refused).
 
-## Summary (round 19)
+## Summary (round 19; catalogue themes round 20)
 
 | | ✅ live | ✅ tests only | 🔑 your permission | ⛔ by design | ⚠️ external | ❌ open | total |
 |---|---|---|---|---|---|---|---|
 | Plugins | 74 | 1 | 5 | 6 | 1 | 0 | 87 |
-| Catalogue themes | 9 | 0 | 0 | 0 | 0 | 0 | 9 |
+| Catalogue themes | 50 | 0 | 0 | 0 | 0 | 2 | 52 |
 
 Since 2026-10-20 (owner decision) five plugins that were refused by design
 run once the user allows what they ask for: discord-utils (the TIDAL
@@ -180,9 +180,9 @@ Notes that apply to every plugin:
 ## Themes
 
 Luna has no theme store of its own: users install a theme's CSS by URL on the
-Themes tab, or run a theme plugin. Tidalfast ships a short catalogue
-(`CATALOG` in `store_index.rs`, self-contained community themes; colourway files
-that need a base are left out) and every public Luna/TIDAL theme found on GitHub
+Themes tab, or run a theme plugin. Tidalfast ships a catalogue
+(`CATALOG` in `store_index.rs`: standalone themes, and colourways installed
+together with the base they need) and every public Luna/TIDAL theme found on GitHub
 (2026-10-15) was run through `theme_tests::sweep`. A theme's `font-family`,
 layout (floating bar, sidebar card) and animations apply only while the user
 applies it; Dark and Light without a theme are untouched. Differences from an
@@ -199,10 +199,30 @@ the screenshot.
 | Catppuccin Frappe | pernydev/tidal-catppuccin | ✅ live r14 | As Mocha. |
 | Catppuccin Mocha Blue | DavidHiFi/MochaTidal | ✅ live r14 | Monospace font (Fira Code, then the system's), blue accents, glass `#main`, 128 anchors, blue Play and Shuffle pills with dark labels, the playing row's highlight: matches both of the author's shots. Idle cost was 11 G cycles per 20 s until r15, now 1.96. |
 | Lunallena | Acercandr0 | ✅ live r15 | Floating glass bar (98vw, 2vh up, 20 px corners), sidebar card slid out with a 23 point sliver showing (the page lies under it from the window's left edge, and the sliver reveals the sidebar over the page under the pointer; an earlier build left a 163 point empty panel beside the page, because a slid sidebar narrowed itself to 210 and no longer matched the theme's `[style="width: 240px;"]` rule), header tab that slides down under the pointer (all three checked with a pointer), dimmed covers that grow, tall rounded favourite-artist cards (300 px, since r15). Its small radius on `[class*="round"]` names a variable Tidalfast does not define and is ignored. Idle: see Round 16. |
-| Cotton Candy | aya-zzz-zzz/cottoncandy | ✅ live r15 | Sidebar card, palette, 35 to 43 anchors, tiles (own playlists pure pink, others blue to pink, 30 s drift), the playlist page's panel and filter pill, rounded covers, pills; the bar stays full width, as in the file. Tile words are white: Chrome computes white for every tile too (the author's screenshot, from January 2026, predates that rule: it entered the file between 2026-03-07 and 2026-06-16). TIDAL's narrow icon rail and smaller titles in the author's shots, and the artist header's blurred side copies, are TIDAL's layout of the author's version. |
-| Cotton Candy Nights | aya-zzz-zzz/cottoncandy | ✅ live r15 | Dark palette, 40 anchors, the bar's dark glass, blue and pink header pills, pink MAX badge with dark label, dark purple card boxes, rounded row thumbnails (8 px). Compared with the author's one Home shot (tiles, no panel behind lists, narrow rail: as Cotton Candy). |
+| Cotton Candy | aya-zzz-zzz/cotton-candy-colorways (`base-windows.css` + `cottoncandy.css`) | ✅ live r20 | The current build: the base (layout, no colours) and the Cotton Candy colourway, installed as one theme. Floating rounded bar, sidebar card, pink and blue tiles, light window, rounded pink artist cards. Until round 20 the catalogue listed the older single file `aya-zzz-zzz/cottoncandy` `cottoncandy_win.css` (round 15: sidebar card, palette, 35 to 43 anchors, tiles with a 30 s drift, the playlist panel and filter pill; tile words white as Chrome computes them). A copy installed from it stays installed and reloads from that file, which its author still publishes. |
+| Cotton Candy Nights | aya-zzz-zzz/cottoncandynights (`base-windows.css` + `colorways/astronaut icecream/cottoncandynights.css`) | ✅ live r20 | Dark purple window with its stars (one dot per 450 by 240 tile, see round 20), pink and blue tiles, dark purple cards and sidebar card. The older single file (`aya-zzz-zzz/cottoncandy` `cottoncandynights_win.css`, round 15) keeps working where it is installed. |
 | Sugarcoat | aya-zzz-zzz/tidal-sugarcoat | ✅ live r9 | As Cotton Candy; its colours follow the cover through CoverTheme's variables; the MAX badge is the file's current near-black fill (its author's shot, from an older file, shows pink). The author's image link has expired: not compared with a shot. |
 | Meteor Night | masterjabberwook/TidaLuna-Meteor-Night | ✅ live r9 | Night-blue token ramp, card glass and the artist header's wash reach shelf cards and header; the album and playlist header keeps TIDAL's cover wash (the theme does not restyle it). Its meteor animation is a separate plugin. No author images to compare. |
+| Tidal TUI | InterstellarOne/Tidal-TUI (no licence) | ✅ live r20 | Box borders around the sidebar, page and player bar; the rest of the palette is TIDAL's. Its two height variables (`tui-settings.css`) are not in the file and are left to the user, as in Luna. |
+| Tidal Light | InterstellarOne/Tidal-Light `no-header.css` (MIT) | ✅ live r20 | Light window, sidebar and bar in the app's Light; in Dark nothing changes (its rules sit in `@media (prefers-color-scheme: light)`, as in TIDAL). |
+| Lunallena (macOS), Lunallena (visible sidebar) | Acercandr0/Lunallena (no licence) | ✅ live r20 | As Lunallena; the visible-sidebar build keeps the sidebar card out, the macOS build slides it away. |
+| Sunken Tidal | Acercandr0/Sunken-Tidal (no licence) | ✅ live r20 | Dark sunken panels and a flat bar. |
+| Giorgeous | Acercandr0/Giorgeous (no licence) | ✅ live r20 | Black window, green accents; its Doto font shows only when installed. |
+| Black Glow | KEIROFPS/Tidal-black-glow-theme (no licence) | ✅ live r20 | Token theme: black window and panels, grey text. |
+| Tidal Amoled | UnbreakableKid/Tidal-Amoled (no licence) | ✅ live r20 | Black page, title bar, sidebar, player bar. |
+| Tidalify | JayTheXXVII/Tidalify (no licence) | ✅ live r20 | Dark grey panels and a red accent. |
+| Rosé Pine | rose-pine/tidal (MIT) | ✅ live r20 | Its whole token ramp. |
+| Synthwave '77 | Puszkarek/synthwave-77 `tidal/styles.css` (no licence) | ✅ live r20 | Token ramp and magenta text; Refinery 75 only when installed. |
+| Abyss Neptune, Abyss Neptune (macOS black) | itzzexcel/neptune-projects (GPL-3.0, archived) | ✅ live r20 | Grey and black token ramp with white accents. Both files name themselves "Abyss Neptune"; the cards show the catalogue's names. |
+| TidalCustomTheme | kotooriiii/TidalCustomTheme (MIT) | ❌ open r20 | Pink window, footer and search, its dark red text on the shortcut tiles. Its text colour rules name TIDAL's `wave-text-*` utility classes (`.wave-text-headline-bold` and the like) and its sidebar colour names `_sidebar_` containers by attribute; Tidalfast's headings, artist names and sidebar carry neither, so the headings keep the app's light text over the theme's pink window (hard to read) and the sidebar stays black. Needs those classes on the native headings; not done here. |
+| Minimalist Black | anmolbyte/tidaLuna-mods (Apache-2.0) | ✅ live r20 | Token theme: black on black, green accent. |
+| Blur | Inrixia/luna-plugins `themes/blur.css` (AGPL-3.0) | ✅ live r20 | As in "Other public themes" below: glass title bar and header; made to sit on CoverTheme's gradients. |
+| Cotton Candy colourways (14: Horchata, Baja Blast, Sea Salt Ice Cream, Shasta Twist, Calavera, Strawberry Mint, Blueberry Lemon Poppyseed Muffin, Fairy Floss, Purple Paradise Punch, Raspberry Orange Sherbet, Snowcone, Sour Rainbow Strips, Ube Charcoal Ice Cream, Violet Sky Margarita) | aya-zzz-zzz/cotton-candy-colorways (MIT), each over `base-windows.css` | ✅ live r20 | Each is the Cotton Candy layout in its own colours (calavera pink and orange, fairy floss lavender, sour rainbow strips a pastel rainbow); text dark on the light windows and readable in all 14. |
+| Cotton Candy (adaptive), Cotton Candy: Horchata (adaptive) | aya-zzz-zzz/cotton-candy-colorways, over `adaptive/base/windows-adaptive.css` | ✅ live r20 | Styled in the app's Light, stock in Dark (its `@media (prefers-color-scheme: light)`). |
+| Cotton Candy Nights colourways (8: Milky Way, Lilikoi, Pop Rocks, Blueberry Cobbler, Namagashi, Ameowicano, Calavera, Hot Tamales) | aya-zzz-zzz/cottoncandynights (no licence), each over `base-windows.css` | ✅ live r20 | Dark windows with stars, the colourway's tiles and cards. Before round 20 five of them (Milky Way, Blueberry Cobbler, Lilikoi, Hot Tamales, Calavera) painted each star as a white glow over the whole window, which turned it light and the sidebar's names dark on the dark sidebar (see round 20). |
+| Cotton Candy Twilight | aya-zzz-zzz/cotton-candy-twilight (no licence), over `base-windows.css` | ❌ open r20 | Dark starry window and dark cards, light tiles, light sidebar card and bar, as the theme means. The sidebar's navigation labels (Explore, Feed, Upload, Collection) and the bar's artist line are near white on the light sidebar and bar, and the bar's right-hand buttons sit under a light box: the theme's text colours for those parts are not reached by Tidalfast's native rows. Not chased here (pixel comparison is a separate task). |
+| Cotton Candy Twilight (adaptive) | aya-zzz-zzz/cotton-candy-twilight, over `adaptive/base/windows-adaptive.css` | ✅ live r20 (as Twilight) | Styled in the app's Dark (its query is `prefers-color-scheme: dark`), stock in Light; in Dark the same open points as Twilight. |
+| Solo v2 | Solomag/tidaluna-overrides `solo-milkyway.css` (no licence), over Cotton Candy Nights' `base-windows.css` | ✅ live r20 | Black window with stars, dark tiles and cards, the floating bar; see solo-milkyway under "Other public themes" for the rules Tidalfast has no element for. |
 
 Shared by the cotton candy family: the artist header's backdrop portrait is not
 an anchor (no catalogue file names it, and TIDAL's own class is unknown, since
@@ -921,10 +941,20 @@ Supporters, only lists TidaLuna's GitHub sponsors and contributors and is left o
   change.
 - Themes: TidaLuna has no theme store (its Themes tab installs a CSS file by URL, and the
   community publishes themes as CSS files in GitHub repositories), so Tidalfast ships a
-  short catalogue of self-contained community themes (`CATALOG` in `store_index.rs`: the
-  Catppuccin ports by pernydev and DavidHiFi, Lunallena, Cotton Candy, Cotton Candy Nights,
-  Sugarcoat, Meteor Night; colourway files that need a base file are left out). Each is
-  fetched once (the first 160 KB of its CSS, with an ETag) for its manifest and preview.
+  catalogue of community themes (`CATALOG` in `store_index.rs`, 52 entries, listed under
+  "Themes" above). The catalogue links to the author's own file and copies nothing into
+  Tidalfast; licences (or their absence) are noted beside each entry. A colourway names its
+  base theme (`CatalogEntry::base`: the base's repository and its builds per system, the
+  one for this system picked by `themes::pick_build`, Windows' where a system has none):
+  its card installs the two as one theme, the colourway saved with `base` (the URL) and
+  `baseCss`, applied base first, and Reload fetches both. The same happens when the
+  colourway's URL is added by hand (`store_index::catalog_base`). Paths are
+  percent-encoded (`halloween%20collection/`). Each card's CSS is fetched once (the first
+  160 KB, with an ETag) for its manifest and preview; a colourway's base is fetched once
+  per refresh for all its colourways, cut after its last whole rule, and the preview drawn
+  from the two together (the colourway's own manifest and colours name it). Two catalogue
+  files whose manifests give the same name (the two Abyss Neptune builds) show the
+  catalogue's names and descriptions.
   The preview is a miniature of the app as the theme paints it, in the app's Dark or Light
   (`src/ui/theme_preview.rs`): the theme's rules (nesting, `@media (prefers-color-scheme)`,
   `@supports`, `@layer`) are matched by their last compound selector against the elements
@@ -935,12 +965,14 @@ Supporters, only lists TidaLuna's GitHub sponsors and contributors and is left o
   theme CSS (the catalogue's in the index thread and cached in `store-index.json`,
   installed themes' on the Luna thread, kept by URL and CSS hash); painting it is a handful
   of shapes. Dates come from the git commit dates of the CSS file (newest and oldest
-  commit) and the repository's stars. The tab shows "Applied: <name>" (or says that no
+  commit) and the repository's stars; with 52 themes a first refresh needs more GitHub API
+  requests than an hour allows, so the files' dates are asked for last, after the stores'
+  repositories (the CSS comes from raw links, which need none). The tab shows "Applied: <name>" (or says that no
   theme is applied: Dark and Light stay the defaults until the user picks one),
   **Installed** (each theme with its preview, name, author, description and the URL it
   came from under them, Luna's switch, Reload theme, Uninstall theme), then the catalogue
   (the New shelf only from 12 themes on, so a short catalogue lists each theme
-  once). Apply installs or enables the theme; an applied card shows Active, Turn off and
+  once; with 52 it shows). Apply installs or enables the theme; an applied card shows Active, Turn off and
   Remove.
 - One theme at a time: switching a theme on (its switch, Apply, or adding it) switches
   the others off, in the runtime (`themes.rs`), and the page shows it at once (the switch
@@ -953,6 +985,8 @@ Supporters, only lists TidaLuna's GitHub sponsors and contributors and is left o
   under its raw GitHub URL. Adding a theme already installed (by any of those links, or a
   file with the same CSS from elsewhere) applies the installed one and lights its row
   instead of adding a second; saved duplicates collapse at start (the enabled one kept).
+  A colourway is its CSS over its base's: the same colourway file over another base is
+  another theme.
   A different theme with the same name (DavidHiFi's Mocha Blue and pernydev's Mocha) is
   not a duplicate.
 - Names: from the JSON in the first `/* */` comment (Neptune's manifest), else the
@@ -1208,6 +1242,31 @@ untouched (compared pixel for pixel in every round).
 - **Round 18.** Plugin text on the sidebar's navigation anchors and the header pills is drawn (korean-translation live); TIDAL's ids `titleCell`, `albumText`, `timeColumn`, `contributionText`, `headerColumn`, `playbackControlBar`, `nowPlayingHeader`, `playlist-shortcut` and page names `my-collection`, `feed`, `explore` are on the anchors; solo-luna/solo-milkyway's unreachable selectors counted and explained; LyricsPorter seen on a free port; spotify-sync's missing `tidaLuna://` handler recorded.
 - **Round 19.** Native painters read a theme's resolved boxes for the sidebar's navigation rows (`_navigationItem_`, now on the `sidebarItem` anchors beside `_sidebarItem_`), the collection's cells (`_cellContainer_`, `_cellCoverContainer_` on the cards of `mycollection_*` pages), the context menu's rows, the search pill (`_searchFieldWithPopover_` on the search container), shuffle and repeat (`_shuffleButton_`, `_repeatButton_`), the library rows (`_contentItem_`), Explore's icon links (`PAGE_LINKS`) and the track rows' cell colours (Inrixia's example theme's gold text; a colour that would not read over the window is dropped). All are cached per overlay version; with no theme nothing is looked up, so Dark and Light draw as before. TidaLuna's MUI settings page (`[data-test="settings-page"]`, `.MuiStack-root`, `.css-*`: 187 of solo-luna's rules, 17 of solo-milkyway's) is a React page Tidalfast does not run; its Plugins page is native, and a rule for MUI classes would have to restyle a layout that is not drawn from them, so they stay unmapped on purpose.
 - **Round 19.** `tidaluna:` is registered by every package and a `tidaluna://` link reaches the plugins (spotify-sync's sign-in redirect); see its row for what was and was not run.
+- **Round 20 (themes).** The catalogue grew from 9 to 52: the 16 standalone
+  themes of the 2026-10-20 survey, and Aya's colourways (every one of
+  cotton-candy-colorways, cottoncandynights and cotton-candy-twilight) plus
+  Solo v2, each installed with the base it names (`CatalogEntry::base`). Each
+  new card was applied in an off-screen demo window (Home, 1400 by 900, Dark,
+  and Light for the adaptive ones and Tidal Light), installed the way Luna
+  keeps it (URL, base URL, no CSS), so the app fetched both files. One renderer
+  bug found and fixed: a radial gradient whose colour ends a pixel from its
+  centre (`hsla(0, 0%, 100%, var(--star1)) 1px, transparent 0`, the Nights
+  family's stars, tiled by `background-size: 450px 240px`) was painted as a glow
+  over the whole box, opaque white because the alpha is a registered property
+  (`@property --star1`) Tidalfast leaves empty; the window was then taken as
+  light and the sidebar's names turned dark on its dark card. Such a gradient is
+  now a dot (`PageLayer::Dot`, up to 12 points) once per tile of its own
+  `background-size` entry, and leaves the window's colour alone
+  (`a_one_pixel_radial_gradient_is_a_tiled_dot_not_a_glow`). The stars do not
+  twinkle (their keyframes animate the registered property). Open: Cotton Candy
+  Twilight's sidebar labels and bar text, TidalCustomTheme's headings (rows
+  above). Relative `@import` (Snusehunden's Tidaluna-Theme) is not resolved:
+  that file's two `@import`s come after other rules, so Chrome ignores them in
+  TidaLuna too, and they name `./variables.css` and `./mica.css` beside
+  `dist/theme.css`, where the repository has no such files (they are in
+  `Tidaluna/Theme/`, and `dist/theme.css` already carries their rules). No
+  other theme found uses a relative import. Materialuna (`ninocss/Materialuna`)
+  is not listed: its repository is not public.
 - **Round 17.** `search/SEARCH_RESULT_SUCCESS` is emitted for a search; payload edits show as titles (Hunminjeongeum); fixed settings overlays are drawn over the window (colorama-lyrics); LangRomanizer seen live; DesktopConnect marked by design.
 
 

@@ -121,8 +121,9 @@ pub fn dedupe(themes: &mut Map<String, Value>) -> bool {
             if drop.contains(b) {
                 continue;
             }
+            // A colourway is its CSS over its base's.
             let same_css = matches!(
-                (themes[a]["css"].as_str(), themes[b]["css"].as_str()),
+                (applied_css(&themes[a]), applied_css(&themes[b])),
                 (Some(x), Some(y)) if x == y
             );
             if identity(a) != identity(b) && !same_css {
@@ -305,19 +306,49 @@ pub fn installed_base(
         })
 }
 
+/// The names a file uses for this system (`base-windows.css`, `-win`).
+pub fn this_os() -> &'static [&'static str] {
+    if cfg!(windows) {
+        &["windows", "win"]
+    } else if cfg!(target_os = "macos") {
+        &["macos", "mac", "darwin"]
+    } else {
+        &["linux"]
+    }
+}
+
+const SYSTEMS: &[&str] = &["windows", "win", "linux", "macos", "mac", "darwin"];
+
+/// The words of a file's name (`adaptive/base/windows-adaptive.css` is
+/// `windows`, `adaptive`).
+fn file_words(p: &str) -> Vec<String> {
+    let file = p.rsplit('/').next().unwrap_or(p).to_ascii_lowercase();
+    let stem = file.rsplit_once('.').map_or(file.as_str(), |(s, _)| s);
+    stem.split(['-', '_', '.', ' '])
+        .map(str::to_string)
+        .collect()
+}
+
+/// Of a base theme's builds, the one for this system (`os`, as
+/// [`this_os`]): the first whose name names it, else the first naming no
+/// system, else the first (Cotton Candy Nights has no macOS build, and its
+/// Windows one is used there).
+pub fn pick_build<'a>(paths: &[&'a str], os: &[&str]) -> Option<&'a str> {
+    let names = |p: &str, list: &[&str]| file_words(p).iter().any(|w| list.contains(&w.as_str()));
+    paths
+        .iter()
+        .find(|p| names(p, os))
+        .or_else(|| paths.iter().find(|p| !names(p, SYSTEMS)))
+        .or_else(|| paths.first())
+        .copied()
+}
+
 /// Paths in a repository that are base files for this machine, nearest the
 /// colourway's folder first: CSS files with "base" in the name, those naming
 /// another system left out (`base-windows.css` is for Windows only). `os`
 /// is this system's names (`["windows", "win"]`).
 pub fn base_candidates(paths: &[String], colourway_path: &str, os: &[&str]) -> Vec<String> {
-    const SYSTEMS: &[&str] = &["windows", "win", "linux", "macos", "mac", "darwin"];
-    let words = |p: &str| -> Vec<String> {
-        let file = p.rsplit('/').next().unwrap_or(p).to_ascii_lowercase();
-        let stem = file.rsplit_once('.').map_or(file.as_str(), |(s, _)| s);
-        stem.split(['-', '_', '.', ' '])
-            .map(str::to_string)
-            .collect()
-    };
+    let words = file_words;
     let mut found: Vec<(usize, &String)> = paths
         .iter()
         .filter(|p| p.to_ascii_lowercase().ends_with(".css") && p.as_str() != colourway_path)
@@ -684,6 +715,57 @@ mod tests {
         assert_eq!(
             base_candidates(&paths, "adaptive/colorways/pink.css", &win)[0],
             "adaptive/base/base-windows.css"
+        );
+    }
+
+    #[test]
+    fn a_base_theme_build_is_picked_for_this_system() {
+        let cc = ["base-windows.css", "base-linux.css", "base-macos.css"];
+        let win: &[&str] = &["windows", "win"];
+        let mac: &[&str] = &["macos", "mac", "darwin"];
+        assert_eq!(pick_build(&cc, win), Some("base-windows.css"));
+        assert_eq!(pick_build(&cc, &["linux"]), Some("base-linux.css"));
+        assert_eq!(pick_build(&cc, mac), Some("base-macos.css"));
+        // No macOS build: the first.
+        let nights = ["base-windows.css", "base-linux.css"];
+        assert_eq!(pick_build(&nights, mac), Some("base-windows.css"));
+        // The system's word anywhere in the file's name, not its folders.
+        let adaptive = [
+            "adaptive/base/windows-adaptive.css",
+            "adaptive/base/linux-adaptive.css",
+        ];
+        assert_eq!(
+            pick_build(&adaptive, &["linux"]),
+            Some("adaptive/base/linux-adaptive.css")
+        );
+        // A build for every system is taken when this one has none.
+        let mixed = ["base-linux.css", "base.css"];
+        assert_eq!(pick_build(&mixed, win), Some("base.css"));
+        assert_eq!(pick_build(&[], win), None);
+        assert!(!this_os().is_empty());
+    }
+
+    #[test]
+    fn a_colourway_over_another_base_is_another_theme() {
+        let mut m = Map::new();
+        m.insert(
+            "https://e/light/calavera.css".into(),
+            json!({ "enabled": false, "css": "c", "baseCss": "light" }),
+        );
+        m.insert(
+            "https://e/nights/calavera.css".into(),
+            json!({ "enabled": true, "css": "c", "baseCss": "dark" }),
+        );
+        assert!(!dedupe(&mut m), "same colours, other bases");
+        m.insert(
+            "https://mirror/nights/calavera.css".into(),
+            json!({ "enabled": false, "css": "c", "baseCss": "dark" }),
+        );
+        assert!(dedupe(&mut m));
+        assert_eq!(m.len(), 2);
+        assert!(
+            m.contains_key("https://e/nights/calavera.css"),
+            "the one on stays"
         );
     }
 

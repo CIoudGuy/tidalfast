@@ -45,8 +45,10 @@ const CSS_HEAD: usize = 160 * 1024;
 /// The largest GitHub API answer read.
 const MAX_JSON: usize = 16 * 1024 * 1024;
 
-/// A curated community theme: Neptune/TidaLuna CSS themes that stand on their
-/// own (no base file to import). TidaLuna lists none itself.
+/// A curated community theme: a Neptune/TidaLuna CSS file in its author's
+/// repository, fetched from there (nothing is copied into Tidalfast). Most
+/// stand alone; a colourway names the base it is applied over, and the card
+/// installs the two as one theme. TidaLuna lists none itself.
 pub struct CatalogEntry {
     pub name: &'static str,
     pub author: &'static str,
@@ -55,15 +57,76 @@ pub struct CatalogEntry {
     pub repo: &'static str,
     /// The CSS file's path in the repository (default branch).
     pub path: &'static str,
+    /// The base theme this file is a colourway (or patch) of, if any.
+    pub base: Option<&'static Base>,
 }
 
+/// A base theme: layout and effects with no colours of its own, which a
+/// colourway file completes. Its builds for each system are in one
+/// repository; the one for this system is used ([`themes::pick_build`]).
+///
+/// [`themes::pick_build`]: crate::luna::themes::pick_build
+pub struct Base {
+    /// `owner/repo`.
+    pub repo: &'static str,
+    /// The builds' paths, the default (Windows) build first.
+    pub paths: &'static [&'static str],
+}
+
+impl Base {
+    /// The build for this system, as a raw URL.
+    pub fn url(&self) -> String {
+        let path = crate::luna::themes::pick_build(self.paths, crate::luna::themes::this_os())
+            .unwrap_or_default();
+        raw_url(self.repo, path)
+    }
+}
+
+// Licences, as the repositories state them (2026-10-20). The catalogue links
+// to the author's own file and copies nothing, so a repository without a
+// licence can still be listed.
+
+/// Cotton Candy (light), MIT.
+const COTTON_CANDY: Base = Base {
+    repo: "aya-zzz-zzz/cotton-candy-colorways",
+    paths: &["base-windows.css", "base-linux.css", "base-macos.css"],
+};
+/// Cotton Candy's adaptive base: styled only while the app is in Light.
+const COTTON_CANDY_ADAPTIVE: Base = Base {
+    repo: "aya-zzz-zzz/cotton-candy-colorways",
+    paths: &[
+        "adaptive/base/windows-adaptive.css",
+        "adaptive/base/linux-adaptive.css",
+    ],
+};
+/// Cotton Candy Nights (dark), no licence.
+const COTTON_CANDY_NIGHTS: Base = Base {
+    repo: "aya-zzz-zzz/cottoncandynights",
+    paths: &["base-windows.css", "base-linux.css"],
+};
+/// Cotton Candy Twilight (dark, light footer and sidebar), no licence.
+const COTTON_CANDY_TWILIGHT: Base = Base {
+    repo: "aya-zzz-zzz/cotton-candy-twilight",
+    paths: &["base-windows.css", "base-linux.css"],
+};
+/// Twilight's adaptive base: styled only while the app is in Dark.
+const COTTON_CANDY_TWILIGHT_ADAPTIVE: Base = Base {
+    repo: "aya-zzz-zzz/cotton-candy-twilight",
+    paths: &[
+        "adaptive/base/windows-adaptive.css",
+        "adaptive/base/linux-adaptive.css",
+    ],
+};
+
 pub const CATALOG: &[CatalogEntry] = &[
+    // MIT.
     CatalogEntry {
         name: "Catppuccin Mocha",
         author: "pernydev",
         description: "The Catppuccin palette for the TIDAL player, Mocha flavour.",
         repo: "pernydev/tidal-catppuccin",
         path: "mocha.css",
+        base: None,
     },
     CatalogEntry {
         name: "Catppuccin Macchiato",
@@ -71,6 +134,7 @@ pub const CATALOG: &[CatalogEntry] = &[
         description: "The Catppuccin palette for the TIDAL player, Macchiato flavour.",
         repo: "pernydev/tidal-catppuccin",
         path: "macchiato.css",
+        base: None,
     },
     CatalogEntry {
         name: "Catppuccin Frappe",
@@ -78,58 +142,467 @@ pub const CATALOG: &[CatalogEntry] = &[
         description: "The Catppuccin palette for the TIDAL player, Frappe flavour.",
         repo: "pernydev/tidal-catppuccin",
         path: "frappe.css",
+        base: None,
     },
+    // MIT.
     CatalogEntry {
         name: "Catppuccin Mocha Blue",
         author: "DavidHiFi",
         description: "Catppuccin Mocha with a blue accent and a mauve progress bar.",
         repo: "DavidHiFi/MochaTidal",
         path: "MochaTidal.css",
+        base: None,
     },
+    // No licence.
     CatalogEntry {
         name: "Lunallena",
         author: "Acercandr0",
         description: "A full screen theme inspired by full'moon.",
         repo: "Acercandr0/Lunallena",
         path: "Lunallena.css",
+        base: None,
     },
+    // Replaces the older single file (aya-zzz-zzz/cottoncandy), which keeps working where it is installed.
     CatalogEntry {
         name: "Cotton Candy",
         author: "aya-zzz-zzz",
-        description: "Pink and blue pastels with a soft glow.",
-        repo: "aya-zzz-zzz/cottoncandy",
-        path: "cottoncandy_win.css",
+        description: "Pink and blue pastels with a soft glow. The Cotton Candy colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "cottoncandy.css",
+        base: Some(&COTTON_CANDY),
     },
     CatalogEntry {
         name: "Cotton Candy Nights",
         author: "aya-zzz-zzz",
-        description: "The colourful dark companion of Cotton Candy.",
-        repo: "aya-zzz-zzz/cottoncandy",
-        path: "cottoncandynights_win.css",
+        description: "The colourful dark companion of Cotton Candy, applied over its base.",
+        repo: "aya-zzz-zzz/cottoncandynights",
+        path: "colorways/astronaut icecream/cottoncandynights.css",
+        base: Some(&COTTON_CANDY_NIGHTS),
     },
+    // No licence.
     CatalogEntry {
         name: "Sugarcoat",
         author: "aya-zzz-zzz",
         description: "A light theme that follows the playing cover.",
         repo: "aya-zzz-zzz/tidal-sugarcoat",
         path: "sugarcoat-win.css",
+        base: None,
     },
+    // No licence.
     CatalogEntry {
         name: "Meteor Night",
         author: "masterjabberwook",
         description: "Dark glass floating in the sky during a meteor shower.",
         repo: "masterjabberwook/TidaLuna-Meteor-Night",
         path: "meteor-night.css",
+        base: None,
+    },
+    // No licence.
+    CatalogEntry {
+        name: "Tidal TUI",
+        author: "InterstellarOne",
+        description: "A terminal-style theme: monospace text and box borders, after spicetify-text.",
+        repo: "InterstellarOne/Tidal-TUI",
+        path: "tidaluna.css",
+        base: None,
+    },
+    // MIT.
+    CatalogEntry {
+        name: "Tidal Light",
+        author: "Interstellar_1",
+        description: "A light theme. It shows while the app is set to Light.",
+        repo: "InterstellarOne/Tidal-Light",
+        path: "no-header.css",
+        base: None,
+    },
+    // No licence.
+    CatalogEntry {
+        name: "Lunallena (macOS)",
+        author: "Acercandr0",
+        description: "Lunallena's macOS build.",
+        repo: "Acercandr0/Lunallena",
+        path: "Lunallena_MacOS.css",
+        base: None,
+    },
+    CatalogEntry {
+        name: "Lunallena (visible sidebar)",
+        author: "Acercandr0",
+        description: "Lunallena with the sidebar always shown.",
+        repo: "Acercandr0/Lunallena",
+        path: "Lunallena_visible_sidebar.css",
+        base: None,
+    },
+    // No licence.
+    CatalogEntry {
+        name: "Sunken Tidal",
+        author: "Acercandr0",
+        description: "A very simple, sunken look.",
+        repo: "Acercandr0/Sunken-Tidal",
+        path: "Sunken.css",
+        base: None,
+    },
+    // No licence.
+    CatalogEntry {
+        name: "Giorgeous",
+        author: "Acercandr0",
+        description: "A nostalgic electronic look. Install the Doto font to match its previews.",
+        repo: "Acercandr0/Giorgeous",
+        path: "Giorgeous.css",
+        base: None,
+    },
+    // No licence.
+    CatalogEntry {
+        name: "Black Glow",
+        author: "KEIROFPS",
+        description: "Black with a soft glow.",
+        repo: "KEIROFPS/Tidal-black-glow-theme",
+        path: "KEIRO-Tidal-Theme.css",
+        base: None,
+    },
+    // No licence.
+    CatalogEntry {
+        name: "Tidal Amoled",
+        author: "UnbreakableKid",
+        description: "Pure black, for OLED screens.",
+        repo: "UnbreakableKid/Tidal-Amoled",
+        path: "amoled.css",
+        base: None,
+    },
+    // No licence.
+    CatalogEntry {
+        name: "Tidalify",
+        author: "JayTheXXVII",
+        description: "Dark grey panels with a red accent.",
+        repo: "JayTheXXVII/Tidalify",
+        path: "Tidalify.css",
+        base: None,
+    },
+    // MIT.
+    CatalogEntry {
+        name: "Rosé Pine",
+        author: "Rosé Pine",
+        description: "The Rosé Pine palette: soho vibes for the TIDAL player.",
+        repo: "rose-pine/tidal",
+        path: "tidal.rosepine.css",
+        base: None,
+    },
+    // No licence.
+    CatalogEntry {
+        name: "Synthwave '77",
+        author: "Puszkarek",
+        description: "A synthwave palette with magenta text. Uses the Refinery 75 font when it is installed.",
+        repo: "Puszkarek/synthwave-77",
+        path: "tidal/styles.css",
+        base: None,
+    },
+    // GPL-3.0 (archived repository).
+    CatalogEntry {
+        name: "Abyss Neptune",
+        author: "itzzexcel",
+        description: "ShadowX from Spicetify: white accents on grey and black, hidden scroll bars.",
+        repo: "itzzexcel/neptune-projects",
+        path: "themes/black-neptune-theme.css",
+        base: None,
+    },
+    CatalogEntry {
+        name: "Abyss Neptune (macOS black)",
+        author: "itzzexcel",
+        description: "A larger, black macOS build of Abyss Neptune.",
+        repo: "itzzexcel/neptune-projects",
+        path: "themes/macos-black-variant.css",
+        base: None,
+    },
+    // MIT.
+    CatalogEntry {
+        name: "TidalCustomTheme",
+        author: "Carlos Miranda",
+        description: "Pink by default, with every colour set by a variable.",
+        repo: "kotooriiii/TidalCustomTheme",
+        path: "theme.css",
+        base: None,
+    },
+    // Apache-2.0.
+    CatalogEntry {
+        name: "Minimalist Black",
+        author: "anmolbyte",
+        description: "Black on black with green accents.",
+        repo: "anmolbyte/tidaLuna-mods",
+        path: "theme.css",
+        base: None,
+    },
+    // AGPL-3.0.
+    CatalogEntry {
+        name: "Blur",
+        author: "Inrixia",
+        description: "Glass title bar and header with blurred header art, made to sit on the CoverTheme plugin's colours.",
+        repo: "Inrixia/luna-plugins",
+        path: "themes/blur.css",
+        base: None,
+    },
+    // Cotton Candy's colourways (MIT).
+    CatalogEntry {
+        name: "Cotton Candy: Horchata",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Horchata colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "horchata.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Baja Blast",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Baja Blast colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "basics/bajablast.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Sea Salt Ice Cream",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Sea Salt Ice Cream colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "basics/seasalticecream.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Shasta Twist",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Shasta Twist colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "basics/shastatwist.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Calavera",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Calavera colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "halloween collection/calavera.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Strawberry Mint",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Strawberry Mint colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "halloween collection/strawberrymint.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Blueberry Lemon Poppyseed Muffin",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Blueberry Lemon Poppyseed Muffin colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "pride collection/blueberrylemonpoppyseedmuffin.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Fairy Floss",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Fairy Floss colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "pride collection/fairyfloss.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Purple Paradise Punch",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Purple Paradise Punch colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "pride collection/purpleparadisepunch.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Raspberry Orange Sherbet",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Raspberry Orange Sherbet colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "pride collection/raspberryorangesherbet.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Snowcone",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Snowcone colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "pride collection/snowcone.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Sour Rainbow Strips",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Sour Rainbow Strips colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "pride collection/sourrainbowstrips.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Ube Charcoal Ice Cream",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Ube Charcoal Ice Cream colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "pride collection/ubecharcoalicecream.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Violet Sky Margarita",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy in its Violet Sky Margarita colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "pride collection/violetskymargarita.css",
+        base: Some(&COTTON_CANDY),
+    },
+    CatalogEntry {
+        name: "Cotton Candy (adaptive)",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy while the app is set to Light; Dark stays as it is.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "adaptive/colorways/cottoncandy-adaptive.css",
+        base: Some(&COTTON_CANDY_ADAPTIVE),
+    },
+    CatalogEntry {
+        name: "Cotton Candy: Horchata (adaptive)",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy's Horchata colourway while the app is set to Light; Dark stays as it is.",
+        repo: "aya-zzz-zzz/cotton-candy-colorways",
+        path: "adaptive/colorways/horchata-adaptive.css",
+        base: Some(&COTTON_CANDY_ADAPTIVE),
+    },
+    // Cotton Candy Nights' colourways (no licence).
+    CatalogEntry {
+        name: "Cotton Candy Nights: Milky Way",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy Nights in its Milky Way colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cottoncandynights",
+        path: "colorways/astronaut icecream/milkyway.css",
+        base: Some(&COTTON_CANDY_NIGHTS),
+    },
+    CatalogEntry {
+        name: "Cotton Candy Nights: Lilikoi",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy Nights in its Lilikoi colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cottoncandynights",
+        path: "colorways/astronaut icecream/lilikoi.css",
+        base: Some(&COTTON_CANDY_NIGHTS),
+    },
+    CatalogEntry {
+        name: "Cotton Candy Nights: Pop Rocks",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy Nights in its Pop Rocks colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cottoncandynights",
+        path: "colorways/astronaut icecream/poprocks.css",
+        base: Some(&COTTON_CANDY_NIGHTS),
+    },
+    CatalogEntry {
+        name: "Cotton Candy Nights: Blueberry Cobbler",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy Nights in its Blueberry Cobbler colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cottoncandynights",
+        path: "colorways/astronaut icecream/blueberry_cobbler.css",
+        base: Some(&COTTON_CANDY_NIGHTS),
+    },
+    CatalogEntry {
+        name: "Cotton Candy Nights: Namagashi",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy Nights in its Namagashi colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cottoncandynights",
+        path: "colorways/astronaut icecream/namagashi.css",
+        base: Some(&COTTON_CANDY_NIGHTS),
+    },
+    CatalogEntry {
+        name: "Cotton Candy Nights: Ameowicano",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy Nights in its Ameowicano colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cottoncandynights",
+        path: "colorways/astronaut icecream/ameowicano.css",
+        base: Some(&COTTON_CANDY_NIGHTS),
+    },
+    CatalogEntry {
+        name: "Cotton Candy Nights: Calavera",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy Nights in its Calavera colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cottoncandynights",
+        path: "colorways/halloween/calavera.css",
+        base: Some(&COTTON_CANDY_NIGHTS),
+    },
+    CatalogEntry {
+        name: "Cotton Candy Nights: Hot Tamales",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy Nights in its Hot Tamales colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cottoncandynights",
+        path: "colorways/halloween/hottamales.css",
+        base: Some(&COTTON_CANDY_NIGHTS),
+    },
+    // Cotton Candy Twilight (no licence).
+    CatalogEntry {
+        name: "Cotton Candy Twilight",
+        author: "aya-zzz-zzz",
+        description: "Dark, with a light footer and sidebar, in the Astronaut Ice Cream colourway, applied over its base.",
+        repo: "aya-zzz-zzz/cotton-candy-twilight",
+        path: "colorways/astronaut_icecream.css",
+        base: Some(&COTTON_CANDY_TWILIGHT),
+    },
+    CatalogEntry {
+        name: "Cotton Candy Twilight (adaptive)",
+        author: "aya-zzz-zzz",
+        description: "Cotton Candy Twilight while the app is set to Dark; Light stays as it is.",
+        repo: "aya-zzz-zzz/cotton-candy-twilight",
+        path: "adaptive/colorways/astronaut_icecream-adaptive.css",
+        base: Some(&COTTON_CANDY_TWILIGHT_ADAPTIVE),
+    },
+    // A patch over another author's base (no licence).
+    CatalogEntry {
+        name: "Solo v2",
+        author: "Solo",
+        description: "Solo's dark patch for Cotton Candy Nights, applied over its base.",
+        repo: "Solomag/tidaluna-overrides",
+        path: "solo-milkyway.css",
+        base: Some(&COTTON_CANDY_NIGHTS),
     },
 ];
 
+/// `path` in `repo` (default branch) as a raw GitHub URL, each path segment
+/// percent-encoded (`halloween collection/` is `halloween%20collection/`).
+pub fn raw_url(repo: &str, path: &str) -> String {
+    format!(
+        "https://raw.githubusercontent.com/{repo}/HEAD/{}",
+        encode_path(path)
+    )
+}
+
+/// A repository path for a URL: bytes other than letters, digits, `-._~`
+/// and the `/` between folders percent-encoded.
+fn encode_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for b in path.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~' | b'/') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
 impl CatalogEntry {
     pub fn url(&self) -> String {
-        format!(
-            "https://raw.githubusercontent.com/{}/HEAD/{}",
-            self.repo, self.path
-        )
+        raw_url(self.repo, self.path)
     }
+
+    /// The base this theme is applied over, for this system.
+    pub fn base_url(&self) -> Option<String> {
+        self.base.map(Base::url)
+    }
+}
+
+/// The base the catalogue gives the theme at `url` (any link to the same
+/// file), so a colourway installed from its card or by its URL comes with it.
+pub fn catalog_base(url: &str) -> Option<String> {
+    let id = crate::luna::themes::identity(url);
+    CATALOG
+        .iter()
+        .find(|e| crate::luna::themes::identity(&e.url()) == id)
+        .and_then(CatalogEntry::base_url)
 }
 
 // ------------------------------------------------------------------- data
@@ -301,10 +774,24 @@ fn index_of(cache: &Cache) -> Index {
             .plugins
             .extend(dates.iter().map(|(url, d)| (url.clone(), *d)));
     }
-    for entry in CATALOG {
+    // The names the themes' CSS gives themselves; two builds of one theme
+    // (Abyss Neptune and its macOS build) both say "Abyss Neptune", and
+    // then the catalogue's names and descriptions tell them apart.
+    let own_name = |e: &CatalogEntry| cache.css.get(&e.url()).and_then(|c| c.data.name.clone());
+    let own_names: Vec<Option<String>> = CATALOG.iter().map(own_name).collect();
+    for (n, entry) in CATALOG.iter().enumerate() {
         let url = entry.url();
         let css = cache.css.get(&url).map(|c| c.data.clone());
-        let css = css.unwrap_or_default();
+        let mut css = css.unwrap_or_default();
+        if own_names[n].is_some()
+            && own_names
+                .iter()
+                .enumerate()
+                .any(|(m, other)| m != n && *other == own_names[n])
+        {
+            css.name = None;
+            css.description = None;
+        }
         let dates = cache
             .theme_dates
             .get(&format!("{}/{}", entry.repo, entry.path))
@@ -663,35 +1150,77 @@ fn fetch_all_with(
     // GitHub answers 60 API requests an hour to an address without a
     // sign-in, and a first refresh needs more. What the store shows most
     // goes first: every store's release (dates), then the
-    // themes, then the repositories (stars, a new store's badge). Answers
-    // that did not change (304) do not count, so later refreshes are cheap.
+    // themes (their CSS from raw links, which need no API request, and
+    // their repositories' stars), then the stores' repositories (stars, a
+    // new store's badge), then each theme file's dates. Answers that did
+    // not change (304) do not count, so later refreshes are cheap.
     for store in stores {
         complete &= fetch_store(net, cache, store, now, Pass::Releases);
     }
     wake();
+    // A base is shared by many colourways: fetched once.
+    let mut bases = HashMap::new();
     for entry in CATALOG {
-        complete &= fetch_theme(net, cache, entry);
+        complete &= fetch_theme(net, cache, entry, &mut bases);
     }
     wake();
     for store in stores {
         complete &= fetch_store(net, cache, store, now, Pass::Repos);
     }
+    for entry in CATALOG {
+        complete &= fetch_theme_dates(net, cache, entry);
+    }
     complete && !net.limited()
 }
 
-fn fetch_theme(net: &mut dyn Http, cache: &mut Cache, entry: &CatalogEntry) -> bool {
+/// A catalogue theme's CSS (with its base's, for a colourway) and its
+/// repository. `bases` holds the bases fetched in this refresh, by URL
+/// (`None`: it failed).
+fn fetch_theme(
+    net: &mut dyn Http,
+    cache: &mut Cache,
+    entry: &CatalogEntry,
+    bases: &mut HashMap<String, Option<String>>,
+) -> bool {
     let mut ok = true;
     let url = entry.url();
     let tag = cache.css.get(&url).and_then(|c| c.etag.clone());
     match net.get_head(&crate::luna::themes::fetch_url(&url), tag.as_deref()) {
         Fetch::Fresh((text, tag)) => {
-            cache.css.insert(
-                url,
-                Cached {
-                    etag: tag,
-                    data: theme_css(&text),
-                },
-            );
+            let base = entry.base_url().map(|b| {
+                bases
+                    .entry(b.clone())
+                    .or_insert_with(|| {
+                        match net.get_head(&crate::luna::themes::fetch_url(&b), None) {
+                            Fetch::Fresh((css, _)) => Some(css),
+                            _ => None,
+                        }
+                    })
+                    .clone()
+            });
+            match base {
+                // Without its base a colourway's preview would be wrong:
+                // nothing is kept, so the next refresh tries again.
+                Some(None) => ok = false,
+                Some(Some(base)) => {
+                    cache.css.insert(
+                        url,
+                        Cached {
+                            etag: tag,
+                            data: colourway_css(&base, &text),
+                        },
+                    );
+                }
+                None => {
+                    cache.css.insert(
+                        url,
+                        Cached {
+                            etag: tag,
+                            data: theme_css(&text),
+                        },
+                    );
+                }
+            }
         }
         Fetch::Unchanged => {}
         Fetch::Skipped | Fetch::Failed => ok = false,
@@ -711,9 +1240,15 @@ fn fetch_theme(net: &mut dyn Http, cache: &mut Cache, entry: &CatalogEntry) -> b
         Fetch::Unchanged => {}
         Fetch::Skipped | Fetch::Failed => ok = false,
     }
-    // The file's own history: the newest commit, then the oldest.
+    ok
+}
+
+/// A catalogue theme file's own history: the newest commit, then the oldest.
+fn fetch_theme_dates(net: &mut dyn Http, cache: &mut Cache, entry: &CatalogEntry) -> bool {
+    let mut ok = true;
+    let api = repo_api(entry.repo);
     let key = format!("{}/{}", entry.repo, entry.path);
-    let latest = format!("{api}/commits?path={}&per_page=1", entry.path);
+    let latest = format!("{api}/commits?path={}&per_page=1", encode_path(entry.path));
     let tag = cache.theme_dates.get(&key).and_then(|c| c.etag.clone());
     match net.get_json(&latest, tag.as_deref()) {
         Fetch::Fresh((value, tag)) => {
@@ -1066,6 +1601,53 @@ fn theme_css(css: &str) -> ThemeCss {
     out.dark = dark;
     out.preview = Some(crate::ui::theme_preview::resolve_both(css));
     out
+}
+
+/// A colourway's card: its own manifest and colours (the base sets none),
+/// and the preview of the two applied together, as the runtime applies them
+/// ([`crate::luna::themes::with_base`]). Only the head of a large base is
+/// read; it is cut after its last whole rule so the colourway after it is
+/// not swallowed by a rule left open.
+fn colourway_css(base_head: &str, colourway: &str) -> ThemeCss {
+    let mut out = theme_css(colourway);
+    let both = crate::luna::themes::with_base(whole_rules(base_head), colourway);
+    out.preview = Some(crate::ui::theme_preview::resolve_both(&both));
+    out
+}
+
+/// `css` up to the end of its last complete top-level rule or statement
+/// (comments and strings skipped).
+fn whole_rules(css: &str) -> &str {
+    let bytes = css.as_bytes();
+    let (mut depth, mut end, mut i) = (0usize, 0usize, 0usize);
+    while i < bytes.len() {
+        match bytes[i] {
+            b'/' if bytes.get(i + 1) == Some(&b'*') => {
+                match css[i + 2..].find("*/") {
+                    Some(n) => i += n + 4,
+                    None => break,
+                }
+                continue;
+            }
+            q @ (b'"' | b'\'') => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != q && bytes[i] != b'\n' {
+                    i += if bytes[i] == b'\\' { 2 } else { 1 };
+                }
+            }
+            b'{' => depth += 1,
+            b'}' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    end = i + 1;
+                }
+            }
+            b';' if depth == 0 => end = i + 1,
+            _ => {}
+        }
+        i += 1;
+    }
+    &css[..end.min(css.len())]
 }
 
 /// A colour from a CSS value: `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`,
