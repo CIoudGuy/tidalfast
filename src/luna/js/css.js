@@ -1072,6 +1072,10 @@
 		const roots = ROOTS();
 		const rootVars = new Map();
 		const page = {};
+		// `#wimp`'s own background: unlike `html`'s and `body`'s (the
+		// canvas), it paints over elements behind the page (negative
+		// `z-index`), so it is kept apart from `page` as well.
+		let wimpFill;
 		const walk = (el, vars, parentStyle) => {
 			if (L.stat) L.stat("css: visit", Date.now());
 			const decls = cascade(ix, el);
@@ -1101,6 +1105,7 @@
 			if (roots.includes(el)) {
 				if (decls) for (const [k, v] of decls) if (k.startsWith("--")) rootVars.set(k, v);
 				if (st) Object.assign(page, st);
+				if (el === D.wimp) wimpFill = st?.["background-color"];
 			}
 			for (const c of el.childNodes) if (c instanceof g.Element && c.localName !== "head" && c.localName !== "style" && c.localName !== "script") walk(c, myVars, inh);
 		};
@@ -1172,7 +1177,7 @@
 				}
 			}
 		if (L.stat) L.stat("css: keyframes", t4);
-		return { styles, vars, page, fonts: ix.fonts, bytes: ix.bytes, keyframes, hover: ix.hover, pseudo };
+		return { styles, vars, page, wimpFill, fonts: ix.fonts, bytes: ix.bytes, keyframes, hover: ix.hover, pseudo };
 	};
 	// For the tests that count what a build works out again.
 	D.computeOverlayStyles = compute;

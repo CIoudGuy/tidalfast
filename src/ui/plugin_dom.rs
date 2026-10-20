@@ -3581,16 +3581,17 @@ pub fn surface(key: &str, native: Color32) -> Color32 {
     if !on() {
         return native;
     }
-    if let Some(c) = fill(key) {
+    let page_painted = see_through();
+    // Under a plugin layer behind the page every box is painted over it,
+    // so nested boxes' see-through fills add up.
+    let own = if super::plugin_slots::has_backdrop() {
+        stacked_fill(key)
+    } else {
+        fill(key)
+    };
+    if let Some(c) = own {
         return c;
     }
-    let page_painted = with(|s| {
-        s.overlay.page.background_image.is_some()
-            || s.overlay
-                .hosts
-                .get(dom_anchors::keys::MAIN_CONTAINER)
-                .is_some_and(|h| h.style.background_image.is_some())
-    }) || super::plugin_slots::has_backdrop();
     let see_through = matches!(
         key,
         dom_anchors::keys::MAIN | dom_anchors::keys::MAIN_CONTAINER | dom_anchors::keys::SIDEBAR
@@ -3600,6 +3601,54 @@ pub fn surface(key: &str, native: Color32) -> Color32 {
     } else {
         native
     }
+}
+
+/// Whether the main area and sidebar show what is painted under them: a
+/// picture on the page or the main container, or a plugin layer behind the
+/// page (spinny-cover's cover).
+fn see_through() -> bool {
+    on() && (with(|s| {
+        s.overlay.page.background_image.is_some()
+            || s.overlay
+                .hosts
+                .get(dom_anchors::keys::MAIN_CONTAINER)
+                .is_some_and(|h| h.style.background_image.is_some())
+    }) || super::plugin_slots::has_backdrop())
+}
+
+/// TIDAL's boxes inside the box a native surface draws, which share its
+/// rect: each paints its own background over the one round it, so
+/// see-through fills add up (spinny-cover's 30 % on the sidebar wrapper
+/// and again on `aside#sidebar` in it).
+fn nested(key: &str) -> &'static [&'static str] {
+    use dom_anchors::keys::*;
+    match key {
+        SIDEBAR => &[SIDEBAR_NAV, SIDEBAR_CONTENT],
+        MAIN => &[MAIN_CONTENT],
+        _ => &[],
+    }
+}
+
+/// `key`'s fill with the fills of the boxes [`nested`] in it laid over it,
+/// as CSS paints them; `None` when none of them has one.
+fn stacked_fill(key: &str) -> Option<Color32> {
+    std::iter::once(key)
+        .chain(nested(key).iter().copied())
+        .filter_map(fill)
+        .reduce(|under, top| layered(under, top))
+}
+
+/// `top` painted over `under` (premultiplied, in the gamma space browsers
+/// and the painter blend in).
+fn layered(under: Color32, top: Color32) -> Color32 {
+    let keep = 1.0 - top.a() as f32 / 255.0;
+    let ch = |t: u8, u: u8| (t as f32 + u as f32 * keep).round().min(255.0) as u8;
+    Color32::from_rgba_premultiplied(
+        ch(top.r(), under.r()),
+        ch(top.g(), under.g()),
+        ch(top.b(), under.b()),
+        ch(top.a(), under.a()),
+    )
 }
 
 /// The fill of a box over the page's content whose theme asks for a
@@ -4082,19 +4131,51 @@ pub fn paint_page(ui: &egui::Ui) {
     let Some(o) = overlay() else {
         return;
     };
-    paint_page_image(ui, &o);
-    // Plugin layers behind the panels (negative z-index), over the page.
+    // Plugin layers behind the panels (negative z-index) sit between the
+    // page's own background (`html`, `body`: the canvas) and every box of
+    // the app, which CSS paints over them: `#wimp`, then the main
+    // container, each with its own background.
+    let behind = super::plugin_slots::has_backdrop();
+    paint_page_image(ui, &o, !behind);
+    if !behind {
+        return;
+    }
     super::plugin_slots::backdrop(ui);
-}
-
-fn paint_page_image(ui: &egui::Ui, o: &DomOverlay) {
-    // The main container behind the sidebar and the page (cotton candy's
-    // white glass and gradients).
-    let container = dom_anchors::keys::MAIN_CONTAINER;
-    if let Some(c) = fill(container) {
+    let vars = with(|s| s.vars.clone());
+    if let Some(c) = o
+        .wimp_fill
+        .as_deref()
+        .and_then(|v| css::color(&css::resolve_vars(v, &vars)))
+    {
         ui.painter().rect_filled(ui.max_rect(), 0.0, c);
     }
-    paint_host_layers(ui, container, ui.max_rect());
+    // The container holds the sidebar and the page, not the title bar or
+    // the player bar (last frame's box; none while the now-playing view
+    // covers it).
+    let container = with(|s| s.last_frame.as_ref().and_then(|f| f.shell.main))
+        .map(|[x, y, w, h]| Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h)));
+    if let Some(rect) = container {
+        paint_container(ui, rect);
+    }
+}
+
+/// The main container's fill and box layers over `rect`.
+fn paint_container(ui: &egui::Ui, rect: Rect) {
+    let container = dom_anchors::keys::MAIN_CONTAINER;
+    if let Some(c) = fill(container) {
+        ui.painter().rect_filled(rect, 0.0, c);
+    }
+    paint_host_layers(ui, container, rect);
+}
+
+/// `container`: paint the main container here too, under the page's
+/// picture (with no plugin layer behind the page; see [`paint_page`]).
+fn paint_page_image(ui: &egui::Ui, o: &DomOverlay, container: bool) {
+    // The main container behind the sidebar and the page (cotton candy's
+    // white glass and gradients).
+    if container {
+        paint_container(ui, ui.max_rect());
+    }
     if o.page.background_image.is_none() {
         return;
     }
@@ -5629,6 +5710,96 @@ mod tests {
         test_overlay_keep(overlay("rgb(10, 10, 10)", None));
         assert_eq!(at(3.2), Color32::from_rgb(10, 10, 10));
         test_overlay(None);
+    }
+
+    /// spinny-cover: a cover behind the page (`z-index: -1`) and the same
+    /// 30 % fill on `#wimp`, the main container, `main`, the header, the
+    /// sidebar wrapper and the `aside` in it. CSS paints every one of those
+    /// boxes over the cover, so the fills add up as in TIDAL: the sidebar's
+    /// two, and `#wimp` and the container (only over its own box) painted
+    /// after the cover, not under it.
+    #[test]
+    fn see_through_fills_stack_over_a_layer_behind_the_page() {
+        use crate::luna::dom::{Injected, VNode};
+        use dom_anchors::keys::*;
+        let tint = "rgba(36, 36, 41, 0.3)";
+        let host = || HostOverride {
+            style: Style {
+                background_color: Some(tint.into()),
+                ..Style::default()
+            },
+            ..HostOverride::default()
+        };
+        let cover = VNode {
+            id: 7,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                top: Some("0".into()),
+                left: Some("0".into()),
+                width: Some("100vw".into()),
+                height: Some("100vh".into()),
+                z_index: Some("-1".into()),
+                background_color: Some("#ff0000".into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        test_overlay(Some(DomOverlay {
+            version: 1,
+            wimp_fill: Some(tint.into()),
+            hosts: [MAIN_CONTAINER, MAIN, HEADER, SIDEBAR, SIDEBAR_NAV]
+                .into_iter()
+                .map(|k| (k.to_string(), host()))
+                .collect(),
+            injected: vec![Injected {
+                anchor: String::new(),
+                position: Position::Append,
+                nodes: vec![cover],
+            }],
+            ..DomOverlay::default()
+        }));
+        test_viewport([800.0, 600.0]);
+        let container = Rect::from_min_size(egui::pos2(0.0, 30.0), egui::vec2(800.0, 480.0));
+        with(|s| {
+            let mut frame = Frame::default();
+            frame.shell.main = rect(container);
+            s.last_frame = Some(frame);
+        });
+        let one = css::color(tint).unwrap();
+        // The wrapper and the aside: two layers, as TIDAL paints them.
+        assert_eq!(
+            surface(SIDEBAR, Color32::BLACK),
+            layered(one, one),
+            "the sidebar's two boxes stack"
+        );
+        assert_eq!(surface(MAIN, Color32::BLACK), one);
+        let ctx = egui::Context::default();
+        let mut out = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))),
+                ..Default::default()
+            },
+            |ui| paint_page(ui),
+        );
+        out.textures_delta.clear();
+        test_overlay(None);
+        let rects: Vec<(Color32, Rect)> = out
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Rect(r) => Some((r.fill, r.rect)),
+                _ => None,
+            })
+            .collect();
+        let at = |pred: &dyn Fn(&(Color32, Rect)) -> bool| rects.iter().position(pred);
+        let cover = at(&|(c, _)| c.r() > 200 && c.g() == 0).expect("the cover is drawn");
+        let wimp = at(&|(c, r)| *c == one && r.height() > 590.0).expect("#wimp's fill");
+        let main = at(&|(c, r)| *c == one && (*r == container)).expect("the container's fill");
+        assert!(
+            cover < wimp && wimp < main,
+            "#wimp and the container paint over the cover: {rects:?}"
+        );
     }
 
     #[test]

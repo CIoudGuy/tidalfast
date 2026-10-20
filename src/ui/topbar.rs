@@ -250,6 +250,16 @@ fn bar_contents(
         f.shell.header = super::plugin_dom::rect(header.unwrap_or(ui.max_rect()));
     });
     if header.is_none() {
+        // Over a plugin layer behind the page, `#mainHeader`'s own
+        // background is one more layer on `main`'s (spinny-cover's 30 %).
+        let key = crate::luna::dom_anchors::keys::HEADER;
+        if super::plugin_dom::on()
+            && super::plugin_slots::has_backdrop()
+            && let Some(fill) = super::plugin_dom::fill(key)
+        {
+            ui.painter()
+                .rect_filled(header_box(ui.max_rect()), 0.0, fill);
+        }
         // `#mainHeader` and its `::before` (blur's glass band).
         super::plugin_dom::paint_host_layers(
             ui,

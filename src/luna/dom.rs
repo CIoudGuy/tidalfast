@@ -337,6 +337,11 @@ pub struct DomOverlay {
     /// Style of the page itself (`html`, `body`, `#wimp`, main container):
     /// background, text colour, font family.
     pub page: Style,
+    /// `#wimp`'s own `background-color`. It is part of [`DomOverlay::page`]
+    /// too, but unlike `html`'s and `body`'s it paints over elements behind
+    /// the page (negative `z-index`), as every box inside `#wimp` does.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wimp_fill: Option<String>,
     /// Overrides per host key. The `""` entry only carries `listens`: event
     /// types with listeners on `window`, `document`, `html` or `body`
     /// (forward window `keydown`/`keyup` to `DomTarget::Host("")` when listed).
