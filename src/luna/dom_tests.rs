@@ -1141,7 +1141,12 @@ setTimeout(async () => {
         .find(|c| c.tag == "svg")
         .expect("svg");
     let markup = svg.markup.as_deref().unwrap();
-    assert!(markup.contains("M10.59 9.17"), "{markup}");
+    // TIDAL's shuffle in the symbol's own 24-unit box.
+    assert!(markup.contains("M18 14l4 4-4 4"), "{markup}");
+    assert!(
+        markup.contains(r#"<svg viewBox="0 0 24 24" width="100%" height="100%">"#),
+        "{markup}"
+    );
     assert!(markup.contains("stroke-width"), "{markup}");
     luna.dom_event(DomEvent {
         target: DomTarget::Host(keys::PAGE.into()),
@@ -2327,5 +2332,58 @@ lib.observe(unloads, 'div[aria-label="Tracklist"]', (e) => {
             ("Depth".to_string(), Some("40px".to_string())),
         ]
     );
+    finish(luna, dir);
+}
+
+/// LuckyLP colours its shuffle with TIDAL's `--wave-color-opacity-*`
+/// variables, read back with `getComputedStyle(document.documentElement)`,
+/// as `fill` on its button, after a `margin-left: 16px`. Tidalfast had no
+/// such variables (the button stayed `#000000`, black on black), dropped
+/// `margin-left` and `fill`, and drew TIDAL's 24-unit sprite symbol unscaled
+/// in the button's 20-unit svg.
+#[test]
+fn lucky_lp_gets_tidals_variables_its_margin_and_the_sprites_paint() {
+    let (luna, _host, dir) = start(
+        r##"
+const css = getComputedStyle(document.documentElement);
+R.thick = css.getPropertyValue("--wave-color-opacity-contrast-fill-thick").trim();
+R.ultra = css.getPropertyValue("--wave-color-opacity-contrast-fill-ultra-thick").trim();
+new lib.StyleTag("Lucky", unloads, ".luckyBtnContainer>button{margin-left:16px;display:flex;fill:#000000}"
+	.replace("#000000", R.thick || "#000000"));
+lib.observe(unloads, "div[data-track--page-id='album']", (page) => {
+	const box = document.createElement("div");
+	box.className = "luckyBtnContainer";
+	box.innerHTML = '<button type="button"><svg viewBox="0 0 20 20"><use href="#player__shuffle"></use></svg></button>';
+	page.querySelector("h1")?.insertAdjacentElement("afterend", box);
+	R.done = true;
+});
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(
+        (r["thick"].clone(), r["ultra"].clone()),
+        (json!("#fff9"), json!("#fffc")),
+        "{r}"
+    );
+    let o = overlay_until(&luna, 10, |o| {
+        o.at(keys::PAGE_TITLE, Position::After)
+            .any(|n| n.children.first().is_some_and(|b| b.style.fill.is_some()))
+    });
+    let button = &o
+        .at(keys::PAGE_TITLE, Position::After)
+        .next()
+        .unwrap()
+        .children[0];
+    assert_eq!(button.style.margin.as_deref(), Some("0 0 0 16px"));
+    assert_eq!(button.style.fill.as_deref(), Some("#fff9"));
+    let markup = button.children[0].markup.as_deref().unwrap();
+    assert!(
+        markup.contains(r#"<svg viewBox="0 0 24 24" width="100%" height="100%">"#)
+            && markup.contains(r#"stroke="__luna-paint__""#),
+        "{markup}"
+    );
+    // TIDAL's own variables are not a theme's: they never recolour the app.
+    assert_eq!(o.var("--wave-color-opacity-contrast-fill-thick"), None);
     finish(luna, dir);
 }

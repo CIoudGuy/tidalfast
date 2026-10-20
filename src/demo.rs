@@ -2266,6 +2266,78 @@ mod tests {
     use crate::settings::Settings;
     use std::sync::Arc;
 
+    /// LuckyLP puts its shuffle button right after My Collection's
+    /// "Albums" title: TIDAL's "..." beside the title moves right by the
+    /// button's width, as in its flex row. Tidalfast drew the plugin's
+    /// button over the "...".
+    #[test]
+    fn plugin_elements_after_a_collection_title_push_its_menu_button_along() {
+        use crate::luna::dom::{DomOverlay, Injected, Position, Style, VNode};
+        // The window's own frame would switch the plugin overlay off with
+        // no Luna running: draw the interface alone.
+        let frame = |ctx: &egui::Context, app: &mut App| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280.0, 800.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(app, ui),
+            );
+            output.textures_delta.clear();
+            output
+                .platform_output
+                .accesskit_update
+                .expect("screen-reader tree")
+        };
+        let more_left = |overlay: Option<DomOverlay>| {
+            let (ctx, mut app) = accessible_app("lucky-title");
+            crate::ui::plugin_dom::test_overlay(overlay);
+            apply_flags(&mut app, Some("albums"), None);
+            for _ in 0..3 {
+                frame(&ctx, &mut app);
+            }
+            let tree = frame(&ctx, &mut app);
+            crate::ui::plugin_dom::test_overlay(None);
+            tree.nodes
+                .iter()
+                .find(|(_, node)| {
+                    node.label() == Some("More")
+                        && node.bounds().is_some_and(|b| b.y0 < 200.0 && b.x0 > 300.0)
+                })
+                .and_then(|(_, node)| node.bounds())
+                .expect("the title's menu button")
+                .x0
+        };
+        let plain = more_left(None);
+        let with_button = more_left(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: crate::luna::dom_anchors::keys::PAGE_TITLE.into(),
+                position: Position::After,
+                nodes: vec![VNode {
+                    id: 1,
+                    tag: "div".into(),
+                    style: Style {
+                        width: Some("53px".into()),
+                        height: Some("27px".into()),
+                        background_color: Some("#ff0000".into()),
+                        ..Style::default()
+                    },
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        }));
+        assert!(
+            (with_button - plain - 53.0).abs() < 1.5,
+            "moved {} (from {plain})",
+            with_button - plain
+        );
+    }
+
     fn accessible_app(name: &str) -> (egui::Context, App) {
         let root = crate::paths::unique_test_dir(&format!("a11y-{name}"));
         let ctx = egui::Context::default();

@@ -795,12 +795,16 @@ pub fn player_part(part: PlayerPart, r: Rect) {
 }
 
 /// The page's `h1` (`title` painted in `r`), with the slots after it.
+/// Returns where the run of title and plugin elements ends: TIDAL's own
+/// controls after the title (the collection's "...") move along by what
+/// plugins put there, as in its flex row (LuckyLP's shuffle sits between
+/// "Albums" and "...").
 ///
 /// `alone`: nothing follows the title in the page (a grid page), so what
 /// plugins append to the page itself belongs beside it too.
-pub fn page_title(ui: &mut egui::Ui, title: &str, r: Rect, alone: bool) {
+pub fn page_title(ui: &mut egui::Ui, title: &str, r: Rect, alone: bool) -> f32 {
     if !on() {
-        return;
+        return r.right();
     }
     note(|f| {
         if let Some(p) = f.page.as_mut() {
@@ -808,7 +812,10 @@ pub fn page_title(ui: &mut egui::Ui, title: &str, r: Rect, alone: bool) {
             p.title_rect = rect(r);
         }
     });
-    let mut x = r.right() + 12.0;
+    // The elements follow the title with no gap of their own (their
+    // margins make it): in TIDAL "..." moves right by exactly the width of
+    // what LuckyLP inserts.
+    let mut x = r.right();
     let mut anchors = vec![
         (dom_anchors::keys::PAGE_TITLE, Position::Append),
         (dom_anchors::keys::PAGE_TITLE, Position::After),
@@ -824,9 +831,10 @@ pub fn page_title(ui: &mut egui::Ui, title: &str, r: Rect, alone: bool) {
             egui::pos2(x, r.center().y),
             egui::Align2::LEFT_CENTER,
         ) {
-            x = used.right() + 8.0;
+            x = used.right();
         }
     }
+    x
 }
 
 /// An album or playlist header: its `_dataContainer_` and, when it has one,

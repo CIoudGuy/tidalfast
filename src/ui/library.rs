@@ -63,9 +63,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
         theme::bold(27.0),
         palette.text,
     );
-    super::plugin_dom::page_title(ui, title.as_ref(), title_rect, true);
-    // TIDAL's "..." beside the title: sort (and, on Playlists, create).
-    page_options::options_button(app, ui, &page, heading, title_rect);
+    let title_end = super::plugin_dom::page_title(ui, title.as_ref(), title_rect, true);
+    // TIDAL's "..." beside the title (after what plugins put there): sort
+    // (and, on Playlists, create).
+    page_options::options_button(app, ui, &page, heading, title_rect.with_max_x(title_end));
     let sort = page_options::shelf_of(&page)
         .map_or(PageSort::Added, |shelf| page_options::selected(app, shelf));
     ui.add_space(32.0);

@@ -2558,7 +2558,9 @@
 	// The sprite is hidden (never drawn as a plugin element); the UI gets the
 	// symbols inlined where an svg uses them.
 	const SPRITE = {
-		player__shuffle: "M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z",
+		// The shuffle Tidalfast draws for TIDAL's own button, a stroked
+		// icon (the others are filled glyphs).
+		player__shuffle: { stroke: "M18 14l4 4-4 4M18 2l4 4-4 4M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22M2 6h1.972a4 4 0 0 1 3.6 2.2M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45" },
 		player__play: "M8 5v14l11-7z",
 		player__pause: "M6 19h4V5H6v14zm8-14v14h4V5h-4z",
 		player__next: "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z",
@@ -2574,13 +2576,14 @@
 		sprite._attrs.set("id", "svg-sprite");
 		sprite._attrs.set("aria-hidden", "true");
 		sprite._attrs.set("style", "display:none");
-		for (const [id, d] of Object.entries(SPRITE)) {
+		for (const [id, glyph] of Object.entries(SPRITE)) {
 			const symbol = createEl("symbol", SVG_NS);
 			symbol._attrs.set("id", id);
 			symbol._attrs.set("viewBox", "0 0 24 24");
 			const path = createEl("path", SVG_NS);
-			path._attrs.set("d", d);
-			path._attrs.set("fill", "currentColor");
+			path._attrs.set("d", glyph.stroke ?? glyph);
+			path._attrs.set("fill", glyph.stroke ? "none" : "currentColor");
+			if (glyph.stroke) path._attrs.set("stroke", "currentColor");
 			symbol.childNodes.push(path);
 			path.parentNode = symbol;
 			sprite.childNodes.push(symbol);
@@ -2589,11 +2592,19 @@
 		body.childNodes.push(sprite);
 		sprite.parentNode = body;
 	}
+	// A symbol is drawn in its own 24-unit box scaled to the `<use>`'s
+	// (the whole svg here), and its paths take the paint CSS gives the
+	// svg (`fill`, inherited: LuckyLP's 60 % white), else the text colour:
+	// the renderer puts that in for `__luna-paint__`.
 	const inlineUses = (m) =>
 		m.replace(/<use\b([^>]*?)\/?>(?:<\/use>)?/g, (all, attrs) => {
 			const id = /\bhref="#([^"]+)"/.exec(attrs)?.[1];
-			const d = id && SPRITE[id];
-			return d ? `<path d="${d}" fill="currentColor"/>` : all;
+			const glyph = id && SPRITE[id];
+			if (!glyph) return all;
+			const path = glyph.stroke
+				? `<path d="${glyph.stroke}" fill="none" stroke="__luna-paint__" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+				: `<path d="${glyph}" fill="__luna-paint__"/>`;
+			return `<svg viewBox="0 0 24 24" width="100%" height="100%">${path}</svg>`;
 		});
 	Object.assign(g, { Node, CharacterData, Text, Comment, Element, HTMLElement, SVGElement, Document, HTMLDocument: Document, DocumentFragment, ShadowRoot });
 	g.EventTarget = Target;
