@@ -3649,10 +3649,22 @@ fn draw_box(
     // A browser's own style for a button, `font: -webkit-small-control`,
     // is not inherited from the page: 13.33 px, normal weight, Arial on
     // Windows (qr-share's Save and Close), unless the plugin sets its own.
-    if node.tag == "button" {
-        inherit.size = 40.0 / 3.0;
-        inherit.weight = 400;
-        inherit.italic = false;
+    // A button wearing TIDAL's own module classes (LangRomanizer's copy of
+    // the Lyrics pill, multipleplaylists' menu row) takes TIDAL's
+    // stylesheet's font, which is the page's.
+    // `inherit` (a reset's `font: inherit`: koreansearch's result rows)
+    // keeps what the parent has.
+    let inherits = |v: &Option<String>| v.as_deref().is_some_and(|v| v.trim() == "inherit");
+    if node.tag == "button" && !tidal_styled(node) {
+        if !inherits(&style.font_size) {
+            inherit.size = 40.0 / 3.0;
+        }
+        if !inherits(&style.font_weight) {
+            inherit.weight = 400;
+        }
+        if !inherits(&style.font_style) {
+            inherit.italic = false;
+        }
         if style.font_family.is_none() {
             inherit.family = plugin_dom::element_font_id(BUTTON_FONT);
         }
@@ -3660,15 +3672,27 @@ fn draw_box(
     if let Some(size) = cx.len(&style.font_size, parent.size, parent.size) {
         inherit.size = size.clamp(6.0, 96.0);
     }
-    if let Some(w) = &style.font_weight {
+    if let Some(w) = style
+        .font_weight
+        .as_ref()
+        .filter(|_| !inherits(&style.font_weight))
+    {
         inherit.weight = css::weight(w);
     }
-    if let Some(s) = &style.font_style {
+    if let Some(s) = style
+        .font_style
+        .as_ref()
+        .filter(|_| !inherits(&style.font_style))
+    {
         inherit.italic = s.contains("italic") || s.contains("oblique");
     }
     // Text inside takes the element's family too (lyrics-everywhere sets
     // `font-family: system-ui` on its box, not on the words).
-    if let Some(f) = &style.font_family {
+    if let Some(f) = style
+        .font_family
+        .as_ref()
+        .filter(|_| !inherits(&style.font_family))
+    {
         inherit.family = plugin_dom::element_font_id(f);
     }
     if let Some(t) = &style.text_transform {
@@ -4657,9 +4681,9 @@ fn font_of(inherit: Inherit, style: &Style) -> egui::FontId {
     } else {
         crate::theme::regular(inherit.size)
     };
-    let family = match style.font_family.as_deref() {
-        Some(value) => plugin_dom::element_font_id(value),
-        None => inherit.family,
+    let family = match style.font_family.as_deref().map(str::trim) {
+        Some(value) if value != "inherit" => plugin_dom::element_font_id(value),
+        _ => inherit.family,
     };
     match family.and_then(|f| plugin_dom::font_by_id(f, inherit.weight)) {
         Some(family) => egui::FontId::new(inherit.size, family),
@@ -4758,6 +4782,25 @@ fn leaf(
         "select" => select(ui, node, width),
         _ => false,
     }
+}
+
+/// Whether an element wears one of TIDAL's CSS-module classes
+/// (`_actionText_1d3b4c2`): TIDAL's own stylesheet styles it.
+fn tidal_styled(node: &VNode) -> bool {
+    attr(node, "class").is_some_and(|c| {
+        c.split_whitespace().any(|w| {
+            let Some(rest) = w.strip_prefix('_') else {
+                return false;
+            };
+            let Some((name, hash)) = rest.rsplit_once('_') else {
+                return false;
+            };
+            !name.is_empty()
+                && name.chars().all(|ch| ch.is_ascii_alphanumeric())
+                && (5..=7).contains(&hash.len())
+                && hash.chars().all(|ch| ch.is_ascii_hexdigit())
+        })
+    })
 }
 
 /// The family a browser gives a `<button>` whose style names none
@@ -6481,6 +6524,88 @@ mod tests {
         assert_eq!(size("Plain"), 20.0);
         assert!((size("Save") - 40.0 / 3.0).abs() < 0.01, "{}", size("Save"));
         assert_eq!(size("Close"), 16.0);
+    }
+
+    /// A button wearing TIDAL's module classes (LangRomanizer copies the
+    /// Lyrics pill's) is styled by TIDAL's stylesheet, not the browser's
+    /// control font: it keeps the size it inherits.
+    #[test]
+    fn a_button_with_tidals_classes_keeps_the_pages_font() {
+        let pill = VNode {
+            attrs: vec![(
+                "class".into(),
+                "romanize-button _button_8b3a1f2 _tertiary_c0ffee1".into(),
+            )],
+            children: vec![text_node(5, "Romanize Lyrics")],
+            ..button(4, "")
+        };
+        let holder = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                top: Some("0".into()),
+                left: Some("0".into()),
+                font_size: Some("20px".into()),
+                ..Style::default()
+            },
+            children: vec![pill],
+            ..VNode::default()
+        };
+        let shapes = floating_shapes(vec![holder]);
+        let size = shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::Shape::Text(t) if t.galley.text() == "Romanize Lyrics" => {
+                    Some(t.galley.job.sections[0].format.font_id.size)
+                }
+                _ => None,
+            })
+            .expect("the pill's words");
+        assert_eq!(size, 20.0);
+        assert!(!tidal_styled(&button(9, "Save")));
+    }
+
+    /// A button reset with `font: inherit` (koreansearch's result rows)
+    /// keeps the size and family it inherits, not the control font.
+    #[test]
+    fn a_button_reset_with_font_inherit_keeps_its_parents_font() {
+        let row = VNode {
+            style: Style {
+                font_family: Some("inherit".into()),
+                font_size: Some("inherit".into()),
+                font_weight: Some("inherit".into()),
+                font_style: Some("inherit".into()),
+                ..Style::default()
+            },
+            children: vec![text_node(5, "Result")],
+            ..button(4, "")
+        };
+        let holder = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                top: Some("0".into()),
+                left: Some("0".into()),
+                font_size: Some("18px".into()),
+                ..Style::default()
+            },
+            children: vec![row],
+            ..VNode::default()
+        };
+        let shapes = floating_shapes(vec![holder]);
+        let font = shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::Shape::Text(t) if t.galley.text() == "Result" => {
+                    Some(t.galley.job.sections[0].format.font_id.clone())
+                }
+                _ => None,
+            })
+            .expect("the row's words");
+        assert_eq!(font.size, 18.0);
+        assert_eq!(font, crate::theme::regular(18.0));
     }
 
     /// The shapes a floating overlay of `nodes` paints in an 800 by 600
