@@ -730,7 +730,7 @@ impl Engine {
             .map(|r| r.name.clone())
             .collect();
         for n in names {
-            self.uninstall(&n);
+            self.remove_plugin(&n);
         }
         let themes: Vec<String> = self.inner.borrow().themes.keys().cloned().collect();
         for url in themes {

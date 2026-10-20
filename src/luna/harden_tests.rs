@@ -732,7 +732,8 @@ await Promise.all(Array.from({ length: 30 }, (_, i) => lib.MediaItem.fromId(Stri
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// L2: uninstalling a plugin removes its data folder; its settings stay.
+/// L2: uninstalling a plugin removes its data folder (checked with a file a
+/// plugin's own program writes).
 #[test]
 fn uninstall_removes_the_plugins_data_folder() {
     let (r, luna, _host, dir) = run(
@@ -752,6 +753,124 @@ R.done = true;
     wait_until(&luna, 10, |s| !s.plugins.iter().any(|p| p.name == "Compat"));
     assert!(luna.sync(std::time::Duration::from_secs(5)));
     assert!(!data.exists());
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// What a plugin keeps in Luna's stores, under names it chose itself.
+fn keeper_code(who: &str) -> String {
+    format!(
+        r#"var core = luna?.core?.modules?.["@luna/core"];
+export const unloads = new Set();
+const s = await core.ReactiveStore.getPluginStorage("{who}.own", {{ theme: "dark" }});
+const earlier = s.earlier ?? null;
+s.earlier = "{who} was here";
+s.volume = 7;
+const db = core.ReactiveStore.getStore("{who}-db");
+await db.set("earlier", earlier);
+await db.set("model", {{ big: "x".repeat(2000) }});
+localStorage.setItem("{who}-item", "1");
+localStorage.setItem("shared-item", "{who}");
+"#
+    )
+}
+
+fn store_file(dir: &std::path::Path, folder: &str, name: &str) -> std::path::PathBuf {
+    dir.join(folder)
+        .join(format!("{}.json", crate::luna::storage::safe_name(name)))
+}
+
+fn local_items(dir: &std::path::Path) -> serde_json::Value {
+    crate::luna::storage::read_json(&store_file(dir, "storage", "@luna/localStorage"))
+        .and_then(|v| v.get("data").cloned())
+        .unwrap_or(serde_json::Value::Null)
+}
+
+fn wait_for(what: &str, mut cond: impl FnMut() -> bool) {
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while !cond() {
+        assert!(std::time::Instant::now() < end, "timed out: {what}");
+        std::thread::sleep(std::time::Duration::from_millis(30));
+    }
+}
+
+/// Removing a plugin deletes everything it left, wherever it was kept (its
+/// code, data folder, settings under the name it chose, the stores it
+/// opened, its `localStorage` items), and nothing of another plugin's;
+/// disabling it deletes none of it; a plugin installed again starts clean
+/// in the same session.
+#[test]
+fn removing_a_plugin_deletes_everything_it_left_and_only_that() {
+    let zero = std::time::Duration::ZERO;
+    let (_a, leaver) = one_plugin("Leaver", &keeper_code("Leaver"), "l1", zero);
+    let (_b, keeper) = one_plugin("Keeper", &keeper_code("Keeper"), "k1", zero);
+    let dir = temp_dir("removal");
+    let luna = Luna::start(config(&dir), Arc::new(CompatHost::default())).unwrap();
+    luna.install(&leaver);
+    luna.install(&keeper);
+    wait_until(&luna, 30, |s| running(s, "Leaver") && running(s, "Keeper"));
+    let own = |who: &str| store_file(&dir, "settings", &format!("{who}.own"));
+    let db = |who: &str| store_file(&dir, "storage", &format!("{who}-db"));
+    wait_for("both plugins saved their stores", || {
+        own("Leaver").exists()
+            && own("Keeper").exists()
+            && db("Leaver").exists()
+            && db("Keeper").exists()
+            && local_items(&dir).get("Keeper-item").is_some()
+            && local_items(&dir).get("Leaver-item").is_some()
+    });
+    let name = crate::luna::storage::safe_name("Leaver");
+    let data = dir.join("data").join(&name);
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::write(data.join("model.onnx"), vec![1u8; 4096]).unwrap();
+    let code = dir.join("code").join(format!("{name}.mjs"));
+    assert!(code.exists());
+
+    // Turning it off keeps all of it.
+    luna.set_enabled("Leaver", false);
+    wait_until(&luna, 10, |s| {
+        s.plugins
+            .iter()
+            .any(|p| p.name == "Leaver" && p.status == PluginStatus::Disabled)
+    });
+    assert!(own("Leaver").exists() && db("Leaver").exists() && data.exists() && code.exists());
+    luna.set_enabled("Leaver", true);
+    wait_until(&luna, 30, |s| running(s, "Leaver"));
+
+    luna.uninstall("Leaver");
+    wait_until(&luna, 10, |s| !s.plugins.iter().any(|p| p.name == "Leaver"));
+    assert!(luna.sync(std::time::Duration::from_secs(5)));
+    wait_for("the removed plugin's files are gone", || {
+        !own("Leaver").exists() && !db("Leaver").exists()
+    });
+    assert!(!data.exists() && !code.exists());
+    let items = local_items(&dir);
+    assert!(items.get("Leaver-item").is_none(), "{items}");
+    assert!(own("Keeper").exists() && db("Keeper").exists());
+    assert_eq!(items["Keeper-item"], "1", "{items}");
+    // An item both plugins set stays while one of them is installed.
+    assert!(items.get("shared-item").is_some(), "{items}");
+    let records = crate::luna::storage::read_json(&dir.join("plugins.json")).unwrap();
+    let names: Vec<&str> = records
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|r| r["name"].as_str())
+        .collect();
+    assert_eq!(names, ["Keeper"], "{records}");
+
+    // Installed again, it finds nothing of its earlier run, in memory either.
+    luna.install(&leaver);
+    wait_until(&luna, 30, |s| running(s, "Leaver"));
+    wait_for("the new copy saved", || {
+        db("Leaver").exists() && own("Leaver").exists()
+    });
+    let first = crate::luna::storage::read_json(&db("Leaver")).unwrap();
+    assert!(
+        first["earlier"].is_null(),
+        "it found {} from before",
+        first["earlier"]
+    );
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
