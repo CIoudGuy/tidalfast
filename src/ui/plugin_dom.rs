@@ -32,6 +32,11 @@ use super::plugin_slots::css;
 
 /// Rect-only changes go out at most this often.
 const RECT_THROTTLE: Duration = Duration::from_millis(100);
+/// The now-playing cover's lean goes out at most this often: as often as
+/// pointer moves reach plugins (`pointer_events`). Each tree sent costs the
+/// runtime a reconcile; the lean changed on every pass while the pointer
+/// moved over the view, up to the display's rate.
+const TILT_THROTTLE: Duration = Duration::from_millis(33);
 
 /// Hover state kept from frame to frame for enter/leave events.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -426,8 +431,21 @@ pub fn end_frame(ctx: &egui::Context) {
         paint_host_outlines(ctx, s);
         s.modal_open = s.frame.modal.is_some();
         s.next_playlist = None;
-        let frame = std::mem::take(&mut s.frame);
-        let unchanged = s.last_frame.as_ref() == Some(&frame);
+        let mut frame = std::mem::take(&mut s.frame);
+        let mut unchanged = s.last_frame.as_ref() == Some(&frame);
+        // The now-playing cover leans under a moving pointer on every pass:
+        // its new lean goes out as often as plugins hear the pointer move,
+        // and the pass after the wait sends the latest one.
+        if !unchanged
+            && let Some(last) = &s.last_frame
+            && only_tilt_moved(last, &mut frame)
+        {
+            let since = s.sent_at.map_or(TILT_THROTTLE, |t| t.elapsed());
+            if since < TILT_THROTTLE {
+                ctx.request_repaint_after(TILT_THROTTLE - since);
+                unchanged = true;
+            }
+        }
         if !unchanged {
             let tree = dom_anchors::build(&frame);
             let send = match &s.sent {
@@ -843,6 +861,23 @@ fn same_but_rects(a: &HostTree, b: &HostTree) -> bool {
                 && x.text == y.text
                 && x.value == y.value
         })
+}
+
+/// The frames differ only in the now-playing cover's lean. `frame` is
+/// compared as it is, with the lean put back after.
+fn only_tilt_moved(last: &Frame, frame: &mut Frame) -> bool {
+    let (Some(was), Some(now)) = (&last.now_playing, &mut frame.now_playing) else {
+        return false;
+    };
+    if was.tilt == now.tilt {
+        return false;
+    }
+    let tilt = std::mem::replace(&mut now.tilt, was.tilt);
+    let same = last == frame;
+    if let Some(now) = &mut frame.now_playing {
+        now.tilt = tilt;
+    }
+    same
 }
 
 /// The trees have the same anchors in the same boxes (what `:hover` is
@@ -5821,6 +5856,64 @@ mod tests {
                 .iter()
                 .any(|n| n.text.as_deref() == Some("Two"))
         );
+        test_overlay(None);
+    }
+
+    /// The now-playing cover leans on every pass while the pointer moves
+    /// over it. Its lean reaches plugins (3d-cover reads it) as often as
+    /// pointer moves do, not a tree a pass: a lean held back asks for the
+    /// pass that sends it, and anything else that changed goes at once.
+    #[test]
+    fn the_covers_lean_goes_out_as_often_as_pointer_moves() {
+        let ctx = egui::Context::default();
+        test_overlay(Some(DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        }));
+        let pass = |tilt: f32, title: &str| {
+            note(|f| {
+                f.viewport = [800.0, 600.0];
+                f.player = Some(dom_anchors::PlayerBar {
+                    rect: Some([0.0, 510.0, 800.0, 90.0]),
+                    title: title.into(),
+                    ..Default::default()
+                });
+                f.now_playing = Some(dom_anchors::NowPlaying {
+                    rect: Some([0.0, 0.0, 800.0, 510.0]),
+                    artwork_rect: Some([250.0, 60.0, 300.0, 300.0]),
+                    tilt: [tilt, 0.0],
+                    ..Default::default()
+                });
+            });
+            ctx.run_ui(egui::RawInput::default(), |ui| end_frame(ui.ctx()))
+                .textures_delta
+                .clear();
+            // egui reports a pass's causes during the pass after it.
+            let _ = ctx.run_ui(egui::RawInput::default(), |_| {});
+            let asked = ctx
+                .repaint_causes()
+                .iter()
+                .any(|cause| cause.file.replace('\\', "/").ends_with("ui/plugin_dom.rs"));
+            let sent = with(|s| s.sent.clone()).unwrap();
+            let style = sent
+                .nodes
+                .iter()
+                .find(|n| n.key == dom_anchors::keys::NP_ARTWORK_TILT)
+                .and_then(|n| n.attrs.iter().find(|(k, _)| k == "style"))
+                .map(|(_, v)| v.clone())
+                .unwrap_or_default();
+            (style, asked)
+        };
+        let lean =
+            |deg: &str| format!("transform: perspective(1000px) rotateX({deg}deg) rotateY(0deg);");
+        assert_eq!(pass(1.0, "One"), (lean("1"), false));
+        // The next passes come at the display's rate: the lean waits.
+        assert_eq!(pass(2.0, "One"), (lean("1"), true));
+        assert_eq!(pass(3.0, "One"), (lean("1"), true));
+        // Another change goes at once, the newest lean with it.
+        assert_eq!(pass(4.0, "Two").0, lean("4"));
+        std::thread::sleep(TILT_THROTTLE + Duration::from_millis(5));
+        assert_eq!(pass(5.0, "Two"), (lean("5"), false));
         test_overlay(None);
     }
 
