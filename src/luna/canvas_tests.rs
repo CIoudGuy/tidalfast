@@ -940,3 +940,34 @@ try {
     assert!((0..2000).contains(&r["ms"].as_i64().unwrap()), "{r}");
     finish(luna, dir);
 }
+
+/// qr-share writes its caption in `bold 32px system-ui`. A browser draws
+/// that in the system's face (Segoe UI on Windows) and in its bold cut; the
+/// canvas drew the app's own face, and a named family always in its
+/// regular cut. Checked with whichever `system-ui` face this computer has.
+#[test]
+fn canvas_text_takes_the_generic_familys_face_at_its_weight() {
+    use crate::ui::plugin_slots::css::Generic;
+    let Some(name) = Generic::SystemUi
+        .candidates()
+        .iter()
+        .find(|n| crate::fonts::family_face_at(n, 400.0).is_some())
+    else {
+        eprintln!("no system-ui face installed; nothing to compare");
+        return;
+    };
+    let text = "Listen to \"Leave Me Alone\" on TIDAL";
+    let named = canvas::measure(text, 32.0, 700.0, &format!("\"{name}\""));
+    assert_eq!(
+        canvas::measure(text, 32.0, 700.0, "system-ui"),
+        named,
+        "system-ui draws in {name}"
+    );
+    // A family with a bold cut of its own draws bold wider than regular.
+    let regular = crate::fonts::family_face_at(name, 400.0).map(|f| f as *const _);
+    let bold = crate::fonts::family_face_at(name, 700.0).map(|f| f as *const _);
+    if regular != bold {
+        let thin = canvas::measure(text, 32.0, 400.0, "system-ui");
+        assert!(named[0] > thin[0], "bold {named:?} regular {thin:?}");
+    }
+}

@@ -4721,6 +4721,9 @@ fn fonts_tick(ctx: &egui::Context) {
                 ) {
                     if let Some(f) = n.style.font_family.as_deref() {
                         seen.insert(f.trim().to_string());
+                    } else if n.tag == "button" {
+                        // The browser's own font for buttons.
+                        seen.insert(super::plugin_slots::BUTTON_FONT.to_string());
                     }
                     for c in &n.children {
                         walk(c, seen);
