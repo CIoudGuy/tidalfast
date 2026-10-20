@@ -428,15 +428,16 @@ div._dataContainer_5bb6028::before { --img: none !important; background-color: r
 
 /// The header's Play and Shuffle pills are TIDAL's market buttons, and the
 /// themes that restyle them reach them: the cotton candy family names the
-/// exact classes (`._medium_1l1bl_4._primary_1l1bl_6._marketButton_1l1bl_1`
-/// and its label), Catppuccin Mocha Blue `[data-test="play-button"]` and
+/// exact classes of TIDAL 2.43.2 (`._medium_1d16h_4._primary_1d16h_6._marketButton_1d16h_1`
+/// and its label), Catppuccin Mocha Blue `[data-test="play-button"]` (no
+/// element in TIDAL 2.43.2, whose Play is `[data-test="play-all"]`) and
 /// `[class*="marketButton"]`. The colours become the pills' (`header_pill`).
 #[test]
 fn theme_rules_on_tidals_header_pills_reach_them() {
     let css = r#"/* {"name": "Pills"} */
-._primary_1l1bl_6 { border-style: solid; background-color: #a8eeff !important; }
-._secondary_1l1bl_7 { background-color: #00000000; background-image: linear-gradient(var(--rotate), color-mix(in srgb, rgb(255, 168, 237) 50%, rgb(255, 168, 237) 50%), rgb(255, 168, 237)); border: 0; }
-._medium_1l1bl_4._primary_1l1bl_6._marketButton_1l1bl_1 > ._label_1l1bl_1,._medium_1l1bl_4._secondary_1l1bl_7._marketButton_1l1bl_1 > ._label_1l1bl_1 { color: rgb(0, 0, 0); }
+._primary_1d16h_6 { border-style: solid; background-color: #a8eeff !important; }
+._secondary_1d16h_7 { background-color: #00000000; background-image: linear-gradient(var(--rotate), color-mix(in srgb, rgb(255, 168, 237) 50%, rgb(255, 168, 237) 50%), rgb(255, 168, 237)); border: 0; }
+._medium_1d16h_4._primary_1d16h_6._marketButton_1d16h_1 > ._label_1d16h_1,._medium_1d16h_4._secondary_1d16h_7._marketButton_1d16h_1 > ._label_1d16h_1 { color: rgb(0, 0, 0); }
 [data-test="play-button"], [class*="marketButton"] { border: 2px solid #89b4fa; }
 "#;
     let files: Files = Arc::default();

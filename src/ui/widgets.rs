@@ -1524,16 +1524,45 @@ fn track_row_contents(
             };
             ui.painter().rect_filled(bar, corners, color);
         }
-        if let Some((width, color)) = super::plugin_dom::outline(
+        if let Some((sides, color)) = super::plugin_dom::outline_sides(
             &crate::luna::dom_anchors::keys::row(&list, row.index),
             app.palette.accent,
         ) {
-            ui.painter().rect_stroke(
-                rect.shrink(width / 2.0),
-                4.0,
-                egui::Stroke::new(width, color),
-                egui::StrokeKind::Inside,
-            );
+            let [top, right, bottom, left] = sides;
+            if sides.iter().all(|w| (w - top).abs() < 0.01) {
+                ui.painter().rect_stroke(
+                    rect.shrink(top / 2.0),
+                    4.0,
+                    egui::Stroke::new(top, color),
+                    egui::StrokeKind::Inside,
+                );
+            } else {
+                // Only the sides that have a style: a line over the row.
+                let painter = ui.painter();
+                let edges = [
+                    (
+                        top,
+                        Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + top)),
+                    ),
+                    (
+                        right,
+                        Rect::from_min_max(pos2(rect.right() - right, rect.top()), rect.max),
+                    ),
+                    (
+                        bottom,
+                        Rect::from_min_max(pos2(rect.left(), rect.bottom() - bottom), rect.max),
+                    ),
+                    (
+                        left,
+                        Rect::from_min_max(rect.min, pos2(rect.left() + left, rect.bottom())),
+                    ),
+                ];
+                for (width, edge) in edges {
+                    if width > 0.0 {
+                        painter.rect_filled(edge, 0.0, color);
+                    }
+                }
+            }
         }
     }
     // A plugin hid the row (`display: none`): its place stays, empty. Its

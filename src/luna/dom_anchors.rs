@@ -51,6 +51,8 @@ pub mod keys {
     pub const LIST_PANEL_INNER: &str = "list-panel-inner";
     /// The header's Play and Shuffle pills (TIDAL's market buttons) and
     /// their labels.
+    /// `div[data-test=header-controls]` around the header's pills.
+    pub const PAGE_HEADER_CONTROLS: &str = "page-header-controls";
     pub const PAGE_PLAY: &str = "page-play-button";
     pub const PAGE_PLAY_LABEL: &str = "page-play-button:label";
     pub const PAGE_SHUFFLE: &str = "page-shuffle-button";
@@ -120,6 +122,13 @@ pub mod keys {
     /// The play queue panel's title (`[data-test=playqueue-title]`), where
     /// total-play-time's fork puts its pill.
     pub const QUEUE_TITLE: &str = "playqueue-title";
+    /// The open play queue's side panel: `div._container_b3e8f28._isOpen_869124d`
+    /// (+ `_nowPlayingVisible_6285d60` over the now-playing view), the box
+    /// themes colour (the cotton candy family's floating glass panel,
+    /// radiant-lyrics' darkening).
+    pub const QUEUE_PANEL: &str = "queue-panel";
+    /// `div._playQueueWrapper_cbf5aaa` inside it, around the title and rows.
+    pub const QUEUE_WRAPPER: &str = "queue-wrapper";
     pub const FULLSCREEN: &str = "fullscreen-button";
     pub const FULLSCREEN_SPAN: &str = "fullscreen-button:span";
 
@@ -165,6 +174,12 @@ pub mod keys {
     pub const THEME_SECONDARY: &str = "theme-roles:secondary";
     /// `div._contextMenu_` (the menu surface).
     pub const THEME_MENU: &str = "theme-roles:menu";
+    /// TIDAL's popover around a menu, `div._container_d3060bb._visible_4bed23e`,
+    /// which themes paint as the menu's surface (the cotton candy family's
+    /// gradient glass).
+    pub const THEME_MENU_BOX: &str = "theme-roles:menu-box";
+    /// The same popover around the open context menu.
+    pub const CONTEXT_MENU_BOX: &str = "contextmenu-box";
 
     /// `sidebar:<data-test>`
     pub fn sidebar_item(test: &str) -> String {
@@ -321,6 +336,8 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("player", "_player_8c80ae6"),
     ("veil", "_veil_9a0b2e0"),
     ("container", "_container_b3e8f28"),
+    ("isOpen", "_isOpen_869124d"),
+    ("playQueueWrapper", "_playQueueWrapper_cbf5aaa"),
     ("nowPlayingVisible", "_nowPlayingVisible_6285d60"),
     ("glare", "_glare_fdbaeab"),
     ("notFullscreen", "_notFullscreen_60c5a14"),
@@ -802,6 +819,9 @@ pub struct Frame {
     pub now_playing: Option<NowPlaying>,
     /// The play queue panel's title, while the panel is open.
     pub queue_title: Option<(String, Option<Rect>)>,
+    /// The open play queue panel's box, and whether it is over the
+    /// now-playing view.
+    pub queue_panel: Option<(Option<Rect>, bool)>,
     pub context_menu: Option<ContextMenu>,
     pub modal: Option<ConfirmModal>,
     /// `main`'s scroll: [scrollTop, scrollHeight].
@@ -827,9 +847,25 @@ pub fn build(frame: &Frame) -> HostTree {
     if let Some(np) = &frame.now_playing {
         now_playing(&mut out, np);
     }
+    let mut title_parent = keys::SHELL;
+    if let Some((rect, over_now_playing)) = &frame.queue_panel {
+        let mut panel = el(keys::QUEUE_PANEL, Some(keys::MAIN_CONTAINER), "div")
+            .modules(&["container", "isOpen"])
+            .at(*rect);
+        if *over_now_playing {
+            panel = panel.modules(&["nowPlayingVisible"]);
+        }
+        out.push(panel);
+        out.push(
+            el(keys::QUEUE_WRAPPER, Some(keys::QUEUE_PANEL), "div")
+                .modules(&["playQueueWrapper"])
+                .at(*rect),
+        );
+        title_parent = keys::QUEUE_WRAPPER;
+    }
     if let Some((text, rect)) = &frame.queue_title {
         out.push(
-            el(keys::QUEUE_TITLE, Some(keys::SHELL), "h2")
+            el(keys::QUEUE_TITLE, Some(title_parent), "h2")
                 .test("playqueue-title")
                 .text(text.clone())
                 .at(*rect),
@@ -868,7 +904,12 @@ pub fn theme_roles(out: &mut Vec<HostNode>) {
             .class("wave-text-body-medium")
             .attr("data-wave-color", "textSecondary"),
     );
-    out.push(el(THEME_MENU, Some(THEME_ROLES), "div").modules(&["contextMenu"]));
+    out.push(
+        el(THEME_MENU_BOX, Some(THEME_ROLES), "div")
+            .class("_container_d3060bb")
+            .class("_visible_4bed23e"),
+    );
+    out.push(el(THEME_MENU, Some(THEME_MENU_BOX), "div").modules(&["contextMenu"]));
 }
 
 /// `#wimp > div` with the top bar, main container, `#main`, header and search.
@@ -1328,31 +1369,54 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 .at(filter.rect),
         );
     }
-    // TIDAL's header pills are market buttons (`_marketButton_1l1bl_1`,
-    // `_primary_`/`_secondary_`, `_medium_`), classes themes name exactly
+    // TIDAL's header pills are market buttons, classes themes name exactly
     // (the cotton candy family, Catppuccin Mocha Blue's `marketButton`).
+    // TIDAL 2.43.2 builds them as `_marketButton_1d16h_1`, `_medium_1d16h_4`
+    // and `_primary_1d16h_6`/`_secondary_1d16h_7` with `[data-test=play-all]`
+    // and `[data-test=shuffle-all]` (the older `_1l1bl_` build is gone, so
+    // rules naming it match nothing in TIDAL either). They sit in the
+    // header's `div[data-test=header-controls]`, under which the cotton
+    // candy family nests its rules for them.
+    let pills: Vec<Rect> = [&page.play, &page.shuffle]
+        .into_iter()
+        .flatten()
+        .filter_map(|b| b.rect)
+        .collect();
+    if page.play.is_some() || page.shuffle.is_some() {
+        let around = pills.iter().copied().reduce(|a, b| {
+            let (x0, y0) = (a[0].min(b[0]), a[1].min(b[1]));
+            let (x1, y1) = (
+                (a[0] + a[2]).max(b[0] + b[2]),
+                (a[1] + a[3]).max(b[1] + b[3]),
+            );
+            [x0, y0, x1 - x0, y1 - y0]
+        });
+        out.push(
+            el(PAGE_HEADER_CONTROLS, Some(PAGE), "div")
+                .test("header-controls")
+                .at(around),
+        );
+    }
     for (key, label_key, button, primary) in [
         (PAGE_PLAY, PAGE_PLAY_LABEL, &page.play, true),
         (PAGE_SHUFFLE, PAGE_SHUFFLE_LABEL, &page.shuffle, false),
     ] {
         let Some(button) = button else { continue };
-        let mut node = el(key, Some(PAGE), "button")
-            .class("_marketButton_1l1bl_1")
-            .class("_medium_1l1bl_4")
+        let node = el(key, Some(PAGE_HEADER_CONTROLS), "button")
+            .class("_marketButton_1d16h_1")
+            .class("_medium_1d16h_4")
             .class(if primary {
-                "_primary_1l1bl_6"
+                "_primary_1d16h_6"
             } else {
-                "_secondary_1l1bl_7"
+                "_secondary_1d16h_7"
             })
+            .test(if primary { "play-all" } else { "shuffle-all" })
             .attr("aria-label", button.label.clone())
             .at(button.rect);
-        if primary {
-            node = node.test("play-button");
-        }
         out.push(node);
         out.push(
             el(label_key, Some(key), "span")
-                .class("_label_1l1bl_1")
+                .class("_label_1d16h_1")
                 .text(button.label.clone())
                 .at(button.rect),
         );
@@ -1979,7 +2043,7 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
     use keys::*;
     out.push(
         el(NOW_PLAYING, Some(MAIN_CONTAINER), "div")
-            .modules(&["nowPlayingContainer", "container"])
+            .modules(&["nowPlayingContainer"])
             .id("nowPlaying")
             .test("new-now-playing")
             .at(np.rect),
@@ -2142,7 +2206,13 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
 /// `[data-test=contextmenu]` with `[data-type=contextmenu-item]` rows.
 pub fn context_menu(out: &mut Vec<HostNode>, menu: &ContextMenu) {
     out.push(
-        el(keys::CONTEXT_MENU, None, "div")
+        el(keys::CONTEXT_MENU_BOX, None, "div")
+            .class("_container_d3060bb")
+            .class("_visible_4bed23e")
+            .at(menu.rect),
+    );
+    out.push(
+        el(keys::CONTEXT_MENU, Some(keys::CONTEXT_MENU_BOX), "div")
             .modules(&["contextMenu"])
             .test("contextmenu")
             .attr("data-type", "list-container__context-menu")
@@ -2331,6 +2401,7 @@ pub fn sample_frame() -> Frame {
             ..NowPlaying::default()
         }),
         queue_title: None,
+        queue_panel: None,
         context_menu: Some(ContextMenu {
             rect: r(400.0, 300.0, 220.0, 120.0),
             items: vec![MenuItem {

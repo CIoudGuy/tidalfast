@@ -452,6 +452,7 @@
 		const pseudo = { before: pseudoIx(), after: pseudoIx(), track: pseudoIx(), thumb: pseudoIx(), selection: pseudoIx() };
 		const fonts = [];
 		const keyframes = new Map();
+		registered.clear();
 		let hover = false;
 		// Some rule sets `user-select` (copy-lyrics makes the lyrics
 		// selectable): the hosts it reaches are marked.
@@ -538,6 +539,10 @@
 				} else if (r instanceof CSSOtherRule && r.type === 7 && r._body) {
 					const frames = parseKeyframes(r._body);
 					if (frames.length) keyframes.set(r._prelude.replace(/^["']|["']$/g, ""), frames);
+					// A variable an animation sets is defined while it runs.
+					for (const [, decls] of frames) for (const k of decls.keys()) if (k.startsWith("--")) registered.add(k);
+				} else if (r instanceof CSSOtherRule && r.name === "property" && r._prelude.startsWith("--")) {
+					registered.add(r._prelude.trim());
 				}
 			}
 		};
@@ -742,6 +747,23 @@
 		return out + value.slice(i);
 	};
 	D.resolveVars = resolveVars;
+	// A `var(--x)` left in a resolved value names a variable nothing defines:
+	// TIDAL's `--wave-*` tokens (resolved later to the app's palette) and a
+	// gradient's first argument (an angle `@property` registers, which an
+	// animation turns: `linear-gradient(var(--rotate), ...)`) excepted.
+	// Variables `@property` registers or a `@keyframes` animates: defined
+	// in a browser though no rule declares them (Cotton Candy Twilight's
+	// stars, `hsla(56, 100%, 90%, var(--star1))`, twinkle by `--star1`).
+	const registered = new Set();
+	const undefinedVar = (v) => {
+		if (!v.includes("var(--")) return false;
+		for (const m of v.matchAll(/var\((--[\w-]+)\)/g)) {
+			if (m[1].startsWith("--wave-") || registered.has(m[1])) continue;
+			if (/gradient\(\s*$/i.test(v.slice(0, m.index))) continue;
+			return true;
+		}
+		return false;
+	};
 	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "margin-left", "margin-right", "column-gap", "padding-top", "padding-left", "padding-right", "padding-bottom", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "outline-offset", "border-color", "letter-spacing", "text-transform", "fill", "white-space", "flex", "order", "pointer-events", "background-position", "background-size", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns"]);
 	const ANIM_LONG = ["animation-name", "animation-duration", "animation-delay", "animation-iteration-count", "animation-direction", "animation-timing-function", "animation-play-state", "animation-fill-mode"];
 	const seconds = (t) => (/ms$/i.test(t) ? parseFloat(t) / 1000 : parseFloat(t));
@@ -897,6 +919,15 @@
 		for (const [name, raw] of decls) {
 			if (name.startsWith("--")) continue;
 			const v = resolveVars(raw, vars);
+			// A variable nothing defines, without a fallback, makes the whole
+			// declaration invalid at computed-value time: the property is
+			// `unset` (inherited from the parent or its initial value), as in
+			// a browser. Tidal TUI's `outline: 14px solid var(--tui-main)`
+			// draws nothing in TIDAL when its settings file is not installed.
+			if (undefinedVar(v)) {
+				if (INHERITED.has(name) && parentStyle?.[name] !== undefined) st[name] = parentStyle[name];
+				continue;
+			}
 			if (name === "background-color" && /^(initial|unset)$/i.test(v.trim())) set(name, "transparent");
 			else if (STYLE_FIELDS.has(name)) set(name, v);
 			else if (name === "background") {
@@ -962,6 +993,44 @@
 			const get = (k) => (decls.has(k) ? resolveVars(decls.get(k), vars).trim() : "");
 			const style = get("outline-style");
 			if (style && !/^(none|hidden)$/i.test(style)) set("outline", `${get("outline-width") || "3px"} ${style} ${get("outline-color") || "currentcolor"}`);
+		}
+		// `border-style` / `-width` / `-color` written apart (the cotton candy
+		// family's track list and queue panels: `border-style: solid;
+		// border-width: 2px; border-color: ...`) make one `border` value, as
+		// later than a `border` shorthand written before them; the width
+		// defaults to `medium` (3px) and the colour to the element's `color`.
+		if (decls.has("border-style")) {
+			const keys = [...decls.keys()];
+			const get = (k) => (decls.has(k) ? resolveVars(decls.get(k), vars).trim() : "");
+			const style = get("border-style");
+			if (style && keys.indexOf("border-style") > keys.indexOf("border") && !undefinedVar(style)) {
+				// One to four sides' styles, top right bottom left.
+				const [t, r = t, b = t, l = r] = style.split(/\s+/);
+				const sides = [t, r, b, l].map((s) => !/^(none|hidden)$/i.test(s));
+				if (!sides.some(Boolean)) delete st.border;
+				else {
+					let width = get("border-width");
+					let colour = get("border-color");
+					if (undefinedVar(width)) width = "";
+					if (undefinedVar(colour)) colour = "";
+					const short = st.border ? String(st.border).trim().split(/\s+/) : [];
+					width ||= short.find((w) => /^[\d.]+[a-z%]*$/i.test(w) || /^(thin|medium|thick)$/i.test(w)) ?? "3px";
+					// A `border-image` gradient paints the line (the family's
+					// row separators fade in from both ends): its first stop
+					// that is not see-through.
+					if (!colour && decls.has("border-image")) {
+						const g = /gradient\((.*)\)/is.exec(get("border-image"));
+						const stops = g ? splitTop(g[1]).map((x) => x.trim()) : [];
+						const solid = stops.find((x) => !/^(to\s|[\d.-]+(deg|turn|rad)\b)/i.test(x) && !/^(transparent|#0000(0000)?)\b/i.test(x) && !/^#[0-9a-f]{3}0\b/i.test(x));
+						if (solid && !undefinedVar(solid)) colour = solid.replace(/\s+[\d.]+%(\s+[\d.]+%)?$/, "");
+					}
+					colour ||= st.color ?? parentStyle?.color ?? "currentcolor";
+					set("border", `${width} ${[t, r, b, l][sides.indexOf(true)]} ${colour}`);
+					// Sides with no style draw nothing (the family's track rows:
+					// `border-style: solid none none none`, a line on top).
+					if (!sides.every(Boolean)) st["border-width"] = sides.map((v) => (v ? width : "0px")).join(" ");
+				}
+			}
 		}
 		// A side's own colour (`border-top-color`, a spinner's bright arc) makes
 		// `border-color` the four sides' colours, top right bottom left, from
@@ -1173,6 +1242,10 @@
 		let wimpFill;
 		// Plugin elements' own `::before` / `::after` boxes.
 		const boxes = new Map();
+		// Anchors whose own rules set `--img: none` (Tidal TUI's
+		// `[class*="dataContainer"] { --img: none }`): TIDAL's `::before`
+		// paints the header art from that variable, so the art goes.
+		const imgNone = [];
 		const ownPseudo = ix.pseudo.before.size > 0 || ix.pseudo.after.size > 0;
 		const walk = (el, vars, parentStyle) => {
 			if (L.stat) L.stat("css: visit", Date.now());
@@ -1200,6 +1273,7 @@
 				el._cc = { decls, vars, parent: parentStyle, myVars, st, inh };
 			}
 			if (st) styles.set(el, st);
+			if (decls && el._hostKey !== undefined && /^none$/i.test(String(decls.get("--img") ?? "").trim())) imgNone.push(el);
 			if (ownPseudo && el._hostKey === undefined && !roots.includes(el)) {
 				const hit = pmemo.get(el);
 				let o;
@@ -1240,6 +1314,11 @@
 				if (o) pseudo.set(el, o);
 			}
 			if (L.stat) L.stat("css: pseudo", t2);
+		}
+		for (const el of imgNone) {
+			const o = pseudo.get(el) ?? {};
+			if (o.before?.["background-image"] !== undefined) continue;
+			pseudo.set(el, { ...o, before: { ...(o.before ?? {}), "background-image": "none" } });
 		}
 		// The root variables, resolved: the same ones as last time give the
 		// same answer (a theme like Cotton Candy declares hundreds).

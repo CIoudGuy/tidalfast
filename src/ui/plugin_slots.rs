@@ -544,22 +544,35 @@ pub(crate) mod css {
         }
     }
 
-    /// `border` shorthand: width and colour.
+    /// `border` (or `outline`) shorthand: width and colour. As in a
+    /// browser, a border without a style keyword (`border: 1px #fff`, or a
+    /// value left empty by variables nothing defines) draws nothing.
     pub fn border(value: &str) -> Option<(f32, Color32)> {
         let v = strip_important(value);
         if matches!(v, "none" | "0" | "unset") {
             return None;
         }
-        let mut width = 1.0;
+        let mut width = 3.0;
         let mut colour = None;
+        let mut styled = false;
         for w in words(v) {
             if let Some(px) = length(w, 16.0, 0.0, [0.0, 0.0]) {
                 width = px;
             } else if let Some(c) = color(w) {
                 colour = Some(c);
+            } else {
+                match w.to_ascii_lowercase().as_str() {
+                    "none" | "hidden" => return None,
+                    "solid" | "dashed" | "dotted" | "double" | "groove" | "ridge" | "inset"
+                    | "outset" => styled = true,
+                    "thin" => width = 1.0,
+                    "medium" => width = 3.0,
+                    "thick" => width = 5.0,
+                    _ => {}
+                }
             }
         }
-        Some((width, colour.unwrap_or(Color32::GRAY)))
+        styled.then(|| (width, colour.unwrap_or(Color32::GRAY)))
     }
 
     /// `font-weight` as a number.

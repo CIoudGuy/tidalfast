@@ -43,6 +43,8 @@ mod parity_tests;
 mod settings_tests;
 #[path = "theme_round19_tests.rs"]
 mod theme_round19_tests;
+#[path = "theme_round22_tests.rs"]
+mod theme_round22_tests;
 #[path = "theme_tests.rs"]
 mod theme_tests;
 
