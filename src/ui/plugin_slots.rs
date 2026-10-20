@@ -3353,9 +3353,20 @@ fn draw_box(
         .len(&style.min_height, font, 0.0)
         .map(|h| (h - block_inset).max(0.0));
     let display = style.display.as_deref().unwrap_or("");
+    // A flex row that moves its items along (`justify-content: flex-end`:
+    // multipleplaylists' buttons) needs its width: a block's, all the room.
+    let spreads = display.trim() == "flex"
+        && !style
+            .flex_direction
+            .as_deref()
+            .is_some_and(|d| d.trim().starts_with("column"))
+        && matches!(
+            style.justify_content.as_deref().map(str::trim),
+            Some("center" | "flex-end" | "end" | "space-around" | "space-evenly")
+        );
     let width = width.or_else(|| {
         (in_column
-            && (fill.is_some() || border.is_some())
+            && (fill.is_some() || border.is_some() || spreads)
             && block(&node.tag)
             && !display.contains("inline"))
         .then(|| {
@@ -6336,5 +6347,95 @@ mod tests {
             assert!(fills.is_empty(), "hover {pointer:?}: {fills:?}");
         }
         plugin_dom::test_overlay(None);
+    }
+
+    /// multipleplaylists' dialog: the song box's `margin-bottom: 16px`
+    /// (a longhand, apart from `margin`) and the button row's
+    /// `display: flex; justify-content: flex-end`, which puts the buttons
+    /// at the card's right edge. Both were ignored: no gap under the box,
+    /// buttons on the left.
+    #[test]
+    fn margin_longhands_and_an_end_justified_flex_row() {
+        let boxed = |id, f: &dyn Fn(&mut Style)| {
+            let mut style = Style::default();
+            f(&mut style);
+            VNode {
+                id,
+                tag: "div".into(),
+                style,
+                ..VNode::default()
+            }
+        };
+        let card = VNode {
+            children: vec![
+                boxed(2, &|s| {
+                    s.height = Some("20px".into());
+                    s.margin_bottom = Some("16px".into());
+                    s.background_color = Some("#ff0000".into());
+                }),
+                boxed(3, &|s| {
+                    s.height = Some("20px".into());
+                    s.background_color = Some("#00ff00".into());
+                }),
+                VNode {
+                    children: vec![boxed(5, &|s| {
+                        s.width = Some("50px".into());
+                        s.height = Some("10px".into());
+                        s.background_color = Some("#0000ff".into());
+                    })],
+                    ..boxed(4, &|s| {
+                        s.display = Some("flex".into());
+                        s.justify_content = Some("flex-end".into());
+                    })
+                },
+            ],
+            ..boxed(1, &|s| s.width = Some("400px".into()))
+        };
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: "card".into(),
+                position: Position::After,
+                nodes: vec![card],
+            }],
+            ..DomOverlay::default()
+        }));
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut shapes = Vec::new();
+        for _ in 0..4 {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 400.0))),
+                ..egui::RawInput::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                at(
+                    ui,
+                    "card",
+                    Position::After,
+                    egui::pos2(100.0, 20.0),
+                    Align2::LEFT_TOP,
+                );
+            });
+            out.textures_delta.clear();
+            shapes = out.shapes;
+        }
+        plugin_dom::test_overlay(None);
+        let rect_of = |c: Color32| {
+            shapes
+                .iter()
+                .find_map(|s| match &s.shape {
+                    egui::Shape::Rect(r) if r.fill == c => Some(r.rect),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("no {c:?} box"))
+        };
+        let red = rect_of(Color32::from_rgb(255, 0, 0));
+        let green = rect_of(Color32::from_rgb(0, 255, 0));
+        let blue = rect_of(Color32::from_rgb(0, 0, 255));
+        // 16 under the box, besides the column's own few points of spacing.
+        let gap = green.top() - red.bottom();
+        assert!((15.5..20.0).contains(&gap), "{red:?} {green:?}");
+        assert!((blue.right() - 500.0).abs() < 1.0, "{blue:?}");
     }
 }
