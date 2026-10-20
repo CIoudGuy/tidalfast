@@ -1600,7 +1600,15 @@ impl Core {
             return;
         }
         self.autoplay_id = None;
-        let result = result.map(|tracks| lock(&self.queue).continue_with(tracks));
+        let back = self.autoplay_back;
+        let result = result.map(|tracks| {
+            let mut queue = lock(&self.queue);
+            // The songs are the radio of the song autoplay was seeded with.
+            let station = queue
+                .seed_back(back)
+                .and_then(|seed| crate::util::station_uri(&seed.uri));
+            queue.continue_with(tracks, station)
+        });
         match result {
             Ok(true) => {
                 log::info!("autoplay continues");

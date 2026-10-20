@@ -450,6 +450,38 @@ fn next_past_the_end_continues_with_autoplay() {
     assert!(engine.queue(10).autoplay);
 }
 
+/// Once the context ends and autoplay plays on, the songs come from the
+/// radio of the song it was seeded with, and that is what the queue says
+/// it plays from ("<song> Radio", opening that radio): no longer the album
+/// or playlist that ended, which the owner saw still named while autoplay
+/// played.
+#[test]
+fn autoplay_plays_from_the_seed_songs_radio_not_the_context_that_ended() {
+    let catalog = FakeCatalog::new();
+    let (engine, states) = engine(Arc::clone(&catalog));
+    load_album(&engine, Some("tidal:track:4"));
+    let album = until(&states, paused_on("tidal:track:4"));
+    let album_context = album.context_uri.clone();
+    assert!(album_context.is_some());
+    engine.command(PlayerCommand::Next).unwrap();
+    let autoplaying = until(&states, |state| {
+        state
+            .track
+            .as_ref()
+            .is_some_and(|track| track.uri == "tidal:track:104")
+            && !state.loading
+    });
+    assert_eq!(
+        autoplaying.context_uri.as_deref(),
+        Some("tidal:station:track:4"),
+        "plays from the last song's radio, not {album_context:?}"
+    );
+    assert_eq!(
+        engine.queue(10).context_uri.as_deref(),
+        Some("tidal:station:track:4")
+    );
+}
+
 #[test]
 fn previous_steps_back_and_a_resume_point_keeps_the_queue() {
     let (engine, states) = engine(FakeCatalog::new());
