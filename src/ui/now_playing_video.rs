@@ -122,7 +122,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             .max_rect(column)
             .layout(Layout::top_down(Align::Min)),
     );
-    content.set_clip_rect(column.expand2(vec2(24.0, 0.0)));
+    content.set_clip_rect(column.expand2(vec2(24.0, 0.0)).intersect(ui.clip_rect()));
     match tab {
         Some(NowPlayingTab::SimilarTracks) => similar(app, &mut content),
         Some(NowPlayingTab::Credits) => credits(app, &mut content, &now),

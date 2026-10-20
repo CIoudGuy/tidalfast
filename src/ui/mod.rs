@@ -277,6 +277,11 @@ fn now_playing_sliding(
     offset: f32,
 ) {
     let layer = egui::LayerId::new(egui::Order::Middle, Id::new("now-playing-sliding"));
+    // Over the page and what floats on it (a theme's sidebar card), but
+    // under the play queue, which floats over the view in TIDAL as it does
+    // once the view is up: its header and cover slid over the queue.
+    ui.ctx().move_to_top(layer);
+    ui.ctx().set_sublayer(layer, queue::floating_layer());
     ui.ctx().set_transform_layer(
         layer,
         egui::emath::TSTransform::from_translation(vec2(0.0, offset)),

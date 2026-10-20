@@ -655,6 +655,11 @@ pub fn reserve_for(app: &App, ctx: &egui::Context, page: egui::Rect) -> f32 {
 /// TIDAL's side panels fade in from 40 points to the right and back out
 /// (`opacity, transform .5s var(--panel-transition-easing) 50ms`); the
 /// panel is drawn while that runs, taking clicks only while open.
+/// The layer the floating play queue is drawn on.
+pub fn floating_layer() -> egui::LayerId {
+    egui::LayerId::new(egui::Order::Middle, egui::Id::new("floating-queue"))
+}
+
 pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
     let ctx = ui.ctx().clone();
     let shown = crate::motion::progress(
@@ -673,8 +678,8 @@ pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
     let rect = floating_rect(&ctx, ctx.content_rect());
     let shift = (1.0 - shown) * crate::motion::tidal::PANEL_SHIFT;
     let palette = app.palette;
-    egui::Area::new(egui::Id::new("floating-queue"))
-        .order(egui::Order::Middle)
+    egui::Area::new(floating_layer().id)
+        .order(floating_layer().order)
         .fixed_pos(rect.min + egui::vec2(shift, 0.0))
         .fade_in(false)
         .interactable(app.show_queue_panel)
