@@ -878,6 +878,7 @@
 		const c = words.find((w) => !BG_WORDS.test(w) && !/^-?[\d.]+(px|%|em|rem|vh|vw)?$/i.test(w) && !w.includes("/"));
 		return c ?? "transparent";
 	};
+	const FONT_KEYS = new Set(["font-family", "font-size", "font-weight", "font-style"]);
 	// Winning declarations -> the overlay's Style (only what the renderer knows).
 	const toStyle = (decls, vars, parentStyle) => {
 		const st = {};
@@ -886,6 +887,9 @@
 			if (!v || /^(initial|unset|revert|revert-layer)$/i.test(v)) return;
 			if (/^inherit$/i.test(v)) {
 				if (parentStyle?.[k] !== undefined) st[k] = parentStyle[k];
+				// Said outright, for the UI: a button's font is not the
+				// page's unless asked for (`font: inherit`, a reset).
+				else if (FONT_KEYS.has(k)) st[k] = "inherit";
 				return;
 			}
 			st[k] = v;
@@ -904,6 +908,22 @@
 				else if (/^(initial|unset)$/i.test(v.trim())) set("background-color", "transparent");
 				else if (/^(inherit|revert|revert-layer)$/i.test(v.trim())) set("background-color", v);
 				else set("background-color", bgColor(v));
+			} else if (name === "font") {
+				// The shorthand: `inherit`, or [style] [weight] size[/line] family.
+				const t = v.trim();
+				if (/^(inherit|initial|unset|revert|revert-layer)$/i.test(t)) {
+					for (const k of FONT_KEYS) set(k, t);
+				} else {
+					const m = /^((?:(?:italic|oblique|normal|small-caps|bold|bolder|lighter|[1-9]00)\s+)*)([\d.]+(?:px|em|rem|pt|%)|xx-small|x-small|small|medium|large|x-large|xx-large)(?:\s*\/\s*\S+)?\s+(.+)$/i.exec(t);
+					if (m) {
+						for (const w of m[1].trim().split(/\s+/).filter(Boolean)) {
+							if (/^(italic|oblique)$/i.test(w)) set("font-style", w);
+							else if (/^(bold|bolder|lighter|[1-9]00)$/i.test(w)) set("font-weight", w);
+						}
+						set("font-size", m[2]);
+						set("font-family", m[3]);
+					}
+				}
 			} else if (name === "inset") {
 				const p = v.split(/\s+/);
 				const [t, r = t, b = t, l = r] = p;

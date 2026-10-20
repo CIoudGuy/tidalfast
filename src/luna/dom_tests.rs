@@ -2207,6 +2207,49 @@ R.ready = true;
     finish(luna, dir);
 }
 
+/// The `font` shorthand reaches the overlay: `font: inherit` (a button
+/// reset, koreansearch's result rows) is said outright when no plugin
+/// style above gives a value, so the UI keeps the page's font rather than
+/// the browser's control font; a full shorthand gives its parts.
+#[test]
+fn the_font_shorthand_and_an_outright_inherit_reach_the_overlay() {
+    let (luna, _host, dir) = start(
+        r##"
+const st = document.createElement("style");
+st.textContent = `#reset { font: inherit; } #full { font: italic bold 12px/1.5 Georgia, serif; }`;
+document.head.appendChild(st);
+for (const id of ["reset", "full"]) {
+	const b = document.createElement("button");
+	b.id = id;
+	b.textContent = id;
+	document.body.appendChild(b);
+}
+R.ready = true;
+"##,
+    );
+    luna.sync_dom(tree());
+    results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
+    let o = overlay_until(&luna, 10, |o| {
+        o.injected.iter().flat_map(|i| &i.nodes).count() >= 2
+    });
+    let nodes: Vec<&super::dom::VNode> = o.injected.iter().flat_map(|i| &i.nodes).collect();
+    let by_id = |id: &str| {
+        *nodes
+            .iter()
+            .find(|n| n.attrs.iter().any(|(k, v)| k == "id" && v == id))
+            .unwrap_or_else(|| panic!("no #{id}"))
+    };
+    let reset = &by_id("reset").style;
+    assert_eq!(reset.font_family.as_deref(), Some("inherit"));
+    assert_eq!(reset.font_size.as_deref(), Some("inherit"));
+    let full = &by_id("full").style;
+    assert_eq!(full.font_style.as_deref(), Some("italic"));
+    assert_eq!(full.font_weight.as_deref(), Some("bold"));
+    assert_eq!(full.font_size.as_deref(), Some("12px"));
+    assert_eq!(full.font_family.as_deref(), Some("Georgia, serif"));
+    finish(luna, dir);
+}
+
 /// copy-lyrics' drag, as a browser selects it: the UI says where in the
 /// lines' text the press and the release were (`textPoint`, UTF-16
 /// offsets), and the selection holds exactly the characters between them,
