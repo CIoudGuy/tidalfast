@@ -102,7 +102,11 @@ struct Placement {
 
 /// TIDAL at 2000x1107 (a 28-point title bar): alone, the cover is 720,
 /// centred; with a tab it is 682 at x 243 and the tab's column runs from
-/// x 1016 to 1756, both centred on the height below the title bar.
+/// x 1016 to 1756, both centred on the height below the title bar. With a
+/// tab the cover is half the view's width less 320 (572 at x 259 beside
+/// TIDAL desktop's open play queue in a 2137 window, the view 1787 wide,
+/// the tab's words from x 926); a view too narrow for a cover worth showing
+/// (TIDAL's 1000 window with the queue open) shows the tab alone, 58 in.
 fn place(area: Rect, chrome: f32, content_bottom: f32, tab: bool) -> Placement {
     let top = area.top() + chrome;
     let height = (area.bottom() - top).max(0.0);
@@ -116,13 +120,24 @@ fn place(area: Rect, chrome: f32, content_bottom: f32, tab: bool) -> Placement {
         };
     }
     let margin = width * 0.1215;
-    let gap = width * 0.0455;
-    let side = (width * 0.341).min(height * 0.632).max(0.0);
-    let content_left = area.left() + width * 0.508;
-    let cover = Rect::from_center_size(
-        pos2(content_left - gap - side / 2.0, centre_y),
-        vec2(side, side),
-    );
+    let side = (width * 0.5 - 320.0).min(height * 0.632).max(0.0);
+    // Through TIDAL's two measured windows (2000 and 1787 wide).
+    let gap = 128.0 - width * 0.0188;
+    let (cover, content_left) = if side < NO_COVER_BELOW {
+        (
+            Rect::from_center_size(pos2(area.left(), centre_y), egui::Vec2::ZERO),
+            area.left() + 58.0,
+        )
+    } else {
+        let content_left = area.left() + width * 0.4225 + 171.0;
+        (
+            Rect::from_center_size(
+                pos2(content_left - gap - side / 2.0, centre_y),
+                vec2(side, side),
+            ),
+            content_left,
+        )
+    };
     let content_right = (area.right() - margin).min(content_left + 900.0);
     Placement {
         cover,
@@ -132,6 +147,9 @@ fn place(area: Rect, chrome: f32, content_bottom: f32, tab: bool) -> Placement {
         )),
     }
 }
+
+/// Beside a tab, a cover smaller than this is left out.
+const NO_COVER_BELOW: f32 = 160.0;
 
 /// The pills' row: 15 under the title bar, 30 high.
 pub(super) const HEADER_HEIGHT: f32 = 15.0 + 30.0;
@@ -201,9 +219,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             let tab =
                 requested_tab(app).filter(|tab| available.iter().any(|(shown, _)| shown == tab));
             // The floating queue takes the right; the cover centres in
-            // what is left, as in TIDAL.
+            // what is left, as in TIDAL (whose panel's box reaches 8 left
+            // of its visible edge).
             let right = if app.show_queue_panel {
-                super::queue::floating_rect(ui.ctx(), ui.ctx().content_rect()).left()
+                super::queue::floating_rect(ui.ctx(), ui.ctx().content_rect()).left() - 8.0
             } else {
                 rect.right()
             };
@@ -292,7 +311,9 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 );
                 return;
             }
-            big_cover(app, ui, placement.cover);
+            if placement.cover.width() > 0.0 {
+                big_cover(app, ui, placement.cover);
+            }
             let Some(column) = placement.content else {
                 return;
             };
@@ -993,10 +1014,26 @@ mod tests {
         assert!((alone.cover.center().x - 1000.0).abs() < 1.0);
         assert!((alone.cover.center().y - 567.5).abs() < 1.0);
         let beside = place(area, 28.0, 1019.0, true);
-        assert!((beside.cover.width() - 682.0).abs() < 2.0);
+        assert!((beside.cover.width() - 682.0).abs() < 3.0);
         assert!((beside.cover.left() - 243.0).abs() < 3.0);
         let content = beside.content.unwrap();
         assert!((content.left() - 1016.0).abs() < 1.0);
         assert!((content.right() - 1757.0).abs() < 2.0);
+        // TIDAL desktop, 2137x1183 with its play queue open: the view is
+        // 1787 wide under a 30-point title bar, the cover 572 at x 259.
+        let narrowed = Rect::from_min_max(pos2(0.0, 0.0), pos2(1787.0, 1183.0));
+        let beside = place(narrowed, 30.0, 1095.0, true);
+        assert!((beside.cover.width() - 572.0).abs() < 3.0);
+        assert!((beside.cover.left() - 259.0).abs() < 7.0);
+        let content = beside.content.unwrap();
+        assert!((content.left() - 926.0).abs() < 2.0);
+        let alone = place(narrowed, 30.0, 1095.0, false);
+        assert!((alone.cover.width() - 768.0).abs() < 3.0);
+        assert!((alone.cover.left() - 510.0).abs() < 3.0);
+        // A 1000 window with the queue open: the tab alone, 58 in.
+        let narrow = Rect::from_min_max(pos2(0.0, 0.0), pos2(650.0, 1183.0));
+        let beside = place(narrow, 30.0, 1095.0, true);
+        assert_eq!(beside.cover.width(), 0.0);
+        assert_eq!(beside.content.unwrap().left(), 58.0);
     }
 }

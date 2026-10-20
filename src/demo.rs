@@ -5566,6 +5566,58 @@ mod tests {
         }
     }
 
+    /// Where the text shapes reading `text` start, in a 1280 x 800 frame.
+    fn text_positions(ctx: &egui::Context, app: &mut App, text: &str) -> Vec<egui::Pos2> {
+        fn collect(shape: &egui::epaint::Shape, text: &str, out: &mut Vec<egui::Pos2>) {
+            match shape {
+                egui::epaint::Shape::Text(shape) if shape.galley.job.text == text => {
+                    out.push(shape.pos);
+                }
+                egui::epaint::Shape::Vec(shapes) => {
+                    shapes.iter().for_each(|s| collect(s, text, out));
+                }
+                _ => {}
+            }
+        }
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1280.0, 800.0),
+                )),
+                ..Default::default()
+            },
+            |ui| app.frame_ui(ui),
+        );
+        output.textures_delta.clear();
+        let mut found = Vec::new();
+        for shape in &output.shapes {
+            collect(&shape.shape, text, &mut found);
+        }
+        found
+    }
+
+    #[test]
+    fn the_player_bar_leaves_its_cover_to_the_now_playing_view_as_tidal_does() {
+        let (ctx, mut app) = accessible_app("bar-cover-now-playing");
+        let title = app.now_playing().expect("a song plays in the demo").title;
+        let bar_title_left = |ctx: &egui::Context, app: &mut App| {
+            text_positions(ctx, app, &title);
+            text_positions(ctx, app, &title)
+                .into_iter()
+                .filter(|pos| pos.y > 800.0 - 88.0)
+                .map(|pos| pos.x)
+                .reduce(f32::min)
+                .expect("the bar shows the title")
+        };
+        // Beside the 52-point cover.
+        assert!(bar_title_left(&ctx, &mut app) > 70.0);
+        app.now_playing_view = true;
+        // No cover: the words start near the window's edge.
+        assert!(bar_title_left(&ctx, &mut app) < 50.0);
+        app.backend.shutdown();
+    }
+
     /// The dropdown lies exactly under the pill (the field's width and left
     /// edge), keeps showing the last suggestions while the text changes, and
     /// is walked with the arrow keys.
