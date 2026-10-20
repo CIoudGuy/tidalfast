@@ -151,7 +151,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         );
         now_playing::backdrop_in(app, ui, window.translate(vec2(0.0, offset)), bar);
     }
-    {
+    // A floating bar (radiant-lyrics, a theme) is TIDAL's fixed
+    // `#footerPlayer` lifted off the window's edges: the page runs on under
+    // it to the window's bottom and shows round it, so the bar is drawn
+    // after the page. Its room is kept for the panels beside the page.
+    let page_under_bar = !covered && player_bar::page_runs_under(ctx);
+    if page_under_bar {
+        player_bar::keep_room(ui);
+    } else {
         let _part = part!("player bar");
         player_bar::show(app, ui);
     }
@@ -161,6 +168,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     } else {
         let above_bar = ui.available_rect_before_wrap();
         plugin_dom::note(|f| f.shell.main = plugin_dom::rect(above_bar));
+        // How far the page reaches past the bar's top: to the window's
+        // bottom when it runs under the bar.
+        let under = if page_under_bar {
+            (window.bottom() - above_bar.bottom()).max(0.0)
+        } else {
+            0.0
+        };
         let reach = plugin_dom::theme_layout(ctx).map_or(0.0, |l| l.main_reach);
         let page_left = if reach > 0.0 {
             Some(sidebar_over_page(app, ui, reach))
@@ -181,11 +195,15 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 room.min.x = left.clamp(room.min.x, room.max.x);
                 let mut page = ui.new_child(egui::UiBuilder::new().max_rect(room));
                 page.set_clip_rect(room.intersect(ui.clip_rect()));
-                central(app, &mut page);
+                central(app, &mut page, under);
             }
-            None => central(app, ui),
+            None => central(app, ui, under),
         }
         keep_room_for_panels(app, ctx);
+        if page_under_bar {
+            let _part = part!("player bar");
+            player_bar::show_over_page(app, ui, window);
+        }
         if slide > 0.0 {
             now_playing_sliding(app, ui, window, above_bar, offset);
         }
@@ -520,7 +538,25 @@ fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: 
     plugin_dom::paint_host_layers(&layer, key, header);
 }
 
-fn central(app: &mut App, ui: &mut egui::Ui) {
+/// The page, in the room `ui` has left, reaching `under` points further
+/// down (under a floating player bar).
+fn central(app: &mut App, ui: &mut egui::Ui, under: f32) {
+    if under <= 0.0 {
+        page_panel(app, ui, 0.0);
+        return;
+    }
+    let mut room = ui.available_rect_before_wrap();
+    room.max.y += under;
+    let clip = ui
+        .clip_rect()
+        .union(room)
+        .intersect(ui.ctx().content_rect());
+    let mut page = ui.new_child(egui::UiBuilder::new().max_rect(room));
+    page.set_clip_rect(clip.intersect(room));
+    page_panel(app, &mut page, under);
+}
+
+fn page_panel(app: &mut App, ui: &mut egui::Ui, under: f32) {
     let palette = app.palette;
     egui::CentralPanel::default()
         .frame(Frame::new().fill(plugin_dom::surface(
@@ -698,6 +734,10 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
                                 Page::PluginPage(_) => {}
                             }
                         });
+                    // Under a floating bar the page's end scrolls up above it.
+                    if under > 0.0 {
+                        ui.add_space(under);
+                    }
                 });
             plugin_dom::main_scroll(
                 ui,
