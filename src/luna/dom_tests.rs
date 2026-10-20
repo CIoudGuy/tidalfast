@@ -688,6 +688,85 @@ document.addEventListener("fullscreenchange", () => (R.changes = (R.changes ?? 0
     finish(luna, dir);
 }
 
+/// OneClickLyrics disables its button while the song has no words: in a
+/// browser a disabled button, and what is inside it, takes no clicks, so
+/// it does not open now playing. Its clicks used to run the listener.
+#[test]
+fn a_disabled_button_takes_no_clicks() {
+    let (luna, _host, dir) = start(
+        r##"
+R.clicks = 0;
+const b = document.createElement("button");
+b.id = "off";
+b.disabled = true;
+b.innerHTML = "<div><svg viewBox='0 0 4 4'></svg></div>";
+b.addEventListener("click", () => R.clicks++);
+document.body.append(b);
+b.click();
+R.programmatic = R.clicks;
+R.tick = 0;
+setInterval(() => { R.now = R.clicks; R.tick++; }, 30);
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| r["tick"].as_u64() > Some(0));
+    assert_eq!(r["programmatic"], json!(0), "{r}");
+    let o = overlay_until(&luna, 10, |o| {
+        o.injected
+            .iter()
+            .flat_map(|i| i.nodes.iter())
+            .any(|n| n.tag == "button")
+    });
+    let button = o
+        .injected
+        .iter()
+        .flat_map(|i| i.nodes.iter())
+        .find(|n| n.tag == "button")
+        .expect("the button");
+    let svg = button.children[0].children[0].id;
+    for target in [button.id, svg] {
+        luna.dom_event(DomEvent {
+            target: DomTarget::Node(target),
+            kind: "click".into(),
+            data: json!({}),
+        });
+    }
+    let seen = results_until(&luna, &dir, 10, |_| true)["tick"]
+        .as_u64()
+        .unwrap_or(0);
+    let r = results_until(&luna, &dir, 10, |r| r["tick"].as_u64() > Some(seen + 10));
+    assert_eq!(r["now"], json!(0), "{r}");
+    finish(luna, dir);
+}
+
+/// OneClickLyrics clicks `#footerPlayer` (opening now playing) and then the
+/// Lyrics toggle in the same turn: both clicks reach their widgets, in that
+/// order. Only the newer one used to.
+#[test]
+fn two_clicks_on_native_widgets_in_one_turn_both_arrive() {
+    let (luna, _host, dir) = start(
+        r##"
+const go = () => {
+	const bar = document.querySelector("#footerPlayer");
+	const lyrics = document.querySelector('[data-test="toggle-lyrics"]');
+	if (!bar || !lyrics || R.done) return;
+	R.done = true;
+	bar.click();
+	lyrics.click();
+};
+new MutationObserver(go).observe(document.body, { childList: true, subtree: true });
+go();
+"##,
+    );
+    luna.sync_dom(tree());
+    results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    let o = overlay_until(&luna, 10, |o| o.clicks.len() >= 2);
+    let clicked: Vec<&str> = o.clicks.iter().map(|(k, _)| k.as_str()).collect();
+    assert_eq!(clicked, [keys::FOOTER, keys::TOGGLE_LYRICS]);
+    assert!(o.clicks[0].1 < o.clicks[1].1);
+    finish(luna, dir);
+}
+
 /// AltPlay takes the transport over: it clicks TIDAL's pause button to stop
 /// TIDAL (a click on the button is the app's pause), and lays its own round
 /// element over the button's `parentElement`, which is a box of the button's
@@ -718,9 +797,9 @@ go();
         "{r}"
     );
     let o = overlay_until(&luna, 10, |o| {
-        o.click.is_some() && o.at(keys::PLAY_WRAP, Position::Append).count() == 1
+        !o.clicks.is_empty() && o.at(keys::PLAY_WRAP, Position::Append).count() == 1
     });
-    assert_eq!(o.click.as_ref().unwrap().0, keys::PLAY);
+    assert_eq!(o.clicks.last().unwrap().0, keys::PLAY);
     finish(luna, dir);
 }
 
@@ -1041,9 +1120,9 @@ setTimeout(async () => {
     assert_eq!(r["after"], json!("n=1"));
     assert_eq!(r["menu"], json!("contextmenu"));
     let o = overlay_until(&luna, 10, |o| {
-        o.click.is_some() && o.at(keys::TRACK_INFO, Position::Append).count() > 0
+        !o.clicks.is_empty() && o.at(keys::TRACK_INFO, Position::Append).count() > 0
     });
-    assert_eq!(o.click.as_ref().unwrap().0, keys::LYRICS_SYNC);
+    assert_eq!(o.clicks.last().unwrap().0, keys::LYRICS_SYNC);
     // After the page's h1, as LuckyLP inserts its button.
     assert!(
         o.at(keys::PAGE_TITLE, Position::Append).count()

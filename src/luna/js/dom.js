@@ -391,6 +391,15 @@
 	// and then reports `input` and `change`; a click elsewhere in a `<label>`
 	// clicks its control (multipleplaylists' rows, a box and a title).
 	const clickWith = (el, ev) => {
+		// A disabled button, input, select or text area, or something inside
+		// one, takes no clicks, from the pointer or from `.click()`
+		// (OneClickLyrics' button while the song has no words).
+		for (let n = el; n && n.nodeType === 1; n = n.parentNode) {
+			if (/^(button|input|select|textarea)$/.test(n.localName)) {
+				if (n.hasAttribute("disabled")) return false;
+				break;
+			}
+		}
 		const kind = el?.localName === "input" ? String(el.getAttribute("type") ?? "").toLowerCase() : "";
 		const box = (kind === "checkbox" || kind === "radio") && !el.hasAttribute("disabled");
 		let was = false;
@@ -1427,9 +1436,9 @@
 			dispatch(this, new FocusEvent("blur"));
 		}
 		click() {
-			clickWith(this, new MouseEvent("click", { bubbles: true, cancelable: true }));
+			const ok = clickWith(this, new MouseEvent("click", { bubbles: true, cancelable: true }));
 			// A click a plugin makes on a native widget reaches the widget.
-			if (this._hostKey !== undefined) D.hostClick(this._hostKey);
+			if (this._hostKey !== undefined && (ok || !this.hasAttribute("disabled"))) D.hostClick(this._hostKey);
 		}
 		animate() {
 			return { cancel() {}, finish() {}, play() {}, pause() {}, reverse() {}, finished: Promise.resolve(), onfinish: null, addEventListener() {}, removeEventListener() {} };
@@ -2646,9 +2655,12 @@
 	// ---------------------------------------------------------------- scrolling
 	let scrollSeq = 0;
 	let clickSeq = 0;
-	let hostClick = null;
+	// The last clicks, not only the newest: two in one turn (the player
+	// bar, then the Lyrics toggle) must both reach their widgets.
+	const hostClicks = [];
 	D.hostClick = (key) => {
-		hostClick = [key, ++clickSeq];
+		hostClicks.push([key, ++clickSeq]);
+		if (hostClicks.length > 16) hostClicks.shift();
 		contentDirty();
 	};
 	let scrollTo = null;
@@ -3385,7 +3397,7 @@
 		if (docLs.length) hostsOut[""] = { listens: docLs };
 		const ov = { vars: css.vars, page: css.page, hosts: hostsOut, injected, fonts: [...css.fonts, ...fontFaces()], scroll_to: scrollTo, css_bytes: css.bytes };
 		if (scrollTop) ov.scroll_top = scrollTop;
-		if (hostClick) ov.click = hostClick;
+		if (hostClicks.length) ov.clicks = hostClicks.slice();
 		if (css.keyframes && Object.keys(css.keyframes).length) ov.keyframes = css.keyframes;
 		if (css.hover) ov.hover = true;
 		if (overBudget && !warnedBudget) L.callOp("log", { plugin: null, level: "warn", msg: `Plugins added more than ${MAX_OVERLAY_NODES} elements to the page; the rest are not shown` });

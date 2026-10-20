@@ -88,8 +88,19 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             // does. The controls drawn after it take their own clicks.
             let bar = ui.interact(behind, ui.id().with("player-bar-view"), Sense::click());
             super::cursor::keep_arrow(ui.ctx(), bar.id);
-            if bar.clicked() && now.is_some() {
+            // `#footerPlayer.click()` from a plugin is a click on the bar
+            // (OneClickLyrics opens now playing so).
+            if (bar.clicked() || plugin_dom::take_click(keys::FOOTER)) && now.is_some() {
                 app.actions.push(Action::ToggleNowPlaying);
+            }
+            // TIDAL's Lyrics toggle is the now-playing view's Lyrics tab: a
+            // plugin's click on it opens that tab, or leaves it when it is
+            // the one shown.
+            if plugin_dom::take_click(keys::TOGGLE_LYRICS) {
+                let lyrics = crate::model::NowPlayingTab::Lyrics;
+                let shown = super::now_playing::open(app) && app.now_playing_tab == Some(lyrics);
+                app.actions
+                    .push(Action::SetNowPlayingTab((!shown).then_some(lyrics)));
             }
             if plugin_dom::on() {
                 if over_view < 1.0 {
@@ -1313,6 +1324,11 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     plugin_dom::player_part(PlayerPart::Slider, slider_rect);
     plugin_dom::wheel(ui, keys::SLIDER, controls.button.rect);
     run.slot(ui, 6, keys::SLIDER, Position::Before);
+    // Tidalfast draws no lyrics button in the bar, so what follows
+    // `toggle-lyrics` in the document sits where TIDAL draws what precedes
+    // the speaker: between the sound output and the speaker
+    // (OneClickLyrics' `sliderContainer.before(button)`).
+    run.slot(ui, 9, keys::TOGGLE_LYRICS, Position::After);
     super::player_utility::sound_output(app, ui);
     run.slot(ui, 7, keys::MORE, Position::Append);
     let queue_open = app.show_queue_panel || matches!(app.page(), Page::Queue);
@@ -1334,7 +1350,6 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     plugin_dom::player_part(PlayerPart::Queue, queue_button.rect);
     plugin_dom::player_part(PlayerPart::More, queue_button.rect);
     run.slot(ui, 8, keys::MORE, Position::Prepend);
-    run.slot(ui, 9, keys::TOGGLE_LYRICS, Position::After);
     // A dragged song dropped on the queue button queues it, same as the
     // "Add to queue" menu item.
     // Taking a payload of the wrong type would discard the dragged song.
@@ -1844,6 +1859,94 @@ mod narrow_tests {
                 );
             }
         }
+        crate::ui::plugin_dom::test_overlay(None);
+    }
+
+    /// OneClickLyrics puts its button before `_sliderContainer_`, which in
+    /// the document follows `toggle-lyrics`. TIDAL draws it between the
+    /// sound output and the speaker; it was drawn left of the queue button.
+    #[test]
+    fn an_item_after_the_lyrics_toggle_sits_before_the_speaker() {
+        let (ctx, mut app) = setup();
+        let at = |anchor: &str, position, id, text: &str| Injected {
+            anchor: anchor.into(),
+            position,
+            nodes: vec![chip(id, text)],
+        };
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 2,
+            injected: vec![
+                at(keys::MORE, Position::Append, 11, "AFTER-QUEUE"),
+                at(keys::TOGGLE_LYRICS, Position::After, 12, "AFTER-LYRICS"),
+                at(keys::SLIDER, Position::Before, 13, "BEFORE-SLIDER"),
+            ],
+            ..DomOverlay::default()
+        }));
+        let found = settled(&ctx, &mut app, 2000.0);
+        let x = |mark: &str| {
+            found
+                .iter()
+                .find(|(text, _)| text.contains(mark))
+                .map(|(_, rect)| rect.center().x)
+                .unwrap_or_else(|| panic!("{mark} is not drawn"))
+        };
+        assert!(
+            x("AFTER-QUEUE") < x("AFTER-LYRICS") && x("AFTER-LYRICS") < x("BEFORE-SLIDER"),
+            "after the queue {}, after the lyrics toggle {}, before the slider {}",
+            x("AFTER-QUEUE"),
+            x("AFTER-LYRICS"),
+            x("BEFORE-SLIDER")
+        );
+        crate::ui::plugin_dom::test_overlay(None);
+    }
+
+    /// OneClickLyrics opens now playing on its Lyrics tab with
+    /// `#footerPlayer.click()` and a click on the Lyrics toggle; with the
+    /// tab shown, a click on the bar closes the view. Those clicks reached
+    /// nothing before.
+    #[test]
+    fn plugin_clicks_on_the_bar_and_the_lyrics_toggle_open_the_lyrics() {
+        let (ctx, mut app) = setup();
+        let frame = |ctx: &egui::Context, app: &mut App| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1400.0, 820.0))),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(app, ui),
+            );
+            output.textures_delta.clear();
+        };
+        frame(&ctx, &mut app);
+        app.actions.clear();
+        crate::ui::plugin_dom::test_click(keys::FOOTER);
+        crate::ui::plugin_dom::test_click(keys::TOGGLE_LYRICS);
+        frame(&ctx, &mut app);
+        let lyrics = crate::model::NowPlayingTab::Lyrics;
+        assert!(
+            app.actions
+                .iter()
+                .any(|a| matches!(a, Action::ToggleNowPlaying)),
+            "the bar's click opens now playing"
+        );
+        assert!(
+            app.actions
+                .iter()
+                .any(|a| matches!(a, Action::SetNowPlayingTab(Some(t)) if *t == lyrics)),
+            "the toggle's click opens the Lyrics tab"
+        );
+        // Shown: the toggle's click leaves the tab.
+        app.actions.clear();
+        app.now_playing_view = true;
+        app.now_playing_tab = Some(lyrics);
+        crate::ui::plugin_dom::test_click(keys::TOGGLE_LYRICS);
+        frame(&ctx, &mut app);
+        assert!(
+            app.actions
+                .iter()
+                .any(|a| matches!(a, Action::SetNowPlayingTab(None))),
+            "the toggle's click leaves the Lyrics tab"
+        );
         crate::ui::plugin_dom::test_overlay(None);
     }
 
