@@ -22137,6 +22137,29 @@ mod tests {
         );
     }
 
+    /// Plugins see the page hidden (their frames paused, timers once a
+    /// second) while nobody can see the window: minimised, closed to the
+    /// tray, or covered by other windows, and visible again once shown.
+    #[test]
+    fn plugins_see_a_covered_window_hidden() {
+        let mut app = headless_app();
+        let ctx = egui::Context::default();
+        let shown = crate::luna::WindowState::default();
+        assert!(!app.luna_hidden(&ctx, shown));
+        crate::occlusion::set_covered(&ctx, true);
+        assert!(app.luna_hidden(&ctx, shown), "covered");
+        crate::occlusion::set_covered(&ctx, false);
+        assert!(!app.luna_hidden(&ctx, shown), "shown again");
+        let minimized = crate::luna::WindowState {
+            minimized: true,
+            ..shown
+        };
+        assert!(app.luna_hidden(&ctx, minimized), "minimised");
+        app.window_hidden = true;
+        assert!(app.luna_hidden(&ctx, shown), "in the tray");
+        app.backend.shutdown();
+    }
+
     /// A window other windows fully cover asks for no frames of the turning
     /// background, only the logic's own passes, and keeps its polling
     /// budget; the first pass after it shows again asks for the next frame.

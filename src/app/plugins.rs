@@ -436,7 +436,7 @@ impl App {
             self.plugins
                 .host
                 .set_next_pass(self.next_pass().map(|due| std::time::Instant::now() + due));
-            self.luna_visibility(window.minimized || self.window_hidden);
+            self.luna_visibility(self.luna_hidden(ctx, window));
             if self.plugins.seen.focused != Some(window.focused) {
                 self.plugins.seen.focused = Some(window.focused);
                 if let Some(luna) = &self.plugins.luna {
@@ -455,6 +455,14 @@ impl App {
     /// Tell plugins when the window is hidden (minimized, closed to the tray)
     /// or shown again; their timers and animation frames slow down while it
     /// is, as in a browser's background tab.
+    /// Whether plugins see the page hidden (`document.hidden`: frames
+    /// paused, timers at most once a second): nobody can see the window,
+    /// because it is minimised, closed to the tray or covered by other
+    /// windows.
+    pub(super) fn luna_hidden(&self, ctx: &egui::Context, window: WindowState) -> bool {
+        window.minimized || self.window_hidden || crate::occlusion::covered(ctx)
+    }
+
     pub(crate) fn luna_visibility(&mut self, hidden: bool) {
         if self.plugins.seen.hidden == Some(hidden) {
             return;

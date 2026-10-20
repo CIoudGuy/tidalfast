@@ -492,6 +492,56 @@ pub fn load(bytes: Vec<u8>) -> Result<(u64, Arc<Clip>), webm::Error> {
     Ok((id, clip))
 }
 
+/// A running, looping clip of `frames` blank frames at `fps`, decoded at
+/// its own size, for tests of the drawing. [`free`] it after.
+#[cfg(test)]
+pub(crate) fn test_clip(size: [u32; 2], frames: usize, fps: f64) -> u64 {
+    let [w, h] = [size[0] as usize, size[1] as usize];
+    let image = Arc::new(egui::ColorImage::new(
+        [w, h],
+        vec![egui::Color32::WHITE; w * h],
+    ));
+    let decoded = Arc::new(Decoded {
+        width: w,
+        height: h,
+        frames: Mutex::new(
+            (0..frames)
+                .map(|i| (i as f64 / fps, image.clone()))
+                .collect(),
+        ),
+        done: AtomicBool::new(true),
+        stop: AtomicBool::new(false),
+    });
+    let clip = Arc::new(Clip {
+        bytes: Vec::new(),
+        track: webm::Track {
+            width: size[0],
+            height: size[1],
+            duration: frames as f64 / fps,
+            alpha: false,
+            packets: Vec::new(),
+        },
+        play: Mutex::new(Play {
+            paused: false,
+            time: 0.0,
+            at: Instant::now(),
+            rate: 1.0,
+            looped: true,
+        }),
+        decoded: Mutex::new(Some(decoded)),
+        // Drawn just now: a pass elsewhere letting go of idle clips keeps it.
+        drawn: Mutex::new(Some(Instant::now())),
+        notify: None,
+    });
+    let id = NEXT.fetch_add(1, Ordering::Relaxed);
+    CLIPS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .insert(id, clip);
+    COUNT.fetch_add(1, Ordering::Relaxed);
+    id
+}
+
 /// Forgets a clip (its element was collected or got another source).
 pub fn free(id: u64) {
     let gone = CLIPS
