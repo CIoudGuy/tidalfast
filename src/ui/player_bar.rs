@@ -359,6 +359,10 @@ fn note_player_bar(app: &App, rect: Rect, now: Option<&NowPlaying>, view_open: b
     });
 }
 
+/// Where the bar's words start without its cover (over the now-playing
+/// view): TIDAL desktop's 40 from the window's edge.
+const NOW_PLAYING_TEXT_INSET: f32 = 24.0;
+
 /// The track info on the bar's left; returns how far right plugin elements
 /// in it reached (the region's left edge when there are none). Plugin
 /// elements that do not fit in the region, and `slack` beyond it, are left
@@ -411,18 +415,23 @@ fn now_playing_block(
         .filter(|src| src.starts_with("http"))
         .filter(|src| Some(src.as_str()) != now.art_small.as_deref())
         .filter(|src| Some(src.as_str()) != now.art_url.as_deref());
-    super::widgets::playing_cover(
-        ui,
-        &palette,
-        app.backend.art(),
-        "player-bar",
-        plugin_cover
-            .as_deref()
-            .or_else(|| app.small_art(now, cover_rect.width())),
-        cover_rect,
-        3.0,
-        plugin_dom::playing_cover_style(0).as_ref(),
-    );
+    // TIDAL: while the now-playing view shows the cover large, the bar
+    // leaves it out and its words move to the left.
+    let cover_shown = !app.now_playing_view;
+    if cover_shown {
+        super::widgets::playing_cover(
+            ui,
+            &palette,
+            app.backend.art(),
+            "player-bar",
+            plugin_cover
+                .as_deref()
+                .or_else(|| app.small_art(now, cover_rect.width())),
+            cover_rect,
+            3.0,
+            plugin_dom::playing_cover_style(0).as_ref(),
+        );
+    }
     let song = app.now_playing_item();
     let drag_sense = if song.is_some() {
         Sense::click_and_drag()
@@ -443,7 +452,8 @@ fn now_playing_block(
         pos2(cover_rect.right() - 10.0, cover_rect.top() + 10.0),
         Vec2::splat(18.0),
     );
-    let offer_expand = art_available && !app.settings.art_expanded && app.settings.sidebar_visible;
+    let offer_expand =
+        cover_shown && art_available && !app.settings.art_expanded && app.settings.sidebar_visible;
     let over_expand = offer_expand && ui.rect_contains_pointer(expand_rect);
     plugin_dom::player_part(PlayerPart::Cover, cover_rect);
     plugin_dom::host_clicks(ui, keys::COVER, &cover_response);
@@ -489,7 +499,11 @@ fn now_playing_block(
     // can stand (it never stands past the region's end).
     let reachable = x_range(region.left(), region.right() + slack);
     let line_room = x_range(region.left(), region.right() - 64.0 - (more_shift - 28.0));
-    let text_left = cover_rect.right() + 16.0;
+    let text_left = if cover_shown {
+        cover_rect.right() + 16.0
+    } else {
+        region.left() + NOW_PLAYING_TEXT_INSET
+    };
     let text_width = (region.right() - text_left - heart_width).max(40.0);
     // TIDAL's third line: where the playing thing comes from.
     let source = app.playing_from();
