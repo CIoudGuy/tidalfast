@@ -210,11 +210,18 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) -> Option<super::theme_layout::Hea
     // TIDAL's header: 56 tall, padding 14 12 10 16, so the 36-point
     // controls centre 30 points down.
     ui.add_space(4.0);
-    ui.allocate_ui_with_layout(
-        vec2(width, content_height - top_padding - 4.0),
-        Layout::left_to_right(Align::Center),
-        |ui| bar_contents(app, ui, width, &window_controls, None),
+    // The bar keeps its height whatever plugins put in it: TIDAL's header
+    // is 56 tall and a taller element (the audio-visualizer's 48-point
+    // panel) overflows it rather than pushing the page down.
+    let size = vec2(width, content_height - top_padding - 4.0);
+    let bar = egui::Rect::from_min_size(ui.cursor().min, size);
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(bar)
+            .layout(Layout::left_to_right(Align::Center)),
     );
+    bar_contents(app, &mut child, width, &window_controls, None);
+    ui.advance_cursor_after_rect(bar);
     None
 }
 
@@ -273,7 +280,11 @@ fn bar_contents(
             ui.max_rect().center().y - 18.0..=ui.max_rect().center().y + 18.0,
         );
         super::plugin_dom::note(|f| f.shell.nav_arrows = super::plugin_dom::rect(arrows));
-        super::plugin_slots::inline(ui, keys::NAV_ARROWS, Position::After);
+        // TIDAL's arrows have `margin-right: auto`: what plugins put after
+        // them sits at the bar's right end, beside the search field
+        // (below), unless an element's own auto margin keeps it here.
+        let split = super::plugin_slots::auto_margin_split(keys::NAV_ARROWS, Position::After);
+        super::plugin_slots::inline_range(ui, keys::NAV_ARROWS, Position::After, 0..split);
     }
 
     // The badges sit at the right end but grow with their text, so
@@ -385,6 +396,17 @@ fn bar_contents(
         }
         if response.has_focus() && ui.input(|input| input.key_pressed(egui::Key::Escape)) {
             response.surrender_focus();
+        }
+        // What plugins put between the arrows and the field, on the
+        // field's side of the free space (the audio-visualizer's panel).
+        if super::plugin_dom::on() {
+            let split = super::plugin_slots::auto_margin_split(keys::NAV_ARROWS, Position::After);
+            super::plugin_slots::inline_range(
+                ui,
+                keys::NAV_ARROWS,
+                Position::After,
+                split..usize::MAX,
+            );
         }
         if !app.network_reachable {
             ui.add_space(4.0);

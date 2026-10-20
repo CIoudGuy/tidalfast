@@ -220,8 +220,22 @@ pub fn paint(
     angle: f32,
     position: [f32; 2],
 ) {
+    if let Some(mesh) = mesh(rect, corners, g, angle, position) {
+        painter.add(mesh);
+    }
+}
+
+/// [`paint`]'s shape, for a caller that places it under what it draws
+/// next (a plugin box's gradient under its words).
+pub fn mesh(
+    rect: Rect,
+    corners: Option<CornerRadius>,
+    g: &Angled,
+    angle: f32,
+    position: [f32; 2],
+) -> Option<egui::Mesh> {
     if g.stops.len() < 2 || rect.width() <= 0.0 || rect.height() <= 0.0 {
-        return;
+        return None;
     }
     let (gw, gh) = (rect.width() * g.size[0], rect.height() * g.size[1]);
     let image = Rect::from_min_size(
@@ -237,7 +251,7 @@ pub fn paint(
     // The gradient line reaches the corners the angle points to.
     let line = (gw * dir.x).abs() + (gh * dir.y).abs();
     if line < 1e-3 {
-        return;
+        return None;
     }
     let along = |p: Pos2| (p - image.center()).dot(dir) / line + 0.5;
     let outline = match corners {
@@ -292,7 +306,7 @@ pub fn paint(
             mesh.add_triangle(first, first + i, first + i + 1);
         }
     }
-    painter.add(mesh);
+    Some(mesh)
 }
 
 #[cfg(test)]

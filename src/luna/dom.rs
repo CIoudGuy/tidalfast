@@ -102,11 +102,15 @@ pub struct Style {
     /// `padding-top: 45px`): read by the theme layout and the theme cards.
     pub margin_top: Option<String>,
     pub margin_bottom: Option<String>,
+    /// Plugin elements' side longhands (miniplayer's `marginLeft: 8px`).
+    pub margin_left: Option<String>,
+    pub margin_right: Option<String>,
     /// A shelf's `column-gap` (the cotton candy family spaces cards with it).
     pub column_gap: Option<String>,
     pub padding_top: Option<String>,
     pub padding_left: Option<String>,
     pub padding_right: Option<String>,
+    pub padding_bottom: Option<String>,
     pub border: Option<String>,
     pub border_radius: Option<String>,
     pub opacity: Option<String>,

@@ -620,8 +620,8 @@ pub(crate) mod css {
 
     /// One entry of a `font-family` list, in order: a family by name, or one
     /// of the generic families a browser always has a face for (`monospace`,
-    /// `serif`, `cursive`, `fantasy`). Other generic words (`sans-serif`,
-    /// `system-ui`, ...) are left out: the app's own face stands for them.
+    /// `serif`, `cursive`, `fantasy`, `system-ui`). Other generic words
+    /// (`sans-serif`, ...) are left out: the app's own face stands for them.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub enum Family {
         Named(String),
@@ -634,6 +634,9 @@ pub(crate) mod css {
         Serif,
         Cursive,
         Fantasy,
+        /// The system's interface face (Segoe UI on Windows), as Chromium
+        /// draws `system-ui` (lyrics-everywhere's line).
+        SystemUi,
     }
 
     impl Generic {
@@ -659,6 +662,15 @@ pub(crate) mod css {
                 ],
                 Self::Cursive => &["Comic Sans MS", "Apple Chancery", "Z003"],
                 Self::Fantasy => &["Impact", "Papyrus"],
+                Self::SystemUi => &[
+                    "Segoe UI",
+                    "SF Pro Text",
+                    "Helvetica Neue",
+                    "Cantarell",
+                    "Ubuntu",
+                    "Noto Sans",
+                    "DejaVu Sans",
+                ],
             }
         }
     }
@@ -679,6 +691,7 @@ pub(crate) mod css {
                     "serif" | "ui-serif" if !quoted => Some(Generic::Serif),
                     "cursive" if !quoted => Some(Generic::Cursive),
                     "fantasy" if !quoted => Some(Generic::Fantasy),
+                    "system-ui" if !quoted => Some(Generic::SystemUi),
                     _ => None,
                 };
                 match generic {
@@ -831,6 +844,9 @@ struct Inherit {
     size: f32,
     weight: u16,
     italic: bool,
+    /// The family an element's `font-family` named, numbered by
+    /// [`plugin_dom::element_font_id`]; `None` is the app's face.
+    family: Option<u32>,
 }
 
 impl Inherit {
@@ -842,6 +858,7 @@ impl Inherit {
             size: 13.0,
             weight: 400,
             italic: false,
+            family: None,
         }
     }
 }
@@ -917,7 +934,67 @@ impl Cx<'_> {
 /// (a horizontal run). Returns whether anything was drawn. Costs one bool
 /// check while Luna is off.
 pub fn inline(ui: &mut egui::Ui, key: &str, position: Position) -> bool {
-    inline_with(ui, key, position, false)
+    inline_with(ui, key, position, false, None)
+}
+
+/// Which side of a flex row's free space the elements at `key`/`position`
+/// sit on, when the host element before them has `margin-right: auto`
+/// (TIDAL's navigation arrows push the search field to the bar's right
+/// end): the first `n` stay at the start, the rest go to the end beside
+/// the next host element. As in CSS flex, a shown element with
+/// `margin-right: auto` keeps itself and those before it at the start,
+/// one with `margin-left: auto` takes itself and those after it to the
+/// end; with neither, all go to the end.
+pub fn auto_margin_split(key: &str, position: Position) -> usize {
+    let Some(overlay) = plugin_dom::overlay() else {
+        return 0;
+    };
+    let auto = |v: &Option<String>| v.as_deref().is_some_and(|v| v.trim() == "auto");
+    let side_auto = |s: &Style, side: usize| {
+        let longhand = if side == 1 {
+            &s.margin_right
+        } else {
+            &s.margin_left
+        };
+        if longhand.is_some() {
+            return auto(longhand);
+        }
+        s.margin.as_deref().is_some_and(|m| {
+            let words: Vec<&str> = m.split_whitespace().collect();
+            let at = match words.len() {
+                1 => 0,
+                2 | 3 => 1,
+                _ => side,
+            };
+            words.get(at).is_some_and(|w| *w == "auto")
+        })
+    };
+    for (i, node) in overlay.at(key, position).enumerate() {
+        if node.style.hidden() {
+            continue;
+        }
+        if side_auto(&node.style, 1) {
+            return i + 1;
+        }
+        if side_auto(&node.style, 3) {
+            return i;
+        }
+    }
+    0
+}
+
+/// [`inline`] for the elements `range` of those at `key`/`position`, in
+/// document order (see [`auto_margin_split`]).
+pub fn inline_range(
+    ui: &mut egui::Ui,
+    key: &str,
+    position: Position,
+    range: std::ops::Range<usize>,
+) -> bool {
+    if range.is_empty() {
+        return false;
+    }
+    inline_with(ui, key, position, false, Some(range))
 }
 
 /// [`inline`] that also tells each top-level element's own width to its
@@ -925,7 +1002,7 @@ pub fn inline(ui: &mut egui::Ui, key: &str, position: Position) -> bool {
 /// of its own): a plugin sizing a pill from its mark's width must not read
 /// the pill's.
 pub fn inline_measured(ui: &mut egui::Ui, key: &str, position: Position) -> bool {
-    inline_with(ui, key, position, true)
+    inline_with(ui, key, position, true, None)
 }
 
 /// [`inline`] for a run with a limit (the player bar's right side): when
@@ -961,7 +1038,13 @@ pub fn inline_fit(ui: &mut egui::Ui, key: &str, position: Position, show: bool) 
     (from - edge(&aside)).max(0.0)
 }
 
-fn inline_with(ui: &mut egui::Ui, key: &str, position: Position, measure: bool) -> bool {
+fn inline_with(
+    ui: &mut egui::Ui,
+    key: &str,
+    position: Position,
+    measure: bool,
+    range: Option<std::ops::Range<usize>>,
+) -> bool {
     let Some(overlay) = plugin_dom::overlay() else {
         return false;
     };
@@ -980,11 +1063,36 @@ fn inline_with(ui: &mut egui::Ui, key: &str, position: Position, measure: bool) 
     };
     let inherit = Inherit::root(ui);
     let mut drawn = false;
-    ui.horizontal(|ui| {
+    // A run as tall as what it held last frame, so a centred row centres
+    // it: an element taller than egui's 18-point row used to hang down
+    // from that row's top (OneClickLyrics' 32-point button sat 3 points
+    // below the player bar's icons).
+    let run_id = ui.id().with(("luna-run", key, format!("{position:?}")));
+    let last_height: f32 = ui.data(|d| d.get_temp(run_id)).unwrap_or(0.0);
+    let layout = if ui.layout().prefer_right_to_left() {
+        Layout::right_to_left(Align::Center)
+    } else {
+        Layout::left_to_right(Align::Center)
+    };
+    let size = vec2(
+        ui.available_size_before_wrap().x,
+        last_height.max(ui.spacing().interact_size.y),
+    );
+    // The tallest element of a right-to-left run, from the boxes it laid
+    // out: the run's own rect can be taller than what it holds once it
+    // outgrew its row, and would keep growing.
+    let mut tallest: f32 = 0.0;
+    let rtl_run = ui.layout().prefer_right_to_left();
+    let centre = ui.available_rect_before_wrap().center().y;
+    let run = ui.allocate_ui_with_layout(size, layout, |ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
         // In a right-to-left run the first element goes rightmost.
         let rtl = ui.layout().prefer_right_to_left();
         let mut nodes: Vec<&VNode> = overlay.at(key, position).collect();
+        if let Some(range) = &range {
+            let end = range.end.min(nodes.len());
+            nodes = nodes[range.start.min(end)..end].to_vec();
+        }
         if rtl {
             nodes.reverse();
         }
@@ -1006,22 +1114,80 @@ fn inline_with(ui: &mut egui::Ui, key: &str, position: Position, measure: bool) 
             // Each element is laid out left to right in a box the size it
             // took last frame, taken from the right-to-left run: drawn
             // straight into that run, a box would claim all the room left.
+            // The box is centred on the row the run sits in: egui would
+            // hang one about as tall as the row from the row's top
+            // (the audio-visualizer's 48-point panel in the top bar).
             let id = egui::Id::new(("luna-inline", node.id));
             let last: Vec2 = ui.data(|d| d.get_temp(id)).unwrap_or(Vec2::ZERO);
-            let inner = ui.allocate_ui_with_layout(
-                vec2(last.x.max(1.0), last.y.max(1.0)),
-                Layout::left_to_right(Align::Center),
-                |ui| draw_at(ui, node, key, inherit, &cx),
+            let size = vec2(last.x.max(1.0), last.y.max(1.0));
+            let right = ui.available_rect_before_wrap().right();
+            let rect = Rect::from_min_max(
+                egui::pos2(right - size.x, centre - size.y / 2.0),
+                egui::pos2(right, centre + size.y / 2.0),
             );
-            drawn |= inner.inner;
-            let used = inner.response.rect.size();
+            let mut child = ui.new_child(
+                UiBuilder::new()
+                    .max_rect(rect)
+                    .layout(Layout::left_to_right(Align::Center)),
+            );
+            drawn |= draw_at(&mut child, node, key, inherit, &cx);
+            let used = child.min_rect().size();
+            ui.advance_cursor_after_rect(rect);
+            tallest = tallest.max(used.y);
             if (used - last).length() > 0.5 {
                 ui.data_mut(|d| d.insert_temp(id, used));
                 ui.ctx().request_repaint();
             }
         }
     });
+    let height = if rtl_run {
+        tallest
+    } else {
+        run.response.rect.height()
+    };
+    if (height - last_height).abs() > 0.5 {
+        ui.data_mut(|d| d.insert_temp(run_id, height));
+        ui.ctx().request_repaint();
+    }
     drawn
+}
+
+/// A `linear-gradient()` a plugin box is filled with: an angled one as a
+/// theme writes it, or a plain ramp (`to top`, `to right`, none) with its
+/// colours spread evenly.
+fn box_gradient(value: &str) -> Option<super::theme_gradient::Angled> {
+    let lower = value.trim().to_ascii_lowercase();
+    if !lower.starts_with("linear-gradient(") {
+        return None;
+    }
+    if let Some(g) = super::theme_gradient::parse(value) {
+        return Some(g);
+    }
+    let colours = css::colors_in(value);
+    if colours.len() < 2 {
+        return None;
+    }
+    let angle = if lower.contains("to top") {
+        0.0
+    } else if lower.contains("to right") {
+        90.0
+    } else if lower.contains("to left") {
+        270.0
+    } else {
+        180.0
+    };
+    let last = (colours.len() - 1) as f32;
+    Some(super::theme_gradient::Angled {
+        stops: colours
+            .into_iter()
+            .enumerate()
+            .map(|(i, c)| (i as f32 / last, c))
+            .collect(),
+        angle,
+        spin: None,
+        size: [1.0, 1.0],
+        position: [0.0, 0.0],
+    })
 }
 
 /// Tell a plugin element its own drawn box, when it changed.
@@ -2933,6 +3099,11 @@ fn draw_box(
     if let Some(s) = &style.font_style {
         inherit.italic = s.contains("italic") || s.contains("oblique");
     }
+    // Text inside takes the element's family too (lyrics-everywhere sets
+    // `font-family: system-ui` on its box, not on the words).
+    if let Some(f) = &style.font_family {
+        inherit.family = plugin_dom::element_font_id(f);
+    }
     if node.tag == "#text" {
         let Some(text) = node.text.as_deref().filter(|t| !t.trim().is_empty()) else {
             return false;
@@ -2948,6 +3119,10 @@ fn draw_box(
 
     let opacity = style.opacity.as_deref().and_then(css::opacity);
     let font = inherit.size;
+    let gradient = style
+        .background_image
+        .as_deref()
+        .and_then(|b| box_gradient(&css::resolve_vars(b, cx.vars)));
     let fill = cx.color(&style.background_color).or_else(|| {
         style.background_image.as_deref().and_then(|b| {
             css::colors_in(&css::resolve_vars(b, cx.vars))
@@ -2963,14 +3138,37 @@ fn draw_box(
     if fill.is_some() || style.color.is_some() {
         inherit.color = readable(inherit.color, inherit.back);
     }
-    let padding = style
-        .padding
-        .as_deref()
-        .map(|p| css::sides(&css::resolve_vars(p, cx.vars), font));
-    let margin = style
-        .margin
-        .as_deref()
-        .map(|m| css::sides(&css::resolve_vars(m, cx.vars), font));
+    // The shorthand, then the sides a longhand sets after it (miniplayer's
+    // button: `margin-left: 8px; margin-top: 4px`).
+    let sides = |short: Option<&String>, long: [Option<&String>; 4]| {
+        let mut out = short.map(|p| css::sides(&css::resolve_vars(p, cx.vars), font));
+        for (i, side) in long.into_iter().enumerate() {
+            if let Some(v) = side
+                && let Some(n) = cx.len(&Some(v.clone()), font, 0.0)
+            {
+                out.get_or_insert([0.0; 4])[i] = n;
+            }
+        }
+        out
+    };
+    let padding = sides(
+        style.padding.as_ref(),
+        [
+            style.padding_top.as_ref(),
+            style.padding_right.as_ref(),
+            style.padding_bottom.as_ref(),
+            style.padding_left.as_ref(),
+        ],
+    );
+    let margin = sides(
+        style.margin.as_ref(),
+        [
+            style.margin_top.as_ref(),
+            style.margin_right.as_ref(),
+            style.margin_bottom.as_ref(),
+            style.margin_left.as_ref(),
+        ],
+    );
     let border = style
         .border
         .as_deref()
@@ -3001,18 +3199,13 @@ fn draw_box(
     let by_hand =
         (rot != 0.0 && (border.is_some() || style.background_color.is_some())) || sides.is_some();
     let radius = cx.len(&style.border_radius, font, 0.0).unwrap_or(0.0);
-    // A width that is a share of the parent includes the padding and border
-    // (TIDAL's CSS sizes boxes `border-box`): AltPlay's `width: 100%` filter
-    // field with padding stays inside its page.
-    let inset = if style
-        .width
-        .as_deref()
-        .is_some_and(|w| w.trim().ends_with('%'))
-    {
-        padding.map_or(0.0, |p| p[1] + p[3]) + border.map_or(0.0, |(w, _)| 2.0 * w)
-    } else {
-        0.0
-    };
+    // TIDAL's CSS sizes every box `border-box`: a width or height includes
+    // the padding and border (AltPlay's `width: 100%` filter field with
+    // padding stays inside its page; OneClickLyrics' `32px` button with
+    // `padding: 1px 6px` is 32 points wide, not 44).
+    let edge = border.map_or(0.0, |(w, _)| 2.0 * w);
+    let inset = padding.map_or(0.0, |p| p[1] + p[3]) + edge;
+    let block_inset = padding.map_or(0.0, |p| p[0] + p[2]) + edge;
     // A growing flex item without a width fills the share its row gave it.
     let width = cx
         .len(&style.width, font, ui.available_width())
@@ -3021,7 +3214,7 @@ fn draw_box(
         .map(|w| w * stretch.x);
     let height = cx
         .len(&style.height, font, ui.available_height().min(400.0))
-        .map(|h| h * stretch.y);
+        .map(|h| (h - block_inset).max(0.0) * stretch.y);
     // `transition: width .3s` (a bar growing): the size on its way. Only a
     // length of its own moves: a share of the window or the parent is the
     // same value in CSS when the window resizes, so nothing transitions.
@@ -3076,7 +3269,9 @@ fn draw_box(
             || listens("contextmenu"));
     let min_width = cx.len(&style.min_width, font, ui.available_width());
     let max_width = cx.len(&style.max_width, font, ui.available_width());
-    let min_height = cx.len(&style.min_height, font, 0.0);
+    let min_height = cx
+        .len(&style.min_height, font, 0.0)
+        .map(|h| (h - block_inset).max(0.0));
     let display = style.display.as_deref().unwrap_or("");
     let width = width.or_else(|| {
         (in_column
@@ -3104,11 +3299,18 @@ fn draw_box(
         bottom: s[2].round().clamp(-128.0, 127.0) as i8,
     };
     let mut frame = Frame::new();
+    // A gradient is painted whole under the content; the frame keeps only
+    // a colour set beside it.
+    let fill = if gradient.is_some() {
+        cx.color(&style.background_color)
+    } else {
+        fill
+    };
     if by_hand {
         // Painted below; the frame keeps the border's room.
     } else if let Some(fill) = fill {
         frame = frame.fill(fill);
-    } else if is_button {
+    } else if is_button && gradient.is_none() {
         frame = frame.fill(ui.visuals().widgets.inactive.weak_bg_fill);
     }
     if let Some(p) = padding {
@@ -3124,6 +3326,13 @@ fn draw_box(
             w,
             if by_hand { Color32::TRANSPARENT } else { c },
         ));
+    }
+    // The first outer `box-shadow` layer (lyrics-everywhere's bubble, the
+    // audio-visualizer's panels, colorama's colour dialog).
+    if let Some(shadow) =
+        super::theme_layout::shadow(style.box_shadow.as_deref(), cx.vars, cx.viewport)
+    {
+        frame = frame.shadow(shadow);
     }
     let radius = if is_button && style.border_radius.is_none() {
         6.0
@@ -3198,7 +3407,7 @@ fn draw_box(
             ui.multiply_opacity(o);
         }
         let hand = by_hand.then(|| ui.painter().add(egui::Shape::Noop));
-        let bg = has_url.then(|| ui.painter().add(egui::Shape::Noop));
+        let bg = (has_url || gradient.is_some()).then(|| ui.painter().add(egui::Shape::Noop));
         let shown = frame
             .show(ui, |ui| {
                 if let Some(w) = width {
@@ -3249,6 +3458,15 @@ fn draw_box(
                     );
                 let wrapped: Option<f32> =
                     shrink.then(|| ui.data(|d| d.get_temp(shrink_id))).flatten();
+                // A row with no height of its own is as tall as what it held
+                // last frame, so it centres that: egui's 18-point row hung a
+                // taller child from its top (the audio-visualizer's panel
+                // sat 11 points low in its group).
+                let row_height_id = egui::Id::new(("luna-row-height", node.id));
+                let free_height = row && height.or(min_height).is_none();
+                let held: Option<f32> = free_height
+                    .then(|| ui.data(|d| d.get_temp(row_height_id)))
+                    .flatten();
                 let room = if row {
                     vec2(
                         wrapped
@@ -3256,7 +3474,9 @@ fn draw_box(
                             .min(ui.available_width()),
                         height
                             .or(min_height)
-                            .unwrap_or(ui.spacing().interact_size.y)
+                            .unwrap_or_else(|| {
+                                held.unwrap_or(0.0).max(ui.spacing().interact_size.y)
+                            })
                             .min(ui.available_height()),
                     )
                 } else {
@@ -3467,6 +3687,13 @@ fn draw_box(
                             ui.ctx().request_repaint();
                         }
                     }
+                    if free_height {
+                        let h = ui.min_rect().height();
+                        if held.is_none_or(|l| (l - h).abs() > 0.5) {
+                            ui.data_mut(|d| d.insert_temp(row_height_id, h));
+                            ui.ctx().request_repaint();
+                        }
+                    }
                     if !justify.is_empty() {
                         let used = ui.min_rect().max - begin;
                         let used = vec2(used.x.max(0.0), used.y.max(0.0));
@@ -3497,7 +3724,18 @@ fn draw_box(
         }
         if let Some(idx) = bg {
             let r = shown.rect - margin.map_or(Margin::ZERO, margin_of);
-            paint_background(ui, idx, r, style, rot, cx);
+            if has_url {
+                paint_background(ui, idx, r, style, rot, cx);
+            } else if let Some(g) = &gradient {
+                // The whole gradient, inside the box's corners
+                // (custom-fonts' pink-to-blue tag).
+                let corners = CornerRadius::same(radius.clamp(0.0, 255.0) as u8);
+                if let Some(mesh) =
+                    super::theme_gradient::mesh(r, Some(corners), g, g.angle, g.position)
+                {
+                    ui.painter().set(idx, egui::Shape::mesh(mesh));
+                }
+            }
         }
         // `filter: brightness(<1)`: the box and what it holds, dimmed (as
         // black over opaque pixels is).
@@ -3682,10 +3920,12 @@ fn rich(text: &str, inherit: Inherit, style: &Style) -> RichText {
     } else {
         crate::theme::regular(inherit.size)
     };
-    let font = match style.font_family.as_deref().and_then(css::first_family) {
-        Some(family) => plugin_dom::font_family(&family)
-            .map(|f| egui::FontId::new(inherit.size, f))
-            .unwrap_or(font),
+    let family = match style.font_family.as_deref() {
+        Some(value) => plugin_dom::element_font_id(value),
+        None => inherit.family,
+    };
+    let font = match family.and_then(|f| plugin_dom::font_by_id(f, inherit.weight)) {
+        Some(family) => egui::FontId::new(inherit.size, family),
         None => font,
     };
     let mut text = RichText::new(text).font(font).color(inherit.color);
@@ -4102,6 +4342,195 @@ mod tests {
         }
         plugin_dom::test_overlay(None);
         size
+    }
+
+    /// OneClickLyrics' button among the player bar's icons: TIDAL sizes
+    /// boxes `border-box`, so `width: 32px` with `padding: 1px 6px` is 32
+    /// wide (it was 44), and a run taller than egui's row is centred on the
+    /// row (its 16-point icon hung 8 points below the middle of a 60-point
+    /// row, 3 below the player bar's icons).
+    #[test]
+    fn a_tall_slot_element_is_border_box_and_centred_in_its_row() {
+        let svg = VNode {
+            id: 3,
+            tag: "svg".into(),
+            markup: Some(
+                r##"<svg xmlns="http://www.w3.org/2000/svg" width="32px" height="32px" viewBox="0 0 24 24"><rect width="24" height="24" fill="#fff"/></svg>"##
+                    .into(),
+            ),
+            style: Style {
+                width: Some("16px".into()),
+                height: Some("16px".into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let div = VNode {
+            id: 2,
+            tag: "div".into(),
+            children: vec![svg],
+            ..VNode::default()
+        };
+        let node = VNode {
+            id: 1,
+            tag: "button".into(),
+            children: vec![div],
+            style: Style {
+                display: Some("flex".into()),
+                width: Some("32px".into()),
+                height: Some("32px".into()),
+                padding: Some("1px 6px".into()),
+                background_color: Some("#f00".into()),
+                align_items: Some("center".into()),
+                justify_content: Some("center".into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let overlay = DomOverlay {
+            injected: vec![Injected {
+                anchor: "k".into(),
+                position: Position::Append,
+                nodes: vec![node],
+            }],
+            version: 1,
+            ..DomOverlay::default()
+        };
+        let ctx = egui::Context::default();
+        egui_extras::install_image_loaders(&ctx);
+        plugin_dom::test_overlay(Some(overlay));
+        let mut rects = Vec::new();
+        for _ in 0..4 {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                ui.allocate_ui_with_layout(
+                    vec2(300.0, 60.0),
+                    Layout::right_to_left(Align::Center),
+                    |ui| {
+                        ui.add_sized(vec2(10.0, 60.0), egui::Label::new("x"));
+                        inline(ui, "k", Position::Append)
+                    },
+                );
+            });
+            rects = out
+                .shapes
+                .iter()
+                .map(|s| s.shape.visual_bounding_rect())
+                .filter(|r| r.is_positive() && r.width() > 12.0)
+                .collect();
+            out.textures_delta.clear();
+        }
+        plugin_dom::test_overlay(None);
+        // The button's fill, then its icon.
+        let [button, icon] = rects[..] else {
+            panic!("a button and its icon: {rects:?}")
+        };
+        assert!((button.width() - 32.0).abs() < 0.5, "button {button:?}");
+        assert!((button.height() - 32.0).abs() < 0.5, "button {button:?}");
+        assert!((button.center().y - 30.0).abs() < 0.5, "button {button:?}");
+        assert!((icon.center().y - 30.0).abs() < 0.5, "icon {icon:?}");
+    }
+
+    /// lyrics-everywhere's bubble has `box-shadow: 0 4px 12px rgba(0, 0, 0,
+    /// .3)`: a soft shadow is drawn around and below its box. Plugin boxes
+    /// had none.
+    #[test]
+    fn a_box_shadow_is_drawn_round_the_box() {
+        let node = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                width: Some("100px".into()),
+                height: Some("40px".into()),
+                background_color: Some("#000".into()),
+                box_shadow: Some("0 4px 12px rgba(0, 0, 0, 0.3)".into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let overlay = DomOverlay {
+            injected: vec![Injected {
+                anchor: "k".into(),
+                position: Position::Append,
+                nodes: vec![node],
+            }],
+            version: 1,
+            ..DomOverlay::default()
+        };
+        let ctx = egui::Context::default();
+        plugin_dom::test_overlay(Some(overlay));
+        let mut rects = Vec::new();
+        for _ in 0..2 {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                ui.add_space(40.0);
+                ui.horizontal(|ui| {
+                    ui.add_space(40.0);
+                    inline(ui, "k", Position::Append);
+                });
+            });
+            rects = out
+                .shapes
+                .iter()
+                .map(|s| s.shape.visual_bounding_rect())
+                .filter(|r| r.is_positive())
+                .collect();
+            out.textures_delta.clear();
+        }
+        plugin_dom::test_overlay(None);
+        // The box is 100 by 40 at (40, 40); its shadow reaches past it.
+        assert!(
+            rects
+                .iter()
+                .any(|r| r.width() > 110.0 && r.bottom() > 40.0 + 40.0 + 4.0),
+            "a shadow beyond the box: {rects:?}"
+        );
+    }
+
+    /// miniplayer's button sets `margin-left: 8px; margin-top: 4px` as
+    /// longhands: the box starts 8 points in and 4 down. Longhands were
+    /// left out (the button sat at the sidebar's edge).
+    #[test]
+    fn margin_longhands_move_the_box() {
+        let node = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                width: Some("50px".into()),
+                height: Some("20px".into()),
+                background_color: Some("#f00".into()),
+                margin_left: Some("8px".into()),
+                margin_top: Some("4px".into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let overlay = DomOverlay {
+            injected: vec![Injected {
+                anchor: "k".into(),
+                position: Position::Append,
+                nodes: vec![node],
+            }],
+            version: 1,
+            ..DomOverlay::default()
+        };
+        let ctx = egui::Context::default();
+        plugin_dom::test_overlay(Some(overlay));
+        let mut fill = None;
+        for _ in 0..3 {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                ui.vertical(|ui| {
+                    inline(ui, "k", Position::Append);
+                });
+            });
+            fill = out
+                .shapes
+                .iter()
+                .map(|s| s.shape.visual_bounding_rect())
+                .find(|r| (r.width() - 50.0).abs() < 0.5);
+            out.textures_delta.clear();
+        }
+        plugin_dom::test_overlay(None);
+        let fill = fill.expect("the box");
+        assert!((fill.left() - 8.0).abs() < 0.5, "{fill:?}");
     }
 
     /// radiant-lyrics puts a `position: fixed; z-index: -3` box (its WebGL
