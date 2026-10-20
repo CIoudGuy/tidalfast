@@ -497,27 +497,53 @@ fn map_installed_faces(key: &str) -> Option<[Arc<FontData>; 4]> {
 }
 
 /// The installed face of `family` for drawing outlines (Luna's canvas
-/// text), mapped for the life of the process like the fallbacks.
-pub fn family_face(family: &str) -> Option<&'static skrifa::FontRef<'static>> {
-    static FACES: std::sync::Mutex<
-        Option<std::collections::HashMap<String, Option<&'static skrifa::FontRef<'static>>>>,
+/// text) at a CSS weight, mapped for the life of the process like the
+/// fallbacks: the family's upright cut that draws `weight`
+/// ([`pick_weight`]; Segoe UI's bold for `bold`), so canvas text is as
+/// heavy as a browser draws it. A variable cut is returned as it is: the
+/// canvas sets its `wght`.
+pub fn family_face_at(family: &str, weight: f32) -> Option<&'static skrifa::FontRef<'static>> {
+    type Faces = std::collections::HashMap<
+        (String, u16),
+        Option<&'static skrifa::FontRef<'static>>,
+    >;
+    static FACES: std::sync::Mutex<Option<Faces>> = std::sync::Mutex::new(None);
+    // Each file is mapped once, whatever weights name it.
+    static MAPPED: std::sync::Mutex<
+        Option<std::collections::HashMap<(PathBuf, u32), &'static skrifa::FontRef<'static>>>,
     > = std::sync::Mutex::new(None);
     let key = family.trim().to_lowercase();
     if key.is_empty() {
         return None;
     }
+    let slot = (key, weight.clamp(1.0, 1000.0).round() as u16);
     let mut faces = FACES.lock().unwrap_or_else(|l| l.into_inner());
     let faces = faces.get_or_insert_with(Default::default);
-    if let Some(face) = faces.get(&key) {
+    if let Some(face) = faces.get(&slot) {
         return *face;
     }
-    let face = family_index().get(&key).and_then(|faces| {
-        let face = most_regular(faces)?;
-        let data = map_for_life(&face.path)?;
-        let font = skrifa::FontRef::from_index(data, face.index).ok()?;
-        Some(&*Box::leak(Box::new(font)))
+    let face = family_index().get(&slot.0).and_then(|all| {
+        let upright: Vec<&Indexed> = all.iter().filter(|f| f.upright).collect();
+        let pool = if upright.is_empty() {
+            vec![most_regular(all)?]
+        } else {
+            upright
+        };
+        let cuts: Vec<CutSpec> = pool.iter().map(|f| (f.weight, f.axis)).collect();
+        let (at, _) = pick_weight(&cuts, f32::from(slot.1))?;
+        let cut = pool[at];
+        let mut mapped = MAPPED.lock().unwrap_or_else(|l| l.into_inner());
+        let mapped = mapped.get_or_insert_with(Default::default);
+        if let Some(font) = mapped.get(&(cut.path.clone(), cut.index)) {
+            return Some(*font);
+        }
+        let data = map_for_life(&cut.path)?;
+        let font: &'static skrifa::FontRef<'static> =
+            Box::leak(Box::new(skrifa::FontRef::from_index(data, cut.index).ok()?));
+        mapped.insert((cut.path.clone(), cut.index), font);
+        Some(font)
     });
-    faces.insert(key, face);
+    faces.insert(slot, face);
     face
 }
 

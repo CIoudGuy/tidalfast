@@ -822,21 +822,22 @@ fn location(font: &skrifa::FontRef<'_>, weight: f32) -> skrifa::instance::Locati
     font.axes().location([("wght", weight)])
 }
 
-/// The face for a CSS `font-family` list: the first installed family it
-/// names (custom-fonts tells installed fonts apart by their widths), else
-/// the interface font.
-fn face(family: &str) -> Option<&'static skrifa::FontRef<'static>> {
-    family
-        .split(',')
-        .map(|f| f.trim().trim_matches(|c| c == '"' || c == '\''))
-        .filter(|f| {
-            !f.is_empty()
-                && !matches!(
-                    f.to_ascii_lowercase().as_str(),
-                    "serif" | "sans-serif" | "monospace" | "cursive" | "fantasy" | "system-ui"
-                )
+/// The face for a CSS `font-family` list at a weight: the first installed
+/// family it names (custom-fonts tells installed fonts apart by their
+/// widths) or the system's face for a generic one it reaches first
+/// (`system-ui` is Segoe UI on Windows: qr-share's caption), in the cut that
+/// draws the weight, as a browser picks it; else the interface font.
+fn face(family: &str, weight: f32) -> Option<&'static skrifa::FontRef<'static>> {
+    use crate::ui::plugin_slots::css::{Family, family_list};
+    family_list(family)
+        .into_iter()
+        .find_map(|f| match f {
+            Family::Named(name) => crate::fonts::family_face_at(&name, weight),
+            Family::Generic(g) => g
+                .candidates()
+                .iter()
+                .find_map(|name| crate::fonts::family_face_at(name, weight)),
         })
-        .find_map(crate::fonts::family_face)
         .or(FONT.as_ref())
 }
 
@@ -844,7 +845,7 @@ fn face(family: &str) -> Option<&'static skrifa::FontRef<'static>> {
 /// first installed family of `family` (a CSS list; empty for the
 /// interface font).
 pub fn measure(text: &str, px: f32, weight: f32, family: &str) -> [f32; 3] {
-    let Some(font) = face(family) else {
+    let Some(font) = face(family, weight) else {
         let w = text.chars().count() as f32 * px * 0.55;
         return [w, px * 0.8, px * 0.2];
     };
@@ -866,7 +867,7 @@ pub fn measure(text: &str, px: f32, weight: f32, family: &str) -> [f32; 3] {
 /// The outline of `text` with its baseline origin at user `(x, y)`;
 /// `p` = `[x, y, px, weight, italic, align, baseline, maxWidth, m0..m5]`.
 fn text_path(text: &str, p: &[f32], family: &str) -> Option<tiny_skia::Path> {
-    let font = face(family)?;
+    let font = face(family, p[3])?;
     let (x, y, px, weight) = (p[0], p[1], p[2].clamp(1.0, 1000.0), p[3]);
     let [w, asc, desc] = measure(text, px, weight, family);
     let max = p[7];

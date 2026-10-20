@@ -3326,6 +3326,17 @@ fn draw_box(
         inherit.size = size;
         inherit.weight = 700;
     }
+    // A browser's own style for a button, `font: -webkit-small-control`,
+    // is not inherited from the page: 13.33 px, normal weight, Arial on
+    // Windows (qr-share's Save and Close), unless the plugin sets its own.
+    if node.tag == "button" {
+        inherit.size = 40.0 / 3.0;
+        inherit.weight = 400;
+        inherit.italic = false;
+        if style.font_family.is_none() {
+            inherit.family = plugin_dom::element_font_id(BUTTON_FONT);
+        }
+    }
     if let Some(size) = cx.len(&style.font_size, parent.size, parent.size) {
         inherit.size = size.clamp(6.0, 96.0);
     }
@@ -4285,7 +4296,7 @@ fn leaf(
     width: Option<f32>,
     height: Option<f32>,
     rot: f32,
-    _cx: &Cx,
+    cx: &Cx,
 ) -> bool {
     let attr_len =
         |name: &str| attr(node, name).and_then(|v| v.trim_end_matches("px").parse::<f32>().ok());
@@ -4331,14 +4342,8 @@ fn leaf(
             if rot != 0.0 {
                 image = image.rotate(rot, Vec2::splat(0.5));
             }
-            if node
-                .style
-                .border_radius
-                .as_deref()
-                .is_some_and(|r| r.trim() == "50%")
-            {
-                image = image
-                    .corner_radius(CornerRadius::same((size.min_elem() / 2.0).min(255.0) as u8));
+            if let Some(r) = image_radius(&node.style, size, inherit.size, cx) {
+                image = image.corner_radius(CornerRadius::same(r));
             }
             ui.add(image);
             true
@@ -4348,6 +4353,19 @@ fn leaf(
         "select" => select(ui, node, width),
         _ => false,
     }
+}
+
+/// The family a browser gives a `<button>` whose style names none
+/// (Chromium's control font: Arial on Windows, else the system's face).
+pub const BUTTON_FONT: &str = "Arial, system-ui";
+
+/// An image's rounded corners: its `border-radius` (a length, or a share
+/// of its shorter side: `50%` is a circle; qr-share's 12 px card).
+fn image_radius(style: &Style, size: Vec2, font: f32, cx: &Cx) -> Option<u8> {
+    let value = style.border_radius.as_deref()?;
+    let r = radius_share(value, size.x, size.y)
+        .or_else(|| cx.len(&style.border_radius, font, size.min_elem()))?;
+    (r > 0.0).then(|| r.min(size.min_elem() / 2.0).min(255.0).round() as u8)
 }
 
 enum ImageSource {
@@ -5974,6 +5992,116 @@ mod tests {
             clicked,
             "the anchor's own button beside the element was clicked"
         );
+    }
+
+    /// A button whose style sets no font takes the browser's control font,
+    /// not the page's: qr-share's Save and Close inside its 16 px column
+    /// are 13.33 px at normal weight before their own `font-size`, and a
+    /// `font-size` of their own still wins.
+    #[test]
+    fn a_button_takes_the_browsers_control_font_not_its_parents() {
+        let text = |id, t: &str| VNode {
+            id,
+            tag: "#text".into(),
+            text: Some(t.into()),
+            ..VNode::default()
+        };
+        let modal = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                top: Some("0".into()),
+                left: Some("0".into()),
+                font_size: Some("20px".into()),
+                ..Style::default()
+            },
+            children: vec![
+                VNode {
+                    id: 2,
+                    tag: "span".into(),
+                    children: vec![text(12, "Plain")],
+                    ..VNode::default()
+                },
+                VNode {
+                    children: vec![text(13, "Save")],
+                    ..button(3, "")
+                },
+                VNode {
+                    style: Style {
+                        font_size: Some("16px".into()),
+                        ..Style::default()
+                    },
+                    children: vec![text(14, "Close")],
+                    ..button(4, "")
+                },
+            ],
+            ..VNode::default()
+        };
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: String::new(),
+                position: Position::Append,
+                nodes: vec![modal],
+            }],
+            ..DomOverlay::default()
+        }));
+        plugin_dom::test_viewport([800.0, 600.0]);
+        let ctx = egui::Context::default();
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
+                    ..egui::RawInput::default()
+                },
+                |ui| floating(ui),
+            );
+            out.textures_delta.clear();
+            shapes = out.shapes;
+        }
+        plugin_dom::test_overlay(None);
+        let size = |label: &str| {
+            shapes
+                .iter()
+                .find_map(|s| match &s.shape {
+                    egui::Shape::Text(t) if t.galley.text() == label => {
+                        Some(t.galley.job.sections[0].format.font_id.size)
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("no {label}"))
+        };
+        assert_eq!(size("Plain"), 20.0);
+        assert!((size("Save") - 40.0 / 3.0).abs() < 0.01, "{}", size("Save"));
+        assert_eq!(size("Close"), 16.0);
+    }
+
+    /// An image keeps the corners its `border-radius` gives it: qr-share's
+    /// card is rounded 12 points (only `50%` rounded an image), `50%` is
+    /// still a circle, and a radius never passes half the shorter side.
+    #[test]
+    fn an_image_is_rounded_by_its_border_radius() {
+        let (vars, keyframes) = (BTreeMap::new(), BTreeMap::new());
+        let cx = Cx {
+            vars: &vars,
+            viewport: [1400.0, 900.0],
+            keyframes: &keyframes,
+        };
+        let radius = |r: Option<&str>, size: Vec2| {
+            let style = Style {
+                border_radius: r.map(Into::into),
+                ..Style::default()
+            };
+            image_radius(&style, size, 14.0, &cx)
+        };
+        assert_eq!(radius(Some("12px"), vec2(600.0, 600.0)), Some(12));
+        assert_eq!(radius(Some("50%"), vec2(40.0, 40.0)), Some(20));
+        assert_eq!(radius(Some("1em"), vec2(100.0, 100.0)), Some(14));
+        assert_eq!(radius(Some("80px"), vec2(60.0, 100.0)), Some(30));
+        assert_eq!(radius(Some("0"), vec2(60.0, 100.0)), None);
+        assert_eq!(radius(None, vec2(60.0, 100.0)), None);
     }
 
     /// qr-share's dialog: a fixed backdrop over the window, a flex column
