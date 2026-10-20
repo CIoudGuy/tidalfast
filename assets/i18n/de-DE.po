@@ -3800,6 +3800,14 @@ msgstr ""
 "Die Songtext-Blase über der Player-Leiste funktioniert, das separate "
 "Songtext-Fenster aber nicht, da es eine Browser-Engine benötigt."
 
+#: src/luna/mod.rs:410
+msgid ""
+"The Small depth model works, but the Base model (about 100 MB) is more than "
+"a plugin may download here."
+msgstr ""
+"Das kleine Tiefenmodell (Small) funktioniert, aber das Base-Modell (etwa 100 "
+"MB) ist größer, als ein Plugin hier herunterladen darf."
+
 #: src/app/plugins.rs:444
 #, rust-format
 msgid "{name} updated to {version}"

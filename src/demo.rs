@@ -21,6 +21,19 @@ use crate::backend::AuthStatus;
 use crate::model::*;
 
 fn image(seed: u32) -> Vec<Image> {
+    // `TIDALFAST_DEMO_COVER=<TIDAL image id, as a/b/c/d/e>`: every cover is
+    // that TIDAL cover, for plugins that only act on TIDAL's image server
+    // (3d-cover).
+    if let Ok(id) = std::env::var("TIDALFAST_DEMO_COVER") {
+        return [640u32, 320, 80]
+            .iter()
+            .map(|&s| Image {
+                url: format!("https://resources.tidal.com/images/{id}/{s}x{s}.jpg"),
+                width: Some(s),
+                height: Some(s),
+            })
+            .collect();
+    }
     vec![
         Image {
             url: format!("https://picsum.photos/seed/tidalfast{seed}/640/640"),

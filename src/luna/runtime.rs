@@ -54,6 +54,7 @@ const SHIMS: &[(&str, &str)] = &[
     ("core.js", include_str!("js/core.js")),
     ("media.js", include_str!("js/media.js")),
     ("lib.js", include_str!("js/lib.js")),
+    ("ml.js", include_str!("js/ml.js")),
 ];
 
 /// `@luna/lib`'s `redux.actionTypes`: every action type TIDAL's store
@@ -757,7 +758,7 @@ fn is_shim(name: &str) -> bool {
 impl Resolver for LunaResolver {
     fn resolve<'js>(
         &mut self,
-        _ctx: &Ctx<'js>,
+        ctx: &Ctx<'js>,
         base: &str,
         name: &str,
         _attributes: Option<ImportAttributes<'js>>,
@@ -768,6 +769,8 @@ impl Resolver for LunaResolver {
             || name.starts_with("luna-shim:")
         {
             Ok(name.to_string())
+        } else if name.starts_with("blob:") {
+            blob_module_name(ctx, base, name)
         } else if is_shim(name) {
             Ok(format!("luna-shim:{name}"))
         } else {
@@ -778,6 +781,82 @@ impl Resolver for LunaResolver {
             ))
         }
     }
+}
+
+thread_local! {
+    /// The shims' `__luna_module` (see [`module_entry`]), kept for the
+    /// module loader once the global is gone.
+    static MODULE_ENTRY: RefCell<Option<Persistent<Function<'static>>>> = const { RefCell::new(None) };
+}
+
+/// Asks the shims about a `blob:` module: its owner (`kind` "owner": the
+/// plugin that made a JavaScript blob URL, or null) or its source
+/// ("source", in worker `worker`, or the page when empty).
+fn module_entry<'js>(
+    ctx: &Ctx<'js>,
+    kind: &str,
+    url: &str,
+    worker: &str,
+) -> rquickjs::Result<rquickjs::Value<'js>> {
+    let f = MODULE_ENTRY.with(|e| e.borrow().clone());
+    let Some(f) = f else {
+        return Err(rquickjs::Error::new_loading_message(
+            url,
+            "modules are not ready",
+        ));
+    };
+    let f: Function = f.restore(ctx)?;
+    f.call((kind, url, worker))
+}
+
+/// `blob:...#worker=<n>` as the blob's URL and the worker (or "").
+fn split_worker(spec: &str) -> (String, String) {
+    match spec.split_once("#worker=") {
+        Some((url, w)) if !w.is_empty() && w.bytes().all(|b| b.is_ascii_digit()) => {
+            (url.to_string(), w.to_string())
+        }
+        _ => (
+            spec.split('#').next().unwrap_or(spec).to_string(),
+            String::new(),
+        ),
+    }
+}
+
+/// The module name for an `import()` of a blob URL: it runs as the plugin
+/// that made the blob (`plugin:<that plugin>@blob:...`), so the stack names
+/// it. Only that plugin's own code, or the runtime's (a `Worker` it
+/// started), may import it, and only a blob of JavaScript. Inside a worker
+/// the name carries the worker, so each worker gets its own instance, as
+/// each browser worker does.
+fn blob_module_name(ctx: &Ctx<'_>, base: &str, name: &str) -> rquickjs::Result<String> {
+    let refuse = |why: &str| Err(rquickjs::Error::new_resolving_message(base, name, why));
+    let (url, mut worker) = split_worker(name);
+    if worker.is_empty()
+        && let Some((_, w)) = base.split_once("#worker=")
+    {
+        worker = w.to_string();
+    }
+    let owner = module_entry(ctx, "owner", &url, "")?;
+    let Some(owner) = owner
+        .as_string()
+        .map(rquickjs::String::to_string)
+        .transpose()?
+    else {
+        return refuse("not a JavaScript blob made by this plugin");
+    };
+    let importer = super::caller::module_plugin(base);
+    if !(base.starts_with("luna:") || importer.as_deref() == Some(owner.as_str())) {
+        return refuse("a blob URL can only be imported by the plugin that made it");
+    }
+    let tail = if worker.is_empty() {
+        String::new()
+    } else {
+        format!("#worker={worker}")
+    };
+    Ok(format!(
+        "plugin:{}@{url}{tail}",
+        urlencoding::encode(&owner)
+    ))
 }
 
 struct LunaLoader(S);
@@ -803,6 +882,23 @@ impl Loader for LunaLoader {
                     "const __e{i} = m[{kq}];\nexport {{ __e{i} as {kq} }};\n"
                 ));
             }
+            return Module::declare(ctx.clone(), name, src);
+        }
+        if let Some((_, rest)) = name.split_once("@blob:")
+            && name.starts_with("plugin:")
+        {
+            let (url, worker) = split_worker(&format!("blob:{rest}"));
+            let src = module_entry(ctx, "source", &url, &worker)?;
+            let Some(src) = src
+                .as_string()
+                .map(rquickjs::String::to_string)
+                .transpose()?
+            else {
+                return Err(rquickjs::Error::new_loading_message(
+                    name,
+                    "the blob is gone",
+                ));
+            };
             return Module::declare(ctx.clone(), name, src);
         }
         let code = self
@@ -2085,6 +2181,19 @@ fn op_async(inner: &S, who: Who, name: String, arg: String, id: f64) {
     if let Some(o) = a.as_object_mut() {
         o.insert("plugin".into(), json!(plugin));
     }
+    // Depth estimation has a thread of its own (it runs for a second or
+    // more, which the request pools must not wait behind).
+    if name.starts_with("depth.") {
+        let tx = inner.borrow().tx.clone();
+        super::depth::submit(&name, a, plugin, move |r| {
+            let (ok, json) = match r {
+                Ok(v) => (true, v.to_string()),
+                Err(e) => (false, json!(e).to_string()),
+            };
+            let _ = tx.send(Msg::OpDone { id, ok, json });
+        });
+        return;
+    }
     let (tx, host, http, writes) = {
         let mut i = inner.borrow_mut();
         let http = if name == "fetch" {
@@ -2688,6 +2797,7 @@ impl Drop for Engine {
     fn drop(&mut self) {
         super::caller::set_context(None);
         self.entries.clear();
+        MODULE_ENTRY.with(|e| e.borrow_mut().take());
         // Wasm memories lent to JS as ArrayBuffers go before the runtime.
         self.ctx.with(|ctx| super::wasm::teardown(&ctx));
         super::canvas::shutdown();
@@ -4650,6 +4760,7 @@ fn setup(
             });
             super::canvas::install(&ctx, notify.clone())?;
             super::video::install(&ctx, notify)?;
+            super::depth::install(&ctx)?;
         }
         {
             let i = inner.borrow();
@@ -4687,6 +4798,10 @@ fn setup(
                 .map_err(|e| anyhow::anyhow!("{name} missing: {e}"))?;
             entries.insert(*name, Persistent::save(&ctx, f));
         }
+        let modules: Function = g
+            .get("__luna_module")
+            .map_err(|e| anyhow::anyhow!("__luna_module missing: {e}"))?;
+        MODULE_ENTRY.with(|e| *e.borrow_mut() = Some(Persistent::save(&ctx, modules)));
         // Tests read the DOM shim's counters (how often a cascade was
         // thrown away); release builds never expose it.
         #[cfg(test)]
@@ -4724,7 +4839,7 @@ const ENTRY_POINTS: &[&str] = &[
 
 /// Removes the natives and entry points from the global object once the
 /// shims hold them.
-const LOCKDOWN: &str = r#"for (const k of ["__op", "__op_async", "__caller", "__eval", "__utf8_enc", "__utf8_dec", "__b64_enc", "__b64_dec", "__canvas", "__wasm", "__video", "__lunaInternal", "__luna_host", "__luna_tick", "__luna_resolve", "__luna_dispatch", "__luna_dom", "__luna_net", "__luna_ipc", "__luna_child"]) delete globalThis[k];"#;
+const LOCKDOWN: &str = r#"for (const k of ["__op", "__op_async", "__caller", "__eval", "__utf8_enc", "__utf8_dec", "__b64_enc", "__b64_dec", "__canvas", "__wasm", "__video", "__depth", "__luna_module", "__lunaInternal", "__luna_host", "__luna_tick", "__luna_resolve", "__luna_dispatch", "__luna_dom", "__luna_net", "__luna_ipc", "__luna_child"]) delete globalThis[k];"#;
 
 fn run(
     cfg: LunaConfig,

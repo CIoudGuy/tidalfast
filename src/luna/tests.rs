@@ -29,6 +29,8 @@ mod canvas_tests;
 mod compat_tests;
 #[path = "coverage_tests.rs"]
 mod coverage_tests;
+#[path = "depth_tests.rs"]
+mod depth_tests;
 #[path = "devmode_tests.rs"]
 mod devmode_tests;
 #[path = "dom_tests.rs"]

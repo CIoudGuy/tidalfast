@@ -35,6 +35,7 @@ pub mod canvas;
 mod child;
 #[cfg(test)]
 mod compat_label_tests;
+mod depth;
 mod dnsq;
 pub mod dom;
 pub mod dom_anchors;
@@ -43,6 +44,10 @@ pub mod host;
 pub mod hotkeys;
 pub mod import;
 mod net;
+mod onnx;
+mod onnx_run;
+#[cfg(test)]
+mod onnx_tests;
 mod permits;
 mod pool;
 pub mod redux;
@@ -472,6 +477,10 @@ impl CompatNote {
                 locale,
                 "The lyrics bubble over the player bar works, but its separate lyrics window does not, because that needs a browser engine.",
             ),
+            "The Small depth model works, but the Base model (about 100 MB) is more than a plugin may download here." => gettext(
+                locale,
+                "The Small depth model works, but the Base model (about 100 MB) is more than a plugin may download here.",
+            ),
             other => std::borrow::Cow::Borrowed(other),
         }
         .into_owned()
@@ -589,6 +598,14 @@ const COMPAT: &[CompatRow] = &[
         note: CompatNote {
             level: Compat::PartlySupported,
             reason: "The lyrics bubble over the player bar works, but its separate lyrics window does not, because that needs a browser engine.",
+        },
+    },
+    CompatRow {
+        repo: "visiuun/tidaluna-plugins",
+        name: "@visiuun/3d-cover",
+        note: CompatNote {
+            level: Compat::PartlySupported,
+            reason: "The Small depth model works, but the Base model (about 100 MB) is more than a plugin may download here.",
         },
     },
 ];

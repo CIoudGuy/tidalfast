@@ -3750,6 +3750,14 @@ msgstr ""
 "Låttextbubblan ovanför spelarfältet fungerar, men det separata "
 "låttextfönstret gör det inte, eftersom det kräver en webbläsarmotor."
 
+#: src/luna/mod.rs:410
+msgid ""
+"The Small depth model works, but the Base model (about 100 MB) is more than "
+"a plugin may download here."
+msgstr ""
+"Djupmodellen Small fungerar, men Base-modellen (cirka 100 MB) är större än "
+"vad ett plugin får ladda ner här."
+
 #: src/app/plugins.rs:444
 #, rust-format
 msgid "{name} updated to {version}"

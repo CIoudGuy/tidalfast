@@ -1099,6 +1099,14 @@
 		};
 		for (const [k, v] of Object.entries(defaults)) decl._m.set(k, { value: v, important: false });
 		for (const [k, v] of props) decl._m.set(k, { value: v, important: false });
+		// A transform resolves to the matrix a browser reports.
+		if (props.has("transform") && L.parseTransform) {
+			try {
+				const { m, is2D } = L.parseTransform(props.get("transform"), [r.width, r.height]);
+				const v = props.get("transform").trim() === "none" ? "none" : is2D ? `matrix(${[m[0], m[1], m[4], m[5], m[12], m[13]].join(", ")})` : `matrix3d(${m.join(", ")})`;
+				decl._m.set("transform", { value: v, important: false });
+			} catch {}
+		}
 		if (props.has("background")) decl._m.set(isImage(props.get("background")) ? "background-image" : "background-color", { value: props.get("background"), important: false });
 		for (const [k, v] of vars) decl._m.set(k, { value: resolveVars(v, vars).trim(), important: false });
 		Object.defineProperty(decl, "_owner", { value: null });

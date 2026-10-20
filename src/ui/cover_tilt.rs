@@ -119,6 +119,11 @@ impl Projection {
     }
 
     fn apply(&self, point: Pos2) -> Pos2 {
+        self.apply_w(point).0
+    }
+
+    /// The projected point and its perspective divisor (`1 / scale`).
+    fn apply_w(&self, point: Pos2) -> (Pos2, f32) {
         let local = point - self.center;
         // rotateY first, then rotateX (CSS applies the rightmost first).
         let x = local.x * self.cos_y;
@@ -126,8 +131,39 @@ impl Projection {
         let y = local.y * self.cos_x - z * self.sin_x;
         let z = local.y * self.sin_x + z * self.cos_x;
         let scale = PERSPECTIVE / (PERSPECTIVE - z).max(1.0);
-        self.center + vec2(x * scale, y * scale)
+        (self.center + vec2(x * scale, y * scale), 1.0 / scale)
     }
+}
+
+thread_local! {
+    /// The tilt being painted (its rect and lean), while a guard lives.
+    static ACTIVE: std::cell::Cell<Option<(Rect, f32, f32)>> = const { std::cell::Cell::new(None) };
+}
+
+/// While the cover is being painted inside its tilt: where the corners of
+/// `rect` (left-top, right-top, right-bottom, left-bottom) land, each with
+/// its perspective divisor (for a correct texture mapping of something the
+/// tilt cannot warp itself, a plugin's WebGL canvas).
+pub fn projected(rect: Rect) -> Option<[(Pos2, f32); 4]> {
+    let (cover, rotate_x, rotate_y) = ACTIVE.with(std::cell::Cell::get)?;
+    let p = Projection::new(cover, rotate_x, rotate_y);
+    Some(
+        [
+            rect.left_top(),
+            rect.right_top(),
+            rect.right_bottom(),
+            rect.left_bottom(),
+        ]
+        .map(|point| p.apply_w(point)),
+    )
+}
+
+/// The lean the cover had when it was last drawn, degrees about x and y
+/// (for Luna's `_tilt_` element).
+pub fn current(ctx: &egui::Context) -> [f32; 2] {
+    let id = egui::Id::new("now-playing-cover-tilt");
+    ctx.data(|data| data.get_temp::<State>(id))
+        .map_or([0.0, 0.0], |s| [s.rotate_x.value, s.rotate_y.value])
 }
 
 /// Tilts what is painted between [`begin`] and the guard's end.
@@ -181,6 +217,7 @@ pub fn begin(ui: &egui::Ui, rect: Rect) -> Tilt {
     ctx.data_mut(|data| data.insert_temp(id, state));
     let painter = ui.painter().clone();
     let start = ctx.graphics_mut(|graphics| graphics.entry(painter.layer_id()).next_idx());
+    ACTIVE.with(|a| a.set(Some((rect, state.rotate_x.value, state.rotate_y.value))));
     Tilt {
         painter,
         start,
@@ -191,6 +228,7 @@ pub fn begin(ui: &egui::Ui, rect: Rect) -> Tilt {
 
 impl Drop for Tilt {
     fn drop(&mut self) {
+        ACTIVE.with(|a| a.set(None));
         let (rotate_x, rotate_y) = (self.state.rotate_x.value, self.state.rotate_y.value);
         let flat = rotate_x == 0.0 && rotate_y == 0.0;
         let projection = Projection::new(self.rect, rotate_x, rotate_y);
@@ -373,6 +411,30 @@ fn glare_mesh(rect: Rect, pointer: Pos2, opacity: f32, projection: &Projection) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A plugin's WebGL canvas in the cover lands where the tilt puts the
+    /// cover's own picture, with a divisor that maps it in perspective;
+    /// outside a tilt there is no projection.
+    #[test]
+    fn a_canvas_in_the_tilt_is_projected_like_the_cover() {
+        let rect = Rect::from_min_size(pos2(100.0, 100.0), vec2(400.0, 400.0));
+        assert_eq!(projected(rect), None);
+        ACTIVE.with(|a| a.set(Some((rect, 6.0, -9.0))));
+        let corners = projected(rect).unwrap();
+        ACTIVE.with(|a| a.set(None));
+        let p = Projection::new(rect, 6.0, -9.0);
+        assert_eq!(corners[0].0, p.apply(rect.left_top()));
+        assert_eq!(corners[2].0, p.apply(rect.right_bottom()));
+        // rotateY(-9deg) turns the left edge away (smaller: divisor > 1)
+        // and the right edge nearer.
+        assert!(corners[0].1 > 1.0 && corners[1].1 < 1.0, "{corners:?}");
+        // Flat: the rect itself.
+        ACTIVE.with(|a| a.set(Some((rect, 0.0, 0.0))));
+        let flat = projected(rect).unwrap();
+        ACTIVE.with(|a| a.set(None));
+        assert_eq!(flat[0], (rect.left_top(), 1.0));
+        assert_eq!(flat[2], (rect.right_bottom(), 1.0));
+    }
 
     #[test]
     fn the_lean_fades_out_towards_the_edges() {

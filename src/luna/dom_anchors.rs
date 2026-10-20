@@ -130,7 +130,9 @@ pub mod keys {
     pub const NP_ARTIST_INFO: &str = "now-playing-artist-info";
     pub const NP_FULLSCREEN: &str = "now-playing-fullscreen";
     pub const NP_ARTWORK: &str = "now-playing-artwork";
+    pub const NP_ARTWORK_TILT: &str = "now-playing-artwork-tilt";
     pub const NP_ARTWORK_IMG: &str = "now-playing-artwork-img";
+    pub const NP_ARTWORK_GLARE: &str = "now-playing-artwork-glare";
     pub const LYRICS_CONTAINER: &str = "lyrics-container";
     pub const LYRICS: &str = "lyrics";
     pub const LYRICS_LINES: &str = "lyrics-lines";
@@ -700,6 +702,11 @@ pub struct NowPlaying {
     pub rect: Option<Rect>,
     pub artwork_rect: Option<Rect>,
     pub cover_url: Option<String>,
+    /// The cover's lean under the pointer, degrees about x and y (TIDAL's
+    /// `transform: perspective(1000px) rotateX() rotateY()` on `_tilt_`).
+    pub tilt: [f32; 2],
+    /// An animated cover plays: TIDAL's artwork is then a `<video>`.
+    pub video: bool,
     /// Lyrics shown (`None`: another tab or none).
     pub lyrics_rect: Option<Rect>,
     pub lines: Vec<LyricLine>,
@@ -1916,19 +1923,41 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
             .modules(&["innerContainer", "content"])
             .at(np.rect),
     );
+    // TIDAL: the wrapper, the tilting box (leaning in perspective under
+    // the pointer), and in it the picture (`img`, or `video` for an
+    // animated cover) and the glare.
     out.push(
         el(NP_ARTWORK, Some(NP_CONTENT), "div")
-            .modules(&["artworkWrapper", "artworkTilt"])
-            .test("now-playing-artwork")
+            .modules(&["artworkWrapper"])
             .at(np.artwork_rect),
     );
-    let mut img = el(NP_ARTWORK_IMG, Some(NP_ARTWORK), "img")
-        .modules(&["image"])
-        .at(np.artwork_rect);
+    let [rx, ry] = np.tilt.map(|d| (d * 100.0).round() / 100.0);
+    out.push(
+        el(NP_ARTWORK_TILT, Some(NP_ARTWORK), "div")
+            .modules(&["tilt", "artworkTilt"])
+            .attr(
+                "style",
+                format!("transform: perspective(1000px) rotateX({rx}deg) rotateY({ry}deg);"),
+            )
+            .at(np.artwork_rect),
+    );
+    let mut img = el(
+        NP_ARTWORK_IMG,
+        Some(NP_ARTWORK_TILT),
+        if np.video { "video" } else { "img" },
+    )
+    .modules(&["image"])
+    .test("now-playing-artwork")
+    .at(np.artwork_rect);
     if let Some(url) = &np.cover_url {
         img = img.attr("src", url.clone());
     }
     out.push(img);
+    out.push(
+        el(NP_ARTWORK_GLARE, Some(NP_ARTWORK_TILT), "div")
+            .modules(&["glare"])
+            .at(np.artwork_rect),
+    );
     if np.artist_rect.is_some() || !np.artist.is_empty() {
         out.push(
             el(NP_ARTIST_INFO, Some(NP_CONTENT), "div")
@@ -2320,6 +2349,49 @@ mod tests {
     /// (its mark plus the label's width): that must be the label's own
     /// width, not the pill's, or the badge grows by the mark's width on
     /// every pass until its texture is too big to draw.
+    /// TIDAL's now-playing cover, as 3d-cover finds it: the picture is
+    /// `img[data-test=now-playing-artwork]` inside a `_tilt_` box whose
+    /// inline transform is the cover's lean; an animated cover is a video.
+    #[test]
+    fn the_now_playing_cover_sits_in_tidals_tilt_box() {
+        let mut frame = sample_frame();
+        if let Some(np) = frame.now_playing.as_mut() {
+            np.artwork_rect = Some([300.0, 100.0, 400.0, 400.0]);
+            np.cover_url = Some("https://resources.tidal.com/images/a/b/c/d/e/640x640.jpg".into());
+            np.tilt = [3.256, -1.5];
+        }
+        let tree = build(&frame);
+        let img = find(&tree, keys::NP_ARTWORK_IMG);
+        assert_eq!(img.tag, "img");
+        assert_eq!(attr(img, "data-test"), Some("now-playing-artwork"));
+        assert_eq!(img.parent.as_deref(), Some(keys::NP_ARTWORK_TILT));
+        let tilt = find(&tree, keys::NP_ARTWORK_TILT);
+        let class = attr(tilt, "class").unwrap();
+        assert!(
+            class.contains("_tilt_") && class.contains("_artworkTilt_1c6d5cc"),
+            "{class}"
+        );
+        assert_eq!(
+            attr(tilt, "style"),
+            Some("transform: perspective(1000px) rotateX(3.26deg) rotateY(-1.5deg);")
+        );
+        assert_eq!(tilt.parent.as_deref(), Some(keys::NP_ARTWORK));
+        let wrapper = find(&tree, keys::NP_ARTWORK);
+        assert_eq!(attr(wrapper, "data-test"), None);
+        assert!(
+            attr(wrapper, "class")
+                .unwrap()
+                .starts_with("_artworkWrapper_")
+        );
+        let glare = find(&tree, keys::NP_ARTWORK_GLARE);
+        assert_eq!(attr(glare, "class"), Some("_glare_fdbaeab"));
+        if let Some(np) = frame.now_playing.as_mut() {
+            np.video = true;
+        }
+        let tree = build(&frame);
+        assert_eq!(find(&tree, keys::NP_ARTWORK_IMG).tag, "video");
+    }
+
     #[test]
     fn the_quality_label_has_its_own_width() {
         let mut frame = sample_frame();

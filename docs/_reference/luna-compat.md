@@ -16,7 +16,7 @@ ones, and each row says which round last verified it. How a round worked is unde
 
 | | ✅ live | ✅ tests only | 🔑 your permission | ⛔ by design | ⚠️ external | ❌ open | total |
 |---|---|---|---|---|---|---|---|
-| Plugins | 73 | 1 | 5 | 6 | 1 | 0 | 86 |
+| Plugins | 74 | 1 | 5 | 6 | 1 | 0 | 87 |
 | Catalogue themes | 9 | 0 | 0 | 0 | 0 | 0 | 9 |
 
 Since 2026-10-20 (owner decision) five plugins that were refused by design
@@ -25,6 +25,9 @@ sign-in), MediaKeysFixer (system-wide shortcuts), mpv (mpv's own pipe, after
 starting mpv behind the `child_process` prompt, and TIDAL's audio), and the
 Song Downloader and SongDownloader ElVigilante downloaders (saving TIDAL
 audio). See "Permissions a plugin asks for".
+
+Round 20 added @visiuun/3d-cover, published after the sweep (87 plugins);
+it is live and labelled "Partly supported" (its Base model, see its row).
 
 The one ⚠️ left is spotify-sync (needs the user's Spotify account; its
 `tidaLuna://` sign-in redirect is handled since round 19, see its row).
@@ -161,6 +164,7 @@ Notes that apply to every plugin:
 | StarryNight | seomin0610/luna-plugins | ✅ live r13 | The star field shows over the black window on the Collection page and the now-playing view; shooting stars animate. |
 | @visiuun/quick-queue | visiuun/tidaluna-plugins | ✅ live r7 | Queue button on a hovered row queues the song with a toast; the queued row shows its title at once. |
 | @visiuun/tidal-genres | visiuun/tidaluna-plugins | ✅ live r7 | Genre badges after row titles and in the player bar. |
+| @visiuun/3d-cover | visiuun/tidaluna-plugins | ✅ live r20 (partly) | Hovering the now-playing cover (a still one; an animated cover is a `<video>`, as in TIDAL, and is left alone) shows its WebGL parallax over the cover, leaning with the cover's tilt, which it reads from TIDAL's `_tilt_` element (`perspective(1000px) rotateX() rotateY()`, matrix through `DOMMatrix`). Its depth map comes from transformers.js, which it loads from jsDelivr into a module `Worker`: Tidalfast answers that bundle with a stand-in whose `depth-estimation` pipeline fetches the same Depth-Anything-V2 files through the plugin's own cache and runs the model natively (`src/luna/depth.rs`, about 2 s a cover in a release build on one low-priority thread, against 3.3 s in TidaLuna's WebAssembly; each cover once, then from the plugin's own depth cache). The q8 output differs from onnxruntime's by about 0.6% of the depth range, as tract's does: rounding at quantization boundaries. Not the same: the canvas appears at once (no 0.12 s fade: CSS transitions are not drawn), the spinner's rotation is not drawn, and the Base model (about 100 MB) is over the 64 MB a plugin download may be, so it fails with the plugin's error; Small, the default, works. Label: "Partly supported". |
 | @cioudguy/no-remix | CIoudGuy/TidaLuna-Plugins | ✅ live r10 | Removes remixes the user queued and skips one that starts playing (also from a playlist or album); took 2 remixes out of Next up at once; context menu entry marks and unmarks. |
 | PlayerAPI | thororen1234/luna-plugins | ✅ live r13 | GET answers the playing song; resume and pause work since the `executeJavaScript` fix. |
 | DiscordRPC+ | thororen1234/luna-plugins | ✅ live r13 | Handshake and SET_ACTIVITY with title, artist, cover and buttons against a fake Discord on pipe 7. |
@@ -995,6 +999,15 @@ Supporters, only lists TidaLuna's GitHub sponsors and contributors and is left o
   fullscreen `--demo-show` states for this: fullscreen moves the window onto
   a real display. In this mode plugin IPC connects are refused, so
   DiscordRPC never reaches a Discord running on the computer.
+  `TIDALFAST_DEMO_COVER=<TIDAL image id as a/b/c/d/e>` makes every demo
+  cover that TIDAL cover, for plugins that act only on TIDAL's image server
+  (3d-cover was checked with `7e58f111/5b1a/492a/aaf1/88fb55ce8a44`).
+
+- `src/luna/depth_tests.rs` and `src/luna/onnx_tests.rs`: module blobs and
+  a module Worker running transformers.js's depth pipeline on a tiny model
+  made in the test, `DOMMatrix`, `createImageBitmap` resizing, and each
+  ONNX operator the depth model uses. `real_depth_anything_v2` (ignored)
+  runs the real model: `TIDALFAST_DEPTH_MODEL=<model_quantized.onnx>`.
 
 - `src/luna/compat_tests.rs` (runs with the normal `luna::` tests): one inline
   plugin per fixed category: Node shims (zlib, dgram, V8 CallSites, callable

@@ -230,11 +230,18 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 );
                 let footer = Rect::from_min_max(pos2(rect.left(), rect.bottom() - 72.0), rect.max);
                 let fullscreen = super::plugin_dom::window_fullscreen(ui.ctx());
+                let tilt = super::cover_tilt::current(ui.ctx());
+                let video = app.settings.animated_covers
+                    && app
+                        .now_playing()
+                        .is_some_and(|now| crate::video_cover::of_now_playing(app, &now).is_some());
                 super::plugin_dom::note(|f| {
                     f.now_playing = Some(crate::luna::dom_anchors::NowPlaying {
                         rect: super::plugin_dom::rect(rect),
                         artwork_rect: super::plugin_dom::rect(placement.cover),
                         cover_url,
+                        tilt,
+                        video,
                         artist,
                         artist_rect: super::plugin_dom::rect(artist_info),
                         footer_rect: super::plugin_dom::rect(footer),
@@ -444,8 +451,11 @@ fn big_cover(app: &App, ui: &mut egui::Ui, cover: Rect) {
     };
     // A plugin hid the artwork or its picture: nothing is painted there.
     {
-        use crate::luna::dom_anchors::keys::{NP_ARTWORK, NP_ARTWORK_IMG};
-        if super::plugin_dom::hidden(NP_ARTWORK) || super::plugin_dom::hidden(NP_ARTWORK_IMG) {
+        use crate::luna::dom_anchors::keys::{NP_ARTWORK, NP_ARTWORK_IMG, NP_ARTWORK_TILT};
+        if super::plugin_dom::hidden(NP_ARTWORK)
+            || super::plugin_dom::hidden(NP_ARTWORK_TILT)
+            || super::plugin_dom::hidden(NP_ARTWORK_IMG)
+        {
             return;
         }
     }
@@ -484,6 +494,14 @@ fn big_cover(app: &App, ui: &mut egui::Ui, cover: Rect) {
             egui::CornerRadius::ZERO,
             now.playing,
         );
+    }
+    // What plugins put in the tilting box (after the picture, or at its
+    // end) leans with it.
+    if super::plugin_dom::on() {
+        use crate::luna::dom::Position;
+        use crate::luna::dom_anchors::keys::{NP_ARTWORK_IMG, NP_ARTWORK_TILT};
+        super::plugin_slots::positioned_here(ui, NP_ARTWORK_IMG, Position::After);
+        super::plugin_slots::positioned_here(ui, NP_ARTWORK_TILT, Position::Append);
     }
 }
 

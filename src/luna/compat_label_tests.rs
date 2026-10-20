@@ -3,7 +3,7 @@
 
 use super::*;
 
-/// The entries of the nine stores that hold a plugin Tidalfast labels, as
+/// The entries of the ten stores that hold a plugin Tidalfast labels, as
 /// their `store.json` and `<file>.json` listed them on 2026-10-16 (one entry,
 /// which is not labelled, is left out):
 /// (store repository, file, package name).
@@ -188,6 +188,22 @@ const STORE_INDEX: &[(&str, &str, &str)] = &[
         "DownloadManager.mjs",
         "DownloadManager",
     ),
+    // visiuun's store, as listed on 2026-10-20.
+    (
+        "visiuun/tidaluna-plugins",
+        "visiuun.3d-cover.mjs",
+        "@visiuun/3d-cover",
+    ),
+    (
+        "visiuun/tidaluna-plugins",
+        "visiuun.quick-queue.mjs",
+        "@visiuun/quick-queue",
+    ),
+    (
+        "visiuun/tidaluna-plugins",
+        "visiuun.tidal-genres.mjs",
+        "@visiuun/tidal-genres",
+    ),
 ];
 
 /// The install URL a store entry has (spaces in a file name become dots).
@@ -197,7 +213,7 @@ fn store_url(repo: &str, file: &str) -> String {
 }
 
 /// The labels hit exactly the store entries they name and no other entry of
-/// those stores: 13 of the 48 (one entry that only needs an outside account is left out of the list).
+/// those stores: 14 of the 51 (one entry that only needs an outside account is left out of the list).
 #[test]
 fn labels_match_their_store_entries_and_nothing_else() {
     let mut got: Vec<&str> = STORE_INDEX
@@ -209,7 +225,7 @@ fn labels_match_their_store_entries_and_nothing_else() {
     got.sort_unstable();
     want.sort_unstable();
     assert_eq!(got, want);
-    assert_eq!(got.len(), 13);
+    assert_eq!(got.len(), 14);
     // Every row targets an entry of the index, in the repository it names.
     for row in COMPAT {
         assert!(
@@ -251,13 +267,13 @@ fn labels_are_keyed_by_store_and_package_name() {
         )
         .is_none()
     );
-    // Only lyrics-everywhere is partly supported.
+    // Only lyrics-everywhere and 3d-cover are partly supported.
     let partly: Vec<&str> = COMPAT
         .iter()
         .filter(|r| r.note.level == Compat::PartlySupported)
         .map(|r| r.name)
         .collect();
-    assert_eq!(partly, ["@jxnxsdev/lyrics-everywhere"]);
+    assert_eq!(partly, ["@jxnxsdev/lyrics-everywhere", "@visiuun/3d-cover"]);
 }
 
 /// Every reason is one plain sentence with no dash used as punctuation, and

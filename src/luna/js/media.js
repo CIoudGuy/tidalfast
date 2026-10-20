@@ -1851,7 +1851,40 @@
 		return new Promise((resolve, reject) => (this._waiters ??= []).push({ resolve, reject }));
 	};
 
+	// A bitmap scaled to `resizeWidth`/`resizeHeight` (one alone keeps the
+	// aspect): "pixelated" picks pixels, "low" blends neighbours, "medium"
+	// and "high" first halve the picture by averaging while it is at least
+	// twice the size, as a browser's high-quality scaler does.
+	const resized = (bm, o) => {
+		let tw = Math.round(Number(o.resizeWidth) || 0);
+		let th = Math.round(Number(o.resizeHeight) || 0);
+		if (tw <= 0 && th <= 0) return bm;
+		if (tw <= 0) tw = Math.max(1, Math.round((bm._w * th) / bm._h));
+		if (th <= 0) th = Math.max(1, Math.round((bm._h * tw) / bm._w));
+		const quality = String(o.resizeQuality ?? "low");
+		const smooth = quality === "pixelated" ? 0 : 1;
+		let cur = bm;
+		const step = (w, h) => {
+			const next = new ImageBitmap();
+			next._w = w;
+			next._h = h;
+			next._surf = N.create(w, h);
+			reg?.register(next, next._surf);
+			N.drawImage(next._surf, [cur._surf, 0, 0, cur._w, cur._h, 0, 0, w, h, ...ID, 1, 0, smooth]);
+			cur.close();
+			cur = next;
+		};
+		if (quality === "medium" || quality === "high") while (cur._w >= tw * 2 && cur._h >= th * 2) step(Math.ceil(cur._w / 2), Math.ceil(cur._h / 2));
+		if (cur._w !== tw || cur._h !== th) step(tw, th);
+		return cur;
+	};
 	g.createImageBitmap = async (src, ...rest) => {
+		const last = rest.at(-1);
+		const opts = last !== null && typeof last === "object" ? rest.pop() : null;
+		const bm = await makeBitmap(src, rest);
+		return opts ? resized(bm, opts) : bm;
+	};
+	const makeBitmap = async (src, rest) => {
 		if (src instanceof Blob) {
 			const out = N.decode(await src.arrayBuffer());
 			const bm = new ImageBitmap();
