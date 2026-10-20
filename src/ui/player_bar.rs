@@ -1359,9 +1359,12 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     super::player_utility::sound_output(app, ui);
     run.slot(ui, 7, keys::MORE, Position::Append);
     let queue_open = app.show_queue_panel || matches!(app.page(), Page::Queue);
+    // TIDAL desktop: three lines, on a 32-point disc of white at 8 % while
+    // the queue is open. The disc goes under the button, drawn first.
+    let disc = ui.painter().add(egui::Shape::Noop);
     let queue_button = theme::player_icon_button(
         ui,
-        Icon::ListVideo,
+        Icon::QueueLines,
         18.0,
         if queue_open {
             palette.text
@@ -1371,6 +1374,20 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         palette.text,
         &gettext(app.locale, "Queue"),
     );
+    if queue_open {
+        ui.painter().set(
+            disc,
+            egui::Shape::circle_filled(
+                queue_button.rect.center(),
+                16.0,
+                if palette.dark {
+                    egui::Color32::from_white_alpha(20)
+                } else {
+                    egui::Color32::from_black_alpha(16)
+                },
+            ),
+        );
+    }
     if queue_button.clicked() {
         app.actions.push(Action::ToggleQueuePanel);
     }
