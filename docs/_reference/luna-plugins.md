@@ -44,6 +44,12 @@ Store URLs registered in Luna: Inrixia (dev), Aztup, jxnxsdev, squadgazzz, CIoud
 SinnerK0N, Henr1ES, meowarex, dantraynor, DevonCasey, FireWall-code, FlazeIGuess, MathDesigns, espeon, minseokk7, otomir23,
 seomin0610, visiuun, wont-stream (lunar), SuperslowJelly (TIDAL-Clear-Coat theme).
 
+Tidalfast's built-in list (`DEFAULT_STORES` in `src/luna/mod.rs`) is TidaLuna's list with its
+release channels: Inrixia's store and wont-stream's are `.../releases/download/dev`, the others
+`.../download/latest`. An older Tidalfast listed Inrixia's `latest`; a saved store entry or a
+plugin installed from exactly that address moves to `dev` (details under "Store channels" in
+`luna-compat.md`).
+
 ## Where these live now
 
 Settings > Plugins is TidaLuna's own settings page, drawn natively (tabs Plugins, Plugin

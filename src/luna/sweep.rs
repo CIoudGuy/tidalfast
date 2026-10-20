@@ -25,10 +25,9 @@ use serde_json::{Value, json};
 use super::redux::EMITTED_ACTIONS;
 use super::*;
 
-/// Stores beyond [`DEFAULT_STORES`]: Inrixia's dev channel (what upstream
-/// Luna lists) and stores of plugins the owner has installed.
+/// Stores beyond [`DEFAULT_STORES`] (which are upstream Luna's list, with
+/// Inrixia's `dev` channel): stores of plugins the owner has installed.
 pub(super) const EXTRA_STORES: &[&str] = &[
-    "https://github.com/Inrixia/luna-plugins/releases/download/dev",
     "https://github.com/CIoudGuy/TidaLuna-Plugins/releases/download/latest",
     // Community stores outside upstream's default list (GitHub search,
     // 2026-10-14: every public repo with a `store.json` release asset).

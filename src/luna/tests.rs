@@ -41,6 +41,8 @@ mod import_tests;
 mod parity_tests;
 #[path = "settings_tests.rs"]
 mod settings_tests;
+#[path = "store_default_tests.rs"]
+mod store_default_tests;
 #[path = "theme_round19_tests.rs"]
 mod theme_round19_tests;
 #[path = "theme_round22_tests.rs"]
