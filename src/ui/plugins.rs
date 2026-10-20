@@ -2437,9 +2437,18 @@ fn luna_look(
             let (chosen, shown) = shown_option(value, options);
             ui.add_enabled_ui(enabled(meta), |ui| {
                 let mut field = |ui: &mut Ui, width: f32| {
-                    if let Some(i) =
-                        look::select(ui, &mui, key, &title, shown, &labels, chosen, width)
-                    {
+                    if let Some(i) = look::select(
+                        ui,
+                        &mui,
+                        key,
+                        &title,
+                        look::Choices {
+                            options: &labels,
+                            chosen,
+                            shown,
+                        },
+                        width,
+                    ) {
                         changes.push((id.clone(), SettingValue::Json(options[i].value.clone())));
                     }
                 };

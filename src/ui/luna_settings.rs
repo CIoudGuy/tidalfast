@@ -672,16 +672,27 @@ pub(crate) fn text_field(
 /// chosen one at 8 % of grey `A200`, as wide as the field and under it,
 /// moved up to stay 16 pixels inside the window and scrolling past
 /// its height. Returns the index chosen.
+/// What a [`select`] offers: its options' words, the chosen one's index
+/// and the words the field shows (none for an empty value).
+pub(crate) struct Choices<'a> {
+    pub options: &'a [&'a str],
+    pub chosen: Option<usize>,
+    pub shown: &'a str,
+}
+
 pub(crate) fn select(
     ui: &mut Ui,
     mui: &Mui,
     id: egui::Id,
     label: &str,
-    shown: &str,
-    options: &[&str],
-    chosen: Option<usize>,
+    choices: Choices,
     width: f32,
 ) -> Option<usize> {
+    let Choices {
+        options,
+        chosen,
+        shown,
+    } = choices;
     let size = vec2(width.max(60.0), (REM * 1.4375 + 33.0).round());
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     let open_id = id.with("open");

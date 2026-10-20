@@ -3672,7 +3672,7 @@ fn stacked_fill(key: &str) -> Option<Color32> {
     std::iter::once(key)
         .chain(nested(key).iter().copied())
         .filter_map(fill)
-        .reduce(|under, top| layered(under, top))
+        .reduce(layered)
 }
 
 /// `top` painted over `under` (premultiplied, in the gamma space browsers
