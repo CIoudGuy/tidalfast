@@ -223,7 +223,7 @@ impl App {
     /// The tracks of a context that are loaded in the app, as ids and
     /// TIDAL-shaped JSON.
     #[allow(clippy::type_complexity)]
-    fn context_list(&self, uri: &str) -> Option<(Vec<String>, Vec<(String, Value)>)> {
+    pub(super) fn context_list(&self, uri: &str) -> Option<(Vec<String>, Vec<(String, Value)>)> {
         let mut parts = uri.split(':');
         let _ = parts.next();
         let kind = parts.next()?;
@@ -256,6 +256,33 @@ impl App {
             ids.push(id);
         }
         (!ids.is_empty()).then_some((ids, items))
+    }
+
+    /// TIDAL keeps the open album's, playlist's or mix's track list in
+    /// `content.trackLists` while its page shows: scroll-to-playing finds
+    /// the playing row's place in it to scroll to a row the list has not
+    /// laid out. Given again when the page or its length changes.
+    fn luna_page_list(&mut self) {
+        let uri = match self.page() {
+            Page::Album(id) => format!("tidal:album:{id}"),
+            Page::Playlist(id) => format!("tidal:playlist:{id}"),
+            Page::Mix(id) => format!("tidal:mix:{id}"),
+            _ => {
+                self.plugins.seen.page_list = None;
+                return;
+            }
+        };
+        let Some((ids, items)) = self.context_list(&uri) else {
+            return;
+        };
+        let key = (uri, ids.len());
+        if self.plugins.seen.page_list.as_ref() == Some(&key) {
+            return;
+        }
+        self.plugins
+            .host
+            .set_track_list(&gate::track_list_name(&key.0), ids, items);
+        self.plugins.seen.page_list = Some(key);
     }
 
     /// The play queue as plugins see it: the playing track, then Next up.
@@ -644,7 +671,7 @@ impl App {
     }
 
     /// Refresh what plugins read and tell them what changed.
-    fn luna_sync(&mut self, now: Option<&NowPlaying>, window: WindowState) {
+    pub(super) fn luna_sync(&mut self, now: Option<&NowPlaying>, window: WindowState) {
         let mut snap = self.luna_playback(now);
         // The queue's tracks, as TIDAL JSON, for `content.mediaItems`; built
         // again only when the queue or what the app has cached changes.
@@ -712,6 +739,7 @@ impl App {
             }
             _ => None,
         };
+        self.luna_page_list();
         let page = crate::plugins::gate::page_path(self.page());
         let search = crate::plugins::gate::page_search(self.page());
         let track_sequence = self.local.track_sequence;

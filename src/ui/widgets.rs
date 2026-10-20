@@ -2660,6 +2660,8 @@ fn tidal_row_cells(
     let artist_color = themed_text.artist.unwrap_or(text_color);
     let album_color = themed_text.album.unwrap_or(text_color);
     let time_color = themed_text.time.unwrap_or(text_color);
+    let added_by_color = themed_text.added_by.unwrap_or(text_color);
+    let added_color = themed_text.added.unwrap_or(text_color);
     let mut x = rect.left();
     // Number, or the play control; without the # column (a mix) the
     // control sits on the cover.
@@ -2853,8 +2855,25 @@ fn tidal_row_cells(
         }
         x += cols.album;
     }
+    // The words of the Added by and Date added cells, for their anchors.
+    let shown_added_by = (cols.added_by > 0.0).then_some(row.added_by).flatten();
+    // TIDAL stamps the epoch on dates it never recorded; an empty cell is
+    // truer than January 1970. TIDAL writes the date out: "Feb 22, 2025".
+    let shown_added = (cols.added > 0.0)
+        .then_some(row.added_at)
+        .flatten()
+        .filter(|added| !added.starts_with("1970-01-01"))
+        .map(|added| util::format_date(app.locale, added));
+    if super::plugin_dom::on() {
+        super::plugin_dom::row_added(
+            &super::plugin_dom::list_id(row.context),
+            row.index,
+            shown_added_by,
+            shown_added.as_deref(),
+        );
+    }
     if cols.added_by > 0.0 {
-        if let Some(adder) = row.added_by {
+        if let Some(adder) = shown_added_by {
             let added_by = cell(x, cols.added_by);
             crate::bidi::paint_line(
                 &painter.with_clip_rect(added_by.intersect(ui.clip_rect())),
@@ -2863,29 +2882,22 @@ fn tidal_row_cells(
                 added_by.center().y,
                 adder,
                 text_font.clone(),
-                text_color,
+                added_by_color,
             );
         }
         x += cols.added_by;
     }
     if cols.added > 0.0 {
-        // TIDAL stamps the epoch on dates it never recorded; an empty
-        // cell is truer than January 1970.
-        if let Some(added) = row
-            .added_at
-            .filter(|added| !added.starts_with("1970-01-01"))
-        {
-            // TIDAL writes the date out: "Feb 22, 2025".
-            let label = util::format_date(app.locale, added);
+        if let Some(label) = &shown_added {
             let added_rect = cell(x, cols.added);
             crate::bidi::paint_line(
                 &painter.with_clip_rect(added_rect.intersect(ui.clip_rect())),
                 added_rect.left(),
                 added_rect.right(),
                 added_rect.center().y,
-                &label,
+                label,
                 text_font.clone(),
-                text_color,
+                added_color,
             );
         }
         x += cols.added;

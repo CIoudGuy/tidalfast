@@ -39,6 +39,9 @@ pub(crate) struct Seen {
     /// The lyrics state last announced: the track and 0 none, 1 loading,
     /// 2 found, 3 not found.
     pub lyrics: Option<(String, u8)>,
+    /// The open page's track list given to plugins: its context and how
+    /// many tracks it held.
+    pub page_list: Option<(String, usize)>,
     /// Queue tracks as TIDAL JSON, and what they were built from.
     pub items_key: Option<u64>,
     pub items: std::collections::BTreeMap<String, serde_json::Value>,

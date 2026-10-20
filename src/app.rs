@@ -13893,6 +13893,32 @@ mod tests {
     use super::*;
     use crate::api::models::{Image, Page as ApiPage, SavedTrack};
 
+    /// scroll-to-playing scrolls to a playing row the list has not laid out
+    /// from its place in the open page's `content.trackLists` entry, which
+    /// TIDAL keeps while the page shows: the open playlist's list is there
+    /// without anything having been played from it.
+    #[test]
+    fn the_open_pages_track_list_reaches_plugins() {
+        let mut app = test_app("open-page-track-list");
+        crate::demo::populate(&mut app);
+        app.open(Page::Playlist("pl1".into()));
+        app.luna_sync(None, crate::luna::WindowState::default());
+        use crate::luna::LunaHost as _;
+        let lists = app.plugins.host.playback().track_lists;
+        let ids = lists
+            .get("playlist/pl1")
+            .unwrap_or_else(|| panic!("the open playlist's list: {lists:?}"));
+        let (expected, _) = app.context_list("tidal:playlist:pl1").expect("loaded");
+        assert_eq!(ids, &expected);
+        assert!(ids.len() > 5, "{ids:?}");
+        // Another page: the list stays for plugins that kept a reference,
+        // and the next list page is given as it opens.
+        app.open(Page::Home);
+        app.luna_sync(None, crate::luna::WindowState::default());
+        assert!(app.plugins.seen.page_list.is_none());
+        app.backend.shutdown();
+    }
+
     /// #623: the missing-output message the sink reports is the one the
     /// catalogues translate.
     #[test]
