@@ -286,9 +286,13 @@ fn tabs_row(app: &App, ui: &mut egui::Ui) -> (SettingsTab, String) {
             (SettingsTab::About, gettext(locale, "About")),
         ] {
             let selected = tab == choice && filter.trim().is_empty();
-            let galley =
-                ui.painter()
-                    .layout_no_wrap(label.to_string(), theme::semibold(14.0), palette.text);
+            // Laid out without a colour, so the tab's own (grey at rest)
+            // applies when it is painted.
+            let galley = ui.painter().layout_no_wrap(
+                label.to_string(),
+                theme::semibold(14.0),
+                egui::Color32::PLACEHOLDER,
+            );
             let (rect, response) =
                 ui.allocate_exact_size(Vec2::new(galley.size().x, 35.0), egui::Sense::click());
             // TIDAL's paging tabs: `color .1s` on the enter curve, and the
@@ -300,11 +304,8 @@ fn tabs_row(app: &App, ui: &mut egui::Ui) -> (SettingsTab, String) {
                 selected || response.hovered(),
                 tab_fade,
             );
-            let rest = if palette.tidal_dark() {
-                egui::Color32::from_rgb(120, 120, 135)
-            } else {
-                palette.secondary
-            };
+            // TIDAL desktop's resting tabs read about #8f8f95 on black.
+            let rest = palette.secondary;
             let color = crate::motion::blend(rest, palette.text, lit);
             ui.painter()
                 .galley(egui::pos2(rect.left(), rect.top() + 6.0), galley, color);

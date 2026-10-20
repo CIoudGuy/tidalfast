@@ -3918,21 +3918,25 @@ fn section_header_parts(
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
     let mut more_clicked = false;
     let rect = if let Some(label) = more {
-        let galley =
-            ui.painter()
-                .layout_no_wrap(label.to_string(), theme::semibold(14.0), palette.text);
+        // Laid out without a colour, so the tint below applies.
+        let galley = ui.painter().layout_no_wrap(
+            label.to_string(),
+            theme::semibold(14.0),
+            Color32::PLACEHOLDER,
+        );
         let link = Rect::from_min_size(
             pos2(rect.right() - galley.size().x, rect.center().y - 11.0),
             vec2(galley.size().x, 22.0),
         );
         let response = ui.interact(link, ui.id().with(("section-more", title)), Sense::click());
         response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Link, true, label));
-        // TIDAL's View all: `color .3s`.
+        // TIDAL's View all: grey (white at 55 %), white under the pointer,
+        // `color .3s`.
         let color = crate::motion::color(
             ui.ctx(),
             response.id.with("tint"),
             response.hovered(),
-            palette.text.gamma_multiply(0.9),
+            palette.secondary,
             palette.text,
             crate::motion::Transition::new(0.3, crate::motion::ease::EASE),
         );
@@ -4505,10 +4509,12 @@ pub fn underline_tabs(
                 ui.horizontal(|ui| {
                     for (index, label) in labels.iter().enumerate() {
                         let selected = index == active;
+                        // Laid out without a colour, so the one given when it
+                        // is painted (grey unless chosen or hovered) applies.
                         let galley = ui.painter().layout_no_wrap(
                             label.clone(),
                             theme::medium(14.0),
-                            palette.text,
+                            Color32::PLACEHOLDER,
                         );
                         let width = galley.size().x;
                         let (hit, _) = ui.allocate_exact_size(vec2(width, 36.0), Sense::hover());
