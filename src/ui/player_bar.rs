@@ -2032,6 +2032,90 @@ mod narrow_tests {
         crate::ui::plugin_dom::test_overlay(None);
     }
 
+    /// The now-playing view sliding up or down (`now_playing_sliding`) is
+    /// shown only above the player bar. Its panel set its own clip, so its
+    /// cover was drawn over the bar while it slid.
+    #[test]
+    fn the_sliding_now_playing_view_stays_above_the_bar() {
+        let (ctx, mut app) = setup();
+        crate::ui::plugin_dom::test_overlay(None);
+        let bar_top = 800.0 - 88.0;
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1240.0, 800.0))),
+                    ..Default::default()
+                },
+                |ui| {
+                    let window = ui.max_rect();
+                    let above = Rect::from_min_max(window.min, pos2(window.right(), bar_top));
+                    crate::ui::now_playing_sliding(&mut app, ui, window, above, 300.0);
+                },
+            );
+            output.textures_delta.clear();
+            shapes = output.shapes;
+        }
+        assert!(!shapes.is_empty());
+        for s in &shapes {
+            // Nothing to see: the panel's empty frame.
+            let invisible = match &s.shape {
+                egui::epaint::Shape::Noop => true,
+                egui::epaint::Shape::Rect(r) => r.fill.a() == 0 && r.stroke.is_empty(),
+                _ => false,
+            };
+            if invisible {
+                continue;
+            }
+            assert!(
+                s.clip_rect.bottom() <= bar_top + 0.5 && s.clip_rect.top() >= 300.0 - 0.5,
+                "drawn past the view's visible part: {:?} {}",
+                s.clip_rect,
+                format!("{:?}", s.shape)
+                    .chars()
+                    .take(300)
+                    .collect::<String>()
+            );
+        }
+    }
+
+    /// TIDAL's play queue floats over the now-playing view. Once the view
+    /// is up it does here too, but while it slid in or out its header and
+    /// cover were drawn over the queue (the view's layer was on top of every
+    /// floating panel).
+    #[test]
+    fn the_queue_floats_over_the_sliding_now_playing_view() {
+        let (ctx, mut app) = setup();
+        crate::ui::plugin_dom::test_overlay(None);
+        app.show_queue_panel = true;
+        for _ in 0..3 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1240.0, 800.0))),
+                    ..Default::default()
+                },
+                |ui| {
+                    let window = ui.max_rect();
+                    let above = Rect::from_min_max(window.min, pos2(window.right(), 712.0));
+                    crate::ui::now_playing_sliding(&mut app, ui, window, above, 300.0);
+                    crate::ui::queue::floating_panel(&mut app, ui);
+                },
+            );
+            output.textures_delta.clear();
+        }
+        let order: Vec<egui::LayerId> = ctx.memory(|m| m.layer_ids().collect());
+        let at = |layer: egui::LayerId| order.iter().position(|l| *l == layer);
+        let view = at(egui::LayerId::new(
+            egui::Order::Middle,
+            egui::Id::new("now-playing-sliding"),
+        ));
+        let queue = at(crate::ui::queue::floating_layer());
+        assert!(
+            matches!((view, queue), (Some(v), Some(q)) if q > v),
+            "the view at {view:?}, the queue at {queue:?} (top is last)"
+        );
+    }
+
     /// radiant-lyrics floats the bar 10 points off the window's edges. In
     /// TIDAL the page runs on under it to the window's bottom (it shows in
     /// the gaps round the bar); Tidalfast ended the page above the bar. The

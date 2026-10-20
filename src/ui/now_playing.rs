@@ -200,9 +200,14 @@ fn requested_tab(app: &App) -> Option<NowPlayingTab> {
 }
 
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
+    // The panel clips to its own rect, which would drop the caller's clip:
+    // the view sliding in or out is shown only above the player bar, and
+    // its cover was drawn over the bar.
+    let outer = ui.clip_rect();
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE)
         .show(ui, |ui| {
+            ui.set_clip_rect(ui.clip_rect().intersect(outer));
             theme::apply_local(ui, &theme::Palette::dark());
             if super::now_playing_video::playing(app) {
                 super::now_playing_video::show(app, ui);
@@ -330,7 +335,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     .max_rect(column.translate(vec2(shift, 0.0)))
                     .layout(Layout::top_down(Align::Min)),
             );
-            content.set_clip_rect(column.expand2(vec2(24.0, 0.0)));
+            content.set_clip_rect(column.expand2(vec2(24.0, 0.0)).intersect(ui.clip_rect()));
             if shown < 1.0 {
                 content.multiply_opacity(shown);
             }
