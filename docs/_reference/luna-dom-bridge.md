@@ -621,13 +621,14 @@ art TIDAL paints in `[class^=_dataContainer_]::before` (`background-image:
 none`, `--img: none`, `display: none`) removes the cover wash. A theme that
 leaves that box alone keeps TIDAL's wash, darkened to black at its foot,
 over its own page colour, as TIDAL draws it (Meteor Night). The header's
-Play and Shuffle pills are TIDAL's market buttons
-(`button._marketButton_1l1bl_1._medium_1l1bl_4._primary_1l1bl_6` with
-`data-test=play-button`, Shuffle `_secondary_1l1bl_7`, each with a
-`span._label_1l1bl_1`; album, playlist, mix, radio and artist headers): a
+Play and Shuffle pills are TIDAL 2.43.2's market buttons
+(`button._marketButton_1d16h_1._medium_1d16h_4._primary_1d16h_6` with
+`data-test=play-all`, Shuffle `_secondary_1d16h_7` with `data-test=shuffle-all`,
+each with a `span._label_1d16h_1`, inside `div[data-test=header-controls]`;
+album, playlist, mix, radio and artist headers): a
 theme's `background-color` there (or, when that is see-through, the mean
 colour of the gradient that paints the pill), its label colour and its
-border replace the native white and grey pills; with no theme they are
+border and corner radius replace the native white and grey pills; with no theme they are
 drawn as before. Fonts plugins declare (`@font-face` with a `data:` URL; never a local or
 network path, since opening a UNC path makes Windows sign in to that server,
 and only a font that parses whole, since egui panics on a broken one)
