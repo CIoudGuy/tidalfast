@@ -4775,7 +4775,7 @@ fn leaf(
             ui.add(image);
             true
         }
-        "input" => input(ui, node, inherit, width, height, _cx),
+        "input" => input(ui, node, inherit, width, height, cx),
         "textarea" => text_input(ui, node, inherit, width, true),
         "select" => select(ui, node, width),
         _ => false,
