@@ -2935,3 +2935,46 @@ fn each_tab_comes_back_scrolled_where_it_was_left() {
     let (_, _, store) = scrolled_frame(&ctx, &snapshot, &index, &mut page, vec![go], None);
     assert_eq!((page.tab, store), (Tab::Store, 150.0));
 }
+
+/// A theme whose every rule sits under `@media (prefers-color-scheme:
+/// light)` (the adaptive Cotton Candy files) draws nothing while the app is
+/// in Dark: its installed row and the Applied line say it shows only in
+/// Light mode, so Active never looks broken. In Light it shows, and nothing
+/// is said.
+#[test]
+fn a_theme_for_one_mode_says_so_in_the_other() {
+    let (snapshot, index) = fixture::sample(NOW);
+    let index = Arc::new(index);
+    let ctx = context();
+    let css =
+        "@media (prefers-color-scheme: light) { :root { --wave-color-solid-base-fill: #f0f0f8; } }";
+    let adaptive = ThemeInfo {
+        url: "https://raw.githubusercontent.com/o/r/HEAD/adaptive.css".into(),
+        enabled: true,
+        name: Some("Adaptive".into()),
+        preview: Some(Arc::new(crate::ui::theme_preview::resolve_both(css))),
+        ..ThemeInfo::default()
+    };
+    let snapshot = LunaSnapshot {
+        themes: vec![adaptive],
+        ..snapshot
+    };
+    let mut page = PageState {
+        tab: Tab::Themes,
+        ..PageState::default()
+    };
+    let dark = Palette::dark();
+    let (update, _) = page_frame_with(&ctx, &dark, &snapshot, &index, &mut page, vec![]);
+    assert!(has_text(&update, "Applied: Adaptive"));
+    let notes = texts(&update)
+        .iter()
+        .filter(|t| t.contains("Shows only in Light mode"))
+        .count();
+    // The Applied line's and the installed row's.
+    assert!(notes >= 2, "{:?}", texts(&update));
+    assert!(!has_text(&update, "Shows only in Dark mode"));
+    let light = Palette::light();
+    let (update, _) = page_frame_with(&ctx, &light, &snapshot, &index, &mut page, vec![]);
+    assert!(has_text(&update, "Applied: Adaptive"));
+    assert!(!has_text(&update, "Shows only in"), "{:?}", texts(&update));
+}

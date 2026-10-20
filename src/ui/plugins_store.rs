@@ -488,6 +488,29 @@ fn line(ui: &Ui, text: &str, font: egui::FontId, color: Color32, width: f32) -> 
     widgets::ellipsized(ui, text, font, color, width.max(20.0), 1)
 }
 
+/// "Shows only in Light mode" for a theme that draws nothing in the app's
+/// current Dark or Light (every rule under the other
+/// `prefers-color-scheme`), so that Active never looks broken. `None` when
+/// it shows now.
+pub(super) fn mode_note(
+    locale: Locale,
+    palette: &Palette,
+    previews: Option<&crate::ui::theme_preview::Previews>,
+) -> Option<String> {
+    let light_only = crate::ui::theme_preview::only_in(previews?)?;
+    (light_only == palette.dark).then(|| {
+        gettext(
+            locale,
+            if light_only {
+                "Shows only in Light mode"
+            } else {
+                "Shows only in Dark mode"
+            },
+        )
+        .into_owned()
+    })
+}
+
 /// The "Installed" mark: an outlined, non-clickable pill.
 fn installed_chip(ui: &mut Ui, palette: &Palette, label: &str) {
     let galley =
@@ -1225,6 +1248,11 @@ pub(super) fn themes_tab(
         [one] => t("Applied: {name}").replace("{name}", &theme_label(one, index).0),
         many => t("Applied: {n} themes").replace("{n}", &many.len().to_string()),
     };
+    // An applied theme that draws nothing in the current mode says so.
+    let note = match active.as_slice() {
+        [one] => mode_note(locale, palette, theme_previews(one, index)),
+        _ => None,
+    };
     Frame::new()
         .fill(palette.surface)
         .corner_radius(CornerRadius::same(12))
@@ -1233,6 +1261,9 @@ pub(super) fn themes_tab(
             ui.set_width(ui.available_width());
             theme::text(ui, status, theme::semibold(14.0), palette.text);
             ui.add_space(2.0);
+            if let Some(note) = &note {
+                caption(ui, note, palette.secondary);
+            }
             caption(
                 ui,
                 &t("Ctrl+Shift+T turns every theme off."),
@@ -1450,6 +1481,22 @@ pub(super) fn theme_label(th: &ThemeInfo, index: &Index) -> (String, Option<Stri
     (name, author)
 }
 
+/// An installed theme's previews: its own (resolved from the CSS it
+/// applies), else the catalogue's for the same theme.
+fn theme_previews<'a>(
+    th: &'a ThemeInfo,
+    index: &'a Index,
+) -> Option<&'a crate::ui::theme_preview::Previews> {
+    th.preview.as_deref().or_else(|| {
+        let id = themes::identity(&th.url);
+        index
+            .themes
+            .iter()
+            .find(|c| themes::identity(&c.url) == id)
+            .and_then(|c| c.preview.as_deref())
+    })
+}
+
 /// Where an installed theme's author leads and their picture: what the theme's
 /// own CSS says, else what the catalogue says of the same theme.
 pub(super) fn theme_author_ref(th: &ThemeInfo, author: Option<&str>, index: &Index) -> AuthorRef {
@@ -1567,14 +1614,35 @@ fn theme_cell(
         pos2(rect.left() + pad, rect.top() + pad),
         vec2(rect.width() - pad * 2.0, 104.0),
     );
-    paint_preview(
-        ui,
-        palette,
-        preview,
-        ct.preview.as_deref(),
-        index.loading,
-        fill,
-    );
+    // The installed copy's preview is resolved from the CSS it applies.
+    let previews = installed
+        .and_then(|th| th.preview.as_deref())
+        .or(ct.preview.as_deref());
+    paint_preview(ui, palette, preview, previews, index.loading, fill);
+    let note = mode_note(locale, palette, previews);
+    if let Some(note) = &note {
+        let text = line(
+            ui,
+            note,
+            theme::regular(11.5),
+            palette.text,
+            preview.width() - 28.0,
+        );
+        let chip = Rect::from_min_size(
+            pos2(
+                preview.left() + 6.0,
+                preview.bottom() - 6.0 - text.size().y - 6.0,
+            ),
+            text.size() + vec2(16.0, 6.0),
+        );
+        ui.painter().rect_filled(
+            chip,
+            chip.height() / 2.0,
+            palette.surface.gamma_multiply(0.92),
+        );
+        ui.painter()
+            .galley(chip.min + vec2(8.0, 3.0), text, palette.text);
+    }
     let x = rect.left() + pad + 2.0;
     let width = rect.width() - pad * 2.0 - 4.0;
     let title = line(ui, &ct.name, theme::semibold(15.0), palette.text, width);
@@ -1728,6 +1796,10 @@ fn theme_cell(
         Some(stars) => format!("{meta}, {stars}"),
         None => meta,
     };
+    let meta = match &note {
+        Some(note) => format!("{meta}, {note}"),
+        None => meta,
+    };
     hover.widget_info(|| {
         egui::WidgetInfo::labeled(
             egui::WidgetType::Label,
@@ -1779,14 +1851,8 @@ fn installed_row(
     if grow < 1.0 {
         child.multiply_opacity(grow);
     }
-    let preview = th.preview.as_deref().or_else(|| {
-        let id = themes::identity(&th.url);
-        index
-            .themes
-            .iter()
-            .find(|c| themes::identity(&c.url) == id)
-            .and_then(|c| c.preview.as_deref())
-    });
+    let preview = theme_previews(th, index);
+    let note = mode_note(locale, palette, preview);
     let lit = added.map_or(0.0, |at| {
         let age = ui.input(|i| i.time) - at;
         (1.0 - (age as f32 / 2.0)).clamp(0.0, 1.0)
@@ -1849,6 +1915,9 @@ fn installed_row(
                 let (r, resp) = ui.allocate_exact_size(url.size(), Sense::hover());
                 ui.painter().galley(r.min, url, palette.dim);
                 resp.on_hover_text(&th.url);
+                if let Some(note) = &note {
+                    caption(ui, note, palette.secondary);
+                }
             });
         });
     });
