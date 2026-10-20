@@ -39,7 +39,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
                 for (filter, label) in &labels {
-                    if widgets::tidal_pill(ui, label, *filter == app.search.filter).clicked() {
+                    // TIDAL lights a pill only for a narrower filter: on
+                    // the top results every pill is grey.
+                    let selected = *filter == app.search.filter;
+                    let lit = selected && *filter != SearchFilter::All;
+                    if widgets::tidal_pill_lit(ui, label, selected, lit).clicked() {
                         chosen = Some(*filter);
                     }
                 }
@@ -1036,8 +1040,9 @@ struct DropdownRows {
 const HIT_ROWS: usize = 16;
 const TEXT_ROW: f32 = 56.0;
 const HIT_ROW: f32 = 72.0;
-/// An opened item: the 48-point thumbnail with 8 around it.
-const RECENT_ROW: f32 = 64.0;
+/// An opened item: the 48-point thumbnail with 12 around it (TIDAL
+/// desktop's rows are 72 apart).
+const RECENT_ROW: f32 = 72.0;
 /// The "Recent Searches" title with its cross.
 const RECENT_HEADER: f32 = 48.0;
 /// Recent Searches listed while the field is empty (the Search page) and,
@@ -1077,8 +1082,8 @@ pub fn dropdown_height(content: f32, top: f32, screen_bottom: f32) -> f32 {
     let room = screen_bottom - BOTTOM_MARGIN - top;
     content.min(room.max(TEXT_ROW + 18.0))
 }
-/// The gap between the field and the dropdown under it.
-const DROPDOWN_GAP: f32 = 4.0;
+/// The gap between the field and the dropdown under it (TIDAL desktop's).
+const DROPDOWN_GAP: f32 = 17.0;
 
 impl DropdownRows {
     fn len(&self) -> usize {
@@ -1227,7 +1232,8 @@ pub fn dropdown(app: &mut App, ui: &egui::Ui, field: &egui::Response) {
                     1.0,
                     palette
                         .text
-                        .gamma_multiply(if palette.dark { 0.06 } else { 0.1 }),
+                        // TIDAL desktop's #2f2f2f edge on its #171717.
+                        .gamma_multiply(0.1),
                 ))
                 .corner_radius(CornerRadius::same(12))
                 .inner_margin(egui::Margin::symmetric(8, 8))
@@ -1436,7 +1442,10 @@ fn recent_item_row(
         return;
     }
     dropdown_hover(ui, rect, &response, state, false);
-    let cover = Rect::from_min_size(pos2(rect.left() + 8.0, rect.top() + 8.0), Vec2::splat(48.0));
+    let cover = Rect::from_min_size(
+        pos2(rect.left() + 12.0, rect.top() + 12.0),
+        Vec2::splat(48.0),
+    );
     // The thumbnail at the size drawn: the cache never fetches a larger one.
     let image = entry.image(app.art_px(48.0));
     widgets::paint_cover(
@@ -1457,7 +1466,7 @@ fn recent_item_row(
     };
     let subtitle = recent_subtitle(app.locale, entry);
     let title_top = if subtitle.is_some() {
-        rect.top() + 13.0
+        rect.top() + 17.0
     } else {
         rect.center().y - 10.0
     };
@@ -1476,7 +1485,7 @@ fn recent_item_row(
         let galley = ui
             .painter()
             .layout(subtitle, theme::semibold(14.0), secondary, f32::INFINITY);
-        clip.galley(pos2(left, rect.top() + 33.0), galley, secondary);
+        clip.galley(pos2(left, rect.top() + 37.0), galley, secondary);
     }
     response.widget_info(|| {
         egui::WidgetInfo::labeled(egui::WidgetType::Button, true, entry.title.as_str())

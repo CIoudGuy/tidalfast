@@ -177,7 +177,8 @@ impl Palette {
     /// on the surface colour (#18181b), as the reference shows.
     pub fn search_popup_bg(&self) -> Color32 {
         if self.tidal_dark() {
-            self.surface
+            // TIDAL desktop's #171717, as its play queue panel.
+            Color32::from_gray(23)
         } else {
             self.overlay
         }

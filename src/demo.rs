@@ -5586,7 +5586,8 @@ mod tests {
             .expect("the dropdown is open");
         assert_eq!(area.left(), pill.left());
         assert_eq!(area.width(), pill.width());
-        assert_eq!(area.top(), pill.bottom() + 4.0);
+        // TIDAL desktop's dropdown starts 17 under the field.
+        assert_eq!(area.top(), pill.bottom() + 17.0);
         // Down lights the first row, Up leaves again for the typed text.
         accessible_frame(&ctx, &mut app, vec![key(egui::Key::ArrowDown)]);
         assert_eq!(app.search.highlight, Some(0));
