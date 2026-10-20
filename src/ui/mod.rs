@@ -502,11 +502,21 @@ fn central(app: &mut App, ui: &mut egui::Ui) {
             // painted here at the top, then moved up with the page once the
             // scroll area knows how far it is scrolled this frame.
             let backdrop_start = paint_list_end(ui);
+            // TIDAL lays the backdrop under its main column only: beside an
+            // open play queue it stops at the panel (the portraits centre on
+            // the column, and the top bar over the panel stays black).
+            let backdrop_rect = Rect::from_min_max(
+                rect.min,
+                pos2(
+                    rect.right() - queue::reserve_for(app, ui.ctx(), rect),
+                    rect.bottom(),
+                ),
+            );
             if let Some(backdrop) = cover_backdrop(app) {
-                paint_cover_backdrop(app, ui, rect, &backdrop);
+                paint_cover_backdrop(app, ui, backdrop_rect, &backdrop);
             }
             if let Page::Artist(id) = app.page().clone() {
-                artist::backdrop(app, ui, rect, &id);
+                artist::backdrop(app, ui, backdrop_rect, &id);
             }
             let backdrop_end = paint_list_end(ui);
             ui.spacing_mut().item_spacing = vec2(8.0, 6.0);

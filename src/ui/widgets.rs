@@ -4132,11 +4132,19 @@ pub fn shelf_sized(
 /// The widest TIDAL lets a feed column grow (Home, Explore, Search).
 pub const FEED_MAX_WIDTH: f32 = 1500.0;
 
-/// TIDAL's feed column: at most [`FEED_MAX_WIDTH`] wide with 20 points
-/// either side, centred in the page area the page frame pads by
-/// [`PAGE_PADDING`].
+/// TIDAL's feed column (Home, an artist's page): at most [`FEED_MAX_WIDTH`]
+/// wide with [`feed_gutter`] either side, centred in the page area the page
+/// frame pads by [`PAGE_PADDING`].
 pub fn feed_column(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui)) {
     feed_column_capped(ui, FEED_MAX_WIDTH, add_contents);
+}
+
+/// The room TIDAL's desktop app leaves either side of the feed column in a
+/// window `window` wide: 4 % of the window (`padding-inline: 4vw`), 85 of a
+/// 2137 point window and 40 of a 1000 point one, with the play queue open
+/// or not.
+pub fn feed_gutter(window: f32) -> f32 {
+    0.04 * window
 }
 
 /// The width of Home's feed in a window `window` wide beside a sidebar
@@ -4149,7 +4157,8 @@ pub fn home_feed_cap(window: f32, sidebar: f32) -> f32 {
 /// [`feed_column`] at most `cap` wide.
 pub fn feed_column_capped(ui: &mut Ui, cap: f32, add_contents: impl FnOnce(&mut Ui)) {
     let full = ui.available_width() + 2.0 * PAGE_PADDING;
-    let width = (full - 40.0).clamp(0.0, cap);
+    let gutter = feed_gutter(ui.ctx().content_rect().width());
+    let width = (full - 2.0 * gutter).clamp(0.0, cap);
     let left = (full - width) / 2.0 - PAGE_PADDING;
     let top_left = pos2(ui.cursor().left() + left, ui.cursor().top());
     ui.scope_builder(
