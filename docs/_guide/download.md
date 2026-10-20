@@ -7,9 +7,7 @@ nav_order: 1
 {% assign v = site.tidalfast_version %}
 {% assign base = "https://github.com/CIoudGuy/tidalfast/releases/download/v" | append: v %}
 
-The current version is **v{{ v }}**. You can use the
-[download checksums]({{ base }}/checksums.txt) to check that a file has not
-been damaged or changed. Older versions are on the
+The current version is **v{{ v }}**. Older versions are on the
 [releases page](https://github.com/CIoudGuy/tidalfast/releases).
 
 ## Windows
