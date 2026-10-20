@@ -13935,7 +13935,9 @@ mod tests {
         crate::demo::populate(&mut app);
         app.dialog = Some(Dialog::WhatsNew { since: None });
         // Down the dialog's column, below its header row: text and gaps.
-        for y in [300.0, 380.0, 450.0, 520.0] {
+        // (Lower down sits the 1.0.1 notes' changelog link, which rightly
+        // shows the hand: links in the notes open when clicked.)
+        for y in [300.0, 380.0, 450.0] {
             assert_eq!(
                 cursor_at(&mut app, &ctx, egui::pos2(500.0, y)),
                 egui::CursorIcon::Default,

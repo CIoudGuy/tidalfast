@@ -2516,7 +2516,6 @@ fn an_installed_plugin_row_shows_the_pill_and_its_reason() {
     assert!(!all.iter().any(|t| t.starts_with("Partly supported")));
 }
 
-
 /// A plugin's large download (an AI model) shows how far it got, with the
 /// file's name.
 #[test]
