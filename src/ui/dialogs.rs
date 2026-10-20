@@ -309,6 +309,15 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
     }
 }
 
+/// The modal for a question about a Luna plugin, on a layer above every
+/// plugin element. Plugin boxes with a positive `z-index` are drawn in the
+/// foreground, where egui puts the newest area on top: one shown after the
+/// question would cover it (words of its own over the buttons, clicks
+/// passing through to them).
+fn above_plugins(id: egui::Id) -> egui::Modal {
+    egui::Modal::new(id).area(egui::Modal::default_area(id).order(egui::Order::Tooltip))
+}
+
 /// "<plugin> wants to run <program> on your computer": a Luna plugin asks to
 /// start a program (`child_process`). Nothing runs until Allow once or Always
 /// is clicked; Esc and Deny refuse. It is drawn over everything, whichever
@@ -333,7 +342,7 @@ pub fn program_prompt(app: &mut App, ctx: &egui::Context) {
         });
     let alpha = if palette.dark { 102 } else { 80 };
     let mut choice = None;
-    let response = egui::Modal::new(egui::Id::new("luna-program-prompt"))
+    let response = above_plugins(egui::Id::new("luna-program-prompt"))
         .frame(frame)
         .backdrop_color(egui::Color32::from_black_alpha(alpha))
         .show(ctx, |ui| {
@@ -481,7 +490,7 @@ pub fn permission_prompt(app: &mut App, ctx: &egui::Context) {
     let alpha = if palette.dark { 102 } else { 80 };
     let (title, body) = permission_text(locale, &request);
     let mut choice = None;
-    let response = egui::Modal::new(egui::Id::new(("luna-permission-prompt", request.id)))
+    let response = above_plugins(egui::Id::new(("luna-permission-prompt", request.id)))
         .frame(frame)
         .backdrop_color(egui::Color32::from_black_alpha(alpha))
         .show(ctx, |ui| {
@@ -585,7 +594,7 @@ pub fn plugin_message_box(app: &mut App, ctx: &egui::Context) {
         });
     let alpha = if palette.dark { 102 } else { 80 };
     let mut answer: Option<Option<usize>> = None;
-    let response = egui::Modal::new(egui::Id::new("luna-message-box"))
+    let response = above_plugins(egui::Id::new("luna-message-box"))
         .frame(frame)
         .backdrop_color(egui::Color32::from_black_alpha(alpha))
         .show(ctx, |ui| {
