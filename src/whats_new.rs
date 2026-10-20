@@ -11,6 +11,8 @@ pub struct Span {
     pub text: String,
     pub bold: bool,
     pub code: bool,
+    /// The address this run opens when clicked.
+    pub link: Option<String>,
 }
 
 /// One block of release notes.
@@ -31,7 +33,8 @@ pub struct Entry {
     pub blocks: Vec<Block>,
 }
 
-/// Notes parsed from Markdown, without the affiliation line.
+/// Notes parsed from Markdown, without the affiliation line (the release
+/// notes on GitHub keep it; the app does not show it).
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Notes {
     pub blocks: Vec<Block>,
@@ -78,16 +81,6 @@ pub fn entries_since(since: Option<&str>) -> Vec<Entry> {
         .collect()
 }
 
-/// The affiliation line the notes end with, shown once under all releases.
-pub fn footer() -> String {
-    RELEASE_NOTES
-        .iter()
-        .find_map(|(_, notes)| parse(notes).footer)
-        .unwrap_or_else(|| {
-            "Tidalfast is an independent project and is not affiliated with TIDAL.".into()
-        })
-}
-
 /// `14 Oct 2026` for `2026-10-14`.
 pub fn display_date(date: &str) -> Option<String> {
     const MONTHS: [&str; 12] = [
@@ -104,8 +97,9 @@ pub fn display_date(date: &str) -> Option<String> {
 }
 
 /// The small Markdown subset the notes use: paragraphs, `- ` bullets,
-/// `#` headings, a line that is all bold as a section heading, `**bold**`
-/// and `` `code` ``. An indented line continues the item above it.
+/// `#` headings, a line that is all bold as a section heading, `**bold**`,
+/// `` `code` ``, `[label](address)` links and bare `https://` addresses. An
+/// indented line continues the item above it.
 pub fn parse(notes: &str) -> Notes {
     let mut out = Notes::default();
     let mut last_open = false;
@@ -128,6 +122,7 @@ pub fn parse(notes: &str) -> Notes {
                 text: " ".into(),
                 bold: false,
                 code: false,
+                link: None,
             });
             items.extend(spans(line));
             continue;
@@ -163,12 +158,19 @@ fn spans(line: &str) -> Vec<Span> {
     let (mut bold, mut code) = (false, false);
     let mut text = String::new();
     let flush = |out: &mut Vec<Span>, text: &mut String, bold: bool, code: bool| {
-        if !text.is_empty() {
+        if text.is_empty() {
+            return;
+        }
+        let text = std::mem::take(text);
+        if code {
             out.push(Span {
-                text: std::mem::take(text),
+                text,
                 bold,
                 code,
+                link: None,
             });
+        } else {
+            out.extend(links(&text, bold));
         }
     };
     let mut chars = line.chars().peekable();
@@ -186,6 +188,61 @@ fn spans(line: &str) -> Vec<Span> {
     }
     flush(&mut out, &mut text, bold, code);
     out
+}
+
+/// Splits `text` into plain runs and links: `[label](address)` and bare
+/// `http(s)://` addresses. Punctuation that ends a sentence after a bare
+/// address (`.`, `,`, `)` and the like) is not part of it.
+fn links(text: &str, bold: bool) -> Vec<Span> {
+    let span = |text: &str, link: Option<String>| Span {
+        text: text.to_string(),
+        bold,
+        code: false,
+        link,
+    };
+    let mut out = Vec::new();
+    let mut rest = text;
+    loop {
+        let markdown = rest.find('[').and_then(|open| {
+            let close = open + rest[open..].find("](")?;
+            let end = close + 2 + rest[close + 2..].find(')')?;
+            let address = &rest[close + 2..end];
+            is_address(address).then_some((open, end + 1, &rest[open + 1..close], address))
+        });
+        let bare = ["https://", "http://"]
+            .iter()
+            .filter_map(|scheme| rest.find(scheme))
+            .min()
+            .map(|start| {
+                let len = rest[start..]
+                    .find(char::is_whitespace)
+                    .unwrap_or(rest.len() - start);
+                let address = rest[start..start + len]
+                    .trim_end_matches(['.', ',', ';', ':', '!', '?', ')', '\'', '"']);
+                (start, start + address.len(), address, address)
+            });
+        let next = match (markdown, bare) {
+            (Some(m), Some(b)) => Some(if m.0 <= b.0 { m } else { b }),
+            (m, b) => m.or(b),
+        };
+        let Some((start, end, label, address)) = next else {
+            break;
+        };
+        if start > 0 {
+            out.push(span(&rest[..start], None));
+        }
+        out.push(span(label, Some(address.to_string())));
+        rest = &rest[end..];
+    }
+    if !rest.is_empty() {
+        out.push(span(rest, None));
+    }
+    out
+}
+
+fn is_address(text: &str) -> bool {
+    (text.starts_with("https://") || text.starts_with("http://"))
+        && !text.contains(char::is_whitespace)
 }
 
 /// Whether `current` is a newer version than `last_run`.
@@ -248,9 +305,47 @@ mod tests {
         assert_eq!(notes.footer.as_deref(), Some(line));
         for entry in entries() {
             assert!(!entry.blocks.iter().any(|block| matches!(block,
-                Block::Paragraph(s) if spans_text(s).contains("not affiliated"))));
+                Block::Paragraph(s) | Block::Bullet(s) if spans_text(s).contains("not affiliated"))));
         }
-        assert!(footer().contains("not affiliated"));
+    }
+
+    /// A bare address and a `[label](address)` link are links; the rest of
+    /// the line stays text.
+    #[test]
+    fn addresses_and_markdown_links_become_links() {
+        let notes = parse(
+            "**Full changelog:** https://github.com/o/r/compare/v1.0.0...v1.0.1\n\n\
+             Which file is under [Install](https://github.com/o/r#install) in the README.",
+        );
+        let [Block::Paragraph(first), Block::Paragraph(second)] = notes.blocks.as_slice() else {
+            panic!("{:?}", notes.blocks);
+        };
+        let link = first
+            .iter()
+            .find(|span| span.link.is_some())
+            .expect("a link");
+        assert_eq!(link.text, "https://github.com/o/r/compare/v1.0.0...v1.0.1");
+        assert_eq!(link.link.as_deref(), Some(link.text.as_str()));
+        assert!(first[0].bold && first[0].link.is_none());
+        let install = second
+            .iter()
+            .find(|span| span.link.is_some())
+            .expect("a link");
+        assert_eq!(install.text, "Install");
+        assert_eq!(
+            install.link.as_deref(),
+            Some("https://github.com/o/r#install")
+        );
+        assert_eq!(
+            spans_text(second),
+            "Which file is under Install in the README."
+        );
+        // A full stop after an address ends the sentence, not the address.
+        let Block::Paragraph(dot) = &parse("See https://example.com/a.").blocks[0] else {
+            panic!()
+        };
+        assert_eq!(dot[1].link.as_deref(), Some("https://example.com/a"));
+        assert_eq!(dot[2].text, ".");
     }
 
     #[test]

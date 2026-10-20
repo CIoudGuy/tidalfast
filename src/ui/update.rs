@@ -96,7 +96,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                     .max_height((ctx.content_rect().height() * 0.6).max(140.0))
                     .auto_shrink([false, true])
                     .show(ui, |ui| {
-                        super::release_notes::show_entries(ui, &palette, &notes, "", true)
+                        super::release_notes::show_entries(ui, &palette, &notes, true)
                     });
             }
             ui.add_space(16.0);

@@ -276,7 +276,6 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                                 ui,
                                 &palette,
                                 &crate::whats_new::entries_since(since.as_deref()),
-                                &crate::whats_new::footer(),
                                 since.is_some(),
                             );
                         },
