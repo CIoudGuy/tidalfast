@@ -235,3 +235,57 @@ fn a_colours_calc_alpha_is_computed() {
         Some(egui::Color32::from_rgb(1, 2, 3))
     );
 }
+
+/// `backdrop-filter: brightness(.75)` darkens what shows through a box,
+/// never the box's own colour: Sugarcoat's opaque hot-pink sidebar is
+/// TIDAL's `rgb(255, 144, 186)` exactly, and the cotton candy family's
+/// see-through pink queue panel darkens only the page under it. A black
+/// veil at 25 % was laid over the box, its fill included (the sidebar was
+/// `rgb(180, 115, 136)`, the queue panel a dull mauve).
+#[test]
+fn a_backdrop_brightness_darkens_only_what_shows_through() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::*;
+    let css = r#"/* {"name": "Veil"} */
+._container_b3e8f28 { background-color: rgba(255, 103, 235, .6); backdrop-filter: blur(.8em) brightness(.75); }
+._sidebarWrapper_2f256ce { background-color: rgb(255, 144, 186); backdrop-filter: brightness(.75); }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.queue_panel = Some((Some([1795.0, 60.0, 334.0, 900.0]), false));
+    let (luna, o) = overlay_with("veil.css", css, dom_anchors::build(&frame), QUEUE_PANEL);
+    pd::test_overlay(Some((*o).clone()));
+    // The opaque box keeps its colour.
+    assert_eq!(
+        pd::fill(SIDEBAR),
+        Some(egui::Color32::from_rgb(255, 144, 186))
+    );
+    // The see-through one: 60 % pink, then 40 % of the page at .75.
+    let queue = pd::fill(QUEUE_PANEL).expect("a fill");
+    assert_eq!(queue.a(), 179);
+    let over_white = crate::motion::blend(
+        egui::Color32::WHITE,
+        opaque(queue),
+        f32::from(queue.a()) / 255.0,
+    );
+    let [r, g, b, _] = over_white.to_array();
+    // 0.6 * (255, 103, 235) + 0.3 * 255
+    assert!(
+        (228..=232).contains(&r) && (135..=141).contains(&g) && (216..=220).contains(&b),
+        "{over_white:?}"
+    );
+    let layers = pd::box_layers(&o.hosts[QUEUE_PANEL], &o.vars, [2137.0, 1183.0]);
+    assert!(
+        !layers
+            .iter()
+            .any(|l| matches!(l, pd::BoxLayer::Fill(c, _) if c.r() == 0 && c.a() > 0)),
+        "no veil over the fill: {layers:?}"
+    );
+    pd::test_overlay(None);
+    luna.shutdown();
+}
+
+/// `c` without its alpha (the unmultiplied colour).
+fn opaque(c: egui::Color32) -> egui::Color32 {
+    let [r, g, b, _] = egui::Rgba::from(c).to_srgba_unmultiplied();
+    egui::Color32::from_rgb(r, g, b)
+}

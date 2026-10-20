@@ -1091,10 +1091,7 @@ pub fn paint_themed_box(ui: &egui::Ui, key: &str, r: Rect, native: egui::CornerR
     let corner = radius(key).map_or(native, |r| {
         egui::CornerRadius::same(r.clamp(0.0, 255.0).round() as u8)
     });
-    let fill = host(key, |h, vars| {
-        style_color(&h.style, |s| s.background_color.as_ref(), vars)
-    })
-    .filter(|c| c.a() > 0);
+    let fill = host(key, own_fill).filter(|c| c.a() > 0);
     if let Some(fill) = fill {
         ui.painter().rect_filled(r, corner, fill);
     }
@@ -2919,12 +2916,54 @@ pub fn solid_fill(key: &str) -> Option<Color32> {
 
 /// [`fill`] for one host's override.
 pub(crate) fn host_fill(h: &HostOverride, vars: &BTreeMap<String, String>) -> Option<Color32> {
-    style_color(&h.style, |s| s.background_color.as_ref(), vars).or_else(|| {
+    own_fill(h, vars).or_else(|| {
         let image = h.style.background_image.as_deref()?;
         css::colors_in(&css::resolve_vars(image, vars))
             .first()
             .copied()
     })
+}
+
+/// The box's own `background-color`, with what its `backdrop-filter:
+/// brightness()` does to the page under it folded in (see [`fold_veil`]).
+fn own_fill(h: &HostOverride, vars: &BTreeMap<String, String>) -> Option<Color32> {
+    let c = style_color(&h.style, |s| s.background_color.as_ref(), vars)?;
+    Some(match backdrop_veil(h, vars) {
+        Some(veil) if c.a() > 0 => fold_veil(c, veil),
+        _ => c,
+    })
+}
+
+/// The veil a box's `backdrop-filter: brightness()` lays over what shows
+/// through it: darker is exactly black laid over at `1 - b`; lighter is
+/// white laid over at half the gain (the cotton candy family's track list,
+/// brightness(1.2), its queue panel's .75).
+fn backdrop_veil(h: &HostOverride, vars: &BTreeMap<String, String>) -> Option<Color32> {
+    let b = backdrop_brightness(&css::resolve_vars(
+        h.style.backdrop_filter.as_deref()?,
+        vars,
+    ))?;
+    let tint = if b < 1.0 {
+        Color32::from_black_alpha(((1.0 - b).clamp(0.0, 1.0) * 255.0).round() as u8)
+    } else {
+        Color32::from_white_alpha((((b - 1.0) * 0.5).clamp(0.0, 0.5) * 255.0).round() as u8)
+    };
+    (tint.a() > 0).then_some(tint)
+}
+
+/// `fill` with `veil` under it, as one colour over the page: the backdrop
+/// filter changes only what shows through the box, never its own colour
+/// (an opaque box, Sugarcoat's hot-pink sidebar, is not darkened; it was
+/// drawn under a black veil at 25 %).
+fn fold_veil(fill: Color32, veil: Color32) -> Color32 {
+    let keep = 1.0 - f32::from(fill.a()) / 255.0;
+    let ch = |f: u8, v: u8| (f32::from(f) + f32::from(v) * keep).round().min(255.0) as u8;
+    Color32::from_rgba_premultiplied(
+        ch(fill.r(), veil.r()),
+        ch(fill.g(), veil.g()),
+        ch(fill.b(), veil.b()),
+        ch(fill.a(), veil.a()),
+    )
 }
 
 /// The `url(...)` of a plugin's `background-image` on an anchor.
@@ -4328,25 +4367,12 @@ pub fn box_layers(
     // One to four corners (`0 20px 20px 0`, a sidebar card's).
     let radius = super::theme_layout::radii(h.style.border_radius.as_deref(), vars, viewport);
     // `backdrop-filter: brightness()` changes what shows through the box
-    // before its own background is laid on: darker is exactly black laid
-    // over at `1 - b`; lighter is white laid over at half the gain (the
-    // cotton candy family's track list, brightness(1.2), its queue
-    // panel's .75).
-    if let Some(b) = h
-        .style
-        .backdrop_filter
-        .as_deref()
-        .map(|f| css::resolve_vars(f, vars))
-        .and_then(|f| backdrop_brightness(&f))
+    // before its own background is laid on: with a fill of its own the veil
+    // is folded into that fill ([`own_fill`]), else it is laid over here.
+    if let Some(tint) = backdrop_veil(h, vars)
+        && style_color(&h.style, |s| s.background_color.as_ref(), vars).is_none_or(|c| c.a() == 0)
     {
-        let tint = if b < 1.0 {
-            Color32::from_black_alpha(((1.0 - b).clamp(0.0, 1.0) * 255.0).round() as u8)
-        } else {
-            Color32::from_white_alpha((((b - 1.0) * 0.5).clamp(0.0, 0.5) * 255.0).round() as u8)
-        };
-        if tint.a() > 0 {
-            out.push(BoxLayer::Fill(tint, radius));
-        }
+        out.push(BoxLayer::Fill(tint, radius));
     }
     image_layers(&h.style, vars, &mut out);
     for p in pseudo {
