@@ -110,7 +110,7 @@ scope, and the rect size. TIDAL's own `:root` variables that plugins read
 back are defined (measured in TIDAL 2.43.2:
 `--wave-color-opacity-contrast-fill-thick` `#fff9`, `-ultra-thick` `#fffc`,
 LuckyLP's icon colours); they are not a theme's and never recolour the app.
-`margin-left`/`-right` written apart fold into `margin`, and plugin elements honour `margin-top`/`-bottom` written apart; a block flex row with `justify-content` center or end takes the whole width, so its items move along; `fill` and
+`margin-left`/`-right` written apart fold into `margin`, and plugin elements honour `margin-top`/`-bottom` written apart; a block flex row with `justify-content` center or end takes the whole width, so its items move along; a flex or grid box without `gap` puts its items side by side (other boxes keep a few points between what they hold, as spaces would); `fill` and
 `text-transform: uppercase` are inherited and drawn.
 
 **Selectors.** Type, `#id`, `.class`, attributes with `= ~= |= ^= $= *=`
