@@ -951,6 +951,9 @@ pub fn menu_separator(ui: &mut Ui, palette: &Palette) {
     );
 }
 
+/// How far inside a menu's edge its rows start (TIDAL's 4).
+pub const MENU_INSET: i8 = 4;
+
 /// The frame every popup menu uses.
 /// TIDAL's context menu: #2d2d2d, radius 12, 4 inside, a 0 4 20 black
 /// 30 % shadow, no border (the light theme keeps its own surface).
@@ -959,7 +962,7 @@ pub fn menu_frame(palette: &Palette) -> egui::Frame {
         .fill(palette.menu_bg())
         .stroke(palette.menu_border())
         .corner_radius(CornerRadius::same(12))
-        .inner_margin(egui::Margin::same(4))
+        .inner_margin(egui::Margin::same(MENU_INSET))
         .shadow(egui::epaint::Shadow {
             offset: [0, 4],
             blur: 20,

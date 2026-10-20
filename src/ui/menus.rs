@@ -784,11 +784,41 @@ fn track_download(ui: &mut Ui, app: &mut App, uri: &str) {
 /// and buttons), which TIDAL shows under every context menu.
 fn plugin_entries(ui: &mut Ui, app: &mut App, target: Option<ContextTarget>) {
     luna_entries(ui, app, target);
+    menu_dom_end(ui);
+}
+
+/// What plugins appended to `[data-test=contextmenu]`. That element is the
+/// menu's whole box in TIDAL, its rows' 4 points inside it their own, so
+/// what is appended is laid out from the menu's edges: element-hider's
+/// buttons, padded 16, put their labels where the rows' are (4 and 12 in),
+/// and its divider 8 in from each edge.
+fn menu_dom_end(ui: &mut Ui) {
+    let inset = f32::from(widgets::MENU_INSET);
+    let rows = ui.min_rect();
+    let top = ui.cursor().top();
+    let box_rect = Rect::from_min_max(
+        pos2(rows.left() - inset, top),
+        pos2(rows.right() + inset, ui.max_rect().bottom().max(top)),
+    );
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(box_rect)
+            .layout(egui::Layout::top_down(egui::Align::Min)),
+    );
+    let clip = ui.clip_rect();
+    child.set_clip_rect(Rect::from_min_max(
+        pos2(clip.left() - inset, clip.top()),
+        pos2(clip.right() + inset, clip.bottom()),
+    ));
     super::plugin_slots::column(
-        ui,
+        &mut child,
         crate::luna::dom_anchors::keys::CONTEXT_MENU,
         crate::luna::dom::Position::Append,
     );
+    let height = child.min_rect().height();
+    if height > 0.0 {
+        ui.allocate_space(vec2(0.0, height));
+    }
 }
 
 fn luna_entries(ui: &mut Ui, app: &mut App, target: Option<ContextTarget>) {
@@ -860,6 +890,107 @@ mod plugin_entry_tests {
         assert_eq!(plugin_entry_tint(cyan, &light), None);
         assert_eq!(plugin_entry_tint(Some("not a colour"), &dark), None);
         assert_eq!(plugin_entry_tint(None, &dark), None);
+    }
+}
+
+#[cfg(test)]
+mod menu_dom_tests {
+    use super::*;
+    use crate::luna::dom::{DomOverlay, Injected, Position, Style, VNode};
+
+    /// element-hider appends a divider (`margin: 4px 8px`) and buttons
+    /// (`padding: 8px 16px`) to TIDAL's context menu, whose box is the
+    /// whole menu: in TIDAL their labels line up with the rows' (16 in
+    /// from the menu's edge). They were laid out inside the rows' 4 and
+    /// sat 4 points right of them.
+    #[test]
+    fn what_plugins_append_to_the_menu_lines_up_with_its_rows() {
+        let text = |id, words: &str| VNode {
+            id,
+            tag: "#text".into(),
+            text: Some(words.into()),
+            ..VNode::default()
+        };
+        let divider = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                height: Some("1px".into()),
+                margin: Some("4px 8px".into()),
+                background_color: Some("rgb(68, 68, 68)".into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let button = VNode {
+            id: 2,
+            tag: "button".into(),
+            style: Style {
+                display: Some("flex".into()),
+                padding: Some("8px 16px".into()),
+                width: Some("100%".into()),
+                ..Style::default()
+            },
+            children: vec![text(3, "Hide This Element")],
+            ..VNode::default()
+        };
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: crate::luna::dom_anchors::keys::CONTEXT_MENU.into(),
+                position: Position::Append,
+                nodes: vec![divider, button],
+            }],
+            ..DomOverlay::default()
+        }));
+        let palette = Palette::dark();
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut frame_rect = Rect::NOTHING;
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                let shown = widgets::menu_frame(&palette).show(ui, |ui| {
+                    ui.set_width(widgets::MENU_MIN_CONTENT);
+                    menu_item(ui, &palette, None, "Play next");
+                    menu_dom_end(ui);
+                });
+                frame_rect = shown.response.rect;
+            });
+            out.textures_delta.clear();
+            shapes = out.shapes;
+        }
+        crate::ui::plugin_dom::test_overlay(None);
+        let left_of = |words: &str| {
+            shapes
+                .iter()
+                .find_map(|s| match &s.shape {
+                    egui::Shape::Text(t) if t.galley.text() == words => {
+                        Some(t.pos.x + t.galley.rect.left())
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("{words} is not drawn"))
+        };
+        let (row, plugin) = (left_of("Play next"), left_of("Hide This Element"));
+        assert!(
+            (row - plugin).abs() < 0.5,
+            "the row's label at {row}, the plugin's at {plugin}"
+        );
+        assert!((row - frame_rect.left() - 16.0).abs() < 0.5, "16 in");
+        let line = shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::Shape::Rect(r) if r.fill == egui::Color32::from_rgb(68, 68, 68) => {
+                    Some(r.rect)
+                }
+                _ => None,
+            })
+            .expect("the divider");
+        assert!(
+            (line.left() - frame_rect.left() - 8.0).abs() < 0.5,
+            "the divider 8 in from the menu's edge: {line:?} in {frame_rect:?}"
+        );
     }
 }
 
