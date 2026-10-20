@@ -7,6 +7,43 @@
 > by default (`plugins.luna_enabled`). Old settings keys for the ports are
 > ignored on load.
 
+## Security
+
+Plugins and themes are other people's code. What the runtime guarantees, in
+short (the detail, with each regression test, is under "Security model and
+limits" in `luna-compat.md`; the 2026-10-21 review's tests are in
+`src/luna/security_tests.rs` and `src/demo.rs`):
+
+- **No native code.** Plugins run in QuickJS and WebAssembly in wasmi (fuel
+  and a memory cap); `.node` addons do not load. Programs start only behind
+  the `child_process` question, as the plugin whose code asks.
+- **Identity.** The plugin an operation acts for is read from the engine's
+  own frames. Where no plugin code is on the stack (a promise job), only
+  the shims' own records count: the owner of a socket, server or program is
+  kept where plugin code cannot write it.
+- **Files.** `fs` reaches only the plugin's own data folder (256 MB) and what
+  the user picked for it in a file dialog: no `..`, absolute paths
+  elsewhere, symlinks or junctions out, network or device paths, and on
+  Windows no alternate data streams. Another plugin's folder, settings and
+  permissions are not reachable by name.
+- **Sign-in.** The TIDAL token is handed over only after the user allows
+  it for that plugin; TIDAL's sign-in hosts are refused to plugin requests
+  however spelled; the token never reaches logs or plugin storage.
+- **Network.** A plugin may reach the network, the local network and this
+  computer, as TidaLuna's Node code can (AltPlay reaches the user's own
+  media server); every redirect hop is put to the same policy. Plugins,
+  stores and themes install and update over HTTPS only, redirects included
+  (plain HTTP only from this computer).
+- **Resources.** Heap, watchdog, timer clamps, request pools, socket, store,
+  download, spool, overlay and canvas caps; an image or canvas too large for
+  the GPU is scaled to fit rather than reaching the painter.
+- **Prompts.** Permission and program questions are drawn above every plugin
+  element; a plugin cannot cover their buttons.
+- **Not a boundary.** All plugins share one JavaScript realm, as in
+  TidaLuna: a plugin can change shared built-ins and what other plugins'
+  code does. Themes restyle the whole app, prompts included. Install only
+  plugins and themes you trust.
+
 Source of truth: TIDAL app IndexedDB (`%APPDATA%\TIDAL\IndexedDB\https_desktop.tidal.com_0.indexeddb.leveldb` + `.blob`),
 read from copies (snappy-decoded: LevelDB tables, log, and Blink value blobs). Luna 1.17.1-beta, TIDAL 2.43.2.
 Object store `@luna/plugins` = plugin records, `@luna/pluginStorage` = per-plugin settings, `storeUrl` = plugin stores.
