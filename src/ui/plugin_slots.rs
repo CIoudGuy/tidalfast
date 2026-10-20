@@ -3398,18 +3398,22 @@ fn draw_box(
     // the padding and border (AltPlay's `width: 100%` filter field with
     // padding stays inside its page; OneClickLyrics' `32px` button with
     // `padding: 1px 6px` is 32 points wide, not 44).
+    // A button is sized `border-box` by the browser itself, its default
+    // padding (Chromium's `1px 6px`, drawn below) included: scroll-to-
+    // playing's 40-point round button is 40 points.
+    let is_button = node.tag == "button" || attr(node, "role") == Some("button");
+    let pads = padding.or(is_button.then_some([1.0, 6.0, 1.0, 6.0]));
     let edge = border.map_or(0.0, |(w, _)| 2.0 * w);
-    let inset = padding.map_or(0.0, |p| p[1] + p[3]) + edge;
-    let block_inset = padding.map_or(0.0, |p| p[0] + p[2]) + edge;
+    let inset = pads.map_or(0.0, |p| p[1] + p[3]) + edge;
+    let block_inset = pads.map_or(0.0, |p| p[0] + p[2]) + edge;
+    let outer_w = cx.len(&style.width, font, ui.available_width());
+    let outer_h = cx.len(&style.height, font, ui.available_height().min(400.0));
     // A growing flex item without a width fills the share its row gave it.
-    let width = cx
-        .len(&style.width, font, ui.available_width())
+    let width = outer_w
         .map(|w| (w - inset).max(0.0))
         .or_else(|| (flex_grow(style) > 0.0).then(|| ui.available_width()))
         .map(|w| w * stretch.x);
-    let height = cx
-        .len(&style.height, font, ui.available_height().min(400.0))
-        .map(|h| (h - block_inset).max(0.0) * stretch.y);
+    let height = outer_h.map(|h| (h - block_inset).max(0.0) * stretch.y);
     // `transition: width .3s` (a bar growing): the size on its way. Only a
     // length of its own moves: a share of the window or the parent is the
     // same value in CSS when the window resizes, so nothing transitions.
@@ -3443,13 +3447,10 @@ fn draw_box(
     // button) is a share of its shorter side, when the box has a size.
     // The box is its content with padding and border round it, as the
     // frame draws it, so `50%` of a bordered box is a circle.
-    let round_x = padding.map_or(0.0, |p| p[1] + p[3]) + border.map_or(0.0, |(w, _)| 2.0 * w);
-    let round_y = padding.map_or(0.0, |p| p[0] + p[2]) + border.map_or(0.0, |(w, _)| 2.0 * w);
     let radius = match (style.border_radius.as_deref(), width, height) {
-        (Some(r), Some(w), Some(h)) => radius_share(r, w + round_x, h + round_y).unwrap_or(radius),
+        (Some(r), Some(w), Some(h)) => radius_share(r, w + inset, h + block_inset).unwrap_or(radius),
         _ => radius,
     };
-    let is_button = node.tag == "button" || attr(node, "role") == Some("button");
     let is_link = node.tag == "a";
     let listens = |kind: &str| node.listens.iter().any(|l| l == kind);
     let inert = style

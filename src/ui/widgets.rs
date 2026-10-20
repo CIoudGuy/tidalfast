@@ -1489,6 +1489,33 @@ fn track_row_contents(
         {
             ui.painter().rect_filled(rect, 4.0, fill);
         }
+        // An inset edge (scroll-to-playing's bar down the playing row).
+        if let Some((width, color)) =
+            super::plugin_dom::inset_edge(&crate::luna::dom_anchors::keys::row(&list, row.index))
+        {
+            let (bar, corners) = if width > 0.0 {
+                (
+                    Rect::from_min_size(rect.min, vec2(width, rect.height())),
+                    CornerRadius {
+                        nw: 4,
+                        sw: 4,
+                        ne: 0,
+                        se: 0,
+                    },
+                )
+            } else {
+                (
+                    Rect::from_min_max(pos2(rect.right() + width, rect.top()), rect.max),
+                    CornerRadius {
+                        ne: 4,
+                        se: 4,
+                        nw: 0,
+                        sw: 0,
+                    },
+                )
+            };
+            ui.painter().rect_filled(bar, corners, color);
+        }
         if let Some((width, color)) = super::plugin_dom::outline(
             &crate::luna::dom_anchors::keys::row(&list, row.index),
             app.palette.accent,
