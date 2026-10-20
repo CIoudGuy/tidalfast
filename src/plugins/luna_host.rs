@@ -376,6 +376,12 @@ impl LunaHost for AppHost {
     }
 
     fn lyrics(&self, id: &str) -> Option<Value> {
+        // The off-screen Luna demo has no TIDAL: every song has the demo's
+        // words, so lyrics plugins can be checked there.
+        #[cfg(feature = "demo")]
+        if luna_demo() {
+            return Some(demo_lyrics(id));
+        }
         self.get(format!("tracks/{}/lyrics", numeric(id)?), Vec::new())
     }
 
@@ -828,6 +834,37 @@ fn demo_silence() -> Vec<u8> {
     out.extend_from_slice(&(data.len() as u32).to_le_bytes());
     out.extend_from_slice(&data);
     out
+}
+
+/// TIDAL's lyrics answer, in the off-screen Luna demo, with the demo's
+/// words.
+#[cfg(feature = "demo")]
+fn demo_lyrics(id: &str) -> Value {
+    let lyrics = crate::demo::sample_lyrics();
+    let plain: Vec<&str> = lyrics.lines.iter().map(|l| l.text.as_str()).collect();
+    let subtitles: Vec<String> = lyrics
+        .lines
+        .iter()
+        .map(|l| {
+            let ms = l.at_ms.unwrap_or(0);
+            format!(
+                "[{:02}:{:02}.{:02}] {}",
+                ms / 60_000,
+                ms / 1000 % 60,
+                ms % 1000 / 10,
+                l.text
+            )
+        })
+        .collect();
+    serde_json::json!({
+        "trackId": id,
+        "lyricsProvider": "Tidalfast demo",
+        "providerCommontrackId": "",
+        "providerLyricsId": "",
+        "lyrics": plain.join("\n"),
+        "subtitles": subtitles.join("\n"),
+        "isRightToLeft": false,
+    })
 }
 
 fn luna_demo() -> bool {

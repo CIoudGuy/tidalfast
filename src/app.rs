@@ -3577,6 +3577,13 @@ impl App {
         self.lyrics_uri = Some(now.uri.clone());
         self.lyrics_following = true;
         if self.offline {
+            // The off-screen Luna demo gives plugins the demo's words for
+            // every song (`MediaItem.lyrics()`); the app shows the same.
+            #[cfg(feature = "demo")]
+            if plugins::demo_luna().is_some() {
+                self.lyrics = Loadable::Loaded(Some(crate::demo::sample_lyrics()));
+                return;
+            }
             self.lyrics = Loadable::Loaded(None);
             return;
         }

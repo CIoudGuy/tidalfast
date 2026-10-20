@@ -19,7 +19,7 @@ use crate::tidal_engine::{AudioOrigin, SourceUrl};
 /// Demo builds only: `TIDALFAST_DEMO_LUNA` runs Luna in the (offline) demo
 /// and installs the comma separated plugin URLs it lists (`1` for none), so
 /// plugins can be checked by eye in an off-screen demo window.
-fn demo_luna() -> Option<&'static [String]> {
+pub(super) fn demo_luna() -> Option<&'static [String]> {
     #[cfg(feature = "demo")]
     {
         static URLS: std::sync::OnceLock<Option<Vec<String>>> = std::sync::OnceLock::new();
