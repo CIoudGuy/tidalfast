@@ -490,19 +490,26 @@ fn now_playing_block(
     let offer_expand =
         cover_shown && art_available && !app.settings.art_expanded && app.settings.sidebar_visible;
     let over_expand = offer_expand && ui.rect_contains_pointer(expand_rect);
-    plugin_dom::player_part(PlayerPart::Cover, cover_rect);
-    plugin_dom::host_clicks(ui, keys::COVER, &cover_response);
+    // A cover left out is not under the pointer for plugins either.
+    if cover_shown {
+        plugin_dom::player_part(PlayerPart::Cover, cover_rect);
+        plugin_dom::host_clicks(ui, keys::COVER, &cover_response);
+    }
     // CatJam and the like append their element to the cover's figure,
     // which TIDAL does not clip. The picture is a block in that figure, so
     // an appended element flows in under it, from the cover's bottom left;
     // CatJam's `top: -52px` lifts its cat back over the cover, as in TIDAL.
-    plugin_slots::at_unclipped(
-        ui,
-        keys::COVER,
-        Position::Append,
-        cover_rect.left_bottom(),
-        egui::Align2::LEFT_TOP,
-    );
+    // While the now-playing view leaves the cover out, what is in it goes
+    // with it: the cat stayed over the words that moved to its place.
+    if cover_shown {
+        plugin_slots::at_unclipped(
+            ui,
+            keys::COVER,
+            Position::Append,
+            cover_rect.left_bottom(),
+            egui::Align2::LEFT_TOP,
+        );
+    }
     // TIDAL: the cover opens the now-playing view, or closes it.
     if cover_response.clicked() && !over_expand {
         app.actions.push(Action::ToggleNowPlaying);
@@ -556,7 +563,15 @@ fn now_playing_block(
     let text_width = words_cap.map_or(text_width, |cap| text_width.min(cap));
     // TIDAL's third line: where the playing thing comes from.
     let source = app.playing_from();
-    let text_height = if source.is_some() { 52.0 } else { 36.0 };
+    // The words' box clips what it holds: tall enough for each line whole
+    // (a source line's "g" or "y" was cut at 52).
+    let row = |font: egui::FontId| ui.fonts_mut(|f| f.row_height(&font));
+    let lines = row(theme::semibold(14.0)) + 2.0 + row(theme::regular(12.0));
+    let text_height = if source.is_some() {
+        (lines + 2.0 + row(theme::regular(12.0)).max(12.0)).max(52.0)
+    } else {
+        lines.max(36.0)
+    };
     let text_rect = Rect::from_min_size(
         pos2(text_left, cy - text_height / 2.0),
         vec2(text_width, text_height),
@@ -2029,6 +2044,78 @@ mod narrow_tests {
                 );
             }
         }
+        crate::ui::plugin_dom::test_overlay(None);
+    }
+
+    /// The source line under the artists ("Late night focus") lost the
+    /// bottom of its letters: the words' box was 52 points, less than the
+    /// title, the artists and the source line take, and it clips what it
+    /// holds, so a "g" or "y" was cut ("Lana Del Rey" read "Rev"). Each of
+    /// the three lines is drawn whole.
+    #[test]
+    fn the_track_info_lines_are_drawn_whole() {
+        let (ctx, mut app) = setup();
+        crate::ui::plugin_dom::test_overlay(None);
+        let source = app.playing_from().expect("the demo plays from a source");
+        let mut found = Vec::new();
+        for _ in 0..4 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1240.0, 800.0))),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(&mut app, ui),
+            );
+            output.textures_delta.clear();
+            found.clear();
+            for clipped in &output.shapes {
+                if let egui::epaint::Shape::Text(text) = &clipped.shape {
+                    found.push((
+                        text.galley.text().to_string(),
+                        text.galley.rect.translate(text.pos.to_vec2()),
+                        clipped.clip_rect,
+                    ));
+                }
+            }
+        }
+        let (_, rect, clip) = found
+            .iter()
+            .find(|(text, rect, _)| *text == source.name && rect.top() > 700.0)
+            .expect("the source line is drawn");
+        assert!(
+            rect.bottom() <= clip.bottom() + 0.01 && rect.top() >= clip.top() - 0.01,
+            "{:?} is cut by {clip:?}: {rect:?}",
+            source.name
+        );
+    }
+
+    /// CatJam appends its cat to the bar's cover. While the now-playing view
+    /// is up the bar leaves its cover out and the words move to its place,
+    /// but the cat stayed, pale over the title and the artists. What is in
+    /// the cover now goes with it.
+    #[test]
+    fn what_a_plugin_put_in_the_cover_goes_with_it_under_now_playing() {
+        let (ctx, mut app) = setup();
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: keys::COVER.into(),
+                position: Position::Append,
+                nodes: vec![chip(1, "CAT-OVER-THE-COVER")],
+            }],
+            ..DomOverlay::default()
+        }));
+        let drawn = |app: &mut App| {
+            settled(&ctx, app, 1240.0)
+                .iter()
+                .any(|(text, _)| text.contains("CAT-OVER-THE-COVER"))
+        };
+        assert!(drawn(&mut app), "on the cover");
+        app.now_playing_view = true;
+        assert!(
+            !drawn(&mut app),
+            "the cover is left out, and the cat with it"
+        );
         crate::ui::plugin_dom::test_overlay(None);
     }
 
