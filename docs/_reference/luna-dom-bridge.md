@@ -640,7 +640,9 @@ rows, go to their host keys when listened.
 ### Layout details (round 20)
 
 - Boxes are `border-box`, as TIDAL's CSS sizes them: a `width`/`height`
-  includes padding and border (OneClickLyrics' 32-point button).
+  includes padding and border (OneClickLyrics' 32-point button), a bare
+  button's default `1px 6px` padding too (scroll-to-playing's 40-point
+  round button).
 - A slot run is as tall as what it held last frame and centred on its row;
   in a right-to-left run each element's box is placed on the row's centre.
   A flex row without a height centres on what it held last frame.
@@ -650,7 +652,9 @@ rows, go to their host keys when listened.
 - An element's `font-family` list resolves to the first family a plugin
   loaded or the computer has (`system-ui` is Segoe UI on Windows), loaded
   off the UI thread and used from the next frame; text inside inherits it,
-  at its weight (`"<name>#Bold"`).
+  at its weight (`"<name>#Bold"`; the regular face is `"<name>"`). The
+  values seen are kept while Luna runs, so elements that come and go
+  (radiant-lyrics' lines) do not reload the fonts.
 - The built-in TIDAL sheet gives a button among the player bar's utility
   buttons TIDAL's look: transparent, 32 by 32, its SVG 16 by 16.
 - Plugin nodes after `toggle-lyrics` (before the speaker) are drawn between
