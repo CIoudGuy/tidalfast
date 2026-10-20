@@ -111,3 +111,80 @@ R.done = true;
         "wrote into Victim's socket: {seen} {r}"
     );
 }
+
+/// A server on `ip` that answers every request with a redirect to the same
+/// path at `to`.
+fn redirect_all(ip: &str, to: String) -> String {
+    use std::io::Write;
+    let l = TcpListener::bind(format!("{ip}:0")).unwrap();
+    let base = format!("http://{}", l.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for s in l.incoming() {
+            let Ok(mut s) = s else { continue };
+            let mut buf = [0u8; 4096];
+            let n = s.read(&mut buf).unwrap_or(0);
+            let req = String::from_utf8_lossy(&buf[..n]).to_string();
+            let path = req.split_whitespace().nth(1).unwrap_or("/").to_string();
+            let _ = s.write_all(
+                format!("HTTP/1.1 302 Found\r\nLocation: {to}{path}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                    .as_bytes(),
+            );
+        }
+    });
+    base
+}
+
+/// S4: plugins, stores and themes install over HTTPS only (plain HTTP from
+/// this computer): a redirect is held to that too. Before, only the first
+/// address was checked, so an HTTPS address that redirected to plain HTTP
+/// elsewhere installed code anyone on the network path could have swapped.
+/// Here the first address is a dev server on 127.0.0.1 and the code is on
+/// plain HTTP at 127.0.0.2, which the policy does not count as this
+/// computer.
+#[test]
+fn an_install_redirected_to_plain_http_elsewhere_is_refused() {
+    let files: Files = Arc::default();
+    files.lock().unwrap().insert(
+        "/Hop.json".into(),
+        json!({ "name": "Hop", "version": "1.0.0", "hash": "h1" })
+            .to_string()
+            .into_bytes(),
+    );
+    files.lock().unwrap().insert(
+        "/Hop.mjs".into(),
+        b"export const unloads = new Set();\n".to_vec(),
+    );
+    // `serve` listens on 127.0.0.1 only: 127.0.0.2 relays to it.
+    let near = serve(files);
+    let port = near.rsplit(':').next().unwrap().to_string();
+    let far = TcpListener::bind("127.0.0.2:0").unwrap();
+    let far_base = format!("http://{}", far.local_addr().unwrap());
+    std::thread::spawn(move || {
+        use std::io::Write;
+        for s in far.incoming() {
+            let Ok(mut s) = s else { continue };
+            let mut buf = [0u8; 4096];
+            let n = s.read(&mut buf).unwrap_or(0);
+            let req = String::from_utf8_lossy(&buf[..n]).to_string();
+            let path = req.split_whitespace().nth(1).unwrap_or("/").to_string();
+            let mut up = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+            let _ = up.write_all(format!("GET {path} HTTP/1.1\r\nHost: x\r\n\r\n").as_bytes());
+            let mut resp = Vec::new();
+            let _ = up.read_to_end(&mut resp);
+            let _ = s.write_all(&resp);
+        }
+    });
+    let first = redirect_all("127.0.0.1", far_base);
+    let dir = temp_dir("s4");
+    let luna = Luna::start(config(&dir), Arc::new(CompatHost::default())).unwrap();
+    luna.install(&format!("{first}/Hop.mjs"));
+    let s = wait_until(&luna, 15, |s| {
+        s.plugins.iter().any(|p| p.name == "Hop") || !s.install_outcomes.is_empty()
+    });
+    let installed = s.plugins.iter().any(|p| p.name == "Hop");
+    let outcomes = format!("{:?}", s.install_outcomes);
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(!installed, "installed over plain HTTP: {outcomes}");
+    assert!(outcomes.contains("Err("), "{outcomes}");
+}
