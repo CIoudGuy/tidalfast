@@ -313,6 +313,11 @@ fn resolve(base: &str, url: &str) -> String {
     }
 }
 
+/// The most media segments a stream may list: over a day of one-second
+/// segments. TIDAL's are a few seconds each, so a long track has a few
+/// thousand; the list is made up front, one URL each.
+const MAX_SEGMENTS: u64 = 100_000;
+
 fn dash(text: &str) -> Result<StreamInfo, StreamError> {
     let document = roxmltree::Document::parse(text)
         .map_err(|error| StreamError::Malformed(format!("MPD: {error}")))?;
@@ -397,6 +402,7 @@ fn dash(text: &str) -> Result<StreamInfo, StreamError> {
         .attribute("mediaPresentationDuration")
         .and_then(iso_duration)
         .map(|seconds| seconds * timescale);
+    let too_many = || StreamError::Malformed("MPD lists more segments than a track has".into());
     let mut count: u64 = 0;
     let mut elapsed: f64 = 0.0;
     if let Some(timeline) = template
@@ -407,6 +413,7 @@ fn dash(text: &str) -> Result<StreamInfo, StreamError> {
             let duration: f64 = segment
                 .attribute("d")
                 .and_then(|value| value.parse().ok())
+                .filter(|duration: &f64| duration.is_finite() && *duration > 0.0)
                 .ok_or_else(|| StreamError::Malformed("segment without duration".into()))?;
             let repeat: i64 = segment
                 .attribute("r")
@@ -419,28 +426,37 @@ fn dash(text: &str) -> Result<StreamInfo, StreamError> {
                 })?;
                 ((total - elapsed) / duration).ceil().max(0.0) as u64
             } else {
-                repeat as u64 + 1
+                (repeat as u64).saturating_add(1)
             };
-            count += times;
+            count = count.saturating_add(times);
+            if count > MAX_SEGMENTS {
+                return Err(too_many());
+            }
             elapsed += duration * times as f64;
         }
     } else if let (Some(duration), Some(total)) = (
         template
             .attribute("duration")
-            .and_then(|value| value.parse::<f64>().ok()),
+            .and_then(|value| value.parse::<f64>().ok())
+            .filter(|duration| duration.is_finite() && *duration > 0.0),
         total_time,
     ) {
-        count = (total / duration).ceil() as u64;
+        let segments = (total / duration).ceil();
+        if segments.is_nan() || segments > MAX_SEGMENTS as f64 {
+            return Err(too_many());
+        }
+        count = segments as u64;
     }
     if count == 0 {
         return Err(StreamError::Malformed("MPD lists no segments".into()));
     }
+    let end = start.checked_add(count).ok_or_else(too_many)?;
     let mut urls = Vec::with_capacity(count as usize + 1);
     urls.push(resolve(
         &base,
         &fill_template(initialization, &id, &bandwidth, None),
     ));
-    for number in start..start + count {
+    for number in start..end {
         urls.push(resolve(
             &base,
             &fill_template(media, &id, &bandwidth, Some(number)),
@@ -611,6 +627,37 @@ mod tests {
         assert_eq!(infer_quality(&stream), Quality::High);
         // The representation's bandwidth: the stream's bit rate.
         assert_eq!(stream.bitrate, Some(320_000));
+    }
+
+    /// A timeline that lists more segments than any track has, or a
+    /// segment with no length, is an unreadable manifest. The count used to
+    /// become one URL each up front: a million repeats were a million URLs,
+    /// a larger count asked for more memory than there is and ended the
+    /// app, and a zero-length open-ended segment overflowed the count.
+    #[test]
+    fn a_timeline_without_a_sane_segment_count_is_refused() {
+        let mpd = |start: &str, segments: &str| {
+            format!(
+                r#"<MPD type="static" mediaPresentationDuration="PT1M"><Period><AdaptationSet mimeType="audio/mp4"><Representation id="r" codecs="flac" bandwidth="1"><SegmentTemplate initialization="https://cdn/i.mp4" media="https://cdn/$Number$.mp4" startNumber="{start}"><SegmentTimeline>{segments}</SegmentTimeline></SegmentTemplate></Representation></AdaptationSet></Period></MPD>"#
+            )
+        };
+        for (start, segments) in [
+            ("1", r#"<S d="1" r="1000000"/>"#),
+            ("1", r#"<S d="0" r="-1"/>"#),
+            ("1", r#"<S d="-5" r="2"/>"#),
+            ("1", r#"<S d="NaN"/>"#),
+            ("18446744073709551615", r#"<S d="1" r="1"/>"#),
+        ] {
+            assert!(
+                matches!(dash(&mpd(start, segments)), Err(StreamError::Malformed(_))),
+                "{start} {segments}"
+            );
+        }
+        let template = r#"<MPD type="static" mediaPresentationDuration="PT1M"><Period><AdaptationSet mimeType="audio/mp4"><Representation id="r" codecs="flac" bandwidth="1"><SegmentTemplate initialization="i" media="$Number$" duration="0"/></Representation></AdaptationSet></Period></MPD>"#;
+        assert!(matches!(dash(template), Err(StreamError::Malformed(_))));
+        // A long track at TIDAL's few seconds a segment still plays.
+        let long = dash(&mpd("1", r#"<S d="4" r="5399"/>"#)).unwrap();
+        assert_eq!(long.urls.len(), 5401);
     }
 
     fn document(text: &str) -> TrackManifestDocument {
