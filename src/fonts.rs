@@ -503,10 +503,8 @@ fn map_installed_faces(key: &str) -> Option<[Arc<FontData>; 4]> {
 /// heavy as a browser draws it. A variable cut is returned as it is: the
 /// canvas sets its `wght`.
 pub fn family_face_at(family: &str, weight: f32) -> Option<&'static skrifa::FontRef<'static>> {
-    type Faces = std::collections::HashMap<
-        (String, u16),
-        Option<&'static skrifa::FontRef<'static>>,
-    >;
+    type Faces =
+        std::collections::HashMap<(String, u16), Option<&'static skrifa::FontRef<'static>>>;
     static FACES: std::sync::Mutex<Option<Faces>> = std::sync::Mutex::new(None);
     // Each file is mapped once, whatever weights name it.
     static MAPPED: std::sync::Mutex<
