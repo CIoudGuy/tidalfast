@@ -74,6 +74,9 @@ pub struct HostTree {
     /// The app is in its Light theme (`prefers-color-scheme: light`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub light: bool,
+    /// The desktop asks for less motion (`prefers-reduced-motion: reduce`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub reduced_motion: bool,
 }
 
 /// Resolved CSS for one element: plain CSS values as strings, only the
@@ -135,6 +138,8 @@ pub struct Style {
     pub line_height: Option<String>,
     pub overflow: Option<String>,
     pub outline: Option<String>,
+    /// One colour for every side, or four (top right bottom left) when a
+    /// side has its own (`border-top-color`: a spinner's bright arc).
     pub border_color: Option<String>,
     pub letter_spacing: Option<String>,
     pub text_transform: Option<String>,
@@ -153,17 +158,21 @@ pub struct Style {
     /// shares, `minmax()`, `repeat()`.
     pub grid_template_columns: Option<String>,
     /// Running CSS animations, normalised by the runtime: per animation
-    /// `name duration_s delay_s count direction timing state`, comma
-    /// separated (`count` is `infinite` or a number). Frames are in
+    /// `name duration_s delay_s count direction timing state fill`, comma
+    /// separated (`count` is `infinite` or a number, `fill` is `none`,
+    /// `forwards`, `backwards` or `both`). Frames are in
     /// [`DomOverlay::keyframes`].
     pub animation: Option<String>,
     /// CSS transitions, normalised by the runtime: per transition `property
-    /// duration_s delay_s timing`, comma separated (`all 0.6 0 ease`).
+    /// duration_s delay_s timing`, comma separated (`all 0.6 0 ease`). A
+    /// timing function is one word: no spaces around commas, other spaces as
+    /// `_` (`linear(0,0.25_75%,1)`).
     pub transition: Option<String>,
     /// The custom properties a `@keyframes` frame sets (`--rotate: 360deg`),
     /// name to value, only in the frames of [`DomOverlay::keyframes`]: an
     /// animation moves them over time (the cotton candy family's turning
-    /// gradients).
+    /// gradients). A keyframe's own `animation-timing-function` is kept
+    /// here too, under that name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom: Option<BTreeMap<String, String>>,
 }
@@ -213,6 +222,14 @@ pub struct VNode {
     /// size (qr-share's QR code).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub natural: Option<[f32; 2]>,
+    /// Only in the first overlay that shows the element, and only when it
+    /// has a `transition`: the style it had at its first style pass, when a
+    /// change since then is already in [`VNode::style`] (a canvas inserted
+    /// at `opacity: 0` and given `.visible` a frame later). Its transitions
+    /// start from here. The moving properties are all copied, so a missing
+    /// one was unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<Style>,
 }
 
 /// Where an injected element sits relative to its host anchor.

@@ -756,6 +756,8 @@ pub struct Frame {
     pub path: String,
     /// The app shows its Light theme.
     pub light: bool,
+    /// The desktop asks for less motion.
+    pub reduced_motion: bool,
     pub shell: Shell,
     pub sidebar: Sidebar,
     pub page: Option<Page>,
@@ -811,6 +813,7 @@ pub fn build(frame: &Frame) -> HostTree {
         viewport: frame.viewport,
         path: frame.path.clone(),
         light: frame.light,
+        reduced_motion: frame.reduced_motion,
     }
 }
 
@@ -2147,6 +2150,7 @@ pub fn sample_frame() -> Frame {
         viewport: [1280.0, 800.0],
         path: "/album/55".into(),
         light: false,
+        reduced_motion: false,
         shell: Shell {
             rect: r(0.0, 0.0, 1280.0, 800.0),
             bar: r(0.0, 0.0, 1280.0, 36.0),

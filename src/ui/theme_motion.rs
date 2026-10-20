@@ -13,6 +13,7 @@
 
 use std::collections::BTreeMap;
 
+use super::css_motion;
 use crate::luna::dom::Style;
 
 /// Where the box's background sits, as fractions of the room around it
@@ -44,7 +45,7 @@ pub fn transition_for(style: &Style, property: &str) -> Option<crate::motion::Tr
     use crate::motion::{Bezier, Transition, ease};
     let list = style.transition.as_deref()?;
     let mut all = None;
-    for entry in list.split(',') {
+    for entry in super::plugin_slots::css::split_top(list, ',') {
         let words: Vec<&str> = entry.split(' ').collect();
         let [name, seconds, delay, timing] = words.as_slice() else {
             continue;
@@ -104,17 +105,21 @@ pub fn background_position(
         style,
         keyframes,
         |dur| ((dur * 10.0) as u64).clamp(33, 250),
-        |frames, p| {
-            let moves: Vec<(f32, Position)> = frames
-                .iter()
-                .filter_map(|(offset, s)| {
-                    Some((*offset, parse_position(s.background_position.as_deref()?)?))
-                })
-                .collect();
-            if moves.is_empty() {
+        |frames, a, p| {
+            let axis = |pick: fn(Position) -> f32| {
+                let frames: Vec<_> = frames
+                    .iter()
+                    .filter_map(|(offset, s)| {
+                        let at = parse_position(s.background_position.as_deref()?)?;
+                        Some((*offset, pick(at), css_motion::keyframe_timing(s)))
+                    })
+                    .collect();
+                (!frames.is_empty()).then_some(css_motion::Track { frames })
+            };
+            let (Some(x), Some(y)) = (axis(|p| p.0), axis(|p| p.1)) else {
                 return false;
-            }
-            found = Some(at(&moves, own, p));
+            };
+            found = Some((x.at(p, &own.0, &a.timing), y.at(p, &own.1, &a.timing)));
             true
         },
     );
@@ -141,110 +146,74 @@ pub fn angle(
         style,
         keyframes,
         |dur| ((dur * 1000.0 / 60.0) as u64).clamp(33, 250),
-        |frames, p| {
-            let moves: Vec<(f32, f32)> = frames
+        |frames, a, p| {
+            let frames: Vec<_> = frames
                 .iter()
                 .filter_map(|(offset, s)| {
                     let value = s.custom.as_ref()?.get(name)?;
-                    Some((*offset, super::theme_gradient::angle(value)?))
+                    Some((
+                        *offset,
+                        super::theme_gradient::angle(value)?,
+                        css_motion::keyframe_timing(s),
+                    ))
                 })
                 .collect();
-            if moves.is_empty() {
+            if frames.is_empty() {
                 return false;
             }
-            found = Some(at1(&moves, initial, p));
+            found = Some(css_motion::Track { frames }.at(p, &initial, &a.timing));
             true
         },
     );
     found
 }
 
-/// Runs `use_frames(keyframes, progress)` for each running animation of
-/// `style` (progress eased, 0 to 1); when it returns true the animation is
-/// the one that moves what the caller draws, and a frame is asked for
-/// every `interval_ms(duration in seconds)` while it runs.
+/// Runs `use_frames(keyframes, animation, progress)` for each animation of
+/// `style` that shows now (progress 0 to 1 with its direction, before the
+/// keyframes' easing); when it returns true the animation is the one that
+/// moves what the caller draws, and a frame is asked for every
+/// `interval_ms(duration in seconds)` while it runs. Fill modes, delays,
+/// pauses and less motion are as [`css_motion::Animation`] has them.
 fn running(
     ctx: &egui::Context,
     key: &str,
     style: &Style,
     keyframes: &BTreeMap<String, Vec<(f32, Style)>>,
     interval_ms: impl Fn(f64) -> u64,
-    mut use_frames: impl FnMut(&[(f32, Style)], f32) -> bool,
+    mut use_frames: impl FnMut(&[(f32, Style)], &css_motion::Animation, f32) -> bool,
 ) {
-    let Some(spec) = style.animation.as_deref() else {
+    if style.animation.is_none() {
         return;
-    };
+    }
+    let list = css_motion::animations(style);
     let now = ctx.input(|i| i.time);
     let reduced = crate::motion::reduced(ctx);
-    for a in spec.split(',') {
-        let f: Vec<&str> = a.split(' ').collect();
-        let [name, dur, delay, count, dir, timing, state] = f.as_slice() else {
+    for a in &list {
+        let Some(frames) = keyframes.get(&a.name) else {
             continue;
         };
-        let Some(frames) = keyframes.get(*name) else {
-            continue;
-        };
-        let dur = dur.parse::<f64>().unwrap_or(0.0).max(0.001);
-        let delay = delay.parse::<f64>().unwrap_or(0.0);
-        let paused = *state == "paused";
-        let id = egui::Id::new(("theme-anim", key, *name));
+        let id = egui::Id::new(("theme-anim", key, a.name.as_str()));
         let start = ctx.data_mut(|d| *d.get_temp_mut_or_insert_with(id, || now));
-        let elapsed = if paused || reduced {
-            0.0
+        let moment = if reduced {
+            a.at_rest()
+        } else if a.paused {
+            a.at(a.delay.max(0.0))
         } else {
-            (now - start - delay).max(0.0)
+            a.at(now - start)
         };
-        let total = if *count == "infinite" {
-            f64::INFINITY
-        } else {
-            count.parse::<f64>().unwrap_or(1.0)
+        let Some(moment) = moment else {
+            // Waiting out its delay: look again when it ends.
+            let wait = a.delay - (now - start);
+            if !reduced && !a.paused && wait > 0.0 {
+                ctx.request_repaint_after(std::time::Duration::from_secs_f64(wait.min(60.0)));
+            }
+            continue;
         };
-        let iterations = elapsed / dur;
-        let finished = iterations >= total;
-        let (iteration, p) = if finished {
-            ((total.ceil() - 1.0).max(0.0), 1.0)
-        } else {
-            (iterations.floor(), iterations.fract())
-        };
-        let odd = iteration as u64 % 2 == 1;
-        let p = match *dir {
-            "reverse" => 1.0 - p,
-            "alternate" if odd => 1.0 - p,
-            "alternate-reverse" if !odd => 1.0 - p,
-            _ => p,
-        } as f32;
-        let p = super::plugin_slots::ease(timing, p);
-        if use_frames(frames, p) && !finished && !paused && !reduced {
-            let interval = std::time::Duration::from_millis(interval_ms(dur));
+        if use_frames(frames, a, moment.progress) && moment.running && !a.paused && !reduced {
+            let interval = std::time::Duration::from_millis(interval_ms(a.seconds));
             crate::theme::ambient_frame_every(ctx, interval);
         }
     }
-}
-
-/// The value at progress `p` of keyframes `moves` (offset, value); `own`
-/// stands in for a missing `from` or `to`.
-fn at1(moves: &[(f32, f32)], own: f32, p: f32) -> f32 {
-    let first = moves[0];
-    let last = moves[moves.len() - 1];
-    let (a, b) = if p <= first.0 {
-        (if first.0 > 0.0 { (0.0, own) } else { first }, first)
-    } else if p >= last.0 {
-        (last, if last.0 < 1.0 { (1.0, own) } else { last })
-    } else {
-        let i = moves.iter().rposition(|(o, _)| *o <= p).unwrap_or(0);
-        (moves[i], moves[(i + 1).min(moves.len() - 1)])
-    };
-    let span = (b.0 - a.0).max(1e-4);
-    let t = ((p - a.0) / span).clamp(0.0, 1.0);
-    a.1 + (b.1 - a.1) * t
-}
-
-/// The position at progress `p` of keyframes `moves` (offset, position);
-/// the box's own position stands in for a missing `from` or `to`.
-fn at(moves: &[(f32, Position)], own: Position, p: f32) -> Position {
-    let x: Vec<(f32, f32)> = moves.iter().map(|(o, v)| (*o, v.0)).collect();
-    let y: Vec<(f32, f32)> = moves.iter().map(|(o, v)| (*o, v.1)).collect();
-    (at1(&x, own.0, p), at1(&y, own.1, p))
 }
 
 #[cfg(test)]

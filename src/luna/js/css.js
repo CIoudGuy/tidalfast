@@ -396,7 +396,7 @@
 	let indexGen = -1;
 	let indexSize = "";
 	const buildIndex = () => {
-		const size = `${g.innerWidth}x${g.innerHeight}|${D.colorScheme}`;
+		const size = `${g.innerWidth}x${g.innerHeight}|${D.colorScheme}|${D.reducedMotion ? "reduce" : ""}`;
 		if (index && indexGen === D.domGen() && indexSize === size) return index;
 		indexGen = D.domGen();
 		indexSize = size;
@@ -698,17 +698,23 @@
 	};
 	D.resolveVars = resolveVars;
 	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "column-gap", "padding-top", "padding-left", "padding-right", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "border-color", "letter-spacing", "text-transform", "white-space", "flex", "order", "pointer-events", "background-position", "background-size", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns"]);
-	const ANIM_LONG = ["animation-name", "animation-duration", "animation-delay", "animation-iteration-count", "animation-direction", "animation-timing-function", "animation-play-state"];
+	const ANIM_LONG = ["animation-name", "animation-duration", "animation-delay", "animation-iteration-count", "animation-direction", "animation-timing-function", "animation-play-state", "animation-fill-mode"];
 	const seconds = (t) => (/ms$/i.test(t) ? parseFloat(t) / 1000 : parseFloat(t));
-	// `animation` shorthand or longhands -> "name duration delay count direction timing state"
+	// A timing function as one word for the lists below: lower case, no spaces
+	// around commas, other spaces as `_` (`linear(0, 0.25 75%, 1)` keeps its
+	// percentages as `linear(0,0.25_75%,1)`).
+	const timingWord = (t) => String(t).trim().toLowerCase().replace(/\s*([(),])\s*/g, "$1").replace(/\s+/g, "_");
+	const TIMING = /^(linear|ease|ease-in|ease-out|ease-in-out|step-start|step-end)$|^(steps|cubic-bezier|linear)\(/i;
+	// `animation` shorthand or longhands -> "name duration delay count direction timing state fill"
 	// per animation, comma separated (count `infinite` or a number).
 	const animation = (decls) => {
 		const get = (k) => decls.get(k);
 		const list = [];
+		const fresh = () => ({ name: "", dur: 0, delay: 0, count: "1", dir: "normal", timing: "ease", state: "running", fill: "none" });
 		const short = get("animation");
 		if (short && !/^none$/i.test(short.trim())) {
 			for (const part of splitTop(short)) {
-				const a = { name: "", dur: 0, delay: 0, count: "1", dir: "normal", timing: "ease", state: "running" };
+				const a = fresh();
 				let times = 0;
 				for (const tok of part.match(/[\w-]+\([^)]*\)|[^\s]+/g) ?? []) {
 					if (/^-?[\d.]+m?s$/i.test(tok)) {
@@ -716,56 +722,58 @@
 						else a.delay = seconds(tok);
 					} else if (/^(infinite|[\d.]+)$/i.test(tok)) a.count = tok.toLowerCase();
 					else if (/^(normal|reverse|alternate|alternate-reverse)$/i.test(tok)) a.dir = tok.toLowerCase();
-					else if (/^(linear|ease|ease-in|ease-out|ease-in-out|step-start|step-end)$|^(steps|cubic-bezier)\(/i.test(tok)) a.timing = tok.toLowerCase();
+					else if (TIMING.test(tok)) a.timing = timingWord(tok);
 					else if (/^(paused|running)$/i.test(tok)) a.state = tok.toLowerCase();
-					else if (/^(none|forwards|backwards|both)$/i.test(tok)) {
-						/* fill mode */
+					else if (/^(forwards|backwards|both)$/i.test(tok)) a.fill = tok.toLowerCase();
+					else if (/^none$/i.test(tok)) {
+						/* fill mode `none` */
 					} else a.name = tok.replace(/^["']|["']$/g, "");
 				}
 				list.push(a);
 			}
 		}
+		const at = (k, i, f) => {
+			const v = get(k);
+			if (!v) return undefined;
+			const p = splitTop(v);
+			return f(p[i % p.length].trim());
+		};
 		const names = get("animation-name");
 		if (names) {
-			const at = (k, i, f) => {
-				const v = get(k);
-				if (!v) return undefined;
-				const p = splitTop(v);
-				return f(p[i % p.length].trim());
-			};
 			splitTop(names).forEach((n, i) => {
-				const a = list[i] ?? (list[i] = { name: "", dur: 0, delay: 0, count: "1", dir: "normal", timing: "ease", state: "running" });
+				const a = list[i] ?? (list[i] = fresh());
 				a.name = n.trim().replace(/^["']|["']$/g, "");
 			});
-			list.forEach((a, i) => {
-				a.dur = at("animation-duration", i, seconds) ?? a.dur;
-				a.delay = at("animation-delay", i, seconds) ?? a.delay;
-				a.count = at("animation-iteration-count", i, (x) => x.toLowerCase()) ?? a.count;
-				a.dir = at("animation-direction", i, (x) => x.toLowerCase()) ?? a.dir;
-				a.timing = at("animation-timing-function", i, (x) => x.toLowerCase().replace(/\s+/g, "")) ?? a.timing;
-			});
 		}
-		const state = get("animation-play-state");
-		if (state) for (const a of list) a.state = /paused/i.test(state) ? "paused" : "running";
-		const ok = list.filter((a) => a.name && a.name !== "none" && a.dur > 0);
-		return ok.length ? ok.map((a) => `${a.name} ${a.dur} ${a.delay} ${a.count} ${a.dir} ${a.timing.replace(/\s+/g, "")} ${a.state}`).join(",") : null;
+		// Longhands after the shorthand (or with the names) adjust each one.
+		list.forEach((a, i) => {
+			a.dur = at("animation-duration", i, seconds) ?? a.dur;
+			a.delay = at("animation-delay", i, seconds) ?? a.delay;
+			a.count = at("animation-iteration-count", i, (x) => x.toLowerCase()) ?? a.count;
+			a.dir = at("animation-direction", i, (x) => x.toLowerCase()) ?? a.dir;
+			a.timing = at("animation-timing-function", i, timingWord) ?? a.timing;
+			a.fill = at("animation-fill-mode", i, (x) => x.toLowerCase()) ?? a.fill;
+			a.state = at("animation-play-state", i, (x) => (/paused/i.test(x) ? "paused" : "running")) ?? a.state;
+		});
+		const ok = list.filter((a) => a.name && a.name !== "none" && a.dur > 0 && Number.isFinite(a.dur));
+		return ok.length ? ok.map((a) => `${a.name} ${a.dur} ${Number.isFinite(a.delay) ? a.delay : 0} ${a.count} ${a.dir} ${a.timing} ${a.state} ${/^(forwards|backwards|both)$/.test(a.fill) ? a.fill : "none"}`).join(",") : null;
 	};
 	// `transition` shorthand or longhands -> "property duration delay timing" per
 	// transition, comma separated (`all`, `opacity`, `transform`...).
-	const TIMING = /^(linear|ease|ease-in|ease-out|ease-in-out|step-start|step-end)$|^(steps|cubic-bezier)\(/i;
 	const transition = (decls) => {
 		const get = (k) => decls.get(k);
 		const list = [];
+		const fresh = () => ({ prop: "all", dur: 0, delay: 0, timing: "ease" });
 		const short = get("transition");
 		if (short && !/^none$/i.test(short.trim())) {
 			for (const part of splitTop(short)) {
-				const t = { prop: "all", dur: 0, delay: 0, timing: "ease" };
+				const t = fresh();
 				let times = 0;
 				for (const tok of part.match(/[\w-]+\([^)]*\)|[^\s]+/g) ?? []) {
 					if (/^-?[\d.]+m?s$/i.test(tok)) {
 						if (times++ === 0) t.dur = seconds(tok);
 						else t.delay = seconds(tok);
-					} else if (TIMING.test(tok)) t.timing = tok.toLowerCase().replace(/\s+/g, "");
+					} else if (TIMING.test(tok)) t.timing = timingWord(tok);
 					else t.prop = tok.toLowerCase();
 				}
 				list.push(t);
@@ -773,8 +781,10 @@
 		}
 		const props = get("transition-property");
 		if (props) {
+			// `transition-property: none` stops every transition.
+			if (/^none$/i.test(props.trim())) return null;
 			splitTop(props).forEach((p, i) => {
-				const t = list[i] ?? (list[i] = { prop: "all", dur: 0, delay: 0, timing: "ease" });
+				const t = list[i] ?? (list[i] = fresh());
 				t.prop = p.trim().toLowerCase();
 			});
 		}
@@ -787,10 +797,10 @@
 		list.forEach((t, i) => {
 			t.dur = at("transition-duration", i, seconds) ?? t.dur;
 			t.delay = at("transition-delay", i, seconds) ?? t.delay;
-			t.timing = at("transition-timing-function", i, (x) => x.toLowerCase().replace(/\s+/g, "")) ?? t.timing;
+			t.timing = at("transition-timing-function", i, timingWord) ?? t.timing;
 		});
-		const ok = list.filter((t) => t.dur > 0 && Number.isFinite(t.dur));
-		return ok.length ? ok.map((t) => `${t.prop} ${t.dur} ${t.delay || 0} ${t.timing}`).join(",") : null;
+		const ok = list.filter((t) => t.dur > 0 && Number.isFinite(t.dur) && t.prop !== "none");
+		return ok.length ? ok.map((t) => `${t.prop} ${t.dur} ${Number.isFinite(t.delay) ? t.delay : 0} ${t.timing}`).join(",") : null;
 	};
 	const splitTop = (s) => {
 		const out = [];
@@ -867,6 +877,37 @@
 			const get = (k) => (decls.has(k) ? resolveVars(decls.get(k), vars).trim() : "");
 			const style = get("outline-style");
 			if (style && !/^(none|hidden)$/i.test(style)) set("outline", `${get("outline-width") || "3px"} ${style} ${get("outline-color") || "currentcolor"}`);
+		}
+		// A side's own colour (`border-top-color`, a spinner's bright arc) makes
+		// `border-color` the four sides' colours, top right bottom left, from
+		// `border-color` or the `border` shorthand's colour.
+		const SIDES = ["top", "right", "bottom", "left"];
+		if (SIDES.some((s) => decls.has(`border-${s}-color`))) {
+			const words = (v) => {
+				const out = [];
+				let depth = 0;
+				let cur = "";
+				for (const ch of String(v).trim()) {
+					if (ch === "(") depth++;
+					if (ch === ")") depth--;
+					if (/\s/.test(ch) && depth === 0) {
+						if (cur) out.push(cur);
+						cur = "";
+					} else cur += ch;
+				}
+				if (cur) out.push(cur);
+				return out;
+			};
+			const isColour = (w) => /^(#|rgb|hsl|hwb|lab|lch|oklab|oklch|color|var\()/i.test(w) || /^[a-z]+$/i.test(w) && !/^(none|hidden|solid|dashed|dotted|double|groove|ridge|inset|outset|thin|medium|thick)$/i.test(w);
+			let base = ["currentcolor"];
+			if (st["border-color"]) base = words(st["border-color"]);
+			else if (st.border) base = [words(st.border).find(isColour) ?? "currentcolor"];
+			const [t, r = t, b = t, l = r] = base;
+			const four = [t, r, b, l];
+			SIDES.forEach((s, i) => {
+				if (decls.has(`border-${s}-color`)) four[i] = resolveVars(decls.get(`border-${s}-color`), vars).trim();
+			});
+			st["border-color"] = four.join(" ");
 		}
 		// The individual transform properties apply before `transform`.
 		const parts = [];
@@ -1032,6 +1073,8 @@
 						const frame = toStyle(decls, rootVars, null) ?? {};
 						// `--rotate: 360deg`: a custom property an animation moves.
 						for (const [k, v] of decls) if (k.startsWith("--")) (frame.custom ??= {})[k] = String(v).trim();
+						// A keyframe's own easing, for the interval after it.
+						if (decls.has("animation-timing-function")) (frame.custom ??= {})["animation-timing-function"] = timingWord(resolveVars(decls.get("animation-timing-function"), rootVars));
 						return [off, frame];
 					});
 					kfCache.set(name, { frames, out: keyframes[name] });
@@ -1075,6 +1118,34 @@
 			if (n === el) vars = new Map(vars);
 		}
 		return { props, vars };
+	};
+	// The overlay style `el` has right now, with what it inherits, when it has
+	// a `transition` (else null): the style a browser's style pass would
+	// give it before the next change, from which a transition starts.
+	const styleNow = (el) => {
+		const ix = buildIndex();
+		const own = cascade(ix, el);
+		if (!own || ![...own.keys()].some((k) => k.startsWith("transition"))) return null;
+		const chain = [];
+		for (let n = el; n instanceof g.Element; n = n.parentNode) chain.unshift(n);
+		let vars = NO_VARS;
+		let parent = null;
+		let st = null;
+		for (const n of chain) {
+			const d = n === el ? own : cascade(ix, n);
+			if (d) {
+				let mine = null;
+				for (const [k, v] of d)
+					if (k.startsWith("--")) {
+						mine ??= new Map(vars);
+						mine.set(k, v);
+					}
+				if (mine) vars = mine;
+			}
+			st = d ? toStyle(d, vars, parent) : null;
+			parent = st ? { ...(parent ?? {}), ...pickInherited(st) } : parent;
+		}
+		return st;
 	};
 	const computedStyle = (el, pseudo) => {
 		const decl = new CSSStyleDeclaration();
@@ -1120,5 +1191,5 @@
 	// Whether a rule looks at siblings, children or position: then a changed
 	// class can change what matches outside the element's own subtree.
 	const structural = () => !!buildIndex().structural;
-	L.css = { parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, splitDecls, usesHover, attrMatters, structural };
+	L.css = { parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, structural };
 })();

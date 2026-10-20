@@ -76,6 +76,52 @@
 		styleGen++;
 		contentDirty();
 	};
+	// ---------------------------------------------------------------- style passes
+	// A browser works out the style of an element it was given at its next
+	// frame (or when `getComputedStyle` asks), and a change after that is
+	// what a transition runs from: a canvas inserted at `opacity: 0` and given
+	// `.visible` a frame later fades in. The overlay goes out at most every
+	// 33 ms, so both can land in the first overlay that shows the element;
+	// the style it had at its first pass goes with it (`VNode.from`), only
+	// for elements with a `transition`.
+	const fresh = new Set();
+	let freshArmed = false;
+	let shownBefore = new Map();
+	const noteFresh = (el) => {
+		fresh.add(el);
+		if (freshArmed) return;
+		freshArmed = true;
+		L.internalTimeout(() => D.styleTick(), 16);
+	};
+	D.styleTick = () => {
+		freshArmed = false;
+		if (!fresh.size) return;
+		const roots = [...fresh];
+		fresh.clear();
+		if (!L.css?.styleNow) return;
+		let budget = 2000;
+		const walk = (el) => {
+			if (budget-- <= 0) return;
+			if (el._vid === undefined || !shownBefore.has(el._vid)) {
+				const st = L.css.styleNow(el);
+				if (st) el._before = st;
+			}
+			for (const c of el.childNodes) if (c instanceof Element) walk(c);
+		};
+		for (const root of roots) if (root.isConnected) walk(root);
+	};
+	// The properties a transition can move, as the element had them at its
+	// first style pass: all of them, so a missing one reads as unset.
+	const MOVING = ["opacity", "transform", "color", "background-color", "border", "border-color", "width", "height", "transition"];
+	const beforeOf = (before, now) => {
+		let differs = false;
+		const out = {};
+		for (const k of MOVING) {
+			if (before[k] !== undefined) out[k] = before[k];
+			if (k !== "transition" && (before[k] ?? null) !== (now?.[k] ?? null)) differs = true;
+		}
+		return differs ? out : null;
+	};
 	// Attributes whose changes cannot affect matching unless a selector names
 	// them (pseudo-classes such as :checked or :disabled read other ones).
 	// Any other attribute no selector names (an SVG `width`, `d` or `fill`
@@ -555,6 +601,7 @@
 			if (isStyleish(c) || (c instanceof Element && c.querySelector("style"))) cssChanged();
 			else if (c instanceof CharacterData) textChangedIn(this);
 			D.connected?.(c);
+			if (c instanceof Element && c._hostKey === undefined && !reconciling && this.isConnected) noteFresh(c);
 			markStructDirty(c);
 			return c;
 		}
@@ -2707,6 +2754,8 @@
 			}
 		}
 		inFrame = false;
+		// The frame's style pass, after its callbacks, as in a browser.
+		if (fresh.size) D.styleTick();
 		idleFrames = frameWork === work ? idleFrames + 1 : 0;
 		busyFrames = frameWork === work ? 0 : busyFrames + 1;
 		armFrame();
@@ -2907,6 +2956,12 @@
 			const scheme = tree.light ? "light" : "dark";
 			if (scheme !== D.colorScheme) {
 				D.colorScheme = scheme;
+				resized = true;
+			}
+			// `prefers-reduced-motion` follows the desktop, as the app does.
+			const reduce = !!tree.reduced_motion;
+			if (reduce !== !!D.reducedMotion) {
+				D.reducedMotion = reduce;
 				resized = true;
 			}
 			if (typeof tree.path === "string" && (tree.path !== loc.pathname + loc.search || !synced)) {
@@ -3191,6 +3246,15 @@
 		if (attrs.length) v.attrs = attrs;
 		const st = comp.get(n);
 		if (st) v.style = st;
+		// First shown with a style newer than its first style pass: where its
+		// transitions start from.
+		if (n._before) {
+			if (!shownBefore.has(v.id)) {
+				const from = beforeOf(n._before, st);
+				if (from) v.from = from;
+			}
+			n._before = undefined;
+		}
 		const ls = listensUp(n, anchor);
 		if (ls.length) v.listens = ls;
 		if (n.localName === "svg") {
@@ -3232,6 +3296,10 @@
 	};
 	const isHost = (n) => n._hostKey !== undefined;
 	const build = () => {
+		// Elements this build shows for the first time get their first style
+		// here: no earlier pass to start a transition from.
+		fresh.clear();
+		shownBefore = vnodes;
 		vnodes = new Map();
 		nodeBudget = MAX_OVERLAY_NODES;
 		overBudget = false;
@@ -3406,7 +3474,9 @@
 				switch (f) {
 					case "prefers-color-scheme":
 						return v === D.colorScheme;
+					// The desktop's wish for less motion, as the app follows it.
 					case "prefers-reduced-motion":
+						return v === "" ? !!D.reducedMotion : v === (D.reducedMotion ? "reduce" : "no-preference");
 					case "prefers-contrast":
 					case "forced-colors":
 						return v === "no-preference" || v === "none";
@@ -3442,6 +3512,7 @@
 	};
 	D.evalMedia = evalMedia;
 	D.colorScheme = "dark";
+	D.reducedMotion = false;
 	g.matchMedia = (q) => {
 		const t = new Target();
 		return Object.assign(t, { media: String(q), get matches() { return evalMedia(q); }, onchange: null, addListener() {}, removeListener() {} });
@@ -3900,5 +3971,9 @@
 	g.requestIdleCallback = (cb) => setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 10 }), 1);
 	g.cancelIdleCallback = (id) => clearTimeout(id);
 	g.customElements = { define() {}, get: () => undefined, whenDefined: () => Promise.resolve(), upgrade() {} };
-	g.getComputedStyle = (el, pseudo) => (L.css ? L.css.computedStyle(el, pseudo) : declProxy(new CSSStyleDeclaration()));
+	g.getComputedStyle = (el, pseudo) => {
+		// Asking for a style runs the style pass a frame would.
+		if (fresh.size) D.styleTick();
+		return L.css ? L.css.computedStyle(el, pseudo) : declProxy(new CSSStyleDeclaration());
+	};
 })();
