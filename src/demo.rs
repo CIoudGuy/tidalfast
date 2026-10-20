@@ -8470,7 +8470,7 @@ mod tests {
                 playlist as fn(&mut App, &mut egui::Ui),
             ),
             ("Fragments", "Bonobo", album),
-            ("Bonobo", "followers", artist),
+            ("Bonobo", " fans", artist),
         ] {
             let painted = view_frame(&ctx, &mut app, vec![], view);
             let title = painted.iter().find(|(text, _)| text == title).unwrap().1;
@@ -8488,14 +8488,15 @@ mod tests {
         fn artist(app: &mut App, ui: &mut egui::Ui) {
             crate::ui::artist::show(app, ui, "art0");
         }
+        // TIDAL desktop: "19.1K fans" under an artist's name.
         assert_eq!(
             crate::ui::artist::followers_label(Locale::English, 1_951_000),
-            "1.9M followers"
+            "1.9M fans"
         );
         assert!(crate::ui::artist::followers_label(Locale::German, 19_118).contains("19,1K"));
         assert_eq!(
             crate::ui::artist::followers_label(Locale::English, 1),
-            "1 follower"
+            "1 fan"
         );
         let (ctx, mut app) = accessible_app("artist-followers");
         let page = app.artist_pages.get_mut("art0").unwrap();
@@ -8504,10 +8505,10 @@ mod tests {
         }
         page.followers = Loadable::Loaded(None);
         let painted = view_frame(&ctx, &mut app, vec![], artist);
-        assert!(!painted.iter().any(|(text, _)| text.contains("follower")));
+        assert!(!painted.iter().any(|(text, _)| text.ends_with(" fans")));
         app.artist_pages.get_mut("art0").unwrap().followers = Loadable::Loaded(Some(1_951_000));
         let painted = view_frame(&ctx, &mut app, vec![], artist);
-        assert!(painted.iter().any(|(text, _)| text == "1.9M followers"));
+        assert!(painted.iter().any(|(text, _)| text == "1.9M fans"));
         app.backend.shutdown();
     }
 
@@ -8538,7 +8539,7 @@ mod tests {
                 playlist as fn(&mut App, &mut egui::Ui),
             ),
             ("Fragments", "Bonobo", album),
-            ("Bonobo", "followers", artist),
+            ("Bonobo", " fans", artist),
         ] {
             let painted = view_frame(&ctx, &mut app, vec![], view);
             let title = painted.iter().find(|(text, _)| text == title).unwrap().1;

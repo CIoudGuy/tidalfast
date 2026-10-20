@@ -434,7 +434,8 @@ fn followers_count(page: &crate::model::ArtistPage, artist: &Artist) -> Option<u
     }
 }
 
-/// "1.9M followers": the compact count in the locale's decimal mark.
+/// "1.9M fans": an artist's followers as TIDAL desktop counts them under
+/// the name, the compact count in the locale's decimal mark.
 pub fn followers_label(locale: crate::i18n::Locale, count: u64) -> String {
     use crate::i18n::Locale;
     let compact = util::format_compact_count(count);
@@ -448,9 +449,10 @@ pub fn followers_label(locale: crate::i18n::Locale, count: u64) -> String {
     };
     ngettext(
         locale,
-        // Translators: {count} is a short number of followers, such as 1.9M.
-        "{count} follower",
-        "{count} followers",
+        // Translators: {count} is how many people follow an artist, a short
+        // number such as 1.9M.
+        "{count} fan",
+        "{count} fans",
         u32::try_from(count).unwrap_or(u32::MAX),
     )
     .replace("{count}", &compact)
