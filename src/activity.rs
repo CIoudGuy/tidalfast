@@ -172,7 +172,16 @@ impl MonthReport {
             .disclaimers
             .iter()
             .find(|note| !note.text.trim().is_empty())
-            .map(|note| (note.text.trim().to_string(), note.url.trim().to_string()));
+            .map(|note| {
+                // "Learn more" opens the address: only a web page.
+                let url = note.url.trim();
+                let url = if crate::opener::web_address(url).is_some() {
+                    url.to_string()
+                } else {
+                    String::new()
+                };
+                (note.text.trim().to_string(), url)
+            });
         Self {
             artists,
             days_left,
@@ -572,6 +581,32 @@ mod tests {
             month.disclaimer,
             Some(("We do our best.".into(), "https://example.com/x".into()))
         );
+    }
+
+    /// The note's "Learn more" goes to the system's opener, which runs
+    /// whatever the address names: a settings page, a program on a network
+    /// share, a file. Only a web address is kept.
+    #[test]
+    fn a_disclaimer_link_is_kept_only_when_it_is_a_web_address() {
+        let link = |url: &str| {
+            let text = format!(r#"{{"disclaimers": [{{"text": "Note", "url": {url:?}}}]}}"#);
+            MonthReport::from_tidal(&report(&text))
+                .disclaimer
+                .map(|(_, url)| url)
+        };
+        assert_eq!(
+            link("https://tidal.com/x").as_deref(),
+            Some("https://tidal.com/x")
+        );
+        for url in [
+            "ms-settings:privacy",
+            "file:///C:/Windows/System32/calc.exe",
+            r"\\host\share\run.exe",
+            "javascript:alert(1)",
+            "tidal://track/1",
+        ] {
+            assert_eq!(link(url).as_deref(), Some(""), "{url}");
+        }
     }
 
     #[test]
