@@ -447,6 +447,8 @@ pub fn end_frame(ctx: &egui::Context) {
             }
         }
         if !unchanged {
+            #[cfg(test)]
+            TREE_BUILDS.with(|n| n.set(n.get() + 1));
             let tree = dom_anchors::build(&frame);
             let send = match &s.sent {
                 Some(old) if *old == tree => false,
@@ -5228,6 +5230,17 @@ pub(crate) fn test_font_families(names: &[&str]) {
         s.font_names = names.iter().map(|n| (*n).to_string()).collect();
         s.element_fonts.clear();
     });
+}
+
+#[cfg(test)]
+thread_local! {
+    static TREE_BUILDS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many anchor trees this thread has built.
+#[cfg(all(test, feature = "demo"))]
+pub(crate) fn test_tree_builds() -> u64 {
+    TREE_BUILDS.with(std::cell::Cell::get)
 }
 
 #[cfg(test)]

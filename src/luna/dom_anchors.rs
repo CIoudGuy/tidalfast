@@ -715,6 +715,7 @@ pub struct PlayerBar {
     pub shuffle: bool,
     /// `off`, `all` or `one`.
     pub repeat: String,
+    /// Seconds played, in whole seconds as the time shows them.
     pub position: f32,
     pub duration: f32,
     /// 0..=1

@@ -381,7 +381,10 @@ fn note_player_bar(app: &App, rect: Rect, now: Option<&NowPlaying>, view_open: b
                 RepeatMode::Track => "one",
             }
             .into();
-            bar.position = now.position_ms as f32 / 1000.0;
+            // Whole seconds, all the anchors show: a frame noted again
+            // within the same second is then the frame before, and no
+            // tree is built to find that out.
+            bar.position = (now.position_ms / 1000) as f32;
             bar.duration = now.duration_ms as f32 / 1000.0;
             bar.volume = f32::from(now.volume_percent) / 100.0;
             bar.muted = now.volume_percent == 0;
