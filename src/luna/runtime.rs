@@ -340,6 +340,7 @@ impl Inner {
     /// it had open outside the sandbox goes, and calls waiting for a
     /// permission answer fail.
     fn close_plugin_io(&mut self, name: &str) {
+        super::downloads::stop_plugin(name);
         self.net.close_plugin(name);
         self.children.close_plugin(name);
         self.end_run(name);
@@ -1003,6 +1004,82 @@ fn op_sync(inner: &S, who: Who, name: &str, arg: &str) -> String {
         Err(e) => json!({ "err": e }),
     };
     out.to_string()
+}
+
+thread_local! {
+    /// The runtime `__fs_bytes` works for (one per Luna thread).
+    static FS_INNER: RefCell<Option<std::rc::Weak<RefCell<Inner>>>> = const { RefCell::new(None) };
+}
+
+/// `__fetch_take(token)`: a large fetched body, read from its file into one
+/// `ArrayBuffer` (see [`super::downloads`]); only the plugin that fetched it
+/// gets it.
+fn fetch_take<'js>(c: Ctx<'js>, token: String) -> rquickjs::Result<ArrayBuffer<'js>> {
+    let caller = super::caller::caller(&c);
+    let bytes = super::downloads::take(caller.plugin(), &token)
+        .map_err(|e| rquickjs::Exception::throw_message(&c, &e))?;
+    ArrayBuffer::new(c, bytes)
+}
+
+/// `__fs_bytes(json, plugin, ArrayBuffer?)`: [`fs_bytes`] from the shim.
+fn fs_bytes_js<'js>(
+    c: Ctx<'js>,
+    arg: String,
+    claimed: Option<String>,
+    data: Option<ArrayBuffer<'js>>,
+) -> rquickjs::Result<rquickjs::Value<'js>> {
+    let Some(inner) = FS_INNER.with(|f| f.borrow().as_ref().and_then(std::rc::Weak::upgrade))
+    else {
+        return Err(rquickjs::Exception::throw_message(
+            &c,
+            "EIO: the runtime is gone",
+        ));
+    };
+    let who = Who {
+        caller: super::caller::caller(&c),
+        claimed,
+    };
+    let a: Value = serde_json::from_str(&arg).unwrap_or(Value::Null);
+    let data = data.map(|b| bytes_of(&b, 0.0, b.len() as f64));
+    match fs_bytes(&inner, &who, &a, data) {
+        Ok(Some(bytes)) => Ok(ArrayBuffer::new(c, bytes)?.into_value()),
+        Ok(None) => Ok(rquickjs::Value::new_undefined(c)),
+        Err(e) => Err(rquickjs::Exception::throw_message(&c, &e)),
+    }
+}
+
+/// `fs` reads and writes with the bytes beside the JSON (`__fs_bytes`): a
+/// file a plugin keeps (a 100 MB model) never passes through base64, whose
+/// copies would not fit the plugins' memory. The same checks as the `fs`
+/// op.
+fn fs_bytes(
+    inner: &S,
+    who: &Who,
+    a: &Value,
+    data: Option<Vec<u8>>,
+) -> Result<Option<Vec<u8>>, String> {
+    let plugin = who.acting()?;
+    let home = {
+        let mut i = inner.borrow_mut();
+        if i.record(&plugin).is_none() {
+            return Err(format!("EACCES: unknown plugin {plugin}"));
+        }
+        i.used(&plugin, Permission::PluginFiles);
+        i.storage.data_dir(&plugin)
+    };
+    let path = str_of(a, "path");
+    match str_of(a, "op") {
+        "read" => super::fsops::read_bytes(&plugin, &home, path).map(Some),
+        "write" => super::fsops::write_bytes(
+            &plugin,
+            &home,
+            path,
+            &data.unwrap_or_default(),
+            a["append"].as_bool() == Some(true),
+        )
+        .map(|()| None),
+        op => Err(format!("EINVAL: fs {op} has no bytes")),
+    }
 }
 
 fn str_of<'a>(a: &'a Value, k: &str) -> &'a str {
@@ -2200,7 +2277,7 @@ fn op_async(inner: &S, who: Who, name: String, arg: String, id: f64) {
             if let Some(p) = &plugin {
                 i.used(p, Permission::Network);
             }
-            Some(i.plugin_http())
+            Some((i.plugin_http(), i.storage.spool_dir()))
         } else {
             None
         };
@@ -2336,7 +2413,10 @@ fn op_async_run(
     name: &str,
     a: &Value,
     host: &dyn LunaHost,
-    http: Option<Result<reqwest::blocking::Client, String>>,
+    http: Option<(
+        Result<reqwest::blocking::Client, String>,
+        std::path::PathBuf,
+    )>,
     writes: &super::writes::Grants,
 ) -> Result<Value, String> {
     let id = str_of(a, "id");
@@ -2363,7 +2443,8 @@ fn op_async_run(
                     verdict => verdict,
                 }
             };
-            fetch(http.ok_or("no http client")??, a, &ask)
+            let (client, spool) = http.ok_or("no http client")?;
+            fetch(client?, a, &ask, &spool)
         }
         // `dns.lookup` of a name: asked like a connection to it, then the
         // system resolver answers.
@@ -2678,7 +2759,12 @@ pub(super) fn plugin_client_builder() -> reqwest::blocking::ClientBuilder {
         .http1_only()
 }
 
-fn fetch(client: reqwest::blocking::Client, a: &Value, ask: &AskHop<'_>) -> Result<Value, String> {
+fn fetch(
+    client: reqwest::blocking::Client,
+    a: &Value,
+    ask: &AskHop<'_>,
+    spool: &std::path::Path,
+) -> Result<Value, String> {
     let mut url = url::Url::parse(str_of(a, "url")).map_err(|e| format!("Invalid URL: {e}"))?;
     let mut method =
         reqwest::Method::from_bytes(str_of(a, "method").as_bytes()).unwrap_or(reqwest::Method::GET);
@@ -2757,21 +2843,25 @@ fn fetch(client: reqwest::blocking::Client, a: &Value, ask: &AskHop<'_>) -> Resu
         headers.insert(k, json!(merged));
     }
     let final_url = resp.url().to_string();
-    let mut body = Vec::new();
-    use std::io::Read;
-    resp.take(MAX_BODY as u64 + 1)
-        .read_to_end(&mut body)
-        .map_err(|e| format!("fetch failed: {e}"))?;
-    if body.len() > MAX_BODY {
-        return Err("fetch: response too large".into());
-    }
-    Ok(json!({
+    // A large body (an AI model) goes to a file as it arrives, shown on the
+    // Plugins page and cut off when the plugin stops; the page reads it
+    // straight into an ArrayBuffer (`__fetch_take`).
+    let plugin = a.get("plugin").and_then(Value::as_str);
+    let total = resp.content_length();
+    let mut out = json!({
         "status": status.as_u16(),
         "statusText": status.canonical_reason().unwrap_or_default(),
         "headers": headers,
         "url": final_url,
-        "body": B64.encode(body),
-    }))
+    });
+    match super::downloads::read_body(resp, total, plugin, &final_url, spool)? {
+        super::downloads::Body::Memory(body) => out["body"] = json!(B64.encode(body)),
+        super::downloads::Body::File { token, size } => {
+            out["file"] = json!(token);
+            out["size"] = json!(size);
+        }
+    }
+    Ok(out)
 }
 
 // ------------------------------------------------------------------ engine
@@ -4607,6 +4697,8 @@ fn setup(
             accelerator,
         });
     }));
+    // Bodies a run that ended abruptly left half downloaded.
+    super::downloads::sweep(&Storage::new(cfg.data_dir.clone()).spool_dir());
     let inner: S = Rc::new(RefCell::new(Inner {
         storage: Storage::new(cfg.data_dir.clone()),
         cfg,
@@ -4752,6 +4844,9 @@ fn setup(
         g.set("__utf8_dec", Function::new(ctx.clone(), utf8_dec)?)?;
         g.set("__b64_enc", Function::new(ctx.clone(), b64_enc)?)?;
         g.set("__b64_dec", Function::new(ctx.clone(), b64_dec)?)?;
+        g.set("__fetch_take", Function::new(ctx.clone(), fetch_take)?)?;
+        FS_INNER.with(|f| *f.borrow_mut() = Some(Rc::downgrade(&inner)));
+        g.set("__fs_bytes", Function::new(ctx.clone(), fs_bytes_js)?)?;
         {
             let host = inner.borrow().host.clone();
             let notify: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
@@ -4839,7 +4934,7 @@ const ENTRY_POINTS: &[&str] = &[
 
 /// Removes the natives and entry points from the global object once the
 /// shims hold them.
-const LOCKDOWN: &str = r#"for (const k of ["__op", "__op_async", "__caller", "__eval", "__utf8_enc", "__utf8_dec", "__b64_enc", "__b64_dec", "__canvas", "__wasm", "__video", "__depth", "__luna_module", "__lunaInternal", "__luna_host", "__luna_tick", "__luna_resolve", "__luna_dispatch", "__luna_dom", "__luna_net", "__luna_ipc", "__luna_child"]) delete globalThis[k];"#;
+const LOCKDOWN: &str = r#"for (const k of ["__op", "__op_async", "__caller", "__eval", "__utf8_enc", "__utf8_dec", "__b64_enc", "__b64_dec", "__fetch_take", "__fs_bytes", "__canvas", "__wasm", "__video", "__depth", "__luna_module", "__lunaInternal", "__luna_host", "__luna_tick", "__luna_resolve", "__luna_dispatch", "__luna_dom", "__luna_net", "__luna_ipc", "__luna_child"]) delete globalThis[k];"#;
 
 fn run(
     cfg: LunaConfig,

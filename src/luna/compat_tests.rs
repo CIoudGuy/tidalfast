@@ -939,3 +939,58 @@ R.done = true;
     assert_eq!(r["stream"], "abc", "{r}");
     assert_eq!(r["compressed"], "ERR_BROTLI_DECOMPRESSION_FAILED", "{r}");
 }
+
+/// A model a plugin downloads past the old 64 MB cap (@visiuun/3d-cover's
+/// 102 MB "Base" depth model): the body goes to a spool file as it
+/// arrives, `arrayBuffer()` reads it into one buffer, and the plugin's own
+/// cache file is written and read back without base64 (whose copies would
+/// not fit the plugins' memory at that size). The test body is just past
+/// the in-memory limit, to keep its files small.
+#[test]
+fn a_large_download_is_spooled_and_cached_without_base64() {
+    let size = super::downloads::SPOOL_AT + (1 << 20);
+    let model: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+    let files: Files = Arc::default();
+    files.lock().unwrap().insert("/model.onnx".into(), model);
+    let base = serve(files);
+    let body = r#"
+const url = "__BASE__/model.onnx";
+await check("page", async () => {
+	const r = await fetch(url);
+	const b = new Uint8Array(await r.arrayBuffer());
+	return [b.length, b[0], b[251], b[b.length - 1]].join(",");
+});
+await check("twice", async () => {
+	const r = await fetch(url);
+	await r.arrayBuffer();
+	return r.text().then(() => "read again", (e) => "refused");
+});
+const n = await native("Compat/model.native.ts", `"use strict";
+const fs = require("fs");
+exports.cache = async (url) => {
+	const r = await fetch(url);
+	const data = new Uint8Array(await r.arrayBuffer());
+	fs.writeFileSync("model.bin.tmp", data);
+	fs.renameSync("model.bin.tmp", "model.bin");
+	const back = fs.readFileSync("model.bin");
+	return [back.length, back[1], back[back.length - 1], fs.readFileSync("model.bin", "latin1").length].join(",");
+};
+`);
+await check("native", () => n("cache", url));
+R.done = true;
+"#
+    .replace("__BASE__", &base);
+    let (r, luna, _host, dir) = run("Compat", &body);
+    let last = ((size - 1) % 251) as u8;
+    assert_eq!(r["page"], format!("{size},0,0,{last}"), "{r}");
+    assert_eq!(r["twice"], "refused", "{r}");
+    assert_eq!(r["native"], format!("{size},1,{last},{size}"), "{r}");
+    let spool = dir.join("spool");
+    assert_eq!(
+        std::fs::read_dir(&spool).map(|d| d.count()).unwrap_or(0),
+        0,
+        "the bodies were taken and deleted"
+    );
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -6,6 +6,8 @@
 //   __eval(code, filename)              evaluate shim-made code under a module name
 //   __utf8_enc(str) -> ArrayBuffer, __utf8_dec(ArrayBuffer, offset, length) -> string
 //   __b64_enc(ArrayBuffer, offset, length) -> string, __b64_dec(string) -> ArrayBuffer
+//   __fetch_take(token) -> ArrayBuffer   a large fetched body, read once from its file
+//   __fs_bytes(json, plugin, ArrayBuffer?) -> ArrayBuffer | undefined   fs read/write without base64
 // The shims keep them (and `__lunaInternal`) in closures; Rust deletes the
 // globals before any plugin code runs, so plugins reach the host only
 // through the shims, and Rust checks every identity a shim passes against
@@ -25,6 +27,8 @@
 		utf8dec: g.__utf8_dec,
 		b64enc: g.__b64_enc,
 		b64dec: g.__b64_dec,
+		fetchTake: g.__fetch_take,
+		fsBytes: g.__fs_bytes,
 	};
 	const stringify = JSON.stringify;
 	const parse = JSON.parse;
@@ -59,6 +63,8 @@
 	lunaInternal.evalAs = native.eval;
 	lunaInternal.b64encRaw = native.b64enc;
 	lunaInternal.b64decRaw = native.b64dec;
+	// fs reads and writes with the bytes as they are (node.js's fs shim).
+	lunaInternal.fsBytes = (arg, data) => native.fsBytes(stringify(arg), actor(arg), data);
 
 	// Which plugin is running the current code. Without a stack: the
 	// innermost plugin on the live call stack, which Rust reads from the
@@ -884,6 +890,8 @@
 	class Response {
 		constructor(body, init = {}) {
 			this._bytes = bodyBytes(body) ?? new Uint8Array(0);
+			// A large fetched body waits in a file until it is read.
+			this._file = init._file;
 			this.status = init.status ?? 200;
 			this.statusText = init.statusText ?? "";
 			this.headers = new Headers(init.headers);
@@ -898,6 +906,14 @@
 		#use() {
 			if (this.bodyUsed) throw new TypeError("Body has already been consumed.");
 			this.bodyUsed = true;
+			return this.#load();
+		}
+		#load() {
+			if (this._file !== undefined) {
+				const token = this._file;
+				this._file = undefined;
+				this._bytes = new Uint8Array(native.fetchTake(token));
+			}
 			return this._bytes;
 		}
 		async text() {
@@ -907,7 +923,9 @@
 			return JSON.parse(await this.text());
 		}
 		async arrayBuffer() {
-			return this.#use().slice().buffer;
+			const b = this.#use();
+			// A whole buffer read from its file is the plugin's alone: no copy.
+			return this._fromFile && b.byteOffset === 0 && b.byteLength === b.buffer.byteLength ? b.buffer : b.slice().buffer;
 		}
 		async bytes() {
 			return this.#use().slice();
@@ -916,7 +934,7 @@
 			return new Blob([this.#use()], { type: this.headers.get("content-type") ?? "" });
 		}
 		clone() {
-			return new Response(this._bytes.slice(), { status: this.status, statusText: this.statusText, headers: this.headers, url: this.url });
+			return new Response(this.#load().slice(), { status: this.status, statusText: this.statusText, headers: this.headers, url: this.url });
 		}
 		static json(data, init = {}) {
 			const h = new Headers(init.headers);
@@ -985,6 +1003,11 @@
 		const res = await (signal
 			? Promise.race([work, new Promise((_, rej) => signal.addEventListener("abort", () => rej(signal.reason)))])
 			: work);
+		if (typeof res.file === "string") {
+			const r = new Response(null, { status: res.status, statusText: res.statusText, headers: res.headers, url: res.url, _file: res.file });
+			r._fromFile = true;
+			return r;
+		}
 		return new Response(lunaInternal.b64dec(res.body), { status: res.status, statusText: res.statusText, headers: res.headers, url: res.url });
 	};
 

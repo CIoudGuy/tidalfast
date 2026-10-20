@@ -2515,3 +2515,25 @@ fn an_installed_plugin_row_shows_the_pill_and_its_reason() {
     );
     assert!(!all.iter().any(|t| t.starts_with("Partly supported")));
 }
+
+
+/// A plugin's large download (an AI model) shows how far it got, with the
+/// file's name.
+#[test]
+fn a_large_download_shows_how_far_it_got() {
+    let d = crate::luna::downloads::Progress {
+        plugin: "@visiuun/3d-cover".into(),
+        url: "https://huggingface.co/onnx-community/depth-anything-v2-base/resolve/main/onnx/model.onnx?download=true".into(),
+        received: 45 << 20,
+        total: Some(102 << 20),
+    };
+    assert_eq!(
+        download_line(Locale::English, &d),
+        "Downloading 45 of 102 MB (model.onnx)"
+    );
+    let unknown = crate::luna::downloads::Progress { total: None, ..d };
+    assert_eq!(
+        download_line(Locale::English, &unknown),
+        "Downloading 45 MB (model.onnx)"
+    );
+}

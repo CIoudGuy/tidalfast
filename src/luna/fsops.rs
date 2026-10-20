@@ -206,20 +206,7 @@ fn granted_op(path: &Path, p: &str, op: &str, arg: &Value) -> Result<Value, Stri
             let data = B64
                 .decode(arg["data"].as_str().unwrap_or_default())
                 .map_err(|e| format!("EINVAL: {e}"))?;
-            if data.len() as u64 > PLUGIN_QUOTA {
-                return Err(format!("ENOSPC: no space left on device, write '{p}'"));
-            }
-            if arg["append"].as_bool() == Some(true) {
-                use std::io::Write;
-                let mut f = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(path)
-                    .map_err(|e| io_err(e, "open", p))?;
-                f.write_all(&data).map_err(|e| io_err(e, "write", p))?;
-            } else {
-                super::storage::write_atomic(path, &data).map_err(|e| io_err(e, "open", p))?;
-            }
+            write_granted(path, p, &data, arg["append"].as_bool() == Some(true))?;
             Ok(Value::Null)
         }
         "mkdir" => {
@@ -255,6 +242,86 @@ fn granted_op(path: &Path, p: &str, op: &str, arg: &Value) -> Result<Value, Stri
             "EACCES: permission denied, '{p}' is outside this plugin's data folder"
         )),
     }
+}
+
+/// A write to a path the user picked.
+fn write_granted(path: &Path, p: &str, data: &[u8], append: bool) -> Result<(), String> {
+    if data.len() as u64 > PLUGIN_QUOTA {
+        return Err(format!("ENOSPC: no space left on device, write '{p}'"));
+    }
+    if append {
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|e| io_err(e, "open", p))?;
+        f.write_all(data).map_err(|e| io_err(e, "write", p))?;
+    } else {
+        super::storage::write_atomic(path, data).map_err(|e| io_err(e, "open", p))?;
+    }
+    Ok(())
+}
+
+/// A write in the plugin's data folder `home`, within `quota`.
+fn write_within(
+    home: &Path,
+    path: &Path,
+    p: &str,
+    data: &[u8],
+    append: bool,
+    quota: u64,
+) -> Result<(), String> {
+    let len = data.len() as u64;
+    if append {
+        reserve(home, len, quota, p)?;
+        use std::io::Write;
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .map_err(|e| io_err(e, "open", p))?;
+        f.write_all(data).map_err(|e| io_err(e, "write", p))?;
+    } else {
+        let old = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        reserve(home, len.saturating_sub(old), quota, p)?;
+        super::storage::write_atomic(path, data).map_err(|e| io_err(e, "open", p))?;
+        if old > len {
+            forget_usage(home);
+        }
+    }
+    Ok(())
+}
+
+/// `fs.readFile` for `plugin` with the bytes as they are (no base64), from
+/// its data folder `home` or a path the user picked for it.
+pub fn read_bytes(plugin: &str, home: &Path, p: &str) -> Result<Vec<u8>, String> {
+    let path = match granted_path(&granted_to(plugin), p) {
+        Some(path) => path,
+        None => {
+            std::fs::create_dir_all(home)
+                .map_err(|e| io_err(e, "mkdir", &home.to_string_lossy()))?;
+            resolve(home, p)?
+        }
+    };
+    std::fs::read(&path).map_err(|e| io_err(e, "open", p))
+}
+
+/// `fs.writeFile`/`appendFile` for `plugin` with the bytes as they are (no
+/// base64: a 100 MB model as base64 would not fit the plugins' memory).
+pub fn write_bytes(
+    plugin: &str,
+    home: &Path,
+    p: &str,
+    data: &[u8],
+    append: bool,
+) -> Result<(), String> {
+    if let Some(path) = granted_path(&granted_to(plugin), p) {
+        return write_granted(&path, p, data, append);
+    }
+    std::fs::create_dir_all(home).map_err(|e| io_err(e, "mkdir", &home.to_string_lossy()))?;
+    let path = resolve(home, p)?;
+    write_within(home, &path, p, data, append, PLUGIN_QUOTA)
 }
 
 /// The most a plugin may keep in its data folder.
@@ -384,24 +451,14 @@ fn fs_op_within(home: &Path, arg: &Value, quota: u64, granted: &[Pick]) -> Resul
             let data = B64
                 .decode(arg["data"].as_str().unwrap_or_default())
                 .map_err(|e| format!("EINVAL: {e}"))?;
-            let len = data.len() as u64;
-            if arg["append"].as_bool() == Some(true) {
-                reserve(home, len, quota, p)?;
-                use std::io::Write;
-                let mut f = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&path)
-                    .map_err(|e| io_err(e, "open", p))?;
-                f.write_all(&data).map_err(|e| io_err(e, "write", p))?;
-            } else {
-                let old = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-                reserve(home, len.saturating_sub(old), quota, p)?;
-                super::storage::write_atomic(&path, &data).map_err(|e| io_err(e, "open", p))?;
-                if old > len {
-                    forget_usage(home);
-                }
-            }
+            write_within(
+                home,
+                &path,
+                p,
+                &data,
+                arg["append"].as_bool() == Some(true),
+                quota,
+            )?;
             Ok(Value::Null)
         }
         "mkdir" => {
