@@ -651,7 +651,9 @@ fn now_playing_block(
         if now.artists.is_empty() {
             theme::link(ui, &now.subtitle, theme::regular(12.0), artist_color);
         } else {
-            super::widgets::artist_links(ui, app, &now.artists, theme::regular(12.0), artist_color);
+            let artists =
+                plugin_dom::artist_names(&now.artists, |i| format!("{}:{i}", keys::ARTIST));
+            super::widgets::artist_links(ui, app, &artists, theme::regular(12.0), artist_color);
         }
     });
     if plugin_dom::on() {

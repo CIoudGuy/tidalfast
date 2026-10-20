@@ -751,9 +751,12 @@ fn floating_contents(app: &mut App, ui: &mut egui::Ui) {
     egui::Sides::new().show(
         ui,
         |ui| {
+            // A plugin may rewrite the heading (a translation).
+            let native = gettext(locale, "Play queue");
             let title = theme::text(
                 ui,
-                gettext(locale, "Play queue"),
+                super::plugin_dom::text(crate::luna::dom_anchors::keys::QUEUE_TITLE, &native)
+                    .as_ref(),
                 theme::bold(19.0),
                 palette.text,
             );
