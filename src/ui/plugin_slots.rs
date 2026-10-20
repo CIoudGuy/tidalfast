@@ -849,6 +849,8 @@ struct Inherit {
     family: Option<u32>,
     /// `text-transform: uppercase`.
     upper: bool,
+    /// SVG `fill` set by CSS on the element or an ancestor.
+    fill: Option<Color32>,
 }
 
 impl Inherit {
@@ -862,6 +864,7 @@ impl Inherit {
             italic: false,
             family: None,
             upper: false,
+            fill: None,
         }
     }
 }
@@ -3169,6 +3172,9 @@ fn draw_box(
     if let Some(t) = &style.text_transform {
         inherit.upper = t.trim() == "uppercase";
     }
+    if let Some(fill) = cx.color(&style.fill) {
+        inherit.fill = Some(fill);
+    }
     if node.tag == "#text" {
         let Some(text) = node.text.as_deref().filter(|t| !t.trim().is_empty()) else {
             return false;
@@ -3375,13 +3381,13 @@ fn draw_box(
         // Painted below; the frame keeps the border's room.
     } else if let Some(fill) = fill {
         frame = frame.fill(fill);
-    } else if is_button && gradient.is_none() {
-        frame = frame.fill(ui.visuals().widgets.inactive.weak_bg_fill);
     }
+    // A bare `<button>` as TIDAL draws one: its stylesheet takes away the
+    // background and border, Chromium's `padding: 1px 6px` stays.
     if let Some(p) = padding {
         frame = frame.inner_margin(margin_of(p));
     } else if is_button {
-        frame = frame.inner_margin(Margin::symmetric(8, 4));
+        frame = frame.inner_margin(Margin::symmetric(6, 1));
     }
     if let Some(m) = margin {
         frame = frame.outer_margin(margin_of(m));
@@ -3399,11 +3405,6 @@ fn draw_box(
     {
         frame = frame.shadow(shadow);
     }
-    let radius = if is_button && style.border_radius.is_none() {
-        6.0
-    } else {
-        radius
-    };
     frame = frame.corner_radius(CornerRadius::same(radius.clamp(0.0, 255.0) as u8));
 
     let row = if display.contains("flex") {
@@ -3868,17 +3869,6 @@ fn draw_box(
     {
         response.clone().on_hover_text(title);
     }
-    if is_button && response.hovered() && fill.is_none() {
-        ui.painter().rect_filled(
-            rect,
-            CornerRadius::same(radius as u8),
-            ui.visuals()
-                .widgets
-                .hovered
-                .weak_bg_fill
-                .gamma_multiply(0.5),
-        );
-    }
     events(ui, node, &response);
     true
 }
@@ -4047,7 +4037,7 @@ fn leaf(
                     h.unwrap_or(inherit.size + 4.0),
                 ),
             };
-            let Some(source) = image_source(node, inherit.color) else {
+            let Some(source) = image_source(node, inherit.color, inherit.fill) else {
                 let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
                 let _ = rect;
                 return true;
@@ -4093,10 +4083,35 @@ enum ImageSource {
 }
 
 /// Where an `img`/`svg` element's picture comes from. SVG markup is drawn
-/// by egui_extras' resvg loader; `currentColor` takes the text colour.
-fn image_source(node: &VNode, color: Color32) -> Option<ImageSource> {
+/// by egui_extras' resvg loader; `currentColor` takes the text colour, and
+/// TIDAL's sprite icons (`__luna-paint__`) the CSS `fill`, else the text
+/// colour.
+fn image_source(node: &VNode, color: Color32, fill: Option<Color32>) -> Option<ImageSource> {
     let markup = node.markup.as_deref().or_else(|| attr(node, "src"))?;
+    if markup.contains(PAINT) {
+        return source_of(&sprite_paint(markup, fill.unwrap_or(color)), color);
+    }
     source_of(markup, color)
+}
+
+/// What the DOM shim writes for the paint of a TIDAL sprite icon.
+const PAINT: &str = "__luna-paint__";
+
+/// `fill="__luna-paint__"` / `stroke="__luna-paint__"` as `paint`, its
+/// alpha as the matching opacity (resvg reads no alpha in a colour).
+fn sprite_paint(markup: &str, paint: Color32) -> String {
+    let [r, g, b, a] = paint.to_srgba_unmultiplied();
+    let mut out = markup.to_string();
+    for attr in ["fill", "stroke"] {
+        out = out.replace(
+            &format!("{attr}=\"{PAINT}\""),
+            &format!(
+                "{attr}=\"#{r:02x}{g:02x}{b:02x}\" {attr}-opacity=\"{:.3}\"",
+                f32::from(a) / 255.0
+            ),
+        );
+    }
+    out
 }
 
 /// An image from SVG markup, a data: URL or an http(s) URL.
@@ -5546,7 +5561,7 @@ mod tests {
             ..VNode::default()
         };
         let Some(ImageSource::Bytes(uri, bytes)) =
-            image_source(&node, Color32::from_rgb(255, 0, 0))
+            image_source(&node, Color32::from_rgb(255, 0, 0), None)
         else {
             panic!("svg source");
         };
@@ -6212,6 +6227,86 @@ mod tests {
             for ((_, x), left) in texts.iter().zip([100.0, 200.0, 310.0]) {
                 assert!((x - left).abs() < 1.0, "{texts:?}");
             }
+        }
+        plugin_dom::test_overlay(None);
+    }
+
+    /// TIDAL's sprite icons take the CSS `fill` an ancestor sets (LuckyLP's
+    /// 60 % white), with its alpha as an opacity, else the text colour.
+    #[test]
+    fn sprite_icons_take_the_inherited_fill_else_the_text_colour() {
+        let node = VNode {
+            tag: "svg".into(),
+            markup: Some(
+                r#"<svg viewBox="0 0 20 20"><svg viewBox="0 0 24 24" width="100%" height="100%"><path d="M0 0" fill="none" stroke="__luna-paint__"/></svg></svg>"#.into(),
+            ),
+            ..VNode::default()
+        };
+        let svg = |fill| match image_source(&node, Color32::from_rgb(1, 2, 3), fill) {
+            Some(ImageSource::Bytes(_, bytes)) => String::from_utf8(bytes).unwrap(),
+            _ => panic!("no svg"),
+        };
+        let filled = svg(Some(Color32::from_rgba_unmultiplied(255, 255, 255, 153)));
+        assert!(
+            filled.contains(r##"stroke="#ffffff" stroke-opacity="0.600""##),
+            "{filled}"
+        );
+        let plain = svg(None);
+        assert!(
+            plain.contains(r##"stroke="#010203" stroke-opacity="1.000""##),
+            "{plain}"
+        );
+    }
+
+    /// A bare `<button>` looks as TIDAL draws one: no background (TIDAL's
+    /// stylesheet takes it away), not even on hover. Tidalfast gave it a
+    /// grey rounded box, so LuckyLP's shuffle sat on a tile.
+    #[test]
+    fn a_bare_button_has_no_background() {
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: "bare".into(),
+                position: Position::After,
+                nodes: vec![VNode {
+                    id: 1,
+                    tag: "button".into(),
+                    children: vec![text(2, "Go")],
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        }));
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut shapes = Vec::new();
+        for pointer in [None, Some(egui::pos2(110.0, 50.0))] {
+            for _ in 0..3 {
+                let input = egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0))),
+                    events: pointer.map(egui::Event::PointerMoved).into_iter().collect(),
+                    ..egui::RawInput::default()
+                };
+                let mut out = ctx.run_ui(input, |ui| {
+                    at(
+                        ui,
+                        "bare",
+                        Position::After,
+                        egui::pos2(100.0, 50.0),
+                        Align2::LEFT_CENTER,
+                    );
+                });
+                out.textures_delta.clear();
+                shapes = out.shapes;
+            }
+            let fills: Vec<Color32> = shapes
+                .iter()
+                .filter_map(|s| match &s.shape {
+                    egui::Shape::Rect(r) if r.fill.a() > 0 => Some(r.fill),
+                    _ => None,
+                })
+                .collect();
+            assert!(fills.is_empty(), "hover {pointer:?}: {fills:?}");
         }
         plugin_dom::test_overlay(None);
     }

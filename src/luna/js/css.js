@@ -707,7 +707,7 @@
 		return out + value.slice(i);
 	};
 	D.resolveVars = resolveVars;
-	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "margin-left", "margin-right", "column-gap", "padding-top", "padding-left", "padding-right", "padding-bottom", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "border-color", "letter-spacing", "text-transform", "white-space", "flex", "order", "pointer-events", "background-position", "background-size", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns"]);
+	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "margin-left", "margin-right", "column-gap", "padding-top", "padding-left", "padding-right", "padding-bottom", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "border-color", "letter-spacing", "text-transform", "fill", "white-space", "flex", "order", "pointer-events", "background-position", "background-size", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns"]);
 	const ANIM_LONG = ["animation-name", "animation-duration", "animation-delay", "animation-iteration-count", "animation-direction", "animation-timing-function", "animation-play-state", "animation-fill-mode"];
 	const seconds = (t) => (/ms$/i.test(t) ? parseFloat(t) / 1000 : parseFloat(t));
 	// A timing function as one word for the lists below: lower case, no spaces
@@ -822,7 +822,7 @@
 		}
 		return out;
 	};
-	const INHERITED = new Set(["color", "font-family", "font-size", "font-weight", "font-style", "visibility", "line-height", "text-align", "cursor", "letter-spacing", "text-transform", "white-space", "direction"]);
+	const INHERITED = new Set(["color", "font-family", "font-size", "font-weight", "font-style", "visibility", "line-height", "text-align", "cursor", "letter-spacing", "text-transform", "fill", "white-space", "direction"]);
 	const isImage = (v) => /url\(|gradient\(|image-set\(/i.test(v);
 	// The colour in a `background` shorthand without an image (`0 0`,
 	// `red`, `center / cover #111`): transparent when it names none.
@@ -879,6 +879,21 @@
 			else if (name === "translate" || name === "rotate" || name === "scale") {
 				if (!/^none$/i.test(v.trim())) set(`-${name}`, v);
 			}
+		}
+		// `margin-left` / `-right` (LuckyLP's 16px gap after the title) and
+		// the other sides written apart from `margin`: the later of the
+		// shorthand and each side wins, in one `margin` value.
+		if (decls.has("margin-left") || decls.has("margin-right")) {
+			const keys = [...decls.keys()];
+			const short = keys.indexOf("margin");
+			const [t, r = t, b = t, l = r] = (st.margin ?? "0").trim().split(/\s+/);
+			const side = { "margin-top": t, "margin-right": r, "margin-bottom": b, "margin-left": l };
+			for (const k of Object.keys(side)) {
+				if (!decls.has(k) || keys.indexOf(k) < short) continue;
+				const v = resolveVars(decls.get(k), vars).trim();
+				if (v && !/^(initial|unset|revert|revert-layer|inherit)$/i.test(v)) side[k] = v;
+			}
+			st.margin = Object.values(side).join(" ");
 		}
 		// `outline-style` / `-width` / `-color` written apart (the cotton candy
 		// family's thumbnails) make one `outline` value; the width defaults
@@ -981,7 +996,15 @@
 	const ROOTS = () => [g.document.documentElement, g.document.body, D.wimp];
 	// Resolved style of every element plugins styled, plus :root variables,
 	// the page style and fonts.
-	const NO_VARS = new Map();
+	// TIDAL's own `:root` variables, as plugins read them back
+	// (`getComputedStyle(document.documentElement)`) or use them in their
+	// CSS; measured in TIDAL 2.43.2. They are not a theme's: they never
+	// reach the overlay's variables, which recolour Tidalfast.
+	const TIDAL_VARS = [
+		["--wave-color-opacity-contrast-fill-thick", "#fff9"],
+		["--wave-color-opacity-contrast-fill-ultra-thick", "#fffc"],
+	];
+	const NO_VARS = new Map(TIDAL_VARS);
 	let rootMemo = null;
 	const compute = () => {
 		const t0 = L.stat ? Date.now() : 0;
@@ -1111,7 +1134,7 @@
 		const ix = buildIndex();
 		const chain = [];
 		for (let n = el; n instanceof g.Element; n = n.parentNode) chain.unshift(n);
-		let vars = new Map();
+		let vars = new Map(TIDAL_VARS);
 		const props = new Map();
 		for (const n of chain) {
 			const d = cascade(ix, n);

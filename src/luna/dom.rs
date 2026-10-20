@@ -147,6 +147,9 @@ pub struct Style {
     pub border_color: Option<String>,
     pub letter_spacing: Option<String>,
     pub text_transform: Option<String>,
+    /// SVG paint (`fill`), inherited: TIDAL's sprite icons take it
+    /// (LuckyLP's 60 % white shuffle).
+    pub fill: Option<String>,
     pub white_space: Option<String>,
     pub flex: Option<String>,
     pub order: Option<String>,

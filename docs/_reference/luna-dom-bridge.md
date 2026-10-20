@@ -106,7 +106,12 @@ the overlay goes out at most every 33 ms, so the style an element with a
 callbacks, or when `getComputedStyle` asks) goes with the first overlay
 that shows it as `VNode::from`.
 `getComputedStyle` returns the cascade with inherited values, variables in
-scope, and the rect size.
+scope, and the rect size. TIDAL's own `:root` variables that plugins read
+back are defined (measured in TIDAL 2.43.2:
+`--wave-color-opacity-contrast-fill-thick` `#fff9`, `-ultra-thick` `#fffc`,
+LuckyLP's icon colours); they are not a theme's and never recolour the app.
+`margin-left`/`-right` written apart fold into `margin`; `fill` and
+`text-transform: uppercase` are inherited and drawn.
 
 **Selectors.** Type, `#id`, `.class`, attributes with `= ~= |= ^= $= *=`
 and the `i` flag, `:not :is :where :has` (relative, `> + ~`), `:scope`,
@@ -350,7 +355,9 @@ oneko), and right-clicks as `contextmenu` (element-hider).
   `button._profilePicture_ > svg`; a plugin `background-image: url()` on it
   is drawn as the avatar.
 - Pages: `h1[data-test=title]` on collection grids, Tracks and album/
-  playlist heroes (Append/After); `div._dataContainer_` with `_metaLine_ >
+  playlist heroes (Append/After; what follows the title starts right at it,
+  its own margins make the gap, and the collection's "..." moves along by
+  its width, as in TIDAL's flex row); `div._dataContainer_` with `_metaLine_ >
   span[data-test=meta-release-date]`; `input[data-test=playlist-filter-input]`
   with the native filter text. On the Plugins page (TidaLuna's settings
   page) the `h1` text override and colour are drawn and what plugins append
@@ -376,7 +383,11 @@ oneko), and right-clicks as `contextmenu` (element-hider).
 - Runtime: `createRoot`/`ReactDOM.render` build real DOM (hooks, memo,
   forwardRef, context, fragments); a hidden sprite defines TIDAL's
   `player__shuffle/play/pause/next/previous/repeat/heart` and `<use>` is
-  inlined into drawn SVG; `ContextMenu.getCurrent()` is the real menu node;
+  inlined into drawn SVG, the symbol in its own 24-unit box scaled to the
+  svg's and painted with the CSS `fill` it inherits, else the text colour
+  (the shuffle is the one Tidalfast draws for TIDAL's button; the others
+  are Material glyphs). A bare `<button>` is drawn as TIDAL's stylesheet
+  leaves it: no background or border, Chromium's `padding: 1px 6px`; `ContextMenu.getCurrent()` is the real menu node;
   `mix/LOAD_TRACK_MIX_ID` answers `_SUCCESS {id, mixId}`; files dropped on the
   window reach `drop` listeners with `dataTransfer.files` (`File` with
   `arrayBuffer()`, up to 64 MB); `MediaItem.coverUrl()` falls back to the
