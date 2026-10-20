@@ -174,9 +174,183 @@ fn the_catalogue_has_standalone_themes_with_raw_urls() {
     for e in CATALOG {
         assert!(e.url().starts_with("https://raw.githubusercontent.com/"));
         assert!(e.path.ends_with(".css"));
+        assert!(!e.url().contains(' '), "{}", e.url());
+        if let Some(base) = e.base {
+            assert!(!base.paths.is_empty() && base.paths.iter().all(|p| p.ends_with(".css")));
+            assert_ne!(e.base_url(), Some(e.url()), "{}", e.name);
+        }
+        // Card text says what it is in plain words.
+        for text in [e.name, e.description] {
+            assert!(!text.contains('\u{2014}'), "no em dash: {text}");
+        }
     }
     let names: std::collections::HashSet<_> = CATALOG.iter().map(|e| e.name).collect();
     assert_eq!(names.len(), CATALOG.len());
+    let urls: std::collections::HashSet<_> = CATALOG.iter().map(|e| e.url()).collect();
+    assert_eq!(urls.len(), CATALOG.len(), "each file once");
+}
+
+/// Some colourways live in folders with spaces in their names
+/// (`halloween collection/`): their links are percent-encoded, as raw GitHub
+/// links must be, and so is the path in a commits query.
+#[test]
+fn catalogue_links_percent_encode_spaces_in_paths() {
+    assert_eq!(
+        raw_url("o/r", "halloween collection/calavera.css"),
+        "https://raw.githubusercontent.com/o/r/HEAD/halloween%20collection/calavera.css"
+    );
+    assert_eq!(
+        raw_url("o/r", "colorways/astronaut icecream/blueberry_cobbler.css"),
+        "https://raw.githubusercontent.com/o/r/HEAD/colorways/astronaut%20icecream/blueberry_cobbler.css"
+    );
+    // Paths without anything to encode are as they were.
+    assert_eq!(
+        raw_url("Acercandr0/Lunallena", "Lunallena_MacOS.css"),
+        "https://raw.githubusercontent.com/Acercandr0/Lunallena/HEAD/Lunallena_MacOS.css"
+    );
+    assert_eq!(encode_path("a+b/ü.css"), "a%2Bb/%C3%BC.css");
+    let calavera = CATALOG
+        .iter()
+        .find(|e| e.name == "Cotton Candy: Calavera")
+        .unwrap();
+    assert!(
+        calavera
+            .url()
+            .ends_with("/HEAD/halloween%20collection/calavera.css")
+    );
+    // Any link to it (a raw link with the space typed as `%20`, a GitHub
+    // page) finds the catalogue's base.
+    let base = catalog_base(
+        "https://github.com/aya-zzz-zzz/cotton-candy-colorways/blob/main/halloween%20collection/calavera.css",
+    )
+    .unwrap();
+    assert!(
+        base.starts_with(
+            "https://raw.githubusercontent.com/aya-zzz-zzz/cotton-candy-colorways/HEAD/base-"
+        ),
+        "{base}"
+    );
+    assert_eq!(catalog_base(&CATALOG[0].url()), None, "a standalone theme");
+    assert_eq!(catalog_base("https://example.com/x.css"), None);
+}
+
+/// A colourway's card reads the colourway's manifest and colours, and its
+/// preview comes from the base and colourway together; the base is fetched
+/// once for every colourway on it, and a base that fails keeps nothing, so
+/// the next refresh tries again.
+#[test]
+fn a_colourway_card_is_previewed_over_its_base_fetched_once() {
+    let based: Vec<&CatalogEntry> = CATALOG
+        .iter()
+        .filter(|e| e.base.is_some() && e.base_url() == CATALOG[5].base_url())
+        .collect();
+    assert!(based.len() >= 10, "Cotton Candy's colourways");
+    let base_url = based[0].base_url().unwrap();
+    let mut net = fake(FakeMode::Up, &[]);
+    net.css.insert(
+        base_url.clone(),
+        "/* {\"name\": \"cotton candy\"} */\n#main { background: var(--cover-Vib1) }\n".into(),
+    );
+    for e in &based {
+        net.css.insert(
+            e.url(),
+            ":root { --cover-Vib1: #ff88cc; --bg: #fff0f8 }".into(),
+        );
+    }
+    let mut cache = Cache::default();
+    let mut bases = HashMap::new();
+    for e in &based {
+        assert!(fetch_theme(&mut net, &mut cache, e, &mut bases));
+    }
+    assert_eq!(
+        net.asked.iter().filter(|u| **u == base_url).count(),
+        1,
+        "the base is fetched once"
+    );
+    let card = &cache.css[&based[1].url()].data;
+    assert_eq!(
+        card.name, None,
+        "the base's manifest is not the colourway's"
+    );
+    assert!(
+        card.colors.contains(&[0xff, 0x88, 0xcc]),
+        "{:?}",
+        card.colors
+    );
+    assert!(card.preview.is_some());
+    let index = index_of(&cache);
+    let shown = index
+        .themes
+        .iter()
+        .find(|t| t.url == based[1].url())
+        .unwrap();
+    assert_eq!(shown.name, based[1].name);
+
+    // The base fails: the colourway is not cached without it.
+    let mut net = fake(FakeMode::Up, &[]);
+    net.css
+        .insert(based[0].url(), ":root { --cover-Vib1: #ff88cc }".into());
+    let mut cache = Cache::default();
+    assert!(!fetch_theme(
+        &mut net,
+        &mut cache,
+        based[0],
+        &mut HashMap::new()
+    ));
+    assert!(!cache.css.contains_key(&based[0].url()));
+}
+
+#[test]
+fn a_cut_off_base_ends_after_its_last_whole_rule() {
+    assert_eq!(whole_rules("a { b: c } d { e"), "a { b: c }");
+    assert_eq!(
+        whole_rules("@media x { a { b: c } } @media y { d { e: f }"),
+        "@media x { a { b: c } }"
+    );
+    assert_eq!(
+        whole_rules("@import \"x}\"; a { b: \"}\" } c {"),
+        "@import \"x}\"; a { b: \"}\" }"
+    );
+    assert_eq!(whole_rules("a {} /* } */ b { c"), "a {}");
+    assert_eq!(whole_rules("a { b"), "");
+}
+
+/// Two catalogue files whose CSS names them alike (Abyss Neptune and its
+/// macOS build) show the catalogue's names and descriptions; a name only
+/// one file has stays the file's own.
+#[test]
+fn catalogue_themes_whose_css_shares_a_name_show_the_catalogues() {
+    let abyss: Vec<&CatalogEntry> = CATALOG
+        .iter()
+        .filter(|e| e.repo == "itzzexcel/neptune-projects")
+        .collect();
+    assert_eq!(abyss.len(), 2);
+    let manifest =
+        "/* {\"name\": \"Abyss Neptune\", \"description\": \"same\"} */ :root{--bg:#000}";
+    let mut cache = Cache::default();
+    for e in &abyss {
+        cache.css.insert(
+            e.url(),
+            Cached {
+                etag: None,
+                data: theme_css(manifest),
+            },
+        );
+    }
+    cache.css.insert(
+        CATALOG[0].url(),
+        Cached {
+            etag: None,
+            data: theme_css("/* {\"name\": \"Mocha Own\"} */ :root{--bg:#000}"),
+        },
+    );
+    let index = index_of(&cache);
+    for e in &abyss {
+        let t = index.themes.iter().find(|t| t.url == e.url()).unwrap();
+        assert_eq!(t.name, e.name);
+        assert_eq!(t.description, e.description);
+    }
+    assert_eq!(index.themes[0].name, "Mocha Own");
 }
 
 #[test]
@@ -287,6 +461,8 @@ struct Fake {
     asked: Vec<String>,
     /// API requests answered before GitHub's hourly limit runs out.
     budget: Option<usize>,
+    /// Raw files by URL; anything else fails.
+    css: HashMap<String, String>,
 }
 
 /// Both passes of a refresh for one store.
@@ -325,7 +501,10 @@ impl Http for Fake {
     }
     fn get_head(&mut self, url: &str, _: Option<&str>) -> Fetch<(String, Option<String>)> {
         self.asked.push(url.to_string());
-        Fetch::Failed
+        match self.css.get(url) {
+            Some(css) => Fetch::Fresh((css.clone(), None)),
+            None => Fetch::Failed,
+        }
     }
     fn last_modified(&mut self, url: &str) -> Option<i64> {
         self.asked.push(url.to_string());
@@ -364,6 +543,7 @@ fn fake(mode: FakeMode, counts: &[(&str, u64)]) -> Fake {
         mode,
         asked: Vec::new(),
         budget: None,
+        css: HashMap::new(),
     }
 }
 
