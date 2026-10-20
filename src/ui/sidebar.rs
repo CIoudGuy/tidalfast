@@ -672,7 +672,7 @@ fn rail(app: &mut App, ui: &mut egui::Ui) {
     }
     feed_row(app, ui, &palette, &page, true);
     upload_row(app, ui, &palette, &page, true);
-    let collection = rail_button(ui, &palette, Icon::Library, collection_active(&page));
+    let collection = rail_button(ui, &palette, Icon::Collection, collection_active(&page));
     collection_flyout(app, ui, &collection, collection.rect.right() + 4.0);
 
     // "All playlists" shrinks to its create button.
@@ -1398,14 +1398,15 @@ fn upload_row(
     let label = gettext(app.locale, "Upload");
     let active = *page == Page::Uploads;
     let response = if rail {
-        rail_button(ui, palette, Icon::Upload, active).on_hover_text(label.as_ref())
+        rail_button(ui, palette, Icon::ArrowUp, active).on_hover_text(label.as_ref())
     } else {
         let shown = nav_label("sidebar-uploads", label);
         nav_row(
             ui,
             palette,
             "sidebar-uploads",
-            Icon::Upload,
+            // TIDAL desktop's plain arrow.
+            Icon::ArrowUp,
             &shown,
             active,
             false,
@@ -1786,7 +1787,8 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
                 ui,
                 &palette,
                 "sidebar-collection-menu",
-                Icon::Library,
+                // TIDAL desktop's slant and two bars.
+                Icon::Collection,
                 &nav_label("sidebar-collection-menu", gettext(locale, "Collection")),
                 collection_active,
                 true,
