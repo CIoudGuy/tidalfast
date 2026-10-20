@@ -9,8 +9,8 @@ use crate::theme;
 
 pub fn show(app: &mut App, ctx: &egui::Context) {
     let palette = app.palette;
-    // TIDAL darkens the page to black 40 % (`.35s cubic-bezier(.65, 0,
-    // .35, 1)`), in and out.
+    // TIDAL desktop darkens the window to black 80 % (`.35s
+    // cubic-bezier(.65, 0, .35, 1)`), in and out.
     let dim = crate::motion::progress(
         ctx,
         egui::Id::new("dialog-backdrop"),
@@ -25,7 +25,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
             .interactable(false);
         ctx.move_to_top(area.layer());
         area.show(ctx, |ui| {
-            let alpha = if palette.dark { 102.0 } else { 80.0 };
+            let alpha = if palette.dark { 204.0 } else { 80.0 };
             ui.painter().rect_filled(
                 ctx.content_rect(),
                 0.0,
@@ -62,14 +62,22 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
             | Dialog::Collaborators { .. }
             | Dialog::Upload(_)
     );
+    // TIDAL desktop's keyboard shortcuts card: #18181b, 16 round, no outline.
+    let shortcuts = matches!(dialog, Dialog::Shortcuts);
     let frame = Frame::new()
-        .fill(palette.overlay)
-        .stroke(if tidal_card && palette.dark {
+        .fill(if shortcuts && palette.tidal_dark() {
+            palette.surface
+        } else {
+            palette.overlay
+        })
+        .stroke(if (tidal_card || shortcuts) && palette.dark {
             Stroke::NONE
         } else {
             Stroke::new(1.0, palette.outline)
         })
-        .corner_radius(CornerRadius::same(if tidal_card {
+        .corner_radius(CornerRadius::same(if shortcuts {
+            16
+        } else if tidal_card {
             12
         } else {
             theme::RADIUS + 4
@@ -104,6 +112,9 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                     570.0
                 } else if matches!(dialog, Dialog::WhatsNew { .. }) {
                     540.0_f32.min((ctx.content_rect().width() - 80.0).max(280.0))
+                } else if shortcuts {
+                    // TIDAL's card is 1020 wide, 24 inside.
+                    972.0_f32.min((ctx.content_rect().width() - 128.0).max(280.0))
                 } else {
                     420.0
                 },
@@ -289,62 +300,7 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                         }
                     });
                 }
-                Dialog::Shortcuts => {
-                    theme::text(
-                        ui,
-                        gettext(locale, "Keyboard shortcuts"),
-                        theme::bold(20.0),
-                        palette.text,
-                    );
-                    ui.add_space(12.0);
-                    // `theme::text` truncates, which in a grid makes each cell
-                    // claim almost no width and turns "Ctrl+Shift+A" into
-                    // "Ctrl…". A shortcut is unusable when abbreviated, so
-                    // these cells are sized to their content.
-                    let cell = |ui: &mut egui::Ui, text: &str, font: egui::FontId, color| {
-                        ui.add(
-                            egui::Label::new(egui::RichText::new(text).font(font).color(color))
-                                .extend()
-                                .selectable(false),
-                        );
-                    };
-                    // The list is longer than a small screen is tall, so it
-                    // scrolls inside the dialog rather than running off the
-                    // bottom with the Done button beyond reach.
-                    let room = ui.ctx().content_rect().height() - 190.0;
-                    crate::autoscroll::show(
-                        ui,
-                        egui::ScrollArea::vertical()
-                            .max_height(room.max(120.0))
-                            .auto_shrink([false, true]),
-                        egui::Vec2b::new(false, true),
-                        |ui| {
-                            egui::Grid::new("shortcuts")
-                                .num_columns(2)
-                                .spacing([24.0, 8.0])
-                                .show(ui, |ui| {
-                                    for (keys, description) in super::keys::shortcuts(locale) {
-                                        cell(ui, &keys, theme::semibold(13.0), palette.text);
-                                        cell(
-                                            ui,
-                                            &description,
-                                            theme::regular(13.5),
-                                            palette.secondary,
-                                        );
-                                        ui.end_row();
-                                    }
-                                });
-                        },
-                    );
-                    ui.add_space(16.0);
-                    buttons(ui, |ui| {
-                        if theme::pill_button(ui, &palette, &gettext(locale, "Done"), true)
-                            .clicked()
-                        {
-                            app.actions.push(Action::CloseDialog);
-                        }
-                    });
-                }
+                Dialog::Shortcuts => shortcuts_card(app, ui),
             }
         });
     app.dialog_rect = Some(response.response.rect);
@@ -1711,9 +1667,193 @@ fn edit_playlist(app: &mut App, ui: &mut egui::Ui) {
     }
 }
 
+/// One piece of a shortcut's keys as the shortcuts card draws it.
+#[derive(Debug, PartialEq)]
+enum KeyPart {
+    /// A key, drawn as a keycap ("CTRL", "A", "←").
+    Key(String),
+    /// A word or mark between two ways of pressing it ("or", "/").
+    Between(String),
+}
+
+/// `Ctrl+←  /  Ctrl+→` as keycaps: every key of every combination, with
+/// the words and slashes that join the alternatives kept as text. A slash
+/// is a key ("Ctrl+F or /") unless it stands between two combinations.
+fn key_parts(keys: &str) -> Vec<KeyPart> {
+    let tokens: Vec<&str> = keys.split_whitespace().collect();
+    let word = |token: &str| {
+        token.chars().count() > 1 && token.chars().all(|c| c.is_alphabetic() && c.is_lowercase())
+    };
+    let mut parts = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        let between = word(token)
+            || (*token == "/"
+                && index > 0
+                && !word(tokens[index - 1])
+                && tokens.get(index + 1).is_some_and(|next| !word(next)));
+        if between {
+            parts.push(KeyPart::Between((*token).to_string()));
+        } else if token.chars().count() > 1 && token.contains('+') {
+            // "Ctrl++" would hold the plus key; no shortcut here does.
+            for key in token.split('+').filter(|key| !key.is_empty()) {
+                parts.push(KeyPart::Key(key.to_uppercase()));
+            }
+        } else {
+            parts.push(KeyPart::Key(token.to_uppercase()));
+        }
+    }
+    parts
+}
+
+/// One of TIDAL's keycaps: 26 high, at least 24 wide, #464648 with a
+/// 10-point bold white label.
+fn keycap(ui: &mut egui::Ui, palette: &theme::Palette, key: &str) {
+    let galley = ui.painter().layout_no_wrap(
+        key.to_string(),
+        theme::bold(10.0),
+        egui::Color32::PLACEHOLDER,
+    );
+    let width = (galley.size().x + 16.0).max(24.0);
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, 26.0), egui::Sense::hover());
+    let (fill, ink) = if palette.dark {
+        (egui::Color32::from_rgb(70, 70, 72), egui::Color32::WHITE)
+    } else {
+        (palette.surface_active, palette.text)
+    };
+    ui.painter().rect_filled(rect, CornerRadius::same(2), fill);
+    ui.painter()
+        .galley(rect.center() - galley.size() / 2.0, galley, ink);
+}
+
+/// TIDAL desktop's keyboard shortcuts card: the title with a "?" keycap and
+/// a close cross, then two columns of what a shortcut does (grey) with its
+/// keycaps at the column's right, rows 55 apart.
+fn shortcuts_card(app: &mut App, ui: &mut egui::Ui) {
+    let palette = app.palette;
+    let locale = app.locale;
+    let description = if palette.dark {
+        egui::Color32::from_rgb(176, 176, 178)
+    } else {
+        palette.secondary
+    };
+    ui.spacing_mut().item_spacing = egui::vec2(6.0, 0.0);
+    ui.horizontal(|ui| {
+        ui.set_min_height(32.0);
+        theme::text(
+            ui,
+            gettext(locale, "Keyboard shortcuts"),
+            theme::bold(20.0),
+            palette.text,
+        );
+        ui.add_space(14.0);
+        keycap(ui, &palette, "?");
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if theme::icon_button(
+                ui,
+                theme::Icon::X,
+                18.0,
+                palette.text,
+                palette.text,
+                &gettext(locale, "Close"),
+            )
+            .clicked()
+            {
+                app.actions.push(Action::CloseDialog);
+            }
+        });
+    });
+    ui.add_space(24.0);
+    let rows = super::keys::shortcuts(locale);
+    let per_column = rows.len().div_ceil(2);
+    let gap = 30.0;
+    let column = ((ui.available_width() - gap) / 2.0).max(120.0);
+    let body = |ui: &mut egui::Ui| {
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            for half in rows.chunks(per_column) {
+                ui.vertical(|ui| {
+                    ui.set_width(column);
+                    for (keys, what) in half {
+                        ui.horizontal(|ui| {
+                            ui.set_width(column);
+                            ui.set_height(55.0);
+                            ui.spacing_mut().item_spacing.x = 6.0;
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(what.as_ref())
+                                        .font(theme::semibold(15.0))
+                                        .color(description),
+                                )
+                                .truncate()
+                                .selectable(false),
+                            );
+                            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                // Right to left: the last key first.
+                                for part in key_parts(keys).iter().rev() {
+                                    match part {
+                                        KeyPart::Key(key) => keycap(ui, &palette, key),
+                                        KeyPart::Between(text) => {
+                                            theme::text(
+                                                ui,
+                                                text.as_str(),
+                                                theme::medium(12.0),
+                                                description,
+                                            );
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                    }
+                });
+            }
+        });
+    };
+    // Taller than a small window: the rows scroll inside the card.
+    let room = (ui.ctx().content_rect().height() - 220.0).max(120.0);
+    if per_column as f32 * 55.0 <= room {
+        body(ui);
+    } else {
+        crate::autoscroll::show(
+            ui,
+            egui::ScrollArea::vertical()
+                .max_height(room)
+                .min_scrolled_height(room)
+                .auto_shrink([false, true]),
+            egui::Vec2b::new(false, true),
+            body,
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::duplicate_message;
+
+    #[test]
+    fn shortcut_keys_become_keycaps_joined_by_their_words() {
+        use super::KeyPart::{Between, Key};
+        use super::key_parts;
+        let key = |text: &str| Key(text.to_string());
+        let between = |text: &str| Between(text.to_string());
+        assert_eq!(
+            key_parts("Ctrl+←  /  Ctrl+→"),
+            vec![key("CTRL"), key("←"), between("/"), key("CTRL"), key("→")]
+        );
+        assert_eq!(
+            key_parts("Ctrl+F  or  /"),
+            vec![key("CTRL"), key("F"), between("or"), key("/")]
+        );
+        assert_eq!(
+            key_parts("Cmd+/ or ?"),
+            vec![key("CMD"), key("/"), between("or"), key("?")]
+        );
+        assert_eq!(key_parts("Space"), vec![key("SPACE")]);
+        assert_eq!(
+            key_parts("Ctrl+Shift+A"),
+            vec![key("CTRL"), key("SHIFT"), key("A")]
+        );
+    }
     use crate::api::models::{PlayableItem, Track};
     use crate::i18n::Locale;
 
