@@ -3,7 +3,7 @@
 //! the primary colour. Used by the What's new dialog and the update popup.
 
 use egui::text::{LayoutJob, TextFormat};
-use egui::{Align, Color32, FontId, Id, Sense, Vec2};
+use egui::{Color32, FontId, Id, Sense, Vec2};
 
 use crate::theme::{self, Icon, Palette};
 use crate::whats_new::{Block, Entry, Span, display_date};
@@ -54,6 +54,48 @@ fn job(spans: &[Span], palette: &Palette, metrics: Metrics) -> LayoutJob {
     job
 }
 
+/// One paragraph or bullet's text. A line with links is laid out run by
+/// run so each link is its own clickable piece (underlined, hand pointer,
+/// opens the address); a line without links is one wrapped label.
+fn line(ui: &mut egui::Ui, palette: &Palette, spans: &[Span], metrics: Metrics) {
+    if spans.iter().all(|span| span.link.is_none()) {
+        ui.add(
+            egui::Label::new(job(spans, palette, metrics))
+                .wrap()
+                .selectable(false),
+        );
+        return;
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = Vec2::ZERO;
+        for span in spans {
+            let run = job(std::slice::from_ref(span), palette, metrics);
+            match &span.link {
+                Some(address) => {
+                    let text = egui::RichText::new(&span.text)
+                        .font(if span.bold {
+                            theme::semibold(metrics.body)
+                        } else {
+                            theme::regular(metrics.body)
+                        })
+                        .color(palette.text)
+                        .line_height(Some(metrics.line))
+                        .underline();
+                    let response = ui
+                        .add(egui::Label::new(text).sense(Sense::click()).wrap())
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    if response.clicked() {
+                        ui.ctx().open_url(egui::OpenUrl::new_tab(address));
+                    }
+                }
+                None => {
+                    ui.add(egui::Label::new(run).wrap().selectable(false));
+                }
+            }
+        }
+    });
+}
+
 fn blocks(ui: &mut egui::Ui, palette: &Palette, blocks: &[Block], metrics: Metrics) {
     for (index, block) in blocks.iter().enumerate() {
         match block {
@@ -63,11 +105,7 @@ fn blocks(ui: &mut egui::Ui, palette: &Palette, blocks: &[Block], metrics: Metri
                 ui.add_space(metrics.gap - 1.0);
             }
             Block::Paragraph(spans) => {
-                ui.add(
-                    egui::Label::new(job(spans, palette, metrics))
-                        .wrap()
-                        .selectable(false),
-                );
+                line(ui, palette, spans, metrics);
                 ui.add_space(metrics.gap);
             }
             Block::Bullet(spans) => {
@@ -80,11 +118,7 @@ fn blocks(ui: &mut egui::Ui, palette: &Palette, blocks: &[Block], metrics: Metri
                         3.0,
                         palette.secondary,
                     );
-                    ui.add(
-                        egui::Label::new(job(spans, palette, metrics))
-                            .wrap()
-                            .selectable(false),
-                    );
+                    ui.vertical(|ui| line(ui, palette, spans, metrics));
                 });
                 ui.add_space(metrics.gap);
             }
@@ -99,14 +133,8 @@ pub fn show_blocks(ui: &mut egui::Ui, palette: &Palette, notes: &[Block]) {
 
 /// Every release, newest first: the newest open (all of them with
 /// `all_open`, for the releases a person missed), older ones folded under a
-/// chevron, then the affiliation line once.
-pub fn show_entries(
-    ui: &mut egui::Ui,
-    palette: &Palette,
-    entries: &[Entry],
-    footer: &str,
-    all_open: bool,
-) {
+/// chevron.
+pub fn show_entries(ui: &mut egui::Ui, palette: &Palette, entries: &[Entry], all_open: bool) {
     for (index, entry) in entries.iter().enumerate() {
         if index > 0 {
             ui.add_space(14.0);
@@ -165,19 +193,6 @@ pub fn show_entries(
             blocks(ui, palette, &entry.blocks, ROOMY);
         }
     }
-    if !footer.is_empty() {
-        ui.add_space(20.0);
-        ui.with_layout(egui::Layout::top_down(Align::Min), |ui| {
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(footer)
-                        .font(theme::regular(12.5))
-                        .color(palette.dim),
-                )
-                .wrap(),
-            );
-        });
-    }
 }
 
 #[cfg(test)]
@@ -207,7 +222,7 @@ mod tests {
                 theme::apply_local(ui, palette);
                 ui.set_width(540.0);
                 let top = ui.cursor().top();
-                show_entries(ui, palette, entries, "Not affiliated with TIDAL.", all_open);
+                show_entries(ui, palette, entries, all_open);
                 used = ui.min_rect().bottom() - top;
             },
         );
@@ -283,7 +298,7 @@ mod tests {
                 let mut output = ctx.run_ui(input, |ui| {
                     theme::apply_local(ui, &palette);
                     ui.set_width(540.0);
-                    show_entries(ui, &palette, &entries, "Footer.", false);
+                    show_entries(ui, &palette, &entries, false);
                     super::super::cursor::apply(ui.ctx());
                 });
                 output.textures_delta.clear();
@@ -296,5 +311,65 @@ mod tests {
         assert_eq!(cursor_at(70.0, 30.0), egui::CursorIcon::Default);
         assert_eq!(cursor_at(110.0, 40.0), egui::CursorIcon::Default);
         assert_eq!(cursor_at(500.0, 300.0), egui::CursorIcon::Default);
+    }
+
+    /// A link in the notes opens its address when clicked, and the notes
+    /// end with the last release: no affiliation line under them.
+    #[test]
+    fn a_link_in_the_notes_opens_its_address() {
+        let entries = [entry(
+            "2.0.0",
+            "**Full changelog:** https://github.com/o/r/compare/v1.0.0...v2.0.0
+",
+        )];
+        let palette = Palette::dark();
+        let ctx = egui::Context::default();
+        theme::install(&ctx);
+        theme::apply(&ctx, &palette);
+        let frame = |events: Vec<egui::Event>| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(560.0, 600.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    theme::apply_local(ui, &palette);
+                    ui.set_width(540.0);
+                    show_entries(ui, &palette, &entries, false);
+                },
+            );
+            output.textures_delta.clear();
+            output.platform_output
+        };
+        frame(vec![]);
+        let mut opened = None;
+        'probe: for y in (40..140).step_by(4) {
+            let pos = egui::pos2(330.0, y as f32);
+            for pressed in [true, false] {
+                let out = frame(vec![
+                    egui::Event::PointerMoved(pos),
+                    egui::Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ]);
+                for command in out.commands {
+                    if let egui::OutputCommand::OpenUrl(open) = command {
+                        opened = Some(open.url);
+                        break 'probe;
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            opened.as_deref(),
+            Some("https://github.com/o/r/compare/v1.0.0...v2.0.0")
+        );
     }
 }
