@@ -4576,9 +4576,30 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
     ]) {
         p.dim = opaque_over(c, p.window);
     }
-    // TIDAL's accent never comes from the root tokens: Rose Pine's light
-    // blue, Black Glow's grey and Minimalist Black's green all leave TIDAL's
-    // teal on the playing playlist and in the queue.
+    // On a dark window TIDAL's accent never comes from the root tokens:
+    // Rose Pine's light blue, Black Glow's grey and Minimalist Black's
+    // green all leave TIDAL's teal on the playing playlist and in the
+    // queue. A theme that paints a light window restyles what TIDAL draws
+    // in its accent with its token (the cotton candy family's black
+    // playing row, Tidal Light's dark teal), where TIDAL's bright teal
+    // would be unreadable.
+    if !p.dark
+        && let Some(c) = ramp(&[
+            "--wave-color-solid-accent-fill",
+            "--wave-color-solid-accent-base",
+            "--wave-color-accent",
+        ])
+    {
+        p.accent = opaque(c);
+        p.accent_hover = ramp(&["--wave-color-solid-accent-bright"])
+            .map(opaque)
+            .unwrap_or_else(|| blend(p.accent, Color32::WHITE, 0.3));
+        p.on_accent = if luminance(p.accent) > 0.5 {
+            Color32::BLACK
+        } else {
+            Color32::WHITE
+        };
+    }
     if let Some(c) = ramp(&[
         "--wave-color-solid-warning-fill",
         "--wave-color-text-danger",
