@@ -3241,21 +3241,67 @@ fn own_fill(h: &HostOverride, vars: &BTreeMap<String, String>) -> Option<Color32
     })
 }
 
-/// The veil a box's `backdrop-filter: brightness()` lays over what shows
-/// through it: darker is exactly black laid over at `1 - b`; lighter is
-/// white laid over at half the gain (the cotton candy family's track list,
-/// brightness(1.2), its queue panel's .75).
+/// The veil a box's `backdrop-filter` lays over what shows through it.
+/// Darker (`brightness()` under 1) is exactly black laid over at `1 - b`.
+/// Lighter or more saturated (the cotton candy family's feed card and
+/// track list, `saturate(1.2) brightness(1.1)`) multiplies what is behind,
+/// which no single veil does for every colour: the veil is the faintest
+/// one that turns the window's colour into what the filter makes of it,
+/// so the window under the box is TIDAL's colour and what lies on it
+/// (Twilight's stars) keeps most of its own. A white veil turned
+/// Twilight's navy track list grey and the cotton candy family's pink one
+/// a greyer pink.
 fn backdrop_veil(h: &HostOverride, vars: &BTreeMap<String, String>) -> Option<Color32> {
-    let b = backdrop_brightness(&css::resolve_vars(
-        h.style.backdrop_filter.as_deref()?,
-        vars,
-    ))?;
-    let tint = if b < 1.0 {
-        Color32::from_black_alpha(((1.0 - b).clamp(0.0, 1.0) * 255.0).round() as u8)
-    } else {
-        Color32::from_white_alpha((((b - 1.0) * 0.5).clamp(0.0, 0.5) * 255.0).round() as u8)
+    let filter = css::resolve_vars(h.style.backdrop_filter.as_deref()?, vars);
+    if let Some(b) = backdrop_brightness(&filter)
+        && b < 1.0
+    {
+        let tint = Color32::from_black_alpha(((1.0 - b).clamp(0.0, 1.0) * 255.0).round() as u8);
+        return (tint.a() > 0).then_some(tint);
+    }
+    let window = vars
+        .get("--wave-color-solid-base-fill")
+        .and_then(|v| css::color(&css::resolve_vars(v, vars)))
+        .filter(|c| c.a() == 255)?;
+    let behind = [window.r(), window.g(), window.b()];
+    let target = crate::css_filter::ColorFilter::parse(&filter)?.apply_color(behind);
+    veil_towards(behind, target)
+}
+
+/// The faintest colour that, laid over `behind`, makes `target` to within
+/// one level a channel: the smallest alpha at which the colour stays within
+/// 0 to 255 in every channel. `None` when they are that close already.
+fn veil_towards(behind: [u8; 3], target: [u8; 3]) -> Option<Color32> {
+    let mut alpha: f32 = 0.0;
+    for (b, t) in behind.iter().zip(target) {
+        let d = f32::from(t) - f32::from(*b);
+        let (b, d) = (f32::from(*b), d.signum() * (d.abs() - 1.0).max(0.0));
+        let need = if d > 0.0 {
+            d / (255.0 - b)
+        } else if d < 0.0 {
+            -d / b
+        } else {
+            0.0
+        };
+        alpha = alpha.max(need);
+    }
+    let a8 = (alpha.clamp(0.0, 1.0) * 255.0).ceil();
+    if a8 < 1.0 {
+        return None;
+    }
+    let alpha = a8 / 255.0;
+    let ch = |i: usize| {
+        let b = f32::from(behind[i]);
+        (b + (f32::from(target[i]) - b) / alpha)
+            .round()
+            .clamp(0.0, 255.0) as u8
     };
-    (tint.a() > 0).then_some(tint)
+    Some(Color32::from_rgba_unmultiplied(
+        ch(0),
+        ch(1),
+        ch(2),
+        a8 as u8,
+    ))
 }
 
 /// `fill` with `veil` under it, as one colour over the page: the backdrop

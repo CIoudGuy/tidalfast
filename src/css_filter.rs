@@ -104,6 +104,20 @@ impl ColorFilter {
         (!steps.is_empty()).then_some(Self(steps))
     }
 
+    /// What the colour functions make of one opaque colour (a blur leaves a
+    /// flat colour as it is).
+    pub fn apply_color(&self, rgb: [u8; 3]) -> [u8; 3] {
+        let run: Vec<[f32; 12]> = self
+            .0
+            .iter()
+            .filter(|s| !matches!(s, Step::Blur(_)))
+            .map(Step::matrix)
+            .collect();
+        let mut px = [rgb[0], rgb[1], rgb[2], 255];
+        recolour(&mut px, &run);
+        [px[0], px[1], px[2]]
+    }
+
     /// Whether the filter blurs.
     pub fn blurs(&self) -> bool {
         self.0.iter().any(|s| matches!(s, Step::Blur(_)))
