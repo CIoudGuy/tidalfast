@@ -1491,12 +1491,17 @@ fn nav_row(
         let icon_rect =
             Rect::from_center_size(pos2(rect.left() + 20.0, rect.center().y), Vec2::splat(18.0));
         icon.image(color, 18.0).paint_at(ui, icon_rect);
+        // A theme's colour for the row's words themselves.
+        let words =
+            super::plugin_dom::nav_style(&crate::luna::dom_anchors::keys::sidebar_item_label(test))
+                .and_then(|s| s.color)
+                .unwrap_or(color);
         ui.painter().text(
             pos2(rect.left() + 40.0, rect.center().y),
             egui::Align2::LEFT_CENTER,
             label,
             theme::semibold(14.0),
-            color,
+            words,
         );
         if chevron {
             Icon::ChevronRight.image(palette.tertiary(), 16.0).paint_at(
@@ -1909,12 +1914,21 @@ fn list_header(app: &mut App, ui: &mut egui::Ui, filter: Filter, sort: LibrarySo
     let palette = app.palette;
     let locale = app.locale;
     let (header, _) = ui.allocate_exact_size(vec2(ui.available_width(), 54.0), Sense::hover());
+    // TIDAL's grey, or a theme's colour for the heading's words.
+    let color = super::plugin_dom::library_heading(
+        Rect::from_min_size(
+            pos2(header.left() + 16.0, header.top() + 24.0),
+            vec2((header.width() - 80.0).max(0.0), 22.0),
+        ),
+        palette.text,
+    )
+    .unwrap_or(palette.tertiary());
     ui.painter().text(
         pos2(header.left() + 18.0, header.top() + 24.0 + 11.0),
         egui::Align2::LEFT_CENTER,
         gettext(locale, "All playlists"),
         theme::medium(14.0),
-        palette.tertiary(),
+        color,
     );
     let create = Rect::from_center_size(
         pos2(header.left() + 192.0, header.top() + 35.0),
@@ -2343,7 +2357,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                     );
                     // A theme's rules for the row (`._contentItem_ { background;
                     // border-radius; color }`, its `:hover` and `_selected_`).
-                    let themed = super::plugin_dom::library_row(rect, active);
+                    let themed = super::plugin_dom::library_row(rect, active, playing);
                     let mut corner = CornerRadius::same(12);
                     let fill = if active {
                         palette.nav_selected()
@@ -2377,10 +2391,33 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             egui::StrokeKind::Inside,
                         );
                     }
+                    // The playing playlist's name is TIDAL's accent, unless
+                    // the theme colours the name itself (the cotton candy
+                    // family's `#sidebar ._marketText_` rules keep it the
+                    // other names' colour, even with no value).
                     let name_color = if playing {
-                        palette.accent
+                        match themed {
+                            Some(t) if t.title_color.is_some() => {
+                                t.title_color.unwrap_or(palette.text)
+                            }
+                            Some(t) if t.title_inherits => t.color.unwrap_or(palette.text),
+                            _ => palette.accent,
+                        }
                     } else {
                         themed.and_then(|t| t.color).unwrap_or(palette.text)
+                    };
+                    let subtitle_color = themed
+                        .and_then(|t| t.secondary)
+                        .unwrap_or(palette.secondary);
+                    // A theme's size and weight for the name, else TIDAL's.
+                    let name_font = |native: egui::FontId, weight: u16| match themed {
+                        Some(t) if t.title_size.is_some() || t.title_weight.is_some() => {
+                            super::plugin_dom::font_at(
+                                t.title_size.unwrap_or(native.size),
+                                t.title_weight.unwrap_or(weight),
+                            )
+                        }
+                        _ => native,
                     };
                     let indent = f32::from(entry.depth) * 14.0;
                     if let Some((_, collapsed, _)) = &entry.folder {
@@ -2416,7 +2453,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             text_right,
                             rect.center().y - 9.0,
                             &entry.name,
-                            theme::medium(14.0),
+                            name_font(theme::medium(14.0), 500),
                             name_color,
                         );
                         crate::bidi::paint_line(
@@ -2426,7 +2463,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             rect.center().y + 10.0,
                             &entry.subtitle,
                             theme::regular(12.5),
-                            palette.secondary,
+                            subtitle_color,
                         );
                     } else {
                         let cover_rect = Rect::from_center_size(
@@ -2468,7 +2505,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             text_right,
                             rect.center().y - 8.0,
                             &entry.name,
-                            theme::semibold(14.0),
+                            name_font(theme::semibold(14.0), 600),
                             name_color,
                         );
                         crate::bidi::paint_line(
@@ -2478,7 +2515,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             rect.center().y + 10.0,
                             &entry.subtitle,
                             theme::regular(12.0),
-                            palette.secondary,
+                            subtitle_color,
                         );
                         // Hovering the art offers to play right from here.
                         cover_took_click = cover_play_button(

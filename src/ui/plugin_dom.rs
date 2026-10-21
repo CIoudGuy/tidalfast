@@ -563,6 +563,8 @@ pub fn end_frame(ctx: &egui::Context) {
         next.sidebar.items.clear();
         next.sidebar.thumbs.clear();
         next.sidebar.rows.clear();
+        next.sidebar.playing = None;
+        next.sidebar.heading = None;
         next.player = None;
         next.now_playing = None;
         next.context_menu = None;
@@ -1399,6 +1401,20 @@ pub struct NavStyle {
     pub fill: Option<Color32>,
     pub radius: Option<f32>,
     pub color: Option<Color32>,
+    /// The colour of a library row's second line.
+    pub secondary: Option<Color32>,
+    /// The size and weight a theme gives a library row's name (Tidal TUI's
+    /// `[class*="title"] { font-weight: var(--font-weight) }`: TIDAL's 500).
+    pub title_size: Option<f32>,
+    pub title_weight: Option<u16>,
+    /// The colour the theme gives a library row's name itself (the cotton
+    /// candy family's `#sidebar ._marketText_` rules): it wins over TIDAL's
+    /// accent on the playing playlist's name too.
+    pub title_color: Option<Color32>,
+    /// A theme's rule gives the name the colour around it (`color:
+    /// var(--SBTXT)` with no value: `unset`), which TIDAL's accent on the
+    /// playing playlist's name does not beat either.
+    pub title_inherits: bool,
 }
 
 /// A theme's style for the sidebar row anchored at `key` in its current
@@ -1450,6 +1466,7 @@ fn nav_style_now(key: &str) -> Option<NavStyle> {
             fill,
             radius,
             color,
+            ..NavStyle::default()
         };
         (style != NavStyle::default()).then_some(style)
     });
@@ -1457,11 +1474,42 @@ fn nav_style_now(key: &str) -> Option<NavStyle> {
     made
 }
 
-/// A library row is drawn in `r` (`selected` while its page is open): gives
+/// The "All playlists" heading is drawn in `r`: gives it TIDAL's anchors
+/// and returns the colour a theme's rules give its words (the cotton candy
+/// family's `[class="_sectionHeader_ca54638"] ._titleText_1d0e44e`), or
+/// `around` (the sidebar's words) where a rule leaves it the colour around
+/// it (Tidal TUI's `._sectionHeader_ca54638 { color }` with no value).
+/// `None` keeps TIDAL's grey, as under Rose Pine.
+pub fn library_heading(r: Rect, around: Color32) -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    note(|f| f.sidebar.heading = rect(r));
+    let inherits = |key: &str| {
+        host(key, |h, _| {
+            h.style
+                .color
+                .as_deref()
+                .map(|c| c.trim().eq_ignore_ascii_case("inherit"))
+        })
+        .unwrap_or(false)
+    };
+    color(dom_anchors::keys::LIB_HEADING_TITLE)
+        .or_else(|| color(dom_anchors::keys::LIB_HEADING))
+        .or_else(|| {
+            (inherits(dom_anchors::keys::LIB_HEADING_TITLE)
+                || inherits(dom_anchors::keys::LIB_HEADING))
+            .then_some(around)
+        })
+        .filter(|c| c.a() > 0)
+}
+
+/// A library row is drawn in `r` (`selected` while its page is open,
+/// `playing` while its playlist plays): gives
 /// it its anchor and returns what a theme's rules for it ask
 /// (`._contentItem_ { background; color }`, its `:hover` and `_selected_`
 /// states). `None` while Luna is off or no theme styles the row.
-pub fn library_row(r: Rect, selected: bool) -> Option<NavStyle> {
+pub fn library_row(r: Rect, selected: bool, playing: bool) -> Option<NavStyle> {
     if !on() {
         return None;
     }
@@ -1469,8 +1517,30 @@ pub fn library_row(r: Rect, selected: bool) -> Option<NavStyle> {
     note(|f| {
         index = f.sidebar.rows.len();
         f.sidebar.rows.push((rect(r), selected));
+        if playing {
+            f.sidebar.playing = Some(index);
+        }
     });
-    nav_style(&dom_anchors::keys::lib_row(index))
+    let mut style = nav_style(&dom_anchors::keys::lib_row(index)).unwrap_or_default();
+    // The theme's colours for the row's name and second line (the cotton
+    // candy family's `#sidebar ._marketText_` rules, Sugarcoat's
+    // `._textWhite_` and `._text20_`) win over the row's.
+    style.title_color = nav_style(&dom_anchors::keys::lib_row_title(index)).and_then(|t| t.color);
+    style.title_inherits = host(&dom_anchors::keys::lib_row_title(index), |h, _| {
+        h.style
+            .color
+            .as_deref()
+            .map(|c| c.trim().eq_ignore_ascii_case("inherit"))
+    })
+    .unwrap_or(false);
+    if let Some(c) = style.title_color {
+        style.color = Some(c);
+    }
+    style.secondary = nav_style(&dom_anchors::keys::lib_row_subtitle(index)).and_then(|t| t.color);
+    let title = dom_anchors::keys::lib_row_title(index);
+    style.title_size = font_size(&title);
+    style.title_weight = font_weight(&title);
+    (style != NavStyle::default()).then_some(style)
 }
 
 /// One of Explore's icon links is drawn in `hit`, its words in `text`: gives

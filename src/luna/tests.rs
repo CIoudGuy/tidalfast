@@ -51,6 +51,8 @@ mod theme_round19_tests;
 mod theme_round22_tests;
 #[path = "theme_round23_tests.rs"]
 mod theme_round23_tests;
+#[path = "theme_round25_tests.rs"]
+mod theme_round25_tests;
 #[path = "theme_tests.rs"]
 mod theme_tests;
 

@@ -144,6 +144,7 @@ fn theme_rules_reach_the_library_rows() {
     let plain = library_row(
         egui::Rect::from_min_size(egui::pos2(8.0, 200.0), egui::vec2(224.0, 56.0)),
         false,
+        false,
     )
     .expect("a themed library row");
     assert_eq!(plain.fill, Some(egui::Color32::TRANSPARENT));
@@ -151,12 +152,13 @@ fn theme_rules_reach_the_library_rows() {
     let open = library_row(
         egui::Rect::from_min_size(egui::pos2(8.0, 256.0), egui::vec2(224.0, 56.0)),
         true,
+        false,
     )
     .expect("a themed open row");
     assert_eq!(open.fill, Some(egui::Color32::from_rgb(0x12, 0x34, 0x56)));
     assert_eq!(open.radius, Some(8.0));
     test_overlay(None);
-    assert!(library_row(egui::Rect::NOTHING, false).is_none());
+    assert!(library_row(egui::Rect::NOTHING, false, false).is_none());
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&data);
 }
