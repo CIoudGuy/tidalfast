@@ -348,10 +348,20 @@ impl LunaHost for AppHost {
     }
 
     fn video(&self, id: &str) -> Option<Value> {
+        // The off-screen Luna demo's music videos are made up (`vid0`).
+        #[cfg(feature = "demo")]
+        if luna_demo() {
+            return crate::demo::video_json(id);
+        }
         self.get(format!("videos/{}", numeric(id)?), Vec::new())
     }
 
     fn album(&self, id: &str) -> Option<Value> {
+        // The off-screen Luna demo's albums are made up (`alb0`).
+        #[cfg(feature = "demo")]
+        if luna_demo() {
+            return crate::demo::album_json(id);
+        }
         self.get(format!("albums/{}", numeric(id)?), Vec::new())
     }
 
@@ -716,6 +726,19 @@ impl AppHost {
             return NetVerdict::Deny("not a request".into());
         };
         let (path, query) = tidal_v1(url).unwrap_or_default();
+        // The off-screen Luna demo has no TIDAL: a search finds its songs.
+        #[cfg(feature = "demo")]
+        if luna_demo() && path == "search" && method.eq_ignore_ascii_case("GET") {
+            let phrase = query
+                .iter()
+                .find(|(k, _)| k == "query")
+                .map_or("", |(_, v)| v.as_str());
+            return NetVerdict::Respond {
+                status: 200,
+                headers: vec![("Content-Type".into(), "application/json".into())],
+                body: crate::demo::search_json(phrase).to_string().into_bytes(),
+            };
+        }
         let shown = path.clone();
         let method = method.to_ascii_uppercase();
         let form: Vec<(String, String)> = body

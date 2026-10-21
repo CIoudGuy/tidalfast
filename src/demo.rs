@@ -168,6 +168,69 @@ pub fn artist_json(id: &str) -> Option<serde_json::Value> {
     Some(serde_json::json!({ "id": a.id, "name": a.name, "picture": null }))
 }
 
+/// TIDAL's `search` answer in the off-screen Luna demo: the demo songs
+/// whose titles the query names, each with a made-up music video of the
+/// same title (MusicVideoButton looks a song's video up this way).
+pub fn search_json(query: &str) -> serde_json::Value {
+    let query = query.to_lowercase();
+    let found: Vec<(usize, Track)> = (0..TRACKS.len())
+        .map(|i| (i, track(i)))
+        .filter(|(_, t)| query.contains(&t.name.to_lowercase()))
+        .collect();
+    let item = |id: String, t: &Track| {
+        serde_json::json!({
+            "id": id,
+            "title": t.name,
+            "version": null,
+            "duration": t.duration_ms / 1000,
+            "artists": t.artists.iter().map(|a| serde_json::json!({ "id": a.id, "name": a.name })).collect::<Vec<_>>(),
+        })
+    };
+    let tracks: Vec<_> = found
+        .iter()
+        .map(|(_, t)| item(t.id.clone().unwrap_or_default(), t))
+        .collect();
+    let videos: Vec<_> = found
+        .iter()
+        .map(|(i, t)| item(format!("vid{i}"), t))
+        .collect();
+    serde_json::json!({
+        "tracks": { "items": tracks, "totalNumberOfItems": tracks.len() },
+        "videos": { "items": videos, "totalNumberOfItems": videos.len() },
+    })
+}
+
+/// A demo music video as TIDAL's `videos/<id>` answers it (`vid3`), for
+/// the off-screen Luna demo.
+pub fn video_json(id: &str) -> Option<serde_json::Value> {
+    let index: usize = id.strip_prefix("vid")?.parse().ok()?;
+    let t = track(index);
+    Some(serde_json::json!({
+        "id": id,
+        "title": t.name,
+        "type": "Music Video",
+        "duration": t.duration_ms / 1000,
+        "artists": t.artists.iter().map(|a| serde_json::json!({ "id": a.id, "name": a.name, "type": "MAIN" })).collect::<Vec<_>>(),
+        "streamReady": true,
+        "allowStreaming": true,
+    }))
+}
+
+/// A demo album as TIDAL's `albums/<id>` answers it, for the off-screen
+/// Luna demo (SongReleaseDate reads `releaseDate` from it).
+pub fn album_json(id: &str) -> Option<serde_json::Value> {
+    let index: usize = id.strip_prefix("alb")?.parse().ok()?;
+    let a = album(index);
+    Some(serde_json::json!({
+        "id": a.id,
+        "title": a.name,
+        "releaseDate": a.release_date,
+        "streamStartDate": a.release_date.as_ref().map(|d| format!("{d}T00:00:00.000+0000")),
+        "numberOfTracks": a.total_tracks,
+        "copyright": a.copyrights.first().map(|c| c.text.clone()),
+    }))
+}
+
 fn album(index: usize) -> Album {
     let (name, artist_index, year) = ALBUMS[index % ALBUMS.len()];
     Album {
