@@ -3360,23 +3360,31 @@ pub fn element_font_id(value: &str) -> Option<u32> {
 }
 
 /// The family [`element_font_id`] numbered, at the CSS `weight` (its
-/// bold face for 700).
-pub fn font_by_id(id: u32, weight: u16) -> Option<egui::FontFamily> {
+/// bold face for 700), if egui's fonts in `ctx` have it now.
+///
+/// egui aborts the app (panic=abort) when it lays out text in a family its
+/// fonts lack, so a family is handed out only after egui's current fonts
+/// are asked: one they lack (a window made again, fonts being swapped) is
+/// `None`, the app's face, for that frame. It locks `ctx`: never call it
+/// inside `ui.fonts_mut` or another closure that holds the context.
+pub fn font_by_id(ctx: &egui::Context, id: u32, weight: u16) -> Option<egui::FontFamily> {
     let weight = match weight {
         w if w >= 700 => fastframe_fonts::Weight::Bold,
         w if w >= 600 => fastframe_fonts::Weight::SemiBold,
         w if w >= 500 => fastframe_fonts::Weight::Medium,
         _ => fastframe_fonts::Weight::Regular,
     };
-    with(|s| {
-        s.font_names.get(id as usize).map(|name| {
-            // The regular face is the family's own name (the same faces).
-            if matches!(weight, fastframe_fonts::Weight::Regular) {
-                egui::FontFamily::Name(name.as_str().into())
-            } else {
-                egui::FontFamily::Name(crate::theme::weighted_family(name, weight).into())
-            }
-        })
+    let name = with(|s| s.font_names.get(id as usize).cloned())?;
+    // The regular face is the family's own name (the same faces).
+    let regular = egui::FontFamily::Name(name.as_str().into());
+    let wanted = if matches!(weight, fastframe_fonts::Weight::Regular) {
+        regular.clone()
+    } else {
+        egui::FontFamily::Name(crate::theme::weighted_family(&name, weight).into())
+    };
+    ctx.fonts(|f| {
+        let has = |family: &egui::FontFamily| f.definitions().families.contains_key(family);
+        [wanted, regular].into_iter().find(has)
     })
 }
 
@@ -5460,10 +5468,21 @@ pub(crate) fn page_font_family(o: &DomOverlay) -> Option<&str> {
 /// Load the fonts plugins declared (custom-fonts) off the UI thread and
 /// install them once per change; put the user's fonts back when they go.
 fn fonts_tick(ctx: &egui::Context) {
+    let installed = crate::theme::plugin_families(ctx);
     with(|s| {
         if let Some((names, element_fonts)) = s.fonts_next.take() {
             s.font_names = names;
             s.element_fonts = element_fonts;
+        }
+        // Families this context's fonts were never given, or lost: a
+        // window made again (compact mode, the title bar setting, back
+        // from the tray) is a new context holding only the app's fonts.
+        // They are loaded and installed again; until then plugin text is
+        // drawn in the app's face.
+        if !s.font_names.iter().all(|n| installed.contains(n)) {
+            s.fonts_key = None;
+            s.font_names.clear();
+            s.element_fonts.clear();
         }
     });
     let done = with(|s| {
@@ -7195,5 +7214,192 @@ mod tests {
         assert_eq!(at, vec![0.0, 0.4, 0.8, 1.0]);
         let radii = radial_radii(r, egui::pos2(500.0, 750.0), ellipse, size);
         assert_eq!(radii, egui::Vec2::splat(250.0));
+    }
+
+    /// A tidal-genres pill (`font-family: Consolas, monospace`) drawn in
+    /// one frame of `ctx`, which also loads and installs the fonts as
+    /// `begin_frame` does: the families its text was laid out in.
+    fn pill_families(ctx: &egui::Context) -> Vec<egui::FontFamily> {
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(800.0, 600.0),
+            )),
+            ..egui::RawInput::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            fonts_tick(ui.ctx());
+            super::super::plugin_slots::inline(ui, "main", crate::luna::dom::Position::Prepend);
+        });
+        out.textures_delta.clear();
+        out.shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) if t.galley.text() == "Hip-Hop/Rap" => {
+                    Some(t.galley.job.sections[0].format.font_id.family.clone())
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// An overlay with one tidal-genres pill in `family`, and a font
+    /// named "Consolas" declared in a `data:` URL (the system's Consolas
+    /// on Windows, the same everywhere for the test).
+    fn pill_overlay(family: &str) -> DomOverlay {
+        use crate::luna::dom::{FontSource, Injected, Position, VNode};
+        use base64::Engine;
+        let inter = base64::engine::general_purpose::STANDARD.encode(fastframe_fonts::INTER);
+        DomOverlay {
+            version: 1,
+            fonts: vec![FontSource {
+                family: "Consolas".into(),
+                src: format!("url(data:font/ttf;base64,{inter})"),
+                weight: None,
+            }],
+            injected: vec![Injected {
+                anchor: "main".into(),
+                position: Position::Prepend,
+                nodes: vec![VNode {
+                    id: 1,
+                    tag: "span".into(),
+                    style: Style {
+                        font_family: Some(family.into()),
+                        ..Style::default()
+                    },
+                    children: vec![VNode {
+                        id: 2,
+                        tag: "#text".into(),
+                        text: Some("Hip-Hop/Rap".into()),
+                        ..VNode::default()
+                    }],
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        }
+    }
+
+    /// Frames of `ctx` until the pill is drawn in `want` (the fonts load
+    /// on a thread of their own), at most two seconds.
+    fn pill_until(ctx: &egui::Context, want: &egui::FontFamily) -> Vec<egui::FontFamily> {
+        let mut drawn = Vec::new();
+        for _ in 0..200 {
+            drawn = pill_families(ctx);
+            if drawn.contains(want) {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        drawn
+    }
+
+    /// A window replaced while Luna runs (compact mode, the title bar
+    /// setting, back from the tray) is a new egui context holding only the
+    /// app's fonts. The families plugins had loaded stayed bound, so the
+    /// first genre pill drawn in one aborted the app: `FontFamily::Name(
+    /// "Consolas") is not bound to any fonts`. The new window draws it in
+    /// the app's face until the fonts are installed in it, then in its own.
+    #[test]
+    fn plugin_fonts_are_installed_again_in_a_new_window() {
+        let consolas = egui::FontFamily::Name("Consolas".into());
+        test_overlay(Some(pill_overlay("Consolas, monospace")));
+        let first = egui::Context::default();
+        crate::theme::install(&first);
+        let before = pill_until(&first, &consolas);
+        // The window is closed and another one made, as `App::attach` does.
+        drop(first);
+        let second = egui::Context::default();
+        crate::theme::install(&second);
+        let at_once = pill_families(&second);
+        let after = pill_until(&second, &consolas);
+        test_overlay(None);
+        assert_eq!(
+            before,
+            std::slice::from_ref(&consolas),
+            "in the plugin's font"
+        );
+        assert_eq!(
+            at_once,
+            [crate::theme::regular(12.0).family],
+            "the app's face"
+        );
+        assert_eq!(after, [consolas], "and in it again in the new window");
+    }
+
+    /// Plugin text is handed to egui in a named family only when egui's
+    /// fonts have it: a family listed as loaded that egui does not have is
+    /// drawn in the app's face for that frame, never aborting the app.
+    #[test]
+    fn a_family_egui_lacks_draws_in_the_apps_face() {
+        test_overlay(Some(pill_overlay("Consolas, monospace")));
+        test_font_families(&["Consolas"]);
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut drawn = Vec::new();
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                ..egui::RawInput::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                super::super::plugin_slots::inline(ui, "main", crate::luna::dom::Position::Prepend);
+            });
+            out.textures_delta.clear();
+            drawn = out
+                .shapes
+                .iter()
+                .filter_map(|s| match &s.shape {
+                    egui::Shape::Text(t) if t.galley.text() == "Hip-Hop/Rap" => {
+                        Some(t.galley.job.sections[0].format.font_id.family.clone())
+                    }
+                    _ => None,
+                })
+                .collect();
+        }
+        test_overlay(None);
+        assert_eq!(
+            drawn,
+            [crate::theme::regular(12.0).family],
+            "the app's face"
+        );
+    }
+
+    /// The settings of a plugin drawn in `@luna/ui`'s look use MUI's font
+    /// once it is loaded: one listed as loaded that egui does not have is
+    /// the app's face, as for plugin text.
+    #[test]
+    fn mui_text_in_a_family_egui_lacks_draws_in_the_apps_face() {
+        use super::super::luna_settings::{Mui, title_block};
+        test_overlay(Some(DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        }));
+        test_font_families(&["Roboto"]);
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mui = Mui::new(&crate::theme::Palette::dark());
+        let mut drawn = Vec::new();
+        for _ in 0..2 {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                title_block(ui, &mui, "Scrobbling", "", 300.0);
+            });
+            out.textures_delta.clear();
+            drawn = out
+                .shapes
+                .iter()
+                .filter_map(|s| match &s.shape {
+                    egui::Shape::Text(t) if t.galley.text() == "Scrobbling" => {
+                        Some(t.galley.job.sections[0].format.font_id.family.clone())
+                    }
+                    _ => None,
+                })
+                .collect();
+        }
+        test_overlay(None);
+        assert_eq!(drawn, [crate::theme::regular(12.0).family]);
     }
 }
