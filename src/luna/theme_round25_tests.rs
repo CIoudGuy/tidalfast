@@ -952,3 +952,38 @@ fn an_older_sidebar_item_class_misses_the_navigation_rows() {
     luna.shutdown();
     assert_eq!(color, None, "the label keeps TIDAL's white");
 }
+
+/// Black Glow paints `body, html { background-color: #000 !important }`,
+/// TIDAL's own black, and names a black token ramp. TIDAL's window is
+/// unchanged by that fill and its tiles, queue, bar and menus keep TIDAL's
+/// greys (tile about 20, queue 22, menus 45), but the fill counted as the
+/// theme painting the window, so the black ramp repainted every surface.
+#[test]
+fn a_body_fill_of_tidals_own_black_keeps_tidals_surfaces() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom::themed;
+    let css = r#"/* {"name": "Black body"} */
+:root { --wave-color-solid-base-fill: #000000; --wave-color-solid-base-bright: #000000;
+    --wave-color-solid-base-brighter: #000000; --wave-color-solid-base-brightest: #181818;
+    --wave-color-solid-contrast-fill: #e4e4e4; }
+body, html { background-color: #000000 !important; }
+"#;
+    let (luna, o) = overlay_with("black-body.css", css, dom_anchors::sample_tree(), "");
+    let base = Palette::dark();
+    let p = themed(&base, &o);
+    luna.shutdown();
+    assert_eq!(p.surface, base.surface);
+    assert_eq!(p.overlay, base.overlay);
+    assert!(p.themed && p.own_surfaces, "TIDAL's own surfaces");
+    // A body fill of another colour still paints the window (Catppuccin
+    // Mocha Blue's base, the single-file Cotton Candy Nights' purple).
+    let css = r#"/* {"name": "Purple body"} */
+:root { --wave-color-solid-base-brighter: #20103a; }
+body { background-color: rgb(2, 0, 10) !important; }
+"#;
+    let (luna, o) = overlay_with("purple-body.css", css, dom_anchors::sample_tree(), "");
+    let p = themed(&base, &o);
+    luna.shutdown();
+    assert_eq!(p.window, egui::Color32::from_rgb(2, 0, 10));
+    assert_eq!(p.surface, egui::Color32::from_rgb(0x20, 0x10, 0x3a));
+}

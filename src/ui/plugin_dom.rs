@@ -4463,7 +4463,11 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         .background_color
         .as_deref()
         .and_then(|v| css::color(&css::resolve_vars(v, &o.vars)))
-        .filter(|c| c.a() > 0);
+        .filter(|c| c.a() > 0)
+        // A body fill of TIDAL's own black (Black Glow's `body, html {
+        // background-color: #000 }`) leaves TIDAL's window as it was: it
+        // does not make the theme's token ramp TIDAL's surfaces.
+        .filter(|c| !(base.tidal_dark() && *c == base.window));
     // TIDAL's main container sits behind the sidebar and the page: a theme
     // that paints it (and clears those) gives the window its colour.
     let container_bg = o
