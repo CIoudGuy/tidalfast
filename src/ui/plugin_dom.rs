@@ -2042,6 +2042,61 @@ pub fn paints_box(key: &str) -> bool {
     .unwrap_or(false)
 }
 
+/// What a theme made of the home page's feed (`div._feed_412931c`, the
+/// page anchor on Home) when it draws a box round it: the width its
+/// `max-width` gives the feed's content, and its padding (top, right,
+/// bottom, left) between the box's edge and the content (the cotton candy
+/// family's glass card, `calc(88vw - var(--sidebarWidth) -
+/// (var(--playQueueWidth) * .9))` wide, 2.2em in from its left, of the
+/// feed's 14-point text). Its `translateY(-2.95em)` is not followed: it
+/// lifts the feed's tabs under the header, where the page is clipped.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FeedCard {
+    pub width: Option<f32>,
+    pub padding: [f32; 4],
+}
+
+/// The feed's card (see [`FeedCard`]); `None` while no theme draws a box
+/// for it, so Home keeps its own column.
+pub fn feed_card() -> Option<FeedCard> {
+    if !on() {
+        return None;
+    }
+    let key = dom_anchors::keys::PAGE;
+    if !paints_box(key) {
+        return None;
+    }
+    let viewport = viewport();
+    host(key, |h, vars| {
+        let s = &h.style;
+        let len = |v: Option<&String>| {
+            v.and_then(|v| css::length(&css::resolve_vars(v, vars), 14.0, viewport[0], viewport))
+                .filter(|n| n.is_finite())
+        };
+        let width = len(s.max_width.as_ref())
+            .or_else(|| len(s.min_width.as_ref()))
+            .filter(|w| *w > 200.0);
+        let base = s
+            .padding
+            .as_deref()
+            .map_or([0.0; 4], |v| css::sides(&css::resolve_vars(v, vars), 14.0));
+        let padding = [
+            len(s.padding_top.as_ref()).unwrap_or(base[0]),
+            len(s.padding_right.as_ref()).unwrap_or(base[1]),
+            len(s.padding_bottom.as_ref()).unwrap_or(base[2]),
+            len(s.padding_left.as_ref()).unwrap_or(base[3]),
+        ]
+        .map(|n| n.clamp(0.0, 120.0));
+        Some(FeedCard { width, padding })
+    })
+}
+
+/// The feed's card is drawn round Home's content in `r`: paints the
+/// theme's box for it (fill, gradients, border, corners, shadows).
+pub fn paint_feed_card(ui: &egui::Ui, r: Rect) {
+    paint_themed_box(ui, dom_anchors::keys::PAGE, r, egui::CornerRadius::same(16));
+}
+
 /// How tall the next shortcut tile is: a theme's `min-height` on the tile's
 /// box (the cotton candy family's `4.5em`) when it is taller than `natural`.
 pub fn home_tile_height(natural: f32) -> f32 {

@@ -45,31 +45,65 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     } else {
         super::sidebar::RAIL_WIDTH
     };
-    let cap = widgets::home_feed_cap(ui.ctx().content_rect().width(), sidebar);
+    let mut cap = widgets::home_feed_cap(ui.ctx().content_rect().width(), sidebar);
+    // A theme's card round the feed (the cotton candy family's glass box):
+    // the feed as wide as its `max-width`, the card its padding beyond it.
+    let card = super::plugin_dom::feed_card();
+    if let Some(width) = card.and_then(|c| c.width) {
+        cap = cap.min(width);
+    }
     widgets::feed_column_capped(ui, cap, |ui| {
-        ui.add_space(10.0);
-        // The Uploads tab, hidden in the settings, is not left open.
-        if app.settings.hide_uploads_tab && app.home_tab == Some("uploads") {
-            app.home_tab = None;
+        let top = ui.cursor().top();
+        let height_id = egui::Id::new("home-feed-card-height");
+        if let Some(card) = card {
+            // As tall as the feed was last frame (the page's visible
+            // height on the first), painted under it.
+            let height = ui
+                .ctx()
+                .data(|d| d.get_temp::<f32>(height_id))
+                .unwrap_or_else(|| (ui.clip_rect().bottom() - top).max(0.0));
+            let [pad_top, pad_right, pad_bottom, pad_left] = card.padding;
+            let column = ui.max_rect();
+            super::plugin_dom::paint_feed_card(
+                ui,
+                Rect::from_min_max(
+                    pos2(column.left() - pad_left, top - pad_top),
+                    pos2(column.right() + pad_right, top + height + pad_bottom),
+                ),
+            );
         }
-        tabs(app, ui);
-        ui.add_space(32.0);
-        if let Some(feed) = app.home_tab {
-            super::home_feeds::show(app, ui, feed);
-            return;
-        }
-        quick_access(app, ui);
-        ui.add_space(40.0);
-        if app.settings.home.made_for_you.visible {
-            tidal_shelves(app, ui);
-        }
-        recently_played(app, ui);
-        top_artists(app, ui);
-        top_tracks(app, ui);
-        if app.settings.home.recommendations.visible {
-            recommendations(app, ui);
+        feed(app, ui);
+        if card.is_some() {
+            let height = ui.min_rect().bottom() - top;
+            ui.ctx().data_mut(|d| d.insert_temp(height_id, height));
         }
     });
+}
+
+/// Home's feed: its tabs, then the shortcuts and shelves of the tab shown.
+fn feed(app: &mut App, ui: &mut egui::Ui) {
+    ui.add_space(10.0);
+    // The Uploads tab, hidden in the settings, is not left open.
+    if app.settings.hide_uploads_tab && app.home_tab == Some("uploads") {
+        app.home_tab = None;
+    }
+    tabs(app, ui);
+    ui.add_space(32.0);
+    if let Some(feed) = app.home_tab {
+        super::home_feeds::show(app, ui, feed);
+        return;
+    }
+    quick_access(app, ui);
+    ui.add_space(40.0);
+    if app.settings.home.made_for_you.visible {
+        tidal_shelves(app, ui);
+    }
+    recently_played(app, ui);
+    top_artists(app, ui);
+    top_tracks(app, ui);
+    if app.settings.home.recommendations.visible {
+        recommendations(app, ui);
+    }
 }
 
 /// The row of feed tabs over Home: For you, Staff Picks and Uploads, 14/22

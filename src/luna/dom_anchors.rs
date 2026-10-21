@@ -1015,13 +1015,15 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     if frame.sidebar.width > 0.0 {
         // TIDAL's variables for the sidebar's width, read by the sidebar
         // and by `#main` (a theme that lays the page under the sidebar sets
-        // `left: calc(var(--sidebarWidth) * -1)`).
+        // `left: calc(var(--sidebarWidth) * -1)`), and for its side
+        // panel's (the cotton candy family sizes Home's card by it).
         row = row.attr(
             "style",
             format!(
-                "--sidebarWidth: {}px; --collapsedSidebarWidth: {}px;",
+                "--sidebarWidth: {}px; --collapsedSidebarWidth: {}px; --playQueueWidth: {}px;",
                 frame.sidebar.width.round(),
-                crate::ui::sidebar::RAIL_WIDTH
+                crate::ui::sidebar::RAIL_WIDTH,
+                PLAY_QUEUE_WIDTH,
             ),
         );
     }
@@ -1098,6 +1100,9 @@ fn main_rect(frame: &Frame) -> Option<Rect> {
 
 /// The width of TIDAL's expanded sidebar, in its inline style.
 const TIDAL_SIDEBAR_WIDTH: f32 = 240.0;
+/// TIDAL 2.43.2's side panel (the play queue) is 350 wide: its
+/// `--playQueueWidth`.
+const PLAY_QUEUE_WIDTH: f32 = 350.0;
 
 pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
     use keys::*;
@@ -2656,7 +2661,7 @@ mod tests {
         );
         assert_eq!(
             style(&frame, keys::CONTAINER_ROW).as_deref(),
-            Some("--sidebarWidth: 300px; --collapsedSidebarWidth: 72px;")
+            Some("--sidebarWidth: 300px; --collapsedSidebarWidth: 72px; --playQueueWidth: 350px;")
         );
         frame.sidebar.width = 240.0;
         assert_eq!(
@@ -2671,7 +2676,7 @@ mod tests {
         );
         assert_eq!(
             style(&frame, keys::CONTAINER_ROW).as_deref(),
-            Some("--sidebarWidth: 72px; --collapsedSidebarWidth: 72px;")
+            Some("--sidebarWidth: 72px; --collapsedSidebarWidth: 72px; --playQueueWidth: 350px;")
         );
     }
 
