@@ -348,6 +348,9 @@ pub enum Permission {
     /// Gets TIDAL audio to save as files, only after the user said yes
     /// ([`Access::SaveAudio`]).
     SaveAudio,
+    /// Switches the output to exclusive (bit-perfect) mode, only after the
+    /// user said yes ([`Access::ExclusiveOutput`]).
+    ExclusiveOutput,
 }
 
 impl Permission {
@@ -371,6 +374,9 @@ impl Permission {
                 "Talks to another program over its own pipe or socket (asks you first)"
             }
             Permission::SaveAudio => "Saves TIDAL songs as files (asks you first)",
+            Permission::ExclusiveOutput => {
+                "Switches the output to exclusive (bit-perfect) mode (asks you first)"
+            }
         }
     }
 
@@ -408,6 +414,10 @@ impl Permission {
                 "Talks to another program over its own pipe or socket (asks you first)",
             ),
             Permission::SaveAudio => gettext(locale, "Saves TIDAL songs as files (asks you first)"),
+            Permission::ExclusiveOutput => gettext(
+                locale,
+                "Switches the output to exclusive (bit-perfect) mode (asks you first)",
+            ),
         }
         .into_owned()
     }

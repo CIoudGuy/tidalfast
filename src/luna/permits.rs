@@ -2,7 +2,8 @@
 //! programs ([`super::child`]) and changing the account
 //! ([`super::writes`]): hand it the TIDAL sign-in, register keyboard
 //! shortcuts across the whole computer, talk to another program over that
-//! program's own pipe or socket, and save TIDAL audio to files.
+//! program's own pipe or socket, save TIDAL audio to files, and switch the
+//! output to exclusive (bit-perfect) mode.
 //!
 //! * Each is off until the user answers the plugin's first use with Allow
 //!   once, Always allow or Deny (Deny is what Esc and the default button
@@ -37,7 +38,15 @@ pub enum Access {
     /// TIDAL audio for the plugin: `MediaItem.download` and
     /// `fetchMediaItemStream` (unencrypted streams only).
     SaveAudio,
+    /// `player/SET_DEVICE_MODE("exclusive")`: Tidalfast's Bit-perfect
+    /// setting, which takes the audio device for Tidalfast alone. Going
+    /// back to shared output never asks.
+    ExclusiveOutput,
 }
+
+/// The op an [`Access`] question carries when no plugin call waits for the
+/// answer (a redux dispatch, which returns at once): nothing is settled.
+pub const NO_OP: f64 = -1.0;
 
 impl Access {
     /// Which [`super::Permission`] the Plugins page lists for it.
@@ -47,6 +56,7 @@ impl Access {
             Access::GlobalShortcuts => super::Permission::GlobalShortcuts,
             Access::Pipe { .. } => super::Permission::ProgramPipes,
             Access::SaveAudio => super::Permission::SaveAudio,
+            Access::ExclusiveOutput => super::Permission::ExclusiveOutput,
         }
     }
 
@@ -57,6 +67,7 @@ impl Access {
             Access::GlobalShortcuts => "use keyboard shortcuts across the whole computer".into(),
             Access::Pipe { path } => format!("talk to another program over {path}"),
             Access::SaveAudio => "save TIDAL songs as files".into(),
+            Access::ExclusiveOutput => "switch the output to exclusive (bit-perfect) mode".into(),
         }
     }
 }
@@ -332,6 +343,7 @@ mod tests {
             Access::Credentials,
             Access::GlobalShortcuts,
             Access::SaveAudio,
+            Access::ExclusiveOutput,
             Access::Pipe { path: "x".into() },
         ] {
             assert_eq!(p.standing("a", &access), Standing::Ask);

@@ -65,6 +65,14 @@ pub const EMITTED_ACTIONS: &[&str] = &[
 /// Why `player/SET_DEVICE_MODE` did nothing, and the store value went back.
 pub const EXCLUSIVE_UNSUPPORTED: &str = "this build of Tidalfast has no exclusive (bit-perfect) output on this platform, so the output stays shared";
 
+/// Why a plugin's `player/SET_DEVICE_MODE("exclusive")` waits: the user is
+/// asked first, and the output stays shared until they allow it.
+pub const EXCLUSIVE_ASKED: &str = "exclusive (bit-perfect) output is switched on for a plugin only after you allow it; you were asked, and the output stays shared until then";
+
+/// Why a plugin's `player/SET_DEVICE_MODE("exclusive")` did nothing after
+/// the user said no.
+pub const EXCLUSIVE_DENIED: &str = "you did not allow this plugin to switch the output to exclusive (bit-perfect) mode, so it stays shared";
+
 /// What a plugin-dispatched action means for Tidalfast.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ActionOutcome {

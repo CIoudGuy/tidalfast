@@ -1534,9 +1534,13 @@ lib.redux.intercept("content/LOAD_ITEM_LYRICS_SUCCESS", unloads, async () => {
 
 /// quickExclusiveMode's button dispatches `player/SET_DEVICE_MODE` with
 /// "exclusive" or "shared": the Bit-perfect setting follows (a command), and
-/// the store shows the mode at once.
+/// the store shows the mode at once. Switching exclusive output on needs
+/// the user's yes first (PersistSettings asks for it every second as it is
+/// installed): until then the store goes back to shared and nothing
+/// changes; Allow switches it on, and later dispatches go through.
+/// Switching back to shared never asks.
 #[test]
-fn a_plugins_device_mode_switches_the_exclusive_output() {
+fn a_plugins_device_mode_switches_the_exclusive_output_once_allowed() {
     let snap = PlaybackSnapshot {
         exclusive_mode: Some(false),
         ..Default::default()
@@ -1545,20 +1549,102 @@ fn a_plugins_device_mode_switches_the_exclusive_output() {
         r#"
 const s = () => lib.redux.store.getState().player.activeDeviceMode;
 lib.redux.actions["player/SET_DEVICE_MODE"]("exclusive");
-const first = s();
-lib.redux.actions["player/SET_DEVICE_MODE"]({ mode: "shared" });
-say([first, s()].join(","));
+const asked = s();
+lib.redux.actions["player/SET_DEVICE_MODE"]("exclusive");
+say(asked + "," + s());
+lib.redux.intercept("search/SEARCH_COMMIT", unloads, () => {
+    lib.redux.actions["player/SET_DEVICE_MODE"]("exclusive");
+    const first = s();
+    lib.redux.actions["player/SET_DEVICE_MODE"]({ mode: "shared" });
+    say([first, s()].join(","));
+});
 "#,
         snap,
     );
     host.wait(&luna, "the answer", |h| !h.notes().is_empty());
-    assert_eq!(host.notes()[0], "exclusive,shared");
+    assert_eq!(
+        host.notes()[0],
+        "shared,shared",
+        "nothing switched before the answer"
+    );
+    assert!(host.commands().is_empty(), "{:?}", host.commands());
+    let s = wait_until(&luna, 10, |s| !s.permission_requests.is_empty());
+    assert_eq!(
+        s.permission_requests.len(),
+        1,
+        "one question for both dispatches"
+    );
+    let q = s.permission_requests[0].clone();
+    assert_eq!(
+        (q.plugin.as_str(), &q.access),
+        ("Actions", &Access::ExclusiveOutput)
+    );
+    luna.answer_permission(q.id, ProgramChoice::Once);
+    host.wait(&luna, "the switch", |h| !h.commands().is_empty());
+    assert_eq!(host.commands(), vec![HostCommand::SetExclusiveMode(true)]);
+    luna.event(LunaEvent::Action {
+        kind: "search/SEARCH_COMMIT".into(),
+        payload: json!("again"),
+    });
+    host.wait(&luna, "the second answer", |h| h.notes().len() > 1);
+    assert_eq!(host.notes()[1], "exclusive,shared");
     assert_eq!(
         host.commands(),
         vec![
             HostCommand::SetExclusiveMode(true),
+            HostCommand::SetExclusiveMode(true),
             HostCommand::SetExclusiveMode(false)
         ]
+    );
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A Deny keeps the output shared for as long as the plugin runs, without
+/// asking again at every one of its retries; shared output never asks.
+#[test]
+fn a_denied_exclusive_output_stays_shared_without_asking_again() {
+    let snap = PlaybackSnapshot {
+        exclusive_mode: Some(false),
+        ..Default::default()
+    };
+    let (luna, host, dir) = start(
+        r#"
+lib.redux.actions["player/SET_DEVICE_MODE"]("shared");
+lib.redux.actions["player/SET_DEVICE_MODE"]("exclusive");
+lib.redux.intercept("search/SEARCH_COMMIT", unloads, () => {
+    lib.redux.actions["player/SET_DEVICE_MODE"]("exclusive");
+    say(lib.redux.store.getState().player.activeDeviceMode);
+});
+"#,
+        snap,
+    );
+    let s = wait_until(&luna, 10, |s| !s.permission_requests.is_empty());
+    let q = s.permission_requests[0].clone();
+    assert_eq!(host.commands(), vec![HostCommand::SetExclusiveMode(false)]);
+    luna.answer_permission(q.id, ProgramChoice::Deny);
+    wait_until(&luna, 10, |s| s.permission_requests.is_empty());
+    luna.event(LunaEvent::Action {
+        kind: "search/SEARCH_COMMIT".into(),
+        payload: json!("again"),
+    });
+    host.wait(&luna, "the answer", |h| !h.notes().is_empty());
+    assert_eq!(host.notes()[0], "shared");
+    assert!(
+        luna.snapshot().permission_requests.is_empty(),
+        "not asked again"
+    );
+    assert_eq!(host.commands(), vec![HostCommand::SetExclusiveMode(false)]);
+    let logs: Vec<String> = plugin(&luna.snapshot(), "Actions")
+        .unwrap()
+        .logs
+        .iter()
+        .map(|l| l.message.clone())
+        .collect();
+    assert!(
+        logs.iter()
+            .any(|l| l.contains("Not allowed to switch the output")),
+        "{logs:?}"
     );
     luna.shutdown();
     let _ = std::fs::remove_dir_all(dir);
