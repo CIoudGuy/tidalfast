@@ -607,6 +607,10 @@ msgstr "TOONSOORT"
 msgid "Add to playlist"
 msgstr "Toevoegen aan playlist"
 
+#: src/app.rs:13760
+msgid "No internet connection. Tidalfast will carry on when you're back online"
+msgstr "Geen internetverbinding. Tidalfast gaat verder zodra je weer online bent."
+
 #: src/ui/widgets.rs:4178 src/app.rs:12149
 msgid "That needs a connection. Turn off offline mode to use TIDAL."
 msgstr ""

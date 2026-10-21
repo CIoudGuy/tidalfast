@@ -687,7 +687,13 @@ impl Worker {
                 if !self.cancelled() {
                     log::warn!("unable to open the video {uri}: {error:#}");
                 }
-                self.fail(video::UNPLAYABLE.to_string());
+                // An outage is not TIDAL refusing the video: it waits.
+                let error = format!("{error:#}");
+                self.fail(if super::catalog::is_unreachable(&error) {
+                    error
+                } else {
+                    video::UNPLAYABLE.to_string()
+                });
                 return;
             }
         };
@@ -897,9 +903,14 @@ fn open(source: Source, uri: &str, meter: &Arc<Meter>) -> Result<Opened> {
                 });
             }
             let id = crate::util::uri_id(uri).ok_or_else(|| anyhow!("not a track: {uri}"))?;
-            let info = catalog
-                .stream(id, quality)
-                .with_context(|| format!("This track isn't available: {uri}"))?;
+            let info = catalog.stream(id, quality).map_err(|error| {
+                // No answer is not TIDAL saying the song is unavailable.
+                if super::catalog::is_unreachable(&format!("{error:#}")) {
+                    error.context(format!("unable to ask TIDAL for {uri}"))
+                } else {
+                    error.context(format!("This track isn't available: {uri}"))
+                }
+            })?;
             if info.urls.is_empty() {
                 bail!("This track isn't available: {uri}");
             }
@@ -973,9 +984,13 @@ fn open_video(source: Source, uri: &str, start_ms: u32) -> Result<HlsMedia> {
             ..
         } => {
             let id = crate::util::uri_id(uri).ok_or_else(|| anyhow!("not a video: {uri}"))?;
-            let info = catalog
-                .video_stream(id)
-                .with_context(|| format!("This video isn't available: {uri}"))?;
+            let info = catalog.video_stream(id).map_err(|error| {
+                if super::catalog::is_unreachable(&format!("{error:#}")) {
+                    error.context(format!("unable to ask TIDAL for {uri}"))
+                } else {
+                    error.context(format!("This video isn't available: {uri}"))
+                }
+            })?;
             let url = info
                 .urls
                 .first()

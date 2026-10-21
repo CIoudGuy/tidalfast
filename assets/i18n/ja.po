@@ -601,6 +601,10 @@ msgstr "キー"
 msgid "Add to playlist"
 msgstr "プレイリストに追加"
 
+#: src/app.rs:13760
+msgid "No internet connection. Tidalfast will carry on when you're back online"
+msgstr "インターネットに接続されていません。オンラインに戻ると Tidalfast が再開します。"
+
 #: src/ui/widgets.rs:4178 src/app.rs:12149
 msgid "That needs a connection. Turn off offline mode to use TIDAL."
 msgstr "接続が必要です。TIDAL を使うにはオフラインモードをオフにしてください。"

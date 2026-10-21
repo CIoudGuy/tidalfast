@@ -612,6 +612,10 @@ msgstr "TONACJA"
 msgid "Add to playlist"
 msgstr "Dodaj do playlisty"
 
+#: src/app.rs:13760
+msgid "No internet connection. Tidalfast will carry on when you're back online"
+msgstr "Brak połączenia z internetem. Tidalfast wznowi odtwarzanie, gdy znów będziesz online."
+
 #: src/ui/widgets.rs:4178 src/app.rs:12149
 msgid "That needs a connection. Turn off offline mode to use TIDAL."
 msgstr "To wymaga połączenia. Wyłącz tryb offline, aby korzystać z TIDAL."

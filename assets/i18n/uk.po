@@ -612,6 +612,10 @@ msgstr "ТОНАЛЬНІСТЬ"
 msgid "Add to playlist"
 msgstr "Додати до плейліста"
 
+#: src/app.rs:13760
+msgid "No internet connection. Tidalfast will carry on when you're back online"
+msgstr "Немає підключення до інтернету. Tidalfast продовжить, щойно ви знову будете в мережі."
+
 #: src/ui/widgets.rs:4178 src/app.rs:12149
 msgid "That needs a connection. Turn off offline mode to use TIDAL."
 msgstr ""

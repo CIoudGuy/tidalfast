@@ -1961,6 +1961,10 @@ impl Worker {
                 Command::NetworkStatus(reachable) => {
                     self.network_reachable = reachable;
                     self.emit(Event::NetworkStatus(reachable));
+                    if reachable && let Some(engine) = &self.engine {
+                        // A song waiting for the network carries on now.
+                        engine.network_back();
+                    }
                     if reachable && let Some((grant, lease)) = self.unverified.take() {
                         self.begin(grant, lease);
                     }

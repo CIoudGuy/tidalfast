@@ -752,7 +752,18 @@ impl TidalClient {
             };
             let status = response.status().as_u16();
             let headers = response.headers().clone();
-            let body = response.text().await.unwrap_or_default();
+            let body = match response.text().await {
+                Ok(body) => body,
+                // Cut off on the way (the network went): no answer, as if
+                // none had come, never an empty one to misread.
+                Err(error) if call.idempotent() && attempt < RETRIES => {
+                    attempt += 1;
+                    log::debug!("TIDAL answer cut off, retrying: {}", error.without_url());
+                    tokio::time::sleep(backoff(attempt)).await;
+                    continue;
+                }
+                Err(error) => return Err(ApiError::Network(error.without_url().to_string())),
+            };
             let path = call.url.split('?').next().unwrap_or_default();
             // Path, status, time and size only: never the query or headers.
             log::debug!(

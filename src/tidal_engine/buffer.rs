@@ -1029,26 +1029,33 @@ impl MediaSource for Reader {
 enum FetchError {
     /// The server no longer takes the URL: it has expired.
     Expired(String),
-    /// The connection failed or stalled; trying again may work.
+    /// No answer, or one cut off: the network went (a name that does not
+    /// resolve, a connection refused, reset or timed out), or the server
+    /// failed (5xx) or asked to wait (429). Trying again may work, and if
+    /// it never does, the song waits for the network rather than being
+    /// skipped ([`super::catalog::UNREACHABLE`]).
+    Network(String),
+    /// Anything else (the stream could not be kept, offline mode refused
+    /// the request); trying again may still work.
     Failed(String),
 }
 
 impl FetchError {
     fn from_reqwest(error: reqwest::Error) -> Self {
-        let expired = error
-            .status()
-            .is_some_and(|status| matches!(status.as_u16(), 401 | 403 | 404 | 410));
+        let status = error.status().map(|status| status.as_u16());
         let message = error.without_url().to_string();
-        if expired {
-            Self::Expired(message)
-        } else {
-            Self::Failed(message)
+        match status {
+            Some(401 | 403 | 404 | 410) => Self::Expired(message),
+            Some(status) if status >= 500 || status == 429 => Self::Network(message),
+            Some(_) => Self::Failed(message),
+            None => Self::Network(message),
         }
     }
 
     fn message(self) -> String {
         match self {
             Self::Expired(message) | Self::Failed(message) => message,
+            Self::Network(message) => format!("{}: {message}", super::catalog::UNREACHABLE),
         }
     }
 }
@@ -1062,21 +1069,21 @@ struct Links {
 }
 
 impl Links {
-    /// Fresh URLs in place of expired ones. False when there are none to
-    /// be had.
-    fn renew(&mut self) -> bool {
+    /// Fresh URLs in place of expired ones. `Err` when there are none to
+    /// be had, with why asking for them failed, if they were asked for.
+    fn renew(&mut self) -> Result<(), Option<String>> {
         let Some(refresh) = &self.refresh else {
-            return false;
+            return Err(None);
         };
         if self.refreshes >= REFRESHES {
-            return false;
+            return Err(None);
         }
         self.refreshes += 1;
         let fresh = match refresh() {
             Ok(fresh) => fresh,
             Err(error) => {
                 log::warn!("unable to renew the stream's address: {error}");
-                return false;
+                return Err(Some(error));
             }
         };
         let renewed: Vec<String> = if self.urls.len() == 1 {
@@ -1090,11 +1097,48 @@ impl Links {
         };
         if renewed.len() != self.urls.len() {
             log::warn!("the renewed stream has another shape; not using it");
-            return false;
+            return Err(None);
         }
         log::info!("the stream's address expired; carrying on from a fresh one");
         self.urls = renewed;
-        true
+        Ok(())
+    }
+
+    /// How long failures in a row are ridden out: [`OUTAGE`], or less for
+    /// a test's server.
+    fn outage(&self) -> Duration {
+        #[cfg(test)]
+        if let Some(short) = self.urls.first().and_then(|url| short_outage::of(url)) {
+            return short;
+        }
+        OUTAGE
+    }
+}
+
+/// A shorter [`OUTAGE`] for the URLs of a test's server, so a test of a
+/// download that gives up does not wait 20 s.
+#[cfg(test)]
+pub(crate) mod short_outage {
+    use std::sync::{Mutex, PoisonError};
+    use std::time::Duration;
+
+    static SHORT: Mutex<Vec<(String, Duration)>> = Mutex::new(Vec::new());
+
+    /// Downloads of URLs that start with `prefix` give up after `outage`.
+    pub(crate) fn set(prefix: &str, outage: Duration) {
+        SHORT
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((prefix.to_string(), outage));
+    }
+
+    pub(super) fn of(url: &str) -> Option<Duration> {
+        SHORT
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .iter()
+            .find(|(prefix, _)| url.starts_with(prefix.as_str()))
+            .map(|(_, outage)| *outage)
     }
 }
 
@@ -1136,17 +1180,17 @@ impl Retry {
             self.since = None;
         }
         match error {
-            FetchError::Expired(message) => {
-                if links.renew() {
-                    Ok(())
-                } else {
-                    Err(message)
-                }
-            }
-            FetchError::Failed(message) => {
+            FetchError::Expired(message) => match links.renew() {
+                Ok(()) => Ok(()),
+                // Fresh URLs could not be asked for: the network went.
+                Err(Some(why)) if super::catalog::is_unreachable(&why) => Err(why),
+                Err(_) => Err(message),
+            },
+            error @ (FetchError::Network(_) | FetchError::Failed(_)) => {
                 self.attempts += 1;
                 let since = *self.since.get_or_insert_with(Instant::now);
-                if self.attempts >= ATTEMPTS && since.elapsed() >= OUTAGE {
+                let message = error.message();
+                if self.attempts >= ATTEMPTS && since.elapsed() >= links.outage() {
                     return Err(message);
                 }
                 log::warn!("stream download interrupted, resuming: {message}");
@@ -1245,12 +1289,12 @@ fn fetch_span(
         }
         let read = response
             .read(&mut chunk)
-            .map_err(|error| FetchError::Failed(format!("stream read failed: {error}")))?;
+            .map_err(|error| FetchError::Network(format!("stream read failed: {error}")))?;
         if read == 0 {
             let state = shared.lock();
             if state.len.is_some_and(|len| at < len) && !linear {
                 // The connection closed before the span was done.
-                return Err(FetchError::Failed("the stream ended early".into()));
+                return Err(FetchError::Network("the stream ended early".into()));
             }
             return Ok(None);
         }
@@ -1365,10 +1409,10 @@ fn fetch_segment(
         }
         let read = response
             .read(&mut chunk)
-            .map_err(|error| FetchError::Failed(format!("segment read failed: {error}")))?;
+            .map_err(|error| FetchError::Network(format!("segment read failed: {error}")))?;
         if read == 0 {
             if expected.is_some_and(|expected| (segment.len() as u64) < expected) {
-                return Err(FetchError::Failed("the segment ended early".into()));
+                return Err(FetchError::Network("the segment ended early".into()));
             }
             return Ok(());
         }

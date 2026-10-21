@@ -1181,6 +1181,74 @@ fn tracks_kept_offline_play_with_tidal_out_of_reach() {
     engine.shutdown();
 }
 
+/// [`FakeCatalog`] once the network has gone: the album was listed before,
+/// but no stream or station gets an answer.
+struct StreamsDown(Arc<FakeCatalog>);
+
+impl Catalog for StreamsDown {
+    fn context_tracks(&self, context_uri: &str) -> Result<Vec<LocalTrack>> {
+        self.0.context_tracks(context_uri)
+    }
+
+    fn tracks(&self, uris: &[String]) -> Result<Vec<LocalTrack>> {
+        self.0.tracks(uris)
+    }
+
+    fn stream(&self, _: &str, _: Quality) -> Result<StreamInfo> {
+        Err(catalog::unreachable(
+            "network error: dns error: no such host is known",
+        ))
+    }
+
+    fn autoplay(&self, _: &str) -> Result<Vec<LocalTrack>> {
+        Err(catalog::unreachable(
+            "network error: dns error: no such host is known",
+        ))
+    }
+}
+
+/// With the network down, a downloaded song plays from what is kept, and
+/// one that is not kept waits for the network rather than being skipped
+/// past (on to the next kept one, or through the whole album).
+#[test]
+fn with_the_network_down_kept_songs_play_and_the_others_wait() {
+    let dir = Scratch::new("offline-down");
+    let store = Arc::new(OfflineStore::open(dir.0.clone()));
+    let kept: Vec<String> = ["tidal:track:1", "tidal:track:4"]
+        .iter()
+        .map(|uri| uri.to_string())
+        .collect();
+    let job = store.download(
+        FakeCatalog::new(),
+        client(),
+        Quality::Lossless,
+        kept,
+        Some("tidal:album:1".into()),
+        |_| {},
+    );
+    job.join();
+    assert!(store.is_available("tidal:track:1") && store.is_available("tidal:track:4"));
+
+    let catalog = Arc::new(StreamsDown(FakeCatalog::new()));
+    let (engine, states) = engine_with(kept_config(None, Some(&dir)), catalog);
+    // Song 2 is not kept: it waits, where it is in the album.
+    load_album(&engine, Some("tidal:track:2"));
+    let waiting = until(&states, |state| {
+        state.error.as_deref() == Some(NETWORK_WAIT)
+    });
+    assert_eq!(waiting.track.unwrap().uri, "tidal:track:2");
+    assert!(waiting.loading);
+    let queue = engine.queue(10);
+    assert_eq!(queue.current.unwrap().uri, "tidal:track:2");
+    assert_eq!(queue.next_up, vec![track(3), track(4)], "nothing skipped");
+    // A kept song plays while the network is down.
+    engine.command(PlayerCommand::Previous).unwrap();
+    let played = until(&states, paused_on("tidal:track:1"));
+    assert_eq!(played.format.unwrap().origin, AudioOrigin::Offline);
+    assert!(played.error.is_none(), "{:?}", played.error);
+    engine.shutdown();
+}
+
 /// A cancelled download accounts for every track it was asked for and
 /// keeps none of them.
 #[test]

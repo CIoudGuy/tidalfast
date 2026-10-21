@@ -3068,7 +3068,11 @@ impl App {
             && self.local.error.as_deref() != Some(error.as_str())
         {
             self.toast_error(engine_error_text(self.locale, error));
-            self.undo_unanswered_play();
+            // A song waiting for the network is still the one played: what
+            // the listener did stands, and plays once the network is back.
+            if error != crate::tidal_engine::NETWORK_WAIT {
+                self.undo_unanswered_play();
+            }
         }
         if let Some(seed) = autoplay_seed(
             self.local_list.as_deref(),
@@ -13754,6 +13758,13 @@ fn engine_error_text(locale: Locale, error: &str) -> String {
     if error.starts_with(crate::tidal_engine::video::UNPLAYABLE) {
         return gettext(locale, "This video can't be played in Tidalfast").into_owned();
     }
+    if error == crate::tidal_engine::NETWORK_WAIT {
+        return gettext(
+            locale,
+            "No internet connection. Tidalfast will carry on when you're back online",
+        )
+        .into_owned();
+    }
     error.to_owned()
 }
 
@@ -17486,6 +17497,54 @@ mod tests {
             "the engine's Shuffle is put back too"
         );
         assert!(!app.play_pending("tidal:album:new"));
+        app.backend.shutdown();
+    }
+
+    /// The network is down when the song shown (a restored session's) is
+    /// played from an album: the engine waits for the network and says so
+    /// once. The play stands (the album does not flicker back to the one
+    /// before), and the message is the translated one, shown once however
+    /// often the engine reports the wait.
+    #[test]
+    fn a_song_waiting_for_the_network_keeps_the_play_and_says_so_once() {
+        let mut app = headless_app();
+        app.backend.set_offline(true);
+        app.local.connected = true;
+        app.local.track = Some(crate::player::LocalTrack {
+            uri: "tidal:track:new".into(),
+            ..Default::default()
+        });
+        app.local.playback = Playback::Paused;
+        app.play_request(
+            PlayRequest::context("tidal:album:new").starting_at_uri("tidal:track:new"),
+            false,
+        );
+        assert_eq!(app.assumed_context.as_ref().unwrap().uri, "tidal:album:new");
+        let toasts = app.toasts.len();
+        let mut waiting = app.local.clone();
+        waiting.track_sequence += 1;
+        waiting.playback = Playback::Loading;
+        waiting.loading = true;
+        waiting.error = Some(crate::tidal_engine::NETWORK_WAIT.into());
+        app.handle_local(waiting.clone());
+        app.handle_local(waiting);
+        assert_eq!(
+            app.assumed_context.as_ref().unwrap().uri,
+            "tidal:album:new",
+            "the play stands"
+        );
+        assert_eq!(app.toasts.len(), toasts + 1);
+        let toast = app.toasts.last().unwrap();
+        assert_eq!(
+            toast.message,
+            "No internet connection. Tidalfast will carry on when you're back online"
+        );
+        assert_eq!(toast.count, 1, "said once");
+        assert_ne!(
+            engine_error_text(Locale::Spanish, crate::tidal_engine::NETWORK_WAIT),
+            crate::tidal_engine::NETWORK_WAIT,
+            "translated"
+        );
         app.backend.shutdown();
     }
 

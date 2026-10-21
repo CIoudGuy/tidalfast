@@ -609,6 +609,10 @@ msgstr "TOM"
 msgid "Add to playlist"
 msgstr "Adicionar à playlist"
 
+#: src/app.rs:13760
+msgid "No internet connection. Tidalfast will carry on when you're back online"
+msgstr "Sem ligação à Internet. O Tidalfast continua quando voltares a estar online."
+
 #: src/ui/widgets.rs:4178 src/app.rs:12149
 msgid "That needs a connection. Turn off offline mode to use TIDAL."
 msgstr "Isto precisa de ligação. Desativa o modo offline para usar o TIDAL."

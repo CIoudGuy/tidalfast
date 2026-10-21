@@ -7,6 +7,25 @@
 
 use super::LocalTrack;
 
+/// Begins the error of a request that never got TIDAL's answer: no
+/// network, a name that does not resolve, a connection refused, reset or
+/// timed out, a certificate a captive portal put in the way, or TIDAL's
+/// servers failing (5xx) or asking to wait (429). That says nothing about
+/// the song: the engine holds it and tries again, rather than skipping it
+/// as unavailable. Offline mode's refusal is not one of these.
+pub const UNREACHABLE: &str = "TIDAL could not be reached";
+
+/// An error that says TIDAL could not be reached, for `why`.
+pub fn unreachable(why: impl std::fmt::Display) -> anyhow::Error {
+    anyhow::anyhow!("{UNREACHABLE}: {why}")
+}
+
+/// Whether an error, as text with its causes (`{error:#}`), is
+/// [`UNREACHABLE`]: an outage, not an answer about the song.
+pub fn is_unreachable(error: &str) -> bool {
+    error.contains(UNREACHABLE)
+}
+
 /// The audio quality asked of TIDAL, and the quality it actually gave.
 /// Ordered from lowest to highest.
 #[derive(
@@ -102,7 +121,9 @@ pub trait Catalog: Send + Sync + 'static {
     /// Track metadata for single URIs (queue adds, `LoadSpec::uris`), in
     /// the order asked. A URI the catalogue cannot resolve is left out.
     fn tracks(&self, uris: &[String]) -> anyhow::Result<Vec<LocalTrack>>;
-    /// A playable stream for a track at the wanted quality.
+    /// A playable stream for a track at the wanted quality. A request
+    /// that never got TIDAL's answer fails with [`unreachable()`], so the
+    /// song waits for the network instead of being skipped.
     fn stream(&self, track_id: &str, quality: Quality) -> anyhow::Result<StreamInfo>;
     /// A music video's stream: its HLS master playlist's URL. Protected
     /// videos are an error.

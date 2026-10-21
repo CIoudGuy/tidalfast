@@ -533,6 +533,10 @@ struct Songs {
     autoplay_delay: Duration,
     /// A network outage in the middle of one song.
     outage: Arc<Mutex<Option<Outage>>>,
+    /// TIDAL cannot be reached for streams: no answer at all.
+    streams_down: AtomicBool,
+    /// Nor for stations.
+    stations_down: AtomicBool,
 }
 
 /// The connection for song `id` drops after `cut_at` bytes, and the server
@@ -594,6 +598,8 @@ impl Songs {
             renewed: AtomicUsize::new(0),
             autoplay_delay: Duration::ZERO,
             outage,
+            streams_down: AtomicBool::new(false),
+            stations_down: AtomicBool::new(false),
         }
     }
 
@@ -632,6 +638,11 @@ impl Catalog for Songs {
     fn stream(&self, track_id: &str, quality: Quality) -> Result<StreamInfo> {
         let id: u32 = track_id.parse()?;
         self.note(format!("stream {id}"));
+        if self.streams_down.load(Ordering::SeqCst) {
+            return Err(catalog::unreachable(
+                "network error: dns error: no such host is known",
+            ));
+        }
         if self.gone.contains(&id) {
             return Err(anyhow!(
                 "TIDAL answered 404: Asset is not ready for playback"
@@ -669,6 +680,9 @@ impl Catalog for Songs {
         let seed: u32 = seed_track_id.parse()?;
         self.note(format!("autoplay {seed}"));
         thread::sleep(self.autoplay_delay);
+        if self.stations_down.load(Ordering::SeqCst) {
+            return Err(catalog::unreachable("network error: connection refused"));
+        }
         match self.stations.get(&seed) {
             Some(station) => Ok(station.iter().filter_map(|id| self.local(*id)).collect()),
             None => Err(anyhow!("TIDAL answered 404 for the station of {seed}")),
@@ -1348,4 +1362,157 @@ fn a_song_waiting_for_the_network_shows_as_loading_then_plays_on() {
     assert!(player.seen.errors.is_empty(), "{:?}", player.seen.errors);
     let frames = player.frames.load(Ordering::SeqCst);
     assert!(frames >= 44_100 * 6 - 4096, "{frames} frames");
+}
+
+impl Player {
+    /// Follows the engine until a state passes `test`, and returns it.
+    fn until_state(&mut self, test: impl Fn(&LocalState) -> bool) -> LocalState {
+        loop {
+            let Ok(state) = self.states.recv_timeout(super::ENGINE_SILENCE) else {
+                panic!("never got there; saw {:?}", self.seen);
+            };
+            self.observe(&state);
+            if test(&state) {
+                return state;
+            }
+        }
+    }
+
+    /// Takes in what the engine reports for `time`.
+    fn watch(&mut self, time: Duration) {
+        let until = Instant::now() + time;
+        while let Some(left) = until.checked_duration_since(Instant::now()) {
+            if let Ok(state) = self.states.recv_timeout(left) {
+                self.observe(&state);
+            }
+        }
+    }
+}
+
+fn waiting_for_the_network(state: &LocalState) -> bool {
+    state.error.as_deref() == Some(NETWORK_WAIT)
+}
+
+/// The network is down as a song starts (here a restored session, part way
+/// into song 2). TIDAL gives no answer, which says nothing about the song:
+/// it is not skipped, the queue stays as it was, the song shows as waiting
+/// at its place, and the listener is told once, however often the engine
+/// tries again. Once the network is back the same song plays, from where it
+/// was, and the album carries on.
+#[test]
+fn offline_at_a_songs_start_it_waits_with_the_queue_unchanged_then_plays_on() {
+    let songs = Arc::new(mixed_album());
+    songs.streams_down.store(true, Ordering::SeqCst);
+    let mut player = Player::new(quiet_config(), Arc::clone(&songs), None);
+    player
+        .engine
+        .command(PlayerCommand::Load(LoadSpec {
+            context_uri: Some("tidal:album:1".into()),
+            offset_uri: Some("tidal:track:2".into()),
+            position_ms: 400,
+            play: true,
+            ..LoadSpec::default()
+        }))
+        .unwrap();
+    let waiting = player.until_state(waiting_for_the_network);
+    assert!(waiting.loading, "it shows as waiting");
+    assert_eq!(waiting.track.unwrap().uri, "tidal:track:2");
+    assert_eq!(waiting.position_ms, 400, "at its place");
+    assert!(waiting.position_at.is_none(), "the position is held");
+    // Past the first try again: still the same song, still one message.
+    player.watch(RETRY_FIRST + Duration::from_millis(800));
+    let queue = player.engine.queue(10);
+    assert_eq!(queue.current.unwrap().uri, "tidal:track:2");
+    assert_eq!(
+        queue.next_up,
+        vec![songs.local(3).unwrap()],
+        "nothing dropped"
+    );
+    assert!(player.seen.played.is_empty(), "{:?}", player.seen.played);
+    assert!(!player.seen.stopped);
+    assert_eq!(player.seen.errors, [NETWORK_WAIT]);
+    let asked = lock(&songs.asked).clone();
+    assert!(
+        asked.iter().filter(|a| *a == "stream 2").count() >= 2,
+        "it tried again: {asked:?}"
+    );
+    assert!(!asked.contains(&"stream 3".to_string()), "nothing skipped");
+
+    songs.streams_down.store(false, Ordering::SeqCst);
+    player.engine.network_back();
+    let back = player.until_state(|state| {
+        state.playback == Playback::Playing && !state.loading && state.track.is_some()
+    });
+    assert_eq!(back.track.unwrap().uri, "tidal:track:2");
+    assert!(
+        (300..=700).contains(&back.position_ms),
+        "from where it was: {} ms",
+        back.position_ms
+    );
+    assert!(back.error.is_none(), "the wait is over");
+    player.until(|seen| seen.stopped && played_count(seen) >= 2);
+    assert_eq!(player.seen.played, uris(&[2, 3]));
+    assert_eq!(player.seen.errors, [NETWORK_WAIT]);
+}
+
+/// The network goes part way through a song and stays away longer than a
+/// download rides out. What arrived plays; then the song waits for the
+/// network, and once it is back the same song carries on from where its
+/// sound stopped (not from its start), and the album plays on. Nothing is
+/// skipped.
+#[test]
+fn a_song_cut_off_part_way_waits_for_the_network_and_carries_on() {
+    let song = flac_song(44_100, 3_000);
+    let cut_at = song.parts[0].len() / 3;
+    let songs = Songs::new(vec![(1, song), (2, aac_song(600))], vec![1, 2]);
+    // The download gives up on the outage at once, as it would after 20 s.
+    buffer::short_outage::set(&songs.base, Duration::from_millis(300));
+    *lock(&songs.outage) = Some(Outage {
+        id: 1,
+        cut_at,
+        lasting: Duration::from_secs(3),
+        cut: None,
+    });
+    let mut player = Player::new(quiet_config(), Arc::new(songs), None);
+    player.play_album(None, false);
+    player.until(|seen| seen.stopped && played_count(seen) >= 2);
+    assert_eq!(player.seen.played, uris(&[1, 2]));
+    assert_eq!(player.seen.errors, [NETWORK_WAIT]);
+    // All of both songs, once each: 3.6 s, give or take a packet.
+    let whole = 44_100 * 36 / 10;
+    let frames = player.frames.load(Ordering::SeqCst);
+    assert!(
+        frames + 8192 >= whole && frames <= whole + 44_100 / 4,
+        "{frames} frames of {whole}"
+    );
+}
+
+/// The context ends while TIDAL cannot be reached for its station:
+/// autoplay waits for the network, rather than stopping the music, and
+/// carries on once it is back, without asking over and over.
+#[test]
+fn autoplay_waits_for_the_network_rather_than_stopping() {
+    let songs = Songs::new(
+        vec![(1, flac_song(44_100, 600)), (101, aac_song(600))],
+        vec![1],
+    )
+    .with_stations(HashMap::from([(1, vec![101])]));
+    songs.stations_down.store(true, Ordering::SeqCst);
+    let songs = Arc::new(songs);
+    let config = EngineConfig {
+        autoplay: true,
+        ..quiet_config()
+    };
+    let mut player = Player::new(config, Arc::clone(&songs), None);
+    player.play_album(None, false);
+    player.until(|seen| !seen.errors.is_empty());
+    assert_eq!(player.seen.errors, [NETWORK_WAIT]);
+    assert!(!player.seen.stopped, "the music did not stop");
+    songs.stations_down.store(false, Ordering::SeqCst);
+    player.until(|seen| played_count(seen) >= 2);
+    assert_eq!(player.seen.played, uris(&[1, 101]));
+    assert_eq!(player.seen.errors, [NETWORK_WAIT]);
+    let asked = lock(&songs.asked).clone();
+    let stations = asked.iter().filter(|a| a.starts_with("autoplay")).count();
+    assert!(stations <= 4, "asked again and again: {asked:?}");
 }
