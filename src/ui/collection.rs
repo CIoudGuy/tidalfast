@@ -157,7 +157,9 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
     let left = rect.right() + 32.0;
     let width = (row.right() - left).max(0.0);
     let title_text = super::plugin_dom::page_title_text(hero.title).into_owned();
-    let title_color = hero.title_color.unwrap_or(palette.text);
+    let title_color = hero
+        .title_color
+        .unwrap_or(super::plugin_dom::headline_color(palette.text));
     let title = if narrow {
         let lines = word_lines(
             ui,
@@ -531,7 +533,9 @@ fn stacked_hero(
     let palette = app.palette;
     let width = ui.available_width();
     let font = super::plugin_dom::headline_font(32.0);
-    let title_color = hero.title_color.unwrap_or(palette.text);
+    let title_color = hero
+        .title_color
+        .unwrap_or(super::plugin_dom::headline_color(palette.text));
     let title_text = super::plugin_dom::page_title_text(hero.title).into_owned();
     let titles: Vec<_> = word_lines(ui, &title_text, &font, width)
         .into_iter()
@@ -3907,7 +3911,7 @@ pub fn liked(app: &mut App, ui: &mut egui::Ui) {
         egui::Align2::LEFT_CENTER,
         super::plugin_dom::page_title_text(&liked_title),
         super::plugin_dom::headline_font(27.0),
-        palette.text,
+        super::plugin_dom::headline_color(palette.text),
     );
     super::plugin_dom::page_title(ui, &liked_title, title_rect, false);
     let collection_uri = app

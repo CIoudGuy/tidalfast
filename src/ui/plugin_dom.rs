@@ -3866,23 +3866,66 @@ pub fn menu_text_font() -> egui::FontId {
 
 /// A page title's font (an album's, an artist's): bold at `size`, or the
 /// size and weight a theme gives TIDAL's headline text (Tidal TUI: 14,
-/// its `var(--font-size)` undefined).
+/// its `var(--font-size)` undefined), else its `h1` (Lunallena: 30).
 pub fn headline_font(size: f32) -> egui::FontId {
-    themed_font(
+    heading_font(
         dom_anchors::keys::THEME_HEADLINE,
-        crate::theme::bold(size),
-        700,
+        dom_anchors::keys::THEME_H1,
+        size,
     )
 }
 
 /// A section title's font ("Your favorite artists", the play queue's
-/// title), as [`headline_font`] for TIDAL's section headings.
+/// title), as [`headline_font`] for TIDAL's section headings and their
+/// `h2`.
 pub fn subheadline_font(size: f32) -> egui::FontId {
-    themed_font(
+    heading_font(
         dom_anchors::keys::THEME_SUBHEADLINE,
-        crate::theme::bold(size),
-        700,
+        dom_anchors::keys::THEME_H2,
+        size,
     )
+}
+
+/// Bold at `size`, or the size and weight a theme gives the heading's
+/// words (`text`), else the heading element round them (`heading`).
+fn heading_font(text: &str, heading: &str, size: f32) -> egui::FontId {
+    let font = crate::theme::bold(size);
+    if !on() {
+        return font;
+    }
+    let size = font_size(text).or_else(|| font_size(heading));
+    let weight = font_weight(text).or_else(|| font_weight(heading));
+    if size.is_none() && weight.is_none() {
+        return font;
+    }
+    font_at(size.unwrap_or(font.size), weight.unwrap_or(700))
+}
+
+/// A page title's colour: a theme's for TIDAL's headline words or its
+/// `h1` (Lunallena's green), else `native`.
+pub fn headline_color(native: Color32) -> Color32 {
+    heading_color(
+        dom_anchors::keys::THEME_HEADLINE,
+        dom_anchors::keys::THEME_H1,
+    )
+    .unwrap_or(native)
+}
+
+/// A section title's colour, as [`headline_color`] for TIDAL's section
+/// headings and their `h2`.
+pub fn subheadline_color(native: Color32) -> Color32 {
+    heading_color(
+        dom_anchors::keys::THEME_SUBHEADLINE,
+        dom_anchors::keys::THEME_H2,
+    )
+    .unwrap_or(native)
+}
+
+fn heading_color(text: &str, heading: &str) -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    color(text).or_else(|| color(heading)).filter(|c| c.a() > 0)
 }
 
 /// The `letter-spacing` a theme gives page titles, in points (Tidal TUI's

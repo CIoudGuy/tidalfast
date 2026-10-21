@@ -140,7 +140,7 @@ fn heading(
             .layout_no_wrap(
                 shelf.title.clone(),
                 super::plugin_dom::subheadline_font(19.0),
-                palette.text,
+                super::plugin_dom::subheadline_color(palette.text),
             )
             .size()
             .x;

@@ -23,7 +23,7 @@ pub fn page(app: &mut App, ui: &mut egui::Ui) {
             ui,
             gettext(app.locale, "Queue"),
             super::plugin_dom::headline_font(28.0),
-            palette.text,
+            super::plugin_dom::headline_color(palette.text),
         );
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if save_button(ui, &palette, offer_save, app.locale) {

@@ -78,7 +78,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         Align2::LEFT_CENTER,
         title.as_ref(),
         super::plugin_dom::headline_font(27.0),
-        palette.text,
+        super::plugin_dom::headline_color(palette.text),
     );
     super::plugin_dom::page_title(ui, title.as_ref(), title_rect, true);
     ui.add_space(24.0);

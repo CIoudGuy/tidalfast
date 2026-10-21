@@ -4228,7 +4228,7 @@ fn section_header_parts(
         egui::Align2::LEFT_CENTER,
         title,
         super::plugin_dom::subheadline_font(19.0),
-        palette.text,
+        super::plugin_dom::subheadline_color(palette.text),
     );
     let mut pressed = 0;
     let Some(arrows) = arrows else {

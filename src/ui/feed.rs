@@ -26,13 +26,16 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     ui.add_space(super::collection::HERO_TOP);
     let (heading, _) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
-    ui.painter().text(
-        heading.left_center(),
-        egui::Align2::LEFT_CENTER,
-        gettext(app.locale, "Feed"),
-        theme::bold(27.0),
-        palette.text,
+    // A page title, as the collection pages' (Tidal TUI's 14-point,
+    // letter-spaced titles).
+    let galley = super::plugin_dom::headline_galley(
+        ui,
+        gettext(app.locale, "Feed").into_owned(),
+        super::plugin_dom::headline_font(27.0),
+        super::plugin_dom::headline_color(palette.text),
     );
+    let at = pos2(heading.left(), heading.center().y - galley.size().y / 2.0);
+    ui.painter().galley(at, galley, palette.text);
     ui.add_space(24.0);
     let feed = match &app.feed {
         Loadable::Loaded(feed) => feed.clone(),

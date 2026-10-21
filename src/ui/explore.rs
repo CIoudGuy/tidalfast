@@ -123,13 +123,16 @@ fn heading(ui: &mut egui::Ui, app: &App, title: &str) {
         return;
     }
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
-    ui.painter().text(
-        pos2(rect.left(), rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        title,
-        theme::bold(27.0),
-        app.palette.text,
+    // A page title, as the collection pages' (Tidal TUI's 14-point,
+    // letter-spaced titles).
+    let galley = super::plugin_dom::headline_galley(
+        ui,
+        title.to_string(),
+        super::plugin_dom::headline_font(27.0),
+        super::plugin_dom::headline_color(app.palette.text),
     );
+    let at = pos2(rect.left(), rect.center().y - galley.size().y / 2.0);
+    ui.painter().galley(at, galley, app.palette.text);
 }
 
 /// Each module of a page, in TIDAL's order.
@@ -256,7 +259,7 @@ fn data_page(app: &mut App, ui: &mut egui::Ui, path: &str, shelves: &[Shelf], ti
                 ui,
                 &shelf.title,
                 super::plugin_dom::subheadline_font(19.0),
-                palette.text,
+                super::plugin_dom::subheadline_color(palette.text),
             );
             ui.add_space(16.0);
         }
