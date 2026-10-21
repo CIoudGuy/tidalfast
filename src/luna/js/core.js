@@ -1253,6 +1253,25 @@
 		},
 	};
 	nativeExports["@luna/lib.native"] = libNative;
+	// NoBuffer's `voidTrack` reads the playing song's stream to its end into
+	// a Writable that drops every chunk: after a stall it makes TIDAL's CDN
+	// fetch the song again, and keeps nothing. The host does that itself, so
+	// the bytes never reach the plugin and nothing is saved: it needs no
+	// permission to save TIDAL audio (whose prompt says "save as files").
+	// Only that module, only while its code still throws the bytes away.
+	const DISCARDS = /Writable\(\{\s*write:\s*\(\s*\w+\s*,\s*\w+\s*,\s*(\w+)\s*\)\s*=>\s*\1\(\)\s*\}\)/;
+	const voidStandIn = (fileName, code) => {
+		if (fileName !== "NoBuffer/voidTrack.native.ts") return undefined;
+		const c = String(code);
+		if (!c.includes("fetchMediaItemStream") || !DISCARDS.test(c)) return undefined;
+		return {
+			voidTrack: async (playbackInfo) => {
+				const id = playbackInfo?.trackId ?? playbackInfo?.id ?? playbackInfo?.mediaItemId;
+				if (id === undefined || id === null) throw new Error("voidTrack needs a track's playback info");
+				await callOpAsync("audio.void", { id: String(id), quality: playbackInfo?.audioQuality ?? null });
+			},
+		};
+	};
 	// The native file name is the plugin's source path, which is not always
 	// its package name ("@scope/name/x.native.ts", "plugins/Utils/..."); the
 	// owner is the plugin asking to register it, read from the live frames
@@ -1267,7 +1286,7 @@
 		const plugin = nativeOwner();
 		// A few natives Tidalfast answers itself (media.js: the
 		// audiovisualiser's ffmpeg analysis is measured from the output).
-		const exports = L.media?.nativeStandIn?.(plugin, fileName, code) ?? (await L.node.loadNative(plugin, fileName, code, nativeExports));
+		const exports = voidStandIn(fileName, code) ?? L.media?.nativeStandIn?.(plugin, fileName, code) ?? (await L.node.loadNative(plugin, fileName, code, nativeExports));
 		nativeExports[fileName] = exports;
 		const channel = `__LunaNative.${fileName}`;
 		return channel;
