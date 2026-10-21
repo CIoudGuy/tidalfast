@@ -982,7 +982,7 @@ const go = () => {
 	const q = (s) => { try { return document.querySelectorAll(s).length; } catch (e) { return "ERR " + e.message; } };
 	R.counts = {
 		has: q('[role="row"]:has(> * a[href*="/track/"])'),
-		scope: document.querySelector('[data-type="media-table"]').querySelectorAll(":scope > [role=row]").length,
+		scope: document.querySelector('[data-type="media-table"]').querySelectorAll(":scope > [role=row], :scope > div > div > div > [role=row]").length,
 		is: q(':is(#footerPlayer, #sidebar) a'),
 		where: q(':where([data-test="tracklist-row"]):not([data-index="0"])'),
 		nth: q('[data-test="tracklist-row"]:nth-child(2n+1)'),
@@ -1008,6 +1008,8 @@ new MutationObserver(go).observe(document.body, { childList: true, subtree: true
     let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
     let c = &r["counts"];
     assert_eq!(c["has"], json!(3), "{c}");
+    // The header row, and the rows inside TIDAL's virtual list
+    // (`div > div[k] > div > row`).
     assert_eq!(c["scope"], json!(4), "{c}");
     assert!(c["is"].as_u64().unwrap() >= 2, "{c}");
     assert_eq!(c["where"], json!(2), "{c}");
