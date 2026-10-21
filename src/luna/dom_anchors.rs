@@ -37,6 +37,7 @@ pub mod keys {
     pub const PAGE: &str = "page";
     pub const PAGE_TITLE: &str = "page-title";
     pub const PAGE_DATA: &str = "page-data";
+    pub const PAGE_SMALL_HEADER: &str = "page-small-header";
     pub const PAGE_META: &str = "page-meta-line";
     pub const PAGE_RELEASE: &str = "page-release-date";
     pub const PAGE_FILTER: &str = "page-filter-input";
@@ -557,6 +558,10 @@ pub struct Page {
     pub title_rect: Option<Rect>,
     /// Album/playlist header (`div._dataContainer_`).
     pub data: Option<Rect>,
+    /// The compact header pinned at the top once the big one has scrolled
+    /// away (`div.content-header > div._smallHeader_._showHeader_`), while
+    /// it shows.
+    pub small_header: Option<Rect>,
     /// The header's meta line (`_metaLine_`) with its release date.
     pub meta: Option<MetaLine>,
     /// The page's filter field (`input[data-test=playlist-filter-input]`).
@@ -1482,6 +1487,16 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
             el(PAGE_DATA, Some(PAGE), "div")
                 .modules(&["dataContainer"])
                 .at(page.data),
+        );
+    }
+    // TIDAL 2.43: `div.content-header > div._smallHeader_f2c3791`, with
+    // `_showHeader_1038dcf` while it is pinned; its `::before` holds the
+    // blurred cover (NoPlaylistBackgroundImage tints it flat instead).
+    if let Some(bar) = page.small_header {
+        out.push(
+            el(keys::PAGE_SMALL_HEADER, Some(PAGE), "div")
+                .modules(&["smallHeader", "showHeader"])
+                .at(Some(bar)),
         );
     }
     if let Some(meta) = &page.meta {
