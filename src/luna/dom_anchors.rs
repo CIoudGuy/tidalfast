@@ -1036,11 +1036,18 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     }
     out.push(row);
     sidebar(out, &frame.sidebar);
+    // TIDAL's page box beside the sidebar, under the title bar, is
+    // `_hasDockedPlayer_` (`_nowPlayingVisible_` over the now-playing
+    // view): Tidal TUI labels it `Main` in its `::before`.
     let mut main = el(MAIN, Some(CONTAINER_ROW), "main")
         .id("main")
         .test("main")
         .modules(&["main"])
+        .class("_hasDockedPlayer_b3ed021")
         .at(main_rect(frame));
+    if frame.now_playing.is_some() {
+        main = main.modules(&["nowPlayingVisible"]);
+    }
     main.scroll = frame.main_scroll;
     out.push(main);
     out.push(
