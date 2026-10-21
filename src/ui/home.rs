@@ -601,7 +601,10 @@ pub(super) fn tidal_card_marked<'a>(
     } else {
         widgets::CardCover::square(playing_here)
     };
-    cover.mark = mark;
+    cover.mark = match item {
+        ShelfItem::Album(album) => mark.with_album(album),
+        _ => mark,
+    };
     let card = if detailed {
         let width = widgets::card_width(ui);
         let height = width

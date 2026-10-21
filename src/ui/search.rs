@@ -550,7 +550,7 @@ fn all(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
                 image: pick_image(&album.images, art).map(str::to_string),
                 round: false,
                 title: &album.name,
-                explicit: false,
+                explicit: album.explicit,
                 ai: false,
                 blocked: false,
                 upload: false,
@@ -917,7 +917,10 @@ fn album_card(app: &mut App, ui: &mut egui::Ui, album: &crate::api::models::Albu
         pick_image(&album.images, card_art),
         &album.name,
         subtitle.trim_start_matches(" • "),
-        widgets::CardCover::square(playing_here),
+        widgets::CardCover {
+            mark: crate::api::models::CardMark::of_album(album),
+            ..widgets::CardCover::square(playing_here)
+        },
     );
     if card.play {
         if context_here {
@@ -1590,7 +1593,7 @@ fn hit_row(app: &mut App, ui: &mut egui::Ui, index: usize, hit: &TopHit, state: 
             pick_image(&album.images, art).map(str::to_string),
             false,
             album.name.clone(),
-            false,
+            album.explicit,
             false,
             Some(gettext(locale, "Album")),
             crate::api::models::join_names(album.artists.iter().map(|a| a.name.as_str())),

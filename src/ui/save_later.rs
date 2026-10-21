@@ -192,7 +192,10 @@ pub(super) fn card(app: &mut App, ui: &mut egui::Ui, row: &Saved) {
                 &subtitle,
                 1,
                 album.year().unwrap_or_default(),
-                widgets::CardCover::square(playing),
+                widgets::CardCover {
+                    mark: crate::api::models::CardMark::of_album(album),
+                    ..widgets::CardCover::square(playing)
+                },
             );
             super::library::play_or_open(
                 app,

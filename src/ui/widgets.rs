@@ -3244,6 +3244,33 @@ pub fn marks_width(count: usize) -> f32 {
     }
 }
 
+/// The room a card's badges take after its title: the E (8 after the
+/// title, 16 wide) and then [`marks_width`] for the [`mark_icons`].
+pub fn card_marks_width(mark: crate::api::models::CardMark) -> f32 {
+    let explicit = if mark.explicit { 24.0 } else { 0.0 };
+    explicit + marks_width(mark_icons(mark).len())
+}
+
+/// Paints a card's badges after the title in `after`: TIDAL's E first, 8
+/// after the title (as on its compact song cards), then [`paint_marks`].
+pub fn paint_card_marks(
+    ui: &Ui,
+    palette: &Palette,
+    mark: crate::api::models::CardMark,
+    after: Rect,
+) {
+    let mut after = after;
+    if mark.explicit {
+        let badge = Rect::from_min_size(
+            pos2(after.right() + 8.0, after.center().y - 8.0),
+            Vec2::splat(16.0),
+        );
+        paint_explicit(ui, palette, badge);
+        after = badge;
+    }
+    paint_marks(ui, palette, &mark_icons(mark), after);
+}
+
 /// Paints [`mark_icons`] as TIDAL's 16-point badges: the first 11 points
 /// after `after`, 2 points between them. An upload or purchase badge is a
 /// radius-4 chip (white at 10 %) with a grey glyph; the editors' pick is
@@ -3454,8 +3481,7 @@ pub fn card(
         } else {
             egui::Align2::LEFT_TOP
         };
-        let badges = mark_icons(mark);
-        let badge_room = marks_width(badges.len());
+        let badge_room = card_marks_width(mark);
         let title_galley = ellipsized(
             ui,
             title,
@@ -3475,7 +3501,7 @@ pub fn card(
         };
         let title_rect = Rect::from_min_size(title_pos, title_galley.size());
         ui.painter().galley(title_pos, title_galley, palette.text);
-        paint_marks(ui, &palette, &badges, title_rect);
+        paint_card_marks(ui, &palette, mark, title_rect);
         // TIDAL underlines the title link under the pointer, fading the
         // line in (`text-decoration-color .2s ease-in-out`).
         let underline = crate::motion::progress(
@@ -3834,8 +3860,14 @@ pub fn collection_card(
         circular,
         playable,
         playing,
-        mark: _,
+        mark,
     } = cover;
+    // Only the E is drawn on these cards; the other badges are left as
+    // they were.
+    let mark = crate::api::models::CardMark {
+        explicit: mark.explicit,
+        ..Default::default()
+    };
     let palette = app.palette;
     let width = card_width(ui);
     let secondary = Color32::from_rgb(0xaf, 0xaf, 0xb6);
@@ -3909,14 +3941,31 @@ pub fn collection_card(
             };
             ui.painter().galley(pos2(x, top), galley, color);
         };
-        let title_galley = ellipsized(ui, title, theme::semibold(14.0), palette.text, width, 1);
-        let title_height = title_galley.size().y;
-        line(
+        let title_galley = ellipsized(
             ui,
-            title_galley,
-            top + (20.0 - title_height) / 2.0,
+            title,
+            theme::semibold(14.0),
             palette.text,
+            (width - card_marks_width(mark)).max(1.0),
+            1,
         );
+        let title_height = title_galley.size().y;
+        let title_top = top + (20.0 - title_height) / 2.0;
+        let title_rect = Rect::from_min_size(
+            pos2(
+                if circular {
+                    rect.center().x - title_galley.size().x / 2.0
+                } else if title_galley.job.halign == Align::RIGHT {
+                    rect.right()
+                } else {
+                    rect.left()
+                },
+                title_top,
+            ),
+            title_galley.size(),
+        );
+        line(ui, title_galley, title_top, palette.text);
+        paint_card_marks(ui, &palette, mark, title_rect);
         top += 21.0;
         if !subtitle.is_empty() {
             let galley = ellipsized(
@@ -5449,6 +5498,27 @@ mod tests {
         assert_eq!(marks_width(0), 0.0);
         assert_eq!(marks_width(1), 29.0);
         assert_eq!(marks_width(2), 47.0);
+    }
+
+    /// An explicit album's card keeps room for TIDAL's E (8 after the
+    /// title, 16 wide) before an upload's arrow; the album's own flags
+    /// make the badges.
+    #[test]
+    fn an_explicit_albums_card_keeps_room_for_the_e() {
+        use crate::api::models::{Album, CardMark};
+        let explicit = Album {
+            explicit: true,
+            ..Album::default()
+        };
+        assert!(CardMark::of_album(&explicit).explicit);
+        assert!(!CardMark::of_album(&Album::default()).explicit);
+        assert_eq!(card_marks_width(CardMark::default()), 0.0);
+        assert_eq!(card_marks_width(CardMark::of_album(&explicit)), 24.0);
+        let upload = CardMark {
+            upload: true,
+            ..CardMark::default()
+        };
+        assert_eq!(card_marks_width(upload.with_album(&explicit)), 24.0 + 29.0);
     }
 
     /// Tidal Tags' BITRATE, SAMPLE RATE and DEPTH headings are clones of

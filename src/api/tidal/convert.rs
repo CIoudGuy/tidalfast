@@ -614,6 +614,7 @@ pub(crate) fn album(raw: RawAlbum) -> Album {
         quality_tags: quality_tags(raw.audio_quality, raw.media_metadata),
         video_cover: raw.video_cover.filter(|uuid| !uuid.is_empty()),
         upload: raw.upload.unwrap_or(false),
+        explicit: raw.explicit.unwrap_or(false),
         name: titled(raw.title, raw.version),
         id: raw.id,
     }

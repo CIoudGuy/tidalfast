@@ -110,7 +110,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                     &subtitle,
                     1,
                     album.year().unwrap_or_default(),
-                    widgets::CardCover::square(playing_here),
+                    widgets::CardCover {
+                        mark: crate::api::models::CardMark::of_album(&album),
+                        ..widgets::CardCover::square(playing_here)
+                    },
                 );
                 play_or_open(app, &card, context_here, uri, Page::Album(id));
                 widgets::context_drag_source(
