@@ -41,7 +41,7 @@ pub(crate) fn now_playing_video_pip_open(ctx: &egui::Context) -> bool {
 }
 pub(crate) mod player_background;
 pub mod player_bar;
-mod player_utility;
+pub(crate) mod player_utility;
 pub mod plugin_dom;
 pub mod plugin_slots;
 pub mod plugins;

@@ -4771,6 +4771,37 @@ fn luminance(c: Color32) -> f32 {
 /// The fill for a native surface whose host a plugin restyled: the
 /// plugin's background, else `native`. A page painted by a plugin
 /// ([`paint_page`]) shows through the main area and sidebar.
+/// The player bar's colour when a theme fills `#footerPlayer` itself:
+/// TIDAL lays its own glass (`#282828` at 75 %, its `::before`) over that
+/// fill unless the theme styles that `::before` too (the cotton candy
+/// family hides it). Measured: Tidal Amoled's black bar shows rgb(31, 31,
+/// 31) in TIDAL, Minimalist Black's `#181818` rgb(36, 36, 36). `fill` is
+/// the theme's colour, `under` what lies beneath a see-through one.
+pub fn footer_under_glass(fill: Color32, under: Color32) -> Color32 {
+    if !on() {
+        return fill;
+    }
+    let styled = host(dom_anchors::keys::FOOTER, |h, _| Some(h.before.is_some())).unwrap_or(true);
+    let themed = host(dom_anchors::keys::FOOTER, |h, vars| {
+        Some(own_fill(h, vars).is_some())
+    })
+    .unwrap_or(false);
+    if styled || !themed {
+        return fill;
+    }
+    tidal_bar_glass(fill, under)
+}
+
+/// TIDAL's bar glass, `#282828` at 75 %, over `fill` laid on `under`.
+pub fn tidal_bar_glass(fill: Color32, under: Color32) -> Color32 {
+    let base = crate::motion::blend(
+        under.to_opaque(),
+        fill.to_opaque(),
+        f32::from(fill.a()) / 255.0,
+    );
+    crate::motion::blend(base, Color32::from_rgb(40, 40, 40), 0.75)
+}
+
 pub fn surface(key: &str, native: Color32) -> Color32 {
     if !on() {
         return native;
