@@ -1404,25 +1404,7 @@ pub(super) fn header_pill_width(
     );
     super::plugin_dom::page_button(primary, rect, label);
     let rect = Rect::from_center_size(rect.center(), rect.size() * scale);
-    let (fill, ink) = if primary {
-        (
-            crate::motion::blend(
-                egui::Color32::WHITE,
-                egui::Color32::from_gray(0xd9),
-                hovered,
-            ),
-            egui::Color32::from_rgb(0x10, 0x10, 0x10),
-        )
-    } else {
-        (
-            crate::motion::blend(
-                egui::Color32::from_white_alpha(20),
-                egui::Color32::from_white_alpha(38),
-                hovered,
-            ),
-            palette.text,
-        )
-    };
+    let (fill, ink) = native_pill(palette, primary, hovered);
     // A theme that styles TIDAL's header pills (`_marketButton_`) paints
     // them; hover keeps TIDAL's slight change of fill.
     let themed = super::plugin_dom::header_pill(primary);
@@ -1514,25 +1496,7 @@ pub(super) fn header_round_pill(
         crate::motion::tidal::PILL_PRESS_SCALE,
     );
     super::plugin_dom::page_button(primary, rect, label);
-    let (fill, ink) = if primary {
-        (
-            crate::motion::blend(
-                egui::Color32::WHITE,
-                egui::Color32::from_gray(0xd9),
-                hovered,
-            ),
-            egui::Color32::from_rgb(0x10, 0x10, 0x10),
-        )
-    } else {
-        (
-            crate::motion::blend(
-                egui::Color32::from_white_alpha(20),
-                egui::Color32::from_white_alpha(38),
-                hovered,
-            ),
-            palette.text,
-        )
-    };
+    let (fill, ink) = native_pill(palette, primary, hovered);
     let fill = if ui.is_enabled() {
         fill
     } else {
@@ -1549,6 +1513,42 @@ pub(super) fn header_round_pill(
     );
     theme::focus_ring(ui, &response);
     response.on_hover_text(label)
+}
+
+/// TIDAL's own Play (white, near-black words) and Shuffle (white at 8 %)
+/// pills, `hovered` from 0 to 1: their fill and the colour of their words.
+pub(crate) fn native_pill(
+    palette: &Palette,
+    primary: bool,
+    hovered: f32,
+) -> (egui::Color32, egui::Color32) {
+    if primary {
+        (
+            crate::motion::blend(
+                egui::Color32::WHITE,
+                egui::Color32::from_gray(0xd9),
+                hovered,
+            ),
+            egui::Color32::from_rgb(0x10, 0x10, 0x10),
+        )
+    } else {
+        (
+            crate::motion::blend(
+                egui::Color32::from_white_alpha(20),
+                egui::Color32::from_white_alpha(38),
+                hovered,
+            ),
+            // TIDAL's Shuffle label is its own white whatever colour a
+            // theme gives the page's words (the adaptive Cotton Candy's
+            // black page text leaves it white in TIDAL); a theme reaches it
+            // only through the label's own rules.
+            if palette.themed {
+                egui::Color32::WHITE
+            } else {
+                palette.text
+            },
+        )
+    }
 }
 
 /// TIDAL's captioned header button: 80 x 48, a 20-point icon over a

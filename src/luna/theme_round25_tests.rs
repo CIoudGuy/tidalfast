@@ -259,6 +259,20 @@ fn a_brighter_backdrop_makes_the_windows_filtered_colour() {
     );
 }
 
+/// TIDAL's Shuffle pill keeps its white words under a theme that makes the
+/// page's words black (the adaptive Cotton Candy in Light): only the
+/// label's own rules recolour it. It was drawn in the page's black.
+#[test]
+fn the_shuffle_label_keeps_tidals_white_under_a_theme() {
+    let mut palette = crate::theme::Palette::light();
+    let (_, ink) = crate::ui::collection::native_pill(&palette, false, 0.0);
+    assert_eq!(ink, palette.text, "without a theme, the app's own");
+    palette.themed = true;
+    palette.text = egui::Color32::BLACK;
+    let (_, ink) = crate::ui::collection::native_pill(&palette, false, 0.0);
+    assert_eq!(ink, egui::Color32::WHITE);
+}
+
 /// TIDAL heads the playlists with "All playlists" in its grey, which the
 /// cotton candy family turns 64 % white (`[class="_sectionHeader_ca54638"]
 /// ._titleText_1d0e44e { color }`); Rose Pine and Catppuccin, which name
