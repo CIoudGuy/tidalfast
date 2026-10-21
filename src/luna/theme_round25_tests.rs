@@ -835,6 +835,24 @@ fn tidals_bar_glass_lies_over_a_themes_bar_fill() {
     );
 }
 
+/// TIDAL colours a mix's title by `--track-vibrant-color`, which Abyss
+/// Neptune sets itself (`--track-vibrant-color: white !important`): TIDAL
+/// shows the title white there. Tidalfast drew it in the mix's own colour.
+#[test]
+fn a_themes_vibrant_colour_is_the_mix_titles() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Vibrant"} */
+:root { --track-vibrant-color: white !important; }
+"#;
+    let (luna, o) = overlay_with("vibrant.css", css, dom_anchors::sample_tree(), "");
+    pd::test_overlay(Some((*o).clone()));
+    let c = pd::theme_var_color("--track-vibrant-color");
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(c, Some(egui::Color32::WHITE));
+    assert_eq!(pd::theme_var_color("--track-vibrant-color"), None);
+}
+
 /// TIDAL 2.43.2 keeps its teal accent even under a theme that paints the
 /// window and names an accent token: Black Glow's grey and Minimalist
 /// Black's green leave TIDAL's playing playlist teal. Tidalfast drew it in
