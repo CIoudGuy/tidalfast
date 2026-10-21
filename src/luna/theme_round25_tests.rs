@@ -518,6 +518,45 @@ fn a_theme_beating_tidals_circle_squares_an_artists_picture() {
     );
 }
 
+/// Tidal TUI labels its boxes with `::before` / `::after` words (`Tabs`
+/// over the navigation, `Playing` over the player bar, `content: "Tabs"`).
+/// The overlay dropped the words of an anchor's pseudo-element, so none
+/// was drawn. A glyph on a button (`▶` on Play) still reaches the overlay;
+/// the painter leaves those to the native icon.
+#[test]
+fn a_themes_pseudo_element_words_reach_the_overlay() {
+    use dom_anchors::keys::{FIXED_NAV, PLAY};
+    let css = r#"/* {"name": "Box labels"} */
+[class*="_fixedNavigation_"] { color: var(--tui-border-inactive) !important; }
+[class*="_fixedNavigation_"]::before { margin: -10px -8px; content: "Tabs"; position: absolute; color: inherit; }
+[data-test="play"]::before { content: "▶"; font-size: 20px; }
+"#;
+    let tree = dom_anchors::build(&dom_anchors::sample_frame());
+    // The navigation's box is its rows' (TIDAL's `Tabs` sits at its
+    // corner), not the whole sidebar.
+    let nav = tree.nodes.iter().find(|n| n.key == FIXED_NAV).expect("nav");
+    assert_eq!(nav.rect, Some([8.0, 50.0, 224.0, 32.0]));
+    // With the rows not drawn (now playing covers the window) it has no
+    // box, so no label shows over the view.
+    let mut covered = dom_anchors::sample_frame();
+    covered.sidebar.items.clear();
+    let covered = dom_anchors::build(&covered);
+    let nav_box = covered
+        .nodes
+        .iter()
+        .find(|n| n.key == FIXED_NAV)
+        .and_then(|n| n.rect);
+    assert_eq!(nav_box, None);
+    let (luna, o) = overlay_with("box-labels.css", css, tree, FIXED_NAV);
+    let before = o.hosts[FIXED_NAV].before.as_ref().expect("the label's box");
+    assert_eq!(before.content.as_deref(), Some("Tabs"));
+    assert_eq!(before.margin.as_deref(), Some("-10px -8px"));
+    if let Some(play) = o.hosts.get(PLAY).and_then(|h| h.before.as_ref()) {
+        assert_eq!(play.content.as_deref(), Some("▶"));
+    }
+    luna.shutdown();
+}
+
 /// TidalCustomTheme colours TIDAL's words by `[class^="_marketText_"] {
 /// color: #8a0022 !important }`, which reaches the navigation rows' labels
 /// in TIDAL (dark red on its pink sidebar). The labels had no anchor, so

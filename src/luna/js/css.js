@@ -1204,8 +1204,11 @@
 					if (vars === (el._cc?.myVars ?? NO_VARS)) vars = new Map(vars);
 					vars.set(k, v);
 				}
-			const st = toStyle(decls, vars, el._cc?.inh ?? null);
+			// The words it draws (Tidal TUI's `content: "Tabs"` box labels).
+			const words = hasContent(decls) ? contentText(resolveVars(decls.get("content"), vars)) : "";
+			const st = toStyle(decls, vars, el._cc?.inh ?? null) ?? (words.trim() ? {} : null);
 			if (!st) continue;
+			if (words.trim()) st.content = words;
 			// `--img: none` on TIDAL's header art box drops the art its
 			// own rule paints from that variable.
 			if (/^none$/i.test((decls.get("--img") ?? "").trim()) && st["background-image"] === undefined) st["background-image"] = "none";
