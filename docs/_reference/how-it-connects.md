@@ -100,6 +100,14 @@ play as usual; Next and Previous move to them. Offline mode works as before:
 its refusal of a request is the setting, not an outage, so nothing waits on
 it.
 
+A music video waits the same way, whichever request loses the network: its
+stream request, its HLS playlists, or any of its segments. What had already
+arrived plays, then the video stays the playing one at its position, with
+the same single notice and the same pauses, and carries on from its next
+segment when the network is back. A playlist or segment that TIDAL refuses
+(403, 404) is its answer about the video: it is skipped as "This video can't
+be played in Tidalfast".
+
 Only unencrypted streams (`encryptionType: NONE`) are played. Tidalfast does
 not decrypt protected streams, so Dolby Atmos and other DRM-protected formats
 are not supported, and it does not substitute audio from any other source.

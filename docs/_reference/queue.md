@@ -133,10 +133,10 @@ Playback started on the replacement engine takes precedence over recovery.
    playing view was open. Starting the app plays nothing: the song waits
    paused in the player bar, and **Play** resumes it at the saved position.
    A saved song TIDAL no longer has is skipped for the next one in its
-   playlist or album. A song TIDAL cannot be reached for (the network is
-   down) is not skipped and nothing leaves the queue: it stays the playing
-   song, at its position, and plays once the network is back (see
-   [How It Connects](/how-it-connects/)).
+   playlist or album. A song or music video TIDAL cannot be reached for
+   (the network is down) is not skipped and nothing leaves the queue: it
+   stays the playing item, at its position, and plays once the network is
+   back (see [How It Connects](/how-it-connects/)).
 
 Since 0.8.0, selecting several playlist rows and choosing
 **Add to queue** preserves repeated occurrences in their selected order.

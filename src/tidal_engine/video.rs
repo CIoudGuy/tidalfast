@@ -284,13 +284,19 @@ impl Fetcher {
     }
 }
 
-/// One URL's body, retried a few times.
+/// One URL's body, retried a few times. A failure that is no answer from
+/// TIDAL (the network went, a name that does not resolve, a connection
+/// refused, reset or cut off, or a server that fails or asks to wait: 5xx
+/// and 429) begins [`super::catalog::UNREACHABLE`], so the video waits for
+/// the network instead of being skipped. TIDAL's own refusal (4xx) is the
+/// plain error: the video cannot be played.
 fn fetch(
     client: &reqwest::blocking::Client,
     url: &str,
     stop: &AtomicBool,
 ) -> Result<Vec<u8>, String> {
     let mut last = String::new();
+    let mut outage = false;
     for attempt in 0..4u32 {
         if stop.load(Ordering::SeqCst) {
             return Err("stopped".into());
@@ -307,18 +313,24 @@ fn fetch(
         {
             Ok(bytes) => return Ok(bytes.to_vec()),
             Err(error) => {
-                // A refused segment will not be given on asking again.
-                let refused = error
-                    .status()
-                    .is_some_and(|status| status.is_client_error());
+                let status = error.status().map(|status| status.as_u16());
+                outage = status.is_none_or(|status| status >= 500 || status == 429);
                 last = error.without_url().to_string();
-                if refused {
+                // A refused segment will not be given on asking again.
+                if !outage && status.is_some_and(|status| (400..500).contains(&status)) {
                     break;
                 }
             }
         }
     }
-    Err(format!("video segment: {last}"))
+    if outage {
+        Err(format!(
+            "{}: video segment: {last}",
+            super::catalog::UNREACHABLE
+        ))
+    } else {
+        Err(format!("video segment: {last}"))
+    }
 }
 
 fn fetch_text(client: &reqwest::blocking::Client, url: &str) -> Result<String> {

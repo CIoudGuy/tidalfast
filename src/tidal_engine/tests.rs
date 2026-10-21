@@ -21,6 +21,7 @@ use crate::tidal_engine::decode::tests::wav;
 mod adaptive;
 mod paged;
 mod song_end;
+mod video_wait;
 
 /// Serves `body` at every path, honouring `Range: bytes=N-`, at most
 /// `pace` bytes per 10 ms when set. Counts the range requests it served.
