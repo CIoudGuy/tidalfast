@@ -1967,7 +1967,6 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                 });
                 app.dialog = Some(Dialog::Blocked);
             }
-            "album-review" => app.dialog = Some(Dialog::AlbumReview { id: "alb0".into() }),
             "album-credits" => app.open(Page::AlbumCredits("alb0".into())),
             "edit" => {
                 app.dialog = Some(Dialog::EditPlaylist {
@@ -16072,58 +16071,33 @@ mod tests {
         painted.iter().map(|(text, _)| text.as_str()).collect()
     }
 
-    /// An album with a review shows it under the songs, cut to a few
-    /// lines with "Read more", and the header offers Credits.
+    /// The album page leaves TIDAL's review to its Credits page (owner's
+    /// call: it was shown twice), and the header offers Credits.
     #[test]
-    fn an_album_page_shows_its_review_and_a_credits_button() {
+    fn an_album_page_leaves_its_review_to_credits_and_offers_credits() {
         use egui::accesskit::{Action as Access, Role};
         fn album(app: &mut App, ui: &mut egui::Ui) {
             crate::ui::collection::album(app, ui, "alb0");
         }
-        fn review(app: &mut App, ui: &mut egui::Ui) {
-            crate::ui::album_extras::review_dialog(app, ui, "alb0");
-        }
         let (ctx, mut app) = accessible_app("album-review");
+        assert!(
+            matches!(app.album_pages["alb0"].review, Loadable::Loaded(Some(_))),
+            "the demo album has a review"
+        );
         view_frame(&ctx, &mut app, vec![], album);
         let painted = view_frame(&ctx, &mut app, vec![], album);
         let all = texts(&painted);
-        assert!(all.contains(&"Review"), "{all:?}");
+        assert!(!all.contains(&"Review"), "{all:?}");
         assert!(
-            all.iter()
+            !all.iter()
                 .any(|text| text.contains("Recorded over two winters")),
-            "the review is under the songs"
+            "the review is not under the songs"
         );
-        // Four lines of 680 points cannot hold it: Read more is offered.
-        assert!(all.contains(&"Read more"), "{all:?}");
-        app.open(Page::Album("alb0".into()));
-        accessible_frame(&ctx, &mut app, vec![]);
-        let tree = accessible_frame(&ctx, &mut app, vec![]);
-        let more = tree
-            .nodes
-            .iter()
-            .find(|(_, node)| node.label() == Some("Read more"))
-            .expect("a Read more link")
-            .0;
-        accessible_frame(
-            &ctx,
-            &mut app,
-            vec![accessible_action(more, Access::Click, None)],
-        );
-        accessible_frame(&ctx, &mut app, vec![]);
-        assert!(matches!(&app.dialog, Some(Dialog::AlbumReview { id }) if id == "alb0"));
-        // The dialog holds all of it, both paragraphs, and where it is from.
-        let painted = view_frame(&ctx, &mut app, vec![], review);
-        let all = texts(&painted);
-        assert!(
-            all.iter()
-                .any(|text| text.contains("most coherent of the producer")),
-            "{all:?}"
-        );
-        assert!(all.contains(&"Album review from TiVo"), "{all:?}");
-        assert!(all.contains(&"Review"), "{all:?}");
-        app.dialog = None;
+        assert!(!all.contains(&"Read more"), "{all:?}");
         // The Credits button opens the album's Credits page (no dialog) and
         // asks nothing while the credits are held.
+        app.open(Page::Album("alb0".into()));
+        accessible_frame(&ctx, &mut app, vec![]);
         let tree = accessible_frame(&ctx, &mut app, vec![]);
         let credits = accessible_node(&tree, "Credits", Role::Button);
         accessible_frame(
@@ -16138,25 +16112,6 @@ mod tests {
             app.album_pages["alb0"].credits,
             Loadable::Loaded(_)
         ));
-        app.backend.shutdown();
-    }
-
-    /// An album without a review shows no Review heading.
-    #[test]
-    fn an_album_without_a_review_shows_no_review_block() {
-        fn album(app: &mut App, ui: &mut egui::Ui) {
-            crate::ui::collection::album(app, ui, "alb0");
-        }
-        let (ctx, mut app) = accessible_app("album-no-review");
-        app.album_pages.get_mut("alb0").unwrap().review = Loadable::Loaded(None);
-        view_frame(&ctx, &mut app, vec![], album);
-        let painted = view_frame(&ctx, &mut app, vec![], album);
-        assert!(!texts(&painted).contains(&"Review"));
-        assert!(
-            !texts(&painted)
-                .iter()
-                .any(|text| text.contains("Read more"))
-        );
         app.backend.shutdown();
     }
 
@@ -16185,7 +16140,6 @@ mod tests {
             .expect("the copyright line")
             .1
             .top();
-        let review = y("Review");
         let artist = album(0).artists[0].name.clone();
         let headings = [
             y("Other versions"),
@@ -16193,7 +16147,6 @@ mod tests {
             y("Related albums"),
             y("Related artists"),
         ];
-        assert!(review < footer, "the review stays above the footer");
         assert!(footer < headings[0], "the shelves are under the footer");
         assert!(
             headings.windows(2).all(|pair| pair[0] < pair[1]),

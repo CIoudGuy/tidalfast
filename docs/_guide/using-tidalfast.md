@@ -81,13 +81,12 @@ has focus.
 ## Album credits and reviews, recommended songs
 
 An album page has a **Credits** button (also **Credits** in the album's
-menu). It opens a window with the album's own credits (executive producers,
+menu). It opens a page with the album's own credits (executive producers,
 labels and so on) followed by every song with its roles, such as producers,
 composers and engineers; names that are TIDAL artists open their page.
 
-When TIDAL has a review of the album, it is shown under the songs with **Read
-more**, which opens the whole text in a window like an artist's biography.
-Names in it are links.
+When TIDAL has a review of the album, it is on the Credits page's **Info**
+tab, in full. Names in it are links.
 
 Under a playlist you can edit, **Recommended songs** lists ten songs TIDAL
 suggests for it. **Add** puts a song into the playlist at once and takes it off

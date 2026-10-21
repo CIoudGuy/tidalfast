@@ -1,27 +1,19 @@
-//! What TIDAL adds around an album and a playlist: the album's review (a
-//! few lines on the page, the rest in a dialog), and the Recommended songs
-//! under a playlist the user can edit. The album's Credits page is
-//! `super::album_credits`.
+//! What TIDAL adds around an album and a playlist: the Recommended songs
+//! under a playlist the user can edit. The album's review is on its Credits
+//! page (`super::album_credits`), not on the album page.
 
 use std::collections::HashSet;
 
 use egui::{Align, CornerRadius, Layout, Rect, Sense, UiBuilder, pos2, vec2};
 
-use crate::api::bio;
-use crate::api::models::{
-    Album, AlbumShelf, AlbumShelfKind, PlayableItem, PlaylistItem, Track, pick_image,
-};
+use crate::api::models::{Album, AlbumShelf, AlbumShelfKind, PlayableItem, PlaylistItem, Track};
 use crate::app::App;
 use crate::i18n::gettext;
-use crate::model::{Action, Dialog, Loadable, Page, PlaylistRecommendations};
+use crate::model::{Action, Loadable, Page, PlaylistRecommendations};
 use crate::theme::{self, Icon};
 
-use super::artist::{Reader, bio_job, bio_text, flatten, open_target, reader_dialog};
 use super::skeleton;
 use super::widgets;
-
-/// The review's lines on the album page before "Read more".
-const REVIEW_LINES: usize = 4;
 
 /// "AdditionalProducer" as "Additional Producer": TIDAL files some roles
 /// under their code names.
@@ -36,96 +28,6 @@ pub fn role_label(role: &str) -> String {
         previous = Some(c);
     }
     label
-}
-
-/// TIDAL's review of the album under its songs: a heading and the first
-/// lines of the text, with "Read more" for the rest. Links in it open
-/// their artist or album.
-pub fn review_block(
-    app: &mut App,
-    ui: &mut egui::Ui,
-    id: &str,
-    review: &Loadable<Option<bio::ArtistBio>>,
-) {
-    let Loadable::Loaded(Some(review)) = review else {
-        return;
-    };
-    let pieces = flatten(&bio::parse(&review.text));
-    if pieces.is_empty() {
-        return;
-    }
-    let palette = app.palette;
-    let locale = app.locale;
-    ui.add_space(32.0);
-    theme::text(
-        ui,
-        gettext(locale, "Review"),
-        super::plugin_dom::subheadline_font(19.0),
-        palette.text,
-    );
-    ui.add_space(12.0);
-    let width = ui.available_width().min(680.0);
-    let (job, links) = bio_job(
-        &pieces,
-        theme::medium(14.0),
-        palette.text.gamma_multiply(0.8),
-        palette.text,
-        22.0,
-        width,
-        Some(REVIEW_LINES),
-    );
-    let (truncated, target) = bio_text(ui, job, &links, palette.text.gamma_multiply(0.8));
-    open_target(app, target, false);
-    if truncated {
-        let label = gettext(locale, "Read more");
-        if theme::link(ui, label.as_ref(), theme::semibold(14.0), palette.text).clicked() {
-            app.actions.push(Action::ShowDialog(Dialog::AlbumReview {
-                id: id.to_string(),
-            }));
-        }
-    }
-}
-
-/// The album's cover and title for a dialog heading.
-fn album_face(app: &App, id: &str) -> (String, Option<String>) {
-    let album = app
-        .album_pages
-        .get(id)
-        .and_then(|page| page.album.get())
-        .or_else(|| app.known_album(id));
-    let name = album.map(|album| album.name.clone()).unwrap_or_default();
-    let image = album
-        .and_then(|album| pick_image(&album.images, app.art_px(80.0)))
-        .map(str::to_string);
-    (name, image)
-}
-
-/// TIDAL's review in full, in the Biography dialog's frame.
-pub fn review_dialog(app: &mut App, ui: &mut egui::Ui, id: &str) {
-    let locale = app.locale;
-    let review = match app.album_pages.get(id).map(|page| &page.review) {
-        Some(Loadable::Loaded(Some(review))) => review.clone(),
-        _ => {
-            app.actions.push(Action::CloseDialog);
-            return;
-        }
-    };
-    let (name, image) = album_face(app, id);
-    reader_dialog(
-        app,
-        ui,
-        Reader {
-            name,
-            image,
-            round: false,
-            subtitle: gettext(locale, "Review").into_owned(),
-            paragraphs: bio::parse(&review.text),
-            // Translators: {source} is where the text comes from, e.g. TiVo.
-            source: review.source.map(|source| {
-                gettext(locale, "Album review from {source}").replace("{source}", &source)
-            }),
-        },
-    );
 }
 
 /// TIDAL's Recommended songs under a playlist the user can edit: a heading,

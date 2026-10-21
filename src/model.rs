@@ -1331,10 +1331,6 @@ pub enum Dialog {
     /// Settings > Blocked: the artists and songs TIDAL leaves out of mixes
     /// and radios, each with Unblock.
     Blocked,
-    /// An album's review in full, by album id.
-    AlbumReview {
-        id: String,
-    },
     /// TIDAL Upload's dialogs (`ui::uploads`).
     Upload(Box<crate::uploads::UploadDialog>),
 }
