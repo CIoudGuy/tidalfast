@@ -103,11 +103,12 @@ pub(crate) fn font_wanted() -> bool {
 }
 
 /// MUI's font at `size` pixels: the first installed family of
-/// [`MUI_FONT`] once loaded, the app's face until then.
-pub(crate) fn font(size: f32) -> FontId {
+/// [`MUI_FONT`] once loaded and in egui's fonts in `ctx`, the app's face
+/// until then. It locks `ctx`: never call it inside `ui.fonts_mut`.
+pub(crate) fn font(ctx: &egui::Context, size: f32) -> FontId {
     FONT_WANTED.store(true, std::sync::atomic::Ordering::Relaxed);
     match super::plugin_dom::element_font_id(MUI_FONT)
-        .and_then(|id| super::plugin_dom::font_by_id(id, 400))
+        .and_then(|id| super::plugin_dom::font_by_id(ctx, id, 400))
     {
         Some(family) => FontId::new(size, family),
         None => theme::regular(size),
@@ -199,7 +200,7 @@ fn line(
     let mut job = egui::text::LayoutJob::single_section(
         text.to_owned(),
         egui::TextFormat {
-            font_id: font(size),
+            font_id: font(ui.ctx(), size),
             color: colour,
             line_height: Some(size * height),
             valign: Align::Center,
@@ -216,8 +217,9 @@ fn title_width(ui: &Ui, title: &str, desc: &str) -> f32 {
         if text.is_empty() {
             0.0
         } else {
+            let face = font(ui.ctx(), size);
             ui.fonts_mut(|f| {
-                f.layout_no_wrap(text.to_owned(), font(size), Color32::WHITE)
+                f.layout_no_wrap(text.to_owned(), face, Color32::WHITE)
                     .size()
                     .x
             })
@@ -488,7 +490,7 @@ pub(crate) fn number(
         line_rect(ui, field),
         egui::TextEdit::singleline(&mut text)
             .frame(egui::Frame::NONE)
-            .font(font(REM))
+            .font(font(ui.ctx(), REM))
             .text_color(mui.text)
             .margin(egui::Margin::ZERO)
             .desired_width(field.width()),
@@ -529,7 +531,8 @@ pub(crate) fn number(
 
 /// One line of 1 rem text across `field`, centred down it.
 fn line_rect(ui: &Ui, field: Rect) -> Rect {
-    let h = ui.fonts_mut(|f| f.row_height(&font(REM)));
+    let face = font(ui.ctx(), REM);
+    let h = ui.fonts_mut(|f| f.row_height(&face));
     Rect::from_min_size(
         pos2(field.left(), field.center().y - h / 2.0),
         vec2(field.width(), h),
@@ -577,7 +580,7 @@ pub(crate) fn text_field(
             .id(id)
             .password(secure && !show)
             .frame(egui::Frame::NONE)
-            .font(font(REM))
+            .font(font(ui.ctx(), REM))
             .text_color(mui.text)
             .margin(egui::Margin::ZERO)
             .desired_width(field.width()),
@@ -617,9 +620,10 @@ pub(crate) fn text_field(
             let colour = if focused { mui.text } else { mui.secondary };
             if empty && !focused {
                 // Cut short with an ellipsis, as MUI's label is.
+                let face = font(ui.ctx(), REM);
                 let galley = ui.fonts_mut(|f| {
                     let mut job =
-                        egui::text::LayoutJob::simple_singleline(l.to_owned(), font(REM), colour);
+                        egui::text::LayoutJob::simple_singleline(l.to_owned(), face, colour);
                     job.wrap =
                         egui::text::TextWrapping::truncate_at_width((rect.width() - 28.0).max(1.0));
                     f.layout_job(job)
@@ -627,12 +631,10 @@ pub(crate) fn text_field(
                 let at = pos2(rect.left() + 14.0, rect.center().y - galley.size().y / 2.0);
                 ui.painter().galley(at, galley, colour);
             } else {
+                let face = font(ui.ctx(), 0.75 * REM);
                 let galley = ui.fonts_mut(|f| {
-                    let mut job = egui::text::LayoutJob::simple_singleline(
-                        l.to_owned(),
-                        font(0.75 * REM),
-                        colour,
-                    );
+                    let mut job =
+                        egui::text::LayoutJob::simple_singleline(l.to_owned(), face, colour);
                     job.wrap =
                         egui::text::TextWrapping::truncate_at_width((rect.width() - 38.0).max(1.0));
                     f.layout_job(job)
@@ -648,7 +650,7 @@ pub(crate) fn text_field(
                 pos2(rect.left() + 14.0, rect.center().y),
                 Align2::LEFT_CENTER,
                 p,
-                font(REM),
+                font(ui.ctx(), REM),
                 mui.text.gamma_multiply(0.42),
             );
         }
@@ -706,9 +708,9 @@ pub(crate) fn select(
         pos2(rect.left() + 14.0, rect.top()),
         pos2(rect.right() - 32.0, rect.bottom()),
     );
+    let face = font(ui.ctx(), REM);
     let galley = ui.fonts_mut(|f| {
-        let mut job =
-            egui::text::LayoutJob::simple_singleline(shown.to_owned(), font(REM), mui.text);
+        let mut job = egui::text::LayoutJob::simple_singleline(shown.to_owned(), face, mui.text);
         job.wrap = egui::text::TextWrapping::truncate_at_width(text_rect.width().max(1.0));
         f.layout_job(job)
     });
@@ -782,7 +784,7 @@ pub(crate) fn select(
                                         pos2(r.left() + 16.0, r.center().y),
                                         Align2::LEFT_CENTER,
                                         *option,
-                                        font(REM),
+                                        font(ui.ctx(), REM),
                                         mui.text,
                                     );
                                     if on {
@@ -840,7 +842,7 @@ pub(crate) fn button(
         words_colour.gamma_multiply(0.38)
     };
     let words = egui::RichText::new(text)
-        .font(font(size))
+        .font(font(ui.ctx(), size))
         .color(colour)
         .extra_letter_spacing(0.02857 * size);
     let galley = egui::WidgetText::from(words).into_galley(
@@ -906,7 +908,7 @@ pub(crate) fn button_width(ui: &Ui, label: &str, variant: &str) -> f32 {
     let size = 0.875 * REM;
     let galley = egui::WidgetText::from(
         egui::RichText::new(label.to_uppercase())
-            .font(font(size))
+            .font(font(ui.ctx(), size))
             .extra_letter_spacing(0.02857 * size),
     )
     .into_galley(

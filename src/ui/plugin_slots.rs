@@ -3761,7 +3761,8 @@ fn draw_box(
             return false;
         };
         let wrap = (!breakable(text)).then_some(egui::TextWrapMode::Extend);
-        add_text(ui, rich(text, inherit, style), wrap, inherit);
+        let text = rich(ui.ctx(), text, inherit, style);
+        add_text(ui, text, wrap, inherit);
         return true;
     }
 
@@ -4297,7 +4298,8 @@ fn draw_box(
                         } else {
                             (!breakable(text)).then_some(egui::TextWrapMode::Extend)
                         };
-                        add_text(ui, rich(text, inherit, style), wrap, inherit);
+                        let text = rich(ui.ctx(), text, inherit, style);
+                        add_text(ui, text, wrap, inherit);
                         drawn = true;
                     }
                     // A grid's gap is its own (none unless set).
@@ -4700,7 +4702,7 @@ fn add_line(
         return ui.add(label);
     };
     let line = lh.points(inherit.size);
-    let font = font_of(inherit, &Style::default());
+    let font = font_of(ui.ctx(), inherit, &Style::default());
     let face = ui.ctx().fonts_mut(|f| f.row_height(&font));
     let galley = egui::WidgetText::from(text).into_galley(
         ui,
@@ -4729,8 +4731,8 @@ fn add_line(
 }
 
 /// The font plugin text is drawn in: its weight and size, or a font the
-/// plugin declared.
-fn font_of(inherit: Inherit, style: &Style) -> egui::FontId {
+/// plugin declared that egui's fonts in `ctx` have now.
+fn font_of(ctx: &egui::Context, inherit: Inherit, style: &Style) -> egui::FontId {
     let font = if inherit.weight >= 700 {
         crate::theme::bold(inherit.size)
     } else if inherit.weight >= 600 {
@@ -4744,14 +4746,14 @@ fn font_of(inherit: Inherit, style: &Style) -> egui::FontId {
         Some(value) if value != "inherit" => plugin_dom::element_font_id(value),
         _ => inherit.family,
     };
-    match family.and_then(|f| plugin_dom::font_by_id(f, inherit.weight)) {
+    match family.and_then(|f| plugin_dom::font_by_id(ctx, f, inherit.weight)) {
         Some(family) => egui::FontId::new(inherit.size, family),
         None => font,
     }
 }
 
-fn rich(text: &str, inherit: Inherit, style: &Style) -> RichText {
-    let font = font_of(inherit, style);
+fn rich(ctx: &egui::Context, text: &str, inherit: Inherit, style: &Style) -> RichText {
+    let font = font_of(ctx, inherit, style);
     let mut text = if inherit.upper {
         RichText::new(text.to_uppercase())
     } else {
@@ -5358,7 +5360,7 @@ fn text_input(
         edit = edit.char_limit(max);
     }
     // The field's text in the font its CSS gives it, as other plugin text.
-    edit = edit.font(font_of(inherit, &node.style));
+    edit = edit.font(font_of(ui.ctx(), inherit, &node.style));
     // What the plugin's CSS says about the field itself: a field with
     // `border: none` has no box of its own (HorizontalVolumeSlider's
     // volume number sits bare beside its slider, the element's own

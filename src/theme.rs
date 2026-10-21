@@ -517,7 +517,30 @@ pub fn install_plugin_fonts(
     use_hanken(&mut fonts);
     crate::fonts::apply(&mut fonts);
     text_rendering().apply_to(&mut fonts);
+    let named: Vec<String> = extra
+        .iter()
+        .map(|(name, _)| name)
+        .filter(|name| {
+            fonts
+                .families
+                .contains_key(&egui::FontFamily::Name(name.as_str().into()))
+        })
+        .cloned()
+        .collect();
     ctx.set_fonts(fonts);
+    ctx.data_mut(|d| d.insert_temp(plugin_fonts_id(), std::sync::Arc::new(named)));
+}
+
+fn plugin_fonts_id() -> egui::Id {
+    egui::Id::new("tidalfast-plugin-fonts")
+}
+
+/// The plugin families the last [`install_plugin_fonts`] gave `ctx`, which
+/// egui draws with from the pass after it. Empty for a context that holds
+/// only the app's fonts (a window just made).
+pub fn plugin_families(ctx: &egui::Context) -> std::sync::Arc<Vec<String>> {
+    ctx.data(|d| d.get_temp(plugin_fonts_id()))
+        .unwrap_or_default()
 }
 
 /// Where a weight sits in the four faces of a plugin font.
