@@ -105,7 +105,10 @@ fn a_declaration_naming_an_undefined_variable_is_dropped() {
     let main = &o.hosts[MAIN].style;
     assert_eq!(main.border, None);
     assert_eq!(main.outline, None);
-    assert_eq!(main.color, None);
+    // Inherited: since round 25 said so (`inherit`), so a painter can tell
+    // a rule that reached the colour from none (it still parses to no
+    // colour of its own).
+    assert_eq!(main.color.as_deref(), Some("inherit"));
     assert_eq!(main.padding.as_deref(), Some("4px"));
     assert_eq!(
         main.background_color.as_deref(),

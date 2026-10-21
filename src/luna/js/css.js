@@ -772,7 +772,11 @@
 	// What an `unset` declaration computes to where Tidalfast has no parent
 	// value: TIDAL's body text (14px, weight 500, 20px lines) for inherited
 	// properties, the initial value for the boxes the app paints.
-	const UNSET_INHERITED = { "font-size": "14px", "font-weight": "500", "line-height": "20px" };
+	// A colour stays the parent's own: `inherit`, which a painter reads as
+	// "the colour around it" (the cotton candy family's `color:
+	// var(--SBTXT) !important` on the sidebar's names, with no value, keeps
+	// the playing playlist's name the other names' colour, not the accent).
+	const UNSET_INHERITED = { "font-size": "14px", "font-weight": "500", "line-height": "20px", color: "inherit" };
 	const UNSET_INITIAL = { "background-color": "transparent", "background-image": "none", "border-radius": "0px", "box-shadow": "none" };
 	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "margin-left", "margin-right", "column-gap", "padding-top", "padding-left", "padding-right", "padding-bottom", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "outline-offset", "border-color", "letter-spacing", "text-transform", "fill", "white-space", "flex", "flex-wrap", "order", "pointer-events", "background-position", "background-size", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns", "overflow-y", "list-style-type"]);
 	const ANIM_LONG = ["animation-name", "animation-duration", "animation-delay", "animation-iteration-count", "animation-direction", "animation-timing-function", "animation-play-state", "animation-fill-mode"];

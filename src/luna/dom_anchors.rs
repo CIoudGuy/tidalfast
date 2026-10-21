@@ -67,6 +67,11 @@ pub mod keys {
     pub const PROFILE: &str = "profile-picture";
     pub const PROFILE_SVG: &str = "profile-picture:svg";
     pub const FIXED_NAV: &str = "sidebar-fixed-nav";
+    /// The "All playlists" heading over the library rows
+    /// (`div._sectionHeader_ca54638`) and its words
+    /// (`span._titleText_1d0e44e._medium20_ ._marketText_`).
+    pub const LIB_HEADING: &str = "sidebar-lib-heading";
+    pub const LIB_HEADING_TITLE: &str = "sidebar-lib-heading:title";
     /// `div._collectionWrapper_` around the Collection entry and its menu
     /// button (AltPlay puts its link after it).
     pub const COLLECTION_WRAPPER: &str = "sidebar-collection-wrapper";
@@ -207,6 +212,11 @@ pub mod keys {
     pub fn sidebar_item(test: &str) -> String {
         format!("sidebar:{test}")
     }
+    /// A navigation row's words (`span._marketText_`, which TidalCustomTheme
+    /// colours by `[class^="_marketText_"]`).
+    pub fn sidebar_item_label(test: &str) -> String {
+        format!("sidebar:{test}:label")
+    }
     /// The `div[data-type=media-table]` of a list.
     pub fn list(list: &str) -> String {
         format!("list:{list}")
@@ -241,6 +251,18 @@ pub mod keys {
     /// A library row (`lib-row:<index>`).
     pub fn lib_row(index: usize) -> String {
         format!("lib-row:{index}")
+    }
+    /// A library row's words (`div._textContent_462c76e`).
+    pub fn lib_row_words(index: usize) -> String {
+        format!("lib-row:{index}:words")
+    }
+    /// A library row's name (`span._marketText_._medium20_` in its words).
+    pub fn lib_row_title(index: usize) -> String {
+        format!("lib-row:{index}:title")
+    }
+    /// A library row's second line (`span._marketText_._text20_`).
+    pub fn lib_row_subtitle(index: usize) -> String {
+        format!("lib-row:{index}:subtitle")
     }
     /// An Explore icon link (`page-link:<index>`) and its words.
     pub fn page_link(index: usize) -> String {
@@ -543,6 +565,11 @@ pub struct Sidebar {
     /// The library rows themselves (`._contentItem_`, `_selected_` for the
     /// open page), in drawing order.
     pub rows: Vec<(Option<Rect>, bool)>,
+    /// The library row whose playlist is playing: its name is TIDAL's
+    /// accent, so it carries no `_textWhite_` class.
+    pub playing: Option<usize>,
+    /// The "All playlists" heading's box.
+    pub heading: Option<Rect>,
 }
 
 /// The page shown in `main`.
@@ -1147,6 +1174,32 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             node = node.attr("href", href.clone());
         }
         out.push(node);
+        out.push(
+            el(
+                keys::sidebar_item_label(&item.test),
+                Some(&keys::sidebar_item(&item.test)),
+                "span",
+            )
+            .class("_marketText_1lyag_1")
+            .at(item.rect),
+        );
+    }
+    if let Some(rect) = side.heading {
+        // Exactly TIDAL's class: the cotton candy family names it as
+        // `[class="_sectionHeader_ca54638"]`.
+        out.push(
+            el(LIB_HEADING, Some(SIDEBAR_CONTENT), "div")
+                .class("_sectionHeader_ca54638")
+                .at(Some(rect)),
+        );
+        out.push(
+            el(LIB_HEADING_TITLE, Some(LIB_HEADING), "span")
+                .class("_titleText_1d0e44e")
+                .class("_medium20_1lyag_192")
+                .class("_marketText_1lyag_1")
+                .text("All playlists")
+                .at(Some(rect)),
+        );
     }
     for (i, (rect, selected)) in side.rows.iter().enumerate() {
         let mut node = el(keys::lib_row(i), Some(SIDEBAR_CONTENT), "div")
@@ -1156,6 +1209,30 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             node = node.modules(&["selected"]).class("_selected_ae83ba5");
         }
         out.push(node);
+        // TIDAL's words in the row, which themes colour by their market
+        // text classes (`#sidebar ._marketText_1lyag_1._medium20_1lyag_192`,
+        // `._marketText_1lyag_1._text20_1lyag_291`, Tidal Light's
+        // `._textContent_462c76e ._title_8b245d1`).
+        let row = keys::lib_row(i);
+        let words = keys::lib_row_words(i);
+        out.push(
+            el(words.clone(), Some(&row), "div")
+                .class("_textContent_462c76e")
+                .at(*rect),
+        );
+        let mut title = el(keys::lib_row_title(i), Some(&words), "span")
+            .class("_marketText_1lyag_1")
+            .class("_medium20_1lyag_192");
+        if side.playing != Some(i) {
+            title = title.class("_textWhite_1lyag_319");
+        }
+        out.push(title.class("_title_8b245d1").at(*rect));
+        out.push(
+            el(keys::lib_row_subtitle(i), Some(&words), "span")
+                .class("_marketText_1lyag_1")
+                .class("_text20_1lyag_291")
+                .at(*rect),
+        );
     }
     for (i, rect) in side.thumbs.iter().enumerate() {
         out.push(
@@ -2448,6 +2525,8 @@ pub fn sample_frame() -> Frame {
             }],
             thumbs: Vec::new(),
             rows: Vec::new(),
+            playing: None,
+            heading: None,
         },
         page: Some(Page {
             rect: r(240.0, 92.0, 1040.0, 608.0),
