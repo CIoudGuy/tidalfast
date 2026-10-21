@@ -1137,10 +1137,21 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             .id("sidebar-content")
             .at(side.rect),
     );
+    // TIDAL's box round the navigation rows (Tidal TUI labels it `Tabs` at
+    // its corner): their bounds, none while they are not drawn (the
+    // now-playing view covering the window).
+    let nav = side.items.iter().filter_map(|i| i.rect).reduce(|a, b| {
+        let (x0, y0) = (a[0].min(b[0]), a[1].min(b[1]));
+        let (x1, y1) = (
+            (a[0] + a[2]).max(b[0] + b[2]),
+            (a[1] + a[3]).max(b[1] + b[3]),
+        );
+        [x0, y0, x1 - x0, y1 - y0]
+    });
     out.push(
         el(FIXED_NAV, Some(SIDEBAR_CONTENT), "div")
             .modules(&["fixedNavigation"])
-            .at(side.rect),
+            .at(nav),
     );
     for item in &side.items {
         // TIDAL's Collection entry is a button; the rest are links.

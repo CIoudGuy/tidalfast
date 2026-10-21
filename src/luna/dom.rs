@@ -206,6 +206,11 @@ pub struct Style {
     /// here too, under that name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom: Option<BTreeMap<String, String>>,
+    /// The words a theme's `::before` / `::after` on an anchor draws
+    /// (`content: "Tabs"`, Tidal TUI's box labels): only on those boxes,
+    /// and only when there are words to show.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
 }
 
 impl Style {

@@ -122,6 +122,8 @@ struct State {
     fonts_next: Option<(Vec<String>, HashMap<String, String>)>,
     /// Outlines plugins set on host elements, for this overlay version.
     outlines: Option<(u64, Vec<HostOutline>)>,
+    /// Words themes draw on host elements, for this overlay version.
+    labels: Option<(u64, Vec<HostLabel>)>,
     /// `overlay.scroll_top` not applied yet: (container key, top).
     scroll_top_seq: u64,
     scroll_top_pending: Option<(String, f32)>,
@@ -460,6 +462,7 @@ pub fn end_frame(ctx: &egui::Context) {
         let floats = std::mem::take(&mut s.floats_now);
         pointer_events(ctx, s, &floats);
         paint_host_outlines(ctx, s);
+        paint_host_labels(ctx, s);
         s.modal_open = s.frame.modal.is_some();
         s.next_playlist = None;
         let mut frame = std::mem::take(&mut s.frame);
@@ -660,6 +663,193 @@ fn host_outlines(
             })
         })
         .collect()
+}
+
+/// Words a theme's `::before` / `::after` draws on an app element (Tidal
+/// TUI's `Tabs` and `Playing` box labels): where, how big, in what colour.
+#[derive(Clone, Debug, PartialEq)]
+struct HostLabel {
+    key: String,
+    text: String,
+    /// From the element's top-left corner: the box's margins, `top` /
+    /// `left` and `translate`.
+    offset: egui::Vec2,
+    size: f32,
+    weight: u16,
+    /// `None` takes the element's own colour, else the page's words.
+    color: Option<Color32>,
+    fill: Option<Color32>,
+    /// An `::after` in the flow of an element with words (Tidalify's
+    /// `LIFY` after the title bar's name): from its right edge.
+    after_words: bool,
+}
+
+/// The labels themes draw on the app's elements, for this overlay. Buttons,
+/// links, pictures and fields are left out: their glyph `content` (Tidal
+/// TUI's `▶` on Play) stands for an icon Tidalfast draws itself.
+fn host_labels(
+    o: &DomOverlay,
+    tags: &BTreeMap<&str, (&str, bool)>,
+    vars: &BTreeMap<String, String>,
+    viewport: [f32; 2],
+) -> Vec<HostLabel> {
+    let len = |v: Option<&String>, em: f32| {
+        v.and_then(|v| css::length(&css::resolve_vars(v, vars), em, 0.0, viewport))
+            .filter(|n| n.is_finite())
+    };
+    let mut out = Vec::new();
+    for (key, h) in &o.hosts {
+        if h.style.hidden()
+            || tags.get(key.as_str()).is_none_or(|(t, _)| {
+                matches!(
+                    *t,
+                    "button" | "a" | "input" | "img" | "svg" | "use" | "time" | "textarea"
+                )
+            })
+        {
+            continue;
+        }
+        let words = tags.get(key.as_str()).is_some_and(|(_, w)| *w);
+        for (after, p) in [(false, h.before.as_ref()), (true, h.after.as_ref())]
+            .into_iter()
+            .filter_map(|(a, p)| Some((a, p?)))
+        {
+            let Some(text) = p
+                .content
+                .as_deref()
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+            else {
+                continue;
+            };
+            if p.hidden() {
+                continue;
+            }
+            let size = len(p.font_size.as_ref(), 14.0)
+                .unwrap_or(14.0)
+                .clamp(6.0, 64.0);
+            let margin = p
+                .margin
+                .as_deref()
+                .map_or([0.0; 4], |m| css::sides(&css::resolve_vars(m, vars), size));
+            let left = len(p.margin_left.as_ref(), size).unwrap_or(margin[3])
+                + len(p.left.as_ref(), size).unwrap_or(0.0);
+            let top = len(p.margin_top.as_ref(), size).unwrap_or(margin[0])
+                + len(p.top.as_ref(), size).unwrap_or(0.0);
+            let moved = p.transform.as_deref().map_or(egui::Vec2::ZERO, |t| {
+                translation(&css::resolve_vars(t, vars))
+            });
+            let weight = p
+                .font_weight
+                .as_deref()
+                .map(|w| css::resolve_vars(w, vars))
+                .and_then(|w| match w.trim() {
+                    "bold" | "bolder" => Some(700),
+                    "normal" => Some(400),
+                    n => n.parse::<u16>().ok(),
+                })
+                .unwrap_or(500);
+            let own = |s: &crate::luna::dom::Style| {
+                s.color
+                    .as_deref()
+                    .and_then(|c| css::color(&css::resolve_vars(c, vars)))
+            };
+            let color = own(p).or_else(|| own(&h.style));
+            if color.is_some_and(|c| c.a() == 0) {
+                continue;
+            }
+            let fill = p
+                .background_color
+                .as_deref()
+                .and_then(|c| css::color(&css::resolve_vars(c, vars)))
+                .filter(|c| c.a() > 0);
+            out.push(HostLabel {
+                key: key.clone(),
+                text: text.to_string(),
+                offset: egui::vec2(left, top) + moved,
+                size,
+                weight,
+                color,
+                fill,
+                after_words: after
+                    && words
+                    && !p
+                        .position
+                        .as_deref()
+                        .is_some_and(|v| matches!(v.trim(), "absolute" | "fixed")),
+            });
+        }
+    }
+    out
+}
+
+/// Words themes draw on the app's elements in `::before` / `::after`
+/// (Tidal TUI's `Tabs` over the navigation and `Playing` over the player
+/// bar), at the element's corner moved as the box's margins and transform
+/// say. Read once per overlay; nothing is drawn while no rule draws words.
+fn paint_host_labels(ctx: &egui::Context, s: &mut State) {
+    let version = s.overlay.version;
+    if s.labels.as_ref().map(|(v, _)| *v) != Some(version) {
+        let tags: BTreeMap<&str, (&str, bool)> = s.sent.as_ref().map_or_else(BTreeMap::new, |t| {
+            t.nodes
+                .iter()
+                .map(|n| {
+                    let words = n.text.as_deref().is_some_and(|t| !t.trim().is_empty());
+                    (n.key.as_str(), (n.tag.as_str(), words))
+                })
+                .collect()
+        });
+        let list = host_labels(&s.overlay, &tags, &s.vars, s.frame.viewport);
+        s.labels = Some((version, list));
+    }
+    let Some((_, labels)) = s.labels.as_ref() else {
+        return;
+    };
+    if labels.is_empty() {
+        return;
+    }
+    let Some(tree) = s.sent.as_ref() else {
+        return;
+    };
+    let text = s
+        .theme
+        .as_ref()
+        .map_or(Color32::WHITE, |(_, _, themed)| themed.text);
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Middle,
+        egui::Id::new("luna-host-labels"),
+    ));
+    for l in labels {
+        let Some([x, y, w, h]) = tree
+            .nodes
+            .iter()
+            .find(|n| n.key == l.key)
+            .and_then(|n| n.rect)
+        else {
+            continue;
+        };
+        if w <= 0.0 || h <= 0.0 {
+            continue;
+        }
+        // Kept inside the window: the app's sidebar lies nearer its edge
+        // than TIDAL's under the theme's margins, and a label pulled out
+        // by its negative margin would lose its first letter.
+        let at = egui::pos2(if l.after_words { x + w } else { x }, y) + l.offset;
+        let at = egui::pos2(at.x.max(4.0), at.y.max(0.0));
+        let galley = painter.layout_no_wrap(
+            l.text.clone(),
+            font_at(l.size, l.weight),
+            l.color.unwrap_or(text),
+        );
+        if let Some(fill) = l.fill {
+            painter.rect_filled(
+                Rect::from_min_size(at, galley.size()).expand2(egui::vec2(3.0, 0.0)),
+                0.0,
+                fill,
+            );
+        }
+        painter.galley(at, galley, text);
+    }
 }
 
 /// Outlines plugins set on the app's elements, drawn over the page round
@@ -6342,6 +6532,106 @@ pub(crate) fn test_overlay(overlay: Option<DomOverlay>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A theme's `::before` words sit at the element's corner moved by the
+    /// box's margins and `translate` (Tidal TUI's `Tabs`: `margin: -10px
+    /// -8px`; `Playing`: `margin: 10px 4px; transform: translateY(-20px)`),
+    /// in the element's colour when the box names none; a button's glyph is
+    /// left to its native icon, and a transparent label draws nothing.
+    #[test]
+    fn a_themes_box_labels_sit_where_its_margins_put_them() {
+        use crate::luna::dom::{HostOverride, Style};
+        let label = |before: Style, own: Style| HostOverride {
+            style: own,
+            before: Some(before),
+            ..HostOverride::default()
+        };
+        let mut o = DomOverlay::default();
+        o.hosts.insert(
+            "nav".into(),
+            label(
+                Style {
+                    content: Some("Tabs".into()),
+                    margin: Some("-10px -8px".into()),
+                    ..Style::default()
+                },
+                Style {
+                    color: Some("rgb(200, 200, 200)".into()),
+                    ..Style::default()
+                },
+            ),
+        );
+        o.hosts.insert(
+            "bar".into(),
+            label(
+                Style {
+                    content: Some("Playing".into()),
+                    margin: Some("10px 4px".into()),
+                    transform: Some("translateY(-20px)".into()),
+                    color: Some("#fff".into()),
+                    ..Style::default()
+                },
+                Style::default(),
+            ),
+        );
+        o.hosts.insert(
+            "play".into(),
+            label(
+                Style {
+                    content: Some("▶".into()),
+                    ..Style::default()
+                },
+                Style::default(),
+            ),
+        );
+        o.hosts.insert(
+            "next".into(),
+            label(
+                Style {
+                    content: Some("⏭".into()),
+                    ..Style::default()
+                },
+                Style {
+                    color: Some("transparent".into()),
+                    ..Style::default()
+                },
+            ),
+        );
+        // Tidalify's `._title_a453dad:after { content: 'LIFY' }`: after the
+        // title bar's name.
+        o.hosts.insert(
+            "title".into(),
+            HostOverride {
+                after: Some(Style {
+                    content: Some("LIFY".into()),
+                    ..Style::default()
+                }),
+                ..HostOverride::default()
+            },
+        );
+        let tags = BTreeMap::from([
+            ("title", ("div", true)),
+            ("nav", ("div", false)),
+            ("bar", ("div", false)),
+            ("play", ("button", false)),
+            ("next", ("div", false)),
+        ]);
+        let labels = host_labels(&o, &tags, &BTreeMap::new(), [1280.0, 800.0]);
+        let find = |k: &str| labels.iter().find(|l| l.key == k);
+        let nav = find("nav").expect("Tabs");
+        assert_eq!(nav.offset, egui::vec2(-8.0, -10.0));
+        assert_eq!(nav.color, Some(Color32::from_gray(200)));
+        assert_eq!(nav.size, 14.0);
+        let bar = find("bar").expect("Playing");
+        assert_eq!(bar.offset, egui::vec2(4.0, -10.0));
+        assert!(
+            find("title").is_some_and(|l| l.after_words),
+            "after the name"
+        );
+        assert!(!nav.after_words && !bar.after_words);
+        assert!(find("play").is_none(), "Play keeps its icon");
+        assert!(find("next").is_none(), "a transparent label");
+    }
 
     /// An outline follows its box's corners: the cotton candy family rings
     /// each round navigation pill (`outline: 2px solid; border-radius:
