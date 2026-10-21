@@ -165,12 +165,15 @@ pub(super) fn volume(
 /// The volume popup's fill and the colour of its range: TIDAL's own dark
 /// box and white range, or under a theme its raised surface and words
 /// (Tidal Light's pale box with a dark range, as TIDAL draws it there).
+/// A theme's `--wave-color-solid-base-brighter` is the box's fill, as in
+/// TIDAL (Rose Pine's `#26233a` over its otherwise TIDAL-dark window).
 pub(crate) fn volume_popup_colors(palette: &theme::Palette) -> (Color32, Color32) {
-    if palette.themed && !palette.own_surfaces {
+    let (fill, ink) = if palette.themed && !palette.own_surfaces {
         (palette.overlay, palette.text)
     } else {
         (VOLUME_POPUP_FILL, Color32::WHITE)
-    }
+    };
+    (super::plugin_dom::token_popup_fill().unwrap_or(fill), ink)
 }
 
 /// The popup's body and the tail under it pointing at the speaker.

@@ -904,3 +904,24 @@ fn a_themes_img_variable_keeps_the_header_art() {
     luna.shutdown();
     assert!(!removed, "the cover stays");
 }
+
+/// TIDAL's volume popup is filled with `--wave-color-solid-base-brighter`:
+/// under Rose Pine its `#26233a` (measured rgb(38, 35, 58)), under Black
+/// Glow and Abyss Neptune black, under Tidal Light `#eaebeb`. Tidalfast drew
+/// TIDAL's own dark grey under a theme that keeps TIDAL's surfaces.
+#[test]
+fn the_volume_popup_takes_the_themes_brighter_base() {
+    use crate::ui::player_utility::volume_popup_colors;
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Rose popup"} */
+:root { --wave-color-solid-base-fill: #191724; --wave-color-solid-base-brighter: #26233a; }
+"#;
+    let (luna, o) = overlay_with("rose-popup.css", css, dom_anchors::sample_tree(), "");
+    let palette = pd::themed(&crate::theme::Palette::dark(), &o);
+    pd::test_overlay(Some((*o).clone()));
+    let (fill, ink) = volume_popup_colors(&palette);
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(fill, egui::Color32::from_rgb(0x26, 0x23, 0x3a));
+    assert_eq!(ink, egui::Color32::WHITE);
+}

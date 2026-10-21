@@ -1569,6 +1569,21 @@ pub fn token_queue_fill() -> Option<Color32> {
     Some(queue_fill_from(base))
 }
 
+/// The volume popup's fill under a theme: TIDAL fills it with
+/// `--wave-color-solid-base-brighter` (Rose Pine's `#26233a`, Black Glow's
+/// black, Tidal Light's `#eaebeb`). `None` without a theme or the token.
+pub fn token_popup_fill() -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    with(|s| {
+        let v = s.overlay.vars.get("--wave-color-solid-base-brighter")?;
+        css::color(&css::resolve_vars(v, &s.overlay.vars))
+    })
+    .filter(|c| c.a() > 0)
+    .map(Color32::to_opaque)
+}
+
 /// [`token_queue_fill`]'s mix.
 pub fn queue_fill_from(base: Color32) -> Color32 {
     let base = base.to_opaque();
