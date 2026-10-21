@@ -701,6 +701,33 @@ fn a_theme_of_root_tokens_alone_keeps_tidals_window() {
     assert!(near(queue_fill_from(egui::Color32::BLACK), [22, 22, 22]));
 }
 
+/// Abyss Neptune clears TIDAL's Play and Shuffle pills
+/// (`[data-test="play-all"] { color: var(--wave-color-solid-accent-fill)
+/// !important; background-color: transparent !important }`): TIDAL shows
+/// their words alone. A see-through fill with no picture was read as no
+/// fill, so the native white and grey pills stayed.
+#[test]
+fn a_see_through_header_pill_draws_no_pill() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Clear pills"} */
+:root { --wave-color-solid-accent-fill: #ffffff; }
+button[data-test="play-all"], button[data-test="shuffle-all"] { color: black; background-color: var(--wave-color-solid-accent-fill); }
+[data-test="play-all"], [data-test="shuffle-all"] { color: var(--wave-color-solid-accent-fill) !important; background-color: transparent !important; }
+"#;
+    let (luna, o) = overlay_with(
+        "clear-pills.css",
+        css,
+        dom_anchors::build(&dom_anchors::sample_frame()),
+        dom_anchors::keys::PAGE_PLAY,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let pill = pd::header_pill(true).expect("a themed pill");
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(pill.fill.map(|c| c.a()), Some(0), "no pill");
+    assert_eq!(pill.ink, Some(egui::Color32::WHITE));
+}
+
 /// TidalCustomTheme colours TIDAL's words by `[class^="_marketText_"] {
 /// color: #8a0022 !important }`, which reaches the navigation rows' labels
 /// in TIDAL (dark red on its pink sidebar). The labels had no anchor, so
