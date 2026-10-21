@@ -3442,6 +3442,68 @@ fn draw_grid(
     drawn
 }
 
+/// A flex row with `flex-wrap: wrap`: its items in lines as wide as the
+/// row, `gap` apart both ways. Each item is as wide as it was last frame
+/// (its own `width` before it was drawn), so a line ends where the next
+/// item would not fit (DownloadManager's 104-point tiles, two to a line in
+/// the 188 points beside its app list).
+fn draw_wrapped(
+    ui: &mut egui::Ui,
+    items: &[&VNode],
+    gap: f32,
+    font: f32,
+    inherit: Inherit,
+    cx: &Cx,
+) -> bool {
+    let width_id = |c: &VNode| egui::Id::new(("luna-flex-w", c.id));
+    let room = ui.available_width();
+    let widths: Vec<f32> = items
+        .iter()
+        .map(|c| {
+            ui.data(|d| d.get_temp::<f32>(width_id(c)))
+                .or_else(|| {
+                    let own = cx.len(&c.style.width, font, room)?;
+                    let m = c.style.margin.as_deref().map_or([0.0; 4], |m| {
+                        css::sides(&css::resolve_vars(m, cx.vars), font)
+                    });
+                    Some(own + m[1] + m[3])
+                })
+                .unwrap_or(0.0)
+        })
+        .collect();
+    let mut drawn = false;
+    ui.allocate_ui_with_layout(
+        vec2(room, ui.available_height()),
+        Layout::top_down(Align::Min),
+        |ui| {
+            ui.spacing_mut().item_spacing.y = gap;
+            for line in wrap_lines(&widths, room, gap) {
+                // Items hang from the line's top: a line that centred them
+                // in all the height left made a box's own height (set
+                // from the middle) run from the top to past the middle.
+                ui.allocate_ui_with_layout(
+                    vec2(room, ui.available_height()),
+                    Layout::left_to_right(Align::Min),
+                    |ui| {
+                        ui.spacing_mut().item_spacing.x = gap;
+                        for child in &items[line] {
+                            let r = ui.scope(|ui| draw(ui, child, inherit, cx));
+                            drawn |= r.inner;
+                            let used = r.response.rect.width();
+                            let last: Option<f32> = ui.data(|d| d.get_temp(width_id(child)));
+                            if last.is_none_or(|l| (l - used).abs() > 0.5) {
+                                ui.data_mut(|d| d.insert_temp(width_id(child), used));
+                                ui.ctx().request_repaint();
+                            }
+                        }
+                    },
+                );
+            }
+        },
+    );
+    drawn
+}
+
 /// An element's `flex-grow` (the first number of `flex`).
 fn flex_grow(style: &Style) -> f32 {
     let Some(flex) = style.flex.as_deref() else {
@@ -3626,10 +3688,65 @@ thread_local! {
     /// or border is as wide as the column, as in CSS (multipleplaylists'
     /// song box was as wide as its words).
     static IN_COLUMN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// That column is a flex column: its items are stretched to its width
+    /// whatever their tag (DownloadManager's nav buttons, each a full-width
+    /// row with its highlight across the nav).
+    static FLEX_COLUMN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// The next box is a positioned element [`positioned`] placed, whose
     /// position and transform it took off the style: whether it forms a
     /// stacking context, read before they went.
     static OWN_CONTEXT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The outer height the flex container gives the next element, margins
+    /// included: a row that stretches its items (`align-items: stretch`,
+    /// a flex row's default) or a column sharing its free height among
+    /// items that grow (`flex: 1`). DownloadManager's window nav runs the
+    /// window's height, its start menu's footer sits at the foot.
+    static GIVEN_HEIGHT: std::cell::Cell<Option<f32>> = const { std::cell::Cell::new(None) };
+}
+
+/// Draw `child` as a flex item that is `given` points tall (margins
+/// included) when its container sets that, else at its own height.
+fn draw_given(
+    ui: &mut egui::Ui,
+    child: &VNode,
+    given: Option<f32>,
+    inherit: Inherit,
+    cx: &Cx,
+) -> bool {
+    GIVEN_HEIGHT.with(|s| s.set(given));
+    let drawn = draw(ui, child, inherit, cx);
+    GIVEN_HEIGHT.with(|s| s.set(None));
+    drawn
+}
+
+/// Whether a flex container `style` lets its items run onto more lines.
+fn wraps(style: &Style) -> bool {
+    style
+        .flex_wrap
+        .as_deref()
+        .is_some_and(|w| w.trim().starts_with("wrap"))
+}
+
+/// Split `widths` (each item's outer width) into the lines of a wrapping
+/// flex row `room` wide with `gap` between items: the index ranges of
+/// each line. An item wider than the room has a line of its own.
+fn wrap_lines(widths: &[f32], room: f32, gap: f32) -> Vec<std::ops::Range<usize>> {
+    let mut lines = Vec::new();
+    let mut start = 0;
+    let mut used = 0.0;
+    for (i, w) in widths.iter().enumerate() {
+        if i > start && used + gap + w > room + 0.5 {
+            lines.push(start..i);
+            start = i;
+            used = *w;
+        } else {
+            used += if i > start { gap + w } else { *w };
+        }
+    }
+    if start < widths.len() {
+        lines.push(start..widths.len());
+    }
+    lines
 }
 
 /// [`draw`] after animation and transforms are worked out. `stretch`
@@ -3645,7 +3762,12 @@ fn draw_box(
 ) -> bool {
     let shrink = SHRINK.with(|s| s.replace(false));
     let in_column = IN_COLUMN.with(|s| s.replace(false));
+    let flex_item = FLEX_COLUMN.with(|s| s.replace(false));
     let placed_context = OWN_CONTEXT.with(|s| s.replace(false));
+    // Pictures keep their own height (they are not stretched here).
+    let given = GIVEN_HEIGHT
+        .with(|s| s.replace(None))
+        .filter(|_| !matches!(node.tag.as_str(), "img" | "svg" | "canvas" | "video"));
     if style.hidden()
         || matches!(node.tag.as_str(), "style" | "script" | "template" | "audio")
         || (node.tag == "canvas" && !super::luna_canvas::has_frame(node))
@@ -3821,14 +3943,31 @@ fn draw_box(
     let border = style
         .border
         .as_deref()
-        .and_then(|b| css::border(&css::resolve_vars(b, cx.vars)));
+        .and_then(|b| css::border(&css::resolve_vars(b, cx.vars)))
+        .or_else(|| {
+            // `border: none` and then one side's own (`border-left: 3px
+            // solid`: DownloadManager's open nav item has its blue bar):
+            // that side is drawn, the others stay at 0.
+            let v = css::resolve_vars(style.border_width.as_deref()?, cx.vars);
+            let widest = css::words(&v)
+                .iter()
+                .filter_map(|w| css::length(w, font, 0.0, cx.viewport))
+                .fold(0.0_f32, f32::max);
+            (widest > 0.0).then_some((widest, inherit.color))
+        });
     // `border-color`: one colour for all sides, or each side's own (a
-    // spinner's bright top arc).
+    // spinner's bright top arc). `currentcolor` is the text's colour.
     let sides: Option<[Color32; 4]> = border.and_then(|_| {
         let v = css::resolve_vars(style.border_color.as_deref()?, cx.vars);
         let c: Vec<Color32> = css::words(&v)
             .iter()
-            .filter_map(|w| css::color(w))
+            .filter_map(|w| {
+                if w.eq_ignore_ascii_case("currentcolor") {
+                    Some(inherit.color)
+                } else {
+                    css::color(w)
+                }
+            })
             .collect();
         match c.as_slice() {
             [a] => Some([*a; 4]),
@@ -3894,7 +4033,11 @@ fn draw_box(
     let inset = pads.map_or(0.0, |p| p[1] + p[3]) + bw[1] + bw[3];
     let block_inset = pads.map_or(0.0, |p| p[0] + p[2]) + bw[0] + bw[2];
     let outer_w = cx.len(&style.width, font, ui.available_width());
-    let outer_h = cx.len(&style.height, font, ui.available_height().min(400.0));
+    // A height the flex container gives (stretched or grown) is the margin
+    // box's; the element's own `height` wins over it.
+    let outer_h = cx
+        .len(&style.height, font, ui.available_height().min(400.0))
+        .or_else(|| given.map(|g| (g - margin.map_or(0.0, |m| m[0] + m[2])).max(0.0)));
     // A growing flex item without a width fills the share its row gave it.
     let width = outer_w
         .map(|w| (w - inset).max(0.0))
@@ -3969,14 +4112,21 @@ fn draw_box(
             style.justify_content.as_deref().map(str::trim),
             Some("center" | "flex-end" | "end" | "space-around" | "space-evenly")
         );
+    // A block that places its words by `text-align` (DownloadManager's
+    // empty-queue note, centred) needs its width, as every block in a
+    // column has in CSS: shrunk to its words it had no room to centre in.
+    let aligns = matches!(
+        style.text_align.as_deref().map(str::trim),
+        Some("center" | "right" | "end")
+    );
     let width = width.or_else(|| {
         (in_column
-            && (fill.is_some() || border.is_some() || spreads)
-            && block(&node.tag)
+            && (fill.is_some() || border.is_some() || spreads || aligns)
+            && (block(&node.tag) || flex_item)
             && !display.contains("inline"))
         .then(|| {
             let sides = |s: Option<[f32; 4]>| s.map_or(0.0, |s| s[1] + s[3]);
-            (ui.available_width() - sides(padding) - sides(margin) - bw[1] - bw[3]).max(0.0)
+            (ui.available_width() - sides(pads) - sides(margin) - bw[1] - bw[3]).max(0.0)
         })
     });
     // As in CSS, a width gives way to `max-width`, then `min-width`
@@ -4074,6 +4224,32 @@ fn draw_box(
         .as_deref()
         .is_some_and(|a| a.contains("center"));
     let justify = style.justify_content.as_deref().unwrap_or("").trim();
+    // A flex row of a definite height stretches its items to it unless it
+    // aligns them otherwise (`stretch` is the default): DownloadManager's
+    // window nav runs the window's height, its caption buttons the title
+    // bar's. A row sized by what it holds keeps centring them.
+    let stretch_items = row
+        && display.contains("flex")
+        && !wraps(style)
+        && height.is_some()
+        && style
+            .align_items
+            .as_deref()
+            .is_none_or(|a| matches!(a.trim(), "stretch" | "normal"));
+    // A block of a known width places its own words by `text-align`.
+    let text_place = (!row && aligns && width.is_some()).then(|| {
+        if style.text_align.as_deref().map(str::trim) == Some("center") {
+            Align::Center
+        } else {
+            Align::Max
+        }
+    });
+    // The outer height a stretched item takes: the row's.
+    let stretched = |child: &VNode| {
+        (stretch_items && child.tag != "#text" && child.style.height.is_none())
+            .then_some(height)
+            .flatten()
+    };
     let content_id = egui::Id::new(("luna-content", node.id));
     let has_url = style
         .background_image
@@ -4194,7 +4370,9 @@ fn draw_box(
                     .as_deref()
                     .is_some_and(|a| matches!(a.trim(), "flex-end" | "end"));
                 let layout = if row {
-                    Layout::left_to_right(if center {
+                    Layout::left_to_right(if stretch_items {
+                        Align::Min
+                    } else if center {
                         Align::Center
                     } else if end {
                         Align::Max
@@ -4299,7 +4477,14 @@ fn draw_box(
                             (!breakable(text)).then_some(egui::TextWrapMode::Extend)
                         };
                         let text = rich(ui.ctx(), text, inherit, style);
-                        add_text(ui, text, wrap, inherit);
+                        match text_place {
+                            Some(align) if !ellipsis => {
+                                add_aligned(ui, text, inherit, align);
+                            }
+                            _ => {
+                                add_text(ui, text, wrap, inherit);
+                            }
+                        }
                         drawn = true;
                     }
                     // A grid's gap is its own (none unless set).
@@ -4369,7 +4554,8 @@ fn draw_box(
                                         ))
                                         .layout(Layout::top_down(Align::Min)),
                                 );
-                                drawn |= draw(&mut cell, child, inherit, cx);
+                                drawn |=
+                                    draw_given(&mut cell, child, stretched(child), inherit, cx);
                                 ui.allocate_exact_size(vec2(share, h), Sense::hover());
                             }
                         } else if row && total > 0.0 {
@@ -4396,11 +4582,19 @@ fn draw_box(
                                         Layout::left_to_right(Align::Center),
                                         |ui| {
                                             ui.set_width(w);
-                                            drawn |= draw(ui, child, inherit, cx);
+                                            drawn |= draw_given(
+                                                ui,
+                                                child,
+                                                stretched(child),
+                                                inherit,
+                                                cx,
+                                            );
                                         },
                                     );
                                 } else {
-                                    let r = ui.scope(|ui| draw(ui, child, inherit, cx));
+                                    let r = ui.scope(|ui| {
+                                        draw_given(ui, child, stretched(child), inherit, cx)
+                                    });
                                     drawn |= r.inner;
                                     let used = r.response.rect.width();
                                     let last: Option<f32> =
@@ -4411,12 +4605,50 @@ fn draw_box(
                                     }
                                 }
                             }
+                        } else if row && wraps(style) {
+                            drawn |= draw_wrapped(ui, &flow, gap, font, inherit, cx);
                         } else {
                             // A row of a set height that centres its items
                             // (a backdrop holding a dialog) puts each box in
                             // the middle by the height it had last frame.
-                            let cross = row && center && height.or(min_height).is_some();
-                            for child in &flow {
+                            let cross =
+                                !stretch_items && row && center && height.or(min_height).is_some();
+                            // A column of a definite height shares what its
+                            // other items, as tall as last frame, leave among
+                            // those that grow (DownloadManager's app list,
+                            // `flex: 1`, puts its footer at the menu's foot).
+                            let height_id = |c: &VNode| egui::Id::new(("luna-flex-h", c.id));
+                            let column_free =
+                                (!row && total > 0.0).then_some(height).flatten().map(|h| {
+                                    let others: f32 = flow
+                                        .iter()
+                                        .zip(&grows)
+                                        .filter(|(_, g)| **g <= 0.0)
+                                        .map(|(c, _)| {
+                                            ui.data(|d| d.get_temp::<f32>(height_id(c)))
+                                                .unwrap_or(0.0)
+                                        })
+                                        .sum();
+                                    let gaps = gap * flow.len().saturating_sub(1) as f32;
+                                    (h - others - gaps).max(0.0)
+                                });
+                            for (child, g) in flow.iter().zip(&grows) {
+                                if let Some(align) = text_place
+                                    && child.tag == "#text"
+                                {
+                                    if let Some(text) =
+                                        child.text.as_deref().filter(|t| !t.trim().is_empty())
+                                    {
+                                        add_aligned(
+                                            ui,
+                                            rich(ui.ctx(), text, inherit, &child.style),
+                                            inherit,
+                                            align,
+                                        );
+                                        drawn = true;
+                                    }
+                                    continue;
+                                }
                                 if cross && child.tag != "#text" {
                                     let full = ui.available_height();
                                     let hid = egui::Id::new(("luna-cross", child.id));
@@ -4442,9 +4674,33 @@ fn draw_box(
                                 }
                                 SHRINK.with(|s| s.set(!row && cross_center));
                                 IN_COLUMN.with(|s| s.set(!row && !cross_center));
-                                drawn |= draw(ui, child, inherit, cx);
+                                FLEX_COLUMN.with(|s| {
+                                    s.set(!row && !cross_center && display.contains("flex"))
+                                });
+                                match column_free {
+                                    Some(free) if *g > 0.0 => {
+                                        let share = free * g / total;
+                                        drawn |= draw_given(ui, child, Some(share), inherit, cx);
+                                    }
+                                    Some(_) => {
+                                        let r = ui.scope(|ui| draw(ui, child, inherit, cx));
+                                        drawn |= r.inner;
+                                        let used = r.response.rect.height();
+                                        let last: Option<f32> =
+                                            ui.data(|d| d.get_temp(height_id(child)));
+                                        if last.is_none_or(|l| (l - used).abs() > 0.5) {
+                                            ui.data_mut(|d| d.insert_temp(height_id(child), used));
+                                            ui.ctx().request_repaint();
+                                        }
+                                    }
+                                    None => {
+                                        drawn |=
+                                            draw_given(ui, child, stretched(child), inherit, cx);
+                                    }
+                                }
                                 SHRINK.with(|s| s.set(false));
                                 IN_COLUMN.with(|s| s.set(false));
+                                FLEX_COLUMN.with(|s| s.set(false));
                             }
                         }
                     }
@@ -4726,6 +4982,49 @@ fn add_line(
         };
         ui.painter()
             .galley(egui::pos2(rect.left(), top), galley, inherit.color);
+    }
+    response
+}
+
+/// Words that are a block's own text, wrapped at the block's width with
+/// each line placed by its `text-align` (`align`: centre or right), as
+/// DownloadManager's two-line empty-queue note stands centred.
+fn add_aligned(
+    ui: &mut egui::Ui,
+    text: RichText,
+    inherit: Inherit,
+    align: Align,
+) -> egui::Response {
+    let width = ui.available_width().max(1.0);
+    let mut job = egui::WidgetText::from(text).into_layout_job(
+        ui.style(),
+        egui::FontSelection::Default,
+        Align::Min,
+    );
+    let job_mut = std::sync::Arc::make_mut(&mut job);
+    job_mut.wrap.max_width = width;
+    job_mut.halign = align;
+    let line = inherit.line_height.map(|l| l.points(inherit.size));
+    if let Some(line) = line {
+        for s in &mut job_mut.sections {
+            s.format.line_height = Some(line);
+        }
+    }
+    let galley = ui.ctx().fonts_mut(|f| f.layout_job((*job).clone()));
+    let (rect, response) = ui.allocate_exact_size(vec2(width, galley.size().y), Sense::hover());
+    if ui.is_rect_visible(rect) {
+        let x = match align {
+            Align::Center => rect.center().x,
+            Align::Max => rect.right(),
+            Align::Min => rect.left(),
+        };
+        // egui puts a tall line's room under the glyphs: half of it goes
+        // above, as CSS centres the glyphs in their line.
+        let font = font_of(ui.ctx(), inherit, &Style::default());
+        let face = ui.ctx().fonts_mut(|f| f.row_height(&font));
+        let lift = line.map_or(0.0, |l| ((l - face) / 2.0).max(0.0));
+        ui.painter()
+            .galley(egui::pos2(x, rect.top() + lift), galley, inherit.color);
     }
     response
 }
@@ -5377,6 +5676,11 @@ fn text_input(
                 .fill(fill)
                 .inner_margin(Margin::symmetric(2, 1)),
         );
+    } else if st.background_color.is_some() || st.border.is_some() {
+        // The element's own box (drawn round it) is the field's
+        // background and border: DownloadManager's white search box with
+        // its grey border, which egui's own dark field covered.
+        edit = edit.frame(Frame::new().inner_margin(Margin::symmetric(2, 1)));
     }
     // Its colour, made to read over what is behind it (white in Light).
     if st.color.is_some() {
@@ -7326,6 +7630,366 @@ mod tests {
         let size = drawn_size(menu);
         assert!(size.x <= 400.5, "the menu kept its width: {size:?}");
         assert!(size.x >= 399.5, "{size:?}");
+    }
+
+    /// `node` drawn in `main` in an 800 x 600 window after a few passes:
+    /// the rect of each box filled with a colour, by colour.
+    fn filled_rects(node: VNode) -> Vec<(Color32, Rect)> {
+        plugin_dom::test_viewport([800.0, 600.0]);
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: "main".into(),
+                position: Position::Prepend,
+                nodes: vec![node],
+            }],
+            ..DomOverlay::default()
+        }));
+        let ctx = egui::Context::default();
+        let mut rects = Vec::new();
+        for _ in 0..5 {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(800.0, 600.0))),
+                ..egui::RawInput::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                inline(ui, "main", Position::Prepend);
+            });
+            out.textures_delta.clear();
+            fn walk(shape: &egui::Shape, out: &mut Vec<(Color32, Rect)>) {
+                match shape {
+                    egui::Shape::Rect(r) if r.fill.a() > 0 => out.push((r.fill, r.rect)),
+                    egui::Shape::Path(p) if p.fill.a() > 0 => {
+                        out.push((p.fill, Rect::from_points(&p.points)));
+                    }
+                    egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+                    _ => {}
+                }
+            }
+            rects.clear();
+            for s in &out.shapes {
+                walk(&s.shape, &mut rects);
+            }
+        }
+        plugin_dom::test_overlay(None);
+        rects
+    }
+
+    fn filled_rect(rects: &[(Color32, Rect)], colour: Color32) -> Rect {
+        rects
+            .iter()
+            .find(|(c, _)| *c == colour)
+            .map(|(_, r)| *r)
+            .unwrap_or_else(|| panic!("no box filled {colour:?} in {rects:?}"))
+    }
+
+    fn filled(id: u64, colour: &str, style: Style, children: Vec<VNode>) -> VNode {
+        VNode {
+            id,
+            tag: "div".into(),
+            style: Style {
+                background_color: Some(colour.into()),
+                ..style
+            },
+            children,
+            ..VNode::default()
+        }
+    }
+
+    /// DownloadManager's start menu tiles: `flex-wrap: wrap` puts the
+    /// second 104-point tile under the first in the 188 points they have
+    /// (they ran side by side and widened the 400-point menu to 490). Each
+    /// tile keeps its 104-point height.
+    #[test]
+    fn a_wrapping_flex_row_runs_its_items_onto_new_lines() {
+        let tile = |id: u64, colour: &str| {
+            let icon = VNode {
+                id: id * 10,
+                tag: "span".into(),
+                style: Style {
+                    display: Some("inline-flex".into()),
+                    line_height: Some("0".into()),
+                    ..Style::default()
+                },
+                children: vec![VNode {
+                    id: id * 10 + 1,
+                    tag: "svg".into(),
+                    markup: Some(
+                        r#"<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30"></svg>"#
+                            .into(),
+                    ),
+                    style: Style {
+                        width: Some("30px".into()),
+                        height: Some("30px".into()),
+                        ..Style::default()
+                    },
+                    ..VNode::default()
+                }],
+                ..VNode::default()
+            };
+            let label = VNode {
+                id: id * 10 + 2,
+                tag: "span".into(),
+                style: Style {
+                    position: Some("absolute".into()),
+                    left: Some("8px".into()),
+                    right: Some("8px".into()),
+                    bottom: Some("6px".into()),
+                    ..Style::default()
+                },
+                children: vec![text_node(id * 10 + 3, "Tile")],
+                ..VNode::default()
+            };
+            VNode {
+                tag: "button".into(),
+                ..filled(
+                    id,
+                    colour,
+                    Style {
+                        width: Some("104px".into()),
+                        height: Some("104px".into()),
+                        display: Some("flex".into()),
+                        flex_direction: Some("column".into()),
+                        align_items: Some("center".into()),
+                        justify_content: Some("center".into()),
+                        gap: Some("8px".into()),
+                        padding: Some("0 0 18px".into()),
+                        position: Some("relative".into()),
+                        ..Style::default()
+                    },
+                    vec![icon, label],
+                )
+            }
+        };
+        let tiles = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                flex_wrap: Some("wrap".into()),
+                gap: Some("8px".into()),
+                width: Some("188px".into()),
+                ..Style::default()
+            },
+            children: vec![tile(2, "#ff0000"), tile(3, "#0000ff")],
+            ..VNode::default()
+        };
+        let rects = filled_rects(tiles);
+        let first = filled_rect(&rects, Color32::from_rgb(255, 0, 0));
+        let second = filled_rect(&rects, Color32::from_rgb(0, 0, 255));
+        assert!((first.height() - 104.0).abs() < 0.5, "{first:?}");
+        assert!((second.height() - 104.0).abs() < 0.5, "{second:?}");
+        assert!(
+            (second.left() - first.left()).abs() < 0.5,
+            "{first:?} {second:?}"
+        );
+        assert!(
+            (second.top() - (first.bottom() + 8.0)).abs() < 0.5,
+            "the second tile starts a line 8 points under the first: {first:?} {second:?}"
+        );
+        assert_eq!(
+            wrap_lines(&[104.0, 104.0, 50.0], 220.0, 8.0),
+            vec![0..2, 2..3]
+        );
+        assert_eq!(wrap_lines(&[300.0, 10.0], 100.0, 8.0), vec![0..1, 1..2]);
+    }
+
+    /// DownloadManager's start menu is a 540-point column whose app list
+    /// grows (`flex: 1`): its footer sits at the menu's foot, not right
+    /// under the two apps.
+    #[test]
+    fn a_growing_item_takes_a_columns_free_height() {
+        let column = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                width: Some("100px".into()),
+                height: Some("300px".into()),
+                ..Style::default()
+            },
+            children: vec![
+                filled(
+                    2,
+                    "#00ff00",
+                    Style {
+                        height: Some("20px".into()),
+                        ..Style::default()
+                    },
+                    vec![],
+                ),
+                filled(
+                    3,
+                    "#ff0000",
+                    Style {
+                        flex: Some("1".into()),
+                        ..Style::default()
+                    },
+                    vec![text_node(30, "Apps")],
+                ),
+                filled(
+                    4,
+                    "#0000ff",
+                    Style {
+                        height: Some("30px".into()),
+                        ..Style::default()
+                    },
+                    vec![],
+                ),
+            ],
+            ..VNode::default()
+        };
+        let rects = filled_rects(column);
+        let top = filled_rect(&rects, Color32::from_rgb(0, 255, 0));
+        let grown = filled_rect(&rects, Color32::from_rgb(255, 0, 0));
+        let foot = filled_rect(&rects, Color32::from_rgb(0, 0, 255));
+        assert!((grown.height() - 250.0).abs() < 0.5, "{grown:?}");
+        assert!(
+            (foot.bottom() - (top.top() + 300.0)).abs() < 0.5,
+            "{foot:?}"
+        );
+    }
+
+    /// DownloadManager's window: its nav is an item of a flex row with no
+    /// `align-items` (stretch) that is as tall as the window leaves, and
+    /// runs that whole height; the caption buttons fill their title bar
+    /// (`align-items: stretch`). A row that centres keeps its item's size.
+    #[test]
+    fn a_flex_row_of_a_set_height_stretches_its_items() {
+        let row = |align: Option<&str>| VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                align_items: align.map(Into::into),
+                width: Some("300px".into()),
+                height: Some("200px".into()),
+                ..Style::default()
+            },
+            children: vec![filled(
+                2,
+                "#ff0000",
+                Style {
+                    width: Some("50px".into()),
+                    ..Style::default()
+                },
+                vec![text_node(20, "Nav")],
+            )],
+            ..VNode::default()
+        };
+        for align in [None, Some("stretch")] {
+            let nav = filled_rect(&filled_rects(row(align)), Color32::from_rgb(255, 0, 0));
+            assert!((nav.height() - 200.0).abs() < 0.5, "{align:?}: {nav:?}");
+        }
+        let nav = filled_rect(
+            &filled_rects(row(Some("center"))),
+            Color32::from_rgb(255, 0, 0),
+        );
+        assert!(nav.height() < 50.0, "{nav:?}");
+    }
+
+    /// DownloadManager's window nav: a flex column whose buttons stretch
+    /// across it (the open item's grey runs the nav's width, not its
+    /// words'), and the open item's `border: none; border-left: 3px solid`
+    /// draws its 3-point blue bar down the item's left edge.
+    #[test]
+    fn a_flex_columns_buttons_fill_it_and_keep_a_side_border() {
+        let item = VNode {
+            id: 2,
+            tag: "button".into(),
+            style: Style {
+                display: Some("flex".into()),
+                background_color: Some("#e6e6e6".into()),
+                border: Some("none".into()),
+                border_width: Some("0px 0px 0px 3px".into()),
+                border_color: Some("currentcolor currentcolor currentcolor #0078d7".into()),
+                color: Some("#000".into()),
+                ..Style::default()
+            },
+            children: vec![text_node(20, "Downloads")],
+            ..VNode::default()
+        };
+        let nav = filled(
+            1,
+            "#f3f3f3",
+            Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                width: Some("160px".into()),
+                ..Style::default()
+            },
+            vec![item],
+        );
+        let rects = filled_rects(nav);
+        let column = filled_rect(&rects, Color32::from_rgb(0xf3, 0xf3, 0xf3));
+        let row = filled_rect(&rects, Color32::from_rgb(0xe6, 0xe6, 0xe6));
+        assert!((column.width() - 160.0).abs() < 0.5, "{column:?}");
+        assert!(
+            (row.width() - column.width()).abs() < 0.5,
+            "{row:?} in {column:?}"
+        );
+        let bar = filled_rect(&rects, Color32::from_rgb(0x00, 0x78, 0xd7));
+        assert!((bar.width() - 3.0).abs() < 0.5, "{bar:?}");
+        assert!((bar.left() - row.left()).abs() < 0.5, "{bar:?} {row:?}");
+    }
+
+    /// DownloadManager's empty queue: a plain block with `text-align:
+    /// center` is as wide as its column, and its words stand in the middle.
+    #[test]
+    fn a_centred_block_takes_its_columns_width_and_centres_its_words() {
+        let note = VNode {
+            id: 2,
+            tag: "div".into(),
+            style: Style {
+                text_align: Some("center".into()),
+                ..Style::default()
+            },
+            children: vec![text_node(3, "Queue is empty.")],
+            ..VNode::default()
+        };
+        let body = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                width: Some("400px".into()),
+                ..Style::default()
+            },
+            children: vec![note],
+            ..VNode::default()
+        };
+        plugin_dom::test_viewport([800.0, 600.0]);
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: "main".into(),
+                position: Position::Prepend,
+                nodes: vec![body],
+            }],
+            ..DomOverlay::default()
+        }));
+        let ctx = egui::Context::default();
+        let mut words = None;
+        for _ in 0..4 {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(800.0, 600.0))),
+                ..egui::RawInput::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                inline(ui, "main", Position::Prepend);
+            });
+            out.textures_delta.clear();
+            words = out.shapes.iter().find_map(|s| match &s.shape {
+                egui::Shape::Text(t) => Some(t.galley.rect.translate(t.pos.to_vec2())),
+                _ => None,
+            });
+        }
+        plugin_dom::test_overlay(None);
+        let words = words.expect("the words are drawn");
+        assert!(
+            (words.center().x - 200.0).abs() < 2.0,
+            "centred in the 400-point column: {words:?}"
+        );
     }
 
     /// element-hider's own menu listens for clicks (its document listener

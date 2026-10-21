@@ -2885,3 +2885,48 @@ lib.observe(unloads, '[data-test="new-now-playing-close"]', () => {
     assert!(o.host(&tab).is_none_or(|h| h.style.padding.is_none()));
     finish(luna, dir);
 }
+
+/// DownloadManager's window nav: `border: none; border-left: 3px solid
+/// transparent` on every item, `border-left-color` on the open one. The
+/// side's own shorthand gives its colour, so the closed items' bar is
+/// see-through (it was drawn in the text's black) and the open one's blue.
+#[test]
+fn a_sides_shorthand_gives_that_sides_border_colour() {
+    let (luna, _host, dir) = start(
+        r##"
+new lib.StyleTag("dom-test", unloads, `
+.dm-nav { border: none; border-left: 3px solid transparent; }
+.dm-nav.on { border-left-color: #0078d7; }
+`);
+for (const c of ["dm-nav", "dm-nav on"]) {
+	const el = document.createElement("button");
+	el.className = c;
+	document.body.append(el);
+}
+"##,
+    );
+    luna.sync_dom(tree());
+    let o = overlay_until(&luna, 10, |o| o.at("", Position::Append).count() >= 2);
+    let nodes: Vec<_> = o.at("", Position::Append).collect();
+    let by = |cls: &str| {
+        nodes
+            .iter()
+            .find(|n| n.attrs.iter().any(|(k, v)| k == "class" && v == cls))
+            .copied()
+            .unwrap()
+    };
+    for (cls, left) in [("dm-nav", "transparent"), ("dm-nav on", "#0078d7")] {
+        let style = &by(cls).style;
+        assert_eq!(
+            style.border_width.as_deref(),
+            Some("0px 0px 0px 3px"),
+            "{cls}"
+        );
+        assert_eq!(
+            style.border_color.as_deref(),
+            Some(format!("currentcolor currentcolor currentcolor {left}").as_str()),
+            "{cls}"
+        );
+    }
+    finish(luna, dir);
+}
