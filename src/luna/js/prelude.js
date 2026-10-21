@@ -39,6 +39,77 @@
 			return (n < 0 && Number(fixed) !== 0 ? "-" : "") + whole + (frac ? `.${frac}` : "");
 		},
 	});
+	// Nor are its dates' toLocale*String options read: TIDAL's Chromium
+	// (en-US) writes `{ hour: "2-digit", minute: "2-digit" }` as "02:29 PM"
+	// where QuickJS gave "14:29:07" with seconds (DownloadManager's taskbar
+	// clock). The en-US forms of the options plugins use: hour, minute,
+	// second, hour12/hourCycle, weekday, day, month, year, timeZone UTC.
+	{
+		const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+		const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+		const parts = (d, o) => {
+			const utc = /^(utc|gmt|etc\/utc)$/i.test(String(o?.timeZone ?? ""));
+			return utc
+				? { y: d.getUTCFullYear(), mo: d.getUTCMonth(), da: d.getUTCDate(), wd: d.getUTCDay(), h: d.getUTCHours(), mi: d.getUTCMinutes(), s: d.getUTCSeconds() }
+				: { y: d.getFullYear(), mo: d.getMonth(), da: d.getDate(), wd: d.getDay(), h: d.getHours(), mi: d.getMinutes(), s: d.getSeconds() };
+		};
+		const pad = (n) => String(n).padStart(2, "0");
+		const num = (n, style) => (style === "2-digit" ? pad(n % 100) : String(n));
+		const timeOf = (p, o) => {
+			let { hour, minute, second } = o;
+			if (hour === undefined && minute === undefined && second === undefined) [hour, minute, second] = ["numeric", "2-digit", "2-digit"];
+			const twelve = o.hour12 !== undefined ? !!o.hour12 : !/^h(23|24)$/.test(String(o.hourCycle ?? ""));
+			const out = [];
+			if (hour !== undefined) {
+				const h = twelve ? p.h % 12 || 12 : p.h;
+				out.push(twelve ? num(h, hour) : pad(h));
+			}
+			if (minute !== undefined) out.push(hour !== undefined || second !== undefined ? pad(p.mi) : num(p.mi, minute));
+			if (second !== undefined) out.push(out.length ? pad(p.s) : num(p.s, second));
+			let text = out.join(":");
+			if (hour !== undefined && twelve) text += p.h < 12 ? " AM" : " PM";
+			return text;
+		};
+		const dateOf = (p, o) => {
+			let { weekday, day, month, year } = o;
+			if (weekday === undefined && day === undefined && month === undefined && year === undefined) [day, month, year] = ["numeric", "numeric", "numeric"];
+			const y = year === undefined ? "" : year === "2-digit" ? pad(p.y % 100) : String(p.y);
+			let text;
+			if (month === "long" || month === "short" || month === "narrow") {
+				const name = month === "long" ? MONTHS[p.mo] : month === "short" ? MONTHS[p.mo].slice(0, 3) : MONTHS[p.mo][0];
+				text = [name, day === undefined ? "" : ` ${num(p.da, day)}`, y === "" ? "" : day === undefined ? ` ${y}` : `, ${y}`].join("");
+			} else {
+				text = [month === undefined ? null : num(p.mo + 1, month), day === undefined ? null : num(p.da, day), y === "" ? null : y].filter((v) => v !== null).join("/");
+			}
+			if (weekday !== undefined) {
+				const w = weekday === "long" ? DAYS[p.wd] : weekday === "short" ? DAYS[p.wd].slice(0, 3) : DAYS[p.wd][0];
+				text = text ? `${w}, ${text}` : w;
+			}
+			return text;
+		};
+		const define = (name, fn) =>
+			Object.defineProperty(Date.prototype, name, {
+				configurable: true,
+				writable: true,
+				value: {
+					[name](_locales, options) {
+						if (Number.isNaN(this.getTime())) return "Invalid Date";
+						return fn(parts(this, options), options ?? {});
+					},
+				}[name],
+			});
+		const hasTime = (o) => o.hour !== undefined || o.minute !== undefined || o.second !== undefined;
+		const hasDate = (o) => o.weekday !== undefined || o.day !== undefined || o.month !== undefined || o.year !== undefined;
+		define("toLocaleTimeString", (p, o) => (hasDate(o) ? `${dateOf(p, o)}, ` : "") + timeOf(p, o));
+		define("toLocaleDateString", (p, o) => dateOf(p, o) + (hasTime(o) ? `, ${timeOf(p, o)}` : ""));
+		define("toLocaleString", (p, o) => {
+			if (!hasTime(o) && !hasDate(o)) return `${dateOf(p, o)}, ${timeOf(p, o)}`;
+			const parts = [];
+			if (hasDate(o)) parts.push(dateOf(p, o));
+			if (hasTime(o)) parts.push(timeOf(p, o));
+			return parts.join(", ");
+		});
+	}
 	const native = {
 		op: g.__op,
 		opAsync: g.__op_async,
