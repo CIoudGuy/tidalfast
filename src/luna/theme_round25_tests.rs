@@ -658,6 +658,38 @@ h1 { font-size: 30px !important; color: var(--accent) !important; }
     luna.shutdown();
 }
 
+/// TIDAL's shortcut tile has an `::after` box that is see-through at rest:
+/// Tidal Light's `._shortcutItem_6c8e7b4::after { background:
+/// linear-gradient(#0000, #fff) }` leaves its tiles flat grey in TIDAL.
+/// Tidalfast painted the white gradient over every tile.
+#[test]
+fn a_shortcut_tiles_after_box_is_see_through_at_rest() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::tile_item;
+    let css = r#"/* {"name": "Tiles"} */
+._shortcutItem_6c8e7b4 { background-color: rgb(240, 240, 240) !important; }
+._shortcutItem_6c8e7b4::after { background: linear-gradient(#0000, #fff); }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(p) = frame.page.as_mut() {
+        p.feed = true;
+        p.tiles = vec![dom_anchors::Tile {
+            rect: Some([300.0, 200.0, 400.0, 56.0]),
+            image: Some([300.0, 200.0, 56.0, 56.0]),
+            owned: true,
+        }];
+    }
+    let (luna, o) = overlay_with("tiles.css", css, dom_anchors::build(&frame), &tile_item(0));
+    pd::test_overlay(Some((*o).clone()));
+    let layers = pd::box_layers(&o.hosts[&tile_item(0)], &pd::vars(), [2137.0, 1183.0]);
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert!(
+        !layers.iter().any(|l| matches!(l, pd::BoxLayer::Paint(_))),
+        "no gradient over the tile"
+    );
+}
+
 /// TIDAL 2.43.2 no longer paints its window, cards, menus, grey words or
 /// accent from a theme's root `--wave-*` tokens: under Rose Pine and the
 /// Catppuccin flavours its window stays black, its sidebar words white and
