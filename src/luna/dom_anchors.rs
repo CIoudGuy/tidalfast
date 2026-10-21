@@ -1668,16 +1668,27 @@ pub fn track_list(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
             .at(rect),
         );
     }
+    // TIDAL's virtual list holds each row two boxes down, in a box of its
+    // own after the header: `div > div[k] > div > div._tableRow_`. The
+    // cotton candy family's `div:nth-child(1) > div > div { border-style:
+    // none }` takes the line off the first rendered row only, as in TIDAL.
+    let body = format!("{table}:rows");
+    out.push(el(body.clone(), Some(&table), "div").at(list.rect));
     for row in &list.rows {
-        track_row(out, &table, &list.id, row);
+        let key = keys::row(&list.id, row.index);
+        let slot = format!("{key}:slot");
+        let inner = format!("{key}:inner");
+        out.push(el(slot.clone(), Some(&body), "div").at(row.rect));
+        out.push(el(inner.clone(), Some(&slot), "div").at(row.rect));
+        track_row(out, &inner, &list.id, row);
     }
 }
 
-/// `div[data-test=tracklist-row]` and its cells.
-pub fn track_row(out: &mut Vec<HostNode>, table: &str, list: &str, row: &TrackRow) {
+/// `div[data-test=tracklist-row]` and its cells, in `parent`.
+pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackRow) {
     let key = keys::row(list, row.index);
     let cell = |name: &str| keys::row_cell(list, row.index, name);
-    let mut node = el(key.clone(), Some(table), "div")
+    let mut node = el(key.clone(), Some(parent), "div")
         .modules(&["tableRow"])
         .class("_rowContainer_ebb4cfc")
         .test("tracklist-row")

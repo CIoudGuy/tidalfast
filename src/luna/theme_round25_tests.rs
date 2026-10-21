@@ -374,6 +374,38 @@ fn homes_feed_card_takes_the_themes_width_and_padding() {
     luna.shutdown();
 }
 
+/// TIDAL's virtual list holds each track row two boxes down
+/// (`div[k] > div > div._tableRow_`), so the cotton candy family's
+/// `div:nth-child(1) > div > div { border-style: none }` takes the line off
+/// the first row only: TIDAL draws no line over it, a line over every row
+/// after. The rows were the table's own children, so every row kept its
+/// line.
+#[test]
+fn only_the_first_track_row_loses_its_line() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::row;
+    let css = r#"/* {"name": "Row lines"} */
+div:nth-child(1) > div > div { border-style: none; }
+._tableRow_299a426 { border-style: solid none none none; border-width: 2px; border-color: white; }
+"#;
+    let (luna, o) = overlay_with(
+        "row-lines.css",
+        css,
+        dom_anchors::build(&dom_anchors::sample_frame()),
+        &row("album:55", 1),
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let line = |i: usize| pd::outline_sides(&row("album:55", i), egui::Color32::RED);
+    assert_eq!(line(0), None, "the first row");
+    for i in [1, 2] {
+        let (sides, color) = line(i).expect("a line over the row");
+        assert_eq!(sides, [2.0, 0.0, 0.0, 0.0]);
+        assert_eq!(color, egui::Color32::WHITE);
+    }
+    pd::test_overlay(None);
+    luna.shutdown();
+}
+
 /// TIDAL draws the playing playlist's name in its accent, which is not its
 /// white text class: a theme's rule on `._textWhite_` leaves it the accent,
 /// while the cotton candy family's `#sidebar ._marketText_._medium20_`
