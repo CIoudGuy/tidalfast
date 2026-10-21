@@ -761,6 +761,10 @@ pub struct PluginInfo {
     pub live_reload: bool,
     /// The user folded the plugin's settings away (Luna's `hideSettings`).
     pub hide_settings: bool,
+    /// The plugin has stored something (settings, stores, `localStorage`
+    /// items) or was given permissions for good: [`Luna::reset_plugin`] has
+    /// something to clear.
+    pub has_stored: bool,
 }
 
 /// A plugin listed in a store.
@@ -942,6 +946,7 @@ pub(crate) enum Msg {
     Install(String),
     Uninstall(String),
     SetEnabled(String, bool),
+    ResetPlugin(String),
     Reload(String),
     CheckUpdates,
     /// Check for updates and only flag them ([`PluginInfo::update_available`]).
@@ -1212,6 +1217,15 @@ impl Luna {
     /// permissions. Disabling it ([`Luna::set_enabled`]) deletes none of that.
     pub fn uninstall(&self, name: &str) {
         let _ = self.tx.send(Msg::Uninstall(name.to_string()));
+    }
+
+    /// Put a plugin back to its defaults: what it stored (settings, named
+    /// stores, `localStorage` items) and the permission answers it was given
+    /// (Always included) are cleared and it runs again. It stays installed
+    /// and keeps its enabled state, its code and its data folder (downloaded
+    /// models). What another installed plugin also stored stays.
+    pub fn reset_plugin(&self, name: &str) {
+        let _ = self.tx.send(Msg::ResetPlugin(name.to_string()));
     }
 
     pub fn set_enabled(&self, name: &str, enabled: bool) {

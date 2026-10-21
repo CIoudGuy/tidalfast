@@ -248,6 +248,7 @@ fn info(name: &str) -> PluginInfo {
         logs: vec![],
         live_reload: false,
         hide_settings: false,
+        has_stored: false,
     }
 }
 
@@ -471,6 +472,79 @@ fn a_plugin_card_has_lunas_header_controls() {
         Role::Button,
     );
     assert_eq!(live, vec![Do::SetLiveReload("VolumeScroll".into(), true)]);
+}
+
+#[test]
+fn a_plugin_that_stored_something_can_be_reset_after_asking() {
+    let ctx = context();
+    let mut p = info("VolumeScroll");
+    p.settings = Some(tree());
+    p.has_stored = true;
+    let fresh = info("Fresh");
+    let snapshot = LunaSnapshot {
+        plugins: vec![p, fresh],
+        ..LunaSnapshot::default()
+    };
+    let mut page = PageState::default();
+    // Only the plugin with something stored has the control.
+    let (update, _) = page_frame(&ctx, &snapshot, &mut page, vec![]);
+    let all: Vec<_> = update
+        .nodes
+        .iter()
+        .filter(|(_, n)| n.label() == Some("Reset to defaults") && n.role() == Role::Button)
+        .collect();
+    assert_eq!(all.len(), 1, "{:?}", texts(&update));
+    // It asks first, naming the plugin; nothing is done yet.
+    assert!(
+        press(
+            &ctx,
+            &snapshot,
+            &mut page,
+            "Reset to defaults",
+            Role::Button
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        page.confirm,
+        Some(Confirm::ResetPlugin("VolumeScroll".into()))
+    );
+    let (update, _) = page_frame(&ctx, &snapshot, &mut page, vec![]);
+    assert!(has_text(
+        &update,
+        "Reset VolumeScroll to its defaults? Its settings and saved data are cleared. Downloaded files stay."
+    ));
+    // Cancel leaves it alone.
+    assert!(press(&ctx, &snapshot, &mut page, "Cancel", Role::Button).is_empty());
+    assert_eq!(page.confirm, None);
+    // Asking again and confirming resets that plugin.
+    press(
+        &ctx,
+        &snapshot,
+        &mut page,
+        "Reset to defaults",
+        Role::Button,
+    );
+    assert_eq!(
+        press(
+            &ctx,
+            &snapshot,
+            &mut page,
+            "Reset VolumeScroll",
+            Role::Button
+        ),
+        vec![Do::ResetPlugin("VolumeScroll".into())]
+    );
+    assert_eq!(page.confirm, None);
+    // Folding the settings away folds the control with them.
+    let mut hidden = snapshot.plugins[0].clone();
+    hidden.hide_settings = true;
+    let snapshot = LunaSnapshot {
+        plugins: vec![hidden],
+        ..LunaSnapshot::default()
+    };
+    let (update, _) = page_frame(&ctx, &snapshot, &mut page, vec![]);
+    assert!(!has_text(&update, "Reset to defaults"));
 }
 
 #[test]

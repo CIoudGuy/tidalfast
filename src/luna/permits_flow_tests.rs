@@ -585,3 +585,45 @@ R.done = run;
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Resetting a plugin takes back what the user allowed it, Always included:
+/// the saved grant goes, and the plugin is asked again on its next run,
+/// which the reset starts at once. It stays installed and enabled.
+#[test]
+fn resetting_a_plugin_takes_back_its_permissions() {
+    let body = r#"
+R.n = (R.n ?? 0) + 1;
+const run = R.n;
+R["first" + run] = await lib.getCredentials().then((c) => c.token, (e) => "ERR " + (e?.message ?? e));
+R.done = run;
+"#;
+    let (luna, dir) = start("Cred", body, Arc::new(PermitHost::default()));
+    let q = question(&luna);
+    luna.answer_permission(q.id, ProgramChoice::Always);
+    assert_eq!(run_done(&luna, &dir, 1)["first1"], FAKE_TOKEN);
+    let s = wait_until(&luna, 10, |s| {
+        plugin(s, "Cred").is_some_and(|p| p.grants == [Access::Credentials])
+    });
+    assert!(plugin(&s, "Cred").unwrap().has_stored);
+    assert_eq!(saved_grants(&dir), [json!({ "kind": "credentials" })]);
+
+    luna.reset_plugin("Cred");
+    wait_until(&luna, 10, |s| {
+        plugin(s, "Cred").is_some_and(|p| p.grants.is_empty())
+    });
+    assert!(saved_grants(&dir).is_empty());
+    // The plugin ran again by itself and is asked as if new.
+    let q = question(&luna);
+    assert_eq!(
+        (q.plugin.as_str(), &q.access),
+        ("Cred", &Access::Credentials)
+    );
+    luna.answer_permission(q.id, ProgramChoice::Deny);
+    // Its results were among what it stored: the run counts from 1 again.
+    let r = run_done(&luna, &dir, 1);
+    assert!(r["first1"].as_str().unwrap().starts_with("ERR"), "{r}");
+    let s = luna.snapshot();
+    assert!(plugin(&s, "Cred").unwrap().enabled);
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}

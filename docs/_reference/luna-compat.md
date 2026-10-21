@@ -459,7 +459,11 @@ test (`src/luna/harden_tests.rs` unless named).
     running programs, sockets, shortcuts and TIDAL audio streams, the loaded
     depth models, and its answers to permission questions.
   A setting, store or item that another installed plugin also used stays
-  until that plugin is removed too. The JS side drops the opened settings
+  until that plugin is removed too. "Reset to defaults" on a plugin's card
+  runs the same purge (`Runtime::purge_stored`) for its settings, stores and
+  items, and also clears its permission answers and grants, then loads it
+  again; the plugin, its enabled state, code and data folder stay (TidaLuna
+  only has a global Factory Reset). The JS side drops the opened settings
   objects, so a reinstall reads the disk and not the old copies. Nothing of
   other plugins, the user's settings or themes is touched. There is no Cache
   API, IndexedDB or per-plugin `localStorage` besides these.
@@ -932,7 +936,9 @@ Supporters, only lists TidaLuna's GitHub sponsors and contributors and is left o
   development)" / "Disable live reloading"), "Show settings" / "Hide settings" (kept per
   plugin as Luna's `hideSettings`), "Uninstall plugin", a red pill and glow for a load error or
   the plugin's `errSignal`, the author, the description, then its settings. Tidalfast's
-  additions sit under the header: "Update available" with Update, Permissions and Logs.
+  additions sit under the header: "Update available" with Update, Permissions and Logs,
+  and "Reset to defaults" under the settings (asks first; see "Removing a plugin
+  deletes everything").
   With none installed: "You have no plugins installed!".
 - Live reload (Luna's `liveReload`): while on, `<url>.json` is fetched about once a second
   and the plugin reinstalls when its hash changes. It is off on every start, as in Luna.

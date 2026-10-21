@@ -875,6 +875,148 @@ fn removing_a_plugin_deletes_everything_it_left_and_only_that() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Resetting a plugin clears what it stored (settings under the name it
+/// chose, the stores it opened, its `localStorage` items) and runs it again
+/// with its defaults, in memory too; it stays installed, enabled, with its
+/// code and its data folder; nothing of another plugin is touched. A plain
+/// reload keeps everything.
+#[test]
+fn resetting_a_plugin_clears_what_it_stored_and_runs_it_with_defaults() {
+    let zero = std::time::Duration::ZERO;
+    let (_a, mine) = one_plugin("Mine", &keeper_code("Mine"), "m1", zero);
+    let (_b, other) = one_plugin("Other", &keeper_code("Other"), "o1", zero);
+    let dir = temp_dir("reset");
+    let luna = Luna::start(config(&dir), Arc::new(CompatHost::default())).unwrap();
+    luna.install(&mine);
+    luna.install(&other);
+    wait_until(&luna, 30, |s| running(s, "Mine") && running(s, "Other"));
+    let own = |who: &str| store_file(&dir, "settings", &format!("{who}.own"));
+    let db = |who: &str| store_file(&dir, "storage", &format!("{who}-db"));
+    let earlier =
+        |who: &str| crate::luna::storage::read_json(&db(who)).map(|v| v["earlier"].clone());
+    wait_for("both plugins saved their stores", || {
+        own("Mine").exists()
+            && own("Other").exists()
+            && db("Mine").exists()
+            && db("Other").exists()
+            && local_items(&dir).get("Other-item").is_some()
+    });
+    let other_own = std::fs::read(own("Other")).unwrap();
+    let data = dir
+        .join("data")
+        .join(crate::luna::storage::safe_name("Mine"));
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::write(data.join("model.onnx"), vec![1u8; 4096]).unwrap();
+    let code = dir
+        .join("code")
+        .join(format!("{}.mjs", crate::luna::storage::safe_name("Mine")));
+
+    // A plain reload keeps its settings: the second run finds the first's.
+    luna.reload("Mine");
+    wait_for("the reload found its earlier settings", || {
+        earlier("Mine") == Some(serde_json::json!("Mine was here"))
+    });
+    wait_until(&luna, 30, |s| running(s, "Mine"));
+    assert!(plugin(&luna.snapshot(), "Mine").unwrap().has_stored);
+
+    // Reset: it runs again as new.
+    luna.reset_plugin("Mine");
+    wait_for("the reset plugin started from its defaults", || {
+        earlier("Mine") == Some(serde_json::Value::Null)
+    });
+    let s = wait_until(&luna, 30, |s| running(s, "Mine"));
+    assert!(plugin(&s, "Mine").unwrap().enabled);
+    assert!(luna.sync(std::time::Duration::from_secs(5)));
+    wait_for("the new run saved", || own("Mine").exists());
+    assert!(code.exists() && data.join("model.onnx").exists());
+    // The other plugin has all of its own, and its items.
+    assert_eq!(std::fs::read(own("Other")).unwrap(), other_own);
+    assert_eq!(earlier("Other"), Some(serde_json::Value::Null));
+    assert_eq!(local_items(&dir)["Other-item"], "1");
+    let records = crate::luna::storage::read_json(&dir.join("plugins.json")).unwrap();
+    let names: Vec<&str> = records
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|r| r["name"].as_str())
+        .collect();
+    assert_eq!(names, ["Mine", "Other"], "{records}");
+
+    // A disabled plugin is reset too, and stays off.
+    luna.set_enabled("Mine", false);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "Mine").is_some_and(|p| p.status == PluginStatus::Disabled)
+    });
+    assert!(db("Mine").exists());
+    luna.reset_plugin("Mine");
+    wait_for("the disabled plugin's stores are gone", || {
+        !db("Mine").exists() && !own("Mine").exists()
+    });
+    assert!(luna.sync(std::time::Duration::from_secs(5)));
+    let s = luna.snapshot();
+    let p = plugin(&s, "Mine").unwrap();
+    assert!(!p.enabled && p.status == PluginStatus::Disabled);
+    // Only the item both plugins set is still claimed (it stayed).
+    let records = crate::luna::storage::read_json(&dir.join("plugins.json")).unwrap();
+    let mine = records
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["name"] == "Mine")
+        .unwrap();
+    assert_eq!(
+        mine["stored"],
+        serde_json::json!({ "local": ["shared-item"] })
+    );
+    assert!(code.exists() && data.exists());
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// What two plugins both stored stays when one of them is reset (as it does
+/// when one is removed): the reset plugin finds the other's value.
+#[test]
+fn an_item_another_plugin_also_set_survives_a_reset() {
+    // `Mine` sets the item only when nobody has; `Other` always does.
+    let code = |who: &str, always: bool| {
+        format!(
+            r#"var core = luna?.core?.modules?.["@luna/core"];
+export const unloads = new Set();
+const prev = localStorage.getItem("shared-item");
+const db = core.ReactiveStore.getStore("{who}-db");
+await db.set("seen", prev);
+if ({always} || prev === null) localStorage.setItem("shared-item", "{who}");
+"#
+        )
+    };
+    let zero = std::time::Duration::ZERO;
+    let (_a, mine) = one_plugin("Mine", &code("Mine", false), "m1", zero);
+    let (_b, other) = one_plugin("Other", &code("Other", true), "o1", zero);
+    let dir = temp_dir("reset-shared");
+    let luna = Luna::start(config(&dir), Arc::new(CompatHost::default())).unwrap();
+    luna.install(&mine);
+    wait_for("Mine set the item", || {
+        local_items(&dir).get("shared-item").is_some()
+    });
+    luna.install(&other);
+    wait_for("Other changed the item", || {
+        local_items(&dir)["shared-item"] == "Other"
+    });
+    let seen = |who: &str| {
+        crate::luna::storage::read_json(&store_file(&dir, "storage", &format!("{who}-db")))
+            .map(|v| v["seen"].clone())
+    };
+    luna.reset_plugin("Mine");
+    // Mine's own store went and was written again by its new run, which
+    // found the item Other also set.
+    wait_for("Mine found the shared item", || {
+        seen("Mine") == Some(serde_json::json!("Other"))
+    });
+    assert_eq!(local_items(&dir)["shared-item"], "Other");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// L8: a package named like one of the runtime's modules is refused, and so
 /// is one from another address named like an installed plugin (it would
 /// take over that plugin's record, settings and files).

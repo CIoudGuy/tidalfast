@@ -48,6 +48,32 @@ Source of truth: TIDAL app IndexedDB (`%APPDATA%\TIDAL\IndexedDB\https_desktop.t
 read from copies (snappy-decoded: LevelDB tables, log, and Blink value blobs). Luna 1.17.1-beta, TIDAL 2.43.2.
 Object store `@luna/plugins` = plugin records, `@luna/pluginStorage` = per-plugin settings, `storeUrl` = plugin stores.
 
+## Managing a plugin
+
+On the Plugins tab each card has the enable switch, Reload, Uninstall and a
+**Reset to defaults** button. TidaLuna 1.17.1-beta only has one reset for
+everything ("Factory Reset" in Luna's settings); Tidalfast adds one per plugin.
+It sits under the plugin's settings and shows while the plugin has stored
+anything (settings, stores, `localStorage` items, permissions given with
+Always) and its settings are not folded away. It asks first ("Reset X to its
+defaults? Its settings and saved data are cleared. Downloaded files stay.").
+
+- **Cleared:** its settings under every key it used (`StoredClaims`), the named
+  stores and `idbStore` it opened, its `localStorage` items, its permission
+  answers and grants (Always included, programs and account writes too), and
+  the JS side's open settings objects. Then it loads again, so it starts with
+  its defaults.
+- **Kept:** the plugin itself (installed, same enabled state, same code), its
+  data folder (downloaded models are not settings) and what it did so far
+  (the Permissions list). A key another installed plugin also used stays, as
+  when removing.
+- Removing a plugin and resetting one share `Runtime::purge_stored`
+  (`src/luna/runtime.rs`); tests:
+  `harden_tests::resetting_a_plugin_clears_what_it_stored_and_runs_it_with_defaults`,
+  `harden_tests::an_item_another_plugin_also_set_survives_a_reset`,
+  `permits_flow_tests::resetting_a_plugin_takes_back_its_permissions`,
+  `plugins_tests::a_plugin_that_stored_something_can_be_reset_after_asking`.
+
 ## IMPORTANT finding: far fewer plugins are installed than expected
 
 The long list of names seen earlier (MusicVideoButton, NoBuffer, SongReleaseDate, OneClickLyrics,

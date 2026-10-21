@@ -80,6 +80,8 @@ struct InstallField {
 enum Confirm {
     Import(PathBuf),
     Reset,
+    /// Put this plugin back to its defaults (by name).
+    ResetPlugin(String),
 }
 
 /// The page's own state, kept in egui's memory (nothing to persist).
@@ -118,6 +120,8 @@ enum Do {
     Uninstall(String),
     SetEnabled(String, bool),
     Reload(String),
+    /// Clear what the plugin stored and its permissions, and run it again.
+    ResetPlugin(String),
     SetLiveReload(String, bool),
     SetHideSettings(String, bool),
     AddStore(String),
@@ -327,7 +331,16 @@ fn draw(
     store::paging_tabs(ui, palette, locale, page);
     ui.add_space(32.0);
     match page.tab {
-        Tab::Plugins => plugins_tab(ui, palette, locale, snapshot, index, now, &mut out),
+        Tab::Plugins => plugins_tab(
+            ui,
+            palette,
+            locale,
+            snapshot,
+            index,
+            now,
+            &mut page.confirm,
+            &mut out,
+        ),
         Tab::Store => store::store_tab(ui, palette, locale, snapshot, index, now, page, &mut out),
         Tab::Themes => store::themes_tab(ui, palette, locale, snapshot, index, now, page, &mut out),
         Tab::Settings => settings_tab(ui, palette, locale, snapshot, page, &mut out),
@@ -342,7 +355,7 @@ fn apply(app: &mut App, runtime: &Luna, out: Vec<Do>) {
         // A plugin that goes away takes the titles it wrote with it.
         if matches!(
             d,
-            Do::Uninstall(_) | Do::SetEnabled(_, false) | Do::Reload(_)
+            Do::Uninstall(_) | Do::SetEnabled(_, false) | Do::Reload(_) | Do::ResetPlugin(_)
         ) {
             app.plugins.retitles.clear();
         }
@@ -352,6 +365,7 @@ fn apply(app: &mut App, runtime: &Luna, out: Vec<Do>) {
             Do::Uninstall(name) => runtime.uninstall(&name),
             Do::SetEnabled(name, on) => runtime.set_enabled(&name, on),
             Do::Reload(name) => runtime.reload(&name),
+            Do::ResetPlugin(name) => runtime.reset_plugin(&name),
             Do::SetLiveReload(name, on) => runtime.set_live_reload(&name, on),
             Do::SetHideSettings(name, hide) => runtime.set_hide_settings(&name, hide),
             Do::RevokeProgram(plugin, program) => runtime.revoke_program(&plugin, &program),
@@ -947,6 +961,7 @@ fn install_field(
 
 // ------------------------------------------------------------ Plugins tab
 
+#[allow(clippy::too_many_arguments)]
 fn plugins_tab(
     ui: &mut Ui,
     palette: &Palette,
@@ -954,6 +969,7 @@ fn plugins_tab(
     snapshot: &LunaSnapshot,
     index: &Index,
     now: i64,
+    confirm: &mut Option<Confirm>,
     out: &mut Vec<Do>,
 ) {
     if snapshot.plugins.is_empty() {
@@ -977,6 +993,7 @@ fn plugins_tab(
             locale,
             info,
             updated.map(|then| (now, then)),
+            confirm,
             out,
         );
         scroll_anchor::block(
@@ -1009,6 +1026,7 @@ fn plugin_card(
     locale: Locale,
     info: &PluginInfo,
     updated: Option<(i64, i64)>,
+    confirm: &mut Option<Confirm>,
     out: &mut Vec<Do>,
 ) {
     let t = |s: &'static str| gettext(locale, s).into_owned();
@@ -1124,7 +1142,48 @@ fn plugin_card(
             }
             out.extend(links.into_iter().map(Do::OpenUrl));
         }
+        reset_row(ui, palette, locale, info, confirm, out);
     });
+}
+
+/// "Reset to defaults" at the bottom of a plugin's card (TidaLuna only has
+/// one reset for everything): clears what the plugin stored and its
+/// permissions after asking, and runs it again. Shown while the plugin has
+/// stored anything and its settings are not folded away.
+fn reset_row(
+    ui: &mut Ui,
+    palette: &Palette,
+    locale: Locale,
+    info: &PluginInfo,
+    confirm: &mut Option<Confirm>,
+    out: &mut Vec<Do>,
+) {
+    let t = |s: &'static str| gettext(locale, s).into_owned();
+    let asking = matches!(confirm, Some(Confirm::ResetPlugin(n)) if *n == info.name);
+    if !asking && (!info.has_stored || (info.hide_settings && info.settings.is_some())) {
+        return;
+    }
+    ui.add_space(8.0);
+    if asking {
+        caption(
+            ui,
+            &t("Reset {name} to its defaults? Its settings and saved data are cleared. Downloaded files stay.")
+                .replace("{name}", &info.name),
+            palette.text,
+        );
+        ui.horizontal(|ui| {
+            let name = t("Reset {name}").replace("{name}", &info.name);
+            if theme::pill_button_named(ui, palette, &t("Reset"), &name, true).clicked() {
+                out.push(Do::ResetPlugin(info.name.clone()));
+                *confirm = None;
+            }
+            if theme::soft_button(ui, palette, None, &t("Cancel"), false).clicked() {
+                *confirm = None;
+            }
+        });
+    } else if theme::soft_button(ui, palette, None, &t("Reset to defaults"), false).clicked() {
+        *confirm = Some(Confirm::ResetPlugin(info.name.clone()));
+    }
 }
 
 /// "Downloading 45 of 102 MB (model.onnx)" for a plugin's large download.
