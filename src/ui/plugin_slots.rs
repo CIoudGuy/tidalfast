@@ -1737,6 +1737,21 @@ pub fn positioned_here(ui: &mut egui::Ui, key: &str, position: Position) {
 /// [`positioned_here`] in the box `container` the anchor is drawn in this
 /// frame (a now-playing tab's pill, which a plugin's padding widens).
 pub fn positioned_over(ui: &mut egui::Ui, key: &str, position: Position, container: Rect) {
+    positioned_over_on(ui, key, position, container, None);
+}
+
+/// [`positioned_over`] on a box filled with `back` (the open now-playing
+/// tab's white pill): plugin colours are kept readable against that fill,
+/// not the window's. radiant-lyrics' `#1e1e1e` sparkle in the open Lyrics
+/// tab was read against the dark window, turned white, and vanished into
+/// the white pill.
+pub fn positioned_over_on(
+    ui: &mut egui::Ui,
+    key: &str,
+    position: Position,
+    container: Rect,
+    back: Option<Color32>,
+) {
     let Some(overlay) = plugin_dom::overlay() else {
         return;
     };
@@ -1753,7 +1768,10 @@ pub fn positioned_over(ui: &mut egui::Ui, key: &str, position: Position, contain
         viewport: plugin_dom::viewport(),
         keyframes: &overlay.keyframes,
     };
-    let inherit = Inherit::root(ui);
+    let mut inherit = Inherit::root(ui);
+    if let Some(back) = back {
+        inherit.back = back;
+    }
     for node in overlay.at(key, position) {
         if positioned_kind(&node.style).is_some() && !node.style.hidden() {
             positioned(ui, node, container, inherit, &cx);
@@ -4151,15 +4169,21 @@ fn draw_box(
                 if own_context {
                     drawn |= paint_under(ui, true);
                 }
+                // A width already gave way to `min-width` and `max-width`
+                // above; they bound only a box without one. (A larger
+                // `max-width` set after the width undid it: DownloadManager's
+                // 400-point start menu and 520-point window, both with
+                // `max-width: calc(100vw - ...)`, ran to the window's edge.)
                 if let Some(w) = width {
                     ui.set_min_width(w);
                     ui.set_max_width(w.max(1.0));
-                }
-                if let Some(w) = min_width {
-                    ui.set_min_width((w - inset).max(0.0));
-                }
-                if let Some(w) = max_width {
-                    ui.set_max_width((w - inset).max(1.0));
+                } else {
+                    if let Some(w) = min_width {
+                        ui.set_min_width((w - inset).max(0.0));
+                    }
+                    if let Some(w) = max_width {
+                        ui.set_max_width((w - inset).max(1.0));
+                    }
                 }
                 if let Some(h) = height.or(min_height) {
                     ui.set_min_height(h);
@@ -7253,6 +7277,53 @@ mod tests {
         }
         plugin_dom::test_overlay(None);
         size
+    }
+
+    /// DownloadManager's start menu: `width: 400px` with a larger
+    /// `max-width: calc(100vw - 16px)`. The width holds; what fills the
+    /// room inside (its search row, a grown flex item) fills 400 points,
+    /// not the room up to the window's edge, which the larger `max-width`
+    /// gave it after the width had set it.
+    #[test]
+    fn a_larger_max_width_does_not_undo_a_width() {
+        let filler = VNode {
+            id: 3,
+            tag: "div".into(),
+            style: Style {
+                flex: Some("1".into()),
+                height: Some("10px".into()),
+                background_color: Some("#0078d7".into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let row = VNode {
+            id: 2,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                ..Style::default()
+            },
+            children: vec![filler],
+            ..VNode::default()
+        };
+        let menu = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                width: Some("400px".into()),
+                max_width: Some("calc(100vw - 16px)".into()),
+                ..Style::default()
+            },
+            children: vec![row],
+            ..VNode::default()
+        };
+        plugin_dom::test_viewport([800.0, 600.0]);
+        let size = drawn_size(menu);
+        assert!(size.x <= 400.5, "the menu kept its width: {size:?}");
+        assert!(size.x >= 399.5, "{size:?}");
     }
 
     /// element-hider's own menu listens for clicks (its document listener

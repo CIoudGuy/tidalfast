@@ -3126,6 +3126,26 @@ pub fn padding_right_and_min_width(key: &str) -> (Option<f32>, Option<f32>) {
     .unwrap_or((None, None))
 }
 
+/// A plugin's `display` for an anchor (`flex`, `grid`, ...), trimmed of
+/// `!important`.
+pub fn display(key: &str) -> Option<String> {
+    host(key, |h, _| {
+        let v = h.style.display.as_deref()?;
+        Some(v.trim().trim_end_matches("!important").trim().to_string())
+    })
+}
+
+/// A plugin's `border-radius` for an anchor, corner by corner
+/// (radiant-lyrics' `12px 12px 0 0` on the Lyrics tab while its menu hangs
+/// under it).
+pub fn corners(key: &str) -> Option<egui::CornerRadius> {
+    let viewport = viewport();
+    host(key, |h, vars| {
+        let value = h.style.border_radius.as_deref()?;
+        Some(super::theme_layout::radii(Some(value), vars, viewport))
+    })
+}
+
 /// A plugin's opacity for an anchor.
 pub fn opacity(key: &str) -> Option<f32> {
     let (value, spec) = host(key, |h, _| {

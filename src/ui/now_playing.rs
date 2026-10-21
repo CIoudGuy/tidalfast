@@ -461,13 +461,17 @@ fn header(
             .as_deref()
             .map_or((None, None), super::plugin_dom::padding_right_and_min_width);
         let extra = pad.map_or(0.0, |p| p - 11.0);
-        let response = pill_holding(&mut ui, label, selected, extra, min);
+        let corners = key.as_deref().and_then(super::plugin_dom::corners);
+        let response = pill_holding(&mut ui, label, selected, extra, min, corners);
         if let Some(key) = &key {
-            super::plugin_slots::positioned_over(
+            // On the open tab's white pill what the plugin drew in it is
+            // read against white (radiant-lyrics' dark sparkle).
+            super::plugin_slots::positioned_over_on(
                 &mut ui,
                 key,
                 crate::luna::dom::Position::Append,
                 response.rect,
+                selected.then_some(Color32::WHITE),
             );
         }
         let by_plugin = key.as_deref().is_some_and(super::plugin_dom::take_click);
@@ -513,18 +517,22 @@ fn tab_name(tab: NowPlayingTab) -> &'static str {
 /// TIDAL's tab pill: 30 high, 14/20 w600; the open one white with black
 /// words, the others grey words on nothing.
 pub(super) fn pill(ui: &mut egui::Ui, label: &str, selected: bool) -> egui::Response {
-    pill_holding(ui, label, selected, 0.0, None)
+    pill_holding(ui, label, selected, 0.0, None, None)
 }
 
-/// [`pill`] with `extra` points of padding after its words and at least
-/// `min` wide, as a plugin's style on the tab asks (radiant-lyrics' room
-/// for its sparkle in Lyrics); the words keep their place on the left.
+/// [`pill`] with `extra` points of padding after its words, at least `min`
+/// wide and with `corners` instead of its round ends, as a plugin's style on
+/// the tab asks (radiant-lyrics' room for its sparkle in Lyrics, and the
+/// wider, square-bottomed tab its options menu hangs from). TIDAL's tab
+/// centres its words in what its padding leaves, so in a pill wider than
+/// they need they stand in the middle of that.
 fn pill_holding(
     ui: &mut egui::Ui,
     label: &str,
     selected: bool,
     extra: f32,
     min: Option<f32>,
+    corners: Option<CornerRadius>,
 ) -> egui::Response {
     let galley = ui.painter().layout_no_wrap(
         label.to_string(),
@@ -553,7 +561,7 @@ fn pill_holding(
     if chosen > 0.0 {
         ui.painter().rect_filled(
             rect,
-            CornerRadius::same(15),
+            corners.unwrap_or(CornerRadius::same(15)),
             Color32::WHITE.gamma_multiply(chosen),
         );
     }
@@ -562,8 +570,13 @@ fn pill_holding(
         Color32::from_rgb(0x10, 0x10, 0x10),
         chosen,
     );
+    let content = (rect.left() + 11.0)..(rect.right() - 11.0 - extra.max(0.0));
+    let left = (content.start + content.end - galley.size().x) / 2.0;
     ui.painter().galley(
-        pos2(rect.left() + 11.0, rect.center().y - galley.size().y / 2.0),
+        pos2(
+            left.max(content.start),
+            rect.center().y - galley.size().y / 2.0,
+        ),
         galley,
         text,
     );

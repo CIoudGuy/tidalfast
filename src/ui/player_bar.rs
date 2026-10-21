@@ -397,6 +397,19 @@ fn note_player_bar(app: &App, rect: Rect, now: Option<&NowPlaying>, view_open: b
 /// view): TIDAL desktop's 40 from the window's edge.
 const NOW_PLAYING_TEXT_INSET: f32 = 24.0;
 
+/// [`NOW_PLAYING_TEXT_INSET`], or 10 points less where a plugin sets
+/// `display: flex` on TIDAL's `track-info`: in TIDAL the words then start
+/// 30 from the window's edge instead of 40 while the cover is left out
+/// (tidal-genres' layout override, seen in the owner's captures).
+fn now_playing_text_inset() -> f32 {
+    let flex = plugin_dom::display(keys::TRACK_INFO).is_some_and(|d| d.contains("flex"));
+    if flex {
+        NOW_PLAYING_TEXT_INSET - 10.0
+    } else {
+        NOW_PLAYING_TEXT_INSET
+    }
+}
+
 /// The track info on the bar's left; returns how far right plugin elements
 /// in it reached (the region's left edge when there are none). Plugin
 /// elements that do not fit in the region, and `slack` beyond it, are left
@@ -544,7 +557,7 @@ fn now_playing_block(
     let text_left = if cover_shown {
         cover_rect.right() + 16.0
     } else {
-        region.left() + NOW_PLAYING_TEXT_INSET
+        region.left() + now_playing_text_inset()
     };
     // Plugin elements after the "…" (up-next's pill): the words give way
     // to them, down to a little.
@@ -1879,6 +1892,30 @@ mod plugin_item_tests {
     }
 
     /// The picture a plugin put on the cover element.
+    /// tidal-genres sets `display: flex !important` on `track-info`; over the
+    /// now-playing view TIDAL's words then start 10 points further left (30
+    /// from the window's edge, not 40). Without it they stay where they were.
+    #[test]
+    fn a_flex_track_info_moves_the_words_left_over_now_playing() {
+        plugin_dom::test_overlay(Some(DomOverlay::default()));
+        assert_eq!(now_playing_text_inset(), NOW_PLAYING_TEXT_INSET);
+        let mut overlay = DomOverlay::default();
+        overlay.hosts.insert(
+            keys::TRACK_INFO.into(),
+            HostOverride {
+                style: crate::luna::dom::Style {
+                    display: Some("flex !important".into()),
+                    ..Default::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        plugin_dom::test_overlay(Some(overlay));
+        let inset = now_playing_text_inset();
+        plugin_dom::test_overlay(None);
+        assert_eq!(inset, NOW_PLAYING_TEXT_INSET - 10.0);
+    }
+
     #[test]
     fn the_cover_source_a_plugin_set_is_read() {
         let mut overlay = DomOverlay::default();
