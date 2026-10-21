@@ -987,3 +987,36 @@ body { background-color: rgb(2, 0, 10) !important; }
     assert_eq!(p.window, egui::Color32::from_rgb(2, 0, 10));
     assert_eq!(p.surface, egui::Color32::from_rgb(0x20, 0x10, 0x3a));
 }
+
+/// TIDAL's library rows are links (`a`), so Black Glow's `a, button {
+/// background: none !important }` clears the selected playlist's pill in
+/// TIDAL. The row's anchor was a `div`, so Tidalfast kept the pill.
+#[test]
+fn a_rule_for_links_reaches_the_library_rows() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "No link fills"} */
+a, button { background: none !important; }
+._title_8b245d1 { font-size: 15px; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame
+        .sidebar
+        .rows
+        .push((Some([8.0, 300.0, 224.0, 52.0]), true));
+    let (luna, o) = overlay_with(
+        "no-link-fills.css",
+        css,
+        dom_anchors::build(&frame),
+        &dom_anchors::keys::lib_row_title(0),
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let fill = pd::library_row(
+        egui::Rect::from_min_size(egui::pos2(8.0, 300.0), egui::vec2(224.0, 52.0)),
+        true,
+        false,
+    )
+    .and_then(|s| s.fill);
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(fill, Some(egui::Color32::TRANSPARENT), "no pill");
+}
