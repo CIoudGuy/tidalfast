@@ -382,7 +382,11 @@
 	// covers the view (betterFullscreen swaps in its own player). A button a
 	// plugin puts among the player bar's utility buttons gets TIDAL's
 	// button look there: a transparent 32 x 32 box with its icon at 16 x 16
-	// (OneClickLyrics' button, whose SVG says 32px).
+	// (OneClickLyrics' button, whose SVG says 32px). An artist card's
+	// picture is a circle that a theme's plain `[class*="image"]` radius
+	// (Meteor Night's, one class deep) does not change in TIDAL, while a
+	// deeper rule (Giorgeous's `[class*="_card_"] [class*="_imageContainer_"]
+	// [class*="round"]`) or an `!important` one (Tidal TUI's) does.
 	let tidal = null;
 	const tidalSheet = () => {
 		if (!tidal) {
@@ -390,7 +394,8 @@
 			tidal.replaceSync(
 				'[class^="_fullscreen_"] { position: absolute; inset: 0; z-index: 10; }\n' +
 					'[class^="_utilityButtons_"] > button { display: flex; width: 32px; height: 32px; padding: 1px 6px; border: 0; background-color: transparent; align-items: center; justify-content: center; cursor: pointer; }\n' +
-					'[class^="_utilityButtons_"] > button svg { width: 16px; height: 16px; }',
+					'[class^="_utilityButtons_"] > button svg { width: 16px; height: 16px; }\n' +
+					"._artistVariant_63c8c96 ._round_5776dee { border-radius: 50%; }",
 			);
 		}
 		return tidal;

@@ -460,6 +460,64 @@ fn the_playing_playlists_name_takes_the_themes_name_colour() {
     );
 }
 
+/// TIDAL rounds an artist's picture by its own class on it, which a theme's
+/// plain `[class*="image"] { border-radius: 10px }` (Meteor Night) does not
+/// beat: the pictures stay round there. Tidal TUI's `!important` rule with
+/// no value squares them, and Giorgeous's deeper `[class*="_card_"]
+/// [class*="_imageContainer_"] [class*="round"]` rule gives them its
+/// corners. Tidalfast kept every portrait round.
+#[test]
+fn a_theme_beating_tidals_circle_squares_an_artists_picture() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{card, card_cover_wrapper};
+    let portrait = |css: &str, name: &str| {
+        let mut frame = dom_anchors::sample_frame();
+        let page = frame.page.as_mut().expect("a page");
+        page.cards = vec![dom_anchors::GridCard {
+            rect: Some([300.0, 300.0, 160.0, 210.0]),
+            artist: true,
+            cover: Some([300.0, 300.0, 160.0, 160.0]),
+            shelf: None,
+        }];
+        let (luna, o) = overlay_with(
+            name,
+            css,
+            dom_anchors::build(&frame),
+            &card_cover_wrapper(0),
+        );
+        pd::test_overlay(Some((*o).clone()));
+        let style = pd::grid_card_cover(
+            &card(0),
+            egui::Rect::from_min_size(egui::pos2(300.0, 300.0), egui::vec2(160.0, 160.0)),
+        );
+        pd::test_overlay(None);
+        luna.shutdown();
+        style.and_then(|s| s.portrait)
+    };
+    assert_eq!(
+        portrait(
+            r#"/* {"name": "Plain"} */ img, [class*="image"] { border-radius: 10px; }"#,
+            "portrait-plain.css",
+        ),
+        None,
+        "the circle stays"
+    );
+    assert_eq!(
+        portrait(
+            r#"/* {"name": "Important"} */ [class*="image"], [class*="_imageContainer_"] img { border-radius: var(--border-radius) !important; }"#,
+            "portrait-important.css",
+        ),
+        Some(0.0)
+    );
+    assert_eq!(
+        portrait(
+            r#"/* {"name": "Deep"} */ [class*="_card_"] [class*="_imageContainer_"] [class*="round"] { border-radius: 4px; }"#,
+            "portrait-deep.css",
+        ),
+        Some(4.0)
+    );
+}
+
 /// TidalCustomTheme colours TIDAL's words by `[class^="_marketText_"] {
 /// color: #8a0022 !important }`, which reaches the navigation rows' labels
 /// in TIDAL (dark red on its pink sidebar). The labels had no anchor, so

@@ -3562,10 +3562,17 @@ pub fn card(
         let overlay = card_overlay(ui, &response, hovered);
         if overlay > 0.0 {
             let foot = Rect::from_min_max(pos2(drawn.left(), drawn.center().y), drawn.max);
-            if round {
+            if round && drawn_radius >= drawn.width() / 2.0 - 0.5 {
                 ui.painter().circle_filled(
                     drawn.center(),
                     drawn.width() / 2.0,
+                    Color32::from_black_alpha(70).gamma_multiply(overlay),
+                );
+            } else if round {
+                // A theme's square portrait (Tidal TUI) darkens as a square.
+                ui.painter().rect_filled(
+                    drawn,
+                    CornerRadius::same(drawn_radius.clamp(0.0, 255.0).round() as u8),
                     Color32::from_black_alpha(70).gamma_multiply(overlay),
                 );
             } else {
@@ -3795,9 +3802,13 @@ pub(super) fn paint_themed_cover(
     };
     let drawn =
         Rect::from_center_size(image_rect.center(), image_rect.size() * scale).translate(offset);
-    // An artist's portrait stays round: a theme's square corners are for covers.
+    // An artist's portrait stays round unless a theme's rule beats TIDAL's
+    // circle on the picture itself (Tidal TUI's square portraits); a
+    // theme's corners for covers or the card's box leave it round.
     let radius = if circular {
-        drawn.width() / 2.0
+        style.portrait.map_or(drawn.width() / 2.0, |r| {
+            (r * scale).min(drawn.width() / 2.0)
+        })
     } else {
         themed_radius.map_or(radius, |r| r * scale)
     };

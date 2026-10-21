@@ -2381,6 +2381,23 @@ pub struct CoverStyle {
     /// The transition of the boxes' `transform` / `opacity` / `filter`:
     /// the cover moves to a new style (a hover) over it instead of at once.
     pub transition: Option<crate::motion::Transition>,
+    /// An artist's picture where a theme's rule beats TIDAL's circle on it
+    /// (`._artistVariant_ ._round_`): the corner radius of the picture's
+    /// boxes inside its container (Tidal TUI's `[class*="image"] {
+    /// border-radius: var(--border-radius) !important }`, no value: square).
+    /// `None` keeps the circle.
+    pub portrait: Option<f32>,
+}
+
+/// A percentage `border-radius` of half or more: TIDAL's circle.
+fn circle_radius(value: &str) -> bool {
+    value
+        .trim()
+        .trim_end_matches("!important")
+        .trim()
+        .strip_suffix('%')
+        .and_then(|p| p.trim().parse::<f32>().ok())
+        .is_some_and(|p| p >= 50.0)
 }
 
 fn cover_style_uncached(boxes: &[String]) -> Option<CoverStyle> {
@@ -2393,12 +2410,17 @@ fn cover_style_uncached(boxes: &[String]) -> Option<CoverStyle> {
         shadows: Vec::new(),
         filter: None,
         transition: None,
+        portrait: None,
     };
     let mut filters = String::new();
     let mut any = false;
     let mut hidden = false;
+    // The radii of the boxes inside the outermost, for an artist's picture:
+    // any circle left there keeps it round.
+    let mut circle = false;
+    let mut inner_radius: Option<f32> = None;
     // Outermost first: a later radius is the one that shows.
-    for key in boxes {
+    for (depth, key) in boxes.iter().enumerate() {
         let seen = host(key, |h, vars| {
             if h.hidden() {
                 // `display: none` / `visibility: hidden` on the cover or a
@@ -2411,14 +2433,26 @@ fn cover_style_uncached(boxes: &[String]) -> Option<CoverStyle> {
             let mut found = false;
             // A radius named by a variable TIDAL defines and Tidalfast does
             // not (Lunallena's `var(--market-core-radius-100)`) is left to
-            // the boxes outside it.
-            if s.border_radius
+            // the boxes outside it. TIDAL's own circle on an artist's
+            // picture (a percentage) is the native shape, not a theme's.
+            let radius = s
+                .border_radius
                 .as_deref()
-                .is_some_and(|r| !css::resolve_vars(r, vars).contains("var("))
-            {
-                let radii = super::theme_layout::radii(s.border_radius.as_deref(), vars, viewport);
-                style.radius = Some(f32::from(radii.nw));
-                found = true;
+                .map(|r| css::resolve_vars(r, vars))
+                .filter(|r| !r.contains("var("));
+            if let Some(r) = radius {
+                if circle_radius(&r) {
+                    circle |= depth > 0;
+                } else {
+                    let radii =
+                        super::theme_layout::radii(s.border_radius.as_deref(), vars, viewport);
+                    let nw = f32::from(radii.nw);
+                    style.radius = Some(nw);
+                    if depth > 0 {
+                        inner_radius = Some(inner_radius.map_or(nw, |m| m.max(nw)));
+                    }
+                    found = true;
+                }
             }
             if let Some(o) = s
                 .opacity
@@ -2470,6 +2504,9 @@ fn cover_style_uncached(boxes: &[String]) -> Option<CoverStyle> {
             found.then_some(())
         });
         any |= seen.is_some();
+    }
+    if !circle {
+        style.portrait = inner_radius;
     }
     style.filter = crate::css_filter::ColorFilter::parse(&filters);
     any |= style.filter.is_some();
