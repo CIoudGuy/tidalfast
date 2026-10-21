@@ -1364,15 +1364,19 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                     })
                     .at(Some(cover)),
             );
-            out.push(
-                el(
-                    keys::card_cover_wrapper(i),
-                    Some(&keys::card_cover(i)),
-                    "div",
-                )
-                .modules(&["imageWrapper"])
-                .at(Some(cover)),
-            );
+            // An artist's picture is round by TIDAL's `_round_` class on
+            // it, which themes reach as `[class*="round"]` (Giorgeous) or
+            // beat with `!important` (Tidal TUI's square portraits).
+            let mut wrapper = el(
+                keys::card_cover_wrapper(i),
+                Some(&keys::card_cover(i)),
+                "div",
+            )
+            .modules(&["imageWrapper"]);
+            if card.artist {
+                wrapper = wrapper.class("_round_5776dee");
+            }
+            out.push(wrapper.at(Some(cover)));
             out.push(
                 el(
                     keys::card_cover_img(i),
