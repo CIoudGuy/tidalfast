@@ -1228,7 +1228,9 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
         );
     }
     for (i, (rect, selected)) in side.rows.iter().enumerate() {
-        let mut node = el(keys::lib_row(i), Some(SIDEBAR_CONTENT), "div")
+        // A link in TIDAL (`a[href*='/playlist/']`): Black Glow's `a,
+        // button { background: none }` clears the selected row's pill.
+        let mut node = el(keys::lib_row(i), Some(SIDEBAR_CONTENT), "a")
             .modules(&["contentItem"])
             .at(*rect);
         if *selected {
