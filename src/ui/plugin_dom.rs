@@ -1070,6 +1070,16 @@ pub fn page_header(data: Rect, meta: Option<(Rect, &str)>) {
     });
 }
 
+/// The compact header pinned over an album, playlist or mix once its big
+/// header has scrolled away (TIDAL's `_smallHeader_`).
+pub fn page_small_header(bar: Rect) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.small_header = rect(bar);
+        }
+    });
+}
+
 /// The page's filter field, with the text typed so far.
 pub fn page_filter(r: Rect, value: &str) {
     note(|f| {

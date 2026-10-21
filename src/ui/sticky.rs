@@ -285,9 +285,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, area: Rect) {
     layer.multiply_opacity(fade);
     let ui = &mut layer;
     // TIDAL's header backdrop: the page's colour, and in the dark theme
-    // the blurred cover over it, as at the top of the page.
+    // the blurred cover over it, as at the top of the page. A plugin may
+    // take the cover off its `::before` and tint it instead
+    // (NoPlaylistBackgroundImage).
+    let key = crate::luna::dom_anchors::keys::PAGE_SMALL_HEADER;
+    super::plugin_dom::page_small_header(bar);
     ui.painter().rect_filled(bar, 0.0, palette.window);
     if palette.dark
+        && !super::plugin_dom::before_image_removed(key)
         && let Some(url) = &hero.cover
     {
         let art = app.backend.art().clone();
@@ -296,6 +301,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, area: Rect) {
             widgets::paint_cover_wash(ui, &texture, page, 0.4);
         }
     }
+    super::plugin_dom::paint_host_layers(ui, key, bar);
     widgets::paint_vertical_gradient(
         ui,
         Rect::from_min_size(bar.left_bottom(), vec2(bar.width(), 10.0)),
