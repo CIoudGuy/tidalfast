@@ -191,11 +191,16 @@ pub mod keys {
     /// `span.wave-text-body-medium[data-wave-color=textSecondary]`
     pub const THEME_SECONDARY: &str = "theme-roles:secondary";
     /// `span.wave-text-headline-bold`: a page's title (an album's, a
-    /// playlist's, an artist's), whose size and spacing themes set there.
+    /// playlist's, an artist's), whose size and spacing themes set there,
+    /// in TIDAL's `h1` (Lunallena's `h1 { font-size; color }`).
     pub const THEME_HEADLINE: &str = "theme-roles:headline";
+    pub const THEME_H1: &str = "theme-roles:h1";
     /// `span.wave-text-subheadline-bold`: a section's title on a page
-    /// ("Your favorite artists") and the play queue's.
+    /// ("Your favorite artists") and the play queue's, in TIDAL's `h2` in
+    /// its header box (Lunallena's `[class*="headerContainer"] > h2`).
     pub const THEME_SUBHEADLINE: &str = "theme-roles:subheadline";
+    pub const THEME_SECTION: &str = "theme-roles:section";
+    pub const THEME_H2: &str = "theme-roles:h2";
     /// `div._contextMenu_[role=menu]` (the menu surface).
     pub const THEME_MENU: &str = "theme-roles:menu";
     /// `span._actionTextInner_` in it: a menu row's words, whose size and
@@ -961,8 +966,11 @@ pub fn theme_roles(out: &mut Vec<HostNode>) {
             .class("wave-text-body-medium")
             .attr("data-wave-color", "textSecondary"),
     );
-    out.push(el(THEME_HEADLINE, Some(THEME_ROLES), "span").class("wave-text-headline-bold"));
-    out.push(el(THEME_SUBHEADLINE, Some(THEME_ROLES), "span").class("wave-text-subheadline-bold"));
+    out.push(el(THEME_H1, Some(THEME_ROLES), "h1"));
+    out.push(el(THEME_HEADLINE, Some(THEME_H1), "span").class("wave-text-headline-bold"));
+    out.push(el(THEME_SECTION, Some(THEME_ROLES), "div").modules(&["headerContainer"]));
+    out.push(el(THEME_H2, Some(THEME_SECTION), "h2"));
+    out.push(el(THEME_SUBHEADLINE, Some(THEME_H2), "span").class("wave-text-subheadline-bold"));
     out.push(
         el(THEME_MENU_BOX, Some(THEME_ROLES), "div")
             .class("_container_d3060bb")

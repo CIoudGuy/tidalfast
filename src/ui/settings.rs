@@ -378,7 +378,7 @@ fn page(app: &mut App, ui: &mut egui::Ui) {
         ui,
         gettext(locale, "Settings"),
         super::plugin_dom::headline_font(28.0),
-        palette.text,
+        super::plugin_dom::headline_color(palette.text),
     );
     ui.add_space(11.0);
     let (tab, needle) = tabs_row(app, ui);

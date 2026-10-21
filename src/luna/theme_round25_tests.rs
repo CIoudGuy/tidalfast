@@ -557,6 +557,39 @@ fn a_themes_pseudo_element_words_reach_the_overlay() {
     luna.shutdown();
 }
 
+/// Lunallena sizes and colours TIDAL's page and section titles through
+/// their elements (`h1 { font-size: 30px !important; color: var(--accent)
+/// !important }`, `[class*="headerContainer"] > h2 { ... }`): TIDAL draws
+/// them 30 points and pale green. The stand-ins for those titles had no
+/// `h1` or header box round them, so they stayed white at their own size.
+#[test]
+fn page_and_section_titles_take_their_elements_size_and_colour() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Titles"} */
+:root { --accent: rgb(216, 255, 144); }
+h1 { font-size: 30px !important; color: var(--accent) !important; }
+[class*="headerContainer"] > h2 { font-size: 30px !important; color: var(--accent); }
+"#;
+    let (luna, o) = overlay_with(
+        "titles.css",
+        css,
+        dom_anchors::sample_tree(),
+        dom_anchors::keys::THEME_H2,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let green = egui::Color32::from_rgb(216, 255, 144);
+    assert_eq!(pd::headline_font(27.0).size, 30.0);
+    assert_eq!(pd::subheadline_font(19.0).size, 30.0);
+    assert_eq!(pd::headline_color(egui::Color32::WHITE), green);
+    assert_eq!(pd::subheadline_color(egui::Color32::WHITE), green);
+    pd::test_overlay(None);
+    assert_eq!(
+        pd::headline_color(egui::Color32::WHITE),
+        egui::Color32::WHITE
+    );
+    luna.shutdown();
+}
+
 /// TidalCustomTheme colours TIDAL's words by `[class^="_marketText_"] {
 /// color: #8a0022 !important }`, which reaches the navigation rows' labels
 /// in TIDAL (dark red on its pink sidebar). The labels had no anchor, so

@@ -61,7 +61,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
         egui::Align2::LEFT_CENTER,
         super::plugin_dom::page_title_text(title.as_ref()),
         super::plugin_dom::headline_font(27.0),
-        palette.text,
+        super::plugin_dom::headline_color(palette.text),
     );
     let title_end = super::plugin_dom::page_title(ui, title.as_ref(), title_rect, true);
     // TIDAL's "..." beside the title (after what plugins put there): sort

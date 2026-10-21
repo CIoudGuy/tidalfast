@@ -62,7 +62,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                 egui::Align2::LEFT_CENTER,
                 gettext(locale, "Top Tracks"),
                 super::plugin_dom::subheadline_font(19.0),
-                palette.text,
+                super::plugin_dom::subheadline_color(palette.text),
             );
             if more {
                 let label = gettext(locale, "View all");
@@ -320,7 +320,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                     egui::Align2::LEFT_CENTER,
                     gettext(locale, "Credits"),
                     super::plugin_dom::subheadline_font(19.0),
-                    palette.text,
+                    super::plugin_dom::subheadline_color(palette.text),
                 );
                 if credits.len() > 5 {
                     let label = gettext(locale, "View all");
@@ -486,7 +486,7 @@ fn artist_hero_own(
         egui::Align2::LEFT_CENTER,
         &artist.name,
         super::plugin_dom::headline_font(32.0),
-        palette.text,
+        super::plugin_dom::headline_color(palette.text),
     );
     let name_response = ui.interact(name_rect, ui.id().with("artist-name"), Sense::hover());
     let label = format!("{}: {}", gettext(locale, "Artist"), artist.name);
@@ -1204,7 +1204,7 @@ pub fn top_tracks(app: &mut App, ui: &mut egui::Ui, id: &str) {
         egui::Align2::LEFT_CENTER,
         super::plugin_dom::page_title_text(title.as_ref()),
         super::plugin_dom::headline_font(27.0),
-        palette.text,
+        super::plugin_dom::headline_color(palette.text),
     );
     super::plugin_dom::page_title(ui, &title, title_rect, false);
     if let Some(artist) = &artist {
@@ -1298,7 +1298,7 @@ pub fn section(app: &mut App, ui: &mut egui::Ui, id: &str, section: ArtistSectio
         egui::Align2::LEFT_CENTER,
         super::plugin_dom::page_title_text(title.as_ref()),
         super::plugin_dom::headline_font(27.0),
-        palette.text,
+        super::plugin_dom::headline_color(palette.text),
     );
     super::plugin_dom::page_title(ui, &title, title_rect, false);
     if let Some(artist) = app.artist_name(id) {
@@ -2109,7 +2109,7 @@ fn heading_view_all(app: &App, ui: &mut egui::Ui, title: &str, salt: &str) -> bo
         egui::Align2::LEFT_CENTER,
         title,
         super::plugin_dom::subheadline_font(19.0),
-        palette.text,
+        super::plugin_dom::subheadline_color(palette.text),
     );
     let label = gettext(app.locale, "View all");
     let galley =
