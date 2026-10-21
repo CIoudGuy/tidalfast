@@ -357,7 +357,6 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("progressBarWrapper", "_progressBarWrapper_f1fad6d"),
     ("range", "_range_ce0e571"),
     ("searchField", "_searchField_b2eb7f7"),
-    ("sidebarItem", "_sidebarItem_730d27e"),
     ("sidebarWrapper", "_sidebarWrapper_2f256ce"),
     ("solidHeader", "_solidHeader_2b3f298"),
     ("syncButton", "_syncButton_8b33227"),
@@ -1181,10 +1180,11 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             FIXED_NAV
         };
         let mut node = el(keys::sidebar_item(&item.test), Some(parent), tag)
-            // TIDAL's navigation rows carry both modules (`_sidebarItem_`
-            // for Tidal Light, `_navigationItem_` for the cotton candy
-            // family and Solo).
-            .modules(&["sidebarItem", "navigationItem"])
+            // TIDAL 2.43.2's navigation rows are `_navigationItem_` (the
+            // cotton candy family, Solo). Its older `_sidebarItem_` is
+            // gone, so rules for it (Abyss Neptune's grey labels, Tidal
+            // Light's hover) reach nothing in TIDAL.
+            .modules(&["navigationItem"])
             .test(&item.test)
             .text(item.label.clone())
             .at(item.rect);

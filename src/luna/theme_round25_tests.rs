@@ -925,3 +925,30 @@ fn the_volume_popup_takes_the_themes_brighter_base() {
     assert_eq!(fill, egui::Color32::from_rgb(0x26, 0x23, 0x3a));
     assert_eq!(ink, egui::Color32::WHITE);
 }
+
+/// TIDAL 2.43.2's navigation rows are `_navigationItem_4e9deae` only: the
+/// older `_sidebarItem_730d27e` is not in its class list, so Abyss
+/// Neptune's `[class^="_sidebarItem"] > span { color: ... }` reaches nothing
+/// and TIDAL's Music label stays white. The anchors carried both modules,
+/// so Tidalfast greyed the labels.
+#[test]
+fn an_older_sidebar_item_class_misses_the_navigation_rows() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::sidebar_item_label;
+    let css = r#"/* {"name": "Old rows"} */
+[class^="_sidebarItem"] > span { color: rgb(128, 128, 128); }
+[class^="_marketText_"] { font-size: 15px; }
+"#;
+    let label = sidebar_item_label("sidebar-music");
+    let (luna, o) = overlay_with(
+        "old-rows.css",
+        css,
+        dom_anchors::build(&dom_anchors::sample_frame()),
+        &label,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let color = pd::nav_style(&label).and_then(|s| s.color);
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(color, None, "the label keeps TIDAL's white");
+}
