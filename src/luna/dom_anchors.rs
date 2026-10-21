@@ -154,11 +154,12 @@ pub mod keys {
     pub const NP_BG_GRADIENT: &str = "now-playing-bg-gradient";
     pub const NP_CONTENT: &str = "now-playing-content";
     pub const NP_CLOSE: &str = "now-playing-close";
+    /// The header's full screen button (`[data-test=new-now-playing-expand]`).
+    pub const NP_EXPAND: &str = "now-playing-expand";
     /// The header's `div._buttons_ > div._contentButtons_` around its tabs.
     pub const NP_BUTTONS: &str = "now-playing-buttons";
     pub const NP_CONTENT_BUTTONS: &str = "now-playing-content-buttons";
     pub const NP_FOOTER: &str = "now-playing-footer";
-    pub const NP_ARTIST_INFO: &str = "now-playing-artist-info";
     pub const NP_FULLSCREEN: &str = "now-playing-fullscreen";
     pub const NP_ARTWORK: &str = "now-playing-artwork";
     pub const NP_ARTWORK_TILT: &str = "now-playing-artwork-tilt";
@@ -774,9 +775,9 @@ pub struct NowPlaying {
     pub sync_rect: Option<Rect>,
     /// The close chevron in the header (`[data-test=new-now-playing-close]`).
     pub close_rect: Option<Rect>,
-    /// The artist block (`[data-test=artist-info]`) and its name.
-    pub artist_rect: Option<Rect>,
-    pub artist: String,
+    /// The full screen button left of the close chevron
+    /// (`[data-test=new-now-playing-expand]`), when drawn.
+    pub expand_rect: Option<Rect>,
     /// The bottom strip of the view (`[class*=_footer_]`).
     pub footer_rect: Option<Rect>,
     /// The `_fullscreen_` container, present while the window is fullscreen.
@@ -2153,6 +2154,17 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
             );
         }
     }
+    // TIDAL's full screen button, after the tabs and before the close
+    // chevron; radiant-lyrics hides it by its `data-test`.
+    if np.expand_rect.is_some() {
+        out.push(
+            el(NP_EXPAND, Some(NP_HEADER), "button")
+                .test("new-now-playing-expand")
+                .attr("aria-label", "Full screen")
+                .modules(&["iconButton"])
+                .at(np.expand_rect),
+        );
+    }
     out.push(
         el(NP_CLOSE, Some(NP_HEADER), "button")
             .test("new-now-playing-close")
@@ -2212,15 +2224,6 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
             .modules(&["glare"])
             .at(np.artwork_rect),
     );
-    if np.artist_rect.is_some() || !np.artist.is_empty() {
-        out.push(
-            el(NP_ARTIST_INFO, Some(NP_CONTENT), "div")
-                .modules(&["artistInfo"])
-                .test("artist-info")
-                .text(np.artist.clone())
-                .at(np.artist_rect),
-        );
-    }
     out.push(
         el(NP_FOOTER, Some(NOW_PLAYING), "div")
             .modules(&["footer"])
@@ -2787,9 +2790,8 @@ mod tests {
         });
         frame.lists[0].time_header_rect = Some([900.0, 280.0, 60.0, 20.0]);
         let np = frame.now_playing.as_mut().unwrap();
-        np.artist = "Artist".into();
-        np.artist_rect = Some([700.0, 80.0, 200.0, 20.0]);
         np.fullscreen_rect = np.rect;
+        np.expand_rect = Some([900.0, 10.0, 30.0, 30.0]);
         let tree = build(&frame);
         let data = find(&tree, keys::PAGE_DATA);
         assert!(attr(data, "class").unwrap().starts_with("_dataContainer_"));
@@ -2810,10 +2812,19 @@ mod tests {
         let menu = find(&tree, "row:album:55:0:menu");
         assert_eq!(attr(menu, "data-type"), Some("contextmenu-open"));
         assert_eq!(menu.tag, "button");
-        assert_eq!(
-            attr(find(&tree, keys::NP_ARTIST_INFO), "data-test"),
-            Some("artist-info")
+        // TIDAL 2.43.2's now-playing view has no `[data-test=artist-info]`
+        // (audio-visualizer's now-playing slots, which mount on it, never
+        // appear there), so neither has this one.
+        assert!(
+            !tree
+                .nodes
+                .iter()
+                .any(|n| attr(n, "data-test") == Some("artist-info"))
         );
+        // The full screen button, which radiant-lyrics hides by this name.
+        let expand = find(&tree, keys::NP_EXPAND);
+        assert_eq!(attr(expand, "data-test"), Some("new-now-playing-expand"));
+        assert_eq!(expand.parent.as_deref(), Some(keys::NP_HEADER));
         assert!(
             attr(find(&tree, keys::NP_FULLSCREEN), "class")
                 .unwrap()

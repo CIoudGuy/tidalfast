@@ -460,8 +460,8 @@ exact `Range` (`selectBetween`). The selected words keep their colour.
   page) the `h1` text override and colour are drawn and what plugins append
   follows it; `._title_a453dad` is the title bar's name (`bar-title`), as in TIDAL.
 - Now playing: `button[data-test=new-now-playing-close]` in the header
-  (header Prepend/Append), `[data-test=artist-info]` (Append),
-  `div._footer_` (Append), `div._fullscreen_` while fullscreen (Append),
+  (header Prepend/Append), `button[data-test=new-now-playing-expand]` (the
+  full screen button; hidden by a plugin, as radiant-lyrics does), `div._footer_` (Append), `div._fullscreen_` while fullscreen (Append),
   `progress-indicator` in the progress bar.
 - Rows: `button[data-type=contextmenu-open]` in each row's actions (its
   `.click()` opens the native menu); cells plugins insert before a row's

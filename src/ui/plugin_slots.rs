@@ -1729,6 +1729,14 @@ pub fn positioned_in(ui: &mut egui::Ui, key: &str) {
 /// cover's tilt they lean with the cover, as children of TIDAL's `_tilt_`
 /// box do (3d-cover's canvas and spinner after the cover's `img`).
 pub fn positioned_here(ui: &mut egui::Ui, key: &str, position: Position) {
+    if let Some(container) = plugin_dom::host_rect(key) {
+        positioned_over(ui, key, position, container);
+    }
+}
+
+/// [`positioned_here`] in the box `container` the anchor is drawn in this
+/// frame (a now-playing tab's pill, which a plugin's padding widens).
+pub fn positioned_over(ui: &mut egui::Ui, key: &str, position: Position, container: Rect) {
     let Some(overlay) = plugin_dom::overlay() else {
         return;
     };
@@ -1739,9 +1747,6 @@ pub fn positioned_here(ui: &mut egui::Ui, key: &str, position: Position) {
     {
         return;
     }
-    let Some(container) = plugin_dom::host_rect(key) else {
-        return;
-    };
     let vars = plugin_dom::vars();
     let cx = Cx {
         vars: &vars,

@@ -3069,6 +3069,19 @@ pub fn width(key: &str) -> Option<f32> {
     })
 }
 
+/// A plugin's `padding-right` and `min-width` for an anchor, in points
+/// (radiant-lyrics' Lyrics tab: room on its right for its sparkle).
+pub fn padding_right_and_min_width(key: &str) -> (Option<f32>, Option<f32>) {
+    host(key, |h, vars| {
+        let read = |v: &Option<String>| {
+            let v = css::resolve_vars(v.as_deref()?, vars);
+            css::length(&v, 14.0, 0.0, [0.0, 0.0])
+        };
+        Some((read(&h.style.padding_right), read(&h.style.min_width)))
+    })
+    .unwrap_or((None, None))
+}
+
 /// A plugin's opacity for an anchor.
 pub fn opacity(key: &str) -> Option<f32> {
     let (value, spec) = host(key, |h, _| {
@@ -5483,6 +5496,12 @@ thread_local! {
 #[cfg(all(test, feature = "demo"))]
 pub(crate) fn test_tree_builds() -> u64 {
     TREE_BUILDS.with(std::cell::Cell::get)
+}
+
+/// The anchor tree last sent to the runtime.
+#[cfg(test)]
+pub(crate) fn test_sent_tree() -> Option<HostTree> {
+    with(|s| s.sent.clone())
 }
 
 #[cfg(test)]
