@@ -24,6 +24,18 @@ fn release(id: u32) -> String {
     format!(r#"{{"id":{id},"title":"Release {id}","type":"ALBUM"}}"#)
 }
 
+/// An artist page module's "View all" (`v2/artist/<MODULE>/view-all`).
+fn module(releases: &[String]) -> String {
+    let items: Vec<String> = releases
+        .iter()
+        .map(|release| format!(r#"{{"type":"ALBUM","data":{release}}}"#))
+        .collect();
+    format!(
+        r#"{{"title":"Albums","itemLayout":"GRID","items":[{}]}}"#,
+        items.join(",")
+    )
+}
+
 #[tokio::test]
 async fn an_artist_plays_top_tracks_then_their_albums_without_repeats() {
     // 25 top tracks (1-25), then two albums of 60 new songs each. The first
@@ -38,11 +50,17 @@ async fn an_artist_plays_top_tracks_then_their_albums_without_repeats() {
     first.extend((100..160).map(|id| song(id, &format!("ISRC{id}"), ARTIST)));
     let mut second = vec![song(300, "isrc7", ARTIST), song(301, "OTHER", "77")];
     second.extend((200..260).map(|id| song(id, &format!("ISRC{id}"), ARTIST)));
+    // The releases are the artist page's: its Albums (no compilations or
+    // live albums), then its EP & Singles, empty here, which falls back to
+    // `artists/{id}/albums` (empty too).
     let (base, seen) = script(vec![
         reply("200 OK", "", &page(&top, 25)),
-        reply("200 OK", "", &page(&[release(1), release(2)], 2)),
+        reply("200 OK", "", &module(&[release(1), release(2)])),
+        reply("200 OK", "", &module(&[])),
+        reply("200 OK", "", &module(&[])),
         reply("200 OK", "", &page(&first, first.len())),
         reply("200 OK", "", &page(&second, second.len())),
+        reply("200 OK", "", &module(&[])),
         reply("200 OK", "", &page(&[], 0)),
     ])
     .await;
@@ -72,7 +90,11 @@ async fn an_artist_plays_top_tracks_then_their_albums_without_repeats() {
     assert!(!all.iter().any(|uri| *uri == "tidal:track:300"));
     let seen = seen.lock().unwrap();
     assert!(seen[0].starts_with("GET /artists/9/toptracks?"));
-    assert!(seen[1].starts_with("GET /artists/9/albums?"));
-    assert!(seen[1].contains("filter=ALBUMS"));
-    assert!(seen[4].contains("filter=EPSANDSINGLES"));
+    assert!(seen[1].starts_with("GET /artist/ARTIST_ALBUMS/view-all?"));
+    assert!(seen[1].contains("artistId=9"));
+    assert!(seen[2].starts_with("GET /artist/ARTIST_COMPILATIONS/view-all?"));
+    assert!(seen[3].starts_with("GET /artist/ARTIST_LIVE_ALBUMS/view-all?"));
+    assert!(seen[6].starts_with("GET /artist/ARTIST_TOP_SINGLES/view-all?"));
+    assert!(seen[7].starts_with("GET /artists/9/albums?"));
+    assert!(seen[7].contains("filter=EPSANDSINGLES"));
 }

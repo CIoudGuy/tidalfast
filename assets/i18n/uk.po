@@ -2103,6 +2103,10 @@ msgstr "EP і сингли"
 msgid "Compilations"
 msgstr "Збірки"
 
+#: src/ui/artist.rs
+msgid "Live albums"
+msgstr "Концертні альбоми"
+
 #: src/ui/artist.rs:957 src/ui/artist.rs:1253
 msgid "Appears on"
 msgstr "Бере участь у"

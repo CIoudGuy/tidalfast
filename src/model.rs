@@ -1041,6 +1041,8 @@ pub enum ArtistSection {
     Albums,
     Singles,
     Compilations,
+    /// TIDAL's "Live albums" (`ARTIST_LIVE_ALBUMS`).
+    LiveAlbums,
     AppearsOn,
     Videos,
     Related,
@@ -1054,6 +1056,7 @@ impl ArtistSection {
             Self::Albums => "albums",
             Self::Singles => "singles",
             Self::Compilations => "compilations",
+            Self::LiveAlbums => "live-albums",
             Self::AppearsOn => "appears-on",
             Self::Videos => "videos",
             Self::Related => "related",
@@ -1067,6 +1070,7 @@ impl ArtistSection {
             "albums" => Self::Albums,
             "singles" => Self::Singles,
             "compilations" => Self::Compilations,
+            "live-albums" => Self::LiveAlbums,
             "appears-on" => Self::AppearsOn,
             "videos" => Self::Videos,
             "related" => Self::Related,
@@ -1079,10 +1083,22 @@ impl ArtistSection {
     /// The release list the section reads, when it is one.
     pub fn filter(self) -> Option<DiscographyFilter> {
         match self {
-            Self::Albums | Self::Compilations => Some(DiscographyFilter::Albums),
+            Self::Albums | Self::Compilations | Self::LiveAlbums => Some(DiscographyFilter::Albums),
             Self::Singles => Some(DiscographyFilter::Singles),
             Self::AppearsOn => Some(DiscographyFilter::AppearsOn),
             Self::Videos | Self::Related | Self::Playlists | Self::Credits => None,
+        }
+    }
+
+    /// Whether a release of `album_type` in the section's list is the
+    /// section's: the Albums list holds TIDAL's albums, compilations and
+    /// live albums, each a shelf of its own.
+    pub fn lists(self, album_type: Option<&str>) -> bool {
+        match self {
+            Self::Albums => !matches!(album_type, Some("compilation" | "live")),
+            Self::Compilations => album_type == Some("compilation"),
+            Self::LiveAlbums => album_type == Some("live"),
+            _ => true,
         }
     }
 }

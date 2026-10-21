@@ -922,19 +922,25 @@ fn discography(app: &mut App, ui: &mut egui::Ui, id: &str, page: &crate::model::
     let albums = list(DiscographyFilter::Albums.groups());
     let singles = list(DiscographyFilter::Singles.groups());
     let appears = list(DiscographyFilter::AppearsOn.groups());
-    let is_compilation = |album: &&Album| album.album_type.as_deref() == Some("compilation");
+    let of_section =
+        |section: ArtistSection| move |album: &&Album| section.lists(album.album_type.as_deref());
     let shelves: [(
         &str,
         ArtistSection,
         std::borrow::Cow<'static, str>,
         Vec<&Album>,
-    ); 4] = [
+    ); 5] = [
         (
             "artist-albums",
             ArtistSection::Albums,
             gettext(locale, "Albums"),
             albums
-                .map(|list| list.items.iter().filter(|a| !is_compilation(a)).collect())
+                .map(|list| {
+                    list.items
+                        .iter()
+                        .filter(of_section(ArtistSection::Albums))
+                        .collect()
+                })
                 .unwrap_or_default(),
         ),
         (
@@ -950,7 +956,25 @@ fn discography(app: &mut App, ui: &mut egui::Ui, id: &str, page: &crate::model::
             ArtistSection::Compilations,
             gettext(locale, "Compilations"),
             albums
-                .map(|list| list.items.iter().filter(is_compilation).collect())
+                .map(|list| {
+                    list.items
+                        .iter()
+                        .filter(of_section(ArtistSection::Compilations))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        ),
+        (
+            "artist-live-albums",
+            ArtistSection::LiveAlbums,
+            gettext(locale, "Live albums"),
+            albums
+                .map(|list| {
+                    list.items
+                        .iter()
+                        .filter(of_section(ArtistSection::LiveAlbums))
+                        .collect()
+                })
                 .unwrap_or_default(),
         ),
         (
@@ -969,13 +993,9 @@ fn discography(app: &mut App, ui: &mut egui::Ui, id: &str, page: &crate::model::
     {
         skeleton::shelf(ui, &palette, None, false);
     }
+    // Every version TIDAL's page lists, in its order: two releases of one
+    // title are both shown, as TIDAL shows them.
     for (salt, section, title, releases) in shelves {
-        // One copy of a release the artist put out more than once.
-        let mut seen = std::collections::HashSet::new();
-        let releases: Vec<&Album> = releases
-            .into_iter()
-            .filter(|album| seen.insert(album.name.to_lowercase()))
-            .collect();
         if releases.is_empty() {
             continue;
         }
@@ -1250,6 +1270,7 @@ pub fn section(app: &mut App, ui: &mut egui::Ui, id: &str, section: ArtistSectio
         ArtistSection::Albums => gettext(locale, "Albums"),
         ArtistSection::Singles => gettext(locale, "EPs & Singles"),
         ArtistSection::Compilations => gettext(locale, "Compilations"),
+        ArtistSection::LiveAlbums => gettext(locale, "Live albums"),
         ArtistSection::AppearsOn => gettext(locale, "Appears on"),
         ArtistSection::Videos => gettext(locale, "Videos"),
         ArtistSection::Related => gettext(locale, "Fans also like"),
@@ -1457,24 +1478,18 @@ pub fn section(app: &mut App, ui: &mut egui::Ui, id: &str, section: ArtistSectio
     );
 }
 
-/// The releases a section lists, one copy of any put out more than once.
+/// The releases a section lists: every version TIDAL's page lists, in its
+/// order.
 fn section_releases(page: &crate::model::ArtistPage, section: ArtistSection) -> Vec<Album> {
-    let is_compilation = |album: &&Album| album.album_type.as_deref() == Some("compilation");
     let Some(list) = section
         .filter()
         .and_then(|filter| page.albums.get(filter.groups()))
     else {
         return Vec::new();
     };
-    let mut seen = std::collections::HashSet::new();
     list.items
         .iter()
-        .filter(|album| match section {
-            ArtistSection::Albums => !is_compilation(album),
-            ArtistSection::Compilations => is_compilation(album),
-            _ => true,
-        })
-        .filter(|album| seen.insert(album.name.to_lowercase()))
+        .filter(|album| section.lists(album.album_type.as_deref()))
         .cloned()
         .collect()
 }

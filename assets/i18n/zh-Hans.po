@@ -2022,6 +2022,10 @@ msgstr "EP 和单曲"
 msgid "Compilations"
 msgstr "合辑"
 
+#: src/ui/artist.rs
+msgid "Live albums"
+msgstr "现场专辑"
+
 #: src/ui/artist.rs:957 src/ui/artist.rs:1253
 msgid "Appears on"
 msgstr "参与作品"

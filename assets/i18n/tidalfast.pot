@@ -2019,6 +2019,10 @@ msgstr ""
 msgid "Compilations"
 msgstr ""
 
+#: src/ui/artist.rs
+msgid "Live albums"
+msgstr ""
+
 #: src/ui/artist.rs:957 src/ui/artist.rs:1253
 msgid "Appears on"
 msgstr ""

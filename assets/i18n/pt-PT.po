@@ -2098,6 +2098,10 @@ msgstr "EPs e singles"
 msgid "Compilations"
 msgstr "Compilações"
 
+#: src/ui/artist.rs
+msgid "Live albums"
+msgstr "Álbuns ao vivo"
+
 #: src/ui/artist.rs:957 src/ui/artist.rs:1253
 msgid "Appears on"
 msgstr "Aparece em"

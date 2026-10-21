@@ -2025,6 +2025,10 @@ msgstr "EP 與單曲"
 msgid "Compilations"
 msgstr "合輯"
 
+#: src/ui/artist.rs
+msgid "Live albums"
+msgstr "現場專輯"
+
 #: src/ui/artist.rs:957 src/ui/artist.rs:1253
 msgid "Appears on"
 msgstr "參與作品"

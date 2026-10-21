@@ -2112,6 +2112,10 @@ msgstr "EP et singles"
 msgid "Compilations"
 msgstr "Compilations"
 
+#: src/ui/artist.rs
+msgid "Live albums"
+msgstr "Albums live"
+
 #: src/ui/artist.rs:957 src/ui/artist.rs:1253
 msgid "Appears on"
 msgstr "Apparaît sur"
