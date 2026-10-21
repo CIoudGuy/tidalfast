@@ -804,12 +804,15 @@ pub fn redux_state(snap: &PlaybackSnapshot) -> Value {
         // TIDAL keeps the account id as a number: plugins compare it with the
         // API's `creator.id` (multipleplaylists lists the user's own playlists).
         "session": { "countryCode": snap.country_code, "userId": user_id },
-        // The account's email is not known to the app: an empty string, as for a
-        // TIDAL account without one (Avatar hashes it for Gravatar).
+        // The account's email is never given to plugins: `email` is absent.
+        // Avatar hashes it for a Gravatar address; with an empty string it
+        // stored the address of a stranger's identicon (the empty email's
+        // md5) and the next start put that picture in place of the
+        // account's, where TIDAL's own account picture stays.
         // `profileName` is what the plugin template greets the user with
         // (`user.meta.profileName`); an account without a public name has an
         // empty one.
-        "user": { "meta": { "id": user_id, "countryCode": snap.country_code, "email": "", "profileName": snap.profile_name.clone().unwrap_or_default() } },
+        "user": { "meta": { "id": user_id, "countryCode": snap.country_code, "profileName": snap.profile_name.clone().unwrap_or_default() } },
         "content": { "mediaItems": media_items, "trackLists": track_lists },
         "remotePlayback": { "isConnected": false },
     })
