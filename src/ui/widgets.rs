@@ -2398,7 +2398,7 @@ pub(crate) fn tidal_columns(
     let dj = DJ_COLUMNS.with(std::cell::Cell::get);
     let time = if dj { 104.0 } else { 77.0 };
     let (bpm, key) = if dj { (102.0, 34.0) } else { (0.0, 0.0) };
-    let actions = if numbered { 100.0 } else { 130.0 };
+    let actions = if numbered { 100.0 } else { 130.0 } + super::plugin_dom::row_actions_width();
     let extra = super::plugin_dom::extra_columns(time);
     let fixed = number + time + bpm + key + actions + extra;
     // The optional columns TIDAL shows once the table is wide enough, each
@@ -2859,13 +2859,15 @@ fn tidal_row_cells(
             super::plugin_slots::inline(&mut child, &link, Position::After);
             super::plugin_slots::inline(&mut child, &title_cell, Position::Append);
             let actions = cell_key("actions").unwrap_or_default();
-            super::plugin_slots::at(
+            if let Some(drawn) = super::plugin_slots::at(
                 ui,
                 &actions,
                 Position::Prepend,
                 rect.right_center() - vec2(96.0, 0.0),
                 egui::Align2::RIGHT_CENTER,
-            );
+            ) {
+                super::plugin_dom::note_row_actions(drawn.width());
+            }
         }
         x += cols.title;
     }
@@ -3036,6 +3038,9 @@ fn tidal_row_cells(
     // "+" (add to playlist) and the heart always, each 24 points, 8 apart,
     // in white at 60 %.
     let menu_id = ui.id().with(("row-menu", row.index));
+    // What plugins put before the buttons (quick-queue's) has the room the
+    // buttons column grew by on its left; the buttons keep the right edge.
+    let x = x + super::plugin_dom::row_actions_width();
     // A plugin's `.click()` on the row's `[data-type=contextmenu-open]`.
     if super::plugin_dom::on()
         && super::plugin_dom::take_click(&crate::luna::dom_anchors::keys::row_cell(

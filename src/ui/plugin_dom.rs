@@ -72,6 +72,11 @@ struct State {
     /// The `min-width` of each column plugins insert before the time
     /// column (0 where none is set), in order.
     extra_cols: Vec<f32>,
+    /// How wide what plugins put before a track row's buttons is (the
+    /// widest row last frame, and so far this frame): TIDAL's buttons
+    /// column grows by it in every row, see-through ones too.
+    row_actions: f32,
+    row_actions_now: f32,
     hovered: HashSet<HoverKey>,
     hovered_now: HashSet<HoverKey>,
     /// Anchors drawn over the page this frame (a theme's header tab), with
@@ -268,6 +273,7 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
         if s.luna.is_none() {
             s.luna = Some(luna.clone());
         }
+        rotate_row_actions(ctx, s);
         #[cfg(test)]
         if s.test_overlay {
             return;
@@ -2387,6 +2393,34 @@ pub fn extra_column_widths(time: f32) -> Vec<f32> {
         return Vec::new();
     }
     with(|s| s.extra_cols.iter().map(|min| min.max(time)).collect())
+}
+
+/// What track rows put before their buttons last frame becomes the width
+/// the buttons column grows by this frame.
+fn rotate_row_actions(ctx: &egui::Context, s: &mut State) {
+    let now = std::mem::take(&mut s.row_actions_now);
+    if (now - s.row_actions).abs() > 0.5 {
+        s.row_actions = now;
+        ctx.request_repaint();
+    }
+}
+
+/// A row drew `width` points of plugin elements before its buttons
+/// (quick-queue's button, see-through until the row is hovered).
+pub fn note_row_actions(width: f32) {
+    if on() {
+        with(|s| s.row_actions_now = s.row_actions_now.max(width));
+    }
+}
+
+/// How much wider plugins make the track table's buttons column: TIDAL's
+/// is as wide as its widest row's buttons, so every row's other columns
+/// make room (quick-queue moves the artist and time columns left).
+pub fn row_actions_width() -> f32 {
+    if !on() {
+        return 0.0;
+    }
+    with(|s| s.row_actions)
 }
 
 /// How wide the extra columns are together (0 without plugins that add
@@ -6500,6 +6534,34 @@ mod tests {
             cover < wimp && wimp < main,
             "#wimp and the container paint over the cover: {rects:?}"
         );
+    }
+
+    /// quick-queue puts a 32-point button (see-through until the row is
+    /// hovered) before every track row's buttons. TIDAL's buttons column is
+    /// as wide as its widest row, so the title, artist and time columns of
+    /// every row make room (the time 34 points left at 2137); they stayed.
+    #[test]
+    fn what_rows_put_before_their_buttons_widens_the_buttons_column() {
+        test_overlay(Some(DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        }));
+        let ctx = egui::Context::default();
+        let columns =
+            || super::super::widgets::tidal_columns(1472.0, true, false, true, false, false);
+        let plain = columns();
+        note_row_actions(32.0);
+        with(|s| rotate_row_actions(&ctx, s));
+        let widened = columns();
+        let sum = |c: &super::super::widgets::TidalColumns| c.title + c.artist + c.album;
+        assert!(
+            (sum(&plain) - sum(&widened) - 32.0).abs() < 0.5,
+            "{plain:?} vs {widened:?}"
+        );
+        // A frame with no such rows gives the room back.
+        with(|s| rotate_row_actions(&ctx, s));
+        assert!((sum(&columns()) - sum(&plain)).abs() < 0.5);
+        test_overlay(None);
     }
 
     #[test]
