@@ -132,6 +132,78 @@ fn the_open_queues_button_is_tidals_active_button() {
     luna.shutdown();
 }
 
+/// The cotton candy family's panels glow inward (`box-shadow: inset 0 0
+/// 6em ...` on the queue panel) and cast a soft shadow (`0 0 2em ...`).
+/// Neither was drawn for a themed box.
+#[test]
+fn a_themed_panels_shadows_are_drawn() {
+    use crate::ui::theme_layout::{inset_shadow, shadow};
+    let vars = std::collections::BTreeMap::new();
+    let viewport = [2137.0, 1183.0];
+    let both = "inset 0px 0px 6em rgba(255, 255, 255, .4), 0px 0px 2em rgba(0, 0, 0, .2)";
+    let (color, blur, spread) = inset_shadow(Some(both), &vars, viewport).expect("the glow");
+    assert_eq!(
+        color,
+        egui::Color32::from_rgba_unmultiplied(255, 255, 255, 102)
+    );
+    assert_eq!((blur, spread), (96.0, 0.0));
+    assert!(shadow(Some(both), &vars, viewport).is_some());
+    assert!(inset_shadow(Some("0 0 2em black"), &vars, viewport).is_none());
+
+    // Drawn: the queue panel with the glow paints more than without it.
+    use crate::ui::plugin_dom as pd;
+    let shapes = |css: &str, name: &str| {
+        let mut frame = dom_anchors::sample_frame();
+        frame.queue_panel = Some((Some([1795.0, 60.0, 334.0, 900.0]), false));
+        let (luna, o) = overlay_with(
+            name,
+            css,
+            dom_anchors::build(&frame),
+            dom_anchors::keys::QUEUE_PANEL,
+        );
+        pd::test_overlay(Some((*o).clone()));
+        let ctx = egui::Context::default();
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            pd::queue_panel(
+                ui,
+                egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(334.0, 600.0)),
+                false,
+            );
+        });
+        out.textures_delta.clear();
+        pd::test_overlay(None);
+        luna.shutdown();
+        // A filled shape would lie inside the see-through box: an outer
+        // shadow shows only outside it.
+        let filled = out
+            .shapes
+            .iter()
+            .any(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.fill.a() > 0));
+        (out.shapes.len(), filled)
+    };
+    let (plain, _) = shapes(
+        r#"/* {"name": "Plain"} */ ._container_b3e8f28 { background-color: rgba(255, 103, 235, .6); }"#,
+        "plain-panel.css",
+    );
+    let (bordered, _) = shapes(
+        r#"/* {"name": "Border"} */ ._container_b3e8f28 { border: 2px solid white; }"#,
+        "border-panel.css",
+    );
+    let (shadowed, filled) = shapes(
+        r#"/* {"name": "Shadow"} */ ._container_b3e8f28 { border: 2px solid white; box-shadow: 0 0 2em rgba(0, 0, 0, .2); }"#,
+        "shadow-panel.css",
+    );
+    assert!(shadowed > bordered + 10, "{bordered} -> {shadowed}");
+    assert!(!filled, "nothing filled inside the see-through box");
+    let (glowing, _) = shapes(
+        &format!(
+            r#"/* {{"name": "Glow"}} */ ._container_b3e8f28 {{ background-color: rgba(255, 103, 235, .6); box-shadow: {both}; }}"#
+        ),
+        "glow-panel.css",
+    );
+    assert!(glowing > plain + 10, "{plain} -> {glowing}");
+}
+
 /// TIDAL heads the playlists with "All playlists" in its grey, which the
 /// cotton candy family turns 64 % white (`[class="_sectionHeader_ca54638"]
 /// ._titleText_1d0e44e { color }`); Rose Pine and Catppuccin, which name

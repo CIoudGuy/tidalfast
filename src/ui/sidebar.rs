@@ -1855,7 +1855,11 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
         let last = items.len() - 1;
         super::plugin_dom::note(|f| {
             for (i, (test, label, href, selected)) in items.into_iter().enumerate() {
-                let r = row.translate(vec2(0.0, -row.height() * (last - i) as f32));
+                // The row's pill, 16 in from the sidebar's edges, as
+                // TIDAL's `_navigationItem_` box (208 x 40 at 16).
+                let r = row
+                    .translate(vec2(0.0, -row.height() * (last - i) as f32))
+                    .shrink2(vec2(16.0, 0.0));
                 f.sidebar.items.push(crate::luna::dom_anchors::SidebarItem {
                     test: test.into(),
                     label: label.into_owned(),

@@ -624,6 +624,9 @@ struct HostOutline {
     color: egui::Color32,
     offset: f32,
     glow: Option<egui::epaint::Shadow>,
+    /// The element's corners, which the ring follows (the cotton candy
+    /// family's round navigation pills).
+    radius: egui::CornerRadius,
 }
 
 /// The outlines plugin CSS sets on the app's elements, for this overlay.
@@ -645,12 +648,15 @@ fn host_outlines(
                 .and_then(|v| css::length(&css::resolve_vars(v, vars), 16.0, 0.0, viewport))
                 .unwrap_or(0.0);
             let glow = super::theme_layout::shadow(h.style.box_shadow.as_deref(), vars, viewport);
+            let radius =
+                super::theme_layout::radii(h.style.border_radius.as_deref(), vars, viewport);
             Some(HostOutline {
                 key: key.clone(),
                 width,
                 color,
                 offset,
                 glow,
+                radius,
             })
         })
         .collect()
@@ -708,9 +714,26 @@ fn paint_host_outlines(ctx: &egui::Context, s: &mut State) {
                 );
             }
         }
+        // An outline follows the box's corners, grown by its offset.
+        let grow = |c: u8| {
+            (f32::from(c) + o.offset + o.width / 2.0)
+                .clamp(0.0, 255.0)
+                .round() as u8
+        };
+        let corners = egui::CornerRadius {
+            nw: grow(o.radius.nw),
+            ne: grow(o.radius.ne),
+            sw: grow(o.radius.sw),
+            se: grow(o.radius.se),
+        };
+        let corners = if o.radius == egui::CornerRadius::ZERO {
+            egui::CornerRadius::ZERO
+        } else {
+            corners
+        };
         painter.rect_stroke(
             rect.expand(o.offset + o.width / 2.0),
-            0.0,
+            corners,
             egui::Stroke::new(o.width, o.color),
             egui::StrokeKind::Middle,
         );
@@ -1176,12 +1199,124 @@ pub fn paint_themed_box(ui: &egui::Ui, key: &str, r: Rect, native: egui::CornerR
     let corner = radius(key).map_or(native, |r| {
         egui::CornerRadius::same(r.clamp(0.0, 255.0).round() as u8)
     });
+    // The box's `box-shadow`: its first outer layer under it, its first
+    // inset layer as a glow inside its edges (the cotton candy family's
+    // soft panels).
+    let viewport = viewport();
+    let (outer, inset) = host(key, |h, vars| {
+        let v = h.style.box_shadow.as_deref();
+        Some((
+            super::theme_layout::shadow(v, vars, viewport),
+            super::theme_layout::inset_shadow(v, vars, viewport),
+        ))
+    })
+    .unwrap_or((None, None));
+    if let Some(shadow) = outer {
+        paint_outer_shadow(ui.painter(), r, corner, shadow);
+    }
     let fill = host(key, own_fill).filter(|c| c.a() > 0);
     if let Some(fill) = fill {
         ui.painter().rect_filled(r, corner, fill);
     }
     paint_host_layers_rounded(ui, key, r, Some(corner));
+    if let Some((color, blur, spread)) = inset {
+        paint_inset_glow(ui.painter(), r, corner, color, blur, spread);
+    }
     true
+}
+
+/// An outer `box-shadow` round `r`, outside it only, as a browser draws
+/// one: a see-through box (the cotton candy family's glass card and track
+/// list) shows the page through it, never its own shadow. Full colour over
+/// the spread, then fading out across the blur.
+fn paint_outer_shadow(
+    painter: &egui::Painter,
+    r: Rect,
+    corner: egui::CornerRadius,
+    shadow: egui::epaint::Shadow,
+) {
+    let r = r.translate(egui::vec2(
+        f32::from(shadow.offset[0]),
+        f32::from(shadow.offset[1]),
+    ));
+    let (blur, spread) = (f32::from(shadow.blur), f32::from(shadow.spread));
+    let depth = spread + blur;
+    if depth <= 0.0 || shadow.color.a() == 0 {
+        return;
+    }
+    let steps = (depth / 2.0).ceil().clamp(1.0, 48.0);
+    let width = depth / steps;
+    for i in 0..steps as usize {
+        let d = i as f32 * width;
+        let coverage = if d < spread {
+            1.0
+        } else {
+            let t = ((d - spread) / blur.max(1.0)).clamp(0.0, 1.0);
+            0.5 * (1.0 - t) * (1.0 - t)
+        };
+        if coverage <= 0.0 {
+            continue;
+        }
+        let grow = |c: u8| (f32::from(c) + d).min(255.0).round() as u8;
+        let radius = egui::CornerRadius {
+            nw: grow(corner.nw),
+            ne: grow(corner.ne),
+            sw: grow(corner.sw),
+            se: grow(corner.se),
+        };
+        painter.rect_stroke(
+            r.expand(d + width / 2.0),
+            radius,
+            egui::Stroke::new(width, shadow.color.gamma_multiply(coverage)),
+            egui::StrokeKind::Middle,
+        );
+    }
+}
+
+/// An inset `box-shadow` inside `r`: full `color` over its `spread`, then
+/// fading out across its `blur`, as a browser's Gaussian falls off (half
+/// strength at the blur's start, nothing past its end).
+fn paint_inset_glow(
+    painter: &egui::Painter,
+    r: Rect,
+    corner: egui::CornerRadius,
+    color: Color32,
+    blur: f32,
+    spread: f32,
+) {
+    let depth = (spread + blur).min(r.width().min(r.height()) / 2.0);
+    if depth <= 0.0 {
+        return;
+    }
+    let steps = (depth / 2.0).ceil().clamp(1.0, 48.0);
+    let width = depth / steps;
+    for i in 0..steps as usize {
+        let d = i as f32 * width;
+        let coverage = if d < spread {
+            1.0
+        } else if blur > 0.0 {
+            let t = ((d - spread) / blur).clamp(0.0, 1.0);
+            0.5 * (1.0 - t) * (1.0 - t)
+        } else {
+            0.0
+        };
+        if coverage <= 0.0 {
+            continue;
+        }
+        let shrink = |c: u8| (f32::from(c) - d).max(0.0).round() as u8;
+        let radius = egui::CornerRadius {
+            nw: shrink(corner.nw),
+            ne: shrink(corner.ne),
+            sw: shrink(corner.sw),
+            se: shrink(corner.se),
+        };
+        painter.rect_stroke(
+            r.shrink(d + width / 2.0),
+            radius,
+            egui::Stroke::new(width, color.gamma_multiply(coverage)),
+            egui::StrokeKind::Middle,
+        );
+    }
 }
 
 /// The page's filter pill is drawn in `r`: paints a theme's box for it
@@ -4540,6 +4675,20 @@ pub fn paint_host_layers_rounded(
                     corners.unwrap_or_default(),
                 );
             }
+            BoxLayer::Paint(PageLayer::Radial {
+                center,
+                stops,
+                at,
+                ellipse,
+                size,
+            }) if corners.is_some() => {
+                let middle = egui::pos2(
+                    rect.left() + rect.width() * center[0],
+                    rect.top() + rect.height() * center[1],
+                );
+                let radii = radial_radii(rect, middle, *ellipse, *size);
+                paint_radial_in(ui.painter(), rect, middle, radii, stops, at, corners);
+            }
             BoxLayer::Frost(radius) => frost(ui, rect, *radius),
             BoxLayer::Fill(c, r) => {
                 ui.painter().rect_filled(rect, *r, *c);
@@ -5490,7 +5639,74 @@ fn paint_radial(
     stops: &[Color32],
     at: &[f32],
 ) {
-    if let Some(mesh) = radial_mesh(r, center, radii, stops, at) {
+    paint_radial_in(painter, r, center, radii, stops, at, None);
+}
+
+/// The point of `r` rounded by `corner` nearest to `p` (`p` itself when
+/// inside).
+fn into_rounded(p: egui::Pos2, r: Rect, corner: egui::CornerRadius) -> egui::Pos2 {
+    let p = r.clamp(p);
+    for (radius, cx, cy) in [
+        (
+            corner.nw,
+            r.left() + f32::from(corner.nw),
+            r.top() + f32::from(corner.nw),
+        ),
+        (
+            corner.ne,
+            r.right() - f32::from(corner.ne),
+            r.top() + f32::from(corner.ne),
+        ),
+        (
+            corner.sw,
+            r.left() + f32::from(corner.sw),
+            r.bottom() - f32::from(corner.sw),
+        ),
+        (
+            corner.se,
+            r.right() - f32::from(corner.se),
+            r.bottom() - f32::from(corner.se),
+        ),
+    ] {
+        let radius = f32::from(radius);
+        if radius <= 0.0 {
+            continue;
+        }
+        let beyond_x = if cx < r.center().x {
+            p.x < cx
+        } else {
+            p.x > cx
+        };
+        let beyond_y = if cy < r.center().y {
+            p.y < cy
+        } else {
+            p.y > cy
+        };
+        if beyond_x && beyond_y {
+            let c = egui::pos2(cx, cy);
+            let d = p - c;
+            if d.length() > radius {
+                return c + d.normalized() * radius;
+            }
+        }
+    }
+    p
+}
+
+/// [`paint_radial`] inside the corners of `corner`, when given: the
+/// gradient's outer rings are pulled in to the rounded edge, so a rounded
+/// see-through box (the cotton candy family's track list panel) shows no
+/// square corners of its own darker edge.
+fn paint_radial_in(
+    painter: &egui::Painter,
+    r: Rect,
+    center: egui::Pos2,
+    radii: egui::Vec2,
+    stops: &[Color32],
+    at: &[f32],
+    corner: Option<egui::CornerRadius>,
+) {
+    if let Some(mesh) = radial_mesh(r, center, radii, stops, at, corner) {
         let clip = painter.clip_rect().intersect(r);
         painter.with_clip_rect(clip).add(mesh);
     }
@@ -5498,13 +5714,15 @@ fn paint_radial(
 
 /// A radial gradient as a mesh: rings at its stops round `center`, `radii`
 /// the ending shape (an ellipse), each stop at its place along the ray;
-/// past the last stop its colour goes on to the box's corners.
+/// past the last stop its colour goes on to the box's corners. With
+/// `corner`, a ring point outside the rounded box is pulled in to its edge.
 fn radial_mesh(
     r: Rect,
     center: egui::Pos2,
     radii: egui::Vec2,
     stops: &[Color32],
     at: &[f32],
+    corner: Option<egui::CornerRadius>,
 ) -> Option<egui::Mesh> {
     const SEGMENTS: u32 = 64;
     if stops.is_empty() || radii.x <= 0.0 || radii.y <= 0.0 {
@@ -5550,10 +5768,9 @@ fn radial_mesh(
     for &(scale, color) in &rings[first..] {
         for s in 0..SEGMENTS {
             let a = s as f32 / SEGMENTS as f32 * std::f32::consts::TAU;
-            mesh.colored_vertex(
-                center + egui::vec2(a.cos() * radii.x, a.sin() * radii.y) * scale,
-                color,
-            );
+            let p = center + egui::vec2(a.cos() * radii.x, a.sin() * radii.y) * scale;
+            let p = corner.map_or(p, |corner| into_rounded(p, r, corner));
+            mesh.colored_vertex(p, color);
         }
         count += 1;
     }
@@ -5987,6 +6204,97 @@ pub(crate) fn test_overlay(overlay: Option<DomOverlay>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An outline follows its box's corners: the cotton candy family rings
+    /// each round navigation pill (`outline: 2px solid; border-radius:
+    /// 2em`), which TIDAL draws round. Tidalfast drew square rings.
+    #[test]
+    fn a_host_outline_follows_its_boxs_corners() {
+        use crate::luna::dom::{HostOverride, Style};
+        let mut o = DomOverlay::default();
+        o.hosts.insert(
+            "pill".into(),
+            HostOverride {
+                style: Style {
+                    outline: Some("2px solid #ffffff".into()),
+                    border_radius: Some("20px".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        let outlines = host_outlines(&o, &BTreeMap::new(), [1280.0, 800.0]);
+        assert_eq!(outlines.len(), 1);
+        assert_eq!(outlines[0].radius, egui::CornerRadius::same(20));
+    }
+
+    /// A radial gradient in a rounded box stays inside its corners: the
+    /// cotton candy family's track list panel (`border-radius: 1.1em`, a
+    /// gradient darker at its edge) showed square dark corners outside its
+    /// rounded border.
+    #[test]
+    fn a_radial_gradient_keeps_inside_rounded_corners() {
+        let r = Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(200.0, 100.0));
+        let corner = egui::CornerRadius::same(20);
+        let p = into_rounded(egui::pos2(0.0, 0.0), r, corner);
+        assert!(
+            (p.distance(egui::pos2(20.0, 20.0)) - 20.0).abs() < 0.01,
+            "{p:?}"
+        );
+        // Inside, and along a straight edge, points stay.
+        assert_eq!(
+            into_rounded(egui::pos2(100.0, 50.0), r, corner),
+            egui::pos2(100.0, 50.0)
+        );
+        assert_eq!(
+            into_rounded(egui::pos2(100.0, -10.0), r, corner),
+            egui::pos2(100.0, 0.0)
+        );
+        let p = into_rounded(egui::pos2(250.0, 130.0), r, corner);
+        assert!(
+            (p.distance(egui::pos2(180.0, 80.0)) - 20.0).abs() < 0.01,
+            "{p:?}"
+        );
+    }
+
+    /// An elliptical radial gradient with its stop positions, drawn in a
+    /// rounded box, keeps every ring inside the corners, and its stops'
+    /// places along the ray are those of the plain gradient.
+    #[test]
+    fn an_ellipse_radial_follows_rounded_corners() {
+        let r = Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(200.0, 100.0));
+        let corner = egui::CornerRadius::same(20);
+        let Some(PageLayer::Radial {
+            center,
+            stops,
+            at,
+            ellipse,
+            size,
+        }) = page_layer("radial-gradient(ellipse at 50% 50%, red, blue 40%, green)")
+        else {
+            panic!("not a radial gradient");
+        };
+        let middle = egui::pos2(r.width() * center[0], r.height() * center[1]);
+        let radii = radial_radii(r, middle, ellipse, size);
+        let rounded = radial_mesh(r, middle, radii, &stops, &at, Some(corner)).unwrap();
+        let plain = radial_mesh(r, middle, radii, &stops, &at, None).unwrap();
+        let inside = |p: egui::Pos2| {
+            let c = egui::pos2(p.x.clamp(20.0, 180.0), p.y.clamp(20.0, 80.0));
+            r.expand(0.01).contains(p) && p.distance(c) <= 20.01
+        };
+        assert!(rounded.vertices.iter().all(|v| inside(v.pos)));
+        assert!(plain.vertices.iter().any(|v| !inside(v.pos)));
+        // The blue ring at 40 % lies well inside the box and does not move.
+        let blue = |m: &egui::Mesh| -> Vec<egui::Pos2> {
+            m.vertices
+                .iter()
+                .filter(|v| v.color == Color32::BLUE)
+                .map(|v| v.pos)
+                .collect()
+        };
+        assert_eq!(blue(&rounded), blue(&plain));
+        assert!(!blue(&plain).is_empty());
+    }
 
     /// star-ratings and AltPlay listen for clicks on the page, which gives
     /// the filter pill's anchor an override with only `listens`: the
@@ -7442,7 +7750,7 @@ mod tests {
         let r = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(2000.0, 1000.0));
         let radii = radial_radii(r, r.min, ellipse, size);
         assert!((radii.x - 2828.4).abs() < 1.0 && (radii.y - 1414.2).abs() < 1.0);
-        let mesh = radial_mesh(r, r.min, radii, &stops, &at).unwrap();
+        let mesh = radial_mesh(r, r.min, radii, &stops, &at, None).unwrap();
         // The ring where it turns clear crosses the axes at 70 %.
         let clear: Vec<_> = mesh
             .vertices

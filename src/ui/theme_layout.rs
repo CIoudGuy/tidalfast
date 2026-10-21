@@ -434,6 +434,39 @@ pub fn shadow(
     None
 }
 
+/// The first `inset` layer of a `box-shadow`: the glow a box casts inward
+/// from its edges (colour, blur, spread). `None` without one.
+pub fn inset_shadow(
+    value: Option<&str>,
+    vars: &BTreeMap<String, String>,
+    viewport: [f32; 2],
+) -> Option<(Color32, f32, f32)> {
+    let v = css::resolve_vars(value?, vars);
+    let v = v.trim().trim_end_matches("!important").trim();
+    for layer in css::split_top(v, ',') {
+        let words = css::words(layer.trim());
+        if !words.iter().any(|w| w.eq_ignore_ascii_case("inset")) {
+            continue;
+        }
+        let mut lengths = Vec::new();
+        let mut color = None;
+        for w in &words {
+            if let Some(n) = css::length(w, 16.0, 0.0, viewport) {
+                lengths.push(n);
+            } else if let Some(c) = css::color(w) {
+                color = Some(c);
+            }
+        }
+        let color = color.unwrap_or(Color32::from_black_alpha(128));
+        if lengths.len() < 2 || color.a() == 0 {
+            continue;
+        }
+        let at = |i: usize| lengths.get(i).copied().unwrap_or(0.0).max(0.0);
+        return Some((color, at(2).min(160.0), at(3).min(64.0)));
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
