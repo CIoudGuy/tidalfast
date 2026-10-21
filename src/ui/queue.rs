@@ -685,12 +685,19 @@ pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
                 ui.multiply_opacity(shown);
             }
             let over_now_playing = app.now_playing_view;
+            let panel = egui::Rect::from_min_size(ui.max_rect().min, rect.size());
+            let boxed = super::plugin_dom::paints_box(crate::luna::dom_anchors::keys::QUEUE_PANEL);
+            // A theme that shapes the panel (its corners, border, shadow)
+            // but gives it no fill of its own leaves TIDAL's (Minimalist
+            // Black, Giorgeous): the panel stays a card, not a hole.
+            if boxed
+                && super::plugin_dom::fill(crate::luna::dom_anchors::keys::QUEUE_PANEL).is_none()
+            {
+                ui.painter()
+                    .rect_filled(panel, 12.0, floating_fill(&palette, over_now_playing));
+            }
             // A theme's box for TIDAL's side panel replaces the native one.
-            let themed = super::plugin_dom::queue_panel(
-                ui,
-                egui::Rect::from_min_size(ui.max_rect().min, rect.size()),
-                over_now_playing,
-            );
+            let themed = super::plugin_dom::queue_panel(ui, panel, over_now_playing);
             let frame = Frame::new()
                 .fill(if themed {
                     egui::Color32::TRANSPARENT
