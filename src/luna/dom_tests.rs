@@ -533,6 +533,52 @@ document.addEventListener("contextmenu", (e) => {
     finish(luna, dir);
 }
 
+/// radiant-lyrics puts each word in a `display: inline-block` span and a
+/// `" "` text node between two words. The UI was never told of white space,
+/// so the words ran together ("Iwon'tleaveyou"). A space between siblings
+/// reaches it; white space at either end of a box does not.
+#[test]
+fn white_space_between_words_reaches_the_ui() {
+    let (luna, _host, dir) = start(
+        r##"
+lib.observe(unloads, "._moreContainer_f6162c8", (el) => {
+	const line = document.createElement("div");
+	line.className = "t-line";
+	line.appendChild(document.createTextNode("  "));
+	for (const w of ["I", "won't", "leave"]) {
+		const s = document.createElement("span");
+		s.style.display = "inline-block";
+		s.textContent = w;
+		line.appendChild(s);
+		line.appendChild(document.createTextNode(" "));
+	}
+	el.prepend(line);
+});
+"##,
+    );
+    luna.sync_dom(tree());
+    let o = overlay_until(&luna, 10, |o| !o.injected.is_empty());
+    let line = o
+        .injected
+        .iter()
+        .flat_map(|i| i.nodes.iter())
+        .find(|v| v.attrs.iter().any(|(k, c)| k == "class" && c == "t-line"))
+        .expect("the line");
+    let parts: Vec<&str> = line
+        .children
+        .iter()
+        .map(|c| {
+            if c.tag == "#text" {
+                c.text.as_deref().unwrap_or("")
+            } else {
+                c.children[0].text.as_deref().unwrap_or("")
+            }
+        })
+        .collect();
+    assert_eq!(parts, ["I", " ", "won't", " ", "leave"]);
+    finish(luna, dir);
+}
+
 #[test]
 fn plugin_css_restyles_hosts_and_sets_variables() {
     let (luna, _host, dir) = start(

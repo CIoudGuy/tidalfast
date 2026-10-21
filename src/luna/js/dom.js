@@ -3265,7 +3265,14 @@
 			return null;
 		}
 		nodeBudget--;
-		if (n instanceof Text) return n._data.trim() === "" ? null : { id: vidOf(n), tag: "#text", text: n._data };
+		if (n instanceof Text) {
+			if (n._data.trim() !== "") return { id: vidOf(n), tag: "#text", text: n._data };
+			// White space between two siblings is the gap between words
+			// that flow in a line (radiant-lyrics' word spans, a " " text
+			// node apart); the UI drops it where boxes do not flow in lines,
+			// as a browser does in flex and grid boxes.
+			return n.previousSibling && n.nextSibling ? { id: vidOf(n), tag: "#text", text: " " } : null;
+		}
 		if (!(n instanceof Element) || SKIP.has(n.localName)) return null;
 		const v = { id: vidOf(n), tag: n.localName };
 		const attrs = [];
