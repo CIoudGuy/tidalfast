@@ -158,6 +158,9 @@ pub struct Style {
     pub fill: Option<String>,
     pub white_space: Option<String>,
     pub flex: Option<String>,
+    /// `wrap` lets a flex row's items run onto more lines
+    /// (DownloadManager's start menu tiles, two to a line in their column).
+    pub flex_wrap: Option<String>,
     pub order: Option<String>,
     pub pointer_events: Option<String>,
     pub background_position: Option<String>,
