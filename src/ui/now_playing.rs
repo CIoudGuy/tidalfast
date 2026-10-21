@@ -75,6 +75,15 @@ pub fn backdrop_in(app: &mut App, ui: &mut egui::Ui, rect: Rect, clip: Rect) {
                 .with_clip_rect(clip)
                 .rect_filled(rect, 0.0, fill);
         }
+        // The view's own gradients over it (StarryNight's sky, black at the
+        // top to its blue at the foot, where the fill alone is the black).
+        let mut layer = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+        layer.set_clip_rect(clip);
+        super::plugin_dom::paint_host_layers(
+            &layer,
+            crate::luna::dom_anchors::keys::NOW_PLAYING,
+            rect,
+        );
         return;
     }
     super::player_background::paint(app, ui, rect, clip);
