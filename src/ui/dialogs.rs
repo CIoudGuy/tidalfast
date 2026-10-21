@@ -105,7 +105,6 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
                 } else if matches!(
                     dialog,
                     Dialog::ArtistBio { .. }
-                        | Dialog::AlbumReview { .. }
                         | Dialog::Blocked
                 ) || tidal_card
                 {
@@ -126,7 +125,6 @@ pub fn show(app: &mut App, ctx: &egui::Context) {
             match dialog {
                 Dialog::ArtistBio { id } => super::artist::bio_dialog(app, ui, &id),
                 Dialog::Blocked => super::blocked::dialog(app, ui),
-                Dialog::AlbumReview { id } => super::album_extras::review_dialog(app, ui, &id),
                 Dialog::Embed { .. } => embed_dialog(app, ui),
                 Dialog::CreatePlaylist { .. } => create_playlist(app, ui),
                 Dialog::EditPlaylist { .. } => edit_playlist(app, ui),

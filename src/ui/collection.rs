@@ -3022,7 +3022,6 @@ pub fn album(app: &mut App, ui: &mut egui::Ui, id: &str) {
                     volumes: &volumes,
                 },
             );
-            super::album_extras::review_block(app, ui, id, &page.review);
             ui.add_space(24.0);
             if let Some(date) = &album.release_date {
                 theme::text(
