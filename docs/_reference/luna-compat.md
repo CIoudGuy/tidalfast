@@ -17,15 +17,16 @@ ones, and each row says which round last verified it. How a round worked is unde
 
 | | ✅ live | ✅ tests only | 🔑 your permission | ⛔ by design | ⚠️ external | ❌ open | total |
 |---|---|---|---|---|---|---|---|
-| Plugins | 74 | 1 | 5 | 6 | 1 | 0 | 87 |
+| Plugins | 74 | 1 | 6 | 5 | 1 | 0 | 87 |
 | Catalogue themes | 51 | 0 | 0 | 0 | 0 | 1 | 52 |
 
-Since 2026-10-20 (owner decision) five plugins that were refused by design
+Since 2026-10-20 (owner decision) six plugins that were refused by design
 run once the user allows what they ask for: discord-utils (the TIDAL
 sign-in), MediaKeysFixer (system-wide shortcuts), mpv (mpv's own pipe, after
 starting mpv behind the `child_process` prompt, and TIDAL's audio), and the
-Song Downloader and SongDownloader ElVigilante downloaders (saving TIDAL
-audio). See "Permissions a plugin asks for".
+Song Downloader, SongDownloader ElVigilante and (since 2026-10-22)
+DownloadManager downloaders (saving TIDAL audio). See "Permissions a plugin
+asks for".
 
 Round 20 added @visiuun/3d-cover, published after the sweep (87 plugins);
 it is live; round 24 found nothing missing (the Base model, the fade and the spinner
@@ -42,8 +43,7 @@ LangRomanizer were seen working live on a Korean song, and DesktopConnect is a
 by-design refusal (it needs TIDAL's closed remote-desktop code).
 
 Nothing is open in the plugin rows; the by-design refusals are
-DownloadManager (it froze the app at every start), DesktopConnect (TIDAL's
-closed remote-desktop controller), TidalMediaControls' native addon,
+DesktopConnect (TIDAL's closed remote-desktop controller), TidalMediaControls' native addon,
 ScrobbleFix's Last.fm credentials, miniplayer's browser-engine window and
 playlist-indicator's TIDAL web modal.
 
@@ -71,8 +71,8 @@ user's own account elsewhere, and "tests only" rows work and carry no label.
 When a row here changes, change `COMPAT` in the same commit
 (`luna::compat_label_tests` checks the rows against the stores' entries). The
 pill text and the reasons are English in every language. A plugin the runtime
-refuses (LastFM, DownloadManager) is left out of the store as before, and its
-imported copy carries the label.
+refuses (LastFM) is left out of the store as before, and its imported copy
+carries the label.
 
 Notes that apply to every plugin:
 
@@ -94,7 +94,7 @@ Notes that apply to every plugin:
 |---|---|---|---|
 | DiscordRPC | Inrixia/luna-plugins | ✅ live r13 | Rich presence over the Discord IPC pipe, checked against a fake Discord on pipe 7: READY handshake, SET_ACTIVITY with title, artist, cover, timestamps and the Play Song button, and the paused activity. Its bundled WebAssembly (undici's HTTP parser) loads. |
 | ListenBrainz | Inrixia/luna-plugins | ✅ live r13 | With its domain pointed at a local fake endpoint, `playing_now` and `single` arrive as `POST /1/submit-listens` with the track, artist, release and ISRC. The real service needs the user's own token. |
-| NoBuffer | Inrixia/luna-plugins | ✅ live r13 | The engine's stalls trigger its toast and log; its native `voidTrack` (kick TIDAL's CDN) gets the song's stream through `fetchMediaItemStream`, which since the save-audio permission asks first (TIDAL fetches it silently). Batch 4 (r25, off-screen demo, store build, compared view by view with the owner's TIDAL captures in `.internal/luna-reference/<plugin>/`, shots in its `tidalfast/`): the 20-view walk is unchanged, as in TIDAL; the stall path was not triggered in either. |
+| NoBuffer | Inrixia/luna-plugins | ✅ live r13 | The engine's stalls trigger its toast and log; its native `voidTrack` (kick TIDAL's CDN) reads the song's stream to its end into a Writable that drops every chunk and saves nothing; Tidalfast answers that module itself (r26): the host reads the stream and drops it, the bytes never reach the plugin, and nothing asks (it went through the save-audio prompt, which says the plugin saves songs as files; `no_buffers_cdn_kick_reads_the_stream_without_the_save_audio_question`). Batch 4 (r25, off-screen demo, store build, compared view by view with the owner's TIDAL captures in `.internal/luna-reference/<plugin>/`, shots in its `tidalfast/`): the 20-view walk is unchanged, as in TIDAL; the stall path was not triggered in either (r26: the demo's playback does not stream, so `TIDALFAST_DEMO_STREAM_KBPS` cannot stall it; the kick is covered with NoBuffer's own native module in the test). |
 | PersistSettings | Inrixia/luna-plugins | ✅ live r25 | Its once-a-second corrections of normalisation are answered 'does nothing in Tidalfast' (no loop). Exclusive mode (ON by default, so a fresh install would switch it on within a second) now needs the user's yes: the first `player/SET_DEVICE_MODE("exclusive")` asks (Allow once, Always allow, Deny); until then and after a Deny the output stays shared and the store goes back to shared; Allow switches the Bit-perfect setting on. Seen in the demo: the question shows at install and Bit-perfect stays off (`a_plugins_device_mode_switches_the_exclusive_output_once_allowed`). In TIDAL it switches unasked; the owner's rule is that it never does here. Walk unchanged, as in TIDAL. |
 | RealMAX | Inrixia/luna-plugins | ✅ live r13 | Cancels `playQueue/ADD_NOW` and re-dispatches it with the max-quality ids: playing a High release played the HiRes release; `MediaItem.max` over 54 liked songs found 5. A lookup right after a burst of requests can come back empty (the plugin then plays the original). Batch 4 (r25, off-screen demo, store build, compared view by view with the owner's TIDAL captures in `.internal/luna-reference/<plugin>/`, shots in its `tidalfast/`): walk and settings card unchanged, as in TIDAL; the replace path not re-run. |
 | Avatar | Inrixia/luna-plugins | ✅ live r25, Partly supported | A picture address set in its card replaces the account picture through CSS (in TIDAL 2.43.2 its `[class^=_profilePicture_]` selector matches nothing, so there it changes nothing). Its Gravatar fallback needs the account's email, which plugins are not given (`user.meta.email` is absent): the plugin's md5 call fails and nothing changes, where before the empty email's md5 put a stranger's Gravatar identicon over the account picture at the next start (`plugins_get_no_email_for_avatars_gravatar`). |
@@ -112,7 +112,7 @@ Notes that apply to every plugin:
 | @meowarex/colorama-lyrics | meowarex/TidalLuna-Plugins | ✅ live r17 | The colour picker opens from its swatch button and a swatch click turned the lyrics red (r13). Since r17 its `position: fixed` card and window-wide backdrop are drawn over the window's centre with a dimming layer (a click on the layer closes it), as a browser places them; a card taller than the window scrolls. Differs from TIDAL 2.43.2 (r20): there its selectors no longer match TIDAL's lyric markup and it changes nothing; here they match Tidalfast's lyric lines, so the colour applies. Whole-app walk (2026-10-21): 1:1, nothing changes outside the lyrics. |
 | @meowarex/copy-lyrics | meowarex/TidalLuna-Plugins | ✅ live r21 | A drag over the now-playing lyrics highlights the characters between press and release in its `::selection` colour (#48003c), per wrapped row and at each line's opacity and size, and copies exactly those characters on mouse-up (`textPoint` offsets, `selectBetween`), as in TIDAL (r21). The highlight goes on release, as in TIDAL (the plugin clears the selection at once). Differs: the selected words keep their colour (`::selection` `color` is not applied), and only the now-playing lyrics can be selected (the only lyrics Tidalfast shows). Its document listeners no longer hide the playlist filter's outline (r20). Whole-app walk (2026-10-21): 1:1, nothing changes outside the lyrics. |
 | @meowarex/element-hider | meowarex/TidalLuna-Plugins | ✅ live r21 | Compared with TidaLuna (r20): its two items and divider stack under every context menu's rows, as in TIDAL; hovering 'Hide This Element' rings the element in red with its glow; hiding works on the anchors that can be hidden (album and playlist header art too). r21: what plugins append to `[data-test=contextmenu]` is laid out from the menu's edges, as TIDAL's element is the menu's whole box, so the items' labels line up with the menu's own rows (16 in) and the divider runs 8 in from each edge (they sat 4 points right). Whole-app walk (2026-10-21): 1:1, its two items and divider in the song and album card menus only. |
-| @meowarex/radiant-lyrics | meowarex/TidalLuna-Plugins | ✅ live r21 | Restyled lines and its now-playing controls show (r13). r21, compared with TidaLuna (r20): the 'Cover Everywhere' WebGL backdrop shows behind the sidebar and the page (its canvas sits at `z-index: -1` in a fixed `#000` box that is a stacking context; the canvas was drawn under the box's black, in every window, not only off screen), `main { background: unset }` clears the page's own colour as in TIDAL, and the page runs on under the floating bar (10 points in, rounded) to the window's bottom, showing round it. Differs: TIDAL blurs what lies under the glass bar; that blur is not drawn, so the bar is its tint over the window's colour and the page does not show through it. The canvas's `contrast()` is not applied (its `brightness()` is). Whole-app walk (2026-10-21): every view re-skinned as in TIDAL. Fixed by it: its word-by-word lines ran their words together ("Iwon'tleaveyou"); the now-playing full screen button it hides stayed; its sparkle in the Lyrics tab was not drawn and the tab did not widen for it; the now-playing backdrop turned black with streaks (its canvas, sized from `main` instead of the window, was made again when the view opened). Differs: while its Lyrics Options menu is open the widened Lyrics pill keeps its word on the left and its round corners, and the sparkle in it is not drawn; in the narrow window the page shows through the see-through play queue panel, which Tidalfast lays over the page there (TIDAL narrows the page beside it). |
+| @meowarex/radiant-lyrics | meowarex/TidalLuna-Plugins | ✅ live r21 | Restyled lines and its now-playing controls show (r13). r21, compared with TidaLuna (r20): the 'Cover Everywhere' WebGL backdrop shows behind the sidebar and the page (its canvas sits at `z-index: -1` in a fixed `#000` box that is a stacking context; the canvas was drawn under the box's black, in every window, not only off screen), `main { background: unset }` clears the page's own colour as in TIDAL, and the page runs on under the floating bar (10 points in, rounded) to the window's bottom, showing round it. Differs: TIDAL blurs what lies under the glass bar; that blur is not drawn, so the bar is its tint over the window's colour and the page does not show through it. The canvas's `contrast()` is not applied (its `brightness()` is). Whole-app walk (2026-10-21): every view re-skinned as in TIDAL. Fixed by it: its word-by-word lines ran their words together ("Iwon'tleaveyou"); the now-playing full screen button it hides stayed; its sparkle in the Lyrics tab was not drawn and the tab did not widen for it; the now-playing backdrop turned black with streaks (its canvas, sized from `main` instead of the window, was made again when the view opened). r26: its sparkle in the open Lyrics tab is drawn (its `#1e1e1e` was read against the dark window, made white and lost in the white pill), the tab its options menu hangs from is square at the bottom with its word centred, and in the narrow window the page lies beside the see-through play queue panel, as in TIDAL. Differs: the options menu opens under where the tab was before it widened (TIDAL waits for the widening's `transitionend`, which Tidalfast does not send for TIDAL's own elements). |
 | @seth/CatJam | wont-stream/lunar (dev) | ✅ live r13 | The cat (790x604 VP9 WebM with alpha) lies over the player bar's cover at 80 %, as in TidaLuna (r20: it stood above the bar, then showed only a strip); follows the song, see 'Plugin <video>'. Since r24 it goes with the cover while the now-playing view is up (the bar leaves its cover out there, and the cat stayed pale over the title and artists that move to its place). Whole-app walk (2026-10-21): 1:1, the cat over the player bar's cover in every view, the narrow window too. |
 | @jxnxsdev/utils | jxnxsdev/luna-plugins | ✅ live r13 | Library. A probe plugin called its exports: LRC parser, `clamp`, `toRgbString`, `sanitizeSearchQuery`, `retryWithBackoff`, QR data URL, media snapshot and cover colours all work; `getTidalCredentials` asks for the TIDAL sign-in permission first. r20: no UI and no view changed, as in TIDAL. Whole-app walk (2026-10-21, every main view and the narrow window, against TidaLuna's): 1:1, no view changes; its card on the Plugins page. |
 | @jxnxsdev/streamer-tools | jxnxsdev/luna-plugins | ✅ live r13 | With its port setting moved off 2403 the overlay, widgets and `/_plugins` answer; unmatched routes answer 404. The default port 2403 fails with EACCES on PCs where Windows reserves it (machine-specific). 1:1 in the app (r20): no UI besides its settings, no view changed. |
@@ -166,7 +166,7 @@ Notes that apply to every plugin:
 | Hunminjeongeum | seomin0610/luna-plugins | ✅ live r17 | A search now emits `search/SEARCH_RESULT_SUCCESS` (tracks as TIDAL v1 JSON with `isrc`, `topHits`). The plugin looked BTS's Spring Day up on MusicBrainz by ISRC and the song showed as 봄날 in the search tracks, the album, the top results, the queue and the player bar; the lyrics view carried its 한글화됨 badge. Edits a plugin makes to the answer's payload in place, now or seconds later, and its own dispatches of `search/SEARCH_RESULT_SUCCESS` or the `content/LOAD_*_MEDIA_ITEM(S)_SUCCESS` answers, are what the track rows show (a title map by song id; it clears when a plugin is switched off, reloaded or removed). Lookups need MusicBrainz to answer (it rate-limits with 503 and misses unknown ISRCs with 404, which the plugin remembers). Batch 4: walk and settings card unchanged, as in TIDAL. |
 | StarryNight | seomin0610/luna-plugins | ✅ live r25 | The star field shows over the black window on the Collection page and the now-playing view; shooting stars animate. Batch 4 (r25, off-screen demo, store build, compared view by view with the owner's TIDAL captures in `.internal/luna-reference/<plugin>/`, shots in its `tidalfast/`): the now-playing view, its cover backdrop hidden, now shows the sky's gradient (it showed only the gradient's first colour, black); sidebar, player bar and queue panel translucent over the sky as in TIDAL. Star positions are random in both. |
 | @visiuun/quick-queue | visiuun/tidaluna-plugins | ✅ live r7 | Queue button left of the row's '...' on hover, as in TidaLuna (r20: after the list scrolled under a still pointer it stayed on the row that had been there); queues the song with a toast. About 4 points closer to the '...' than in TIDAL. Whole-app walk (2026-10-21): its button, see-through until the row is hovered, now widens every row's buttons column as in TIDAL, so the artist and time columns move left (16 and 32 points at 2137 wide; TIDAL 18 and 34); they used to stay and the button sat in the old room. Otherwise 1:1. |
-| @visiuun/tidal-genres | visiuun/tidaluna-plugins | ✅ live r7 | Genre pills in the player bar and after row titles in the system's monospace face (Consolas), as in TidaLuna (r20: they were in the app's face). Whole-app walk (2026-10-21): its player-bar badge now shows after the heart and "..." in every view (it goes after the heart row inside `_trackContent_`, which was never drawn); the row tags as before. Differs: TIDAL's track info moves about 10 points left under its layout override, Tidalfast's stays. |
+| @visiuun/tidal-genres | visiuun/tidaluna-plugins | ✅ live r7 | Genre pills in the player bar and after row titles in the system's monospace face (Consolas), as in TidaLuna (r20: they were in the app's face). Whole-app walk (2026-10-21): its player-bar badge now shows after the heart and "..." in every view (it goes after the heart row inside `_trackContent_`, which was never drawn); the row tags as before. r26: over the now-playing view the track info moves 10 points left under its layout override (`display: flex` on `track-info`), as in TIDAL. |
 | @visiuun/3d-cover | visiuun/tidaluna-plugins | ✅ live r24 | Hovering the now-playing cover (a still one; an animated cover is a `<video>`, as in TIDAL, and is left alone) shows its WebGL parallax over the cover, leaning with the cover's tilt, which it reads from TIDAL's `_tilt_` element (`perspective(1000px) rotateX() rotateY()`, matrix through `DOMMatrix`). Its depth map comes from transformers.js, which it loads from jsDelivr into a module `Worker`: Tidalfast answers that bundle with a stand-in whose `depth-estimation` pipeline fetches the same Depth-Anything-V2 files through the plugin's own cache and runs the model natively (`src/luna/depth.rs`, about 2 s a cover in a release build on one low-priority thread, against 3.3 s in TidaLuna's WebAssembly; each cover once, then from the plugin's own depth cache). The q8 output differs from onnxruntime's by about 0.6% of the depth range, as tract's does: rounding at quantization boundaries. Works 1:1, no label (checked live in an off-screen demo window, round 24, installed from its store entry and compared with TidaLuna's behaviour from the plugin's source and `.internal/luna-reference/visiuun-3d-cover`): the Small model (2.4 s a cover) and the Base model, which the plugin's own `fetch` downloads from Hugging Face (a 102 MB file, spooled to disk, then read into one buffer), tract runs (5.6 to 6.9 s a cover, in a build with optimizations on one thread) and the parallax shows; the canvas fades in over 0.12 s on CSS `ease` (burst of screenshots: opacity 0, .47, .88, .99, 1 at 0, 38, 77, 111, 146 ms), the spinner (14 px ring, top right of the cover) turns, its settings page has the same controls, texts and layout as the reference capture, and Clear Depth Cache and Clear Downloaded Model delete what they say. The two gaps this row listed in round 20 closed in batch 3 (CSS transitions and animations are drawn) and when the download limit went from 64 to 512 MB. The q8 output still differs from onnxruntime's by about 0.6% of the depth range (rounding at quantization boundaries), which cannot be seen; the plugin's own caches, its models included, are in its data folder and go when it is removed. Whole-app walk (2026-10-21): 1:1, no view changes (its effect needs the pointer on the now-playing cover). |
 | @cioudguy/no-remix | CIoudGuy/TidaLuna-Plugins | ✅ live r10 | Removes remixes the user queued and skips one that starts playing (also from a playlist or album); took 2 remixes out of Next up at once; context menu entry marks and unmarks. |
 | PlayerAPI | thororen1234/luna-plugins | ✅ live r13 | GET answers the playing song; resume and pause work since the `executeJavaScript` fix. |
@@ -178,7 +178,7 @@ Notes that apply to every plugin:
 | obs-now-playing | 0xVacent/tidal-luna-plugins | ✅ live r13 | `song.txt`, `songtime.txt` and `cover.png` are written to its output folder and follow the song and time every second; 17 settings render. |
 | WhyArentYouLooping | SowrenCode/luna-plugins | ✅ live r12 | Loads clean; it only loops `<video>` elements in the document (TIDAL's web player videos), of which Tidalfast has none, so there is nothing to do. |
 | SongDownloader ElVigilante | np3ir/songdownloader-store | 🔑 permission | FLAC downloader over `fetchMediaItemStream` and `fs` write streams: asks to save TIDAL songs as files at the first download, then writes into the folder the user picked in its dialog. Its remux and M4A tagging were not run. |
-| DownloadManager | Kisakay/luna-plugins | ⛔ by design | FLAC downloader: refused because once installed it froze the app at every start (`download_manager_is_refused_and_an_installed_copy_never_loads`); also stops at load on a missing TIDAL DOM node. The save-audio permission would cover its downloads; lifting the refusal is the owner's call. |
+| DownloadManager | Kisakay/luna-plugins | 🔑 permission | FLAC downloader (r26, owner decision 2026-10-20: downloaders are a permission, off by default). Its downloads (`MediaItem.download`) ask to save TIDAL songs as files first; its lyrics and metadata files go through `fs` into folders the user picked. It was refused because "it froze the app at every start": its taskbar, fixed to the window's bottom edge, took every click in the window (fixed 2026-10-16, `a_fixed_bar_at_the_bottom_leaves_the_window_clickable`). Measured again (debug demo build, Luna busy time from `TIDALFAST_LUNA_STATS=1`, three restarts on the liked songs page): about 8 % of a core in the first 10 s and 4.3 to 5.3 % after, against 1.6 to 2 % without it (its layout pass walks `body *` every 5 s and after every DOM change), and the window answers clicks; no freeze. UI compared with the owner's captures: taskbar (Start, Downloader Manager, About, two-line clock), app 41 points shorter, the 520 x 560 window centred 80 down and the 400 x 540 start menu at left 8 / bottom 48 as in TIDAL (both ran to the window's edge: a larger `max-width` undid their width). Differs: the start menu's two tiles stand side by side (no `flex-wrap`) and its footer follows the list instead of sitting at the bottom, the window's nav does not run the window's full height, and its empty-queue text is not centred. No download was run (demo only). |
 
 ## Themes
 
@@ -360,7 +360,9 @@ Transfer and never imported. Code: `src/luna/permits.rs`, the prompt in
   `.part` and renamed when whole. `fetchMediaItemStream` is a Node `Readable`
   of the same bytes. Downloads and streams stop with the plugin and on
   Revoke. Files are saved without tags. The audiovisualiser's analysis-only
-  download still saves nothing and needs no permission.
+  download still saves nothing and needs no permission, and neither does
+  NoBuffer's CDN kick, whose `voidTrack` the host answers by reading the
+  stream and dropping it (the plugin never gets the bytes).
 
 ## Security model and limits
 
@@ -1186,6 +1188,26 @@ above are the current state; this section is the why).
 
 ### Plugin rounds
 
+- **Round 26 (2026-10-22), what batch 4 and the whole-app walks left.**
+  DownloadManager is a permission like the other downloaders (owner
+  decision): its "froze at every start" was its taskbar taking every click,
+  fixed on 2026-10-16; Luna busy time over three restarts stays a few
+  percent of a core. A box's `width` is no longer undone by a larger
+  `max-width` (its window and start menu ran to the window's edge). NoBuffer's
+  CDN kick is answered by the host and asks nothing (it went through the
+  save-audio prompt, which describes saving files). In the narrow window the
+  page lies beside the open play queue at every width, as in TIDAL's
+  1000-point captures (it kept 585 points and the panel covered its right
+  side); views at normal width are pixel for pixel unchanged (home and album
+  with the queue open, compared before and after). An artist's round picture
+  wider than 254 points stays round. radiant-lyrics' sparkle in the open
+  Lyrics tab is read against the white pill (it turned white), and the tab
+  its menu hangs from takes the plugin's corners and centres its word.
+  tidal-genres' `display: flex` on `track-info` moves the words 10 points
+  left over the now-playing view, as in TIDAL. At a narrow page Tidalfast's
+  own layout still reflows the content its way (fewer, larger cards on home;
+  the songs table squeezes its columns where TIDAL keeps them and cuts them
+  at the page's edge).
 - **Batch 4, round 25 (2026-10-21).** The 18 plugins captured last in the owner's TIDAL
   (CoverTheme, NoPlaylistBackgroundImage, SongReleaseDate, StarryNight, MusicVideoButton, Deleter,
   Hunminjeongeum, KoreanSearch, LyricsPorter, NoBuffer, RealMAX, Shazam, SmallWindow, Themer,
@@ -1594,11 +1616,12 @@ each with a test that fails without the fix:
 The off-screen Luna demo (`TIDALFAST_DEMO_LUNA`) also never puts the window
 in full screen from the app's own controls now (a scripted click landed on
 the now-playing full screen button and filled a real display). Per plugin
-results are in each row ("Whole-app walk"). Differences that stay: in the
-narrow window Tidalfast lays the play queue panel over the page, which a
-see-through panel (spinny-cover, radiant-lyrics) shows; radiant-lyrics'
-Lyrics Options menu open; tidal-genres' 10-point shift of the track info;
-the demo has no TIDAL albums for cover-fetcher's album card items. None of
+results are in each row ("Whole-app walk"). Differences that stayed then (the first
+three fixed in round 26): in the narrow window Tidalfast laid the play queue
+panel over the page, which a see-through panel (spinny-cover,
+radiant-lyrics) showed; radiant-lyrics' Lyrics Options menu open;
+tidal-genres' 10-point shift of the track info. The demo has no TIDAL albums
+for cover-fetcher's album card items. None of
 these is a part that does not work, so no store label changed.
 
 ### Round 16 (final audit)
