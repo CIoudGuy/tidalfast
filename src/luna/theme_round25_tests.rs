@@ -853,10 +853,10 @@ fn a_themes_vibrant_colour_is_the_mix_titles() {
     assert_eq!(pd::theme_var_color("--track-vibrant-color"), None);
 }
 
-/// TIDAL 2.43.2 keeps its teal accent even under a theme that paints the
+/// TIDAL 2.43.2 keeps its teal accent even under a theme that paints a dark
 /// window and names an accent token: Black Glow's grey and Minimalist
 /// Black's green leave TIDAL's playing playlist teal. Tidalfast drew it in
-/// the token's colour.
+/// the token's colour. On a light window the token stands.
 #[test]
 fn a_painted_themes_accent_token_leaves_tidals_accent() {
     use crate::theme::Palette;
@@ -870,4 +870,14 @@ body { background-color: #000000 !important; }
     let p = themed(&base, &o);
     luna.shutdown();
     assert_eq!(p.accent, base.accent);
+    // A light window's theme draws TIDAL's accent in its own (the cotton
+    // candy family's black playing row): the token stands.
+    let css = r#"/* {"name": "Light accent"} */
+:root { --wave-color-solid-accent-fill: #39afa5 !important; }
+body { background-color: #ffffff !important; }
+"#;
+    let (luna, o) = overlay_with("light-accent.css", css, dom_anchors::sample_tree(), "");
+    let p = themed(&base, &o);
+    luna.shutdown();
+    assert_eq!(p.accent, egui::Color32::from_rgb(0x39, 0xaf, 0xa5));
 }
