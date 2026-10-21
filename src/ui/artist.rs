@@ -1027,11 +1027,9 @@ fn release_card(app: &mut App, ui: &mut egui::Ui, album: &Album) {
         &album.name,
         subtitle.trim_start_matches(" • "),
         widgets::CardCover {
-            // An upload carries TIDAL's upload badge after its title.
-            mark: crate::api::models::CardMark {
-                upload: album.upload,
-                ..Default::default()
-            },
+            // TIDAL's E for the explicit version, the upload badge for an
+            // upload, after the title.
+            mark: crate::api::models::CardMark::of_album(album),
             ..widgets::CardCover::square(playing_here)
         },
     );
@@ -1419,7 +1417,10 @@ pub fn section(app: &mut App, ui: &mut egui::Ui, id: &str, section: ArtistSectio
                     &subtitle,
                     1,
                     album.year().unwrap_or_default(),
-                    widgets::CardCover::square(playing_here),
+                    widgets::CardCover {
+                        mark: crate::api::models::CardMark::of_album(album),
+                        ..widgets::CardCover::square(playing_here)
+                    },
                 );
                 super::library::play_or_open(
                     app,

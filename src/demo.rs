@@ -261,6 +261,8 @@ fn album(index: usize) -> Album {
         video_cover: (index == 0)
             .then(|| std::env::var("TIDALFAST_DEMO_VIDEO_COVER").ok())
             .flatten(),
+        // Some are the explicit version, with TIDAL's E on their cards.
+        explicit: index % 3 == 1,
         ..Album::default()
     }
 }
@@ -4590,6 +4592,87 @@ mod tests {
         }
         assert!(!found.is_empty(), "{text:?} was not painted");
         found
+    }
+
+    /// Where each text shape of a 1280-wide frame is painted, the window
+    /// tall enough to show a whole artist page.
+    fn painted_texts(ctx: &egui::Context, app: &mut App) -> Vec<(String, egui::Rect)> {
+        fn collect(shape: &egui::epaint::Shape, out: &mut Vec<(String, egui::Rect)>) {
+            match shape {
+                egui::epaint::Shape::Text(shape) => out.push((
+                    shape.galley.job.text.clone(),
+                    shape.galley.rect.translate(shape.pos.to_vec2()),
+                )),
+                egui::epaint::Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, out)),
+                _ => {}
+            }
+        }
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1280.0, 4000.0),
+                )),
+                ..Default::default()
+            },
+            |ui| app.frame_ui(ui),
+        );
+        output.textures_delta.clear();
+        let mut found = Vec::new();
+        for shape in &output.shapes {
+            collect(&shape.shape, &mut found);
+        }
+        found
+    }
+
+    /// Whether TIDAL's E is painted just after the title `name`.
+    fn e_after(texts: &[(String, egui::Rect)], name: &str) -> bool {
+        let title = texts
+            .iter()
+            .find(|(text, _)| text == name)
+            .unwrap_or_else(|| panic!("{name:?} was not painted"))
+            .1;
+        texts.iter().any(|(text, rect)| {
+            text == "E"
+                && (rect.center().y - title.center().y).abs() < 3.0
+                && rect.center().x > title.right()
+                && rect.center().x < title.right() + 24.0
+        })
+    }
+
+    /// TIDAL draws its E after an explicit release's title on the artist
+    /// page's shelves and on search's album cards; Tidalfast drew none, as
+    /// its albums did not keep TIDAL's `explicit`.
+    #[test]
+    fn explicit_releases_carry_tidals_e_on_their_cards() {
+        let (ctx, mut app) = accessible_app("album-card-explicit");
+        // Titles no other card or row on the page shares.
+        let (explicit, clean) = ("The Explicit Version", "The Clean Version");
+        {
+            let albums = &mut app.artist_pages.get_mut("art0").unwrap().albums;
+            let items = &mut albums
+                .get_mut(DiscographyFilter::Albums.groups())
+                .unwrap()
+                .items;
+            items[0].name = clean.into();
+            items[0].explicit = false;
+            items[1].name = explicit.into();
+            items[1].explicit = true;
+        }
+        app.open(Page::Artist("art0".into()));
+        painted_texts(&ctx, &mut app);
+        let texts = painted_texts(&ctx, &mut app);
+        assert!(e_after(&texts, explicit), "no E after {explicit}");
+        assert!(!e_after(&texts, clean), "an E after {clean}");
+        app.open(Page::ArtistSection("art0".into(), ArtistSection::Albums));
+        painted_texts(&ctx, &mut app);
+        let texts = painted_texts(&ctx, &mut app);
+        assert!(
+            e_after(&texts, explicit),
+            "no E after {explicit} in View all"
+        );
+        assert!(!e_after(&texts, clean), "an E after {clean} in View all");
+        app.backend.shutdown();
     }
 
     #[test]

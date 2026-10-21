@@ -4286,6 +4286,7 @@ mod tests {
                         quality_tags: vec![],
                         video_cover: None,
                         upload: false,
+                        explicit: false,
                     }),
                     popularity: None,
                     external_ids: Default::default(),

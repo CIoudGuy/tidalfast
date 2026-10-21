@@ -269,6 +269,10 @@ pub struct Album {
     /// A TIDAL Upload (`upload`): its card shows the upload badge.
     #[serde(default)]
     pub upload: bool,
+    /// TIDAL's `explicit`: the release is the explicit version, and its
+    /// cards show the E badge after the title as TIDAL's do.
+    #[serde(default)]
+    pub explicit: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
@@ -1033,6 +1037,31 @@ pub struct CardMark {
     /// Sold rather than streamed (`payToStream`, the price tag).
     #[serde(default)]
     pub purchase: bool,
+    /// The explicit version (TIDAL's E, before the other badges).
+    #[serde(default)]
+    pub explicit: bool,
+}
+
+impl CardMark {
+    /// The badges TIDAL puts after an album's title: E for the explicit
+    /// version, the arrow for an upload.
+    pub fn of_album(album: &Album) -> Self {
+        Self {
+            upload: album.upload,
+            explicit: album.explicit,
+            ..Self::default()
+        }
+    }
+
+    /// These badges with the album's own added: a page module's card
+    /// carries its flags beside the album.
+    pub fn with_album(self, album: &Album) -> Self {
+        Self {
+            upload: self.upload || album.upload,
+            explicit: self.explicit || album.explicit,
+            ..self
+        }
+    }
 }
 
 /// A wide editorial card: a cyan kicker ("UPLOAD HEADLINERS"), a title, a

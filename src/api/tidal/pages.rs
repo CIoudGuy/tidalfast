@@ -405,6 +405,8 @@ fn card_mark(data: Option<&Value>) -> CardMark {
         upload: flag("upload"),
         spotlighted: flag("spotlighted"),
         purchase: flag("payToStream"),
+        // The E comes with the album itself (`CardMark::with_album`).
+        explicit: false,
     }
 }
 
