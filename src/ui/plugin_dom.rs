@@ -1214,12 +1214,16 @@ pub fn queue_panel(ui: &egui::Ui, r: Rect, over_now_playing: bool) -> bool {
 }
 
 /// The text colours TIDAL's own rules give its sidebar and play queue
-/// while a theme is applied: TIDAL's tokens at the document's root (a
-/// theme's `:root { --wave-color-solid-contrast-fill }`), else TIDAL's
-/// own, white on its dark panels. Themes that colour only the page
-/// (`#main { --wave-color-text-main: black }`, the cotton candy family)
-/// leave those panels' words white in TIDAL, where the app's palette would
-/// make them the page's dark. Without a theme `palette` is returned as is.
+/// while a theme is applied: white names and headings, 55 % white labels
+/// and 30 % white for the dimmest, whatever the theme's `--wave-*` tokens
+/// say. TIDAL 2.43.2 writes those colours into its sidebar rules rather
+/// than taking them from the token ramp: Rose Pine and Catppuccin (root
+/// `--wave-color-solid-contrast-fill`, `-contrast-darker`) and the cotton
+/// candy family (a dark root `--wave-color-solid-contrast-darker`) leave
+/// them white and 55 % white there. Only the `--text-default` and
+/// `--text-secondary` variables a theme declares at the root (Tidal
+/// Light's black and 70 % black) recolour them. Without a theme `palette`
+/// is returned as is.
 pub fn tidal_panel_text(palette: Palette) -> Palette {
     if !on() || !palette.themed {
         return palette;
@@ -1257,24 +1261,11 @@ fn tidal_text_roles(o: &DomOverlay) -> (Color32, Color32, Color32) {
     };
     // TIDAL's white text and its 55 % and 30 % whites, which let the
     // panel's colour show through (`rgba(255, 255, 255, 0.55)` on a nav row).
+    let text = var(&["--text-default"]);
     (
-        var(&[
-            "--wave-color-text-main",
-            "--wave-color-text",
-            "--wave-color-solid-contrast-fill",
-        ])
-        .unwrap_or(Color32::WHITE),
-        var(&[
-            "--wave-color-text-secondary",
-            "--wave-color-solid-contrast-darker",
-            "--wave-color-opacity-contrast-fill-ultra-thick",
-        ])
-        .unwrap_or(Color32::from_white_alpha(140)),
-        var(&[
-            "--wave-color-text-tertiary",
-            "--wave-color-solid-contrast-darkest",
-        ])
-        .unwrap_or(Color32::from_white_alpha(77)),
+        text.unwrap_or(Color32::WHITE),
+        var(&["--text-secondary"]).unwrap_or(Color32::from_white_alpha(140)),
+        text.map_or(Color32::from_white_alpha(77), |c| c.gamma_multiply(0.55)),
     )
 }
 
