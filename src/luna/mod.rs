@@ -426,23 +426,14 @@ impl Permission {
 /// Plugins Tidalfast does not run (owner decision), by package name, with
 /// the reason shown where the plugin would be: they are left out of the
 /// Plugin Store, refused on install, and disabled when imported.
-pub const UNSUPPORTED: &[(&str, &str)] = &[
-    (
-        "LastFM",
-        "Not supported in Tidalfast: this LastFM build needs TIDAL's own Last.fm API key",
-    ),
-    (
-        "DownloadManager",
-        "Not supported in Tidalfast: once installed it froze the app at every start",
-    ),
-];
+pub const UNSUPPORTED: &[(&str, &str)] = &[(
+    "LastFM",
+    "Not supported in Tidalfast: this LastFM build needs TIDAL's own Last.fm API key",
+)];
 
 /// The stores the plugins in [`UNSUPPORTED`] come from: a plugin of the same
 /// name in another store may be a different plugin.
-const UNSUPPORTED_STORES: &[(&str, &str)] = &[
-    ("LastFM", "/inrixia/luna-plugins/"),
-    ("DownloadManager", "/kisakay/luna-plugins/"),
-];
+const UNSUPPORTED_STORES: &[(&str, &str)] = &[("LastFM", "/inrixia/luna-plugins/")];
 
 /// How much of a store plugin works in Tidalfast, when not all of it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -493,10 +484,6 @@ impl CompatNote {
             "It saves TIDAL songs as files, which it does only after you allow it (this may break TIDAL's terms of use)." => gettext(
                 locale,
                 "It saves TIDAL songs as files, which it does only after you allow it (this may break TIDAL's terms of use).",
-            ),
-            "Once installed it froze Tidalfast at every start, so Tidalfast keeps it off." => gettext(
-                locale,
-                "Once installed it froze Tidalfast at every start, so Tidalfast keeps it off.",
             ),
             "It needs TIDAL's own remote control code, which Tidalfast does not have." => gettext(
                 locale,
@@ -586,18 +573,18 @@ const fn not_supported(repo: &'static str, name: &'static str, reason: &'static 
 /// elsewhere, a free port or a UI language are not, and an unlisted plugin
 /// shows no label. A row matches by the store repository in the plugin's
 /// address and the exact package name, so a similarly named plugin from
-/// another store is never labelled. The two plugins [`UNSUPPORTED`] refuses
-/// are listed too, for an imported copy.
+/// another store is never labelled. The plugins [`UNSUPPORTED`] refuses are
+/// listed too, for an imported copy.
 const COMPAT: &[CompatRow] = &[
     not_supported(
         "Inrixia/luna-plugins",
         "LastFM",
         "This build needs TIDAL's own Last.fm key, which Tidalfast does not have.",
     ),
-    not_supported(
+    needs_permission(
         "Kisakay/luna-plugins",
         "DownloadManager",
-        "Once installed it froze Tidalfast at every start, so Tidalfast keeps it off.",
+        "It saves TIDAL songs as files, which it does only after you allow it (this may break TIDAL's terms of use).",
     ),
     needs_permission(
         "Inrixia/luna-plugins",

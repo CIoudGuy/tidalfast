@@ -538,22 +538,18 @@ export function Settings() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Kisakay's DownloadManager stays refused, unlike the other downloaders
-/// (they run once the user allows saving TIDAL audio): offered by the store
-/// and installed, it froze the app at every start. Its store entry is refused,
-/// and a copy already installed stays installed but off, with the reason,
-/// and is never loaded.
+/// Kisakay's DownloadManager runs like the other downloaders (owner
+/// decision, 2026-10-20): its store entry is not refused and an installed
+/// copy loads; what it saves goes through the save-audio permission, off
+/// until the user allows it. (It was refused because it "froze the app at
+/// every start": its taskbar took every click in the window, fixed since in
+/// `plugin_slots`, `a_fixed_bar_at_the_bottom_leaves_the_window_clickable`.)
 #[test]
-fn download_manager_is_refused_and_an_installed_copy_never_loads() {
+fn download_manager_is_offered_and_an_installed_copy_loads() {
     let store =
         "https://github.com/Kisakay/luna-plugins/releases/download/latest/DownloadManager.mjs";
-    assert!(super::unsupported_url(store).is_some());
-    assert!(
-        super::unsupported_url(
-            "https://github.com/x/y/releases/download/latest/DownloadManager.mjs"
-        )
-        .is_none()
-    );
+    assert!(super::unsupported_url(store).is_none());
+    assert!(super::unsupported("DownloadManager").is_none());
     let files = files_with(&[
         (
             "/DownloadManager.json",
@@ -564,20 +560,13 @@ fn download_manager_is_refused_and_an_installed_copy_never_loads() {
     let base = serve(files);
     let dir = temp_dir("downloadmanager");
     let luna = Luna::start(config(&dir), Arc::new(MockHost::default())).unwrap();
-    luna.install(store);
-    let s = wait_until(&luna, 10, |s| {
-        s.runtime_log
-            .iter()
-            .any(|l| l.message.contains("Not supported in Tidalfast"))
-    });
-    assert!(plugin(&s, "DownloadManager").is_none());
     luna.install(&format!("{base}/DownloadManager"));
     let s = wait_until(&luna, 20, |s| {
-        plugin(s, "DownloadManager").is_some_and(|p| matches!(&p.status, PluginStatus::Failed(_)))
+        plugin(s, "DownloadManager").is_some_and(|p| matches!(&p.status, PluginStatus::Running))
     });
-    let p = plugin(&s, "DownloadManager").unwrap();
-    assert!(!p.enabled);
-    assert!(matches!(&p.status, PluginStatus::Failed(m) if m.contains("froze the app")));
+    assert!(plugin(&s, "DownloadManager").unwrap().enabled);
+    let note = super::compat_note(store, Some("DownloadManager")).unwrap();
+    assert_eq!(note.level, super::Compat::NeedsPermission);
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -385,11 +385,11 @@ fn plugins_behind_a_permission_say_so() {
         "@jxnxsdev/discord-utils",
         "MediaKeysFixer",
         "@vmohammad/mpv",
+        "DownloadManager",
     ] {
         assert_eq!(level(name), Some(Compat::NeedsPermission), "{name}");
     }
     for name in [
-        "DownloadManager",
         "DesktopConnect",
         "TidalMediaControls",
         "@jxnxsdev/miniplayer",
