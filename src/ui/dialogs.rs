@@ -458,6 +458,12 @@ pub(crate) fn permission_text(
                 "The plugin will save TIDAL streams as audio files on your computer. This may break TIDAL's terms of use. Protected streams, such as Dolby Atmos, are never saved.",
             ),
         ),
+        Access::ExclusiveOutput => (
+            t("{plugin} wants to switch the output to exclusive mode"),
+            t(
+                "It turns on Bit-perfect output: Tidalfast takes the audio device for itself, so other apps go silent while it plays. You can turn it off again in Settings.",
+            ),
+        ),
     }
 }
 

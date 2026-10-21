@@ -1334,6 +1334,10 @@ fn grant_text(locale: Locale, access: &crate::luna::Access) -> (String, String) 
             t("Saves TIDAL songs as files"),
             t("Ask again before this plugin saves TIDAL songs; downloads it has running stop now"),
         ),
+        Access::ExclusiveOutput => (
+            t("Switches the output to exclusive mode"),
+            t("Ask again before this plugin turns on exclusive (bit-perfect) output"),
+        ),
     }
 }
 

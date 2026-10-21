@@ -33,8 +33,8 @@ use super::dom::{DomEvent, DomOverlay, HostTree};
 use super::host::{HostCommand, LunaEvent, LunaHost, NetRequest, NetVerdict, NotifyLevel};
 use super::net::{NetHub, Target};
 use super::redux::{
-    ActionOutcome, EXCLUSIVE_UNSUPPORTED, action_outcome, event_action, is_tidal_action,
-    redux_state,
+    ActionOutcome, EXCLUSIVE_ASKED, EXCLUSIVE_DENIED, EXCLUSIVE_UNSUPPORTED, action_outcome,
+    event_action, is_tidal_action, redux_state,
 };
 use super::settings::{SettingValue, SettingsNode};
 use super::storage::{self, LOCAL_STORAGE, PLUGIN_STORAGE, Storage, StoredClaims};
@@ -1525,9 +1525,45 @@ It is installed and switched on; what it may do is asked when it does it, and it
             let plugin = plugin.as_deref();
             let host = inner.borrow().host.clone();
             let outcome = action_outcome(kind, &payload, &host.playback());
-            // An exclusive mode the platform lacks: the plugin's store write
-            // (applied before this call) goes back.
-            let revert = matches!(&outcome, ActionOutcome::Bookkeeping(why) if *why == EXCLUSIVE_UNSUPPORTED);
+            // Exclusive output takes the audio device for Tidalfast alone: a
+            // plugin turns it on only after the user allowed it
+            // (PersistSettings asks for it every second by default).
+            let outcome = match outcome {
+                ActionOutcome::Commands(cmds)
+                    if cmds.contains(&HostCommand::SetExclusiveMode(true)) =>
+                {
+                    let access = super::Access::ExclusiveOutput;
+                    let mut i = inner.borrow_mut();
+                    let standing = match plugin {
+                        Some(p) if i.record(p).is_some() => {
+                            i.permits
+                                .ask(p, access.clone(), None, super::permits::NO_OP)
+                        }
+                        _ => super::permits::Standing::Denied,
+                    };
+                    match standing {
+                        super::permits::Standing::Allowed => {
+                            if let Some(p) = plugin {
+                                i.used(p, Permission::ExclusiveOutput);
+                            }
+                            ActionOutcome::Commands(cmds)
+                        }
+                        super::permits::Standing::Ask => {
+                            i.dirty = true;
+                            ActionOutcome::Bookkeeping(EXCLUSIVE_ASKED)
+                        }
+                        super::permits::Standing::Denied => {
+                            ActionOutcome::Bookkeeping(EXCLUSIVE_DENIED)
+                        }
+                    }
+                }
+                outcome => outcome,
+            };
+            // An exclusive mode the platform lacks, or one the user has not
+            // allowed (yet): the plugin's store write (applied before this
+            // call) goes back.
+            let revert = matches!(&outcome, ActionOutcome::Bookkeeping(why)
+                if [EXCLUSIVE_UNSUPPORTED, EXCLUSIVE_ASKED, EXCLUSIVE_DENIED].contains(why));
             match outcome {
                 ActionOutcome::Commands(cmds) => {
                     for c in cmds {
@@ -4291,7 +4327,17 @@ impl Engine {
                     } else {
                         (false, json!(denied(&answer.access)))
                     };
+                    // The exclusive output a plugin's dispatch asked for
+                    // is switched on once the user allows it.
+                    if answer.allowed && answer.access == super::Access::ExclusiveOutput {
+                        i.used(&answer.plugin, Permission::ExclusiveOutput);
+                        let host = i.host.clone();
+                        host.command(HostCommand::SetExclusiveMode(true));
+                    }
                     for op in answer.ops {
+                        if op == super::permits::NO_OP {
+                            continue;
+                        }
                         let _ = i.tx.send(Msg::OpDone {
                             id: op,
                             ok: result.0,
@@ -4317,7 +4363,7 @@ impl Engine {
                     super::Access::GlobalShortcuts => i.hotkeys.close_plugin(&plugin),
                     super::Access::Pipe { path } => i.net.close_pipe(&plugin, path),
                     super::Access::SaveAudio => super::audio::close_plugin(&plugin),
-                    super::Access::Credentials => {}
+                    super::Access::Credentials | super::Access::ExclusiveOutput => {}
                 }
                 let what = access.log_name();
                 i.log(
