@@ -106,6 +106,13 @@ pub(super) fn paint_backdrop_image_rounded(
     paint_cover_url(ui, cover(), art, false) || paint_nearest_copy(ui, cover(), art)
 }
 
+/// The corners that make a square picture `width` wide round. They were held
+/// to 127, so a picture wider than 254 points (an artist card alone in a
+/// narrow page beside the open play queue) was a rounded square.
+fn round_corner(width: f32) -> CornerRadius {
+    CornerRadius::same((width / 2.0).ceil().clamp(0.0, 255.0) as u8)
+}
+
 /// Paints a round profile picture in `rect` if it is loaded (the artwork
 /// loader fetches it off the UI thread, caches it on disk, and scales it to
 /// the pixels it covers). False while it loads, when it cannot be had, and
@@ -123,7 +130,7 @@ pub(super) fn paint_avatar_image(
     let cover = || CoverAt {
         url,
         rect,
-        corner: CornerRadius::same((rect.width() / 2.0).ceil().min(127.0) as u8),
+        corner: round_corner(rect.width()),
         filter: None,
         held: false,
     };
@@ -5407,6 +5414,16 @@ fn repaint_when_relative_date_changes(ui: &egui::Ui, added: &str) {
 mod tests {
     use super::*;
     use crate::app::{App, AppOptions};
+
+    /// An artist's picture stays round however wide its card: one 330
+    /// wide (alone in a narrow page beside the open queue) has corners of
+    /// 165, not 127.
+    #[test]
+    fn a_wide_round_picture_stays_round() {
+        assert_eq!(round_corner(330.0), CornerRadius::same(165));
+        assert_eq!(round_corner(173.0), CornerRadius::same(87));
+        assert_eq!(round_corner(900.0), CornerRadius::same(255));
+    }
 
     /// TIDAL writes "-" in the BPM column for a song without one.
     #[test]
