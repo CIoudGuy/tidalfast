@@ -657,6 +657,22 @@ const COMPAT: &[CompatRow] = &[
             reason: "The lyrics bubble over the player bar works, but its separate lyrics window does not, because that needs a browser engine.",
         },
     },
+    CompatRow {
+        repo: "Inrixia/luna-plugins",
+        name: "Avatar",
+        note: CompatNote {
+            level: Compat::PartlySupported,
+            reason: "A picture address you set replaces your account picture; its Gravatar fallback does nothing, as plugins get no email.",
+        },
+    },
+    CompatRow {
+        repo: "Inrixia/luna-plugins",
+        name: "Themer",
+        note: CompatNote {
+            level: Compat::PartlySupported,
+            reason: "Your CSS applies as you type in an editor inside Tidalfast; its Monaco editor window needs a browser engine.",
+        },
+    },
 ];
 
 /// What is known about a plugin that is not fully working here, by the

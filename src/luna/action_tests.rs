@@ -1699,3 +1699,33 @@ lib.redux.store.subscribe(() => { if (s() === "exclusive") say("exclusive"); });
     luna.shutdown();
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Avatar's Gravatar fallback, as its store build runs it: the md5 of
+/// `user.meta.email` in its native module. Plugins are never given the
+/// account's email, so there is nothing to hash and no Gravatar address;
+/// with the empty string it had, the plugin stored a stranger's identicon
+/// address and the next start put that picture over the account's.
+#[test]
+fn plugins_get_no_email_for_avatars_gravatar() {
+    let snap = PlaybackSnapshot {
+        user_id: Some("7".into()),
+        ..Default::default()
+    };
+    let (luna, host, dir) = start(
+        r#"
+const md5 = await native("Actions/md5.native.ts", `"use strict";
+const { createHash } = require("crypto");
+exports.md5 = async (t) => createHash("md5").update(t).digest("hex");
+`);
+const email = lib.redux.store.getState().user.meta.email;
+const url = await md5("md5", email).then((h) => "https://www.gravatar.com/avatar/" + h, (e) => "refused: " + (e?.message ?? e));
+say(String(email) + " | " + url);
+"#,
+        snap,
+    );
+    host.wait(&luna, "the answer", |h| !h.notes().is_empty());
+    let note = host.notes()[0].clone();
+    assert!(note.starts_with("undefined | refused"), "{note}");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
