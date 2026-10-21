@@ -4085,6 +4085,14 @@ fn draw_box(
     let (under, placed): (Vec<&VNode>, Vec<&VNode>) =
         placed.into_iter().partition(|c| z_index(&c.style) < 0);
     let flows = inline_flow(&node.tag, display, &flow);
+    // White space between children is a gap only in a line of inline
+    // boxes; a column, row or grid has no place for it.
+    let mut flow = flow;
+    if !flows {
+        flow.retain(|c| {
+            c.tag != "#text" || c.text.as_deref().is_some_and(|t| !t.trim().is_empty())
+        });
+    }
     let box_id = egui::Id::new(("luna-box", node.id));
     let mut drawn = false;
     // Positioned children sit in the padding box, inside the border, and
@@ -7565,6 +7573,68 @@ mod tests {
             ..words(None)
         });
         assert!(one.y < flowing.y, "{one:?} vs {flowing:?}");
+    }
+
+    /// A `" "` text node between two inline-block words is a space in the
+    /// line (radiant-lyrics: "I won't leave", not "Iwon'tleave"); in a
+    /// flex row it is nothing, as in a browser.
+    #[test]
+    fn white_space_between_inline_words_is_a_gap_only_in_a_line() {
+        let space = |id| VNode {
+            id,
+            tag: "#text".into(),
+            text: Some(" ".into()),
+            ..VNode::default()
+        };
+        let line = |display: Option<&str>, spaced: bool| {
+            let mut children = Vec::new();
+            for i in 0..3 {
+                let mut w = text(10 + i, "word");
+                w.style.display = Some("inline-block".into());
+                if spaced && i > 0 {
+                    children.push(space(50 + i));
+                }
+                children.push(w);
+            }
+            VNode {
+                id: 1,
+                tag: "div".into(),
+                style: Style {
+                    display: display.map(Into::into),
+                    ..Style::default()
+                },
+                children,
+                ..VNode::default()
+            }
+        };
+        // In a flex row, which sizes the line by what it holds.
+        let words = |display, spaced| {
+            let mut wrap = VNode {
+                id: 2,
+                tag: "div".into(),
+                style: Style {
+                    display: Some("flex".into()),
+                    ..Style::default()
+                },
+                children: vec![line(display, spaced)],
+                ..VNode::default()
+            };
+            wrap.children[0].id = 3;
+            drawn_size(wrap)
+        };
+        let joined = words(None, false);
+        let spaced = words(None, true);
+        assert!(
+            spaced.x > joined.x + 4.0,
+            "two spaces in the line: {spaced:?} vs {joined:?}"
+        );
+        assert!((spaced.y - joined.y).abs() < 1.0, "still one line");
+        let row = words(Some("flex"), false);
+        let row_spaced = words(Some("flex"), true);
+        assert!(
+            (row.x - row_spaced.x).abs() < 0.5,
+            "nothing in a flex row: {row_spaced:?} vs {row:?}"
+        );
     }
 
     #[test]
