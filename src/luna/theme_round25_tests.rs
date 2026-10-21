@@ -204,6 +204,61 @@ fn a_themed_panels_shadows_are_drawn() {
     assert!(glowing > plain + 10, "{plain} -> {glowing}");
 }
 
+/// `backdrop-filter: saturate(1.2) brightness(1.2)` multiplies what is
+/// behind the box: over Cotton Candy Twilight's navy window TIDAL's track
+/// list panel is a deeper navy, and the cotton candy family's feed card a
+/// brighter pink. A white veil (10 %) turned them grey and greyer pink;
+/// the veil is now the faintest that makes the window's filtered colour.
+/// Darker stays a black veil.
+#[test]
+fn a_brighter_backdrop_makes_the_windows_filtered_colour() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::QUEUE_PANEL;
+    let veil = |filter: &str, name: &str| {
+        let css = format!(
+            r#"/* {{"name": "Brightness"}} */
+:root {{ --wave-color-solid-base-fill: rgb(16, 4, 55); }}
+._container_b3e8f28 {{ backdrop-filter: {filter}; }}
+"#
+        );
+        let mut frame = dom_anchors::sample_frame();
+        frame.queue_panel = Some((Some([1795.0, 60.0, 334.0, 900.0]), false));
+        let (luna, o) = overlay_with(name, &css, dom_anchors::build(&frame), QUEUE_PANEL);
+        pd::test_overlay(Some((*o).clone()));
+        let layers = pd::box_layers(&o.hosts[QUEUE_PANEL], &pd::vars(), [2137.0, 1183.0]);
+        pd::test_overlay(None);
+        luna.shutdown();
+        layers.iter().find_map(|l| match l {
+            pd::BoxLayer::Fill(c, _) => Some(*c),
+            _ => None,
+        })
+    };
+    // Over the navy window the veil makes TIDAL's filtered navy: more
+    // saturated and a little brighter, never grey.
+    let tint = veil("saturate(1.2) brightness(1.2)", "brighter.css").expect("a veil");
+    let window = [16.0, 4.0, 55.0];
+    let a = f32::from(tint.a()) / 255.0;
+    let [r, g, b, _] = tint.to_srgba_unmultiplied();
+    let over = [r, g, b].map(f32::from);
+    let shown: Vec<f32> = (0..3)
+        .map(|i| over[i] * a + window[i] * (1.0 - a))
+        .collect();
+    let target = crate::css_filter::ColorFilter::parse("saturate(1.2) brightness(1.2)")
+        .unwrap()
+        .apply_color([16, 4, 55])
+        .map(f32::from);
+    for i in 0..3 {
+        assert!((shown[i] - target[i]).abs() <= 2.0, "{shown:?} {target:?}");
+    }
+    assert!(target[2] > 70.0 && target[0] < 25.0, "{target:?}");
+    assert!(a < 0.25, "the window's stars keep most of their own: {a}");
+    assert_eq!(veil("blur(4px)", "blur-only.css"), None);
+    assert_eq!(
+        veil("brightness(.75)", "darker.css"),
+        Some(egui::Color32::from_black_alpha(64))
+    );
+}
+
 /// TIDAL heads the playlists with "All playlists" in its grey, which the
 /// cotton candy family turns 64 % white (`[class="_sectionHeader_ca54638"]
 /// ._titleText_1d0e44e { color }`); Rose Pine and Catppuccin, which name
