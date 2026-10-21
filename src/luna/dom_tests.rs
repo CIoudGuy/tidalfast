@@ -935,6 +935,44 @@ go();
     finish(luna, dir);
 }
 
+/// radiant-lyrics appends its backdrop (`position: fixed`, `100vw` x
+/// `100vh`, a canvas filling it) to `main` and sizes the canvas from it.
+/// It measured `main`'s box, which changes when the now-playing view opens:
+/// the canvas was made again at the new size and drew streaks. A fixed box
+/// is the window's size wherever it sits, as in a browser.
+#[test]
+fn a_fixed_element_inside_an_app_element_measures_against_the_window() {
+    let (luna, _host, dir) = start(
+        r##"
+lib.observe(unloads, "main", (main) => {
+	if (R.done) return;
+	const c = document.createElement("div");
+	Object.assign(c.style, { position: "fixed", left: "0", top: "0", width: "100vw", height: "100vh", zIndex: "-3" });
+	const k = document.createElement("canvas");
+	Object.assign(k.style, { position: "absolute", left: "0", top: "0", width: "100%", height: "100%" });
+	c.appendChild(k);
+	main.appendChild(c);
+	const r = c.getBoundingClientRect();
+	const kr = k.getBoundingClientRect();
+	const m = main.getBoundingClientRect();
+	R.box = [r.width, r.height, kr.width, kr.height, window.innerWidth, window.innerHeight, m.width, m.height];
+	R.done = true;
+});
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    let b = &r["box"];
+    assert_ne!(
+        (&b[6], &b[7]),
+        (&b[4], &b[5]),
+        "main is not the window: {r}"
+    );
+    assert_eq!((&b[0], &b[1]), (&b[4], &b[5]), "the fixed box: {r}");
+    assert_eq!((&b[2], &b[3]), (&b[4], &b[5]), "the canvas in it: {r}");
+    finish(luna, dir);
+}
+
 #[test]
 fn selectors_cover_what_plugins_use() {
     let (luna, _host, dir) = start(
