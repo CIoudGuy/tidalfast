@@ -732,8 +732,14 @@ fn host_labels(
                 .margin
                 .as_deref()
                 .map_or([0.0; 4], |m| css::sides(&css::resolve_vars(m, vars), size));
+            // The words start inside the box's left padding.
+            let padding = p
+                .padding
+                .as_deref()
+                .map_or([0.0; 4], |m| css::sides(&css::resolve_vars(m, vars), size));
             let left = len(p.margin_left.as_ref(), size).unwrap_or(margin[3])
-                + len(p.left.as_ref(), size).unwrap_or(0.0);
+                + len(p.left.as_ref(), size).unwrap_or(0.0)
+                + len(p.padding_left.as_ref(), size).unwrap_or(padding[3]);
             let top = len(p.margin_top.as_ref(), size).unwrap_or(margin[0])
                 + len(p.top.as_ref(), size).unwrap_or(0.0);
             let moved = p.transform.as_deref().map_or(egui::Vec2::ZERO, |t| {
@@ -6775,7 +6781,22 @@ mod tests {
                 ..HostOverride::default()
             },
         );
+        // Tidal TUI's `Main`: `padding: 0 3px; margin: 64px 5px`, its words
+        // inside the padding (TIDAL: the sidebar's edge + 8, 64 down).
+        o.hosts.insert(
+            "main".into(),
+            label(
+                Style {
+                    content: Some("Main".into()),
+                    margin: Some("64px 5px".into()),
+                    padding: Some("0 3px".into()),
+                    ..Style::default()
+                },
+                Style::default(),
+            ),
+        );
         let tags = BTreeMap::from([
+            ("main", ("main", false)),
             ("title", ("div", true)),
             ("nav", ("div", false)),
             ("bar", ("div", false)),
@@ -6790,6 +6811,7 @@ mod tests {
         assert_eq!(nav.size, 14.0);
         let bar = find("bar").expect("Playing");
         assert_eq!(bar.offset, egui::vec2(4.0, -10.0));
+        assert_eq!(find("main").expect("Main").offset, egui::vec2(8.0, 64.0));
         assert!(
             find("title").is_some_and(|l| l.after_words),
             "after the name"

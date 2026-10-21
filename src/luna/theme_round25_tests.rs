@@ -1052,3 +1052,34 @@ fn a_themes_cell_corners_shape_the_row_hover() {
         "without a theme, TIDAL's 5"
     );
 }
+
+/// Tidal TUI labels the page's box `Main` with
+/// `[class*="_hasDockedPlayer_"]:not([class*="_nowPlayingVisible_"])::before
+/// { content: "Main" }`: TIDAL draws it at the page's corner beside the
+/// sidebar, and not over the now-playing view. No anchor carried TIDAL's
+/// `_hasDockedPlayer_b3ed021`, so the label was never drawn.
+#[test]
+fn the_pages_box_is_tidals_docked_player_box() {
+    use dom_anchors::keys::MAIN;
+    let css = r#"/* {"name": "Main label"} */
+[class*="_hasDockedPlayer_"]::before { padding: 0 3px; z-index: 92; }
+[class*="_hasDockedPlayer_"]:not([class*="_nowPlayingVisible_"])::before { margin: 64px 5px; content: "Main"; position: absolute; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.now_playing = None;
+    let (luna, o) = overlay_with("main-label.css", css, dom_anchors::build(&frame), MAIN);
+    let before = o.hosts[MAIN].before.as_ref().expect("the label's box");
+    assert_eq!(before.content.as_deref(), Some("Main"));
+    luna.shutdown();
+    // Over the now-playing view the box is `_nowPlayingVisible_`: no label.
+    let tree = dom_anchors::build(&dom_anchors::sample_frame());
+    let main = tree.nodes.iter().find(|n| n.key == MAIN).expect("main");
+    let class = main
+        .attrs
+        .iter()
+        .find(|(k, _)| k == "class")
+        .map(|(_, v)| v.as_str())
+        .unwrap_or_default();
+    assert!(class.contains("_hasDockedPlayer_b3ed021"), "{class}");
+    assert!(class.contains("_nowPlayingVisible_"), "{class}");
+}
