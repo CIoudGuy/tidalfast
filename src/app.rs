@@ -11681,7 +11681,12 @@ impl App {
                     self.show_queue_panel = false;
                     self.lyrics_following = true;
                     self.request_lyrics();
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
+                    // The off-screen Luna harness (`TIDALFAST_DEMO_LUNA`)
+                    // never fills a real display, whatever a scripted click
+                    // lands on; the view still opens in the window.
+                    if plugins::demo_luna().is_none() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
+                    }
                 } else if !fullscreen {
                     self.leave_lyrics_fullscreen(ctx);
                 }
@@ -11893,7 +11898,9 @@ impl App {
             }
             Action::ToggleWindowFullscreen => {
                 let fullscreen = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fullscreen));
+                if fullscreen || plugins::demo_luna().is_none() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fullscreen));
+                }
             }
             Action::OpenUrl(url) => {
                 // Only web pages: the system's opener would run anything
