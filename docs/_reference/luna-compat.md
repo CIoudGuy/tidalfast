@@ -1639,6 +1639,82 @@ general renderer with a test that fails without the fix:
   radiant-lyrics' variables, uwu-ifier's and korean-translation's rewritten
   text. Their stylesheets and slots go with them.
 
+### Round 25 (every theme against the corrected TIDAL captures)
+
+The 36 captures that were wrong were taken again, and every theme with a
+capture (53, Solo v2 among them) was shot with the final build at the
+normal width (25 views), at 1000 px (13 views) and in close-up (the bar
+paused and hovered, the volume popup, the sidebar and its hovered and
+selected rows, the hovered track row), and compared view by view
+(`tidalfast/cmp-*.jpg` beside each reference). General fixes, each with a
+test in `src/luna/theme_round25_tests.rs` (or the module's own tests) that
+fails without it:
+
+- **TIDAL 2.43.2 and the root `--wave-*` tokens.** TIDAL no longer paints
+  its window, sidebar, cards, hovers, menus, grey words or accent from a
+  theme's root tokens: under Rose Pine, the Catppuccin flavours, Black
+  Glow, Abyss Neptune and Synthwave '77 its window stays black, its
+  sidebar is identical to TIDAL without a theme (white names, grey second
+  lines, the teal playing playlist), and only the page's words take the
+  theme's `--wave-color-solid-contrast-fill`. Its play queue still reads
+  `--wave-color-solid-base-fill`, a third of the way to a mid grey
+  (measured Rose Pine rgb(38, 37, 45), Mocha (42, 42, 52), Macchiato (46,
+  48, 61), Frappe (53, 55, 68)). Tidalfast now keeps TIDAL's own look under
+  such a theme; the tokens still stand for the surfaces where the theme
+  paints the window itself (Tidal Light, the cotton candy family, Meteor
+  Night), whose rules read them.
+- The sidebar and the play queue keep TIDAL's white and 55 % white words
+  whatever the tokens say; only `--text-default` / `--text-secondary`
+  (Tidal Light) recolour them. Library rows carry TIDAL's words
+  (`._textContent_ > ._marketText_._medium20_` and `._text20_`), the
+  navigation rows theirs (`._marketText_`), the "All playlists" heading
+  `._sectionHeader_ca54638 > ._titleText_1d0e44e`: the cotton candy
+  family's sidebar colours, TidalCustomTheme's dark red words and Tidal
+  TUI's weight 500 reach them. The playing playlist's name is the accent
+  unless the theme colours the name (even with an undefined variable,
+  whose `unset` keeps the colour around it).
+- Track rows sit two boxes down in TIDAL's virtual list, so the cotton
+  candy family's `div:nth-child(1) > div > div { border-style: none }`
+  takes the line off the first row only.
+- `backdrop-filter`: a brighter or more saturated one lays the faintest
+  veil that turns the window's colour into the filtered one (Twilight's
+  navy track list was grey, the pink panels greyer); darker stays a black
+  veil.
+- Boxes: `box-shadow` (outer outside the box only, inset as a glow),
+  radial gradients inside rounded corners, Home's feed card (`max-width`,
+  padding in the feed's 14-point ems; its `translateY` is not followed, it
+  would hide the tabs under the header), the open queue's
+  `_activeButton_122ab25`, a shortcut tile's `::after` see-through at rest
+  (Tidal Light's tiles are flat grey), outlines that follow their box's
+  corners (the cotton candy family's navigation pills had square rings),
+  the navigation rows' anchors the pill itself (208 wide, 16 in).
+- Words a theme draws in `::before` / `::after` (`content: "Tabs"`) on an
+  app element are drawn at its corner, moved by the box's margins and
+  translate (Tidal TUI's `Tabs` and `Playing`); a button's glyph is left to
+  the native icon.
+- Square artist pictures where a theme's rule beats TIDAL's circle on the
+  picture (`!important`, or deeper than one class: Tidal TUI, Giorgeous);
+  Meteor Night's one-class radius leaves them round, as in TIDAL.
+- Page and section titles take their `h1` / `h2`'s size and colour
+  (Lunallena's 30-point green), Explore's and Feed's titles the headline
+  font and spacing (Tidal TUI). A see-through Play or Shuffle with no
+  picture is no pill (Abyss Neptune). The progress fill takes the theme's
+  `[data-test=progress-indicator]` background, the volume popup the
+  theme's raised surface (Tidal Light's pale box), the bar TIDAL's own
+  glass over a theme's `#footerPlayer` fill (Tidal Amoled's bar is TIDAL's
+  dark grey, rgb(31, 31, 31)), a mix title the theme's
+  `--track-vibrant-color`. A queue panel a theme shapes without a fill
+  keeps TIDAL's.
+- Shuffle keeps TIDAL's white words under a theme; a page font's
+  semibold leads with its medium face (TIDAL draws those words at 500).
+
+Theme by theme, what still differs is in each row above. Shared by many:
+TIDAL's own layout changes a theme makes that Tidalfast's native views do
+not follow (the bar's clock moved under Play, page offsets, header
+collapses), `text-transform` and letter spacing on section titles, TIDAL's
+glass blur, and the now-playing view under the cotton candy family, which
+stays the window's pale colour where TIDAL shows the cover's dark one.
+
 ### Whole-app walks (27 plugins, 2026-10-21)
 
 The reference captures now hold a whole-app walk for 27 of the earlier

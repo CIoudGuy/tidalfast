@@ -529,6 +529,36 @@ exact `Range` (`selectBetween`). The selected words keep their colour.
   `arrayBuffer()`, up to 64 MB); `MediaItem.coverUrl()` falls back to the
   album's plain image URL when the art is not on TIDAL's image server.
 
+### Theme anchors (round 25)
+
+- Library rows carry their words: `lib-row:<i>:words`
+  (`div._textContent_462c76e`) > `:title`
+  (`span._marketText_1lyag_1._medium20_1lyag_192._textWhite_1lyag_319._title_8b245d1`,
+  without `_textWhite_` on the playing playlist's row, whose name is the
+  accent) and `:subtitle` (`span._marketText_1lyag_1._text20_1lyag_291`).
+  The "All playlists" heading is `sidebar-lib-heading`
+  (`div._sectionHeader_ca54638`) > `:title`
+  (`span._titleText_1d0e44e._medium20_1lyag_192._marketText_1lyag_1`).
+- `sidebar-fixed-nav` (`._fixedNavigation_`) is the navigation rows' bounds,
+  not the whole sidebar.
+- The open queue's button carries `_activeButton_122ab25` and
+  `aria-pressed`.
+- An artist card's `card:<i>:cover-wrapper` carries TIDAL's `_round_5776dee`;
+  the built-in TIDAL sheet rounds it with `._artistVariant_63c8c96
+  ._round_5776dee { border-radius: 50% }`, so a theme's one-class radius
+  loses to it and a deeper or `!important` one wins, as in TIDAL.
+- Track rows sit two boxes down in TIDAL's virtual list (see the table
+  above).
+- `--playQueueWidth: 350px` (TIDAL 2.43.2's side panel) beside
+  `--sidebarWidth` in the container row's style.
+- A theme's `::before` / `::after` `content` words on an anchor reach the
+  overlay as the box's `content` and are drawn at the anchor's corner,
+  moved by the box's margins, `top` / `left` and `translate`; a button's,
+  link's or picture's glyph is left to the native icon.
+- A colour declaration naming an undefined variable is `inherit` in the
+  overlay (it still parses to no colour), so a painter can tell a rule
+  that reached the colour from none.
+
 ### Canvas, images, audio
 
 `<canvas>` 2D contexts are tiny-skia pixmaps on the Luna thread
