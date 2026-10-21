@@ -249,11 +249,16 @@ fn header_pills_inside_the_header_controls_take_a_nested_rules_gradient() {
 }
 
 /// The sidebar and the play queue keep TIDAL's own text colours under a
-/// theme: its root tokens when it sets them, else TIDAL's white and 55 %
-/// white. The cotton candy family darkens only the page's words
-/// (`#main { --wave-color-text-main: black }`), so its sidebar and queue
-/// are white in TIDAL; they were the page's near-black. Without a theme
-/// the palette is the app's, untouched.
+/// theme: TIDAL's white and 55 % white. The cotton candy family darkens
+/// only the page's words (`#main { --wave-color-text-main: black }`), so
+/// its sidebar and queue are white in TIDAL; they were the page's
+/// near-black. Round 25: the root `--wave-*` tokens do not reach them
+/// either (TIDAL running Rose Pine and Catppuccin, which set
+/// `--wave-color-solid-contrast-fill` at the root, keeps its sidebar
+/// names pure white and its nav labels 55 % white); round 22 took them
+/// from those tokens. A root `--text-default` / `--text-secondary` (Tidal
+/// Light) does recolour them. Without a theme the palette is the app's,
+/// untouched.
 #[test]
 fn the_sidebar_and_queue_keep_tidals_text_colours_under_a_theme() {
     use crate::theme::Palette;
@@ -276,14 +281,30 @@ fn the_sidebar_and_queue_keep_tidals_text_colours_under_a_theme() {
     luna.shutdown();
 
     let root = r#"/* {"name": "Root tokens"} */
-:root { --wave-color-solid-contrast-fill: #101010; --wave-color-solid-base-fill: #f0f0f0; }
+:root { --wave-color-solid-contrast-fill: #101010; --wave-color-solid-contrast-darker: #202020;
+    --wave-color-text-secondary: #303030; --wave-color-solid-base-fill: #f0f0f0; }
 "#;
     let (luna, o) = overlay_with("root-tokens.css", root, dom_anchors::sample_tree(), "");
     let palette = themed(&Palette::dark(), &o);
     test_overlay(Some((*o).clone()));
+    let panel = tidal_panel_text(palette);
+    assert_eq!(panel.text, egui::Color32::WHITE);
+    assert_eq!(panel.secondary, egui::Color32::from_white_alpha(140));
+    test_overlay(None);
+    luna.shutdown();
+
+    let light = r#"/* {"name": "Text variables"} */
+:root { --text-default: #000; --text-secondary: #000000b3; --wave-color-solid-base-fill: #fff; }
+body, [class^="_main"] { background-color: var(--wave-color-solid-base-fill) !important; }
+"#;
+    let (luna, o) = overlay_with("text-vars.css", light, dom_anchors::sample_tree(), "");
+    let palette = themed(&Palette::dark(), &o);
+    test_overlay(Some((*o).clone()));
+    let panel = tidal_panel_text(palette);
+    assert_eq!(panel.text, egui::Color32::BLACK);
     assert_eq!(
-        tidal_panel_text(palette).text,
-        egui::Color32::from_rgb(0x10, 0x10, 0x10)
+        panel.secondary,
+        egui::Color32::from_rgba_unmultiplied(0, 0, 0, 0xb3)
     );
     test_overlay(None);
     luna.shutdown();
