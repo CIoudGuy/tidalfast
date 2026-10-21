@@ -743,7 +743,8 @@ fn floating_fill(palette: &theme::Palette, over_now_playing: bool) -> egui::Colo
     if over_now_playing && palette.tidal_dark() {
         egui::Color32::from_black_alpha(77)
     } else if palette.tidal_dark() {
-        egui::Color32::from_gray(23)
+        // A theme's root base colour tints TIDAL's own panel.
+        super::plugin_dom::token_queue_fill().unwrap_or(egui::Color32::from_gray(23))
     } else {
         palette.panel.to_opaque()
     }

@@ -28,6 +28,11 @@ pub struct Palette {
     /// A Luna theme set these colours: the fixed TIDAL Dark shades below
     /// (menus, chips, hairlines) give way to ones made from the palette.
     pub themed: bool,
+    /// The window, panels, cards and menus are TIDAL's own even under a
+    /// theme: TIDAL 2.43.2 keeps them under a theme that only sets the root
+    /// `--wave-*` tokens (Rose Pine, the Catppuccin flavours), whose words
+    /// alone change. Its fixed Dark shades then still apply.
+    pub own_surfaces: bool,
     /// Corner radius of egui's own windows and menus (TIDAL's
     /// `--wave-border-radius--small`), which themes may change.
     pub radius: u8,
@@ -37,7 +42,7 @@ impl Palette {
     /// TIDAL's own Dark palette (no theme): the fixed shades sampled from
     /// TIDAL apply. A themed dark palette derives them from its colours.
     pub fn tidal_dark(&self) -> bool {
-        self.dark && !self.themed
+        self.dark && (!self.themed || self.own_surfaces)
     }
 
     /// This palette `t` of the way to `other`, colour by colour; past the
@@ -64,6 +69,7 @@ impl Palette {
             overlay: mix(self.overlay, other.overlay),
             shadow: mix(self.shadow, other.shadow),
             themed: near.themed,
+            own_surfaces: near.own_surfaces,
             radius: near.radius,
         }
     }
@@ -208,6 +214,7 @@ impl Palette {
             overlay: Color32::from_rgb(0x18, 0x18, 0x1b),
             shadow: Color32::from_black_alpha(160),
             themed: false,
+            own_surfaces: true,
             radius: RADIUS,
         }
     }
@@ -234,6 +241,7 @@ impl Palette {
             overlay: Color32::from_rgb(0xff, 0xff, 0xff),
             shadow: Color32::from_black_alpha(50),
             themed: false,
+            own_surfaces: true,
             radius: RADIUS,
         }
     }

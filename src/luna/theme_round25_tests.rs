@@ -590,6 +590,49 @@ h1 { font-size: 30px !important; color: var(--accent) !important; }
     luna.shutdown();
 }
 
+/// TIDAL 2.43.2 no longer paints its window, cards, menus, grey words or
+/// accent from a theme's root `--wave-*` tokens: under Rose Pine and the
+/// Catppuccin flavours its window stays black, its sidebar words white and
+/// grey, its playing playlist teal, and only the page's words take the
+/// theme's `--wave-color-solid-contrast-fill`. Its play queue still reads
+/// `--wave-color-solid-base-fill`, a third of the way to a mid grey
+/// (measured: Rose Pine rgb(38, 37, 45), Mocha rgb(42, 42, 52), Macchiato
+/// rgb(46, 48, 61), Frappe rgb(53, 55, 68)). Tidalfast painted the whole
+/// window in the theme's ramp.
+#[test]
+fn a_theme_of_root_tokens_alone_keeps_tidals_window() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom::{self as pd, queue_fill_from, themed};
+    let css = r#"/* {"name": "Rose tokens"} */
+:root { --wave-color-solid-base-fill: #191724; --wave-color-solid-base-brighter: #26233a;
+    --wave-color-solid-contrast-fill: #e0def4; --wave-color-solid-contrast-darker: #908caa;
+    --wave-color-solid-accent-fill: #9ccfd8; }
+"#;
+    let (luna, o) = overlay_with("rose-tokens.css", css, dom_anchors::sample_tree(), "");
+    let base = Palette::dark();
+    let p = themed(&base, &o);
+    assert_eq!(p.window, base.window);
+    assert_eq!(p.surface, base.surface);
+    assert_eq!(p.accent, base.accent);
+    assert_eq!(p.secondary, base.secondary);
+    assert_eq!(p.text, egui::Color32::from_rgb(0xe0, 0xde, 0xf4));
+    assert!(p.tidal_dark(), "TIDAL's own Dark shades stay");
+    pd::test_overlay(Some((*o).clone()));
+    let fill = pd::token_queue_fill().expect("the panel reads the token");
+    pd::test_overlay(None);
+    luna.shutdown();
+    let near = |a: egui::Color32, b: [u8; 3]| {
+        let d = |x: u8, y: u8| (i16::from(x) - i16::from(y)).abs();
+        d(a.r(), b[0]) <= 2 && d(a.g(), b[1]) <= 2 && d(a.b(), b[2]) <= 2
+    };
+    assert!(near(fill, [38, 37, 45]), "{fill:?}");
+    let rgb = egui::Color32::from_rgb;
+    assert!(near(queue_fill_from(rgb(0x1e, 0x1e, 0x2e)), [42, 42, 52]));
+    assert!(near(queue_fill_from(rgb(0x24, 0x27, 0x3a)), [46, 48, 61]));
+    assert!(near(queue_fill_from(rgb(0x30, 0x34, 0x46)), [53, 55, 68]));
+    assert!(near(queue_fill_from(egui::Color32::BLACK), [22, 22, 22]));
+}
+
 /// TidalCustomTheme colours TIDAL's words by `[class^="_marketText_"] {
 /// color: #8a0022 !important }`, which reaches the navigation rows' labels
 /// in TIDAL (dark red on its pink sidebar). The labels had no anchor, so
@@ -613,4 +656,23 @@ fn navigation_labels_take_the_themes_colour_for_their_words() {
     pd::test_overlay(None);
     luna.shutdown();
     assert_eq!(color, Some(egui::Color32::from_rgb(0x8a, 0x00, 0x22)));
+}
+
+/// TIDAL 2.43.2 keeps its teal accent even under a theme that paints the
+/// window and names an accent token: Black Glow's grey and Minimalist
+/// Black's green leave TIDAL's playing playlist teal. Tidalfast drew it in
+/// the token's colour.
+#[test]
+fn a_painted_themes_accent_token_leaves_tidals_accent() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom::themed;
+    let css = r#"/* {"name": "Green"} */
+:root { --wave-color-solid-accent-fill: #22aa55 !important; }
+body { background-color: #000000 !important; }
+"#;
+    let (luna, o) = overlay_with("green-accent.css", css, dom_anchors::sample_tree(), "");
+    let base = Palette::dark();
+    let p = themed(&base, &o);
+    luna.shutdown();
+    assert_eq!(p.accent, base.accent);
 }

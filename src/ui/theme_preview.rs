@@ -786,12 +786,13 @@ mod tests {
 #footerPlayer { background-color: #223344 !important; }
 ._player_8c80ae6 { background-color: #000000; }
 [class*="_sidebarWrapper_"] { top: 2vh; border-radius: 0 20px 20px 0; background: #334455; }
-body { background-image: linear-gradient(#000000, #ffffff); }
+body { background-color: var(--wave-color-solid-base-fill); background-image: linear-gradient(#000000, #ffffff); }
 #footerPlayer:hover { background-color: #ffffff; }
 "#;
         let dark = resolve(css, false);
         assert_eq!(dark.window, Color32::from_rgb(0x10, 0x10, 0x18));
-        assert_eq!(dark.accent, Color32::from_rgb(0xff, 0x00, 0xaa));
+        // TIDAL 2.43.2 keeps its accent whatever the token says.
+        assert_eq!(dark.accent, Palette::dark().accent);
         assert_eq!(
             dark.bar,
             Color32::from_rgb(0x22, 0x33, 0x44),
@@ -818,8 +819,19 @@ body { background-image: linear-gradient(#000000, #ffffff); }
     /// A preview is the same theme in both modes when it only names one.
     #[test]
     fn previews_differ_by_theme() {
-        let a = resolve(":root{--wave-color-solid-base-fill:#200020}", false);
-        let b = resolve(":root{--wave-color-solid-base-fill:#002020}", false);
+        let paint = "body{background-color:var(--wave-color-solid-base-fill)}";
+        let a = resolve(
+            &format!(":root{{--wave-color-solid-base-fill:#200020}}{paint}"),
+            false,
+        );
+        let b = resolve(
+            &format!(":root{{--wave-color-solid-base-fill:#002020}}{paint}"),
+            false,
+        );
         assert_ne!(a.window, b.window);
+        // A theme of root tokens alone keeps TIDAL's window, as TIDAL 2.43.2
+        // does (Rose Pine, the Catppuccin flavours).
+        let tokens = resolve(":root{--wave-color-solid-base-fill:#200020}", false);
+        assert_eq!(tokens.window, Palette::dark().window);
     }
 }

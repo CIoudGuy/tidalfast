@@ -1540,6 +1540,30 @@ pub fn queue_panel(ui: &egui::Ui, r: Rect, over_now_playing: bool) -> bool {
     )
 }
 
+/// The play queue's fill under a theme that sets TIDAL's root
+/// `--wave-color-solid-base-fill` and leaves its window black (Rose Pine,
+/// the Catppuccin flavours): TIDAL 2.43.2 still reads that token for its
+/// side panel, a third of the way from it to a mid grey (measured on
+/// TIDAL running Rose Pine and Catppuccin Mocha, Macchiato and Frappe:
+/// black gives TIDAL's own rgb(22, 22, 22)). `None` without such a token.
+pub fn token_queue_fill() -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    let base = with(|s| {
+        let v = s.overlay.vars.get("--wave-color-solid-base-fill")?;
+        css::color(&css::resolve_vars(v, &s.overlay.vars))
+    })?;
+    Some(queue_fill_from(base))
+}
+
+/// [`token_queue_fill`]'s mix.
+pub fn queue_fill_from(base: Color32) -> Color32 {
+    let base = base.to_opaque();
+    let ch = |c: u8| ((f32::from(c) * 2.0 + 66.0) / 3.0).round() as u8;
+    Color32::from_rgb(ch(base.r()), ch(base.g()), ch(base.b()))
+}
+
 /// The text colours TIDAL's own rules give its sidebar and play queue
 /// while a theme is applied: white names and headings, 55 % white labels
 /// and 30 % white for the dimmest, whatever the theme's `--wave-*` tokens
@@ -4424,16 +4448,28 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         .and_then(|h| h.style.background_color.as_deref())
         .and_then(|v| css::color(&css::resolve_vars(v, &o.vars)))
         .filter(|c| c.a() >= 128);
-    if let Some(c) = var(&[
+    // TIDAL 2.43.2 paints its window, sidebar, cards, hovers, menus and
+    // accents in its own colours, not from the root `--wave-*` tokens: under
+    // Rose Pine, the Catppuccin flavours, Black Glow and the other token
+    // themes its window stays black, its hovers grey and its playing
+    // playlist teal, and only the page's words take the theme's
+    // `--wave-color-solid-contrast-fill` (the body's colour). The tokens
+    // stand for TIDAL's surfaces only where the theme paints the window
+    // itself (Tidal Light's white `[class^="_main"]`, the cotton candy
+    // family's main container), whose own rules read them.
+    let painted = painted_container(o)
+        .or(container_bg)
+        .or(main_bg)
+        .or(page_bg);
+    let tokens = painted.is_some();
+    let ramp = |names: &[&str]| if tokens { var(names) } else { None };
+    if let Some(c) = ramp(&[
         "--wave-color-solid-base-fill",
         "--wave-color-solid-base-base",
         "--wave-color-background",
         "--wave-color-solid-base-darkest",
     ])
-    .or(painted_container(o))
-    .or(container_bg)
-    .or(main_bg)
-    .or(page_bg)
+    .or(painted)
     {
         p.window = opaque(c);
         p.panel = blend(p.window, base.text, 0.03);
@@ -4458,10 +4494,10 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         p.overlay = blend(p.window, toward, if p.dark { 0.1 } else { 0.0 });
         p.outline = blend(p.window, toward, 0.14);
     }
-    if let Some(c) = var(&["--wave-color-solid-base-bright"]) {
+    if let Some(c) = ramp(&["--wave-color-solid-base-bright"]) {
         p.panel = opaque_over(c, p.window);
     }
-    if let Some(c) = var(&[
+    if let Some(c) = ramp(&[
         "--wave-color-solid-base-brighter",
         "--wave-color-solid-base-brighter-fill",
     ]) {
@@ -4470,20 +4506,20 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         p.surface_active = blend(p.surface, p.text, 0.1);
         p.overlay = p.surface;
     }
-    if let Some(c) = var(&["--wave-color-solid-base-brightest"]) {
+    if let Some(c) = ramp(&["--wave-color-solid-base-brightest"]) {
         p.surface_hover = opaque_over(c, p.window);
         p.overlay = p.surface_hover;
     }
-    if let Some(c) = var(&["--wave-color-background-hover"]) {
+    if let Some(c) = ramp(&["--wave-color-background-hover"]) {
         p.surface_hover = opaque_over(c, p.window);
     }
-    if let Some(c) = var(&["--wave-color-background-active"]) {
+    if let Some(c) = ramp(&["--wave-color-background-active"]) {
         p.surface_active = opaque_over(c, p.window);
     }
-    if let Some(c) = var(&["--wave-color-background-elevated"]) {
+    if let Some(c) = ramp(&["--wave-color-background-elevated"]) {
         p.overlay = opaque_over(c, p.window);
     }
-    if let Some(c) = var(&["--wave-color-border"]) {
+    if let Some(c) = ramp(&["--wave-color-border"]) {
         p.outline = opaque_over(c, p.window);
     }
     let page_text = o
@@ -4502,10 +4538,13 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
     .or(page_text)
     {
         p.text = opaque_over(c, p.window);
-        p.secondary = blend(p.text, p.window, 0.45);
-        p.dim = blend(p.text, p.window, 0.55);
+        // Under a theme that leaves TIDAL's window, its grey words stay.
+        if tokens {
+            p.secondary = blend(p.text, p.window, 0.45);
+            p.dim = blend(p.text, p.window, 0.55);
+        }
     }
-    if let Some(c) = var(&[
+    if let Some(c) = ramp(&[
         "--wave-color-text-secondary",
         "--wave-color-solid-contrast-darker",
         "--wave-color-opacity-contrast-fill-ultra-thick",
@@ -4514,35 +4553,23 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
     {
         p.secondary = opaque_over(c, p.window);
     }
-    if let Some(c) = var(&[
+    if let Some(c) = ramp(&[
         "--wave-color-text-tertiary",
         "--wave-color-solid-contrast-darkest",
     ]) {
         p.dim = opaque_over(c, p.window);
     }
-    if let Some(c) = var(&[
-        "--wave-color-solid-accent-fill",
-        "--wave-color-solid-accent-base",
-        "--wave-color-accent",
-    ]) {
-        p.accent = opaque(c);
-        p.accent_hover = var(&["--wave-color-solid-accent-bright"])
-            .map(opaque)
-            .unwrap_or_else(|| blend(p.accent, Color32::WHITE, 0.3));
-        p.on_accent = if luminance(p.accent) > 0.5 {
-            Color32::BLACK
-        } else {
-            Color32::WHITE
-        };
-    }
-    if let Some(c) = var(&[
+    // TIDAL's accent never comes from the root tokens: Rose Pine's light
+    // blue, Black Glow's grey and Minimalist Black's green all leave TIDAL's
+    // teal on the playing playlist and in the queue.
+    if let Some(c) = ramp(&[
         "--wave-color-solid-warning-fill",
         "--wave-color-text-danger",
         "--wave-color-solid-rainbow-red-fill",
     ]) {
         p.danger = opaque(c);
     }
-    if let Some(c) = var(&["--wave-color-solid-rainbow-yellow-fill"]) {
+    if let Some(c) = ramp(&["--wave-color-solid-rainbow-yellow-fill"]) {
         p.warning = opaque(c);
     }
     // Menus: what a theme gives TIDAL's context menu, or the popover round
@@ -4582,6 +4609,11 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
     }
     readable(&mut p, base);
     p.themed = p != *base;
+    p.own_surfaces = p.window == base.window
+        && p.panel == base.panel
+        && p.surface == base.surface
+        && p.surface_hover == base.surface_hover
+        && p.overlay == base.overlay;
     p
 }
 
@@ -7889,7 +7921,8 @@ mod tests {
         o.page.background_color = Some("var(--sn-sky-top)".into());
         o.page.color = Some("rgb(250, 240, 230)".into());
         let p = themed(&base, &o);
-        assert_eq!(p.accent, Color32::from_rgb(255, 0, 0));
+        // TIDAL 2.43.2 keeps its accent whatever the token says.
+        assert_eq!(p.accent, base.accent);
         assert_eq!(p.window, Color32::from_rgb(0x11, 0x22, 0x33));
         assert_eq!(p.text, Color32::from_rgb(250, 240, 230));
         assert!(p.dark);
@@ -7914,8 +7947,21 @@ mod tests {
         ] {
             o.vars.insert(k.into(), v.into());
         }
-        let p = themed(&base, &o);
         let rgb = Color32::from_rgb;
+        // The tokens alone: TIDAL 2.43.2 keeps its own window, cards, grey
+        // words and accent, and only its page's words take the theme's
+        // (TIDAL running the Catppuccin flavours and Rose Pine).
+        let p = themed(&base, &o);
+        assert_eq!(p.window, base.window);
+        assert_eq!(p.surface, base.surface);
+        assert_eq!(p.overlay, base.overlay);
+        assert_eq!(p.secondary, base.secondary);
+        assert_eq!(p.accent, base.accent);
+        assert_eq!(p.text, rgb(0xcd, 0xd6, 0xf4));
+        assert!(p.themed && p.own_surfaces && p.tidal_dark());
+        // A theme that paints the window too: its rules read the ramp.
+        o.page.background_color = Some("var(--wave-color-solid-base-fill)".into());
+        let p = themed(&base, &o);
         assert_eq!(p.window, rgb(0x1e, 0x1e, 0x2e));
         assert_eq!(p.panel, rgb(0x18, 0x18, 0x25));
         assert_eq!(p.surface, rgb(0x31, 0x32, 0x44));
@@ -7937,6 +7983,7 @@ mod tests {
         let mut o = DomOverlay::default();
         o.vars
             .insert("--wave-color-solid-base-fill".into(), "#fafafa".into());
+        o.page.background_color = Some("var(--wave-color-solid-base-fill)".into());
         let p = themed(&base, &o);
         assert!(!p.dark);
         assert_eq!(p.text, Palette::light().text);
