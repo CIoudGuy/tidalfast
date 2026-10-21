@@ -221,7 +221,7 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | `footer-player` | `div#footerPlayer[data-test=footer-player]._player_8c80ae6` (+ `nowPlayingVisible`; `_notFullscreen_60c5a14` outside fullscreen) | the bar; background and opacity restyled; a theme's `width`/`max-width`, `bottom`, `border-radius` and `box-shadow` float it (see Theme); clicks forwarded | |
 | `player-content` | `div._playerContent_` | | |
 | `track-info` | `div[data-test=track-info]._trackInfo_` | left cluster | Append (past the "..." button) |
-| `track-content` | `div._trackContent_` | title, artists and source line; a theme's `background-color` with its `border-radius`, `padding` and `border` is a card behind them, the heart and the "..." (the cotton candy family's) | |
+| `track-content` | `div._trackContent_` | title, artists and source line; a theme's `background-color` with its `border-radius`, `padding` and `border` is a card behind them, the heart and the "..." (the cotton candy family's) | Append (after the heart row and the "...": tidal-genres' badge) |
 | `now-playing-toggle` > `cover` > `cover-img` | `button[data-test=player-details-toggle-now-playing] > figure[data-test=current-media-imagery] > img[src]` | cover art; clicks forwarded | |
 | `footer-track-title` > `footer-track-link` | `div[data-test=footer-track-title] > a[href="/track/<id>"]` | title; text override, colour, hidden | Append (right of the title), After (artist line) |
 | `artist-row` > `footer-artist-name` > `footer-artist-name:<i>` | `span[data-test=footer-artist-name] > a[href="/artist/<id>"]` | artists; hidden | Append, After (artist line) |
