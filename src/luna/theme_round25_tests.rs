@@ -314,6 +314,52 @@ fn the_playlists_heading_takes_the_themes_colour_for_it() {
     let _ = LIB_HEADING_TITLE;
 }
 
+/// The cotton candy family draws Home's feed in a glass card
+/// (`._feed_412931c`: a border, corners, a gradient, padding, and
+/// `max-width: calc(88vw - var(--sidebarWidth) - (var(--playQueueWidth) *
+/// .9))`), which narrows the feed in TIDAL. Nothing of it was drawn and
+/// the feed kept its own width; TIDAL's `--playQueueWidth` (350) was not
+/// declared, so the width could not resolve.
+#[test]
+fn homes_feed_card_takes_the_themes_width_and_padding() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Feed card"} */
+._feed_412931c { background-color: #fff0; border-radius: 1em; border-style: solid; border-width: 2px;
+    border-color: rgb(255, 150, 240);
+    min-width: calc(88vw - var(--sidebarWidth) - (var(--playQueueWidth)*.9)) !important;
+    max-width: calc(88vw - var(--sidebarWidth) - (var(--playQueueWidth)*.9)) !important;
+    padding-top: 1.2em; padding-left: 2.2em; padding-right: 2.1em; padding-bottom: 0em; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.viewport = [2137.0, 1183.0];
+    frame.sidebar.width = 240.0;
+    if let Some(p) = frame.page.as_mut() {
+        p.feed = true;
+    }
+    let (luna, o) = overlay_with(
+        "feed-card.css",
+        css,
+        dom_anchors::build(&frame),
+        dom_anchors::keys::PAGE,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    pd::note(|f| f.viewport = [2137.0, 1183.0]);
+    let card = pd::feed_card().expect("the card");
+    let width = card.width.expect("its width");
+    assert!(
+        (width - (0.88 * 2137.0 - 240.0 - 315.0)).abs() < 1.0,
+        "{width}"
+    );
+    // In ems of the feed's 14-point text: TIDAL's card edge lies 2.2em
+    // (30.8) left of the feed, measured on its capture.
+    for (got, want) in card.padding.iter().zip([16.8, 29.4, 0.0, 30.8]) {
+        assert!((got - want).abs() < 0.01, "{:?}", card.padding);
+    }
+    pd::test_overlay(None);
+    assert_eq!(pd::feed_card(), None, "no card without a theme");
+    luna.shutdown();
+}
+
 /// TIDAL draws the playing playlist's name in its accent, which is not its
 /// white text class: a theme's rule on `._textWhite_` leaves it the accent,
 /// while the cotton candy family's `#sidebar ._marketText_._medium20_`
