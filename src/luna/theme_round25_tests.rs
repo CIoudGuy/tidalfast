@@ -1020,3 +1020,35 @@ a, button { background: none !important; }
     luna.shutdown();
     assert_eq!(fill, Some(egui::Color32::TRANSPARENT), "no pill");
 }
+
+/// TIDAL paints a track row's hover on its cells, rounding the first and
+/// the last. Tidal TUI's `[data-test="tracklist-row"] div:first-child,
+/// ... div:last-child { border-radius: var(--border-radius) !important }`
+/// (no value: 0) squares them, so its hovered rows are square in TIDAL.
+/// Tidalfast rounded the row's ends by 5 whatever the theme said.
+#[test]
+fn a_themes_cell_corners_shape_the_row_hover() {
+    use crate::ui::plugin_dom as pd;
+    use crate::ui::widgets::row_fill_corners;
+    use dom_anchors::keys::row_cell;
+    let css = r#"/* {"name": "Square cells"} */
+[data-test="tracklist-row"] div:first-child,
+[data-test="tracklist-row"] div:last-child { border-radius: var(--border-radius) !important; }
+"#;
+    let (luna, o) = overlay_with(
+        "square-cells.css",
+        css,
+        dom_anchors::build(&dom_anchors::sample_frame()),
+        &row_cell("album:55", 1, "context"),
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let corners = row_fill_corners("album:55", 1);
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(corners, egui::CornerRadius::ZERO);
+    assert_eq!(
+        row_fill_corners("album:55", 1),
+        egui::CornerRadius::same(5),
+        "without a theme, TIDAL's 5"
+    );
+}

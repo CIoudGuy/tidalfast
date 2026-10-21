@@ -2740,6 +2740,30 @@ pub fn table_header(
     clicked
 }
 
+/// The corners of a track row's hover and picked fill: TIDAL paints it on
+/// the row's cells, so its ends take the first and the last cell's radius
+/// (Tidal TUI's `div:first-child`, `div:last-child { border-radius }`
+/// squares them), TIDAL's 5 where no theme gives one.
+pub(crate) fn row_fill_corners(list: &str, index: usize) -> CornerRadius {
+    use super::plugin_dom::radius;
+    use crate::luna::dom_anchors::keys::row_cell;
+    if !super::plugin_dom::on() {
+        return CornerRadius::same(5);
+    }
+    let corner = |r: Option<f32>| r.map_or(5, |r| r.clamp(0.0, 255.0).round() as u8);
+    let first = corner(
+        radius(&row_cell(list, index, "image-col"))
+            .or_else(|| radius(&row_cell(list, index, "title"))),
+    );
+    let last = corner(radius(&row_cell(list, index, "context")));
+    CornerRadius {
+        nw: first,
+        sw: first,
+        ne: last,
+        se: last,
+    }
+}
+
 /// Paints TIDAL's cells of one track row: #, cover, title, artist, album,
 /// added by, date added, time, and the "…", "+" and heart buttons. Answers
 /// with the cell holding the play control.
@@ -2772,7 +2796,7 @@ fn tidal_row_cells(
         let alpha = if row.picked && lit { 38 } else { 26 };
         painter.rect_filled(
             rect,
-            CornerRadius::same(5),
+            row_fill_corners(&super::plugin_dom::list_id(row.context), row.index),
             Color32::from_white_alpha(alpha),
         );
     }
