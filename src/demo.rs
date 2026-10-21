@@ -15857,6 +15857,61 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// StarryNight hides the now-playing view's cover backdrop and gives
+    /// `#nowPlaying` its sky gradient: the view shows the gradient, not only
+    /// its first colour (black, where TIDAL shows the sky's blue foot).
+    #[test]
+    fn a_hidden_now_playing_backdrop_shows_the_views_own_gradient() {
+        use crate::luna::dom::{DomOverlay, HostOverride};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1400.0, 900.0),
+            )),
+            ..Default::default()
+        };
+        fn colours(shape: &egui::Shape, out: &mut Vec<egui::Color32>) {
+            match shape {
+                egui::Shape::Vec(v) => v.iter().for_each(|s| colours(s, out)),
+                egui::Shape::Mesh(m) => out.extend(m.vertices.iter().map(|v| v.color)),
+                _ => {}
+            }
+        }
+        let (ctx, mut app) = accessible_app("np-sky");
+        apply_flags(&mut app, None, Some("now-playing"));
+        // StarryNight: TIDAL's cover backdrop hidden, `#nowPlaying` a sky
+        // from black at the top to #142b44 at the foot.
+        let mut o = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        let mut hidden = HostOverride::default();
+        hidden.style.display = Some("none".into());
+        o.hosts.insert(keys::NP_BACKGROUND.into(), hidden);
+        let mut sky = HostOverride::default();
+        sky.style.background_image =
+            Some("linear-gradient(180deg, #000000 0, #142b44 100%)".into());
+        o.hosts.insert(keys::NOW_PLAYING.into(), sky);
+        plugin_dom::test_overlay(Some(o));
+        let mut found = Vec::new();
+        for _ in 0..4 {
+            let mut out = ctx.run_ui(input.clone(), |ui| crate::ui::show(&mut app, ui));
+            out.textures_delta.clear();
+            found.clear();
+            out.shapes
+                .iter()
+                .for_each(|s| colours(&s.shape, &mut found));
+        }
+        plugin_dom::test_overlay(None);
+        app.backend.shutdown();
+        assert!(
+            found.contains(&egui::Color32::from_rgb(0x14, 0x2b, 0x44)),
+            "the sky's blue foot is drawn"
+        );
+    }
+
     /// Lunallena's sidebar glass is `rgba(50, 50, 50, 0.5)` under a
     /// `backdrop-filter: blur()`. Out over the page it would show the page's
     /// text plainly (the content behind is not blurred), so the glass is laid
