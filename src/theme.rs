@@ -586,9 +586,20 @@ const fn weight_slot(weight: fastframe_fonts::Weight) -> usize {
 /// every weight's, so a theme that sets the font of everything
 /// (`* { font-family: ... }`) reaches titles and bold text as well, bold in
 /// the font's bold (egui does not thicken a regular face).
+///
+/// The app's semibold stands in for TIDAL's weight 500 (Square Sans at 500
+/// reads as heavy as Hanken's semibold): titles, rows, names. A page font
+/// is drawn at 500 there in TIDAL, so the semibold family leads with the
+/// font's medium face, not its semibold or bold one (Tidal TUI's monospace
+/// sidebar names and track titles are regular-looking in TIDAL; they were
+/// bold here).
 fn lead_with(fonts: &mut egui::FontDefinitions, keys: &[String; 4]) {
     for weight in fastframe_fonts::Weight::ALL {
-        let key = &keys[weight_slot(weight)];
+        let face = match weight {
+            fastframe_fonts::Weight::SemiBold => fastframe_fonts::Weight::Medium,
+            other => other,
+        };
+        let key = &keys[weight_slot(face)];
         if let Some(family) = fonts.families.get_mut(&weight.family())
             && family.first() != Some(key)
         {
@@ -1385,12 +1396,14 @@ mod tests {
         lead_with(&mut fonts, &keys);
         for weight in fastframe_fonts::Weight::ALL {
             let family = &fonts.families[&weight.family()];
-            // Each weight leads with its own face of the page font.
-            assert_eq!(
-                family.first(),
-                Some(&keys[weight_slot(weight)]),
-                "{weight:?}"
-            );
+            // Each weight leads with its own face of the page font, the
+            // app's semibold (TIDAL's 500) with the font's medium.
+            let face = if weight == fastframe_fonts::Weight::SemiBold {
+                fastframe_fonts::Weight::Medium
+            } else {
+                weight
+            };
+            assert_eq!(family.first(), Some(&keys[weight_slot(face)]), "{weight:?}");
             assert!(family.len() > 1, "{weight:?} keeps its fallbacks");
         }
     }
