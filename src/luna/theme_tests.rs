@@ -215,6 +215,7 @@ fn theme_text_roles_menus_and_color_scheme_reach_the_palette() {
 .wave-text-body-medium[data-wave-color=textDefault] { color: rgb(240, 230, 220) !important; }
 [class^="_contextMenu"] { background-color: #222233 !important; }
 :root { --wave-color-solid-base-fill: #101018; --wave-border-radius--small: 2px; }
+body { background-color: var(--wave-color-solid-base-fill); }
 @media (prefers-color-scheme: light) { :root { --wave-color-solid-accent-fill: #00ff00; } }
 "#;
     let files: Files = Arc::default();
