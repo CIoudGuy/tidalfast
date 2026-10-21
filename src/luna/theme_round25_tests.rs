@@ -91,6 +91,47 @@ fn library_rows_take_their_words_from_the_theme() {
     luna.shutdown();
 }
 
+/// TIDAL marks the open queue's button `_activeButton_122ab25`, which the
+/// cotton candy family paints as a rounded gradient square
+/// (`border-radius: .5em; background-image: linear-gradient(...)`). The
+/// anchor had no such class, so the button kept Tidalfast's grey disc.
+#[test]
+fn the_open_queues_button_is_tidals_active_button() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::QUEUE;
+    let css = r#"/* {"name": "Active button"} */
+._activeButton_122ab25 { border-radius: .5em !important; background-color: #fff0;
+    background-image: linear-gradient(90deg, rgb(255, 150, 240), rgb(200, 160, 255)); }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(player) = frame.player.as_mut() {
+        player.queue_open = true;
+    }
+    let (luna, o) = overlay_with("active-button.css", css, dom_anchors::build(&frame), QUEUE);
+    pd::test_overlay(Some((*o).clone()));
+    assert!(pd::paints_box(QUEUE), "the pressed button's gradient");
+    // .5em of the button's 14px text.
+    assert_eq!(pd::radius(QUEUE), Some(7.0));
+    pd::test_overlay(None);
+    // Closed, the button is not active and keeps its native look.
+    if let Some(player) = frame.player.as_mut() {
+        player.queue_open = false;
+    }
+    let tree = dom_anchors::build(&frame);
+    let queue = tree
+        .nodes
+        .iter()
+        .find(|n| n.key == QUEUE)
+        .expect("the button");
+    assert!(
+        !queue
+            .attrs
+            .iter()
+            .any(|(k, v)| k == "class" && v.contains("_activeButton_122ab25"))
+    );
+    luna.shutdown();
+}
+
 /// TIDAL heads the playlists with "All playlists" in its grey, which the
 /// cotton candy family turns 64 % white (`[class="_sectionHeader_ca54638"]
 /// ._titleText_1d0e44e { color }`); Rose Pine and Catppuccin, which name

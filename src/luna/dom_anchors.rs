@@ -775,6 +775,8 @@ pub struct PlayerBar {
     pub volume: f32,
     pub muted: bool,
     pub lyrics_open: bool,
+    /// The play queue panel is open (its button is pressed).
+    pub queue_open: bool,
     pub rects: [Option<Rect>; PlayerPart::COUNT],
 }
 
@@ -2184,12 +2186,17 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .modules(&["moreContainer"])
             .at(p.rect(P::More)),
     );
-    out.push(
-        el(QUEUE, Some(MORE), "button")
-            .test("play-queue-button")
-            .attr("aria-label", "Play queue")
-            .at(p.rect(P::Queue)),
-    );
+    // TIDAL marks the pressed utility button `_activeButton_122ab25`,
+    // which the cotton candy family fills with its gradient.
+    let mut queue = el(QUEUE, Some(MORE), "button")
+        .test("play-queue-button")
+        .attr("aria-label", "Play queue")
+        .attr("aria-pressed", p.queue_open.to_string())
+        .at(p.rect(P::Queue));
+    if p.queue_open {
+        queue = queue.class("_activeButton_122ab25");
+    }
+    out.push(queue);
     out.push(
         el(FULLSCREEN, Some(MORE), "button")
             .test("request-fullscreen")

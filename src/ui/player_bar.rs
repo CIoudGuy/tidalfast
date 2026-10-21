@@ -360,6 +360,7 @@ fn note_player_bar(app: &App, rect: Rect, now: Option<&NowPlaying>, view_open: b
             rect: plugin_dom::rect(rect),
             now_playing_visible: view_open,
             lyrics_open,
+            queue_open: app.show_queue_panel || matches!(app.page(), Page::Queue),
             repeat: "off".into(),
             volume: f32::from(crate::app::volume_to_percent(app.local.volume)) / 100.0,
             ..Default::default()
@@ -1537,7 +1538,19 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     let disc_fill = plugin_dom::on()
         .then(|| plugin_dom::fill(keys::QUEUE))
         .flatten();
-    if queue_open && disc_fill.is_none_or(|c| c.a() > 0) {
+    if queue_open && plugin_dom::on() && plugin_dom::paints_box(keys::QUEUE) {
+        // A theme's box for TIDAL's pressed button (`._activeButton_122ab25`:
+        // the cotton candy family's rounded gradient) in TIDAL's 32-point
+        // button, the glyph drawn again over it.
+        let r = egui::Rect::from_center_size(queue_button.rect.center(), egui::Vec2::splat(32.0));
+        plugin_dom::paint_themed_box(ui, keys::QUEUE, r, egui::CornerRadius::same(16));
+        Icon::QueueLines
+            .image(queue_color.unwrap_or(palette.text), 18.0)
+            .paint_at(
+                ui,
+                egui::Rect::from_center_size(r.center(), egui::Vec2::splat(18.0)),
+            );
+    } else if queue_open && disc_fill.is_none_or(|c| c.a() > 0) {
         ui.painter().set(
             disc,
             egui::Shape::circle_filled(
