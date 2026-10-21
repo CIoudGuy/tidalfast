@@ -57,6 +57,8 @@ const MAX_RETRY_AFTER: Duration = Duration::from_secs(30);
 const FIRST_BACKOFF: Duration = Duration::from_millis(500);
 /// TIDAL lists playlist and album items 100 at a time.
 const ITEMS_LIMIT: u32 = 100;
+/// An artist page module's "View all" lists 50 at a time (100 answers 400).
+const MODULE_LIMIT: u32 = 50;
 const SEARCH_LIMIT: u32 = 25;
 /// Playlist item removals are sent in chunks this size.
 const REMOVE_CHUNK: usize = 50;
@@ -559,6 +561,25 @@ impl ReleaseGroup {
         }
     }
 
+    /// The modules of TIDAL's artist page (`v2/artist/{id}`) that list the
+    /// group, in the page's order, each with the `album_type` its cards are
+    /// given (the interface's Compilations and Live albums shelves read the
+    /// Albums list by it). TIDAL's lists hold the versions its page shows
+    /// (for J. Cole the explicit one of each, both Come Up Mixtapes),
+    /// which `artists/{id}/albums` does not: that lists every version,
+    /// clean and explicit, in no stable order.
+    fn modules(self) -> &'static [(&'static str, Option<&'static str>)] {
+        match self {
+            Self::Albums => &[
+                ("ARTIST_ALBUMS", None),
+                ("ARTIST_COMPILATIONS", Some("compilation")),
+                ("ARTIST_LIVE_ALBUMS", Some("live")),
+            ],
+            Self::EpsAndSingles => &[("ARTIST_TOP_SINGLES", None)],
+            Self::Compilations => &[("ARTIST_APPEARS_ON", None)],
+        }
+    }
+
     /// The `album_group` the interface groups by.
     fn group(self) -> &'static str {
         match self {
@@ -586,6 +607,29 @@ impl ReleaseGroup {
         }
         groups
     }
+}
+
+/// One release of each title (ignoring case), the explicit version where
+/// the list has one, at the place of the title's first version.
+fn one_version_each(albums: Vec<Album>) -> Vec<Album> {
+    let mut kept: Vec<Album> = Vec::with_capacity(albums.len());
+    let mut at = std::collections::HashMap::new();
+    for album in albums {
+        let title = album.name.to_lowercase();
+        match at.get(&title) {
+            Some(&index) => {
+                let first: &mut Album = &mut kept[index];
+                if album.explicit && !first.explicit {
+                    *first = album;
+                }
+            }
+            None => {
+                at.insert(title, kept.len());
+                kept.push(album);
+            }
+        }
+    }
+    kept
 }
 
 pub struct TidalClient {
@@ -2222,8 +2266,121 @@ impl TidalClient {
         Ok(page.items.into_iter().map(convert::track).collect())
     }
 
-    /// One group of an artist's releases.
+    /// One group of an artist's releases, as TIDAL's artist page lists
+    /// them (`ReleaseGroup::modules`). An artist whose page lists nothing
+    /// there (an uploader's own artist, which the page answers empty) or a
+    /// page that cannot be read falls back to `artists/{id}/albums`.
     pub async fn artist_releases(
+        &self,
+        id: &str,
+        group: ReleaseGroup,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Page<Album>> {
+        match self.artist_module_releases(id, group, offset, limit).await {
+            Ok(page) if offset > 0 || !page.items.is_empty() => return Ok(page),
+            Ok(_) => {}
+            Err(error) => log::debug!("artist {id}'s page lists could not be read: {error}"),
+        }
+        self.artist_releases_v1(id, group, offset, limit).await
+    }
+
+    /// [`Self::artist_releases`] from the artist page's modules. A group of
+    /// one module is paged as TIDAL pages it (50 at most); the Albums
+    /// group's three short modules are read in full and paged here.
+    async fn artist_module_releases(
+        &self,
+        id: &str,
+        group: ReleaseGroup,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Page<Album>> {
+        let limit = limit.clamp(1, MODULE_LIMIT);
+        let modules = group.modules();
+        if let [(module, kind)] = modules {
+            let (items, more) = self
+                .artist_module_page(id, module, *kind, group, offset, limit)
+                .await?;
+            let end = offset + items.len() as u32;
+            return Ok(Page {
+                next: more.then(|| format!("offset={end}")),
+                total: end + u32::from(more),
+                items,
+                limit,
+                offset,
+            });
+        }
+        let mut all = Vec::new();
+        for (module, kind) in modules {
+            let mut at = 0;
+            // A module of more than 500 releases is cut there.
+            for _ in 0..10 {
+                let (items, more) = self
+                    .artist_module_page(id, module, *kind, group, at, MODULE_LIMIT)
+                    .await?;
+                at += MODULE_LIMIT;
+                all.extend(items);
+                if !more {
+                    break;
+                }
+            }
+        }
+        let total = all.len() as u32;
+        let items: Vec<Album> = all
+            .into_iter()
+            .skip(offset as usize)
+            .take(limit as usize)
+            .collect();
+        let end = offset + items.len() as u32;
+        Ok(Page {
+            next: (end < total).then(|| format!("offset={end}")),
+            items,
+            total,
+            limit,
+            offset,
+        })
+    }
+
+    /// One page of an artist page module's "View all"
+    /// (`v2/artist/<MODULE>/view-all`), and whether more may follow.
+    async fn artist_module_page(
+        &self,
+        id: &str,
+        module: &str,
+        kind: Option<&str>,
+        group: ReleaseGroup,
+        offset: u32,
+        limit: u32,
+    ) -> Result<(Vec<Album>, bool)> {
+        let page = self
+            .page_value(&format!(
+                "v2/artist/{module}/view-all?artistId={id}&limit={limit}&offset={offset}"
+            ))
+            .await?;
+        let listed = page
+            .get("items")
+            .and_then(Value::as_array)
+            .map_or(0, Vec::len);
+        let albums = pages::shelf_items(&page)
+            .into_iter()
+            .filter_map(|item| match item {
+                ShelfItem::Album(mut album) => {
+                    if let Some(kind) = kind {
+                        album.album_type = Some(kind.to_string());
+                    }
+                    album.album_group = Some(group.group().to_string());
+                    Some(album)
+                }
+                _ => None,
+            })
+            .collect();
+        Ok((albums, listed as u32 >= limit))
+    }
+
+    /// One group of an artist's releases from `artists/{id}/albums`, which
+    /// lists every version of a release: one of each title is kept, the
+    /// explicit one where there is one.
+    async fn artist_releases_v1(
         &self,
         id: &str,
         group: ReleaseGroup,
@@ -2239,11 +2396,13 @@ impl TidalClient {
                     .query("offset", offset),
             )
             .await?;
-        Ok(page.map(limit, |raw| {
+        let mut page = page.map(limit, |raw| {
             let mut album = convert::album(raw);
             album.album_group = Some(group.group().to_string());
             album
-        }))
+        });
+        page.items = one_version_each(page.items);
+        Ok(page)
     }
 
     /// An artist's releases for an `include_groups` list, as one

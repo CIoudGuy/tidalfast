@@ -4675,6 +4675,51 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// TIDAL lists two releases of one title (J. Cole's two Come Up
+    /// Mixtapes Vol. 1) as two cards, and live albums on a shelf of their
+    /// own; Tidalfast kept one card per title.
+    #[test]
+    fn the_artist_page_shows_every_version_tidal_lists() {
+        let (ctx, mut app) = accessible_app("artist-two-versions");
+        let (twice, live) = {
+            let albums = &mut app.artist_pages.get_mut("art0").unwrap().albums;
+            let items = &mut albums
+                .get_mut(DiscographyFilter::Albums.groups())
+                .unwrap()
+                .items;
+            items[0].name = "Released Twice".into();
+            items[1].name = "Released Twice".into();
+            items[2].album_type = Some("live".into());
+            items[2].name = "Live from the Studio".into();
+            (items[0].name.clone(), items[2].name.clone())
+        };
+        app.open(Page::Artist("art0".into()));
+        painted_texts(&ctx, &mut app);
+        let texts = painted_texts(&ctx, &mut app);
+        let cards = texts.iter().filter(|(text, _)| *text == twice).count();
+        assert_eq!(cards, 2, "both versions of {twice}");
+        let shelf = texts
+            .iter()
+            .find(|(text, _)| text == "Live albums")
+            .expect("a Live albums shelf")
+            .1;
+        let card = texts
+            .iter()
+            .find(|(text, _)| *text == live)
+            .expect("the live album's card")
+            .1;
+        assert!(
+            card.top() > shelf.bottom(),
+            "the live album is on its shelf"
+        );
+        app.open(Page::ArtistSection("art0".into(), ArtistSection::Albums));
+        painted_texts(&ctx, &mut app);
+        let texts = painted_texts(&ctx, &mut app);
+        assert_eq!(texts.iter().filter(|(text, _)| *text == twice).count(), 2);
+        assert!(!texts.iter().any(|(text, _)| *text == live));
+        app.backend.shutdown();
+    }
+
     #[test]
     fn home_tabs_at_rest_are_grey_as_in_tidal() {
         let (ctx, mut app) = accessible_app("home-tab-colours");

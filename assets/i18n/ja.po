@@ -2080,6 +2080,10 @@ msgstr "EP とシングル"
 msgid "Compilations"
 msgstr "コンピレーション"
 
+#: src/ui/artist.rs
+msgid "Live albums"
+msgstr "ライブアルバム"
+
 #: src/ui/artist.rs:957 src/ui/artist.rs:1253
 msgid "Appears on"
 msgstr "参加作品"

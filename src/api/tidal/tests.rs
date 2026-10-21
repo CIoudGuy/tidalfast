@@ -2,6 +2,7 @@ use super::*;
 use crate::auth::tidal::tests::{FakeRefresher, grant};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+mod artist_releases;
 mod catalogue;
 mod creators;
 mod dnd;
