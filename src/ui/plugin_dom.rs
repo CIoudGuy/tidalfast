@@ -2063,7 +2063,12 @@ fn pill_fill(h: &HostOverride, vars: &BTreeMap<String, String>) -> Option<Color3
     if let Some(c) = solid.filter(|c| c.a() > 0) {
         return Some(c);
     }
-    let image = css::resolve_vars(h.style.background_image.as_deref()?, vars);
+    // A see-through fill and no picture: no pill (Abyss Neptune's
+    // `background-color: transparent !important` leaves Play its words).
+    let Some(image) = h.style.background_image.as_deref() else {
+        return solid;
+    };
+    let image = css::resolve_vars(image, vars);
     let stops = css::colors_in(&image);
     if stops.is_empty() {
         return solid;
