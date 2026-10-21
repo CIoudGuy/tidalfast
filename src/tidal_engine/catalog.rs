@@ -126,7 +126,8 @@ pub trait Catalog: Send + Sync + 'static {
     /// song waits for the network instead of being skipped.
     fn stream(&self, track_id: &str, quality: Quality) -> anyhow::Result<StreamInfo>;
     /// A music video's stream: its HLS master playlist's URL. Protected
-    /// videos are an error.
+    /// videos are an error. A request that never got TIDAL's answer fails
+    /// with [`unreachable()`], as for [`Self::stream`].
     fn video_stream(&self, video_id: &str) -> anyhow::Result<StreamInfo> {
         anyhow::bail!("no video stream for {video_id}")
     }

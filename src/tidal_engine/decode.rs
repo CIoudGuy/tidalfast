@@ -687,13 +687,7 @@ impl Worker {
                 if !self.cancelled() {
                     log::warn!("unable to open the video {uri}: {error:#}");
                 }
-                // An outage is not TIDAL refusing the video: it waits.
-                let error = format!("{error:#}");
-                self.fail(if super::catalog::is_unreachable(&error) {
-                    error
-                } else {
-                    video::UNPLAYABLE.to_string()
-                });
+                self.fail(video_failure(&error));
                 return;
             }
         };
@@ -704,7 +698,7 @@ impl Worker {
                 if !self.cancelled() {
                     log::warn!("unable to play the video {uri}: {error:#}");
                 }
-                self.fail(video::UNPLAYABLE.to_string());
+                self.fail(video_failure(&error));
                 return;
             }
         };
@@ -970,6 +964,19 @@ fn open(source: Source, uri: &str, meter: &Arc<Meter>) -> Result<Opened> {
                 from: AudioOrigin::Stream,
             })
         }
+    }
+}
+
+/// What a video that could not be opened or read says. An outage (no
+/// answer from TIDAL) is passed on as it is, so the engine holds the video
+/// and asks again; anything else is TIDAL's answer about the video, which
+/// cannot be played.
+fn video_failure(error: &anyhow::Error) -> String {
+    let error = format!("{error:#}");
+    if super::catalog::is_unreachable(&error) {
+        error
+    } else {
+        video::UNPLAYABLE.to_string()
     }
 }
 
