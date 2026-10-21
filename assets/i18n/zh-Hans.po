@@ -596,6 +596,10 @@ msgstr "调"
 msgid "Add to playlist"
 msgstr "添加到歌单"
 
+#: src/app.rs:13760
+msgid "No internet connection. Tidalfast will carry on when you're back online"
+msgstr "没有网络连接。恢复联网后，Tidalfast 会继续播放。"
+
 #: src/ui/widgets.rs:4178 src/app.rs:12149
 msgid "That needs a connection. Turn off offline mode to use TIDAL."
 msgstr "这需要网络连接。关闭离线模式即可使用 TIDAL。"

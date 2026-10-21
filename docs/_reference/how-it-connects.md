@@ -79,10 +79,26 @@ shortly before they are needed.
 A download that is cut off carries on from the first missing byte with a
 range request; an expired URL is swapped for a fresh one. Failed attempts
 with nothing arriving between them are retried, with pauses growing to 3 s,
-for 20 s before the song counts as unplayable, so a network that drops for
-a few seconds resumes the song instead of skipping it. A song that has waited
-a second for its next sound shows as loading, its position held, until the
-sound comes back.
+for 20 s, so a network that drops for a few seconds resumes the song
+straight away. A song that has waited a second for its next sound shows as
+loading, its position held, until the sound comes back.
+
+Only TIDAL's own answer that a song cannot be played (403 for the country
+or the plan, 404, 401 with `subStatus` 4005, a protected stream) skips it,
+with a notice naming it. No answer is not that: no network, a name that
+does not resolve, a connection refused, reset or timed out, a certificate
+error (a captive portal), an answer cut off, or TIDAL's servers failing
+(5xx) or rate limiting (429). Then nothing is skipped and the queue stays as
+it is. The song plays what it has already downloaded, then waits at its
+position, showing as loading, with one notice: "No internet connection.
+Tidalfast will carry on when you're back online". It asks TIDAL again after
+2 s, then after pauses doubling to 15 s, and at once when the system reports
+the network back or you press Play or seek; then it carries on from where it
+stopped. A song loaded ahead for the next one, and autoplay's station at the
+end of the songs, wait the same way. Downloaded songs need no network and
+play as usual; Next and Previous move to them. Offline mode works as before:
+its refusal of a request is the setting, not an outage, so nothing waits on
+it.
 
 Only unencrypted streams (`encryptionType: NONE`) are played. Tidalfast does
 not decrypt protected streams, so Dolby Atmos and other DRM-protected formats

@@ -417,6 +417,29 @@ fn playable_by_settings(
     )
 }
 
+/// A request's failure as the engine reads it. Only TIDAL's own answer
+/// about the song (403 not in this country or plan, 404 gone, 401 subStatus
+/// 4005 not ready, a protected stream) makes it unplayable. No answer at
+/// all (no network, a timeout, a connection refused or reset, a TLS error
+/// from a captive portal), a server error and a rate limit are outages:
+/// [`crate::tidal_engine::catalog::unreachable`], so the song waits for
+/// the network instead of being skipped. Offline mode's refusal is kept as
+/// it is: the app's setting, not an outage.
+fn engine_error(error: super::ApiError) -> anyhow::Error {
+    use super::ApiError;
+    let outage = match &error {
+        ApiError::Network(why) => !why.contains(crate::http::OFFLINE_MODE_ERROR),
+        ApiError::Status { status, .. } => *status >= 500,
+        ApiError::RateLimited => true,
+        _ => false,
+    };
+    if outage {
+        crate::tidal_engine::catalog::unreachable(error)
+    } else {
+        anyhow!("{error}")
+    }
+}
+
 impl Catalog for TidalCatalog {
     fn context_pages(
         &self,
@@ -484,18 +507,18 @@ impl Catalog for TidalCatalog {
 
     fn stream(&self, track_id: &str, quality: Quality) -> anyhow::Result<StreamInfo> {
         self.block(self.client.playback_info(track_id, quality))?
-            .map_err(|error| anyhow!("{error}"))
+            .map_err(engine_error)
     }
 
     fn video_stream(&self, video_id: &str) -> anyhow::Result<StreamInfo> {
         self.block(self.client.video_playback_info(video_id))?
-            .map_err(|error| anyhow!("{error}"))
+            .map_err(engine_error)
     }
 
     fn autoplay(&self, seed_track_id: &str) -> anyhow::Result<Vec<LocalTrack>> {
         let tracks = self
             .block(self.client.track_radio(seed_track_id, 50))?
-            .map_err(|error| anyhow!("{error}"))?;
+            .map_err(engine_error)?;
         let seed = format!("tidal:track:{seed_track_id}");
         Ok(playable_by_settings(tracks, ContentFilter::engine())
             .into_iter()
@@ -507,6 +530,125 @@ impl Catalog for TidalCatalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::ApiError;
+    use crate::tidal_engine::catalog::is_unreachable;
+
+    fn outage(error: ApiError) -> bool {
+        is_unreachable(&format!("{:#}", engine_error(error)))
+    }
+
+    /// A catalogue against `base`, signed in, on its own runtime.
+    fn catalog_at(base: &str) -> (TidalCatalog, tokio::runtime::Runtime) {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        let http = reqwest::Client::builder().no_proxy().build().unwrap();
+        let client = TidalClient::with_bases(
+            http,
+            Arc::new(crate::api::NetActivity::default()),
+            base,
+            base,
+            base,
+        );
+        let far = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 3600;
+        let refresher = Arc::new(crate::auth::tidal::tests::FakeRefresher {
+            calls: std::sync::atomic::AtomicUsize::new(0),
+            fail: false,
+        });
+        client.set_tokens(Some(crate::auth::tidal::TidalTokens::new(
+            crate::auth::tidal::tests::grant("token", far),
+            refresher,
+            None,
+        )));
+        let catalog = TidalCatalog::new(Arc::new(client), runtime.handle().clone());
+        (catalog, runtime)
+    }
+
+    /// Through the real client: a server that is not there (stopped, or the
+    /// network gone) is out of reach, so the engine waits; TIDAL's refusal
+    /// of the song is not, so the engine skips it.
+    #[test]
+    fn a_stopped_server_is_out_of_reach_and_a_refusal_is_not() {
+        let stopped = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", stopped.local_addr().unwrap());
+        drop(stopped);
+        let (catalog, _runtime) = catalog_at(&base);
+        let error = catalog.stream("1", Quality::High).unwrap_err();
+        assert!(is_unreachable(&format!("{error:#}")), "{error:#}");
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let body = r#"{"status":403,"subStatus":4032,"userMessage":"Asset is not available in your location"}"#;
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { return };
+                let mut request = [0u8; 4096];
+                let _ = stream.read(&mut request);
+                let _ = stream.write_all(
+                    format!(
+                        "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    )
+                    .as_bytes(),
+                );
+            }
+        });
+        let (catalog, _runtime) = catalog_at(&base);
+        let error = catalog.stream("1", Quality::High).unwrap_err();
+        let error = format!("{error:#}");
+        assert!(!is_unreachable(&error), "{error}");
+        assert!(error.contains("country"), "TIDAL's reason: {error}");
+    }
+
+    #[test]
+    fn only_an_answer_about_the_song_makes_it_unplayable() {
+        // No answer, or no real one: the song waits for the network.
+        for error in [
+            ApiError::Network("dns error: no such host is known".into()),
+            ApiError::Network("error sending request: connection refused".into()),
+            ApiError::Network("connection reset by peer".into()),
+            ApiError::Network("operation timed out".into()),
+            ApiError::Network("invalid peer certificate: UnknownIssuer".into()),
+            ApiError::Status {
+                status: 503,
+                message: "TIDAL answered HTTP 503.".into(),
+            },
+            ApiError::Status {
+                status: 500,
+                message: "TIDAL: Internal Server Error".into(),
+            },
+            ApiError::RateLimited,
+        ] {
+            assert!(outage(error.clone()), "{error:?} is an outage");
+        }
+        // TIDAL's own word about the song: it is skipped.
+        for error in [
+            ApiError::Status {
+                status: 403,
+                message: "TIDAL: Asset is not available in your location".into(),
+            },
+            ApiError::Status {
+                status: 404,
+                message: "TIDAL: Track not found".into(),
+            },
+            ApiError::Status {
+                status: 401,
+                message: "TIDAL: Asset is not ready for playback".into(),
+            },
+            ApiError::Decode("malformed manifest".into()),
+            // Offline mode is the setting, not an outage.
+            ApiError::Network(crate::http::OFFLINE_MODE_ERROR.into()),
+        ] {
+            assert!(!outage(error.clone()), "{error:?} is TIDAL's answer");
+        }
+    }
 
     fn track(id: &str, explicit: bool, ai: bool) -> Track {
         Track {

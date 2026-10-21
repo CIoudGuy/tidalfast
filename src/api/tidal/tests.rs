@@ -660,6 +660,22 @@ async fn playback_info_becomes_a_stream() {
     assert!(seen.lock().unwrap()[0].contains("audioquality=HI_RES_LOSSLESS"));
 }
 
+/// The network drops part way through TIDAL's answer, every time: that is
+/// no answer (a network error, which the engine waits out), not an empty
+/// one that reads as a broken stream and skips the song.
+#[tokio::test]
+async fn an_answer_cut_off_by_the_network_is_a_network_error() {
+    let cut = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: 5000\r\n\r\n{\"trackId\":"
+        .to_string();
+    let (base, seen) = script(vec![cut.clone(), cut.clone(), cut.clone(), cut]).await;
+    let error = client(&base, refresher())
+        .playback_info("77646168", Quality::High)
+        .await
+        .unwrap_err();
+    assert!(error.is_network(), "{error:?}");
+    assert_eq!(seen.lock().unwrap().len(), 4, "retried before giving up");
+}
+
 const NOT_ENTITLED: &str =
     r#"{"errors":[{"status":"403","code":"CLIENT_NOT_ENTITLED","detail":"no"}]}"#;
 

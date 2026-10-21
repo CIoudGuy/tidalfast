@@ -82,6 +82,21 @@ const STALL: Duration = Duration::from_secs(1);
 /// Songs autoplay is asked to start from before it gives up: TIDAL has no
 /// station for some songs (one taken down, say).
 const AUTOPLAY_SEEDS: usize = 3;
+/// What the listener is told, once, while the playing song waits for the
+/// network: TIDAL could not be reached, which says nothing about the song.
+pub const NETWORK_WAIT: &str =
+    "No internet connection. Tidalfast will carry on when you're back online";
+/// How long a song that could not reach TIDAL waits before it asks again,
+/// at first; each try that fails doubles it, up to [`RETRY_MAX`].
+const RETRY_FIRST: Duration = Duration::from_secs(2);
+/// The longest wait between two tries, so the song carries on soon after
+/// the network is back without asking TIDAL over and over while it is not.
+const RETRY_MAX: Duration = Duration::from_secs(15);
+
+/// The wait before try `tries` (from 0) to reach TIDAL again.
+fn retry_pause(tries: u32) -> Duration {
+    RETRY_FIRST.saturating_mul(1 << tries.min(8)).min(RETRY_MAX)
+}
 
 /// What a replaced engine was playing, for the engine that replaces it.
 #[derive(Clone, Debug)]
@@ -118,6 +133,9 @@ enum Msg {
     },
     Tracks(Result<Vec<LocalTrack>>),
     Restore(Arc<Snapshot>),
+    /// The system says the network is back: whatever waits for it tries
+    /// again now.
+    NetworkBack,
     Shutdown,
 }
 
@@ -253,6 +271,9 @@ impl Engine {
                     autoplay_back: 0,
                     autoplay_asked: false,
                     autoplay_waiting: false,
+                    retry_at: None,
+                    autoplay_retry_at: None,
+                    tries: 0,
                     failures: 0,
                     last_report: Instant::now(),
                     waiting_since: None,
@@ -385,6 +406,12 @@ impl Engine {
         }
     }
 
+    /// The system says the network is back: a song waiting for it tries
+    /// TIDAL again now rather than at its next try.
+    pub fn network_back(&self) {
+        let _ = self.sender.send(Msg::NetworkBack);
+    }
+
     pub fn shutdown(&self) {
         if !self.shut.swap(true, Ordering::SeqCst) {
             let _ = self.sender.send(Msg::Shutdown);
@@ -470,6 +497,15 @@ struct Core {
     autoplay_asked: bool,
     /// The context ended and waits for autoplay's answer.
     autoplay_waiting: bool,
+    /// The playing song could not reach TIDAL: it stays the playing song,
+    /// at its position, and is opened again then.
+    retry_at: Option<Instant>,
+    /// The context ended while TIDAL could not be reached: autoplay is
+    /// asked again then.
+    autoplay_retry_at: Option<Instant>,
+    /// Tries to reach TIDAL that failed in a row, for the wait before the
+    /// next ([`retry_pause`]).
+    tries: u32,
     failures: u32,
     last_report: Instant,
     /// When the playing song began waiting for its next sound.
@@ -543,6 +579,10 @@ impl Core {
     /// `None` while nothing can change without one: no song, or a paused
     /// song whose sound is ready ([`Self::step`] does nothing then).
     fn idle_time(&mut self) -> Option<Duration> {
+        // Waiting for the network: nothing to do until the next try.
+        if let Some(at) = self.retry_at.or(self.autoplay_retry_at) {
+            return Some(at.saturating_duration_since(Instant::now()));
+        }
         let stream = self.current.as_mut()?;
         if !stream.ready() {
             if self.announced && !self.playing && self.replaced_at.is_none() {
@@ -722,6 +762,17 @@ impl Core {
                 Err(error) => log::warn!("queued track metadata: {error:#}"),
             },
             Msg::Restore(snapshot) => self.restore(&snapshot),
+            Msg::NetworkBack => {
+                let now = Instant::now();
+                if self.retry_at.is_some() {
+                    log::info!("the network is back; trying TIDAL again");
+                    self.retry_at = Some(now);
+                }
+                if self.autoplay_retry_at.is_some() {
+                    self.autoplay_retry_at = Some(now);
+                }
+                self.tries = 0;
+            }
             Msg::Shutdown => return false,
         }
         true
@@ -798,6 +849,7 @@ impl Core {
         let id = self.load_id;
         self.autoplay_id = None;
         self.autoplay_waiting = false;
+        self.end_network_wait();
         self.sounded = false;
         // The old track stops feeding the output while the new one resolves,
         // so it cannot end and move the queue on in the meantime.
@@ -946,10 +998,16 @@ impl Core {
     /// Makes `track` the playing one. `natural` is the end of the previous
     /// track, which keeps the output running for a gapless join.
     fn start_track(&mut self, track: LocalTrack, position_ms: u32, play: bool, natural: bool) {
+        self.end_network_wait();
         let preloaded = self
             .next
             .take()
-            .filter(|next| position_ms == 0 && next.track.uri == track.uri);
+            .filter(|next| position_ms == 0 && next.track.uri == track.uri)
+            // One loaded ahead while TIDAL could not be reached asks again.
+            .and_then(|mut next| match next.status() {
+                Status::Failed(error) if catalog::is_unreachable(&error) => None,
+                _ => Some(next),
+            });
         if !natural {
             self.outgoing = None;
         }
@@ -1021,6 +1079,7 @@ impl Core {
         self.replaced_at = None;
         self.sounded = true;
         self.failures = 0;
+        self.tries = 0;
         let Some(stream) = &self.current else {
             return;
         };
@@ -1069,6 +1128,10 @@ impl Core {
                 state.seek_sequence = state.seek_sequence.wrapping_add(1);
             }
             state.source_ms = own_length;
+            // Back online: the wait is over.
+            if state.error.as_deref() == Some(NETWORK_WAIT) {
+                state.error = None;
+            }
             true
         });
     }
@@ -1076,6 +1139,24 @@ impl Core {
     /// Moves the audio along: starts a loaded track, writes one packet,
     /// handles the end, preloads, and reports the position.
     fn step(&mut self) {
+        if let Some(at) = self.autoplay_retry_at
+            && Instant::now() >= at
+        {
+            self.autoplay_retry_at = None;
+            log::info!("asking for autoplay again");
+            self.ask_autoplay(self.autoplay_back);
+        }
+        if let Some(at) = self.retry_at {
+            if Instant::now() < at {
+                return;
+            }
+            // The same song, from where it was: opened again, it asks TIDAL
+            // again (a kept copy needs nothing of it).
+            log::info!("trying TIDAL again for the playing song");
+            self.retry_at = None;
+            self.reopen(None);
+            return;
+        }
         let Some(stream) = &mut self.current else {
             return;
         };
@@ -1288,6 +1369,13 @@ impl Core {
             return;
         }
         self.playing = true;
+        if self.retry_at.is_some() {
+            // Waiting for the network: Play tries TIDAL again now, and the
+            // song plays once it has sound.
+            self.retry_at = Some(Instant::now());
+            self.update(|state| set(&mut state.held_paused, false));
+            return;
+        }
         if self.announced {
             let position_ms = self.current.as_ref().map_or(0, TrackStream::position_ms);
             self.update(|state| {
@@ -1443,6 +1531,7 @@ impl Core {
         // only between songs.
         let keep = stream.asked();
         drop(stream);
+        self.retry_at = None;
         self.current = Some(self.open_at(track, position_ms, keep));
         self.replaced_at = self.replacement.is_some().then(Instant::now);
         self.announced = false;
@@ -1461,7 +1550,13 @@ impl Core {
             .or(Some(stream.track.duration_ms).filter(|ms| *ms > 0))
             .unwrap_or(u32::MAX);
         let position_ms = position_ms.min(limit.saturating_sub(1));
-        stream.seek(position_ms);
+        if self.retry_at.is_some() {
+            // Waiting for the network: its decoder has given up, so the
+            // song asks TIDAL again now, from the new place.
+            self.reopen(Some(position_ms));
+        } else {
+            stream.seek(position_ms);
+        }
         self.waiting_since = None;
         self.outgoing = None;
         self.audio.handle_event(OutputEvent::Seeked);
@@ -1522,6 +1617,10 @@ impl Core {
             self.reopen(None);
             return;
         }
+        if catalog::is_unreachable(&error) {
+            // No answer from TIDAL says nothing about the song.
+            return self.wait_for_network(&error);
+        }
         let skipped = self.current.as_ref().map(|stream| stream.track.clone());
         let uri = skipped.as_ref().map_or("", |track| track.uri.as_str());
         log::warn!("{uri} cannot be played, skipping it: {error}");
@@ -1551,6 +1650,43 @@ impl Core {
         let message = skipped_message(skipped.as_ref(), &error, went_on);
         // Said after the skip, which clears the previous track's error.
         self.update(|state| set(&mut state.error, Some(message)));
+    }
+
+    /// The playing song could not reach TIDAL (the network is down, or
+    /// TIDAL's servers are): it is not skipped. It stays the playing song,
+    /// silent, its position held, showing as loading, and tries again after
+    /// a pause that grows with each try, or at once when the system says
+    /// the network is back. The listener is told once, not at every try.
+    fn wait_for_network(&mut self, error: &str) {
+        let Some(stream) = &self.current else {
+            return;
+        };
+        let position_ms = stream.held_position().unwrap_or(stream.position_ms());
+        let pause = retry_pause(self.tries);
+        self.tries = self.tries.saturating_add(1);
+        log::warn!(
+            "{} waits for the network at {position_ms} ms, trying again in {} s: {error}",
+            stream.track.uri,
+            pause.as_secs()
+        );
+        self.retry_at = Some(Instant::now() + pause);
+        self.waiting_since = None;
+        self.outgoing = None;
+        self.update(|state| {
+            let mut changed = set(&mut state.loading, true);
+            changed |= set(&mut state.position_ms, position_ms);
+            changed |= set(&mut state.position_at, None);
+            changed |= set(&mut state.error, Some(NETWORK_WAIT.to_string()));
+            changed
+        });
+    }
+
+    /// Nothing waits for the network any more: another song, another load,
+    /// or a stop.
+    fn end_network_wait(&mut self) {
+        self.retry_at = None;
+        self.autoplay_retry_at = None;
+        self.tries = 0;
     }
 
     /// The context has no more songs: autoplay continues it, if allowed.
@@ -1614,6 +1750,23 @@ impl Core {
                 log::info!("autoplay continues");
                 self.prefer_album = false;
             }
+            Err(error) if catalog::is_unreachable(&format!("{error:#}")) => {
+                // No answer from TIDAL: the other songs would get none
+                // either. Asked ahead of the end, it is asked again when the
+                // songs end; once they have, autoplay waits for the network.
+                log::warn!("autoplay could not reach TIDAL: {error:#}");
+                if self.autoplay_waiting {
+                    let pause = retry_pause(self.tries);
+                    self.tries = self.tries.saturating_add(1);
+                    self.autoplay_retry_at = Some(Instant::now() + pause);
+                    self.update(|state| {
+                        let mut changed = set(&mut state.loading, true);
+                        changed |= set(&mut state.error, Some(NETWORK_WAIT.to_string()));
+                        changed
+                    });
+                }
+                return;
+            }
             outcome => {
                 match outcome {
                     Err(error) => log::warn!("autoplay: {error:#}"),
@@ -1646,6 +1799,7 @@ impl Core {
         self.outgoing = None;
         self.playing = false;
         self.autoplay_waiting = false;
+        self.end_network_wait();
         self.waiting_since = None;
         self.stalled = false;
         self.stop_sink();
