@@ -39,7 +39,12 @@ listed above as "hidden". The element keeps its place (a grid cell stays
 empty) and its anchor is still described, so the rule keeps matching it.
 
 **Geometry.** `getBoundingClientRect`, `offset*`, `client*` come from the
-host rect, or the nearest ancestor's when a node has none.
+host rect, or the nearest ancestor's when a node has none. A plugin
+element with `position: fixed` measures against the window wherever it
+sits, as in a browser (radiant-lyrics' `100vw` x `100vh` backdrop inside
+`main`), not against the app element round it. White space between two
+elements reaches the UI as one space; the UI keeps it only where their
+parent lays them out in a line (radiant-lyrics' word spans).
 `scrollHeight`/`scrollTop` come from `HostNode::scroll`; containers without
 it never look scrollable.
 

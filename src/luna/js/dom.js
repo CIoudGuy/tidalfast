@@ -1094,11 +1094,19 @@
 		}
 		return null;
 	};
+	// A `position: fixed` element is placed against the window wherever it
+	// was inserted (radiant-lyrics' backdrop, `100vw` x `100vh` inside
+	// `main`): it does not take the box of the app element round it.
+	const fixedPlugin = (n) => n.nodeType === 1 && n._hostKey === undefined && String(L.css?.cascaded(n)?.props?.get("position") ?? "").trim() === "fixed";
 	const rectOf = (el) => {
 		for (let n = el; n; n = n.parentNode) {
 			if (n._rect && n !== html && n !== body && n !== wimp) return n._rect;
 			if (n === html || n === body || n === wimp) {
 				return floatingRect(el) ?? n._rect ?? [0, 0, g.innerWidth, g.innerHeight];
+			}
+			if (fixedPlugin(n)) {
+				const r = floatingRect(el);
+				if (r) return r;
 			}
 		}
 		return null;
