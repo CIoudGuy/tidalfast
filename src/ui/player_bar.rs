@@ -552,10 +552,15 @@ fn now_playing_block(
         let width = |key, position| plugin_slots::slot_width(ui.ctx(), key, position);
         match (
             width(keys::ACTIONS, Position::Append),
+            width(keys::TRACK_CONTENT, Position::Append),
             width(keys::TRACK_INFO, Position::Append),
         ) {
-            (None, None) => None,
-            (actions, info) => Some(actions.map_or(0.0, |w| w + 8.0) + info.unwrap_or(0.0)),
+            (None, None, None) => None,
+            (actions, content, info) => Some(
+                actions.map_or(0.0, |w| w + 8.0)
+                    + content.map_or(0.0, |w| w + 8.0)
+                    + info.unwrap_or(0.0),
+            ),
         }
     };
     let words_cap = words_room(tail_limit, text_left, more_shift, tail);
@@ -845,6 +850,20 @@ fn now_playing_block(
         reachable,
     )
     .map_or(heart_rect.right() + more_shift + 12.0, |r| {
+        reach = reach.max(r.right());
+        r.right() + 8.0
+    });
+    // What follows the `_actions_` row inside `_trackContent_` (its next
+    // sibling: tidal-genres' badge, right of the heart and the "...").
+    let actions_end = plugin_slots::at_within(
+        ui,
+        keys::TRACK_CONTENT,
+        Position::Append,
+        pos2(actions_end, heart_rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        reachable,
+    )
+    .map_or(actions_end, |r| {
         reach = reach.max(r.right());
         r.right() + 8.0
     });
@@ -2043,6 +2062,37 @@ mod narrow_tests {
                     "the Up Next card does not fit: {shown:?}"
                 );
             }
+        }
+        crate::ui::plugin_dom::test_overlay(None);
+    }
+
+    /// tidal-genres puts its badge after the heart and "..." row
+    /// (`div._actions_`), its next sibling in `_trackContent_`: TIDAL shows
+    /// it right of the "...", before what follows the track info. It was
+    /// never drawn.
+    #[test]
+    fn what_follows_the_heart_row_in_the_track_content_is_drawn_after_it() {
+        let (ctx, mut app) = setup();
+        let mut o = overlay();
+        o.injected.push(Injected {
+            anchor: keys::TRACK_CONTENT.into(),
+            position: Position::Append,
+            nodes: vec![chip(9, "GENRE-BADGE")],
+        });
+        crate::ui::plugin_dom::test_overlay(Some(o));
+        let found = settled(&ctx, &mut app, 2000.0);
+        let at = |mark: &str| {
+            found
+                .iter()
+                .find(|(text, _)| text.contains(mark))
+                .map(|(_, r)| *r)
+                .unwrap_or_else(|| panic!("{mark} is drawn"))
+        };
+        let (stars, badge) = (at(MARKS[1]), at("GENRE-BADGE"));
+        assert!(badge.left() >= stars.right(), "{badge:?} after {stars:?}");
+        // What follows the track info comes after it, when it fits.
+        if let Some((_, next)) = found.iter().find(|(text, _)| text.contains(MARKS[2])) {
+            assert!(next.left() >= badge.right(), "{next:?} after {badge:?}");
         }
         crate::ui::plugin_dom::test_overlay(None);
     }
