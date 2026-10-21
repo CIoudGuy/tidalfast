@@ -881,3 +881,26 @@ body { background-color: #ffffff !important; }
     luna.shutdown();
     assert_eq!(p.accent, egui::Color32::from_rgb(0x39, 0xaf, 0xa5));
 }
+
+/// TIDAL sets `--img` inline on the album and playlist header's box and
+/// paints its cover from it in `::before`. Abyss Neptune's
+/// `[class^="_dataContainer_"]::before { background-image: var(--img) }`
+/// keeps that cover in TIDAL (blurred), but Tidalfast had no value for the
+/// variable, so the declaration was `unset` (no picture) and the art went.
+#[test]
+fn a_themes_img_variable_keeps_the_header_art() {
+    use dom_anchors::keys::PAGE_DATA;
+    let css = r#"/* {"name": "Header img"} */
+[class^="_dataContainer_"]::before { background-image: var(--img); filter: blur(10px) brightness(0.4); }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(page) = frame.page.as_mut() {
+        page.data = Some([240.0, 92.0, 1040.0, 300.0]);
+    }
+    let (luna, o) = overlay_with("header-img.css", css, dom_anchors::build(&frame), PAGE_DATA);
+    crate::ui::plugin_dom::test_overlay(Some((*o).clone()));
+    let removed = crate::ui::plugin_dom::before_image_removed(PAGE_DATA);
+    crate::ui::plugin_dom::test_overlay(None);
+    luna.shutdown();
+    assert!(!removed, "the cover stays");
+}

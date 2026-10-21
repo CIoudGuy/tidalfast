@@ -773,7 +773,10 @@
 	// on its market components, `--frosted-*`, `--player-*`, ...): one a
 	// theme names may well be defined in TIDAL where Tidalfast has no value,
 	// so a declaration naming one is only left out, never made `unset`.
-	const TIDAL_VAR = /^--(market|frosted|player|rounded|desktop|z|floating|os|swiper|spotlight|headliners|onboarding|user)-/;
+	// `--img` is the cover TIDAL sets inline on the album and playlist
+	// header (Abyss Neptune's `[class^="_dataContainer_"]::before {
+	// background-image: var(--img) }` keeps TIDAL's art).
+	const TIDAL_VAR = /^--((market|frosted|player|rounded|desktop|z|floating|os|swiper|spotlight|headliners|onboarding|user)-|img$)/;
 	// What an `unset` declaration computes to where Tidalfast has no parent
 	// value: TIDAL's body text (14px, weight 500, 20px lines) for inherited
 	// properties, the initial value for the boxes the app paints.
