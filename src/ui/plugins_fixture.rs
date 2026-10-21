@@ -58,6 +58,7 @@ pub(super) fn installed(p: &StorePlugin, update: bool) -> PluginInfo {
         logs: vec![],
         live_reload: false,
         hide_settings: true,
+        has_stored: false,
     }
 }
 

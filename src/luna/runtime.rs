@@ -358,6 +358,29 @@ impl Inner {
         }
     }
 
+    /// What `name` kept in Luna's stores (a plugin's settings are often
+    /// under its package name too, whether or not it was seen using them),
+    /// and what every other installed plugin did: the part of the first that
+    /// no other uses is the plugin's alone (see [`StoredClaims::alone`]).
+    fn stored_claims(&self, name: &str) -> (StoredClaims, Vec<StoredClaims>) {
+        let mut mine = self
+            .record(name)
+            .map(|r| r.stored.clone())
+            .unwrap_or_default();
+        mine.settings.insert(name.to_string());
+        let others = self
+            .records
+            .iter()
+            .filter(|r| r.name != name)
+            .map(|r| {
+                let mut c = r.stored.clone();
+                c.settings.insert(r.name.clone());
+                c
+            })
+            .collect();
+        (mine, others)
+    }
+
     /// [`Inner::claim_storage`] for a write: for the shared `localStorage`
     /// the items whose value changed are the plugin's.
     fn claim_storage_set(&mut self, who: &Who, store: &str, key: &str, value: &Value) {
@@ -635,6 +658,10 @@ impl Inner {
                         self.live.contains(&r.name)
                     },
                     hide_settings: r.hide_settings,
+                    has_stored: !r.stored.is_empty()
+                        || !r.programs.is_empty()
+                        || r.account_writes
+                        || !r.grants.is_empty(),
                 }
             })
             .collect();
@@ -3683,47 +3710,79 @@ impl Engine {
     /// uses the same, and its downloads under way and their leftovers.
     /// Disabling a plugin deletes none of this.
     fn remove_plugin(&self, name: &str) {
-        let (claims, others) = {
-            let i = self.inner.borrow();
-            let mut mine = i.record(name).map(|r| r.stored.clone()).unwrap_or_default();
-            // A plugin's settings are often under its own package name too,
-            // whether or not it was seen using them.
-            mine.settings.insert(name.to_string());
-            let others: Vec<StoredClaims> = i
-                .records
-                .iter()
-                .filter(|r| r.name != name)
-                .map(|r| {
-                    let mut c = r.stored.clone();
-                    c.settings.insert(r.name.clone());
-                    c
-                })
-                .collect();
-            (mine, others)
-        };
+        let (claims, others) = self.inner.borrow().stored_claims(name);
         // Downloads under way are cut off, and their files go, with the
         // unload.
         self.uninstall(name);
-        let doomed = {
-            let others: Vec<&StoredClaims> = others.iter().collect();
-            claims.alone(&others)
-        };
-        let home = {
-            let mut i = self.inner.borrow_mut();
-            i.storage.purge(&doomed);
-            i.storage.data_dir(name)
-        };
+        self.purge_stored(&claims, &others);
+        let home = self.inner.borrow().storage.data_dir(name);
         let _ = std::fs::remove_dir_all(&home);
         super::fsops::forget_plugin(name, &home);
         super::downloads::stop_plugin(name);
         super::depth::drop_plugin(name);
+    }
+
+    /// Delete what a plugin kept in Luna's stores (its settings, the named
+    /// stores it opened, its `localStorage` items) unless another plugin
+    /// uses the same, and drop the objects the JS side opened from them.
+    /// Shared by removing a plugin and by [`Self::reset_plugin`]. Returns
+    /// what was deleted.
+    fn purge_stored(&self, claims: &StoredClaims, others: &[StoredClaims]) -> StoredClaims {
+        let doomed = {
+            let others: Vec<&StoredClaims> = others.iter().collect();
+            claims.alone(&others)
+        };
+        self.inner.borrow_mut().storage.purge(&doomed);
         // The shims keep each opened setting object (and a save waiting to
-        // run) for the next `getPluginStorage`; a reinstall must not get the
-        // old values back from them.
+        // run) for the next `getPluginStorage`; a reinstall or a reset must
+        // not get the old values back from them.
         self.host_call(
             "forget_storage",
             json!({ "settings": doomed.settings, "stores": doomed.stores }),
         );
+        doomed
+    }
+
+    /// Put a plugin back to how it was when installed: its settings, stores,
+    /// `localStorage` items and permission answers (Always included) are
+    /// cleared, then it runs again with its defaults. It stays installed and
+    /// keeps its enabled state, its code and its data folder (downloaded
+    /// models are not settings). A setting or store another plugin also used
+    /// stays, as when removing.
+    fn reset_plugin(&self, name: &str) {
+        let (claims, others, enabled) = {
+            let i = self.inner.borrow();
+            let Some(r) = i.record(name) else { return };
+            let (claims, others) = i.stored_claims(name);
+            (claims, others, r.enabled)
+        };
+        // Stopping first: the plugin's unloads run (and may save) before its
+        // stores are cleared, not after.
+        self.unload_plugin(name);
+        let doomed = self.purge_stored(&claims, &others);
+        {
+            let mut i = self.inner.borrow_mut();
+            if let Some(r) = i.record_mut(name) {
+                r.programs.clear();
+                r.account_writes = false;
+                r.grants.clear();
+                // What another plugin shares is still claimed by this one.
+                r.stored.settings.retain(|k| !doomed.settings.contains(k));
+                r.stored.stores.retain(|k| !doomed.stores.contains(k));
+                r.stored.local.retain(|k| !doomed.local.contains(k));
+            }
+            i.permits.forget(name);
+            i.writes.revoke(name);
+            i.children.forget_plugin(name);
+            // The settings box described the values just cleared.
+            i.rt(name).settings = None;
+            i.save_records();
+            i.log(Some(name), LogLevel::Info, "Reset to its defaults".into());
+            i.dirty = true;
+        }
+        if enabled {
+            self.load_plugin(name);
+        }
     }
 
     fn check_updates(&self, apply: bool) {
@@ -4028,6 +4087,7 @@ impl Engine {
             Msg::Install(url) => self.install(&url, false),
             Msg::Uninstall(name) => self.remove_plugin(&name),
             Msg::SetEnabled(name, on) => self.set_enabled(&name, on),
+            Msg::ResetPlugin(name) => self.reset_plugin(&name),
             Msg::Reload(name) => {
                 if self.inner.borrow().record(&name).is_some_and(|r| r.enabled) {
                     self.load_plugin(&name);
