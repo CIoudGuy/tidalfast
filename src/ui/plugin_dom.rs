@@ -4077,7 +4077,13 @@ pub fn surface(key: &str, native: Color32) -> Color32 {
     let own = if super::plugin_slots::has_backdrop() {
         stacked_fill(key)
     } else {
-        fill(key)
+        match fill(key) {
+            // A box made see-through (`background: unset`) shows what the
+            // boxes in it paint: CoverTheme clears the sidebar's wrapper and
+            // tints `aside#sidebar` in it 30 % grey over its gradients.
+            Some(c) if c.a() == 0 => stacked_fill(key).or(Some(c)),
+            other => other,
+        }
     };
     if let Some(c) = own {
         return c;
@@ -4794,6 +4800,17 @@ pub enum PageLayer {
     Radial {
         center: [f32; 2],
         stops: Vec<Color32>,
+        /// Where each stop sits along the gradient ray (0 the centre, 1 the
+        /// ending shape), CSS's missing positions filled in. Theme
+        /// previews saved before these three fields existed read as a
+        /// circle with its stops spread evenly, as they were drawn then.
+        #[serde(default)]
+        at: Vec<f32>,
+        /// `ellipse` (CSS's default) or `circle` (false).
+        #[serde(default)]
+        ellipse: bool,
+        #[serde(default)]
+        size: RadialSize,
     },
     /// A radial gradient whose colour ends a few points from its centre
     /// (`hsla(...) 1px, transparent 0`): a dot, once per `background-size`
@@ -4806,6 +4823,153 @@ pub enum PageLayer {
         /// The tile in points; `None` is one dot in the box.
         tile: Option<[f32; 2]>,
     },
+}
+
+/// How big a radial gradient's ending shape is (`farthest-corner`, the
+/// default, and the other three keywords).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum RadialSize {
+    ClosestSide,
+    FarthestSide,
+    ClosestCorner,
+    #[default]
+    FarthestCorner,
+}
+
+/// A `radial-gradient(...)` with its shape, size, position and stops, as
+/// CSS reads them; `None` for anything else.
+fn radial(layer: &str) -> Option<PageLayer> {
+    let lower = layer.trim().to_ascii_lowercase();
+    let inner = lower
+        .strip_prefix("radial-gradient(")
+        .or_else(|| lower.strip_prefix("-webkit-radial-gradient("))?
+        .strip_suffix(')')?;
+    let parts = css::split_top(inner, ',');
+    let (head, stops) = match parts.first() {
+        Some(first) if css::colors_in(first).is_empty() => (first.trim(), &parts[1..]),
+        _ => ("", &parts[..]),
+    };
+    let (shape, at) = match head.split_once("at ") {
+        Some((shape, at)) => (shape, at),
+        None => (head, ""),
+    };
+    let ellipse = !shape.split_whitespace().any(|w| w == "circle");
+    let size = shape
+        .split_whitespace()
+        .find_map(|w| match w {
+            "closest-side" => Some(RadialSize::ClosestSide),
+            "farthest-side" => Some(RadialSize::FarthestSide),
+            "closest-corner" => Some(RadialSize::ClosestCorner),
+            "farthest-corner" => Some(RadialSize::FarthestCorner),
+            _ => None,
+        })
+        .unwrap_or(RadialSize::FarthestCorner);
+    let words: Vec<&str> = at.split_whitespace().collect();
+    let axis = |word: Option<&&str>, low: &str, high: &str| match word.copied() {
+        Some(w) if w == low => 0.0,
+        Some(w) if w == high => 1.0,
+        Some(w) => w
+            .strip_suffix('%')
+            .and_then(|p| p.trim().parse::<f32>().ok())
+            .map_or(0.5, |p| p / 100.0),
+        None => 0.5,
+    };
+    // Keywords either way round (`top left`).
+    let (x, y) = match (words.first().copied(), words.get(1)) {
+        (Some("top" | "bottom"), second) => (
+            axis(second, "left", "right"),
+            axis(words.first(), "top", "bottom"),
+        ),
+        _ => (
+            axis(words.first(), "left", "right"),
+            axis(words.get(1), "top", "bottom"),
+        ),
+    };
+    let mut colors = Vec::new();
+    let mut given: Vec<Option<f32>> = Vec::new();
+    for stop in stops {
+        let stop = stop.trim();
+        let Some(color) = css::colors_in(stop).first().copied() else {
+            continue;
+        };
+        // The position is the last word unless that is the colour itself.
+        let position = stop
+            .rsplit_once(' ')
+            .map(|(_, last)| last)
+            .filter(|last| !last.ends_with(')'))
+            .and_then(|last| last.strip_suffix('%'))
+            .and_then(|p| p.trim().parse::<f32>().ok())
+            .map(|p| p / 100.0);
+        colors.push(color);
+        given.push(position);
+    }
+    if colors.len() < 2 {
+        return None;
+    }
+    Some(PageLayer::Radial {
+        center: [x, y],
+        stops: colors,
+        at: stop_positions(&given),
+        ellipse,
+        size,
+    })
+}
+
+/// CSS's gradient stop positions: the first at 0 and the last at 1 when not
+/// given, those without one spread evenly between their neighbours, and
+/// none before the one ahead of it.
+fn stop_positions(given: &[Option<f32>]) -> Vec<f32> {
+    let n = given.len();
+    let mut at: Vec<Option<f32>> = given.to_vec();
+    if let Some(first) = at.first_mut() {
+        first.get_or_insert(0.0);
+    }
+    if let Some(last) = at.last_mut() {
+        last.get_or_insert(1.0);
+    }
+    let mut highest = f32::MIN;
+    for p in at.iter_mut().flatten() {
+        highest = highest.max(*p);
+        *p = highest;
+    }
+    let mut i = 1;
+    while i < n {
+        if at[i].is_some() {
+            i += 1;
+            continue;
+        }
+        let start = i - 1;
+        let end = (i..n).find(|&j| at[j].is_some()).unwrap_or(n - 1);
+        let (from, to) = (at[start].unwrap_or(0.0), at[end].unwrap_or(1.0));
+        for (k, slot) in at.iter_mut().enumerate().take(end).skip(i) {
+            *slot = Some(from + (to - from) * (k - start) as f32 / (end - start) as f32);
+        }
+        i = end;
+    }
+    at.into_iter().map(|p| p.unwrap_or(0.0)).collect()
+}
+
+/// The ending shape's radii for a gradient centred at `c` in `r`.
+fn radial_radii(r: Rect, c: egui::Pos2, ellipse: bool, size: RadialSize) -> egui::Vec2 {
+    let near_far = |a: f32, b: f32| (a.abs().min(b.abs()), a.abs().max(b.abs()));
+    let (dx_near, dx_far) = near_far(c.x - r.left(), r.right() - c.x);
+    let (dy_near, dy_far) = near_far(c.y - r.top(), r.bottom() - c.y);
+    let sides = match size {
+        RadialSize::ClosestSide | RadialSize::ClosestCorner => egui::vec2(dx_near, dy_near),
+        RadialSize::FarthestSide | RadialSize::FarthestCorner => egui::vec2(dx_far, dy_far),
+    };
+    let corner = matches!(size, RadialSize::ClosestCorner | RadialSize::FarthestCorner);
+    let radii = match (ellipse, corner) {
+        // An ellipse through the corner, in the sides' proportions.
+        (true, true) => sides * std::f32::consts::SQRT_2,
+        (true, false) => sides,
+        (false, true) => egui::Vec2::splat(sides.length()),
+        (false, false) => egui::Vec2::splat(match size {
+            RadialSize::ClosestSide => dx_near.min(dy_near),
+            _ => dx_far.max(dy_far),
+        }),
+    };
+    radii.max(egui::Vec2::splat(0.5))
 }
 
 /// The largest radius, in points, a radial gradient's colour may end at to
@@ -4932,26 +5096,10 @@ fn page_layer(layer: &str) -> Option<PageLayer> {
     match colors.as_slice() {
         [] => None,
         [c] => Some(PageLayer::Color(*c)),
-        _ if lower.starts_with("radial-gradient") => {
-            let at = |k: &str| lower.contains(k);
-            let x = if at("left") {
-                0.0
-            } else if at("right") {
-                1.0
-            } else {
-                0.5
-            };
-            let y = if at("at top") || at(" top") {
-                0.0
-            } else if at("bottom") {
-                1.0
-            } else {
-                0.5
-            };
-            Some(PageLayer::Radial {
-                center: [x, y],
-                stops: colors,
-            })
+        _ if lower.starts_with("radial-gradient")
+            || lower.starts_with("-webkit-radial-gradient") =>
+        {
+            radial(layer)
         }
         _ => Some(PageLayer::Linear {
             horizontal: lower.contains("to right") || lower.contains("90deg"),
@@ -4977,12 +5125,19 @@ pub(crate) fn paint_layer(ui: &egui::Ui, r: Rect, layer: &PageLayer) {
         PageLayer::Angled(g) => {
             super::theme_gradient::paint(painter, r, None, g, g.angle, g.position);
         }
-        PageLayer::Radial { center, stops } => {
+        PageLayer::Radial {
+            center,
+            stops,
+            at,
+            ellipse,
+            size,
+        } => {
             let center = egui::pos2(
                 r.left() + r.width() * center[0],
                 r.top() + r.height() * center[1],
             );
-            paint_radial(painter, r, center, stops);
+            let radii = radial_radii(r, center, *ellipse, *size);
+            paint_radial(painter, r, center, radii, stops, at);
         }
         PageLayer::Dot {
             at,
@@ -5161,32 +5316,89 @@ pub(super) fn rounded_outline(r: Rect, c: egui::CornerRadius) -> Vec<egui::Pos2>
     out
 }
 
-fn paint_radial(painter: &egui::Painter, r: Rect, center: egui::Pos2, stops: &[Color32]) {
-    let radius = [
+fn paint_radial(
+    painter: &egui::Painter,
+    r: Rect,
+    center: egui::Pos2,
+    radii: egui::Vec2,
+    stops: &[Color32],
+    at: &[f32],
+) {
+    if let Some(mesh) = radial_mesh(r, center, radii, stops, at) {
+        let clip = painter.clip_rect().intersect(r);
+        painter.with_clip_rect(clip).add(mesh);
+    }
+}
+
+/// A radial gradient as a mesh: rings at its stops round `center`, `radii`
+/// the ending shape (an ellipse), each stop at its place along the ray;
+/// past the last stop its colour goes on to the box's corners.
+fn radial_mesh(
+    r: Rect,
+    center: egui::Pos2,
+    radii: egui::Vec2,
+    stops: &[Color32],
+    at: &[f32],
+) -> Option<egui::Mesh> {
+    const SEGMENTS: u32 = 64;
+    if stops.is_empty() || radii.x <= 0.0 || radii.y <= 0.0 {
+        return None;
+    }
+    // The farthest corner in units of the ending shape.
+    let reach = [
         r.left_top(),
         r.right_top(),
         r.left_bottom(),
         r.right_bottom(),
     ]
     .iter()
-    .map(|p| p.distance(center))
+    .map(|p| {
+        let d = *p - center;
+        ((d.x / radii.x).powi(2) + (d.y / radii.y).powi(2)).sqrt()
+    })
     .fold(0.0, f32::max);
-    const SEGMENTS: u32 = 48;
-    let rings = stops.len() as u32;
+    // Without a place for every stop (a preview saved before they were
+    // kept), the stops spread evenly.
+    let even;
+    let at = if at.len() == stops.len() {
+        at
+    } else {
+        even = stop_positions(&vec![None; stops.len()]);
+        &even
+    };
+    let mut rings: Vec<(f32, Color32)> = stops
+        .iter()
+        .zip(at.iter())
+        .map(|(c, p)| (p.max(0.0), *c))
+        .collect();
+    if let Some(&(last, color)) = rings.last()
+        && last < reach
+    {
+        rings.push((reach + 0.01, color));
+    }
     let mut mesh = egui::Mesh::default();
-    mesh.colored_vertex(center, stops[0]);
-    for (ring, c) in stops.iter().enumerate().skip(1) {
-        let rr = radius * ring as f32 / (rings - 1) as f32;
+    mesh.colored_vertex(center, rings[0].1);
+    let mut count = 0u32;
+    // The first colour fills out to its stop when that is past the centre.
+    let first = usize::from(rings[0].0 <= 0.0);
+    for &(scale, color) in &rings[first..] {
         for s in 0..SEGMENTS {
             let a = s as f32 / SEGMENTS as f32 * std::f32::consts::TAU;
-            mesh.colored_vertex(center + egui::vec2(a.cos(), a.sin()) * rr, *c);
+            mesh.colored_vertex(
+                center + egui::vec2(a.cos() * radii.x, a.sin() * radii.y) * scale,
+                color,
+            );
         }
+        count += 1;
+    }
+    if count == 0 {
+        return None;
     }
     for s in 0..SEGMENTS {
         let next = (s + 1) % SEGMENTS;
         mesh.add_triangle(0, 1 + s, 1 + next);
     }
-    for ring in 1..rings - 1 {
+    for ring in 1..count {
         let base = 1 + (ring - 1) * SEGMENTS;
         let outer = base + SEGMENTS;
         for s in 0..SEGMENTS {
@@ -5195,8 +5407,7 @@ fn paint_radial(painter: &egui::Painter, r: Rect, center: egui::Pos2, stops: &[C
             mesh.add_triangle(base + s, outer + next, base + next);
         }
     }
-    let clip = painter.clip_rect().intersect(r);
-    painter.with_clip_rect(clip).add(mesh);
+    Some(mesh)
 }
 
 // ---- Fonts --------------------------------------------------------------------
@@ -6867,5 +7078,92 @@ mod tests {
         o.hosts
             .insert(dom_anchors::keys::MAIN_CONTAINER.to_string(), host);
         assert_eq!(painted_container(&o), Some(Color32::BLACK));
+    }
+
+    /// CoverTheme clears the sidebar's wrapper (`[class^="_sidebarWrapper"]
+    /// { background: unset }`) and tints `aside#sidebar` inside it 30 %
+    /// grey: the sidebar is that grey over the cover gradients, as in TIDAL,
+    /// not the clear wrapper with no tint at all.
+    #[test]
+    fn a_cleared_box_shows_the_fill_of_the_box_inside_it() {
+        let host = |color: &str| {
+            let mut h = HostOverride::default();
+            h.style.background_color = Some(color.into());
+            h
+        };
+        let mut o = DomOverlay::default();
+        o.hosts
+            .insert(dom_anchors::keys::SIDEBAR.into(), host("transparent"));
+        o.hosts.insert(
+            dom_anchors::keys::SIDEBAR_NAV.into(),
+            host("rgba(36, 36, 41, 0.3)"),
+        );
+        test_overlay(Some(o));
+        let shown = surface(dom_anchors::keys::SIDEBAR, Color32::BLACK);
+        test_overlay(None);
+        assert_eq!(shown, Color32::from_rgba_unmultiplied(36, 36, 41, 77));
+    }
+
+    /// CoverTheme's glows are CSS ellipses through the farthest corner
+    /// that fade out at 70 % of the way: in a 2000 x 1000 box the one at the
+    /// top left is clear from 1980 points right of its corner (and 990
+    /// below), not a circle as wide as the diagonal fading to its end,
+    /// which lit the whole window.
+    #[test]
+    fn a_radial_gradient_is_an_ellipse_with_its_stop_positions() {
+        let layer = "radial-gradient(ellipse at top left, rgb(10, 20, 30, 0.5), transparent 70%)";
+        let Some(PageLayer::Radial {
+            center,
+            stops,
+            at,
+            ellipse,
+            size,
+        }) = page_layer(layer)
+        else {
+            panic!("not a radial gradient");
+        };
+        assert_eq!(center, [0.0, 0.0]);
+        assert_eq!(at, vec![0.0, 0.7]);
+        assert!(ellipse);
+        assert_eq!(size, RadialSize::FarthestCorner);
+        let r = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(2000.0, 1000.0));
+        let radii = radial_radii(r, r.min, ellipse, size);
+        assert!((radii.x - 2828.4).abs() < 1.0 && (radii.y - 1414.2).abs() < 1.0);
+        let mesh = radial_mesh(r, r.min, radii, &stops, &at).unwrap();
+        // The ring where it turns clear crosses the axes at 70 %.
+        let clear: Vec<_> = mesh
+            .vertices
+            .iter()
+            .filter(|v| v.color == Color32::TRANSPARENT && v.pos.y.abs() < 0.01)
+            .map(|v| v.pos.x)
+            .collect();
+        assert!(clear.iter().any(|x| (x - 1980.0).abs() < 1.0), "{clear:?}");
+        let down: Vec<_> = mesh
+            .vertices
+            .iter()
+            .filter(|v| v.color == Color32::TRANSPARENT && v.pos.x.abs() < 0.01 && v.pos.y > 0.0)
+            .map(|v| v.pos.y)
+            .collect();
+        assert!(down.iter().any(|y| (y - 990.0).abs() < 1.0), "{down:?}");
+
+        // Circles, sizes and stops without positions, as CSS fills them in.
+        let Some(PageLayer::Radial {
+            center,
+            at,
+            ellipse,
+            size,
+            ..
+        }) = page_layer(
+            "radial-gradient(circle closest-side at 25% 75%, red, green, blue 80%, white)",
+        )
+        else {
+            panic!("not a radial gradient");
+        };
+        assert_eq!(center, [0.25, 0.75]);
+        assert!(!ellipse);
+        assert_eq!(size, RadialSize::ClosestSide);
+        assert_eq!(at, vec![0.0, 0.4, 0.8, 1.0]);
+        let radii = radial_radii(r, egui::pos2(500.0, 750.0), ellipse, size);
+        assert_eq!(radii, egui::Vec2::splat(250.0));
     }
 }

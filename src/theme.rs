@@ -111,10 +111,12 @@ impl Palette {
         }
     }
 
-    /// TIDAL text-30: section labels and quiet icons (white at 30 %).
+    /// TIDAL text-30: section labels and quiet icons (white at 30 %, so a
+    /// panel a plugin tints shows through it as in TIDAL: CoverTheme's
+    /// sidebar keeps its "All playlists" heading).
     pub fn tertiary(&self) -> Color32 {
         if self.tidal_dark() {
-            Color32::from_rgb(0x4d, 0x4d, 0x4d)
+            Color32::from_white_alpha(0x4d)
         } else {
             self.dim
         }
@@ -1305,6 +1307,22 @@ pub fn subtle(ui: &mut egui::Ui, palette: &Palette, label: &str) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Section labels are TIDAL's white at 30 %: the same grey on the black
+    /// sidebar, and lighter over a panel a plugin tints (CoverTheme's 30 %
+    /// grey over its cover gradient), where an opaque grey disappeared.
+    #[test]
+    fn the_tertiary_text_lets_a_tinted_panel_show_through() {
+        let p = Palette::dark();
+        let over = |under: Color32| {
+            let t = p.tertiary();
+            let keep = 1.0 - t.a() as f32 / 255.0;
+            (t.r() as f32 + under.r() as f32 * keep).round() as u8
+        };
+        assert_eq!(over(Color32::BLACK), 0x4d);
+        let tinted = Color32::from_rgb(75, 77, 76);
+        assert!(over(tinted) > 0x4d + 40, "{}", over(tinted));
+    }
 
     /// A theme's page font leads every weight, not only the regular one:
     /// Mocha Blue's `* { font-family: ... monospace }` is the titles' face
