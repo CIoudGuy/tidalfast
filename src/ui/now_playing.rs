@@ -244,14 +244,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 let cover_url = app
                     .now_playing()
                     .and_then(|now| now.art_url.clone().or(now.art_small.clone()));
-                let artist = app
-                    .now_playing()
-                    .map(|now| now.subtitle.clone())
-                    .unwrap_or_default();
-                let artist_info = Rect::from_min_size(
-                    placement.cover.left_bottom() + vec2(0.0, 40.0),
-                    vec2(placement.cover.width(), 24.0),
-                );
                 let footer = Rect::from_min_max(pos2(rect.left(), rect.bottom() - 72.0), rect.max);
                 let fullscreen = super::plugin_dom::window_fullscreen(ui.ctx());
                 let tilt = super::cover_tilt::current(ui.ctx());
@@ -266,8 +258,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         cover_url,
                         tilt,
                         video,
-                        artist,
-                        artist_rect: super::plugin_dom::rect(artist_info),
                         footer_rect: super::plugin_dom::rect(footer),
                         fullscreen_rect: fullscreen
                             .then(|| super::plugin_dom::rect(rect))
@@ -276,12 +266,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     });
                 });
                 for (key, position, at, align) in [
-                    (
-                        crate::luna::dom_anchors::keys::NP_ARTIST_INFO,
-                        crate::luna::dom::Position::Append,
-                        artist_info.center_bottom() + vec2(0.0, 6.0),
-                        egui::Align2::CENTER_TOP,
-                    ),
                     (
                         crate::luna::dom_anchors::keys::NP_FOOTER,
                         crate::luna::dom::Position::Append,
@@ -410,15 +394,39 @@ fn header(
         );
     }
     ui.add_space(6.0);
-    let (icon, label) = if fullscreen {
-        (Icon::Shrink, gettext(app.locale, "Leave full screen (Esc)"))
+    // TIDAL's `button[data-test=new-now-playing-expand]`; a plugin that
+    // hides it (radiant-lyrics) leaves no gap where it was.
+    let expand_key = crate::luna::dom_anchors::keys::NP_EXPAND;
+    if super::plugin_dom::hidden(expand_key) {
+        ui.add_space(6.0);
+        // Still described (with no size), so the rule that hides it keeps
+        // matching it: else it would come back the next frame.
+        let at = ui.cursor().right_center();
+        super::plugin_dom::note(|f| {
+            if let Some(np) = f.now_playing.as_mut() {
+                np.expand_rect =
+                    super::plugin_dom::rect(Rect::from_center_size(at, vec2(0.0, 0.0)));
+            }
+        });
     } else {
-        (Icon::Expand, gettext(app.locale, "Full screen"))
-    };
-    if theme::icon_button(&mut ui, icon, 14.0, GREY, Color32::WHITE, &label).clicked() {
-        app.actions.push(Action::SetLyricsFullscreen(!fullscreen));
+        let (icon, label) = if fullscreen {
+            (Icon::Shrink, gettext(app.locale, "Leave full screen (Esc)"))
+        } else {
+            (Icon::Expand, gettext(app.locale, "Full screen"))
+        };
+        let expand = theme::icon_button(&mut ui, icon, 14.0, GREY, Color32::WHITE, &label);
+        if expand.clicked() {
+            app.actions.push(Action::SetLyricsFullscreen(!fullscreen));
+        }
+        if super::plugin_dom::on() {
+            super::plugin_dom::note(|f| {
+                if let Some(np) = f.now_playing.as_mut() {
+                    np.expand_rect = super::plugin_dom::rect(expand.rect);
+                }
+            });
+        }
+        ui.add_space(12.0);
     }
-    ui.add_space(12.0);
     // Luna: TIDAL's `button[data-test=toggle-lyrics]` and its siblings; what
     // plugins put after a tab is drawn to its right (LangRomanizer's
     // Romanize Lyrics after Lyrics), and `.click()` on one opens it.
@@ -436,7 +444,23 @@ fn header(
         if let Some(key) = &key {
             super::plugin_slots::inline(&mut ui, key, crate::luna::dom::Position::After);
         }
-        let response = pill(&mut ui, label, selected);
+        // A plugin's `padding-right` and `min-width` on the tab widen the
+        // pill, and what it positioned inside the button is drawn in it
+        // (radiant-lyrics' sparkle, `position: absolute; right: 0` in the
+        // 38-point padding it gives Lyrics).
+        let (pad, min) = key
+            .as_deref()
+            .map_or((None, None), super::plugin_dom::padding_right_and_min_width);
+        let extra = pad.map_or(0.0, |p| p - 11.0);
+        let response = pill_holding(&mut ui, label, selected, extra, min);
+        if let Some(key) = &key {
+            super::plugin_slots::positioned_over(
+                &mut ui,
+                key,
+                crate::luna::dom::Position::Append,
+                response.rect,
+            );
+        }
         let by_plugin = key.as_deref().is_some_and(super::plugin_dom::take_click);
         if response.clicked() || by_plugin {
             app.actions
@@ -480,12 +504,26 @@ fn tab_name(tab: NowPlayingTab) -> &'static str {
 /// TIDAL's tab pill: 30 high, 14/20 w600; the open one white with black
 /// words, the others grey words on nothing.
 pub(super) fn pill(ui: &mut egui::Ui, label: &str, selected: bool) -> egui::Response {
+    pill_holding(ui, label, selected, 0.0, None)
+}
+
+/// [`pill`] with `extra` points of padding after its words and at least
+/// `min` wide, as a plugin's style on the tab asks (radiant-lyrics' room
+/// for its sparkle in Lyrics); the words keep their place on the left.
+fn pill_holding(
+    ui: &mut egui::Ui,
+    label: &str,
+    selected: bool,
+    extra: f32,
+    min: Option<f32>,
+) -> egui::Response {
     let galley = ui.painter().layout_no_wrap(
         label.to_string(),
         theme::semibold(14.0),
         Color32::PLACEHOLDER,
     );
-    let size = vec2(galley.size().x + 22.0, 30.0);
+    let natural = galley.size().x + 22.0 + extra.max(0.0);
+    let size = vec2(natural.max(min.unwrap_or(0.0)), 30.0);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     response.widget_info(|| {
         egui::WidgetInfo::selected(egui::WidgetType::Button, ui.is_enabled(), selected, label)

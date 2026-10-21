@@ -7593,6 +7593,245 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
     }
 
+    /// TIDAL 2.43.2's now-playing view has no `[data-test=artist-info]`:
+    /// audio-visualizer's now-playing slots, which mount on it, never
+    /// appear in TidaLuna. One made up here put its oscilloscope under the
+    /// cover, where TIDAL shows nothing.
+    #[cfg(feature = "demo")]
+    #[test]
+    fn the_now_playing_view_has_no_artist_info_block() {
+        let root = crate::paths::unique_test_dir("np-artist-info");
+        let ctx = egui::Context::default();
+        let waker = crate::backend::Waker::default();
+        waker.attach(&ctx);
+        let mut app = App::new(
+            &waker,
+            AppDirs {
+                config: root.join("config"),
+                state: root.join("state"),
+                cache: root.join("cache"),
+            },
+            Settings::default(),
+            AppOptions {
+                media_controls: false,
+                restore_sign_in: false,
+                tray: false,
+            },
+        );
+        app.attach(&ctx);
+        populate(&mut app);
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.now_playing_view = true;
+        crate::ui::plugin_dom::test_overlay(Some(crate::luna::dom::DomOverlay {
+            version: 1,
+            ..Default::default()
+        }));
+        for _ in 0..3 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1240.0, 800.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| {
+                    app.refresh_frame_now();
+                    crate::ui::show(&mut app, ui);
+                    crate::ui::plugin_dom::end_frame(ui.ctx());
+                    app.clear_frame_now();
+                },
+            );
+            output.textures_delta.clear();
+        }
+        let tree = crate::ui::plugin_dom::test_sent_tree().expect("a tree was sent");
+        let test_of = |n: &crate::luna::dom::HostNode| {
+            n.attrs
+                .iter()
+                .find(|(k, _)| k == "data-test")
+                .map(|(_, v)| v.clone())
+        };
+        assert!(
+            tree.nodes
+                .iter()
+                .any(|n| test_of(n).as_deref() == Some("new-now-playing")),
+            "the now-playing view is described"
+        );
+        assert!(
+            !tree
+                .nodes
+                .iter()
+                .any(|n| test_of(n).as_deref() == Some("artist-info")),
+            "no artist-info block"
+        );
+        crate::ui::plugin_dom::test_overlay(None);
+        app.backend.shutdown();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    /// One pass of the app as `crate::ui::show` draws it (with plugins'
+    /// overlay as the test set it), and its screen-reader tree.
+    fn shown_frame(ctx: &egui::Context, app: &mut App) -> Option<egui::accesskit::TreeUpdate> {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1280.0, 800.0),
+            )),
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| crate::ui::show(app, ui));
+        out.textures_delta.clear();
+        out.platform_output.accesskit_update
+    }
+
+    /// radiant-lyrics hides TIDAL's full screen button in the now-playing
+    /// header (`[data-test=new-now-playing-expand]{display:none}`), and puts
+    /// its own buttons there: the header is Similar tracks, Credits, Lyrics,
+    /// its buttons, Close. The button was not an anchor, so it stayed; and a
+    /// hidden one must stay described, or it comes back the frame after.
+    #[test]
+    fn a_plugin_can_hide_the_now_playing_full_screen_button() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("np-expand-hidden");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.now_playing_view = true;
+        let shown = |ctx: &egui::Context, app: &mut App, overlay: DomOverlay| {
+            plugin_dom::test_overlay(Some(overlay));
+            let mut tree = None;
+            for _ in 0..3 {
+                tree = shown_frame(ctx, app);
+                plugin_dom::end_frame(ctx);
+            }
+            let found = labels(&tree.expect("screen-reader tree"))
+                .iter()
+                .any(|l| l == "Full screen");
+            // Described either way, so the rule that hides it keeps
+            // matching it.
+            let described = plugin_dom::test_sent_tree()
+                .is_some_and(|t| t.nodes.iter().any(|n| n.key == keys::NP_EXPAND));
+            plugin_dom::test_overlay(None);
+            assert!(described, "the button is described");
+            found
+        };
+        let plain = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        assert!(shown(&ctx, &mut app, plain.clone()), "drawn");
+        let mut hiding = plain;
+        hiding.hosts.insert(
+            keys::NP_EXPAND.into(),
+            HostOverride {
+                style: Style {
+                    display: Some("none".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        assert!(!shown(&ctx, &mut app, hiding), "hidden by the plugin");
+        app.backend.shutdown();
+    }
+
+    /// radiant-lyrics gives the Lyrics tab `padding-right: 38px` and puts its
+    /// sparkle (`div.rl-lyrics-menu-trigger`, `position: absolute; right: 0;
+    /// width: 38px`) in that room: TIDAL's pill grows to hold it after the
+    /// word. The pill kept its width and the sparkle was never drawn.
+    /// (Shown here on Credits, which the demo song always has.)
+    #[test]
+    fn what_a_plugin_appends_to_a_now_playing_tab_is_inside_its_pill() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Injected, Position, Style, VNode};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("np-tab-append");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.now_playing_view = true;
+        let lyrics_width = |ctx: &egui::Context, app: &mut App, overlay: DomOverlay| {
+            plugin_dom::test_overlay(Some(overlay));
+            let mut tree = None;
+            for _ in 0..4 {
+                tree = shown_frame(ctx, app);
+            }
+            plugin_dom::test_overlay(None);
+            let tree = tree.expect("screen-reader tree");
+            let (_, node) = tree
+                .nodes
+                .iter()
+                .find(|(_, n)| n.label() == Some("Credits"))
+                .unwrap_or_else(|| panic!("the Credits tab: {:?}", labels(&tree)));
+            let b = node.bounds().expect("bounds");
+            (b.x1 - b.x0) as f32
+        };
+        let plain = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        let bare = lyrics_width(&ctx, &mut app, plain.clone());
+        let tab = keys::now_playing_tab("credits");
+        let mut sparkle = plain;
+        sparkle.hosts.insert(
+            tab.clone(),
+            HostOverride {
+                style: Style {
+                    position: Some("relative".into()),
+                    padding_right: Some("38px".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        sparkle.injected.push(Injected {
+            anchor: tab.clone(),
+            position: Position::Append,
+            nodes: vec![VNode {
+                id: 1,
+                tag: "div".into(),
+                style: Style {
+                    position: Some("absolute".into()),
+                    right: Some("0".into()),
+                    top: Some("0".into()),
+                    bottom: Some("0".into()),
+                    width: Some("38px".into()),
+                    background_color: Some("#ff6b9d".into()),
+                    ..Style::default()
+                },
+                ..VNode::default()
+            }],
+        });
+        plugin_dom::test_overlay(Some(sparkle.clone()));
+        let mut pink = 0;
+        for _ in 0..4 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1280.0, 800.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| crate::ui::show(&mut app, ui));
+            out.textures_delta.clear();
+            let pink_fill = egui::Color32::from_rgb(0xff, 0x6b, 0x9d);
+            pink = out
+                .shapes
+                .iter()
+                .filter(|s| matches!(&s.shape, egui::Shape::Rect(r) if r.fill == pink_fill))
+                .count();
+        }
+        plugin_dom::test_overlay(None);
+        assert!(pink > 0, "the sparkle's box is drawn");
+        let holding = lyrics_width(&ctx, &mut app, sparkle);
+        assert!(
+            (holding - bare - 27.0).abs() < 1.5,
+            "38 points of padding in place of 11: {holding} vs {bare}"
+        );
+        app.backend.shutdown();
+    }
+
     /// Allocations this thread makes drawing `view` once, after it settled.
     #[cfg(feature = "demo")]
     fn view_allocations(page: &str, view: fn(&mut App, &mut egui::Ui)) -> u64 {
