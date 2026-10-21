@@ -7894,6 +7894,183 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// The shapes of the now-playing view after a few frames under
+    /// `overlay`, with the Credits tab open.
+    fn open_tab_shapes(
+        name: &str,
+        overlay: crate::luna::dom::DomOverlay,
+    ) -> Vec<egui::epaint::ClippedShape> {
+        let (ctx, mut app) = accessible_app(name);
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.now_playing_view = true;
+        app.now_playing_tab = Some(crate::model::NowPlayingTab::Credits);
+        crate::ui::plugin_dom::test_overlay(Some(overlay));
+        let mut shapes = Vec::new();
+        for _ in 0..5 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1280.0, 800.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| crate::ui::show(&mut app, ui));
+            out.textures_delta.clear();
+            shapes = out.shapes;
+        }
+        crate::ui::plugin_dom::test_overlay(None);
+        app.backend.shutdown();
+        shapes
+    }
+
+    /// The colour a text shape is drawn in: its glyphs' own, or the
+    /// shape's fallback where they have none.
+    fn shape_text_color(t: &egui::epaint::TextShape) -> egui::Color32 {
+        let glyph = t
+            .galley
+            .rows
+            .iter()
+            .flat_map(|row| row.row.visuals.mesh.vertices.iter())
+            .map(|vertex| vertex.color)
+            .next()
+            .unwrap_or(egui::Color32::PLACEHOLDER);
+        if glyph == egui::Color32::PLACEHOLDER {
+            t.override_text_color.unwrap_or(t.fallback_color)
+        } else {
+            glyph
+        }
+    }
+
+    /// radiant-lyrics' sparkle in the open Lyrics tab is `#1e1e1e` on the
+    /// tab's white pill. It was read against the dark window, made white
+    /// to stay readable there, and vanished into the white pill: it is
+    /// read against the pill now and stays dark. (A glyph stands in for the
+    /// sparkle; the open tab is Credits, which the demo song always has.)
+    #[test]
+    fn what_a_plugin_draws_in_the_open_tab_is_read_against_its_white_pill() {
+        use crate::luna::dom::{DomOverlay, Injected, Position, Style, VNode};
+        use crate::luna::dom_anchors::keys;
+        let tab = keys::now_playing_tab("credits");
+        let glyph = VNode {
+            id: 2,
+            tag: "span".into(),
+            children: vec![VNode {
+                id: 3,
+                tag: "#text".into(),
+                text: Some("Q".into()),
+                ..VNode::default()
+            }],
+            ..VNode::default()
+        };
+        let overlay = DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: tab,
+                position: Position::Append,
+                nodes: vec![VNode {
+                    id: 1,
+                    tag: "div".into(),
+                    style: Style {
+                        position: Some("absolute".into()),
+                        right: Some("0".into()),
+                        top: Some("0".into()),
+                        bottom: Some("0".into()),
+                        width: Some("38px".into()),
+                        color: Some("#1e1e1e".into()),
+                        ..Style::default()
+                    },
+                    children: vec![glyph],
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        };
+        let shapes = open_tab_shapes("np-tab-ink", overlay);
+        let colors: Vec<egui::Color32> = shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) if t.galley.text() == "Q" => Some(shape_text_color(t)),
+                _ => None,
+            })
+            .collect();
+        assert!(!colors.is_empty(), "the glyph is drawn");
+        assert!(
+            colors
+                .iter()
+                .all(|c| c.r() < 80 && c.g() < 80 && c.b() < 80),
+            "dark on the white pill: {colors:?}"
+        );
+    }
+
+    /// While radiant-lyrics' options menu hangs under the Lyrics tab, the
+    /// tab is `min-width: 150px` with `border-radius: 12px 12px 0 0` (and
+    /// its 38-point padding for the sparkle): TIDAL draws it square at the
+    /// bottom and centres the word in what the padding leaves. The pill
+    /// stayed round and kept its word at the left.
+    #[test]
+    fn a_widened_open_tab_takes_the_plugins_corners_and_centres_its_word() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::keys;
+        let mut overlay = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        overlay.hosts.insert(
+            keys::now_playing_tab("credits"),
+            HostOverride {
+                style: Style {
+                    padding_right: Some("38px".into()),
+                    min_width: Some("150px".into()),
+                    border_radius: Some("12px 12px 0 0".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        let shapes = open_tab_shapes("np-tab-menu", overlay);
+        let pill = shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::Shape::Rect(r)
+                    if r.fill.a() > 0
+                        && r.fill.r() == r.fill.g()
+                        && (r.rect.width() - 150.0).abs() < 0.5
+                        && (r.rect.height() - 30.0).abs() < 0.5 =>
+                {
+                    Some(r.clone())
+                }
+                _ => None,
+            })
+            .expect("the 150-point pill");
+        assert_eq!(
+            pill.corner_radius,
+            egui::CornerRadius {
+                nw: 12,
+                ne: 12,
+                se: 0,
+                sw: 0
+            }
+        );
+        let word = shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::Shape::Text(t)
+                    if t.galley.text() == "Credits" && pill.rect.contains(t.pos) =>
+                {
+                    Some(egui::Rect::from_min_size(t.pos, t.galley.size()))
+                }
+                _ => None,
+            })
+            .expect("the word in the pill");
+        let middle = (pill.rect.left() + 11.0 + pill.rect.right() - 38.0) / 2.0;
+        assert!(
+            (word.center().x - middle).abs() < 1.0,
+            "centred in what the padding leaves: {word:?} in {:?}",
+            pill.rect
+        );
+    }
+
     /// Allocations this thread makes drawing `view` once, after it settled.
     #[cfg(feature = "demo")]
     fn view_allocations(page: &str, view: fn(&mut App, &mut egui::Ui)) -> u64 {
