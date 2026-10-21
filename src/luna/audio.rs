@@ -272,6 +272,29 @@ pub fn with_extension(path: &Path, source: &AudioSource) -> PathBuf {
     }
 }
 
+/// Reads a track's stream to its end and drops every byte (NoBuffer's kick
+/// of TIDAL's CDN after a stall); how many bytes came. Nothing is kept.
+/// Blocks: worker threads only.
+pub fn drain(plugin: &str, source: AudioSource) -> Result<u64, String> {
+    let at = epoch(plugin);
+    let mut done = 0u64;
+    let mut buf = vec![0u8; 256 * 1024];
+    for part in parts_of(source) {
+        let (mut reader, _) = open(part)?;
+        loop {
+            if stopped(plugin, at) {
+                return Err("ECANCELED: the plugin stopped".into());
+            }
+            let n = reader.read(&mut buf).map_err(|e| format!("EIO: {e}"))?;
+            if n == 0 {
+                break;
+            }
+            done += n as u64;
+        }
+    }
+    Ok(done)
+}
+
 /// Write track `track` to `target` (already checked to be where the user
 /// let this plugin write). Blocks: worker threads only.
 pub fn save(plugin: &str, track: &str, source: AudioSource, target: &Path) -> Result<(), String> {

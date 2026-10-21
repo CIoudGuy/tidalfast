@@ -17,6 +17,8 @@ const FAKE_TOKEN: &str = "fake-token-for-permission-tests-0123456789";
 struct PermitHost {
     /// What the file dialog answers.
     dialog: Mutex<Option<PathBuf>>,
+    /// Streams handed out.
+    opened: std::sync::atomic::AtomicUsize,
 }
 
 impl LunaHost for PermitHost {
@@ -51,6 +53,8 @@ impl LunaHost for PermitHost {
         _track: &str,
         _quality: Option<&str>,
     ) -> Result<AudioSource, String> {
+        self.opened
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Ok(AudioSource {
             mime: "audio/wav".into(),
             codec: "pcm".into(),
@@ -301,6 +305,44 @@ R.done = run;
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&dir_out);
+}
+
+/// NoBuffer's `voidTrack` (its native module, as published) reads the
+/// playing song's stream into a Writable that drops every chunk: it saves
+/// nothing, so it is not asked the save-audio question, whose prompt says
+/// "save as files". The host reads the stream to its end and keeps nothing;
+/// the plugin never gets the bytes.
+#[test]
+fn no_buffers_cdn_kick_reads_the_stream_without_the_save_audio_question() {
+    let host = Arc::new(PermitHost::default());
+    let body = r###"
+const voidNative = `"use strict";var s=Object.create;var o=Object.defineProperty;var f=Object.getOwnPropertyDescriptor;var p=Object.getOwnPropertyNames;var b=Object.getPrototypeOf,c=Object.prototype.hasOwnProperty;var w=(e,n)=>()=>{try{return n||e((n={exports:{}}).exports,n),n.exports}catch(a){throw n=0,a}},v=(e,n)=>{for(var a in n)o(e,a,{get:n[a],enumerable:!0})},l=(e,n,a,r)=>{if(n&&typeof n=="object"||typeof n=="function")for(let i of p(n))!c.call(e,i)&&i!==a&&o(e,i,{get:()=>n[i],enumerable:!(r=f(n,i))||r.enumerable});return e};var P=(e,n,a)=>(a=e!=null?s(b(e)):{},l(n||!e||!e.__esModule?o(a,"default",{value:e,enumerable:!0}):a,e)),_=e=>l(o({},"__esModule",{value:!0}),e);var d=w((W,t)=>{t.exports=luna.modules["@luna/lib.native"];if(t.exports===void 0)throw new Error("Cannot find native module @luna/lib.native in luna.modules");luna.tidalWindow?.webContents?.send("__Luna.LunaPlugin.addDependant","@luna/lib.native","NoBuffer")});var x={};v(x,{voidTrack:()=>k});module.exports=_(x);var u=P(d()),m=require("stream"),y=new m.Writable({write:(e,n,a)=>a()}),k=async e=>{let n=await(0,u.fetchMediaItemStream)(e);return new Promise(a=>n.pipe(y).on("end",a))};0&&(module.exports={voidTrack});
+`;
+const n = await native("NoBuffer/voidTrack.native.ts", voidNative);
+R.kick = await n("voidTrack", { trackId: 5, audioQuality: "LOSSLESS" }).then((v) => "OK " + v, (e) => "ERR " + (e?.message ?? e));
+R.done = 1;
+"###;
+    let (luna, dir) = start("NoBuffer", body, host.clone());
+    let end = Instant::now() + Duration::from_secs(20);
+    while results(&dir)["done"] != json!(1) {
+        assert!(
+            luna.pending_permission().is_none(),
+            "the save-audio question was asked: {:#?}",
+            logs(&luna)
+        );
+        assert!(Instant::now() < end, "no result: {:#?}", logs(&luna));
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let r = results(&dir);
+    assert!(r["kick"].as_str().unwrap().starts_with("OK"), "{r}");
+    assert_eq!(
+        host.opened.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "the stream was read once"
+    );
+    no_question(&luna);
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A made-up program's pipe or socket: answers "pong" to what it gets and
