@@ -49,6 +49,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let fill = crate::motion::blend(fill, Color32::TRANSPARENT, over_view);
     // Luna plugins may restyle `#footerPlayer` (themes, radiant-lyrics).
     let fill = plugin_dom::surface(keys::FOOTER, fill);
+    // TIDAL's own glass over a theme's fill for the bar (Tidal Amoled's
+    // black bar is TIDAL's dark grey).
+    let fill = if over_view > 0.0 {
+        fill
+    } else {
+        plugin_dom::footer_under_glass(fill, palette.window)
+    };
     // A floating bar (radiant-lyrics, a theme) is TIDAL's fixed
     // `#footerPlayer` lifted off the window's edges: the page runs on under
     // it and shows round it. TIDAL blurs what lies under a glass bar; that
@@ -1278,10 +1285,8 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         plugin_slots::positioned_in(&mut slider_ui, keys::PROGRESS_BAR);
         SliderEvent::None
     } else {
-        // `#progressBar`'s colour is the fill's (`currentColor`): Tidal
-        // Tags tints it with the quality's colour.
         let tinted;
-        let palette = match plugin_dom::color(keys::PROGRESS_BAR) {
+        let palette = match progress_fill() {
             Some(color) => {
                 tinted = crate::theme::Palette {
                     text: color,
@@ -1614,6 +1619,15 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     let spacing = ui.spacing().item_spacing.x;
     let all: f32 = after.widths.iter().filter(|w| **w > 0.0).sum();
     (after.natives + all - spacing).max(0.0)
+}
+
+/// The progress fill's colour: a theme's background for the fill itself
+/// (`[data-test=progress-indicator]`: Lunallena's and Giorgeous's 7 %
+/// white, none under Tidal TUI, whose colour variable has no value), else
+/// `#progressBar`'s colour, which TIDAL's fill takes (`currentColor`: Tidal
+/// Tags tints it with the quality's colour). `None` keeps the app's.
+pub(crate) fn progress_fill() -> Option<Color32> {
+    plugin_dom::fill(keys::PROGRESS_RANGE).or_else(|| plugin_dom::color(keys::PROGRESS_BAR))
 }
 
 /// A theme's colour for a button on the bar's right (Cotton Candy

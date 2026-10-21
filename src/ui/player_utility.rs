@@ -139,7 +139,8 @@ pub(super) fn volume(
         .constrain(false)
         .interactable(true)
         .show(&ctx, |ui| {
-            paint_volume_popup(ui, popup_rect);
+            let (fill, ink) = volume_popup_colors(&palette);
+            paint_volume_popup(ui, popup_rect, fill);
             let slider = vertical_slider(
                 ui,
                 slider_id,
@@ -148,6 +149,7 @@ pub(super) fn volume(
                 popup_rect,
                 adjustable,
                 wheel,
+                ink,
             );
             if !matches!(slider, SliderEvent::None) {
                 event = slider;
@@ -160,8 +162,19 @@ pub(super) fn volume(
     }
 }
 
+/// The volume popup's fill and the colour of its range: TIDAL's own dark
+/// box and white range, or under a theme its raised surface and words
+/// (Tidal Light's pale box with a dark range, as TIDAL draws it there).
+pub(crate) fn volume_popup_colors(palette: &theme::Palette) -> (Color32, Color32) {
+    if palette.themed && !palette.own_surfaces {
+        (palette.overlay, palette.text)
+    } else {
+        (VOLUME_POPUP_FILL, Color32::WHITE)
+    }
+}
+
 /// The popup's body and the tail under it pointing at the speaker.
-fn paint_volume_popup(ui: &egui::Ui, rect: Rect) {
+fn paint_volume_popup(ui: &egui::Ui, rect: Rect, fill: Color32) {
     let painter = ui.painter();
     painter.add(
         egui::epaint::Shadow {
@@ -172,7 +185,7 @@ fn paint_volume_popup(ui: &egui::Ui, rect: Rect) {
         }
         .as_shape(rect, CornerRadius::same(8)),
     );
-    painter.rect_filled(rect, 8.0, VOLUME_POPUP_FILL);
+    painter.rect_filled(rect, 8.0, fill);
     // TIDAL: a 20-point square turned 45 degrees and cut to its lower half,
     // 4 under the popup: a 7-point point under its middle.
     let tip = pos2(rect.center().x, rect.bottom() + 6.0);
@@ -182,13 +195,14 @@ fn paint_volume_popup(ui: &egui::Ui, rect: Rect) {
             pos2(rect.center().x + 7.0, rect.bottom() - 1.0),
             tip,
         ],
-        VOLUME_POPUP_FILL,
+        fill,
         Stroke::NONE,
     ));
 }
 
 /// TIDAL's range turned upright: drag or click along it, the wheel, the
 /// arrow keys, and screen readers' set-value all change it.
+#[expect(clippy::too_many_arguments)]
 fn vertical_slider(
     ui: &mut egui::Ui,
     id: Id,
@@ -197,6 +211,7 @@ fn vertical_slider(
     popup: Rect,
     enabled: bool,
     wheel: bool,
+    ink: Color32,
 ) -> SliderEvent {
     let track = Rect::from_center_size(popup.center(), vec2(4.0, VOLUME_TRACK));
     // The whole popup takes the pointer, so the thin track is easy to hit.
@@ -284,7 +299,7 @@ fn vertical_slider(
         }
     });
     let painter = ui.painter();
-    painter.rect_filled(track, 2.0, Color32::from_white_alpha(26));
+    painter.rect_filled(track, 2.0, ink.gamma_multiply(26.0 / 255.0));
     let fill_top = track.bottom() - track.height() * shown;
     // TIDAL's fill starts 2 px in, so even 0 shows a dot.
     let filled = Rect::from_min_max(
@@ -292,9 +307,9 @@ fn vertical_slider(
         track.max,
     );
     let base = if enabled {
-        Color32::WHITE
+        ink
     } else {
-        Color32::from_white_alpha(90)
+        ink.gamma_multiply(90.0 / 255.0)
     };
     painter.rect_filled(filled, 2.0, base);
     if enabled {
@@ -308,7 +323,7 @@ fn vertical_slider(
             }
             .as_shape(thumb, CornerRadius::same(2)),
         );
-        painter.rect_filled(thumb, 2.0, Color32::WHITE);
+        painter.rect_filled(thumb, 2.0, ink);
     }
     if response.has_focus() {
         theme::focus_ring(ui, &response);

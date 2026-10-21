@@ -557,6 +557,74 @@ fn a_themes_pseudo_element_words_reach_the_overlay() {
     luna.shutdown();
 }
 
+/// TIDAL's progress fill is `[data-test=progress-indicator]`, which themes
+/// colour by its background: Lunallena's and Giorgeous's 7 % white, and
+/// Tidal TUI's `var(--tui-border-active)` with no value, which leaves it
+/// none (TIDAL shows no fill there). The bar drew the theme's accent.
+#[test]
+fn the_progress_fill_takes_the_themes_background_for_it() {
+    use crate::ui::player_bar::progress_fill;
+    use crate::ui::plugin_dom as pd;
+    let fill = |css: &str, name: &str| {
+        let (luna, o) = overlay_with(
+            name,
+            css,
+            dom_anchors::sample_tree(),
+            dom_anchors::keys::PROGRESS_RANGE,
+        );
+        pd::test_overlay(Some((*o).clone()));
+        let c = progress_fill();
+        pd::test_overlay(None);
+        luna.shutdown();
+        c
+    };
+    assert_eq!(
+        fill(
+            r#"/* {"name": "Faint"} */ [data-test="progress-indicator"] { background-color: rgba(255, 255, 255, 0.07); }"#,
+            "fill-faint.css",
+        ),
+        Some(egui::Color32::from_rgba_unmultiplied(255, 255, 255, 18))
+    );
+    assert_eq!(
+        fill(
+            r#"/* {"name": "None"} */ [data-test="progress-indicator"] { z-index: -1; background-color: var(--tui-border-active); }"#,
+            "fill-none.css",
+        )
+        .map(|c| c.a()),
+        Some(0)
+    );
+    assert_eq!(progress_fill(), None, "without a theme, the app's own");
+}
+
+/// TIDAL's volume popup is its raised surface with a range in its words'
+/// colour: under Tidal Light a pale box with a dark range. Tidalfast drew
+/// TIDAL's dark box and white range under every theme.
+#[test]
+fn the_volume_popup_takes_the_themes_surface() {
+    use crate::ui::player_utility::volume_popup_colors;
+    let dark = crate::theme::Palette::dark();
+    assert_eq!(
+        volume_popup_colors(&dark),
+        (
+            egui::Color32::from_rgb(0x24, 0x24, 0x29),
+            egui::Color32::WHITE
+        ),
+        "without a theme, TIDAL's own"
+    );
+    let mut light = crate::theme::Palette::light();
+    light.themed = true;
+    light.own_surfaces = false;
+    light.overlay = egui::Color32::from_rgb(0xf4, 0xf4, 0xf4);
+    light.text = egui::Color32::BLACK;
+    assert_eq!(
+        volume_popup_colors(&light),
+        (
+            egui::Color32::from_rgb(0xf4, 0xf4, 0xf4),
+            egui::Color32::BLACK
+        )
+    );
+}
+
 /// Lunallena sizes and colours TIDAL's page and section titles through
 /// their elements (`h1 { font-size: 30px !important; color: var(--accent)
 /// !important }`, `[class*="headerContainer"] > h2 { ... }`): TIDAL draws
@@ -656,6 +724,56 @@ fn navigation_labels_take_the_themes_colour_for_their_words() {
     pd::test_overlay(None);
     luna.shutdown();
     assert_eq!(color, Some(egui::Color32::from_rgb(0x8a, 0x00, 0x22)));
+}
+
+/// TIDAL lays its own glass (`#282828` at 75 %, the bar's `::before`) over
+/// a theme's fill for `#footerPlayer`: Tidal Amoled's black bar shows
+/// rgb(31, 31, 31) in TIDAL and Minimalist Black's `#181818` rgb(36, 36,
+/// 36). Tidalfast drew the theme's fill alone. A theme that styles that
+/// `::before` (the cotton candy family hides it) keeps its own colour.
+#[test]
+fn tidals_bar_glass_lies_over_a_themes_bar_fill() {
+    use crate::ui::plugin_dom as pd;
+    let glass = |css: &str, name: &str, fill: egui::Color32| {
+        let (luna, o) = overlay_with(
+            name,
+            css,
+            dom_anchors::sample_tree(),
+            dom_anchors::keys::FOOTER,
+        );
+        pd::test_overlay(Some((*o).clone()));
+        let c = pd::footer_under_glass(fill, egui::Color32::BLACK);
+        pd::test_overlay(None);
+        luna.shutdown();
+        c
+    };
+    let near = |c: egui::Color32, v: u8| (i16::from(c.r()) - i16::from(v)).abs() <= 1;
+    let black = egui::Color32::BLACK;
+    assert!(near(
+        glass(
+            r#"/* {"name": "Amoled"} */ #footerPlayer { background: #000 !important; }"#,
+            "bar-amoled.css",
+            black,
+        ),
+        31
+    ));
+    let grey = egui::Color32::from_gray(0x18);
+    assert!(near(
+        glass(
+            r#"/* {"name": "Minimal"} */ #footerPlayer { background-color: #181818 !important; }"#,
+            "bar-minimal.css",
+            grey,
+        ),
+        36
+    ));
+    assert_eq!(
+        glass(
+            r#"/* {"name": "Own glass"} */ #footerPlayer { background-color: #000; } ._player_8c80ae6:before { display: none; }"#,
+            "bar-own.css",
+            black,
+        ),
+        black
+    );
 }
 
 /// TIDAL 2.43.2 keeps its teal accent even under a theme that paints the
