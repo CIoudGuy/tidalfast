@@ -193,7 +193,10 @@ pub fn mix(app: &mut App, ui: &mut egui::Ui, id: &str) {
             mix.name.clone(),
             mix.subtitle.clone(),
             mix.images.clone(),
-            mix.title_color.as_deref().and_then(hex_color),
+            // TIDAL colours the title by `--track-vibrant-color`, which a
+            // theme may set itself (Abyss Neptune's white).
+            super::plugin_dom::theme_var_color("--track-vibrant-color")
+                .or_else(|| mix.title_color.as_deref().and_then(hex_color)),
         ),
         None => (gettext(locale, "Mix").into_owned(), None, Vec::new(), None),
     };

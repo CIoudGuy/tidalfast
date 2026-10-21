@@ -1540,6 +1540,18 @@ pub fn queue_panel(ui: &egui::Ui, r: Rect, over_now_playing: bool) -> bool {
     )
 }
 
+/// A colour a theme's root declares for `name` (`--track-vibrant-color:
+/// white`), `None` without one or while Luna is off.
+pub fn theme_var_color(name: &str) -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    with(|s| {
+        let v = s.overlay.vars.get(name)?;
+        css::color(&css::resolve_vars(v, &s.overlay.vars))
+    })
+}
+
 /// The play queue's fill under a theme that sets TIDAL's root
 /// `--wave-color-solid-base-fill` and leaves its window black (Rose Pine,
 /// the Catppuccin flavours): TIDAL 2.43.2 still reads that token for its
