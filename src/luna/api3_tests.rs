@@ -592,3 +592,36 @@ R.done = true;
         "{r}"
     );
 }
+
+/// QuickJS ignores the options of a date's `toLocale*String`:
+/// DownloadManager's taskbar clock (`{ hour: "2-digit", minute: "2-digit" }`)
+/// showed "04:00:32 PM" with the seconds where TIDAL's Chromium (en-US)
+/// shows "04:00 PM". The en-US forms of the options plugins use.
+#[test]
+fn dates_print_with_chromiums_locale_options() {
+    let (r, _host) = run_catalogue(
+        r##"
+const d = new Date(Date.UTC(2026, 9, 21, 16, 0, 32));
+const u = { timeZone: "UTC" };
+R.list = [
+	d.toLocaleTimeString([], { ...u, hour: "2-digit", minute: "2-digit" }),
+	d.toLocaleDateString([], { ...u, day: "2-digit", month: "2-digit", year: "numeric" }),
+	d.toLocaleTimeString("en-US", u),
+	d.toLocaleDateString("en-US", u),
+	d.toLocaleString("en-US", u),
+	d.toLocaleDateString("en-US", { ...u, month: "long", day: "numeric", year: "numeric" }),
+	d.toLocaleDateString("en-US", { ...u, weekday: "short", month: "short", day: "numeric" }),
+	d.toLocaleTimeString("en-US", { ...u, hour12: false, hour: "2-digit", minute: "2-digit" }),
+	new Date(Date.UTC(2026, 0, 5, 9, 7)).toLocaleTimeString([], { ...u, hour: "numeric", minute: "2-digit" }),
+	new Date(NaN).toLocaleDateString(),
+].join("|");
+R.done = true;
+"##,
+        |_, _| {},
+    );
+    assert_eq!(
+        r["list"],
+        "04:00 PM|10/21/2026|4:00:32 PM|10/21/2026|10/21/2026, 4:00:32 PM|October 21, 2026|Wed, Oct 21|16:00|9:07 AM|Invalid Date",
+        "{r}"
+    );
+}
