@@ -1178,6 +1178,9 @@
 	};
 	// Anchors TIDAL's stylesheet generates no `::before`/`::after` for.
 	const ownsNoPseudo = (el) => /(^|\s)_artistHeader_/.test(el.getAttribute?.("class") ?? "");
+	// TIDAL's shortcut tile keeps its `::after` see-through at rest: Tidal
+	// Light's `linear-gradient(#0000, #fff)` there leaves its tiles flat grey.
+	const restsHidden = (el, kind) => kind === "after" && /(^|\s)_shortcutItem_/.test(el.getAttribute?.("class") ?? "");
 	// What a theme's `::before` and `::after` rules say for the anchor `el`.
 	const pseudoOf = (ix, el) => {
 		D.pseudoRuns = (D.pseudoRuns ?? 0) + 1;
@@ -1198,6 +1201,7 @@
 			// the artist header has none, so `[class*="Header"]::before`
 			// (Mocha Blue's top-bar fill) draws no box over the portrait.
 			if (!hasContent(decls) && ownsNoPseudo(el)) continue;
+			if (restsHidden(el, kind)) continue;
 			let vars = el._cc?.myVars ?? NO_VARS;
 			for (const [k, v] of decls)
 				if (k.startsWith("--")) {

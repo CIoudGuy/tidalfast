@@ -5192,7 +5192,10 @@ pub fn box_layers(
         {
             out.push(BoxLayer::Fill(c.gamma_multiply(opacity), radius));
         }
-        image_layers(p, vars, &mut out);
+        // A see-through box shows none of its pictures either.
+        if opacity > 0.0 {
+            image_layers(p, vars, &mut out);
+        }
     }
     // Borders go over the fills (rows draw their own).
     for s in std::iter::once(&h.style).chain(
