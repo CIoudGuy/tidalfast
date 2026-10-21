@@ -622,22 +622,19 @@ pub fn floating_rect(ctx: &egui::Context, screen: egui::Rect) -> egui::Rect {
 
 /// The gap between the page and the open play queue.
 const PAGE_GAP: f32 = 8.0;
-/// The least the page keeps beside the open queue: its songs table needs
-/// 489 points (# and title and artist cells, time, row buttons) inside the
-/// page's 48 point margins. A window too narrow for
-/// both leaves the queue over the page's right edge, as before.
-pub const PAGE_LEAST: f32 = 585.0;
 
 /// How much of the page's right side the open play queue takes from it, as
 /// in TIDAL, where the page lies beside the panel and nothing is covered:
-/// from the page's right edge in to `panel_left` less a gap, but never so
-/// much that the page is left under [`PAGE_LEAST`] wide.
+/// from the page's right edge in to `panel_left` less a gap, at any window
+/// width. In a narrow window TIDAL narrows the page that far too and cuts
+/// what no longer fits at its edge (its 1000-point captures: the album's
+/// title and the songs table end at the panel); the panel never lies over
+/// the page.
 pub fn page_reserve(open: bool, page: egui::Rect, panel_left: f32) -> f32 {
     if !open {
         return 0.0;
     }
-    let wanted = (page.right() - (panel_left - PAGE_GAP)).max(0.0);
-    wanted.min((page.width() - PAGE_LEAST).max(0.0))
+    (page.right() - (panel_left - PAGE_GAP)).clamp(0.0, page.width().max(0.0))
 }
 
 /// The room the page gives the play queue this frame (see [`page_reserve`]).
@@ -1667,26 +1664,35 @@ mod one_scroll_tests {
 
 #[cfg(test)]
 mod beside_page_tests {
-    use super::{PAGE_LEAST, page_reserve};
+    use super::page_reserve;
     use egui::{Rect, pos2};
 
-    /// The page gives the open panel its width down to the room its table
-    /// needs; closed, or in a window too narrow, it keeps what it has.
+    /// The page gives the open panel its width; closed, it keeps what it has.
     #[test]
-    fn the_page_gives_the_open_queue_its_width_down_to_what_its_table_needs() {
+    fn the_page_gives_the_open_queue_its_width() {
         let page = Rect::from_min_max(pos2(240.0, 60.0), pos2(1400.0, 800.0));
         // The panel's left edge at 1072: its 318 points and a 10 point margin.
         assert_eq!(page_reserve(true, page, 1072.0), 336.0);
         assert_eq!(page_reserve(false, page, 1072.0), 0.0);
         // A panel past the page's far edge takes nothing from it.
         assert_eq!(page_reserve(true, page, 1500.0), 0.0);
-        // A narrow window leaves the page its least and the panel over it.
-        let narrow = Rect::from_min_max(pos2(240.0, 60.0), pos2(820.0, 600.0));
-        assert_eq!(page_reserve(true, narrow, 492.0), 0.0);
-        let middle = Rect::from_min_max(pos2(240.0, 60.0), pos2(1000.0, 600.0));
-        assert_eq!(
-            page_reserve(true, middle, 672.0),
-            middle.width() - PAGE_LEAST
-        );
+    }
+
+    /// TIDAL at 1000 points (its `_base` captures n01, n10): the page lies
+    /// beside the open panel there too, narrowed to end 8 before it, and the
+    /// panel covers none of it. Tidalfast kept the page 585 wide and laid
+    /// the panel over its right side (a see-through panel showed the page
+    /// through it).
+    #[test]
+    fn a_narrow_window_narrows_the_page_beside_the_open_queue() {
+        // 1000 wide: sidebar 240, the panel's left edge at 1000 - 8 - 334.
+        let page = Rect::from_min_max(pos2(240.0, 60.0), pos2(1000.0, 1100.0));
+        let panel_left = 1000.0 - 8.0 - 334.0;
+        let reserve = page_reserve(true, page, panel_left);
+        assert_eq!(page.right() - reserve, panel_left - 8.0);
+        // A window narrower than the sidebar and the panel: no page left,
+        // never less.
+        let tiny = Rect::from_min_max(pos2(240.0, 60.0), pos2(500.0, 600.0));
+        assert_eq!(page_reserve(true, tiny, 158.0), tiny.width());
     }
 }
