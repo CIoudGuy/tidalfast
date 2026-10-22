@@ -1474,7 +1474,8 @@ fn nav_row(
             palette.nav_selected(),
             selected,
         );
-        let mut color = crate::motion::blend(palette.secondary, palette.text, hover.max(selected));
+        let mut color =
+            crate::motion::blend(idle_nav_ink(palette), palette.text, hover.max(selected));
         let mut corner = CornerRadius::same(12);
         // A theme's rules for the row (`._navigationItem_ { background;
         // border-radius; color }`, its `:hover` and `_selected_` states).
@@ -1532,6 +1533,18 @@ fn nav_row(
     });
     theme::focus_ring(ui, &response);
     response
+}
+
+/// The words of an idle navigation row. Under a theme they are TIDAL's own
+/// 55 % of the panel's words, not the panel's second-line colour (Meteor
+/// Night's 70 % `[class*="subtitle"]` made them brighter than TIDAL's),
+/// unless the theme's rules colour the row.
+fn idle_nav_ink(palette: &Palette) -> egui::Color32 {
+    if palette.themed {
+        palette.text.gamma_multiply(0.55)
+    } else {
+        palette.secondary
+    }
 }
 
 /// A navigation row of the icon rail: the icon alone in a 40 x 40 box.
@@ -3849,6 +3862,22 @@ mod ordering_tests {
 #[cfg(test)]
 mod rail_tests {
     use super::*;
+
+    /// Under a theme an idle navigation row is TIDAL's 55 % of the panel's
+    /// words, whatever the panel's second lines are; without one it keeps
+    /// the palette's grey.
+    #[test]
+    fn idle_navigation_rows_keep_tidals_dim_words_under_a_theme() {
+        let plain = Palette::dark();
+        assert_eq!(idle_nav_ink(&plain), plain.secondary);
+        let themed = Palette {
+            themed: true,
+            text: egui::Color32::WHITE,
+            secondary: egui::Color32::from_white_alpha(179),
+            ..plain
+        };
+        assert_eq!(idle_nav_ink(&themed), egui::Color32::from_white_alpha(140));
+    }
 
     /// tidal.com's collapsed sidebar: 72 wide, 40-wide navigation buttons
     /// 16 from the edge, 52-square playlist boxes 10 from it.
