@@ -3272,9 +3272,15 @@
 		}
 		if (!el) el = /^key/.test(type) ? (focused ?? body) : body;
 		if ((type === "input" || type === "change") && d.value !== undefined) {
+			const was = [el.checked, el.value];
 			if (d.checked !== undefined) el._checked = !!d.checked;
 			el._value = String(d.value);
 			if (el._hostKey !== undefined) el._hostValue = String(d.value);
+			// What the UI shows of a box, a field or a choice is the
+			// overlay's value, so a change it made goes out as one (and
+			// `:checked` styles follow it), whatever else is or is not
+			// changing the page.
+			if (el.checked !== was[0] || el.value !== was[1]) markDirty();
 		}
 		if (type === "scroll" && d.scrollTop !== undefined) {
 			el._scroll = [Number(d.scrollTop) || 0, el._scroll?.[1] ?? Number(d.scrollHeight) ?? 0];

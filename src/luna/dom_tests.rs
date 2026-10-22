@@ -1961,7 +1961,9 @@ fn overlay_vnode(
 /// multipleplaylists: a checkbox the user ticks stays ticked (the overlay
 /// carries its new state, so the drawn box does not untick itself on the
 /// next frame), and a click on the text of its `<label>` ticks it, as in a
-/// browser; `:checked` finds both.
+/// browser; `:checked` finds both. No host tree is sent: nothing else
+/// changes the page (the tree's pictures loading did, a moment after the
+/// start), so the overlay that shows a tick is the tick's own.
 #[test]
 fn ticked_checkboxes_stay_ticked_and_labels_toggle_them() {
     let (luna, _host, dir) = start(
@@ -1981,7 +1983,6 @@ document.addEventListener("change", () => {
 R.ready = true;
 "#,
     );
-    luna.sync_dom(tree());
     results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
     let is_box = |id: &'static str| {
         move |n: &super::dom::VNode| {

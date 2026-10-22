@@ -77,7 +77,8 @@ per change, none while nothing changed or the window is hidden.
 key, mouse, pointer, focus and input events get their DOM classes and the
 fields in `data`; capture, target and bubble phases, `stopPropagation`,
 `stopImmediatePropagation`, `preventDefault`, `once`, `signal` and `on*`
-handlers work. `input`/`change` apply `data.value`/`data.checked` first;
+handlers work. `input`/`change` apply `data.value`/`data.checked` first (a value that
+differs sends an overlay, as the UI draws boxes and choices from it);
 `scroll` applies `data.scrollTop`; `fullscreenchange` with
 `data.fullscreen` tells plugins the window changed fullscreen by itself.
 Transition and animation events come from the UI (`ui/motion_events.rs`):
