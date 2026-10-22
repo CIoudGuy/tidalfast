@@ -3569,55 +3569,55 @@ msgstr "可以在插件商店中找到。"
 
 #: src/luna/mod.rs:388
 msgid "Connects to the internet"
-msgstr ""
+msgstr "连接互联网"
 
 #: src/luna/mod.rs:390
 msgid "Talks to other apps on this computer (Discord)"
-msgstr ""
+msgstr "与这台电脑上的其他应用通信（Discord）"
 
 #: src/luna/mod.rs:394
 msgid "Runs a local server other apps on this computer can use"
-msgstr ""
+msgstr "运行本地服务器，供这台电脑上的其他应用使用"
 
 #: src/luna/mod.rs:396
 msgid "Stores files in its own data folder only"
-msgstr ""
+msgstr "只在自己的数据文件夹中存储文件"
 
 #: src/luna/mod.rs:398
 msgid "Runs background (native) code in the sandbox"
-msgstr ""
+msgstr "在沙盒中运行后台（原生）代码"
 
 #: src/luna/mod.rs:400
 msgid "Changes the app's look or adds controls"
-msgstr ""
+msgstr "更改应用外观或添加控件"
 
 #: src/luna/mod.rs:402
 msgid "Runs programs on your computer (asks you first)"
-msgstr ""
+msgstr "在你的电脑上运行程序（会先询问你）"
 
 #: src/luna/mod.rs:406
 msgid "Changes your TIDAL playlists and favourites itself (asks you first)"
-msgstr ""
+msgstr "自行修改你的 TIDAL 歌单和收藏（会先询问你）"
 
 #: src/luna/mod.rs:408
 msgid "Uses your TIDAL sign-in (asks you first)"
-msgstr ""
+msgstr "使用你的 TIDAL 登录（会先询问你）"
 
 #: src/luna/mod.rs:411
 msgid "Uses keyboard shortcuts across your whole computer (asks you first)"
-msgstr ""
+msgstr "在整台电脑上使用键盘快捷键（会先询问你）"
 
 #: src/luna/mod.rs:415
 msgid "Talks to another program over its own pipe or socket (asks you first)"
-msgstr ""
+msgstr "通过自己的管道或套接字与另一个程序通信（会先询问你）"
 
 #: src/luna/mod.rs:417
 msgid "Saves TIDAL songs as files (asks you first)"
-msgstr ""
+msgstr "将 TIDAL 歌曲保存为文件（会先询问你）"
 
 #: src/luna/mod.rs:420
 msgid "Switches the output to exclusive (bit-perfect) mode (asks you first)"
-msgstr ""
+msgstr "将输出切换为独占（比特完美）模式（会先询问你）"
 
 #: src/luna/mod.rs:457
 msgid "Not supported"
@@ -3629,7 +3629,7 @@ msgstr "部分支持"
 
 #: src/luna/mod.rs:459
 msgid "Needs your permission"
-msgstr ""
+msgstr "需要你的许可"
 
 #: src/luna/mod.rs:483
 msgid ""
@@ -3641,6 +3641,8 @@ msgid ""
 "It saves TIDAL songs as files, which it does only after you allow it (this "
 "may break TIDAL's terms of use)."
 msgstr ""
+"它会将 TIDAL 歌曲保存为文件，但只有在你允许后才会这样做（这可能违反 TIDAL 的"
+"使用条款）。"
 
 #: src/luna/mod.rs:491
 msgid ""
@@ -3651,13 +3653,13 @@ msgstr "它需要 TIDAL 自己的遥控代码，而 Tidalfast 没有。"
 msgid ""
 "It works out its bars with ffmpeg in a separate Node process, which "
 "Tidalfast does not have."
-msgstr ""
+msgstr "它在单独的 Node 进程中用 ffmpeg 计算频谱条，而 Tidalfast 没有该进程。"
 
 #: src/luna/mod.rs:499
 msgid ""
 "It sends your TIDAL sign-in to its author's server, which it does only after "
 "you allow it."
-msgstr ""
+msgstr "它会将你的 TIDAL 登录发送到作者的服务器，但只有在你允许后才会这样做。"
 
 #: src/luna/mod.rs:503
 msgid ""
@@ -3670,12 +3672,14 @@ msgid ""
 "It takes the media keys across the whole computer, which it does only after "
 "you allow it (Windows only)."
 msgstr ""
+"它会在整台电脑上接管媒体键，但只有在你允许后才会这样做（仅限 Windows）。"
 
 #: src/luna/mod.rs:511
 msgid ""
 "It plays through mpv, which needs your permission to start mpv, talk to it "
 "over its pipe and get TIDAL's audio."
 msgstr ""
+"它通过 mpv 播放，需要你允许它启动 mpv、通过管道与其通信并获取 TIDAL 的音频。"
 
 #: src/luna/mod.rs:515
 msgid ""
@@ -3709,6 +3713,8 @@ msgid ""
 "The Small depth model works, but the Base model (about 100 MB) is more than "
 "a plugin may download here."
 msgstr ""
+"Small 深度模型可以使用，但 Base 模型（约 100 MB）超过了插件在此处可下载的大小"
+"。"
 
 #: src/app/plugins.rs:486
 #, rust-format
@@ -3976,12 +3982,12 @@ msgstr "你还没有安装插件！"
 #: src/ui/plugins.rs:1200
 #, rust-format
 msgid "Downloading {got} of {total} MB ({file})"
-msgstr ""
+msgstr "正在下载 {got} / {total} MB（{file}）"
 
 #: src/ui/plugins.rs:1202
 #, rust-format
 msgid "Downloading {got} MB ({file})"
-msgstr ""
+msgstr "正在下载 {got} MB（{file}）"
 
 #: src/ui/plugins.rs:2206
 msgid "Press keys…"

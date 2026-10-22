@@ -3715,55 +3715,62 @@ msgstr "Finde welche im Plugin Store."
 
 #: src/luna/mod.rs:388
 msgid "Connects to the internet"
-msgstr ""
+msgstr "Verbindet sich mit dem Internet"
 
 #: src/luna/mod.rs:390
 msgid "Talks to other apps on this computer (Discord)"
-msgstr ""
+msgstr "Kommuniziert mit anderen Apps auf diesem Computer (Discord)"
 
 #: src/luna/mod.rs:394
 msgid "Runs a local server other apps on this computer can use"
 msgstr ""
+"Startet einen lokalen Server, den andere Apps auf diesem Computer nutzen "
+"können"
 
 #: src/luna/mod.rs:396
 msgid "Stores files in its own data folder only"
-msgstr ""
+msgstr "Speichert Dateien nur in seinem eigenen Datenordner"
 
 #: src/luna/mod.rs:398
 msgid "Runs background (native) code in the sandbox"
-msgstr ""
+msgstr "Führt Hintergrundcode (nativ) in der Sandbox aus"
 
 #: src/luna/mod.rs:400
 msgid "Changes the app's look or adds controls"
-msgstr ""
+msgstr "Ändert das Aussehen der App oder fügt Bedienelemente hinzu"
 
 #: src/luna/mod.rs:402
 msgid "Runs programs on your computer (asks you first)"
-msgstr ""
+msgstr "Startet Programme auf deinem Computer (fragt vorher nach)"
 
 #: src/luna/mod.rs:406
 msgid "Changes your TIDAL playlists and favourites itself (asks you first)"
 msgstr ""
+"Ändert deine TIDAL-Playlists und Favoriten selbstständig (fragt vorher nach)"
 
 #: src/luna/mod.rs:408
 msgid "Uses your TIDAL sign-in (asks you first)"
-msgstr ""
+msgstr "Nutzt deine TIDAL-Anmeldung (fragt vorher nach)"
 
 #: src/luna/mod.rs:411
 msgid "Uses keyboard shortcuts across your whole computer (asks you first)"
-msgstr ""
+msgstr "Nutzt Tastenkürzel im gesamten Computer (fragt vorher nach)"
 
 #: src/luna/mod.rs:415
 msgid "Talks to another program over its own pipe or socket (asks you first)"
 msgstr ""
+"Kommuniziert über eine eigene Pipe oder einen Socket mit einem anderen "
+"Programm (fragt vorher nach)"
 
 #: src/luna/mod.rs:417
 msgid "Saves TIDAL songs as files (asks you first)"
-msgstr ""
+msgstr "Speichert TIDAL-Titel als Dateien (fragt vorher nach)"
 
 #: src/luna/mod.rs:420
 msgid "Switches the output to exclusive (bit-perfect) mode (asks you first)"
 msgstr ""
+"Schaltet die Ausgabe in den exklusiven (bit-perfekten) Modus (fragt vorher "
+"nach)"
 
 #: src/luna/mod.rs:457
 msgid "Not supported"
@@ -3775,7 +3782,7 @@ msgstr "Teilweise unterstützt"
 
 #: src/luna/mod.rs:459
 msgid "Needs your permission"
-msgstr ""
+msgstr "Braucht deine Erlaubnis"
 
 #: src/luna/mod.rs:483
 msgid ""
@@ -3789,6 +3796,8 @@ msgid ""
 "It saves TIDAL songs as files, which it does only after you allow it (this "
 "may break TIDAL's terms of use)."
 msgstr ""
+"Es speichert TIDAL-Titel als Dateien, was erst nach deiner Erlaubnis "
+"geschieht (das kann gegen die Nutzungsbedingungen von TIDAL verstoßen)."
 
 #: src/luna/mod.rs:491
 msgid ""
@@ -3801,12 +3810,16 @@ msgid ""
 "It works out its bars with ffmpeg in a separate Node process, which "
 "Tidalfast does not have."
 msgstr ""
+"Es berechnet seine Balken mit ffmpeg in einem separaten Node-Prozess, den "
+"Tidalfast nicht hat."
 
 #: src/luna/mod.rs:499
 msgid ""
 "It sends your TIDAL sign-in to its author's server, which it does only after "
 "you allow it."
 msgstr ""
+"Es sendet deine TIDAL-Anmeldung an den Server seines Autors, was erst nach "
+"deiner Erlaubnis geschieht."
 
 #: src/luna/mod.rs:503
 msgid ""
@@ -3820,12 +3833,16 @@ msgid ""
 "It takes the media keys across the whole computer, which it does only after "
 "you allow it (Windows only)."
 msgstr ""
+"Es übernimmt die Medientasten im gesamten Computer, was erst nach deiner "
+"Erlaubnis geschieht (nur Windows)."
 
 #: src/luna/mod.rs:511
 msgid ""
 "It plays through mpv, which needs your permission to start mpv, talk to it "
 "over its pipe and get TIDAL's audio."
 msgstr ""
+"Es spielt über mpv ab. Dafür braucht es deine Erlaubnis, mpv zu starten, "
+"über dessen Pipe mit ihm zu kommunizieren und TIDALs Audio zu erhalten."
 
 #: src/luna/mod.rs:515
 msgid ""
@@ -3864,6 +3881,8 @@ msgid ""
 "The Small depth model works, but the Base model (about 100 MB) is more than "
 "a plugin may download here."
 msgstr ""
+"Das Small-Tiefenmodell funktioniert, aber das Base-Modell (etwa 100 MB) ist "
+"mehr, als ein Plugin hier herunterladen darf."
 
 #: src/app/plugins.rs:486
 #, rust-format
@@ -4136,12 +4155,12 @@ msgstr "Du hast keine Plugins installiert!"
 #: src/ui/plugins.rs:1200
 #, rust-format
 msgid "Downloading {got} of {total} MB ({file})"
-msgstr ""
+msgstr "Lädt herunter: {got} von {total} MB ({file})"
 
 #: src/ui/plugins.rs:1202
 #, rust-format
 msgid "Downloading {got} MB ({file})"
-msgstr ""
+msgstr "Lädt herunter: {got} MB ({file})"
 
 #: src/ui/plugins.rs:2206
 msgid "Press keys…"

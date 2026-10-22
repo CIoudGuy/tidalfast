@@ -3694,55 +3694,59 @@ msgstr "Encontre alguns na loja de plugins."
 
 #: src/luna/mod.rs:388
 msgid "Connects to the internet"
-msgstr ""
+msgstr "Liga-se à internet"
 
 #: src/luna/mod.rs:390
 msgid "Talks to other apps on this computer (Discord)"
-msgstr ""
+msgstr "Comunica com outras aplicações neste computador (Discord)"
 
 #: src/luna/mod.rs:394
 msgid "Runs a local server other apps on this computer can use"
 msgstr ""
+"Executa um servidor local que outras aplicações neste computador podem usar"
 
 #: src/luna/mod.rs:396
 msgid "Stores files in its own data folder only"
-msgstr ""
+msgstr "Guarda ficheiros apenas na sua própria pasta de dados"
 
 #: src/luna/mod.rs:398
 msgid "Runs background (native) code in the sandbox"
-msgstr ""
+msgstr "Executa código em segundo plano (nativo) na sandbox"
 
 #: src/luna/mod.rs:400
 msgid "Changes the app's look or adds controls"
-msgstr ""
+msgstr "Altera o aspeto da aplicação ou adiciona controlos"
 
 #: src/luna/mod.rs:402
 msgid "Runs programs on your computer (asks you first)"
-msgstr ""
+msgstr "Executa programas no seu computador (pergunta antes)"
 
 #: src/luna/mod.rs:406
 msgid "Changes your TIDAL playlists and favourites itself (asks you first)"
 msgstr ""
+"Altera por si só as suas playlists e favoritos do TIDAL (pergunta antes)"
 
 #: src/luna/mod.rs:408
 msgid "Uses your TIDAL sign-in (asks you first)"
-msgstr ""
+msgstr "Usa a sua sessão do TIDAL (pergunta antes)"
 
 #: src/luna/mod.rs:411
 msgid "Uses keyboard shortcuts across your whole computer (asks you first)"
-msgstr ""
+msgstr "Usa atalhos de teclado em todo o computador (pergunta antes)"
 
 #: src/luna/mod.rs:415
 msgid "Talks to another program over its own pipe or socket (asks you first)"
 msgstr ""
+"Comunica com outro programa através de um pipe ou socket próprio (pergunta "
+"antes)"
 
 #: src/luna/mod.rs:417
 msgid "Saves TIDAL songs as files (asks you first)"
-msgstr ""
+msgstr "Guarda músicas do TIDAL como ficheiros (pergunta antes)"
 
 #: src/luna/mod.rs:420
 msgid "Switches the output to exclusive (bit-perfect) mode (asks you first)"
-msgstr ""
+msgstr "Muda a saída para o modo exclusivo (bit-perfect) (pergunta antes)"
 
 #: src/luna/mod.rs:457
 msgid "Not supported"
@@ -3754,7 +3758,7 @@ msgstr "Suporte parcial"
 
 #: src/luna/mod.rs:459
 msgid "Needs your permission"
-msgstr ""
+msgstr "Precisa da sua permissão"
 
 #: src/luna/mod.rs:483
 msgid ""
@@ -3768,6 +3772,8 @@ msgid ""
 "It saves TIDAL songs as files, which it does only after you allow it (this "
 "may break TIDAL's terms of use)."
 msgstr ""
+"Guarda músicas do TIDAL como ficheiros, mas só depois de o permitir (isto "
+"pode violar os termos de utilização do TIDAL)."
 
 #: src/luna/mod.rs:491
 msgid ""
@@ -3781,12 +3787,16 @@ msgid ""
 "It works out its bars with ffmpeg in a separate Node process, which "
 "Tidalfast does not have."
 msgstr ""
+"Calcula as suas barras com o ffmpeg num processo Node separado, que o "
+"Tidalfast não tem."
 
 #: src/luna/mod.rs:499
 msgid ""
 "It sends your TIDAL sign-in to its author's server, which it does only after "
 "you allow it."
 msgstr ""
+"Envia a sua sessão do TIDAL para o servidor do autor, mas só depois de o "
+"permitir."
 
 #: src/luna/mod.rs:503
 msgid ""
@@ -3800,12 +3810,16 @@ msgid ""
 "It takes the media keys across the whole computer, which it does only after "
 "you allow it (Windows only)."
 msgstr ""
+"Assume as teclas multimédia em todo o computador, mas só depois de o "
+"permitir (apenas Windows)."
 
 #: src/luna/mod.rs:511
 msgid ""
 "It plays through mpv, which needs your permission to start mpv, talk to it "
 "over its pipe and get TIDAL's audio."
 msgstr ""
+"Reproduz através do mpv, o que precisa da sua permissão para iniciar o mpv, "
+"comunicar com ele pelo pipe e obter o áudio do TIDAL."
 
 #: src/luna/mod.rs:515
 msgid ""
@@ -3844,6 +3858,8 @@ msgid ""
 "The Small depth model works, but the Base model (about 100 MB) is more than "
 "a plugin may download here."
 msgstr ""
+"O modelo de profundidade Small funciona, mas o modelo Base (cerca de 100 MB) "
+"é maior do que um plugin pode transferir aqui."
 
 #: src/app/plugins.rs:486
 #, rust-format
@@ -4116,12 +4132,12 @@ msgstr "Não tem plugins instalados!"
 #: src/ui/plugins.rs:1200
 #, rust-format
 msgid "Downloading {got} of {total} MB ({file})"
-msgstr ""
+msgstr "A transferir {got} de {total} MB ({file})"
 
 #: src/ui/plugins.rs:1202
 #, rust-format
 msgid "Downloading {got} MB ({file})"
-msgstr ""
+msgstr "A transferir {got} MB ({file})"
 
 #: src/ui/plugins.rs:2206
 msgid "Press keys…"

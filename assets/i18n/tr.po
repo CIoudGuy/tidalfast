@@ -3680,55 +3680,60 @@ msgstr "Eklenti Mağazası'nda bulabilirsiniz."
 
 #: src/luna/mod.rs:388
 msgid "Connects to the internet"
-msgstr ""
+msgstr "İnternete bağlanır"
 
 #: src/luna/mod.rs:390
 msgid "Talks to other apps on this computer (Discord)"
-msgstr ""
+msgstr "Bu bilgisayardaki diğer uygulamalarla iletişim kurar (Discord)"
 
 #: src/luna/mod.rs:394
 msgid "Runs a local server other apps on this computer can use"
 msgstr ""
+"Bu bilgisayardaki diğer uygulamaların kullanabileceği yerel bir sunucu "
+"çalıştırır"
 
 #: src/luna/mod.rs:396
 msgid "Stores files in its own data folder only"
-msgstr ""
+msgstr "Dosyaları yalnızca kendi veri klasöründe saklar"
 
 #: src/luna/mod.rs:398
 msgid "Runs background (native) code in the sandbox"
-msgstr ""
+msgstr "Arka plan (yerel) kodunu korumalı alanda çalıştırır"
 
 #: src/luna/mod.rs:400
 msgid "Changes the app's look or adds controls"
-msgstr ""
+msgstr "Uygulamanın görünümünü değiştirir veya denetimler ekler"
 
 #: src/luna/mod.rs:402
 msgid "Runs programs on your computer (asks you first)"
-msgstr ""
+msgstr "Bilgisayarınızda programlar çalıştırır (önce sorar)"
 
 #: src/luna/mod.rs:406
 msgid "Changes your TIDAL playlists and favourites itself (asks you first)"
 msgstr ""
+"TIDAL çalma listelerinizi ve favorilerinizi kendisi değiştirir (önce sorar)"
 
 #: src/luna/mod.rs:408
 msgid "Uses your TIDAL sign-in (asks you first)"
-msgstr ""
+msgstr "TIDAL oturumunuzu kullanır (önce sorar)"
 
 #: src/luna/mod.rs:411
 msgid "Uses keyboard shortcuts across your whole computer (asks you first)"
-msgstr ""
+msgstr "Tüm bilgisayarda klavye kısayollarını kullanır (önce sorar)"
 
 #: src/luna/mod.rs:415
 msgid "Talks to another program over its own pipe or socket (asks you first)"
 msgstr ""
+"Kendi borusu veya soketi üzerinden başka bir programla iletişim kurar (önce "
+"sorar)"
 
 #: src/luna/mod.rs:417
 msgid "Saves TIDAL songs as files (asks you first)"
-msgstr ""
+msgstr "TIDAL şarkılarını dosya olarak kaydeder (önce sorar)"
 
 #: src/luna/mod.rs:420
 msgid "Switches the output to exclusive (bit-perfect) mode (asks you first)"
-msgstr ""
+msgstr "Çıkışı özel (bit-perfect) moda geçirir (önce sorar)"
 
 #: src/luna/mod.rs:457
 msgid "Not supported"
@@ -3740,7 +3745,7 @@ msgstr "Kısmen destekleniyor"
 
 #: src/luna/mod.rs:459
 msgid "Needs your permission"
-msgstr ""
+msgstr "İzninizi gerektirir"
 
 #: src/luna/mod.rs:483
 msgid ""
@@ -3754,6 +3759,8 @@ msgid ""
 "It saves TIDAL songs as files, which it does only after you allow it (this "
 "may break TIDAL's terms of use)."
 msgstr ""
+"TIDAL şarkılarını dosya olarak kaydeder, ancak bunu yalnızca siz izin "
+"verdikten sonra yapar (bu, TIDAL'ın kullanım koşullarını ihlal edebilir)."
 
 #: src/luna/mod.rs:491
 msgid ""
@@ -3767,12 +3774,16 @@ msgid ""
 "It works out its bars with ffmpeg in a separate Node process, which "
 "Tidalfast does not have."
 msgstr ""
+"Çubuklarını, Tidalfast'te bulunmayan ayrı bir Node işleminde ffmpeg ile "
+"hesaplar."
 
 #: src/luna/mod.rs:499
 msgid ""
 "It sends your TIDAL sign-in to its author's server, which it does only after "
 "you allow it."
 msgstr ""
+"TIDAL oturumunuzu yapımcısının sunucusuna gönderir, ancak bunu yalnızca siz "
+"izin verdikten sonra yapar."
 
 #: src/luna/mod.rs:503
 msgid ""
@@ -3786,12 +3797,16 @@ msgid ""
 "It takes the media keys across the whole computer, which it does only after "
 "you allow it (Windows only)."
 msgstr ""
+"Medya tuşlarını tüm bilgisayarda devralır, ancak bunu yalnızca siz izin "
+"verdikten sonra yapar (yalnızca Windows)."
 
 #: src/luna/mod.rs:511
 msgid ""
 "It plays through mpv, which needs your permission to start mpv, talk to it "
 "over its pipe and get TIDAL's audio."
 msgstr ""
+"mpv üzerinden çalar; bunun için mpv'yi başlatmak, borusu üzerinden onunla "
+"iletişim kurmak ve TIDAL'ın sesini almak için izninize ihtiyaç duyar."
 
 #: src/luna/mod.rs:515
 msgid ""
@@ -3830,6 +3845,8 @@ msgid ""
 "The Small depth model works, but the Base model (about 100 MB) is more than "
 "a plugin may download here."
 msgstr ""
+"Small derinlik modeli çalışır, ancak Base modeli (yaklaşık 100 MB) bir "
+"eklentinin burada indirebileceğinden büyüktür."
 
 #: src/app/plugins.rs:486
 #, rust-format
@@ -4102,12 +4119,12 @@ msgstr "Yüklü eklentiniz yok!"
 #: src/ui/plugins.rs:1200
 #, rust-format
 msgid "Downloading {got} of {total} MB ({file})"
-msgstr ""
+msgstr "{got} / {total} MB indiriliyor ({file})"
 
 #: src/ui/plugins.rs:1202
 #, rust-format
 msgid "Downloading {got} MB ({file})"
-msgstr ""
+msgstr "{got} MB indiriliyor ({file})"
 
 #: src/ui/plugins.rs:2206
 msgid "Press keys…"

@@ -3708,55 +3708,58 @@ msgstr "Знайдіть їх у магазині плагінів."
 
 #: src/luna/mod.rs:388
 msgid "Connects to the internet"
-msgstr ""
+msgstr "Підключається до інтернету"
 
 #: src/luna/mod.rs:390
 msgid "Talks to other apps on this computer (Discord)"
-msgstr ""
+msgstr "Взаємодіє з іншими застосунками на цьому комп’ютері (Discord)"
 
 #: src/luna/mod.rs:394
 msgid "Runs a local server other apps on this computer can use"
 msgstr ""
+"Запускає локальний сервер, яким можуть користуватися інші застосунки на "
+"цьому комп’ютері"
 
 #: src/luna/mod.rs:396
 msgid "Stores files in its own data folder only"
-msgstr ""
+msgstr "Зберігає файли лише у власній теці даних"
 
 #: src/luna/mod.rs:398
 msgid "Runs background (native) code in the sandbox"
-msgstr ""
+msgstr "Виконує фоновий (нативний) код у пісочниці"
 
 #: src/luna/mod.rs:400
 msgid "Changes the app's look or adds controls"
-msgstr ""
+msgstr "Змінює вигляд застосунку або додає елементи керування"
 
 #: src/luna/mod.rs:402
 msgid "Runs programs on your computer (asks you first)"
-msgstr ""
+msgstr "Запускає програми на вашому комп’ютері (спершу запитає)"
 
 #: src/luna/mod.rs:406
 msgid "Changes your TIDAL playlists and favourites itself (asks you first)"
-msgstr ""
+msgstr "Сам змінює ваші плейлісти й улюблене в TIDAL (спершу запитає)"
 
 #: src/luna/mod.rs:408
 msgid "Uses your TIDAL sign-in (asks you first)"
-msgstr ""
+msgstr "Використовує ваш вхід у TIDAL (спершу запитає)"
 
 #: src/luna/mod.rs:411
 msgid "Uses keyboard shortcuts across your whole computer (asks you first)"
-msgstr ""
+msgstr "Використовує комбінації клавіш на всьому комп’ютері (спершу запитає)"
 
 #: src/luna/mod.rs:415
 msgid "Talks to another program over its own pipe or socket (asks you first)"
 msgstr ""
+"Взаємодіє з іншою програмою через власний канал або сокет (спершу запитає)"
 
 #: src/luna/mod.rs:417
 msgid "Saves TIDAL songs as files (asks you first)"
-msgstr ""
+msgstr "Зберігає пісні TIDAL як файли (спершу запитає)"
 
 #: src/luna/mod.rs:420
 msgid "Switches the output to exclusive (bit-perfect) mode (asks you first)"
-msgstr ""
+msgstr "Перемикає вивід у монопольний режим (bit-perfect) (спершу запитає)"
 
 #: src/luna/mod.rs:457
 msgid "Not supported"
@@ -3768,7 +3771,7 @@ msgstr "Підтримується частково"
 
 #: src/luna/mod.rs:459
 msgid "Needs your permission"
-msgstr ""
+msgstr "Потрібен ваш дозвіл"
 
 #: src/luna/mod.rs:483
 msgid ""
@@ -3781,6 +3784,8 @@ msgid ""
 "It saves TIDAL songs as files, which it does only after you allow it (this "
 "may break TIDAL's terms of use)."
 msgstr ""
+"Зберігає пісні TIDAL як файли, але лише після вашого дозволу (це може "
+"порушувати умови використання TIDAL)."
 
 #: src/luna/mod.rs:491
 msgid ""
@@ -3794,12 +3799,15 @@ msgid ""
 "It works out its bars with ffmpeg in a separate Node process, which "
 "Tidalfast does not have."
 msgstr ""
+"Обчислює свої смуги за допомогою ffmpeg в окремому процесі Node, якого в "
+"Tidalfast немає."
 
 #: src/luna/mod.rs:499
 msgid ""
 "It sends your TIDAL sign-in to its author's server, which it does only after "
 "you allow it."
 msgstr ""
+"Надсилає ваш вхід у TIDAL на сервер автора, але лише після вашого дозволу."
 
 #: src/luna/mod.rs:503
 msgid ""
@@ -3813,12 +3821,16 @@ msgid ""
 "It takes the media keys across the whole computer, which it does only after "
 "you allow it (Windows only)."
 msgstr ""
+"Перехоплює медіаклавіші на всьому комп’ютері, але лише після вашого дозволу "
+"(лише Windows)."
 
 #: src/luna/mod.rs:511
 msgid ""
 "It plays through mpv, which needs your permission to start mpv, talk to it "
 "over its pipe and get TIDAL's audio."
 msgstr ""
+"Відтворює через mpv. Для цього потрібен ваш дозвіл запустити mpv, "
+"взаємодіяти з ним через канал і отримувати звук TIDAL."
 
 #: src/luna/mod.rs:515
 msgid ""
@@ -3857,6 +3869,8 @@ msgid ""
 "The Small depth model works, but the Base model (about 100 MB) is more than "
 "a plugin may download here."
 msgstr ""
+"Модель глибини Small працює, але модель Base (близько 100 МБ) більша, ніж "
+"плагін може тут завантажити."
 
 #: src/app/plugins.rs:486
 #, rust-format
@@ -4131,12 +4145,12 @@ msgstr "Немає встановлених плагінів!"
 #: src/ui/plugins.rs:1200
 #, rust-format
 msgid "Downloading {got} of {total} MB ({file})"
-msgstr ""
+msgstr "Завантаження {got} з {total} МБ ({file})"
 
 #: src/ui/plugins.rs:1202
 #, rust-format
 msgid "Downloading {got} MB ({file})"
-msgstr ""
+msgstr "Завантаження {got} МБ ({file})"
 
 #: src/ui/plugins.rs:2206
 msgid "Press keys…"

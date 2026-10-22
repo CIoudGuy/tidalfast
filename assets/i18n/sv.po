@@ -3665,55 +3665,57 @@ msgstr "Hitta några i plugin-butiken."
 
 #: src/luna/mod.rs:388
 msgid "Connects to the internet"
-msgstr ""
+msgstr "Ansluter till internet"
 
 #: src/luna/mod.rs:390
 msgid "Talks to other apps on this computer (Discord)"
-msgstr ""
+msgstr "Kommunicerar med andra appar på den här datorn (Discord)"
 
 #: src/luna/mod.rs:394
 msgid "Runs a local server other apps on this computer can use"
-msgstr ""
+msgstr "Kör en lokal server som andra appar på den här datorn kan använda"
 
 #: src/luna/mod.rs:396
 msgid "Stores files in its own data folder only"
-msgstr ""
+msgstr "Sparar bara filer i sin egen datamapp"
 
 #: src/luna/mod.rs:398
 msgid "Runs background (native) code in the sandbox"
-msgstr ""
+msgstr "Kör bakgrundskod (inbyggd) i sandlådan"
 
 #: src/luna/mod.rs:400
 msgid "Changes the app's look or adds controls"
-msgstr ""
+msgstr "Ändrar appens utseende eller lägger till kontroller"
 
 #: src/luna/mod.rs:402
 msgid "Runs programs on your computer (asks you first)"
-msgstr ""
+msgstr "Kör program på din dator (frågar först)"
 
 #: src/luna/mod.rs:406
 msgid "Changes your TIDAL playlists and favourites itself (asks you first)"
-msgstr ""
+msgstr "Ändrar dina TIDAL-spellistor och favoriter själv (frågar först)"
 
 #: src/luna/mod.rs:408
 msgid "Uses your TIDAL sign-in (asks you first)"
-msgstr ""
+msgstr "Använder din TIDAL-inloggning (frågar först)"
 
 #: src/luna/mod.rs:411
 msgid "Uses keyboard shortcuts across your whole computer (asks you first)"
-msgstr ""
+msgstr "Använder kortkommandon på hela datorn (frågar först)"
 
 #: src/luna/mod.rs:415
 msgid "Talks to another program over its own pipe or socket (asks you first)"
 msgstr ""
+"Kommunicerar med ett annat program via en egen pipe eller socket (frågar "
+"först)"
 
 #: src/luna/mod.rs:417
 msgid "Saves TIDAL songs as files (asks you first)"
-msgstr ""
+msgstr "Sparar TIDAL-låtar som filer (frågar först)"
 
 #: src/luna/mod.rs:420
 msgid "Switches the output to exclusive (bit-perfect) mode (asks you first)"
-msgstr ""
+msgstr "Växlar utgången till exklusivt (bitperfekt) läge (frågar först)"
 
 #: src/luna/mod.rs:457
 msgid "Not supported"
@@ -3725,7 +3727,7 @@ msgstr "Stöds delvis"
 
 #: src/luna/mod.rs:459
 msgid "Needs your permission"
-msgstr ""
+msgstr "Behöver ditt tillstånd"
 
 #: src/luna/mod.rs:483
 msgid ""
@@ -3738,6 +3740,8 @@ msgid ""
 "It saves TIDAL songs as files, which it does only after you allow it (this "
 "may break TIDAL's terms of use)."
 msgstr ""
+"Det sparar TIDAL-låtar som filer, men först när du tillåter det (detta kan "
+"strida mot TIDALs användarvillkor)."
 
 #: src/luna/mod.rs:491
 msgid ""
@@ -3749,12 +3753,16 @@ msgid ""
 "It works out its bars with ffmpeg in a separate Node process, which "
 "Tidalfast does not have."
 msgstr ""
+"Det räknar ut sina staplar med ffmpeg i en separat Node-process, som "
+"Tidalfast inte har."
 
 #: src/luna/mod.rs:499
 msgid ""
 "It sends your TIDAL sign-in to its author's server, which it does only after "
 "you allow it."
 msgstr ""
+"Det skickar din TIDAL-inloggning till skaparens server, men först när du "
+"tillåter det."
 
 #: src/luna/mod.rs:503
 msgid ""
@@ -3768,12 +3776,16 @@ msgid ""
 "It takes the media keys across the whole computer, which it does only after "
 "you allow it (Windows only)."
 msgstr ""
+"Det tar över mediatangenterna på hela datorn, men först när du tillåter det "
+"(endast Windows)."
 
 #: src/luna/mod.rs:511
 msgid ""
 "It plays through mpv, which needs your permission to start mpv, talk to it "
 "over its pipe and get TIDAL's audio."
 msgstr ""
+"Det spelar upp via mpv, vilket kräver ditt tillstånd för att starta mpv, "
+"kommunicera med det via dess pipe och hämta TIDALs ljud."
 
 #: src/luna/mod.rs:515
 msgid ""
@@ -3812,6 +3824,8 @@ msgid ""
 "The Small depth model works, but the Base model (about 100 MB) is more than "
 "a plugin may download here."
 msgstr ""
+"Djupmodellen Small fungerar, men modellen Base (cirka 100 MB) är större än "
+"vad ett plugin får ladda ned här."
 
 #: src/app/plugins.rs:486
 #, rust-format
@@ -4084,12 +4098,12 @@ msgstr "Du har inga plugins installerade!"
 #: src/ui/plugins.rs:1200
 #, rust-format
 msgid "Downloading {got} of {total} MB ({file})"
-msgstr ""
+msgstr "Laddar ned {got} av {total} MB ({file})"
 
 #: src/ui/plugins.rs:1202
 #, rust-format
 msgid "Downloading {got} MB ({file})"
-msgstr ""
+msgstr "Laddar ned {got} MB ({file})"
 
 #: src/ui/plugins.rs:2206
 msgid "Press keys…"
