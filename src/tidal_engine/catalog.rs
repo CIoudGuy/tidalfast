@@ -100,6 +100,20 @@ pub struct StreamInfo {
     pub album_peak: Option<f32>,
 }
 
+/// The pages `read` delivers, each song numbered as it comes: for
+/// [`Catalog::context_rows`] of a context that leaves nothing out.
+pub fn numbered(
+    deliver: &mut (dyn FnMut(Vec<(u32, LocalTrack)>) -> bool + Send),
+    read: impl FnOnce(&mut (dyn FnMut(Vec<LocalTrack>) -> bool + Send)) -> anyhow::Result<()>,
+) -> anyhow::Result<()> {
+    let mut next = 0u32;
+    read(&mut |page| {
+        let first = next;
+        next = next.saturating_add(page.len() as u32);
+        deliver((first..).zip(page).collect())
+    })
+}
+
 /// Everything the engine needs from the catalogue. Every call blocks, and
 /// is made on one of the engine's own threads, never the interface's.
 pub trait Catalog: Send + Sync + 'static {
@@ -117,6 +131,19 @@ pub trait Catalog: Send + Sync + 'static {
     ) -> anyhow::Result<()> {
         deliver(self.context_tracks(context_uri)?);
         Ok(())
+    }
+    /// [`Self::context_pages`] with each song's own entry in the context:
+    /// its index among everything the context lists, counting the entries
+    /// left out (a song TIDAL cannot play, or the content settings
+    /// refuse). A load asks for it to start a playlist's clicked row
+    /// ([`super::LoadSpec::offset_row`]). The default numbers the songs as
+    /// delivered, which is right for a catalogue that leaves nothing out.
+    fn context_rows(
+        &self,
+        context_uri: &str,
+        deliver: &mut (dyn FnMut(Vec<(u32, LocalTrack)>) -> bool + Send),
+    ) -> anyhow::Result<()> {
+        numbered(deliver, |pages| self.context_pages(context_uri, pages))
     }
     /// Track metadata for single URIs (queue adds, `LoadSpec::uris`), in
     /// the order asked. A URI the catalogue cannot resolve is left out.

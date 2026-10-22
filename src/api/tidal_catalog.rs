@@ -395,11 +395,13 @@ pub fn local_video(video: super::models::Video) -> LocalTrack {
 }
 
 fn playable(tracks: Vec<Track>) -> Vec<LocalTrack> {
-    tracks
-        .into_iter()
-        .filter(|track| track.is_playable != Some(false) && track.id.is_some())
-        .map(local_track)
-        .collect()
+    tracks.into_iter().filter(plays).map(local_track).collect()
+}
+
+/// Whether the engine can play `track`: TIDAL has not marked it
+/// unavailable, and it has an id to ask for its stream by.
+fn plays(track: &Track) -> bool {
+    track.is_playable != Some(false) && track.id.is_some()
 }
 
 /// [`playable`] without the tracks the account's content settings refuse
@@ -451,6 +453,48 @@ impl Catalog for TidalCatalog {
                 deliver(playable_by_settings(page, ContentFilter::engine()))
             }),
         )?
+        .with_context(|| format!("loading {context_uri}"))
+    }
+
+    /// A playlist's songs keep their own entries, as its page numbers its
+    /// rows; the songs left out (unavailable, or refused by the content
+    /// settings) leave their numbers unused. Only a playlist's rows are
+    /// asked for: anything else is numbered as it is delivered.
+    fn context_rows(
+        &self,
+        context_uri: &str,
+        deliver: &mut (dyn FnMut(Vec<(u32, LocalTrack)>) -> bool + Send),
+    ) -> anyhow::Result<()> {
+        let Some(id) = context_uri.strip_prefix("tidal:playlist:") else {
+            return crate::tidal_engine::catalog::numbered(deliver, |pages| {
+                self.context_pages(context_uri, pages)
+            });
+        };
+        let filter = ContentFilter::engine();
+        let client = &self.client;
+        self.block(async move {
+            let mut offset = 0;
+            let mut count = 0usize;
+            loop {
+                let page = client.playlist_track_rows(id, offset, PAGE).await?;
+                let next = page.next_offset();
+                count += page.items.len();
+                let rows = page
+                    .items
+                    .into_iter()
+                    .filter(|(_, track)| filter.allows(track) && plays(track))
+                    .map(|(row, track)| (row, local_track(track)))
+                    .collect();
+                if !deliver(rows) {
+                    break;
+                }
+                match next {
+                    Some(next) if count < MAX_CONTEXT_TRACKS => offset = next,
+                    _ => break,
+                }
+            }
+            anyhow::Ok(())
+        })?
         .with_context(|| format!("loading {context_uri}"))
     }
 

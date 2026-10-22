@@ -19,6 +19,7 @@ use crate::tidal_engine::buffer::{Download, Fetch};
 use crate::tidal_engine::decode::tests::wav;
 
 mod adaptive;
+mod listed_twice;
 mod paged;
 mod song_end;
 mod video_wait;

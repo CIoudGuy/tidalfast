@@ -3341,6 +3341,7 @@ pub fn load_spec(request: &PlayRequest, shuffle: Option<bool>) -> LoadSpec {
         uris: request.uris.clone(),
         offset_uri: request.offset_uri.clone(),
         offset_track: None,
+        offset_row: request.offset_row,
         offset_index: request.offset_position,
         position_ms: request.position_ms,
         play: true,
