@@ -145,10 +145,13 @@ pub mod keys {
     /// The play queue panel's title (`[data-test=playqueue-title]`), where
     /// total-play-time's fork puts its pill.
     pub const QUEUE_TITLE: &str = "playqueue-title";
-    /// The open play queue's side panel: `div._container_b3e8f28._isOpen_869124d`
+    /// The open play queue's side panel:
+    /// `div#playQueueSidebar._container_b3e8f28._isOpen_869124d`
     /// (+ `_nowPlayingVisible_6285d60` over the now-playing view), the box
     /// themes colour (the cotton candy family's floating glass panel,
-    /// radiant-lyrics' darkening).
+    /// radiant-lyrics' darkening, TidalCustomTheme's and Blur's
+    /// `#playQueueSidebar`; Abyss Neptune's `top` on it lifts TIDAL's panel
+    /// over the search field).
     pub const QUEUE_PANEL: &str = "queue-panel";
     /// `div._playQueueWrapper_cbf5aaa` inside it, around the title and rows.
     pub const QUEUE_WRAPPER: &str = "queue-wrapper";
@@ -922,6 +925,7 @@ pub fn build(frame: &Frame) -> HostTree {
     if let Some((rect, over_now_playing)) = &frame.queue_panel {
         let mut panel = el(keys::QUEUE_PANEL, Some(keys::MAIN_CONTAINER), "div")
             .modules(&["container", "isOpen"])
+            .id("playQueueSidebar")
             .at(*rect);
         if *over_now_playing {
             panel = panel.modules(&["nowPlayingVisible"]);
