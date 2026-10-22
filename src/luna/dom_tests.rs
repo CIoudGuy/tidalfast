@@ -2930,3 +2930,37 @@ for (const c of ["dm-nav", "dm-nav on"]) {
     }
     finish(luna, dir);
 }
+
+/// DownloadManager's About body (`overflow-y: auto`) reaches the UI, which
+/// scrolls it; a list's `list-style` gives its marker type.
+#[test]
+fn overflow_y_and_list_style_reach_the_ui() {
+    let (luna, _host, dir) = start(
+        r##"
+new lib.StyleTag("dom-test", unloads, `
+.dm-body { overflow-y: auto; }
+.dm-list { list-style: none outside; }
+.dm-sq { list-style-type: square; }
+`);
+for (const [tag, c] of [["div", "dm-body"], ["ul", "dm-list"], ["ol", "dm-sq"]]) {
+	const el = document.createElement(tag);
+	el.className = c;
+	document.body.append(el);
+}
+"##,
+    );
+    luna.sync_dom(tree());
+    let o = overlay_until(&luna, 10, |o| o.at("", Position::Append).count() >= 3);
+    let nodes: Vec<_> = o.at("", Position::Append).collect();
+    let by = |cls: &str| {
+        nodes
+            .iter()
+            .find(|n| n.attrs.iter().any(|(k, v)| k == "class" && v == cls))
+            .copied()
+            .unwrap()
+    };
+    assert_eq!(by("dm-body").style.overflow_y.as_deref(), Some("auto"));
+    assert_eq!(by("dm-list").style.list_style_type.as_deref(), Some("none"));
+    assert_eq!(by("dm-sq").style.list_style_type.as_deref(), Some("square"));
+    finish(luna, dir);
+}

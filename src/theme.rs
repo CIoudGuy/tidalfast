@@ -479,6 +479,34 @@ pub fn install_plugin_fonts(
         .get(&egui::FontFamily::Proportional)
         .cloned()
         .unwrap_or_default();
+    // A plugin family falls back to the system's symbol face before the
+    // app's, as Chromium does: DownloadManager's `⬇` in Segoe UI is Segoe UI
+    // Symbol's thin arrow, not the emoji face's boxed one.
+    let symbols: Option<[String; 4]> = (!extra.is_empty())
+        .then(crate::fonts::symbol_faces)
+        .flatten()
+        .filter(|faces| {
+            faces
+                .iter()
+                .all(|data| crate::ui::plugin_dom::font_parses(&data.font, data.index))
+        })
+        .map(|faces| {
+            fastframe_fonts::Weight::ALL.map(|weight| {
+                let key = format!("luna-symbols:{}", weight.name());
+                fonts
+                    .font_data
+                    .insert(key.clone(), faces[weight_slot(weight)].clone());
+                key
+            })
+        });
+    let fallback = |at: usize| -> Vec<String> {
+        symbols
+            .as_ref()
+            .map(|s| s[at].clone())
+            .into_iter()
+            .chain(proportional.iter().cloned())
+            .collect()
+    };
     for (name, faces) in extra {
         // egui panics on a font it cannot parse, on the UI thread: a broken
         // one from a theme or plugin is left out, never installed.
@@ -496,15 +524,15 @@ pub fn install_plugin_fonts(
             key
         });
         let mut family = vec![keys[0].clone()];
-        family.extend(proportional.iter().cloned());
+        family.extend(fallback(0));
         fonts
             .families
             .insert(egui::FontFamily::Name(name.as_str().into()), family);
         // The family at each weight, for plugin text that is bold in it
         // (custom-fonts' bold Comic Sans tag): `"<name>#<weight>"`.
-        for (weight, key) in fastframe_fonts::Weight::ALL.iter().zip(&keys) {
+        for (at, (weight, key)) in fastframe_fonts::Weight::ALL.iter().zip(&keys).enumerate() {
             let mut family = vec![key.clone()];
-            family.extend(proportional.iter().cloned());
+            family.extend(fallback(at));
             fonts.families.insert(
                 egui::FontFamily::Name(weighted_family(name, *weight).into()),
                 family,
@@ -1555,6 +1583,35 @@ mod tests {
         assert_eq!(
             fonts.families[&egui::FontFamily::Monospace][1],
             "noto_emoji"
+        );
+    }
+
+    /// A plugin's family falls back to the system's symbol face before the
+    /// app's own (the emoji face boxes an arrow): DownloadManager's `⬇` in
+    /// Segoe UI is Segoe UI Symbol's thin arrow, as in Chromium. Skipped
+    /// where the computer has no symbol face.
+    #[test]
+    fn a_plugin_family_falls_back_to_the_symbol_face_first() {
+        crate::fonts::warm_symbols();
+        let Some(symbols) = crate::fonts::symbol_faces() else {
+            return;
+        };
+        let ctx = egui::Context::default();
+        install_plugin_fonts(&ctx, &[("Plugin Face".into(), symbols.clone())], None);
+        ctx.run_ui(egui::RawInput::default(), |_| {})
+            .textures_delta
+            .clear();
+        let fonts = ctx.fonts(|fonts| fonts.definitions().clone());
+        let family = &fonts.families[&egui::FontFamily::Name("Plugin Face".into())];
+        assert!(family[1].starts_with("luna-symbols:"), "{family:?}");
+        let bold = &fonts.families[&egui::FontFamily::Name(
+            weighted_family("Plugin Face", fastframe_fonts::Weight::Bold).into(),
+        )];
+        assert!(bold[1].starts_with("luna-symbols:"), "{bold:?}");
+        assert!(
+            family.iter().position(|k| k == "noto_emoji")
+                > family.iter().position(|k| k.starts_with("luna-symbols:")),
+            "{family:?}"
         );
     }
 
