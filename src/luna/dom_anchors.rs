@@ -177,9 +177,9 @@ pub mod keys {
     pub const NOW_PLAYING: &str = "now-playing";
     pub const NP_HEADER: &str = "now-playing-header";
     pub const NP_BACKGROUND: &str = "now-playing-background";
-    /// TIDAL's three backdrop layers of the view, plain classes with
-    /// nothing else (`[class="now-playing-background-image"]`): the black,
-    /// the blurred cover over it and the gradient over that.
+    /// TIDAL's three backdrop layers of the view, by their plain classes
+    /// (`.now-playing-background-image`): the black, the blurred cover over
+    /// it and the gradient over that.
     pub const NP_BG_IMAGE: &str = "now-playing-bg-image";
     pub const NP_BG_BLACK: &str = "now-playing-bg-black";
     pub const NP_BG_GRADIENT: &str = "now-playing-bg-gradient";
@@ -2437,7 +2437,20 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
         (NP_BG_IMAGE, "now-playing-background-image"),
         (NP_BG_GRADIENT, "now-playing-gradient-overlay"),
     ] {
-        out.push(el(key, Some(NOW_PLAYING), "div").class(class).at(np.rect));
+        // In TIDAL 2.43.2 each layer carries more than its plain class: a
+        // class rule reaches it (Tidal Light's `.now-playing-background-image
+        // { filter }` washes the cover) while a rule for the exact attribute
+        // does not (the cotton candy family's `[class="now-playing-background-image"]
+        // { display: none }` leaves TIDAL's blurred cover as without a theme).
+        // Its other classes are not captured, so the stand-in adds one of
+        // its own whose words (`now-playing`, `layer`) no theme rule
+        // reaches that the plain class does not already meet.
+        out.push(
+            el(key, Some(NOW_PLAYING), "div")
+                .class(class)
+                .class("now-playing-layer")
+                .at(np.rect),
+        );
     }
     out.push(
         el(NP_CONTENT, Some(NOW_PLAYING), "div")
