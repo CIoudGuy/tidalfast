@@ -4441,8 +4441,8 @@ pub fn dom_key(key: egui::Key, shift: bool) -> (String, String) {
 // ---- Theme ------------------------------------------------------------------
 
 /// The user's palette with what plugins changed (`--wave-color-*` tokens,
-/// the page's background and text colour, `--cover-ui-color`). Returns the
-/// palette unchanged while Luna is off or nothing is overridden, so the
+/// the page's background and text colour, the colour rules give TIDAL's
+/// words). Returns the palette unchanged while Luna is off or nothing is overridden, so the
 /// user's theme comes back when plugins stop.
 pub fn themed_palette(base: Palette) -> Palette {
     if !on() {
@@ -4587,7 +4587,7 @@ pub fn vars() -> Arc<BTreeMap<String, String>> {
 /// [`themed_palette`]'s mapping, pure: TIDAL's design tokens a theme sets
 /// (`--wave-color-solid-base-fill` and the rest of the ramp, text, accent,
 /// warning), the page's background and text colour, the text colour themes
-/// give TIDAL's `[data-wave-color]` text roles, and `--cover-ui-color`.
+/// give TIDAL's `[data-wave-color]` text roles (over the tokens).
 pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
     let mut p = *base;
     let var = |names: &[&str]| {
@@ -4721,14 +4721,20 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         .as_deref()
         .and_then(|v| css::color(&css::resolve_vars(v, &o.vars)))
         .filter(|c| c.a() > 0);
-    if let Some(c) = var(&[
-        "--cover-ui-color",
-        "--wave-color-text-main",
-        "--wave-color-text",
-        "--wave-color-solid-contrast-fill",
-    ])
-    .or_else(|| host_color(dom_anchors::keys::THEME_TEXT))
-    .or(page_text)
+    // The text role's stand-in (`span.wave-text-body-medium`) takes what a
+    // rule gives TIDAL's words, and outranks the root tokens: a plugin that
+    // colours every word (cover-colored-ui's `span { color: var(--its-own)
+    // !important }`) does so over a theme's text token too, whatever its
+    // variable is called.
+    if let Some(c) = host_color(dom_anchors::keys::THEME_TEXT)
+        .or_else(|| {
+            var(&[
+                "--wave-color-text-main",
+                "--wave-color-text",
+                "--wave-color-solid-contrast-fill",
+            ])
+        })
+        .or(page_text)
     {
         p.text = opaque_over(c, p.window);
         // Under a theme that leaves TIDAL's window, its grey words stay.
@@ -4737,22 +4743,24 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
             p.dim = blend(p.text, p.window, 0.55);
         }
     }
-    if let Some(c) = ramp(&[
-        "--wave-color-text-secondary",
-        "--wave-color-solid-contrast-darker",
-        "--wave-color-opacity-contrast-fill-ultra-thick",
-    ])
     // A theme's `[data-wave-color=textSecondary]` colour reaches in TIDAL
     // only the few words that carry the attribute: under TIDAL's own window
     // its card subtitles, tabs, bar words and placeholders keep their grey
     // (Lunallena's accent, Synthwave '77's magenta). It stands for the grey
     // words only where the theme paints the window, whose rules recolour
-    // them too.
-    .or_else(|| {
-        tokens
-            .then(|| host_color(dom_anchors::keys::THEME_SECONDARY))
-            .flatten()
-    }) {
+    // them too, and there it outranks the root tokens as the text role's
+    // stand-in does.
+    if let Some(c) = tokens
+        .then(|| host_color(dom_anchors::keys::THEME_SECONDARY))
+        .flatten()
+        .or_else(|| {
+            ramp(&[
+                "--wave-color-text-secondary",
+                "--wave-color-solid-contrast-darker",
+                "--wave-color-opacity-contrast-fill-ultra-thick",
+            ])
+        })
+    {
         p.secondary = opaque_over(c, p.window);
     }
     if let Some(c) = ramp(&[
@@ -8215,8 +8223,6 @@ mod tests {
         assert_eq!(p.window, Color32::from_rgb(0x11, 0x22, 0x33));
         assert_eq!(p.text, Color32::from_rgb(250, 240, 230));
         assert!(p.dark);
-        o.vars.insert("--cover-ui-color".into(), "#00ff00".into());
-        assert_eq!(themed(&base, &o).text, Color32::from_rgb(0, 255, 0));
     }
 
     #[test]
