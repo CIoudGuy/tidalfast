@@ -4084,7 +4084,16 @@
 	// ---------------------------------------------------------------- storage
 	// localStorage: one persisted store shared by all plugins, like TIDAL's origin.
 	const lsGet = () => L.callOp("storage.get", { store: "@luna/localStorage", key: "data" }) ?? {};
-	const lsPut = (d) => L.callOp("storage.set", { store: "@luna/localStorage", key: "data", value: d });
+	// A full store throws what Chromium throws: a DOMException named
+	// QuotaExceededError (code 22), which plugins check for to make room.
+	const lsPut = (d) => {
+		try {
+			return L.callOp("storage.set", { store: "@luna/localStorage", key: "data", value: d });
+		} catch (err) {
+			if (/^QuotaExceededError\b/.test(String(err?.message))) throw new g.DOMException(err.message, "QuotaExceededError");
+			throw err;
+		}
+	};
 	g.localStorage = {
 		getItem: (k) => lsGet()[k] ?? null,
 		setItem: (k, v) => {

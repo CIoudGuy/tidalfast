@@ -997,3 +997,34 @@ R.done = true;
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A `localStorage` write past the store's limit throws what Chromium
+/// throws, a `DOMException` named `QuotaExceededError` (code 22), so a
+/// plugin that makes room when it sees that error can (the
+/// audiovisualiser's cache saw a plain `Error` and was never trimmed).
+#[test]
+fn local_storage_past_its_limit_throws_quota_exceeded() {
+    let (r, luna, _host, dir) = run(
+        "Compat",
+        r#"
+try {
+	localStorage.setItem("too-big", "x".repeat(17 * 1024 * 1024));
+	R.thrown = "nothing";
+} catch (e) {
+	R.name = e.name;
+	R.code = e.code;
+	R.dom = e instanceof DOMException;
+}
+R.kept = localStorage.getItem("too-big");
+R.timeout = new DOMException("late", "TimeoutError").code;
+R.done = true;
+"#,
+    );
+    assert_eq!(r["name"], json!("QuotaExceededError"), "{r}");
+    assert_eq!(r["code"], json!(22), "{r}");
+    assert_eq!(r["dom"], json!(true), "{r}");
+    assert_eq!(r["kept"], Value::Null, "{r}");
+    assert_eq!(r["timeout"], json!(23), "{r}");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
