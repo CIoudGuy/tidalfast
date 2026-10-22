@@ -1011,11 +1011,13 @@ fn theme_rules_on_the_home_tiles_and_shelves_reach_them() {
                 rect: Some([240.0, 100.0, 300.0, 60.0]),
                 image: Some([248.0, 108.0, 44.0, 44.0]),
                 owned: false,
+                kind: dom_anchors::TileKind::Playlist,
             },
             dom_anchors::Tile {
                 rect: Some([548.0, 100.0, 300.0, 60.0]),
                 image: Some([556.0, 108.0, 44.0, 44.0]),
                 owned: true,
+                kind: dom_anchors::TileKind::Playlist,
             },
         ];
         page.shelves = vec![Some([240.0, 300.0, 1100.0, 240.0])];
@@ -1233,6 +1235,7 @@ fn theme_rules_reach_the_profile_picture_radio_art_and_nested_tile_text() {
             rect: Some([240.0, 100.0, 300.0, 60.0]),
             image: Some([248.0, 108.0, 44.0, 44.0]),
             owned: false,
+            kind: dom_anchors::TileKind::Playlist,
         }];
         page.hero = Some([240.0, 64.0, 232.0, 232.0]);
         page.hero_radio = true;
@@ -1358,6 +1361,7 @@ fn theme_gradients_turn_and_pictures_blur_and_cast_shadows() {
             rect: Some([240.0, 100.0, 300.0, 60.0]),
             image: Some([248.0, 108.0, 44.0, 44.0]),
             owned: false,
+            kind: dom_anchors::TileKind::Playlist,
         }];
         page.profile_picture = Some([240.0, 64.0, 240.0, 240.0]);
     }

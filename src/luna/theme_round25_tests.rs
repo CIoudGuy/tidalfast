@@ -747,6 +747,7 @@ fn a_shortcut_tiles_after_box_is_see_through_at_rest() {
             rect: Some([300.0, 200.0, 400.0, 56.0]),
             image: Some([300.0, 200.0, 56.0, 56.0]),
             owned: true,
+            kind: dom_anchors::TileKind::Playlist,
         }];
     }
     let (luna, o) = overlay_with("tiles.css", css, dom_anchors::build(&frame), &tile_item(0));
