@@ -38,13 +38,13 @@ features:
     details: Browse your favourites, playlists, albums, artists, and Mixes & Radio. Search the catalogue and edit playlists you own.
   - icon: 🎨
     title: Themes
-    details: Choose TIDAL's dark or light look, or follow your system as it changes, while the music keeps playing.
+    details: Choose TIDAL's dark or light look, or follow your system as it changes, while the music keeps playing. With plugins on, pick from 52 more themes.
   - icon: 🎧
     title: Now playing
     details: Click the player bar to slide up the big cover with similar tracks, credits, and lyrics, and an equalizer in Settings.
   - icon: 🧩
     title: Plugins
-    details: Optional TidaLuna plugin support, off by default, with one switch in Settings. No built-in plugins.
+    details: Optional TidaLuna plugin support, off by default, with one switch in Settings. Risky actions ask first, and removing a plugin deletes everything it left. No built-in plugins.
   - icon: ⌨️
     title: Desktop controls
     details: Use keyboard shortcuts and your keyboard's media keys. Keep the music playing after you close the window.

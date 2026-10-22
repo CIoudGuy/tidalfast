@@ -50,8 +50,16 @@ you normally do not need to sign in each time you open the app.
 Tidalfast has no built-in plugins. In **Settings > Plugins (TidaLuna)**, the
 **Enable TidaLuna plugins** switch (off by default) turns on a runtime that can
 run TidaLuna plugins from a plugin store. Turning it off unloads them and keeps
-them installed. Plugins that only restyle TIDAL's own web interface have
-nothing to change in Tidalfast.
+them installed. Plugins that depend on TIDAL's own web code cannot run; the
+Plugin Store marks a plugin that works only in part.
+
+A plugin asks before it starts a program, gets your TIDAL sign-in, saves TIDAL
+songs as files, takes keyboard shortcuts across your whole computer (Windows)
+or talks to another program over its pipe; each is off until you allow it.
+**Reset to defaults** on a plugin's card clears its settings, saved data and
+permissions and starts it fresh. Removing a plugin deletes everything it left,
+while turning it off keeps it. The **Plugin Store** tab lists the plugin stores,
+and the **Themes** tab has a catalogue of 52 themes.
 
 ## Light or dark
 

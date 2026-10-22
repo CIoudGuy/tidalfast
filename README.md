@@ -55,6 +55,9 @@
 - **Offline mode.** One switch (Settings, Downloads): no requests to TIDAL until you switch it off. It lasts across restarts.
 - **Upload.** Make a single or add to a release by dropping audio files. Edit title, type, visibility, cover (or a spectrogram cover), tracks and artist name.
 - **TIDAL's own settings.** Allow explicit content, Allow AI content, Audio metadata (BPM and key columns), Hide Uploads tab, Show collection in sidebar.
+- **Lost connection.** When the network drops, the playing song waits and carries on when you are back online; your queue is not skipped through.
+- **Narrow windows.** Headers, track tables and the open queue follow TIDAL's narrow layout.
+- **Explicit albums.** Album cards show TIDAL's E after an explicit title.
 - **Equalizer, lyrics, credits.** In the now playing view and Settings.
 - **Desktop integration.** System tray, media keys, launch at login (optional), start minimized.
 - **16 languages.** English, Chinese (Simplified and Traditional), Dutch, French, German, Italian, Japanese, Polish, Portuguese (Brazil and Portugal), Russian, Spanish, Swedish, Turkish and Ukrainian.
@@ -152,7 +155,7 @@ For **Max** (24-bit), use **Log in with Max**, then choose *Settings, Playback, 
 
 ## TidaLuna plugins
 
-Tidalfast runs plugins and themes made for [TidaLuna](https://github.com/Inrixia/TidaLuna), without a browser. It is **off by default**: turn it on in *Settings, Plugins (TidaLuna)*. From there you can browse the plugin stores, install from a URL, add CSS themes, and import your Luna settings.
+Tidalfast runs plugins and themes made for [TidaLuna](https://github.com/Inrixia/TidaLuna), without a browser. It is **off by default**: turn it on in *Settings, Plugins (TidaLuna)*. From there you can browse the plugin stores, pick from a catalogue of 52 themes, install a plugin or theme from a URL, and import your Luna settings.
 
 - Plugins install over HTTPS only, and the Plugins page shows what each one has done (network, files, programs).
 - A plugin asks before it runs a program, and can write to the clipboard only right after you click or press a key.
@@ -207,7 +210,7 @@ To try the interface without a TIDAL account, run the demo: `cargo run --feature
 
 ## Contributing
 
-Bug reports, fixes and translations are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; translations are explained in [translating](docs/_reference/translating.md).
+Bug reports, fixes and translations are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; translations are explained in [translating](docs/_reference/translating.md). To report a security problem privately, see [SECURITY.md](SECURITY.md).
 
 ## Credits
 
