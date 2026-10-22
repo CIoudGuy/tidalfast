@@ -1986,6 +1986,25 @@ impl App {
         }
     }
 
+    /// The clicked row's own details for the song a load names, so that the
+    /// engine starts it at once instead of reading the context's pages up
+    /// to it first. Only a song the row lets play: one the content settings
+    /// refuse, or TIDAL marks unavailable, starts as before.
+    fn offset_track(&self, load: &LoadSpec) -> Option<crate::tidal_engine::LocalTrack> {
+        let uri = load.offset_uri.as_deref()?;
+        let id = uri.strip_prefix("tidal:track:")?;
+        // The song's details from the page the row is on (an album, a
+        // playlist, a mix, an artist's top tracks), or from anywhere else
+        // the app saw it.
+        let track = self.known_track(id).filter(|track| track.uri == uri)?;
+        let item = PlayableItem::Track(track);
+        if !crate::ui::widgets::row_allowed(&item, self.content_filter()) {
+            return None;
+        }
+        let PlayableItem::Track(track) = item;
+        Some(crate::api::tidal_catalog::local_track(track))
+    }
+
     fn cached_track_preview(&self, uri: &str, position_ms: u32) -> Option<NowPlaying> {
         let track = self.cached_item(uri)?;
         Some(NowPlaying {
@@ -9121,6 +9140,7 @@ impl App {
             Target::Local => {
                 self.queued_play = None;
                 let mut load = local_load(&request, shuffle);
+                load.offset_track = self.offset_track(&load).map(Box::new);
                 load.repeat = Some(self.resume_repeat.take().unwrap_or(self.local.repeat));
                 self.local_list = load.context_uri.is_none().then(|| load.uris.clone());
                 let shuffle_after = shuffle && load.shuffle.is_none() && !load.uris.is_empty();
@@ -13824,6 +13844,7 @@ fn local_load(request: &PlayRequest, shuffle: bool) -> LoadSpec {
         context_uri: request.context_uri.clone(),
         uris: request.uris.clone(),
         offset_uri: request.offset_uri.clone(),
+        offset_track: None,
         offset_index: request.offset_position,
         position_ms: request.position_ms,
         play: true,
@@ -17659,6 +17680,43 @@ mod tests {
         assert_eq!(
             app.playlist_start("mix"),
             (Some("tidal:track:ok".into()), None)
+        );
+        app.backend.shutdown();
+    }
+
+    /// A double-clicked row hands the engine its own song's details, so the
+    /// engine starts that song at once rather than after the pages before
+    /// it; a song the row would not play goes without them.
+    #[test]
+    fn a_clicked_rows_own_details_go_with_the_load() {
+        let mut app = headless_app();
+        app.backend.set_offline(true);
+        let song = |id: &str, explicit: bool| Track {
+            id: Some(id.into()),
+            uri: format!("tidal:track:{id}"),
+            name: format!("Row {id}"),
+            explicit,
+            ..Default::default()
+        };
+        app.track_cache.insert("553".into(), song("553", false));
+        app.track_cache.insert("e".into(), song("e", true));
+        let load = |uri: &str| {
+            local_load(
+                &PlayRequest::context("tidal:playlist:e2").starting_at_uri(uri),
+                false,
+            )
+        };
+        let track = app
+            .offset_track(&load("tidal:track:553"))
+            .expect("the row's details");
+        assert_eq!(track.uri, "tidal:track:553");
+        assert_eq!(track.title, "Row 553");
+        assert!(app.offset_track(&load("tidal:track:unknown")).is_none());
+        assert!(app.offset_track(&load("tidal:track:e")).is_some());
+        app.settings.allow_explicit = false;
+        assert!(
+            app.offset_track(&load("tidal:track:e")).is_none(),
+            "a song the settings refuse waits for its context, as before"
         );
         app.backend.shutdown();
     }

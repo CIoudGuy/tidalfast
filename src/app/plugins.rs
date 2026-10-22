@@ -1162,7 +1162,7 @@ impl App {
         copy
     }
 
-    fn known_track(&self, id: &str) -> Option<Track> {
+    pub(super) fn known_track(&self, id: &str) -> Option<Track> {
         if let Some(t) = self.track_cache.get(id) {
             return Some(t.clone());
         }

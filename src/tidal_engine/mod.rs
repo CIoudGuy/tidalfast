@@ -122,6 +122,18 @@ enum Msg {
         spec: LoadSpec,
         result: Result<Vec<LocalTrack>>,
     },
+    /// The song a load names, ready to start before its context is read.
+    Early {
+        id: u64,
+        spec: LoadSpec,
+        track: LocalTrack,
+    },
+    /// The context of a load that started early, read up to its song (or
+    /// all of it, or nothing when it cannot be read).
+    Placed {
+        id: u64,
+        tracks: Vec<LocalTrack>,
+    },
     /// Later pages of the context a load started on its first page.
     ContextMore {
         id: u64,
@@ -267,6 +279,7 @@ impl Engine {
                     prefer_album: false,
                     shuffle_since_load: None,
                     load_play: None,
+                    placing: None,
                     load_id: 0,
                     live_load: Arc::default(),
                     autoplay_id: None,
@@ -447,6 +460,16 @@ fn set<T: PartialEq>(target: &mut T, value: T) -> bool {
     }
 }
 
+/// A song that started before its context was read: what the listener
+/// asked of the queue meanwhile waits for the context.
+struct Placing {
+    uri: String,
+    /// Songs to move on by once the context is in: Next, or the song
+    /// ending or failing, with nothing after it yet. The song stops
+    /// sounding meanwhile.
+    advances: u32,
+}
+
 /// The engine thread's state.
 struct Core {
     config: EngineConfig,
@@ -495,6 +518,9 @@ struct Core {
     /// load's own wish, turned round by Play or Space meanwhile. `None`
     /// with no load waiting for its song.
     load_play: Option<bool>,
+    /// The song the latest load named plays already while its context is
+    /// read up to it ([`Msg::Early`]).
+    placing: Option<Placing>,
     load_id: u64,
     /// `load_id` as workers read it, so a context still being read page by
     /// page stops once another load replaces it.
@@ -745,6 +771,16 @@ impl Core {
                     self.context_loaded(spec, result);
                 }
             }
+            Msg::Early { id, spec, track } => {
+                if id == self.load_id {
+                    self.start_early(spec, track);
+                }
+            }
+            Msg::Placed { id, tracks } => {
+                if id == self.load_id {
+                    self.placed(tracks);
+                }
+            }
             Msg::ContextMore { id, tracks } => {
                 if id == self.load_id && lock(&self.queue).extend_context(tracks) {
                     self.check_preload();
@@ -858,6 +894,7 @@ impl Core {
     fn load(&mut self, spec: LoadSpec) {
         self.bump_load();
         self.shuffle_since_load = None;
+        self.placing = None;
         self.load_play = Some(spec.play);
         let id = self.load_id;
         self.autoplay_id = None;
@@ -984,8 +1021,14 @@ impl Core {
             }
             return;
         };
+        self.begin_load(first, shuffle, &spec);
+    }
+
+    /// Starts a load's first song, playing as the listener last asked.
+    fn begin_load(&mut self, first: LocalTrack, shuffle: bool, spec: &LoadSpec) {
         self.prefer_album = !shuffle
-            && context_uri
+            && spec
+                .context_uri
                 .as_deref()
                 .and_then(crate::util::uri_kind)
                 .is_some_and(|kind| kind == "album");
@@ -994,6 +1037,97 @@ impl Core {
         self.failures = 0;
         let play = self.load_play.take().unwrap_or(spec.play);
         self.start_track(first, spec.position_ms, play, false);
+    }
+
+    /// The song the load names starts now, alone in its context, while the
+    /// context is read up to it: a row far down a long playlist plays at
+    /// once instead of after every page before it. [`Self::placed`] puts
+    /// the context around it.
+    fn start_early(&mut self, spec: LoadSpec, track: LocalTrack) {
+        let shuffle = self
+            .shuffle_since_load
+            .take()
+            .unwrap_or_else(|| spec.shuffle.unwrap_or(false));
+        let uri = track.uri.clone();
+        let first = {
+            let mut queue = lock(&self.queue);
+            let start = Start::Uri(uri.clone());
+            let first = queue.load(spec.context_uri.clone(), vec![track], start, shuffle);
+            queue.set_autoplay(false);
+            first
+        };
+        let Some(first) = first else {
+            return;
+        };
+        log::info!("{uri} starts before the rest of its context is read");
+        self.placing = Some(Placing { uri, advances: 0 });
+        self.begin_load(first, shuffle, &spec);
+    }
+
+    /// The context of a song that started early is in: the queue holds it
+    /// around that song, and what the listener asked meanwhile (Next, or
+    /// the song's end) moves on now.
+    fn placed(&mut self, tracks: Vec<LocalTrack>) {
+        let Some(placing) = self.placing.take() else {
+            return;
+        };
+        let placed = lock(&self.queue).place(tracks, &placing.uri);
+        if !placed {
+            log::warn!(
+                "the context of {} could not be placed around it",
+                placing.uri
+            );
+        }
+        // A song with nothing after it yet took the row's details only.
+        let current = lock(&self.queue).current().cloned();
+        if let Some(current) = current {
+            self.update(|state| match &mut state.track {
+                Some(track) if track.uri == current.uri && track.title.is_empty() => {
+                    *track = current;
+                    true
+                }
+                _ => false,
+            });
+        }
+        self.check_preload();
+        self.update(|_| true);
+        if placing.advances == 0 {
+            return;
+        }
+        let mut next = None;
+        for _ in 0..placing.advances {
+            match lock(&self.queue).advance(false) {
+                Advance::Track(track) => next = Some(track),
+                Advance::NeedAutoplay => {
+                    next = None;
+                    break;
+                }
+            }
+        }
+        match next {
+            Some(track) => {
+                let play = self.playing;
+                self.start_track(track, 0, play, false);
+            }
+            None => self.context_ended(),
+        }
+    }
+
+    /// Next, or the end of the song, with nothing after it while the
+    /// context of a song that started early is still being read: the move
+    /// waits for the context, in silence. `false` when nothing is read.
+    fn wait_for_context(&mut self) -> bool {
+        let Some(placing) = &mut self.placing else {
+            return false;
+        };
+        placing.advances += 1;
+        log::info!("the next song waits for the rest of the context");
+        self.current = None;
+        self.next = None;
+        self.outgoing = None;
+        self.stop_sink();
+        self.update(|state| set(&mut state.loading, true));
+        true
     }
 
     fn load_failed(&mut self, error: String) {
@@ -1393,6 +1527,13 @@ impl Core {
             self.update(|state| set(&mut state.held_paused, held));
             return;
         }
+        if self.current.is_none() && self.placing.is_some() {
+            // The next song waits for the context: it plays or not as asked.
+            self.playing = !self.playing;
+            let held = !self.playing;
+            self.update(|state| set(&mut state.held_paused, held));
+            return;
+        }
         if self.current.is_none() {
             // Stopped at the end: Play starts the last song again.
             let track = lock(&self.queue).current().cloned();
@@ -1435,7 +1576,11 @@ impl Core {
                 let play = self.playing || self.current.is_none();
                 self.start_track(track, 0, play, false);
             }
-            Advance::NeedAutoplay => self.context_ended(),
+            Advance::NeedAutoplay => {
+                if !self.wait_for_context() {
+                    self.context_ended();
+                }
+            }
         }
     }
 
@@ -1628,7 +1773,11 @@ impl Core {
         let advance = lock(&self.queue).advance(true);
         match advance {
             Advance::Track(track) => self.start_track(track, 0, true, true),
-            Advance::NeedAutoplay => self.context_ended(),
+            Advance::NeedAutoplay => {
+                if !self.wait_for_context() {
+                    self.context_ended();
+                }
+            }
         }
     }
 
@@ -1674,6 +1823,7 @@ impl Core {
                     self.start_track(track, 0, play, false);
                     true
                 }
+                Advance::NeedAutoplay if self.wait_for_context() => true,
                 Advance::NeedAutoplay if self.playing && self.sounded => {
                     self.context_ended();
                     self.autoplay_waiting
@@ -1832,6 +1982,7 @@ impl Core {
     fn stop(&mut self) {
         log::info!("playback stopped");
         self.load_play = None;
+        self.placing = None;
         self.current = None;
         self.next = None;
         self.outgoing = None;
@@ -1880,6 +2031,8 @@ impl Core {
                 log::info!("loading {} ahead, {remaining} ms before the end", track.uri);
                 self.next = Some(self.open(track, 0));
             }
+            // Nothing after it yet while its context is read.
+            Advance::NeedAutoplay if self.placing.is_some() => {}
             Advance::NeedAutoplay => {
                 if self.config.autoplay && self.autoplay_id.is_none() && !self.autoplay_asked {
                     self.autoplay_asked = true;
@@ -1962,6 +2115,7 @@ impl Core {
         };
         self.bump_load();
         self.load_play = None;
+        self.placing = None;
         self.update(|state| {
             let mut changed = set(&mut state.shuffle, shuffle);
             changed |= set(&mut state.repeat, repeat);
@@ -2142,11 +2296,25 @@ fn streams_in_pages(spec: &LoadSpec) -> bool {
         })
 }
 
+/// The song a load of a context names, to start before the context is
+/// read: the one the clicked row gave the details of. A load without them
+/// (a plugin's, or a row the content settings refuse) waits for the pages
+/// up to its song, which also leaves out a song the settings refuse.
+fn early_track(spec: &LoadSpec) -> Option<LocalTrack> {
+    let uri = spec.offset_uri.as_deref()?;
+    spec.offset_track
+        .as_deref()
+        .filter(|track| track.uri == uri && crate::util::uri_kind(uri) == Some("track"))
+        .cloned()
+}
+
 /// Reads the context page by page. The load starts as soon as a page holds
 /// what it starts at (any song, when it starts anywhere); later pages
 /// follow as [`Msg::ContextMore`]. A context that cannot be read at all
 /// goes the whole way round [`resolve_or_fall_back`], for what is kept
-/// offline.
+/// offline. A song named with the clicked row's details ([`early_track`])
+/// starts first, as [`Msg::Early`]: the pages up to it then go as
+/// [`Msg::Placed`] instead of starting anything.
 fn load_in_pages(
     catalog: &dyn Catalog,
     offline: Option<&OfflineStore>,
@@ -2158,6 +2326,16 @@ fn load_in_pages(
 ) {
     let Some(context) = spec.context_uri.clone() else {
         return;
+    };
+    let early = match early_track(&spec) {
+        Some(track) => {
+            let spec = spec.clone();
+            if sender.send(Msg::Early { id, spec, track }).is_err() {
+                return;
+            }
+            true
+        }
+        None => false,
     };
     let mut held: Vec<LocalTrack> = Vec::new();
     let mut started = false;
@@ -2201,14 +2379,17 @@ fn load_in_pages(
                 .is_none_or(|index| (index as usize) < held.len());
         if ready {
             started = true;
-            let result = Ok(std::mem::take(&mut held));
-            return sender
-                .send(Msg::Context {
+            let tracks = std::mem::take(&mut held);
+            let message = if early {
+                Msg::Placed { id, tracks }
+            } else {
+                Msg::Context {
                     id,
                     spec: spec.clone(),
-                    result,
-                })
-                .is_ok();
+                    result: Ok(tracks),
+                }
+            };
+            return sender.send(message).is_ok();
         }
         true
     });
@@ -2224,6 +2405,15 @@ fn load_in_pages(
         Ok(()) if !held.is_empty() => Ok(held),
         _ => resolve_or_fall_back(catalog, offline, &spec),
     };
+    if early {
+        // The song plays on; it is all there is when nothing can be read.
+        let tracks = result.unwrap_or_else(|error| {
+            log::warn!("{context} could not be read: {error:#}");
+            Vec::new()
+        });
+        let _ = sender.send(Msg::Placed { id, tracks });
+        return;
+    }
     let _ = sender.send(Msg::Context { id, spec, result });
 }
 
