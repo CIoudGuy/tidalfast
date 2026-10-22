@@ -30,7 +30,7 @@ pub(crate) enum PillTone {
 }
 
 /// TIDAL's `--market-core-teal-text-color`.
-pub(crate) const TEAL: Color32 = Color32::from_rgb(0x16, 0xd8, 0xa7);
+pub(crate) const TEAL: Color32 = theme::TEAL;
 /// TIDAL's `--market-core-yellow-text-color`.
 pub(crate) const GOLD: Color32 = Color32::from_rgb(0xff, 0xd4, 0x32);
 /// The grey TIDAL uses for the lossy pill's glow and hover.

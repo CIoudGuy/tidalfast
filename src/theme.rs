@@ -38,6 +38,12 @@ pub struct Palette {
     pub radius: u8,
 }
 
+/// TIDAL's `--market-core-teal-text-color`, #16d8a7, measured on TIDAL
+/// desktop 2.43.2: the lossless quality pill's words and the playing
+/// playlist in the sidebar. It is a different colour from the accent
+/// (#33ffee), which is TIDAL's seek bar, links and the queue's playing song.
+pub const TEAL: Color32 = Color32::from_rgb(0x16, 0xd8, 0xa7);
+
 impl Palette {
     /// TIDAL's own Dark palette (no theme): the fixed shades sampled from
     /// TIDAL apply. A themed dark palette derives them from its colours.
@@ -87,6 +93,15 @@ impl Palette {
     /// The label colour on [`Palette::primary_fill`].
     pub fn on_primary(&self) -> Color32 {
         self.window
+    }
+
+    /// What TIDAL draws for the playing playlist in the sidebar (its name
+    /// and the speaker over its cover): its green-teal, not the cyan accent
+    /// of the seek bar and the queue's playing song. Where a Luna theme
+    /// paints the window itself (a light one, whose teal would be unreadable)
+    /// the accent stands in, as TIDAL restyles it there.
+    pub fn playing_name(&self) -> Color32 {
+        if self.tidal_dark() { TEAL } else { self.accent }
     }
 
     /// TIDAL's frosted chip, rgba(40,40,40,.75): the back/forward pill, the
@@ -1392,6 +1407,37 @@ mod tests {
         assert_eq!(over(Color32::BLACK), 0x4d);
         let tinted = Color32::from_rgb(75, 77, 76);
         assert!(over(tinted) > 0x4d + 40, "{}", over(tinted));
+    }
+
+    /// TIDAL desktop's accent (the seek bar, the queue's playing song) is
+    /// #33ffee, and its sidebar's playing playlist is the different green-teal
+    /// #16d8a7, both measured from plain TIDAL captures. A theme that paints
+    /// the window itself (a light one) keeps its own accent for both.
+    #[test]
+    fn tidals_two_teals_are_kept_apart_in_dark() {
+        let dark = Palette::dark();
+        assert_eq!(dark.accent, Color32::from_rgb(0x33, 0xff, 0xee));
+        assert_eq!(dark.playing_name(), Color32::from_rgb(0x16, 0xd8, 0xa7));
+        assert_ne!(dark.playing_name(), dark.accent);
+        let light = Palette::light();
+        assert_eq!(light.playing_name(), light.accent);
+        let themed = Palette {
+            themed: true,
+            own_surfaces: false,
+            accent: Color32::from_rgb(0xff, 0x20, 0x20),
+            ..dark
+        };
+        assert_eq!(themed.playing_name(), themed.accent, "a theme's accent");
+        let tokens_only = Palette {
+            themed: true,
+            own_surfaces: true,
+            ..dark
+        };
+        assert_eq!(
+            tokens_only.playing_name(),
+            Color32::from_rgb(0x16, 0xd8, 0xa7),
+            "TIDAL keeps its own sidebar under a theme that only sets root tokens"
+        );
     }
 
     /// A theme's page font leads every weight, not only the regular one:

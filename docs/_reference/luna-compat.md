@@ -1687,8 +1687,9 @@ fails without it:
   navigation rows theirs (`._marketText_`), the "All playlists" heading
   `._sectionHeader_ca54638 > ._titleText_1d0e44e`: the cotton candy
   family's sidebar colours, TidalCustomTheme's dark red words and Tidal
-  TUI's weight 500 reach them. The playing playlist's name is the accent
-  unless the theme colours the name (even with an undefined variable,
+  TUI's weight 500 reach them. The playing playlist's name is TIDAL's
+  green-teal #16d8a7 (`Palette::playing_name`; the theme's accent where it
+  paints a light window) unless the theme colours the name (even with an undefined variable,
   whose `unset` keeps the colour around it).
 - Track rows sit two boxes down in TIDAL's virtual list, so the cotton
   candy family's `div:nth-child(1) > div > div { border-style: none }`

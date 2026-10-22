@@ -169,6 +169,16 @@ Where it differs from tidal.com above, Tidalfast follows the desktop app.
   three lines on a 32-point white 8 % disc while the queue is open.
 - My Collection grids: six cards a row in a 1451-wide column (229 each).
 - Artist header: "19.1K fans".
+- Two teals (pixels of the plain captures in 2026-10, 2137 wide): the accent `--wave-color-solid-accent-fill`
+  #33ffee (51,255,238) is the seek bar's played part, links ("Playing from"), the queue's playing song and its
+  cover's speaker, and the folder tile's icon. The green-teal #16d8a7 (22,216,167; the market "teal text
+  colour") is the playing playlist in the sidebar (its name and the speaker over its cover, which reads
+  (18,191,148) at about 88 % over the cover) and the lossless quality pill's words. Tidalfast's Dark accent was
+  already exactly #33ffee; it drew the sidebar's playing playlist in the cyan, and now draws it in the teal
+  (`Palette::playing_name`; Light keeps its one deep teal, TIDAL has no light theme to measure, and a theme that
+  paints the window itself keeps its accent). TIDAL's accent has no hover state in the captures; the tokens name
+  `-accent-bright` #66fff3 for it, which Tidalfast has not adopted (its hover is #7dfff4). The current song's row
+  in the Tracks table (a different list from the playing one) is plain white in TIDAL.
 
 ## 16. Narrow window (TIDAL desktop, 1000x1183)
 Measured 2026-10 with the window 1000 wide: beside the open play queue the page runs from x 240 to 650 (album
