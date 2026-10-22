@@ -122,7 +122,7 @@ Notes:
 5. Whether the stats count only reported plays (section 2). Almost certainly derived from the same `play_log` stream, so plays
    from a client that does not report are invisible in stats, Recently Played and history mixes. [?]
 
-Suggested probe plan (Tidalfast): implement `my-activity/timeline` + `top-artists` behind an "experimental" flag, log raw JSON to
+Probe plan (Tidalfast): implement `my-activity/timeline` + `top-artists` behind an "experimental" flag, log raw JSON to
 the debug log (no token), then probe the guessed siblings one time and record the HTTP codes here.
 
 ---------------------------------------------------------------------------------------------------
@@ -302,16 +302,16 @@ config). Web (`headerUtils.ts`): `app-name`, `app-version`, `browser-name`, `bro
 - No evidence found that developer-registered (THIRD_PARTY) apps may POST to `ec.tidal.com`. Endpoint accepted bearer tokens
   from first-party clients only in known reports. [?]
 - Ethics/ToS: faking mobile identity to get plays credited is an impersonation risk; prefer truthful client fields and treat
-  Recently Played surfacing as best-effort. Decision for the owner.
+  Recently Played surfacing as best-effort. A maintainer decision.
 
-### 2.8 Suggested minimal implementation (for later)
+### 2.8 Minimal implementation (design notes; built, see section 4)
 
 1. On track end/skip/stop with listened >= 30 s (or >= 50 %), build `playback_session` v2 (2.3) with true start/end wall-clock
    and positions; `sourceType/sourceId` from the container being played (`""` if none).
 2. Persist to a small on-disk queue; flush every ~30 s and on exit in batches of <= 10 using the form encoding in 2.2; parse the
    SQS XML: remove acked ids and `SenderFault=true`; keep others; back off on network failure.
 3. Optionally add `streaming_session_start/_end` and `playback_statistics` later (QoS only).
-4. Add a settings toggle "Report plays to TIDAL" (privacy.md), default per owner decision; log request status, never the token.
+4. Add a settings toggle "Report plays to TIDAL" (privacy.md), default per maintainer decision; log request status, never the token.
 5. Verify end to end: play 3 tracks from an album, wait ~1 min, check Recently Played on another TIDAL client and
    `my-activity/top-artists` for the current month.
 
@@ -346,7 +346,7 @@ tokens, whether `playback_session` alone credits streams/payouts, Recently Playe
   (`src/api/tidal/activity.rs`, tolerant models). Backend: `Command::MyActivity` -> `Event::MyActivity`.
   Live check: start with `TIDALFAST_DUMP_ACTIVITY=1`; after sign-in the raw JSON (timeline, top artists for this month and
   the newest reported month, and the HTTP result of each guessed sibling path) goes to the log and
-  `<state>/my-activity-dump.json`. Record the findings here.
+  `<state>/my-activity-dump.json`, for investigating further endpoints.
 - Local statistics: `src/play_stats.rs`, `<state>/listens.jsonl` (versioned JSON lines, <= 200k records). Stream = >= 30 s or
   >= 50 % heard. Backend: `Command::Stats` -> `Event::Stats`.
 - My Activity pages (`src/activity.rs` state, `src/ui/activity.rs` views; `Page::MyActivity`, `Page::TopArtists`), opened from

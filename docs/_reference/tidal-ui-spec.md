@@ -1,7 +1,7 @@
 # TIDAL web UI spec (tidal.com, 1440x900, logged out)
 
 Measured with getComputedStyle on tidal.com (same UI as the desktop app).
-Not captured: logged-in screens (tool refused the logged-in tab), bottom player bar rendering (guest has none; metrics below come from the shipped CSS rules + one footer measurement), context menu, queue, settings.
+Not captured on tidal.com: logged-in screens (the desktop sections below cover them), bottom player bar rendering (guest has none; metrics below come from the shipped CSS rules + one footer measurement), context menu, queue, settings.
 
 ## 0. Font
 - Family: "Square Sans Text VF" / "Square Sans Text" (body, UI), "Square Sans Display VF" (big headings: display/heading-20/30 tokens), "Square Sans Mono". Proprietary (Block/Square Sans), NOT redistributable. Fallback stack Helvetica, Arial, sans-serif.
@@ -46,7 +46,7 @@ Tidalfast mapping: Palette in src/theme.rs (window, panel=surface-10, surface=#1
 - Nav group x16, width 208, items 40px high, step 40 (Music y58, Explore 98, Feed 138, Collection 178). Item: flex, gap 8, padding 8, radius 12, icon 24x24 at x24, label at x56: 14/22 w600, color rgba(255,255,255,.55). Hover: bg #141414 (surface-10) + text white, transition .2s. Selected: bg rgba(255,255,255,.15), text white.
 - Collection has chevron (16px, text-30) and opens a flyout submenu: x220, w200, bg #2d2d2d, radius 12, padding 4, shadow 0 4px 12px rgba(0,0,0,.15); items 190x40 (Mixes & Radio, Playlists, Albums, Tracks, Videos, Artists), label 14/22 w600 .55 alpha.
 - "Playlists" header row at y~232-264: label 14/22 w500 rgba(255,255,255,.30), right icons (create +, sort) 16px, color .30.
-- Playlist list rows (logged in): cover 40px, title 14, subtitle 12 secondary (from screenshot of owner session; geometry approximate).
+- Playlist list rows (logged in): cover 40px, title 14, subtitle 12 secondary (from a screenshot of a signed-in session; geometry approximate).
 - Guest promo card "Transfer your music for free": x14,y288, 212x184, margin 16 4, padding 16, radius 12, 1px border rgba(255,255,255,.08), bg linear-gradient(#000 -> #101010), gap 16, close X top-right; button secondary small 178x40.
 - Tidalfast: sidebar.rs; nav item rect 208x40 r12; hover surface-10; selected white@15%.
 
@@ -141,11 +141,11 @@ Measured on tidal.com signed in (Cole World: The Sideline Story, 1440 and 2000 w
 - Disabled nav arrows rgba(255,255,255,.15). Disabled buttons opacity .4.
 - Empty playlist box: not captured.
 
-## 14. Substitution notes / TODO for Tidalfast
+## 14. Substitution notes for Tidalfast
 1. Font: Square Sans is licensed; keep Hanken Grotesk; if text looks wider/narrower, tweak letter-spacing only on titles (-0.32px at 32px).
 2. Adopt exact values: sidebar 240, nav item 40/r12, row 48, hover white@10% r5, header 56, cover 240 r2, card 204 r2 gap 16, Play/Shuffle 160x48 pill, quality badge colours.
 3. Album header background = cover darkened gradient (0.6 -> 1.0 black) 450px high, NOT blurred; artist = blur(10) brightness .3 masked.
-4. Logged-in-only surfaces (home shelves with user data, collection, context menu, queue, lyrics, settings) not measured here; screenshots of a signed-in account are kept outside the public docs.
+4. Logged-in-only surfaces (home shelves with user data, collection, context menu, queue, lyrics, settings) not measured in this section; the desktop sections below measure them signed in.
 ## 15. TIDAL desktop 2.43 (Windows), signed in
 Measured on the desktop app (2137x1183 window, 30-point title bar, DPR 1) with no plugins enabled, 2026-10.
 Where it differs from tidal.com above, Tidalfast follows the desktop app.
@@ -194,7 +194,7 @@ alike. Normal widths (800 and up) are unchanged.
   Edit), pills 114 (narrowed further if the buttons need it; captions go first). A Tracks page with pills only
   keeps them 160 while they fit.
 - More at narrow width: TIDAL hides More ("...") below 600 (its album at 314 shows only Play, Shuffle and
-  Added), and Tidalfast does too (owner's decision, 2026-10-22; the switch is
+  Added), and Tidalfast does too (maintainer's decision, 2026-10-22; the switch is
   `collection::NARROW_HEADER_KEEPS_MORE`).
 - Shelves (Home, artist page): TIDAL fixes a shelf's card count when the page mounts and shrinks the cards; a
   freshly opened narrow page shows one card a row, as Tidalfast does (an earlier capture with 7 tiny cards

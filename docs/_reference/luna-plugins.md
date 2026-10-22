@@ -1,6 +1,6 @@
 # TidaLuna plugins: what the user runs
 
-> Owner decision: Tidalfast has NO native plugin ports. Everything below that
+> Project decision: Tidalfast has NO native plugin ports. Everything below that
 > describes native ports (VolumeScroll, DiscordRPC, NativeFullscreen, No Remix,
 > Total Play Time, Scroll To Playing) is historical research. These plugins are
 > meant to run through the Luna runtime (`src/luna/`), which is opt-in and off
@@ -9,9 +9,9 @@
 
 ## No per-plugin code
 
-Owner's rule, in the owner's words: "don't fix individual plugins fix their
-translation layer so if the owner updates they update properly applies to
-all themes too".
+Project rule: do not fix individual plugins; fix the translation layer, so
+that when a plugin's or theme's author publishes an update it keeps working.
+The same applies to all themes.
 
 - Every plugin and theme runs through the generic translation layer:
   TIDAL's DOM, classes and anchors (`dom_anchors`), the `luna.lib`, redux
@@ -207,7 +207,7 @@ hooks, and checks its own `enabled` first so disabled plugins cost nothing. Sugg
 - Reason: workaround for a bug in TIDAL's web player state. Tidalfast owns its engine. Instead, make sure the sink reopens/falls back to the default output device on device loss (`src/sink.rs`, worth a separate robustness ticket, S). No plugin toggle.
 
 ## 8. Song Downloader (won't port)
-- Owner decision (2026-10-20): no native port, but the Luna plugin itself runs once the user allows it to save TIDAL audio (asked at the first download, revocable in its Permissions; unencrypted streams only). See "Permissions a plugin asks for" in `luna-compat.md`.
+- Project decision (2026-10-20): no native port, but the Luna plugin itself runs once the user allows it to save TIDAL audio (asked at the first download, revocable in its Permissions; unencrypted streams only). See "Permissions a plugin asks for" in `luna-compat.md`.
 - Luna: context-menu "Download N tracks"; saves FLAC (tags embedded) at chosen quality incl. Hi-Res, path template `{artist} - {album} - {title}`, optional RealMAX (swap to the highest-quality version of the track), default folder.
 - Reason: ripping licensed TIDAL streams to files is outside TIDAL's offline licence and conflicts with the project rule "only unencrypted streams, never attempt to decrypt DRM". Not offering it natively, nor RealMAX auto-swap as a download aid. (A separate, legitimate "prefer highest available version of a track when playing" option is possible later, M.)
 

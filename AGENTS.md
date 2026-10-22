@@ -7,7 +7,7 @@ These instructions add implementation constraints for coding agents.
 
 - Keep Tidalfast a small native TIDAL client. Do not add a browser engine,
   telemetry, a hosted backend, or alternate sources for TIDAL audio. One
-  exception, the owner's decision: a Luna plugin the user installs may play
+  exception, the maintainer's decision: a Luna plugin the user installs may play
   the user's own files from the user's own media server instead of TIDAL's
   stream (AltPlay with Jellyfin). Tidalfast itself ships no other source.
 - Playback is always local, through `src/tidal_engine/`. Only unencrypted
@@ -56,9 +56,10 @@ contract, and the queue tests in `src/app.rs` enforce them. Read
 touching `src/luna/` or `src/plugins/`. Read the nearby module tests before
 changing a state machine or API fallback.
 
-No per-plugin code in the Luna runtime. The owner's words: "don't fix
-individual plugins fix their translation layer so if the owner updates they
-update properly applies to all themes too". Plugins and themes work through
+No per-plugin code in the Luna runtime. The project's policy: do not fix
+individual plugins; fix the translation layer, so that when a plugin's or
+theme's author publishes an update it keeps working, and the same holds for
+all themes. Plugins and themes work through
 the generic layer only (TIDAL's DOM, classes and anchors, the `luna.lib`,
 redux and native APIs, Chromium's CSS and events). Never key runtime
 behaviour to a plugin's or theme's name, file name, package, hash or URL, or
