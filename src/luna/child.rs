@@ -108,6 +108,10 @@ pub struct ProgramRequest {
 /// What a plugin asked to run, as it passed it.
 #[derive(Clone, Debug, Default)]
 pub struct Request {
+    /// The plugin asking: a file the app saved for it elsewhere than the
+    /// path it named is passed to the program by its real path
+    /// ([`super::fsops::unalias`]).
+    pub plugin: String,
     /// A program name or path (`spawn`, `execFile`); empty for a command line.
     pub file: String,
     pub args: Vec<String>,
@@ -204,6 +208,15 @@ pub fn prepare(req: &Request, data_dir: &Path) -> Result<Prepared, String> {
             (req.file.clone(), req.args.clone(), None)
         }
     };
+    // A file the app saved for the plugin under another name (a download
+    // the user put in a folder of their choosing) is the one it named.
+    let args: Vec<String> = args
+        .into_iter()
+        .map(|a| match super::fsops::unalias(&req.plugin, &a) {
+            Some(real) => real.to_string_lossy().into_owned(),
+            None => a,
+        })
+        .collect();
     let (exe, spec_args, raw_tail, shell, command) = match line {
         Some(line) => {
             let (exe, args, raw) = shell_line(&line)?;
@@ -738,6 +751,18 @@ pub fn run_sync(
     timeout: Duration,
     max_buffer: usize,
 ) -> SyncResult {
+    run_sync_until(spec, input, timeout, max_buffer, None)
+}
+
+/// [`run_sync`], also ending the program when `stop` is set (a forked
+/// process waiting for it was killed).
+pub fn run_sync_until(
+    spec: &Spec,
+    input: Option<Vec<u8>>,
+    timeout: Duration,
+    max_buffer: usize,
+    stop: Option<&std::sync::atomic::AtomicBool>,
+) -> SyncResult {
     let mut out = SyncResult::default();
     let mut child = match command(spec).spawn() {
         Ok(c) => c,
@@ -785,6 +810,11 @@ pub fn run_sync(
             killed = true;
             let _ = child.kill();
             out.error = Some("ETIMEDOUT: spawnSync timed out".into());
+            break child.wait().ok();
+        }
+        if stop.is_some_and(|s| s.load(Ordering::Acquire)) {
+            killed = true;
+            let _ = child.kill();
             break child.wait().ok();
         }
         std::thread::sleep(Duration::from_millis(4));

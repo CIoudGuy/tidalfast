@@ -387,6 +387,7 @@ fn plugins_behind_a_permission_say_so() {
         "MediaKeysFixer",
         "@vmohammad/mpv",
         "DownloadManager",
+        "@jxnxsdev/audiovisualiser",
     ] {
         assert_eq!(level(name), Some(Compat::NeedsPermission), "{name}");
     }

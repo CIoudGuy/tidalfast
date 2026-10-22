@@ -193,6 +193,68 @@ pub fn granted_for(plugin: &str, p: &str) -> Option<PathBuf> {
     granted_path(&granted_to(plugin), p)
 }
 
+/// Files the app saved for a plugin under another path than the one it
+/// named (`MediaItem.download("/Music/1.flac")` written to the folder the
+/// user chose, with the stream's real extension), by the named path: the
+/// plugin's `fs` and the programs it runs reach the file by either name, as
+/// they would in TidaLuna, where the file is where the plugin said.
+static ALIASES: std::sync::Mutex<Option<std::collections::HashMap<String, Aliases>>> =
+    std::sync::Mutex::new(None);
+
+/// One plugin's aliases: (named path as matched, real path), oldest first.
+type Aliases = Vec<(String, PathBuf)>;
+
+/// The most aliases kept for one plugin; the oldest go first.
+const ALIASES_PER_PLUGIN: usize = 256;
+
+/// The form a named path is matched in: the same file however its
+/// separators (and, on Windows, letters) are written.
+fn alias_key(p: &str) -> String {
+    let k = p.trim().replace('\\', "/");
+    if cfg!(windows) { k.to_lowercase() } else { k }
+}
+
+/// The app saved `real` for `plugin`, which named it `asked`.
+pub fn alias(plugin: &str, asked: &str, real: &Path) {
+    let key = alias_key(asked);
+    if key.is_empty() || key == alias_key(&real.to_string_lossy()) {
+        return;
+    }
+    let mut all = ALIASES.lock().unwrap_or_else(|e| e.into_inner());
+    let list = all
+        .get_or_insert_with(Default::default)
+        .entry(plugin.to_string())
+        .or_default();
+    list.retain(|(k, _)| *k != key);
+    list.push((key, real.to_path_buf()));
+    if list.len() > ALIASES_PER_PLUGIN {
+        list.remove(0);
+    }
+}
+
+/// The real path of a file the app saved for `plugin` under the path `p`
+/// it named, if it did.
+pub fn unalias(plugin: &str, p: &str) -> Option<PathBuf> {
+    if plugin.is_empty() || p.is_empty() {
+        return None;
+    }
+    let key = alias_key(p);
+    ALIASES
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()?
+        .get(plugin)?
+        .iter()
+        .rev()
+        .find(|(k, _)| *k == key)
+        .map(|(_, real)| real.clone())
+}
+
+/// `p`, or the real path of the file the app saved under it.
+fn real_path(plugin: &str, p: &str) -> String {
+    unalias(plugin, p).map_or_else(|| p.to_string(), |r| r.to_string_lossy().into_owned())
+}
+
 /// The path a plugin named when a dialog pick covers it.
 fn granted_path(granted: &[Pick], p: &str) -> Option<PathBuf> {
     let raw = Path::new(p);
@@ -307,12 +369,13 @@ fn write_within(
 /// `fs.readFile` for `plugin` with the bytes as they are (no base64), from
 /// its data folder `home` or a path the user picked for it.
 pub fn read_bytes(plugin: &str, home: &Path, p: &str) -> Result<Vec<u8>, String> {
-    let path = match granted_path(&granted_to(plugin), p) {
+    let real = real_path(plugin, p);
+    let path = match granted_path(&granted_to(plugin), &real) {
         Some(path) => path,
         None => {
             std::fs::create_dir_all(home)
                 .map_err(|e| io_err(e, "mkdir", &home.to_string_lossy()))?;
-            resolve(home, p)?
+            resolve(home, &real)?
         }
     };
     std::fs::read(&path).map_err(|e| io_err(e, "open", p))
@@ -327,11 +390,12 @@ pub fn write_bytes(
     data: &[u8],
     append: bool,
 ) -> Result<(), String> {
-    if let Some(path) = granted_path(&granted_to(plugin), p) {
+    let real = real_path(plugin, p);
+    if let Some(path) = granted_path(&granted_to(plugin), &real) {
         return write_granted(&path, p, data, append);
     }
     std::fs::create_dir_all(home).map_err(|e| io_err(e, "mkdir", &home.to_string_lossy()))?;
-    let path = resolve(home, p)?;
+    let path = resolve(home, &real)?;
     write_within(home, &path, p, data, append, PLUGIN_QUOTA)
 }
 
@@ -403,6 +467,9 @@ pub fn forget_plugin(plugin: &str, home: &Path) {
     if let Some(all) = GRANTS.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
         all.remove(plugin);
     }
+    if let Some(all) = ALIASES.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+        all.remove(plugin);
+    }
 }
 
 /// Run one fs operation in the sandbox `home`, with no dialog picks.
@@ -414,7 +481,13 @@ pub fn fs_op(home: &Path, arg: &Value) -> Result<Value, String> {
 /// [`fs_op`] for a plugin: its data folder, and what the user picked for it
 /// in a file dialog.
 pub fn fs_op_for(plugin: &str, home: &Path, arg: &Value) -> Result<Value, String> {
-    fs_op_within(home, arg, PLUGIN_QUOTA, &granted_to(plugin))
+    let mut arg = arg.clone();
+    for k in ["path", "to"] {
+        if let Some(real) = arg[k].as_str().and_then(|p| unalias(plugin, p)) {
+            arg[k] = json!(real.to_string_lossy());
+        }
+    }
+    fs_op_within(home, &arg, PLUGIN_QUOTA, &granted_to(plugin))
 }
 
 fn fs_op_within(home: &Path, arg: &Value, quota: u64, granted: &[Pick]) -> Result<Value, String> {
@@ -655,5 +728,48 @@ mod tests {
         let socket_name = socket.file_name().unwrap().to_string_lossy().into_owned();
         assert!(names.contains(&socket_name), "{names:?}");
         assert!(names.iter().all(|name| name.starts_with("discord-ipc-")));
+    }
+
+    /// A file the app saved for a plugin elsewhere than the path it named
+    /// (a song in the folder the user chose) is that path for the plugin's
+    /// `fs` and for the programs it runs; for other plugins it is not.
+    #[test]
+    fn a_saved_file_is_reached_by_the_path_the_plugin_named() {
+        let base = std::env::temp_dir().join(format!("luna-fs-alias-{}", std::process::id()));
+        let (home, chosen) = (base.join("home"), base.join("chosen"));
+        std::fs::create_dir_all(&chosen).unwrap();
+        let real = chosen.join("7.wav");
+        std::fs::write(&real, b"song").unwrap();
+        let (plugin, asked) = ("aliased", "/Plugin/Cache/7.flac");
+        grant(plugin, &chosen, true);
+        alias(plugin, asked, &real);
+        assert_eq!(read_bytes(plugin, &home, asked).unwrap(), b"song");
+        let other_spelling = r"\Plugin\Cache\7.flac";
+        let exists =
+            |p: &str, who: &str| fs_op_for(who, &home, &json!({ "op": "exists", "path": p }));
+        assert_eq!(exists(other_spelling, plugin), Ok(json!(true)));
+        assert!(exists(asked, "another").is_err() || exists(asked, "another") == Ok(json!(false)));
+        let (program, mut args) = if cfg!(windows) {
+            ("cmd", vec!["/d".to_string(), "/c".into(), "type".into()])
+        } else {
+            ("cat", Vec::new())
+        };
+        args.push(asked.into());
+        let req = super::super::child::Request {
+            plugin: plugin.into(),
+            file: program.into(),
+            args,
+            ..Default::default()
+        };
+        let p = super::super::child::prepare(&req, &home).unwrap();
+        assert_eq!(
+            p.spec.args.last().unwrap(),
+            &real.to_string_lossy().into_owned()
+        );
+        let stat = fs_op_for(plugin, &home, &json!({ "op": "stat", "path": asked })).unwrap();
+        assert_eq!(stat["size"], json!(4));
+        forget_plugin(plugin, &home);
+        assert_eq!(unalias(plugin, asked), None);
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

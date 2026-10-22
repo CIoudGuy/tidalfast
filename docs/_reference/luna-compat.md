@@ -117,7 +117,7 @@ Notes that apply to every plugin:
 | @jxnxsdev/utils | jxnxsdev/luna-plugins | ✅ live r13 | Library. A probe plugin called its exports: LRC parser, `clamp`, `toRgbString`, `sanitizeSearchQuery`, `retryWithBackoff`, QR data URL, media snapshot and cover colours all work; `getTidalCredentials` asks for the TIDAL sign-in permission first. r20: no UI and no view changed, as in TIDAL. Whole-app walk (2026-10-21, every main view and the narrow window, against TidaLuna's): 1:1, no view changes; its card on the Plugins page. |
 | @jxnxsdev/streamer-tools | jxnxsdev/luna-plugins | ✅ live r13 | With its port setting moved off 2403 the overlay, widgets and `/_plugins` answer; unmatched routes answer 404. The default port 2403 fails with EACCES on PCs where Windows reserves it (machine-specific). 1:1 in the app (r20): no UI besides its settings, no view changed. |
 | @jxnxsdev/qr-share | jxnxsdev/luna-plugins | ✅ live r21 | 'Share via QR Code' is the last row of a track's and an album's menu, as in TIDAL. Its full-window overlay shows the 600-pixel card as TIDAL draws it (r21: the card's 12-pixel corners, the caption in Segoe UI Bold from its `bold 32px system-ui`, Save and Close in the browser's control font, Arial 13.33), Save's hover and Close checked. Differs only in the demo: the caption has no "by <artist>" and playlists have no QR row, because demo ids are not TIDAL's numbers or UUIDs. |
-| @jxnxsdev/audiovisualiser | jxnxsdev/luna-plugins | ⛔ by design | Its bars come from a whole-song analysis: on each song change it downloads the song (`MediaItem.download`), then `child_process.fork`s a worker script that runs `ffmpeg ... -f f32le` and sums eight bands per 128 samples. Tidalfast has no Node process to fork and runs no ffmpeg of its own, so the analysis cannot run. From r13 to 2026-10-22 Tidalfast answered that module by its file name with bands from the post-EQ tap and let its download save nothing; that was code for one plugin (owner rule: no per-plugin code, see `luna-plugins.md`), so it went, and the store labels it "Not supported". Its settings and bar layout still draw; the download asks for the save-audio permission like any other. A version that reads `AnalyserNode` (which Tidalfast feeds from the output tap) would work with no change here. |
+| @jxnxsdev/audiovisualiser | jxnxsdev/luna-plugins | 🔑 permission | Runs unmodified through Node's `child_process.fork` (2026-10-22). On each song change it downloads the song (`MediaItem.download("/MusicVis/Cache/<id>.flac")`, asks to save TIDAL songs as files; the file goes in the folder the user picks and keeps answering to the path the plugin named), writes a worker script to `os.tmpdir()` and forks it. The worker runs `execSync("ffmpeg -y -i <song> ... -f f32le <cwd>/temp.pcm")`, which asks to run ffmpeg like any plugin's program (the first song's analysis fails until the user answers, as a synchronous call cannot wait), sums eight bands per 128 samples with its own FFT and sends the timeline back over IPC; the bars play it. ffmpeg must be installed and on `PATH`, as in TidaLuna; Tidalfast ships none. Checked with a stand-in program named ffmpeg (this computer has none): the published plugin, installed from its store, analysed made-up songs in its forked worker (62,015 frames for 3 minutes; the next song about 30 s after a song change in a debug build, two workers at once) without holding up other plugins, and in the off-screen demo its 38 bars draw over the player bar and move with the song, as its code draws them (the demo's made-up songs have no TIDAL ids, so the demo window drew from an analysis made in the headless run: `real_audiovisualiser_analyses_songs_in_a_forked_process`, ignored, needs the network and an ffmpeg). Differs: its two workers (this song and the next) share one `temp.pcm` in the working directory, so one of a pair can fail, as in TidaLuna; and a song saved into a picked folder stays there (a plugin cannot delete in a folder the user picked). Its whole-song cache outgrows the 16 MB store; it trims it on `QuotaExceededError`, which Tidalfast now throws as Chromium does. |
 | @jxnxsdev/cover-colored-ui | jxnxsdev/luna-plugins | ✅ live r20 | 1:1: nothing until a song change, then every text and icon in one flat colour from the cover (`--cover-ui-color`), secondary text included. |
 | @jxnxsdev/custom-fonts | jxnxsdev/luna-plugins | ✅ live r21 | A chosen font (Comic Sans MS checked r21, Impact r13) draws every text. Its title rewrite and Comic Sans tag land in the title bar as in TIDAL (`._title_a453dad` is the app's name there), drawn once, since r21 as TIDAL draws it: at the title's 12 pixels, tilted 3 degrees with its words, its gold and pink text shadows, and its 2-pixel pink dashed border over the pink-to-blue gradient. Differs: the `skew(-3deg)` is not drawn, and the tilted tag's top pixel is cut by the 28-point bar (TIDAL's is 30). Its settings are drawn in `@luna/ui`'s look (see "Plugin settings"). The font file must be inside the plugin's data folder (a path like `C:\Windows\Fonts\...` is refused with EACCES, by design). |
 | @jxnxsdev/discord-utils | jxnxsdev/luna-plugins | 🔑 permission | Connects to its author's bridge server and hands it TIDAL's access token (`getCredentials`): asks for the TIDAL sign-in first; the prompt says the plugin can act as the user on TIDAL and send the sign-in anywhere. Its bridge itself was not run. r20: with no Discord ID it adds nothing, as in TIDAL (its socket's `window` listeners used to hide the playlist filter's outline). |
@@ -441,8 +441,10 @@ test (`src/luna/harden_tests.rs` unless named).
 - Storage. A store (a plugin's settings, or a named store) is written by a
   writer thread: the first change at once, later ones at most twice a
   second together, everything on sync and shutdown; a store is capped at
-  16 MB (`QuotaExceededError`; `storage::tests`). A plugin may keep 256 MB in
-  its data folder (`ENOSPC` past that; `fsops::tests`), and on Windows it
+  16 MB (`QuotaExceededError`; `storage::tests`; `localStorage.setItem` throws it
+  as Chromium does, a `DOMException` with code 22). A plugin may keep 256 MB in
+  its data folder (`ENOSPC` past that; `fsops::tests`); `os.tmpdir()` is a `tmp`
+  folder in it (the system's temporary folder is outside the sandbox), and on Windows it
   cannot write alternate data streams (`file:stream`, `EINVAL`), which the
   quota would not see. `fs.readFile`,
   `writeFile` and `appendFile` carry the bytes as they are, not as base64
@@ -693,8 +695,8 @@ Plugin elements in the player bar (a genre chip after the title, star ratings an
   no memory, no work per frame (the interface checks one counter).
 - CatJam (790x604 VP9 with alpha, 325 frames, drawn 52 points tall): see the
   measurements in `performance.md`.
-- The audiovisualiser's track analysis is not answered (see its row: it
-  forks a Node worker that runs ffmpeg). The DOM renderer gained what its bars need: `flex-grow`
+- The audiovisualiser's track analysis runs in a forked worker that runs
+  ffmpeg (see its row and `child_process.fork` below). The DOM renderer gained what its bars need: `flex-grow`
   shares in a fixed-width row, `align-items: flex-end`, and `scaleX`/`scaleY`
   as a stretch of the box.
 
@@ -763,7 +765,34 @@ Plugin elements in the player bar (a genre chip after the title, star ratings an
   (`native_addons_fail_with_the_reason_on_the_card`).
 - `child_process` (`src/luna/child.rs`, `src/luna/js/node.js`): off until the user says yes.
   `spawn`, `exec`, `execFile` and, for programs already allowed for good, `spawnSync`,
-  `execSync`, `execFileSync` work; `fork` does not exist (no Node to run a script).
+  `execSync`, `execFileSync` work, and `fork` runs a script of the plugin's in a process of
+  its own (below).
+  - **`fork(modulePath, args, options)`** (`src/luna/fork.rs`, `src/luna/js/fork.js`): the
+    script, read through the plugin's sandboxed `fs`, runs in a QuickJS runtime of its own on
+    a thread of its own, with `prelude.js` and `node.js`, as Node runs a forked script in a
+    process of its own. It is the plugin's own code, so nothing is asked: every host operation
+    it makes acts as that plugin (its files, its permissions, the programs the user allowed
+    it); file access runs on its thread with the same sandbox, everything else is checked on
+    the plugins' thread, and the events of programs, sockets and forks it opens and of its
+    async ops (`fetch`) go back to it. Like a process it has no watchdog (a script crunching
+    for seconds does not hold up the plugins) and its own 256 MB heap; `execSync` there waits
+    for the program as long as the program runs (`timeout`, or an hour), and stops when the
+    fork is killed. IPC as Node's: `child.send` / `process.send` with JSON, or
+    `serialization: "advanced"` (Map, Set, Date, RegExp, BigInt, typed arrays, errors,
+    `undefined`), `'message'`, `disconnect()` from either side, `connected`. The script gets
+    `process.argv` (`[execPath, modulePath, ...args]`), `execArgv`, `env`, `cwd` (the plugin's
+    data folder unless `cwd` is given), `require` of Node's modules and of its own files beside
+    it (CommonJS, or an ES module rewritten as for `.native` code), `__filename`. It ends as a
+    Node process does: `process.exit(code)`, or when nothing keeps it alive (no timer, no op,
+    program or socket in flight, no channel with a `'message'` or `'disconnect'` listener) after
+    `'beforeExit'`, with `'exit'`; an uncaught error is logged and ends it with code 1 (unless it
+    listens for `'uncaughtException'`); a missing script ends with code 1. The parent sees
+    `spawn`, `message`, `disconnect`, `exit` and `close`; `kill()` interrupts it at once
+    (`exit(null, "SIGTERM")`). Output goes to the plugin's log, or to `child.stdout` /
+    `child.stderr` with `silent: true` (or pipes in `stdio`, which must include `'ipc'`). At
+    most 4 per plugin and 8 in all (`EAGAIN`); they stop with their plugin. Not offered: a
+    child's `stdin`, passing handles with `send`, `process.chdir`, and unhandled promise
+    rejections do not end it. Tests: `src/luna/fork_tests.rs`.
   - **The prompt.** The first time a plugin starts a program, a dialog over the whole app
     says "<plugin> wants to run <program> on your computer", with the full path, the command
     line (shortened) and Allow once, Always allow, Deny. Esc and clicking outside deny.

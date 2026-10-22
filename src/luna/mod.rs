@@ -40,6 +40,7 @@ mod dnsq;
 pub mod dom;
 pub mod dom_anchors;
 pub mod downloads;
+mod fork;
 mod fsops;
 pub mod host;
 pub mod hotkeys;
@@ -605,10 +606,10 @@ const COMPAT: &[CompatRow] = &[
         "DesktopConnect",
         "It needs TIDAL's own remote control code, which Tidalfast does not have.",
     ),
-    not_supported(
+    needs_permission(
         "jxnxsdev/luna-plugins",
         "@jxnxsdev/audiovisualiser",
-        "It works out its bars with ffmpeg in a separate Node process, which Tidalfast does not have.",
+        "It works out its bars with ffmpeg, which must be installed, and asks your permission to save each song and to run ffmpeg.",
     ),
     needs_permission(
         "jxnxsdev/luna-plugins",
@@ -1011,6 +1012,9 @@ pub(crate) enum Msg {
     Net(net::NetEvent),
     /// A program a plugin started did something.
     Child(child::ChildEvent),
+    /// A forked process (`child_process.fork`) did something or asks for
+    /// an op.
+    Fork(fork::FromChild),
     /// The user answered a [`ProgramRequest`].
     ProgramAnswer {
         id: u64,
