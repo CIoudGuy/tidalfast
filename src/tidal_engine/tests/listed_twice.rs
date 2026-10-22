@@ -1,5 +1,7 @@
 //! A playlist that lists one song twice: a clicked row starts its own
-//! entry, not the song's first one.
+//! entry, not the song's first one. And Next or Previous pressed while a
+//! load still waits for its song moves from that song, in the playlist
+//! being loaded, never in the queue it replaces.
 
 use std::sync::Condvar;
 
@@ -168,6 +170,23 @@ fn wait_for_queue(engine: &Engine, expected: &[String]) {
     }
 }
 
+/// Waits up to `limit` for a state that passes `test`.
+fn within(
+    states: &Receiver<LocalState>,
+    limit: Duration,
+    test: impl Fn(&LocalState) -> bool,
+) -> Option<LocalState> {
+    let deadline = Instant::now() + limit;
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        match states.recv_timeout(left) {
+            Ok(state) if test(&state) => return Some(state),
+            Ok(_) => {}
+            Err(_) => return None,
+        }
+    }
+}
+
 /// Row 9 holds the song row 3 holds too. Double-clicked, row 9 plays,
 /// and Next up continues from row 10, as in TIDAL; it went back to row 3
 /// and followed on from row 4. Row 3 still starts its own entry. With the
@@ -230,4 +249,83 @@ fn a_sorted_views_second_copy_plays_from_its_own_place() {
     wait_for_queue(&engine, &view[9..]);
     engine.command(PlayerCommand::Previous).unwrap();
     until(&states, paused_on(&track(28).uri));
+}
+
+/// Next while a load still waits for its song (a row without its details
+/// waits for its page) is for that load: the song after the clicked row
+/// plays once its page is in. It started the next song of the queue being
+/// replaced, the way Play used to, which then played until the load took
+/// over.
+#[test]
+fn next_while_a_load_waits_plays_the_song_after_the_row() {
+    let catalog = Listed::new(0);
+    let (engine, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+    until(&states, |state| state.connected);
+    engine
+        .command(PlayerCommand::Load(LoadSpec {
+            uris: vec![track(1).uri, track(2).uri],
+            play: false,
+            ..LoadSpec::default()
+        }))
+        .unwrap();
+    let before = until(&states, paused_on("tidal:track:1"));
+
+    load_row(&engine, 5, false);
+    until(&states, |state| state.loading);
+    engine.command(PlayerCommand::Next).unwrap();
+    let moved = within(&states, Duration::from_millis(500), |state| {
+        state.track_sequence != before.track_sequence
+    });
+    assert!(
+        moved.is_none(),
+        "a song started before the load's: {:?}",
+        moved.and_then(|state| state.track).map(|track| track.uri)
+    );
+    catalog.allow_all();
+    until(&states, paused_on(&song_at(6).uri));
+    let mut expected = vec![song_at(6).uri];
+    expected.extend(rows_after(6));
+    wait_for_queue(&engine, &expected);
+}
+
+/// Previous while a load still waits for its song goes to the row above
+/// the clicked one, as Previous at the start of a song does; and so does
+/// Previous while the clicked song plays early, before the row above is
+/// known. It started the clicked song from its beginning instead.
+#[test]
+fn previous_while_a_load_waits_plays_the_row_above() {
+    for early in [false, true] {
+        let catalog = Listed::new(0);
+        let (engine, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+        until(&states, |state| state.connected);
+        load_row(&engine, 5, early);
+        if early {
+            until(&states, paused_on(&song_at(5).uri));
+        } else {
+            until(&states, |state| state.loading);
+        }
+        engine.command(PlayerCommand::Previous).unwrap();
+        thread::sleep(Duration::from_millis(100));
+        catalog.allow_all();
+        until(&states, paused_on(&song_at(4).uri));
+        engine.shutdown();
+    }
+}
+
+/// Next and then Previous while the load waits come back to the clicked
+/// song itself.
+#[test]
+fn next_then_previous_while_a_load_waits_plays_the_row() {
+    let catalog = Listed::new(0);
+    let (engine, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+    until(&states, |state| state.connected);
+    load_row(&engine, 9, false);
+    until(&states, |state| state.loading);
+    engine.command(PlayerCommand::Next).unwrap();
+    engine.command(PlayerCommand::Previous).unwrap();
+    catalog.allow_all();
+    until(&states, paused_on(&song_at(9).uri));
+    let mut expected = vec![song_at(9).uri];
+    expected.extend(rows_after(9));
+    wait_for_queue(&engine, &expected);
 }

@@ -10972,8 +10972,16 @@ impl App {
                 // Next names its expected destination so the row moves before
                 // the engine does. Previous has no forward queue row to name;
                 // discard that expectation or a quick Next, Previous leaves
-                // the row marker stuck on the skipped-to song.
-                self.intent_track = None;
+                // the row marker stuck on the skipped-to song. A song still
+                // loading from a click stays shown: the engine moves from it,
+                // and the song it replaces must not come back meanwhile.
+                let loading = self
+                    .intent_track
+                    .as_ref()
+                    .is_some_and(|intent| self.play_pending(&intent.uri));
+                if !loading {
+                    self.intent_track = None;
+                }
                 self.queue_start_pending = Some(self.target());
                 match self.target() {
                     Target::Local => self.backend.player(PlayerCommand::Previous),
@@ -17797,6 +17805,42 @@ mod tests {
         );
         assert_eq!(load.offset_uri.as_deref(), Some("tidal:track:twice"));
         assert_eq!(load.offset_row, None);
+        app.backend.shutdown();
+    }
+
+    /// Previous pressed while a double-clicked song is still loading keeps
+    /// that song shown: the engine moves from it, and the player bar went
+    /// back to the song the load replaces until the engine answered.
+    #[test]
+    fn previous_while_a_clicked_song_loads_keeps_it_shown() {
+        let ctx = egui::Context::default();
+        let mut app = headless_app();
+        app.local.track = Some(crate::player::LocalTrack {
+            uri: "tidal:track:old".into(),
+            ..Default::default()
+        });
+        app.local.playback = Playback::Playing;
+        app.apply(
+            Action::PlayFromRow {
+                context: RowContext::Context {
+                    uri: "tidal:playlist:e2".into(),
+                    editable_playlist: None,
+                },
+                uri: "tidal:track:clicked".into(),
+                index: 9,
+            },
+            &ctx,
+        );
+        assert_eq!(
+            app.current_track_uri().as_deref(),
+            Some("tidal:track:clicked")
+        );
+        app.apply(Action::Previous, &ctx);
+        assert_eq!(
+            app.current_track_uri().as_deref(),
+            Some("tidal:track:clicked"),
+            "the loading song stays the one shown"
+        );
         app.backend.shutdown();
     }
 
