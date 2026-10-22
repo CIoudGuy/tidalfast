@@ -1547,6 +1547,34 @@ fn tidals_window_variable_paints_the_window() {
     assert_eq!(themed(&base, &o), base);
 }
 
+/// TIDAL 2.43.2's backdrop layers of the now playing view carry more than
+/// their plain class: the cotton candy family and Sugarcoat hide
+/// `[class="now-playing-background-image"]` and its siblings by the exact
+/// attribute, which leaves TIDAL's blurred cover as without a theme (the
+/// cover's dark colours behind white words), while Tidal Light's
+/// `.now-playing-background-image { filter }` reaches it. Tidalfast's
+/// stand-ins had the one class, so the view took the pale window and its
+/// white words could not be read.
+#[test]
+fn exact_class_rules_leave_tidals_now_playing_backdrop() {
+    use dom_anchors::keys::{NP_BG_BLACK, NP_BG_GRADIENT, NP_BG_IMAGE};
+    let css = r#"/* {"name": "Pale view"} */
+[class="now-playing-black-bg"] { display: none; }
+[class="now-playing-background-image"] { display: none !important; }
+[class="now-playing-gradient-overlay"] { display: none !important; }
+.now-playing-gradient-overlay { background-color: rgb(250, 240, 245); }
+"#;
+    let (luna, o) = overlay_with("pale-view.css", css, dom_anchors::sample_tree(), NP_BG_GRADIENT);
+    luna.shutdown();
+    for key in [NP_BG_BLACK, NP_BG_IMAGE, NP_BG_GRADIENT] {
+        assert!(!o.hidden(key), "{key}");
+    }
+    assert!(
+        o.hosts[NP_BG_GRADIENT].style.background_color.is_some(),
+        "a class rule reaches the layer"
+    );
+}
+
 /// Lunallena's visible sidebar build pulls `#main` under the sidebar card
 /// and keeps it as wide as the window (`left: calc(var(--sidebarWidth) *
 /// -1); padding-left: 50px; min-width: 100vw`): TIDAL centres the album

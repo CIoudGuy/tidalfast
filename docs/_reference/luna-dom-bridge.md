@@ -714,7 +714,11 @@ installed takes the system's face for it (Consolas, DejaVu Sans Mono, Menlo,
 ...), as a browser does. TIDAL's now playing view has its three backdrop
 layers as plain-class anchors (`now-playing-black-bg`,
 `now-playing-background-image`, `now-playing-gradient-overlay`); a theme that
-hides the image takes the blurred cover away and the page shows behind. Canvas text measures and draws
+hides the image by its class takes the blurred cover away and the page shows
+behind. In TIDAL 2.43.2 the layers carry more than that class, so a rule for
+the exact attribute (`[class="now-playing-background-image"]`, the cotton
+candy family's) leaves TIDAL's cover; each stand-in has a second class
+(`now-playing-layer`) for that. Canvas text measures and draws
 with installed families too, so custom-fonts can tell which are installed.
 When plugins stop overriding, or Luna is turned off, the user's palette and
 fonts return.

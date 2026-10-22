@@ -1449,16 +1449,16 @@ main { background: unset !important; }
     let _ = std::fs::remove_dir_all(&data);
 }
 
-/// The cotton candy family hides TIDAL's three backdrop layers of the now
-/// playing view with exact plain classes, and Mocha Blue highlights the
-/// playing row through `data-test-is-playing`: both reach the anchors.
+/// Rules for TIDAL's three backdrop layers of the now playing view by their
+/// plain classes, and Mocha Blue's highlight of the playing row through
+/// `data-test-is-playing`: both reach the anchors.
 #[test]
 fn theme_rules_on_the_now_playing_backdrop_and_the_playing_row_reach_them() {
     use dom_anchors::keys::*;
     let css = r#"/* {"name": "Backdrop"} */
-[class="now-playing-black-bg"] { background: none !important; }
-[class="now-playing-gradient-overlay"] { display: none !important; }
-[class="now-playing-background-image"] { display: none !important; }
+.now-playing-black-bg { background: none !important; }
+.now-playing-gradient-overlay { display: none !important; }
+.now-playing-background-image { display: none !important; }
 [data-test-is-playing="true"], [class*="highlight"] { background-color: rgba(137, 180, 250, 0.14) !important; }
 button[aria-label="Play"] { background-color: #89b4fa !important; color: #11111b !important; }
 "#;

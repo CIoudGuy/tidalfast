@@ -58,8 +58,9 @@ pub fn backdrop_in(app: &mut App, ui: &mut egui::Ui, rect: Rect, clip: Rect) {
     // behind the page included.
     // TIDAL's own layers for it are the blurred cover
     // (`.now-playing-background-image`) and, as radiant-lyrics hides it, the
-    // view's background box; a theme hides either with a plain class
-    // selector (Cotton Candy's `[class="now-playing-background-image"]`).
+    // view's background box; a theme hides either with a class selector
+    // (`.now-playing-background-image`; the cotton candy family's rule for
+    // the exact attribute misses TIDAL's layer, which has more classes).
     if super::plugin_dom::on()
         && [
             crate::luna::dom_anchors::keys::NP_BACKGROUND,
