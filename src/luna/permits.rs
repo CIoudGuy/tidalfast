@@ -286,12 +286,16 @@ pub fn pipe_key(path: &str) -> Result<String, String> {
     }
     #[cfg(not(windows))]
     {
-        use std::path::{Component, Path};
+        use std::path::Path;
         let p = Path::new(path);
+        // The segments as written: `Path::components` drops a `.` inside a
+        // path, so `/tmp/./x` would pass as `/tmp/x` and be kept as a second
+        // grant for the same socket.
         if !p.is_absolute()
             || p.file_name().is_none()
-            || p.components()
-                .any(|c| matches!(c, Component::ParentDir | Component::CurDir))
+            || path
+                .split('/')
+                .any(|segment| segment == "." || segment == "..")
         {
             return Err(refuse());
         }
