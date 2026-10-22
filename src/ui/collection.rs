@@ -3909,7 +3909,7 @@ pub fn liked(app: &mut App, ui: &mut egui::Ui) {
     let title_rect = ui.painter().text(
         heading.left_center(),
         egui::Align2::LEFT_CENTER,
-        super::plugin_dom::page_title_text(&liked_title),
+        super::plugin_dom::headline_case(&super::plugin_dom::page_title_text(&liked_title)),
         super::plugin_dom::headline_font(27.0),
         super::plugin_dom::headline_color(palette.text),
     );

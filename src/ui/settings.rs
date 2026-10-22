@@ -376,7 +376,7 @@ fn page(app: &mut App, ui: &mut egui::Ui) {
     ui.add_space(19.0);
     theme::text(
         ui,
-        gettext(locale, "Settings"),
+        super::plugin_dom::headline_case(&gettext(locale, "Settings")),
         super::plugin_dom::headline_font(28.0),
         super::plugin_dom::headline_color(palette.text),
     );

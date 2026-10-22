@@ -138,7 +138,7 @@ fn heading(
         let width = ui
             .painter()
             .layout_no_wrap(
-                shelf.title.clone(),
+                super::plugin_dom::subheadline_case(&shelf.title).into_owned(),
                 super::plugin_dom::subheadline_font(19.0),
                 super::plugin_dom::subheadline_color(palette.text),
             )

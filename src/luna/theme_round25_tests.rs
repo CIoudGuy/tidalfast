@@ -126,6 +126,41 @@ fn a_library_rows_second_line_is_a_paragraph() {
     );
 }
 
+/// Giorgeous and Sunken Tidal set `h2 { text-transform: uppercase
+/// !important }`: TIDAL's section titles and the play queue's title are
+/// capitals ("YOUR FAVORITE ARTISTS", "PLAY QUEUE"). Tidalfast drew them
+/// as written. Page titles (TIDAL's `h1` and headline words) stay as they
+/// are under a rule for `h2` alone.
+#[test]
+fn headings_take_a_themes_text_transform() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Capitals"} */
+h2 { font-weight: 600 !important; text-transform: uppercase !important; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.queue_panel = Some((Some([900.0, 92.0, 350.0, 600.0]), false));
+    frame.queue_title = Some(("Play queue".into(), Some([920.0, 110.0, 200.0, 26.0])));
+    let (luna, o) = overlay_with(
+        "capitals.css",
+        css,
+        dom_anchors::build(&frame),
+        dom_anchors::keys::QUEUE_TITLE,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let section = pd::subheadline_case("Your favorite artists").into_owned();
+    let queue = pd::queue_title_case("Play queue").into_owned();
+    let page = pd::headline_case("Albums").into_owned();
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(section, "YOUR FAVORITE ARTISTS");
+    assert_eq!(queue, "PLAY QUEUE");
+    assert_eq!(page, "Albums");
+    assert_eq!(
+        pd::subheadline_case("Your favorite artists"),
+        "Your favorite artists"
+    );
+}
+
 /// TIDAL marks the open queue's button `_activeButton_122ab25`, which the
 /// cotton candy family paints as a rounded gradient square
 /// (`border-radius: .5em; background-image: linear-gradient(...)`). The
