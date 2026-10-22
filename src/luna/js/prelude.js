@@ -649,10 +649,16 @@
 	g.Event = Event;
 	g.CustomEvent = CustomEvent;
 	g.EventTarget = EventTarget;
+	// `code`: the legacy number browsers still give each named exception
+	// (a full store is QuotaExceededError, 22, which code checks for).
+	const DOM_CODES = { IndexSizeError: 1, HierarchyRequestError: 3, WrongDocumentError: 4, InvalidCharacterError: 5, NoModificationAllowedError: 7, NotFoundError: 8, NotSupportedError: 9, InvalidStateError: 11, SyntaxError: 12, InvalidModificationError: 13, NamespaceError: 14, InvalidAccessError: 15, TypeMismatchError: 17, SecurityError: 18, NetworkError: 19, AbortError: 20, URLMismatchError: 21, QuotaExceededError: 22, TimeoutError: 23, InvalidNodeTypeError: 24, DataCloneError: 25 };
 	g.DOMException ??= class DOMException extends Error {
 		constructor(message = "", name = "Error") {
 			super(message);
 			this.name = name;
+		}
+		get code() {
+			return DOM_CODES[this.name] ?? 0;
 		}
 	};
 	class AbortSignal extends EventTarget {
