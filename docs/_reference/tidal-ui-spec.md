@@ -213,5 +213,9 @@ alike. Normal widths (800 and up) are unchanged.
   width (228 at normal width).
 - Now playing without a tab: the cover leaves 105 either side (440 in the 650 beside the queue); at normal
   width it is limited by the height as before.
-- Not matched yet: Search's filter pills are one horizontally scrolled row in TIDAL (Tidalfast wraps them);
-  Explore's pill rows are cut at the content edge with no arrow.
+- Search's filter pills (`search::filter_pills`): one row, as TIDAL's (n08: Top results, Profiles, Tracks, then
+  Uploads cut by the page's right padding, no arrow or fade), 40 high with the 12 under them TIDAL's wrapper
+  keeps (the hairline stays 24 under the pills). It scrolls sideways with the wheel (whichever way it turns, until
+  the row's end, then the page takes it), a drag and the thumb that shows while it moves; at normal widths, where
+  the pills fit, nothing changed. Tidalfast used to wrap them to a second row.
+- Not matched yet: Explore's pill rows are cut at the content edge with no arrow.

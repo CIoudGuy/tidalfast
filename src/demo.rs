@@ -5287,6 +5287,170 @@ mod tests {
         }
     }
 
+    /// TIDAL keeps Search's filter pills in one row that scrolls sideways
+    /// (the wheel, a drag) when the page is too narrow for them, cut at the
+    /// page's padding; it did wrap them to a second row in Tidalfast.
+    #[test]
+    fn the_search_pills_are_one_row_that_scrolls_when_they_do_not_fit() {
+        use egui::accesskit::Role;
+        const LABELS: [&str; 6] = [
+            "Top results",
+            "Profiles",
+            "Tracks",
+            "Uploads",
+            "Albums",
+            "Playlists",
+        ];
+        let frame = |ctx: &egui::Context, app: &mut App, size: egui::Vec2, events| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                    events,
+                    ..Default::default()
+                },
+                |ui| app.frame_ui(ui),
+            );
+            output.textures_delta.clear();
+            output
+                .platform_output
+                .accesskit_update
+                .expect("screen-reader tree")
+        };
+        // Each pill's box, from the top-most button of its name (the pills
+        // sit above the results).
+        let pills = |tree: &egui::accesskit::TreeUpdate| {
+            LABELS.map(|label| {
+                tree.nodes
+                    .iter()
+                    .filter(|(_, node)| node.role() == Role::Button && node.label() == Some(label))
+                    .filter_map(|(_, node)| node.bounds())
+                    .min_by(|a, b| a.y0.total_cmp(&b.y0))
+                    .map(|b| {
+                        egui::Rect::from_min_max(
+                            egui::pos2(b.x0 as f32, b.y0 as f32),
+                            egui::pos2(b.x1 as f32, b.y1 as f32),
+                        )
+                    })
+                    .unwrap_or_else(|| panic!("no {label:?} pill"))
+            })
+        };
+        // At normal width they fit in one row, as they did.
+        let wide = egui::vec2(1280.0, 800.0);
+        let (ctx, mut app) = accessible_app("search-pills-wide");
+        app.open(Page::Search);
+        frame(&ctx, &mut app, wide, vec![]);
+        let tree = frame(&ctx, &mut app, wide, vec![]);
+        let row = pills(&tree);
+        assert!(row.iter().all(|p| p.top() == row[0].top()), "{row:?}");
+        assert!(row[5].right() <= wide.x, "all of them fit: {row:?}");
+        assert!((row[0].height() - 40.0).abs() < 0.5, "{row:?}");
+        // Pressing one still chooses it.
+        let centre = row[2].center();
+        frame(
+            &ctx,
+            &mut app,
+            wide,
+            pointer_click(centre, egui::PointerButton::Primary),
+        );
+        frame(&ctx, &mut app, wide, vec![]);
+        assert_eq!(app.search.filter, crate::model::SearchFilter::Songs);
+        app.backend.shutdown();
+
+        // Narrow, they stay one row that runs past the page's edge.
+        let size = egui::vec2(700.0, 800.0);
+        let (ctx, mut app) = accessible_app("search-pills-narrow");
+        app.open(Page::Search);
+        frame(&ctx, &mut app, size, vec![]);
+        let tree = frame(&ctx, &mut app, size, vec![]);
+        let start = pills(&tree);
+        assert!(
+            start.iter().all(|p| p.top() == start[0].top()),
+            "one row, not wrapped: {start:?}"
+        );
+        assert!(
+            start[5].right() > size.x,
+            "the last pill is past the edge: {start:?}"
+        );
+        let y = start[0].center().y;
+        // The wheel over the row moves it until the last pill is in view,
+        // and the page itself does not move.
+        let wheel = |delta: egui::Vec2| {
+            vec![
+                egui::Event::PointerMoved(egui::pos2(300.0, y)),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta,
+                    phase: egui::TouchPhase::Move,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ]
+        };
+        let mut tree = tree;
+        for _ in 0..40 {
+            if pills(&tree)[5].right() <= size.x {
+                break;
+            }
+            // Gently, so the row's end is not overshot: what is left of
+            // a wheel past it goes on to the page.
+            frame(&ctx, &mut app, size, wheel(egui::vec2(0.0, -20.0)));
+            tree = frame(&ctx, &mut app, size, vec![]);
+        }
+        for _ in 0..60 {
+            tree = frame(&ctx, &mut app, size, vec![]);
+        }
+        let end = pills(&tree);
+        assert!(
+            end[5].right() <= size.x,
+            "the last pill is in view: {end:?}"
+        );
+        assert_eq!(end[0].top(), start[0].top(), "the page did not move");
+        assert!(end[0].left() < start[0].left(), "the row moved");
+        // A drag from a pill carries the row back, and does not press the
+        // pill it started on.
+        let filter = app.search.filter;
+        let from = end[2].center();
+        let to = egui::pos2(from.x + 160.0, from.y);
+        frame(
+            &ctx,
+            &mut app,
+            size,
+            vec![
+                egui::Event::PointerMoved(from),
+                egui::Event::PointerButton {
+                    pos: from,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+        );
+        for step in 1..=8 {
+            let at = egui::pos2(from.x + 20.0 * step as f32, from.y);
+            frame(&ctx, &mut app, size, vec![egui::Event::PointerMoved(at)]);
+        }
+        frame(
+            &ctx,
+            &mut app,
+            size,
+            vec![egui::Event::PointerButton {
+                pos: to,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+        );
+        let tree = frame(&ctx, &mut app, size, vec![]);
+        let back = pills(&tree);
+        assert!(
+            back[0].left() > end[0].left() + 100.0,
+            "the drag moved the row: {} vs {}",
+            back[0].left(),
+            end[0].left()
+        );
+        assert_eq!(app.search.filter, filter, "the drag chose no pill");
+        app.backend.shutdown();
+    }
+
     /// With TIDAL's "Show collection in sidebar" the navigation is taller
     /// than a short window, or the room above the cover: it then scrolls
     /// with the playlists, so Downloaded can be reached. In a tall window
@@ -8606,11 +8770,14 @@ mod tests {
         app.backend.shutdown();
     }
 
-    /// Beside an open side panel the search filter pills wrap onto another
-    /// row instead of running past the page's edge, out of reach.
+    /// Beside an open side panel the search filter pills stay one row, as
+    /// TIDAL's, and run past the page's edge, cut there: the row scrolls
+    /// (the wheel, a drag) so the ones past it can be reached (they used to
+    /// wrap onto another row; see
+    /// `the_search_pills_are_one_row_that_scrolls_when_they_do_not_fit`).
     #[cfg(feature = "demo")]
     #[test]
-    fn search_filter_pills_stay_inside_a_narrow_page() {
+    fn search_filter_pills_are_one_row_cut_at_a_narrow_page() {
         fn page(app: &mut App, ui: &mut egui::Ui) {
             crate::ui::search::show(app, ui);
         }
@@ -8620,14 +8787,19 @@ mod tests {
         view_frame_sized(&ctx, &mut app, vec![], size, page);
         let painted = view_frame_sized(&ctx, &mut app, vec![], size, page);
         app.backend.shutdown();
-        let pill = painted
-            .iter()
-            .find(|(text, _)| text == "Playlists")
-            .expect("a Playlists pill");
+        let find = |label: &str| {
+            painted
+                .iter()
+                .find(|(text, _)| text == label)
+                .unwrap_or_else(|| panic!("a {label} pill"))
+                .1
+        };
+        let (first, last) = (find("Top results"), find("Playlists"));
+        assert_eq!(last.top(), first.top(), "one row, not wrapped");
         assert!(
-            pill.1.right() <= size.x,
-            "the Playlists pill ends at {}, past the {} point page",
-            pill.1.right(),
+            last.left() > size.x,
+            "the Playlists pill starts at {}, past the {} point page",
+            last.left(),
             size.x
         );
     }
