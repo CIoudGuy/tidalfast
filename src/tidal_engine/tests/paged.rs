@@ -260,3 +260,76 @@ fn first_song_time_with_slow_pages() {
     assert!(took[0] >= Duration::from_millis(1500));
     assert!(took[1] < Duration::from_millis(1000));
 }
+
+/// Waits up to `limit` for a state that passes `test`.
+fn within(
+    states: &Receiver<LocalState>,
+    limit: Duration,
+    test: impl Fn(&LocalState) -> bool,
+) -> Option<LocalState> {
+    let deadline = Instant::now() + limit;
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        match states.recv_timeout(left) {
+            Ok(state) if test(&state) => return Some(state),
+            Ok(_) => {}
+            Err(_) => return None,
+        }
+    }
+}
+
+/// Play or Space while a load still waits for its song (a context whose
+/// first page has not come) is for that load: it does not start the song
+/// of the queue being replaced again. The owner pressed Space during a
+/// long load and heard the previous song restart.
+#[test]
+fn play_during_a_load_does_not_restart_the_previous_song() {
+    let catalog = PagedCatalog::new(0, Duration::ZERO, true);
+    let (engine, states) = quiet_engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+    until(&states, |state| state.connected);
+    engine
+        .command(PlayerCommand::Load(LoadSpec {
+            context_uri: Some("tidal:track:1".into()),
+            play: false,
+            ..LoadSpec::default()
+        }))
+        .unwrap();
+    let before = until(&states, paused_on("tidal:track:1"));
+    // The artist from its start: nothing can play before its first page.
+    engine
+        .command(PlayerCommand::Load(LoadSpec {
+            context_uri: Some(ARTIST.into()),
+            play: true,
+            ..LoadSpec::default()
+        }))
+        .unwrap();
+    until(&states, |state| state.loading);
+    engine.command(PlayerCommand::Toggle).unwrap();
+    let restarted = within(&states, Duration::from_millis(500), |state| {
+        state.track_sequence != before.track_sequence
+    });
+    assert!(
+        restarted.is_none(),
+        "the previous song started again: {:?}",
+        restarted
+            .and_then(|state| state.track)
+            .map(|track| track.uri)
+    );
+    // Space turned the load's Play into a pause.
+    catalog.allow(PAGES);
+    let started = within(&states, Duration::from_secs(10), |state| {
+        state
+            .track
+            .as_ref()
+            .is_some_and(|track| track.uri == "tidal:track:10")
+            && !state.loading
+    })
+    .expect("the artist's first song starts");
+    assert_eq!(started.playback, Playback::Paused);
+    // And Space again plays it.
+    engine.command(PlayerCommand::Toggle).unwrap();
+    within(&states, Duration::from_secs(10), |state| {
+        state.playback == Playback::Playing
+    })
+    .expect("Space plays it");
+}

@@ -266,6 +266,7 @@ impl Engine {
                     factor: 1.0,
                     prefer_album: false,
                     shuffle_since_load: None,
+                    load_play: None,
                     load_id: 0,
                     live_load: Arc::default(),
                     autoplay_id: None,
@@ -490,6 +491,10 @@ struct Core {
     /// a context still being read starts in this mode, not the one the
     /// load was asked with.
     shuffle_since_load: Option<bool>,
+    /// Whether the load still resolving plays when its song starts: the
+    /// load's own wish, turned round by Play or Space meanwhile. `None`
+    /// with no load waiting for its song.
+    load_play: Option<bool>,
     load_id: u64,
     /// `load_id` as workers read it, so a context still being read page by
     /// page stops once another load replaces it.
@@ -853,6 +858,7 @@ impl Core {
     fn load(&mut self, spec: LoadSpec) {
         self.bump_load();
         self.shuffle_since_load = None;
+        self.load_play = Some(spec.play);
         let id = self.load_id;
         self.autoplay_id = None;
         self.autoplay_waiting = false;
@@ -864,6 +870,7 @@ impl Core {
         self.next = None;
         self.outgoing = None;
         if spec.context_uri.is_none() && spec.uris.is_empty() {
+            self.load_play = None;
             self.audio.stopped();
             self.update(|state| set(&mut state.error, Some("Nothing to play".into())));
             return;
@@ -985,10 +992,12 @@ impl Core {
         self.update(|state| set(&mut state.shuffle, shuffle));
         self.next = None;
         self.failures = 0;
-        self.start_track(first, spec.position_ms, spec.play, false);
+        let play = self.load_play.take().unwrap_or(spec.play);
+        self.start_track(first, spec.position_ms, play, false);
     }
 
     fn load_failed(&mut self, error: String) {
+        self.load_play = None;
         self.audio.stopped();
         let has_track = self.current.is_some();
         if !has_track {
@@ -1368,6 +1377,21 @@ impl Core {
             // comes, starts nothing.
             log::info!("paused while waiting for autoplay");
             return self.stop();
+        }
+        if self.current.is_none()
+            && let Some(play) = &mut self.load_play
+        {
+            // A load still on its way to its song: Play or Space decides
+            // whether it plays when it starts. The song of the queue it
+            // replaces does not start again meanwhile.
+            *play = !*play;
+            let held = !*play;
+            log::info!(
+                "{} once the loading song starts",
+                if held { "paused" } else { "playing" }
+            );
+            self.update(|state| set(&mut state.held_paused, held));
+            return;
         }
         if self.current.is_none() {
             // Stopped at the end: Play starts the last song again.
@@ -1807,6 +1831,7 @@ impl Core {
     /// Nothing more to play.
     fn stop(&mut self) {
         log::info!("playback stopped");
+        self.load_play = None;
         self.current = None;
         self.next = None;
         self.outgoing = None;
@@ -1936,6 +1961,7 @@ impl Core {
             (queue.current().cloned(), queue.shuffle(), queue.repeat())
         };
         self.bump_load();
+        self.load_play = None;
         self.update(|state| {
             let mut changed = set(&mut state.shuffle, shuffle);
             changed |= set(&mut state.repeat, repeat);
