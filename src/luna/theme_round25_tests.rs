@@ -1083,3 +1083,37 @@ fn the_pages_box_is_tidals_docked_player_box() {
     assert!(class.contains("_hasDockedPlayer_b3ed021"), "{class}");
     assert!(class.contains("_nowPlayingVisible_"), "{class}");
 }
+
+/// Tidal Light colours TIDAL's Collection chevron and the playlists'
+/// "+" and sort icons black (`._arrowRight_f57b400, ._icon_77f3f89 {
+/// color: var(--icon-solid) !important }`), as TIDAL shows them. The icons
+/// had no anchors, so they stayed Tidalfast's grey.
+#[test]
+fn the_sidebars_chevron_and_heading_icons_take_the_themes_colour() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{LIB_CREATE_ICON, LIB_SORT_ICON, sidebar_item_arrow};
+    let css = r#"/* {"name": "Black icons"} */
+:root { --icon-solid: #000; }
+._arrowRight_f57b400, ._icon_77f3f89 { color: var(--icon-solid) !important; fill: var(--icon-solid) !important; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.items.push(dom_anchors::SidebarItem {
+        test: "sidebar-collection-menu".into(),
+        label: "Collection".into(),
+        href: Some("/my-collection".into()),
+        selected: false,
+        rect: Some([16.0, 248.0, 208.0, 40.0]),
+    });
+    frame.sidebar.heading = Some([16.0, 320.0, 208.0, 40.0]);
+    let arrow = sidebar_item_arrow("sidebar-collection-menu");
+    let (luna, o) = overlay_with("black-icons.css", css, dom_anchors::build(&frame), &arrow);
+    pd::test_overlay(Some((*o).clone()));
+    let colors = [
+        pd::color(&arrow),
+        pd::color(LIB_CREATE_ICON),
+        pd::color(LIB_SORT_ICON),
+    ];
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(colors, [Some(egui::Color32::BLACK); 3]);
+}
