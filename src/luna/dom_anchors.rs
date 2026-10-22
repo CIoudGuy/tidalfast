@@ -231,6 +231,11 @@ pub mod keys {
     pub fn sidebar_item_label(test: &str) -> String {
         format!("sidebar:{test}:label")
     }
+    /// A navigation row's icon, the `svg` before its words
+    /// (TidalCustomTheme's `svg { fill }` colours it dark red in TIDAL).
+    pub fn sidebar_item_icon(test: &str) -> String {
+        format!("sidebar:{test}:icon")
+    }
     /// The chevron of a navigation row that opens a menu (Collection's
     /// `svg._arrowRight_f57b400`).
     pub fn sidebar_item_arrow(test: &str) -> String {
@@ -1222,6 +1227,12 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             node = node.attr("href", href.clone());
         }
         out.push(node);
+        // The row's icon, before its words as in TIDAL's markup.
+        out.push(el(
+            keys::sidebar_item_icon(&item.test),
+            Some(&keys::sidebar_item(&item.test)),
+            "svg",
+        ));
         out.push(
             el(
                 keys::sidebar_item_label(&item.test),

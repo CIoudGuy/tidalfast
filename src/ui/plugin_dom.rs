@@ -2075,6 +2075,15 @@ pub fn icon_fill(icon: &str, icon_use: &str) -> Option<Color32> {
     fill(icon_use).or_else(|| fill(icon))
 }
 
+/// The colour a theme gives one of the sidebar's icons (`key`, its `svg`):
+/// its `fill`, else its `color`. `None` without one.
+pub fn sidebar_icon(key: &str) -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    icon_fill(key, key).filter(|c| c.a() > 0)
+}
+
 /// A header pill's label font: the theme's size and weight on the label
 /// (Tidal TUI's 14-point labels), else `native`.
 pub fn pill_font(primary: bool, native: egui::FontId, weight: u16) -> egui::FontId {

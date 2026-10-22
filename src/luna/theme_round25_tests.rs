@@ -885,6 +885,25 @@ fn a_fill_on_the_sidebars_aside_colours_the_sidebar() {
     assert_eq!(fill, egui::Color32::from_rgb(0xf8, 0x9c, 0xbf));
 }
 
+/// TidalCustomTheme colours every `svg` dark red (`svg { color: #8a0022
+/// !important; fill: #8a0022 !important }`): TIDAL's navigation icons are
+/// dark red. The rows' icons had no anchors and kept Tidalfast's
+/// near-white.
+#[test]
+fn navigation_icons_take_a_themes_svg_colour() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Icons"} */
+svg { color: #8a0022 !important; fill: #8a0022 !important; }
+"#;
+    let key = dom_anchors::keys::sidebar_item_icon("sidebar-music");
+    let (luna, o) = overlay_with("nav-icons.css", css, dom_anchors::sample_tree(), &key);
+    pd::test_overlay(Some((*o).clone()));
+    let ink = pd::sidebar_icon(&key);
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(ink, Some(egui::Color32::from_rgb(0x8a, 0x00, 0x22)));
+}
+
 /// TIDAL's play queue panel is `#playQueueSidebar`: TidalCustomTheme's
 /// `#sidebar, #playQueueSidebar, ... { background-color:
 /// var(--kl-sidebar-color) !important }` makes it `#f89cbf` in TIDAL

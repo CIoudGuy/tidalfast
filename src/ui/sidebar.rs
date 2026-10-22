@@ -1491,7 +1491,13 @@ fn nav_row(
         }
         let icon_rect =
             Rect::from_center_size(pos2(rect.left() + 20.0, rect.center().y), Vec2::splat(18.0));
-        icon.image(color, 18.0).paint_at(ui, icon_rect);
+        // A theme's colour for the row's `svg` (TidalCustomTheme's dark
+        // red), else the row's.
+        let ink = super::plugin_dom::sidebar_icon(
+            &crate::luna::dom_anchors::keys::sidebar_item_icon(test),
+        )
+        .unwrap_or(color);
+        icon.image(ink, 18.0).paint_at(ui, icon_rect);
         // A theme's colour for the row's words themselves.
         let words =
             super::plugin_dom::nav_style(&crate::luna::dom_anchors::keys::sidebar_item_label(test))
