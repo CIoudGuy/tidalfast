@@ -39,6 +39,8 @@ mod dom_tests;
 mod import_tests;
 #[path = "parity_tests.rs"]
 mod parity_tests;
+#[path = "picked_path_tests.rs"]
+mod picked_path_tests;
 #[path = "plugin_batch4_tests.rs"]
 mod plugin_batch4_tests;
 #[path = "settings_tests.rs"]

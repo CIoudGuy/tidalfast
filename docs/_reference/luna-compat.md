@@ -179,7 +179,7 @@ Notes that apply to every plugin:
 | obs-now-playing | 0xVacent/tidal-luna-plugins | ✅ live r13 | `song.txt`, `songtime.txt` and `cover.png` are written to its output folder and follow the song and time every second; 17 settings render. |
 | WhyArentYouLooping | SowrenCode/luna-plugins | ✅ live r12 | Loads clean; it only loops `<video>` elements in the document (TIDAL's web player videos), of which Tidalfast has none, so there is nothing to do. |
 | SongDownloader ElVigilante | np3ir/songdownloader-store | 🔑 permission | FLAC downloader over `fetchMediaItemStream` and `fs` write streams: asks to save TIDAL songs as files at the first download, then writes into the folder the user picked in its dialog. Its remux and M4A tagging were not run. |
-| DownloadManager | Kisakay/luna-plugins | 🔑 permission | FLAC downloader (r26, project decision 2026-10-20: downloaders are a permission, off by default). Its downloads (`MediaItem.download`) ask to save TIDAL songs as files first; its lyrics and metadata files go through `fs` into folders the user picked. It was refused because "it froze the app at every start": its taskbar, fixed to the window's bottom edge, took every click in the window (fixed 2026-10-16, `a_fixed_bar_at_the_bottom_leaves_the_window_clickable`). Measured again (debug demo build, Luna busy time from `TIDALFAST_LUNA_STATS=1`, three restarts on the liked songs page): about 8 % of a core in the first 10 s and 4.3 to 5.3 % after, against 1.6 to 2 % without it (its layout pass walks `body *` every 5 s and after every DOM change), and the window answers clicks; no freeze. UI compared with captures from TIDAL: taskbar (Start, Downloader Manager, About, two-line clock), app 41 points shorter, the 520 x 560 window centred 80 down and the 400 x 540 start menu at left 8 / bottom 48 as in TIDAL (both ran to the window's edge: a larger `max-width` undid their width). r26 follow-up: the start menu's tiles wrap two to a line in its 400-point menu and its footer sits at its foot; the window's nav runs the window's height, its items 34 points tall with the open one's grey and blue bar across the nav; the empty-queue note is centred; the search box is its own white field. r27: the About window as in TIDAL: its paragraphs flow their bold words, code and links in the line (each element broke the line), its list has discs, its body scrolls inside the 440 x 540 window (it grew past the taskbar) and keeps its 24-point padding at the right, a tile label too long for its tile ends in "…", and "Output:" and the window titles are semibold as in TIDAL (TIDAL's body text is weight 500, which Chromium draws in Segoe UI's semibold; the plugin sets no weight, its buttons are the browser's normal weight). Its glyphs (`⬇`, `⚙`, `✓`) are Segoe UI Symbol's thin outlines (the emoji face drew a boxed arrow). Differs: its window icon (`🪟`) in the About list is drawn small; the avatar beside the window title shows only when github.com answers. No download was run (demo only). |
+| DownloadManager | Kisakay/luna-plugins | 🔑 permission | FLAC downloader (r26, project decision 2026-10-20: downloaders are a permission, off by default). Its downloads (`MediaItem.download`) ask to save TIDAL songs as files first; its lyrics and metadata files go through `fs` into folders the user picked. With its output asked each time (a save dialog for each song), its check of the folder the dialog chose failed and every download stopped with "Download folder unavailable" (fixed 2026-10-22: the folders above a pick answer `mkdir -p` and `access`, `picked_path_tests`; in the off-screen demo the same download now passes the check and reaches the download itself, which the demo's made-up songs, having no TIDAL ids, cannot finish). Differs in that mode: its lyrics and metadata files, which go beside the song, are not written, as only the file picked opens to it; with a folder as its output they are. A folder it keeps as its output from an earlier pick holds across restarts. It was refused because "it froze the app at every start": its taskbar, fixed to the window's bottom edge, took every click in the window (fixed 2026-10-16, `a_fixed_bar_at_the_bottom_leaves_the_window_clickable`). Measured again (debug demo build, Luna busy time from `TIDALFAST_LUNA_STATS=1`, three restarts on the liked songs page): about 8 % of a core in the first 10 s and 4.3 to 5.3 % after, against 1.6 to 2 % without it (its layout pass walks `body *` every 5 s and after every DOM change), and the window answers clicks; no freeze. UI compared with TIDAL's captures: taskbar (Start, Downloader Manager, About, two-line clock), app 41 points shorter, the 520 x 560 window centred 80 down and the 400 x 540 start menu at left 8 / bottom 48 as in TIDAL (both ran to the window's edge: a larger `max-width` undid their width). r26 follow-up: the start menu's tiles wrap two to a line in its 400-point menu and its footer sits at its foot; the window's nav runs the window's height, its items 34 points tall with the open one's grey and blue bar across the nav; the empty-queue note is centred; the search box is its own white field. r27: the About window as in TIDAL: its paragraphs flow their bold words, code and links in the line (each element broke the line), its list has discs, its body scrolls inside the 440 x 540 window (it grew past the taskbar) and keeps its 24-point padding at the right, a tile label too long for its tile ends in "…", and "Output:" and the window titles are semibold as in TIDAL (TIDAL's body text is weight 500, which Chromium draws in Segoe UI's semibold; the plugin sets no weight, its buttons are the browser's normal weight). Its glyphs (`⬇`, `⚙`, `✓`) are Segoe UI Symbol's thin outlines (the emoji face drew a boxed arrow). Differs: its window icon (`🪟`) in the About list is drawn small; the avatar beside the window title shows only when github.com answers. No download was run (demo only). |
 
 ## Themes
 
@@ -447,7 +447,17 @@ test (`src/luna/harden_tests.rs` unless named).
   its data folder (`ENOSPC` past that; `fsops::tests`); `os.tmpdir()` is a `tmp`
   folder in it (the system's temporary folder is outside the sandbox), and on Windows it
   cannot write alternate data streams (`file:stream`, `EINVAL`), which the
-  quota would not see. `fs.readFile`,
+  quota would not see. A file or folder the user picked for a plugin in a
+  file dialog it opened (`dialog.showOpenDialog` / `showSaveDialog`, any
+  form) opens to that plugin's `fs` as in TidaLuna: `access`, `stat`,
+  reading and writing it and, for a folder, making folders and files in it.
+  The folders above a pick answer `existsSync`, `access`, `stat` and a
+  `mkdir -p` that finds them there (a downloader checks the folder a save
+  dialog chose before writing the song), and nothing else: they are not
+  listed, read or written. Picks are kept per plugin in its record in
+  `plugins.json`, so a folder a plugin kept in its settings from an earlier
+  pick still opens after a restart; removing the plugin or Reset to
+  defaults takes them back (`picked_path_tests`). `fs.readFile`,
   `writeFile` and `appendFile` carry the bytes as they are, not as base64
   (a 100 MB model's base64 copies would not fit the 256 MB plugin heap).
 - Removing a plugin deletes everything it left (the trash button, or the
@@ -456,9 +466,10 @@ test (`src/luna/harden_tests.rs` unless named).
   where it was kept:
   - its code `code/<name>.mjs` (and a dev plugin's source map) and its record
     in `plugins.json` (enabled, hidden settings, programs and permissions it
-    was given with Always, what it has done);
-  - its data folder `data/<name>/` (files, downloaded models, depth caches),
-    its size and file dialog picks kept in memory;
+    was given with Always, the files and folders picked for it in file
+    dialogs, what it has done);
+  - its data folder `data/<name>/` (files, downloaded models, depth caches)
+    and its size kept in memory;
   - its settings in `settings/*.json`. A plugin names its own settings
     (3d-cover keeps them under `3DCover`), so the runtime remembers the keys
     each plugin used (`stored` in its record, `storage::StoredClaims`), and
