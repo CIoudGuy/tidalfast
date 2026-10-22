@@ -1579,6 +1579,20 @@ impl Backend {
     }
 }
 
+/// A backend dropped without [`Backend::shutdown`] stops its worker too.
+/// The worker holds a sender of its own command channel, so dropping the
+/// handle alone never ends it: its thread, runtime and engine stayed until
+/// the process exited. The app shuts down at quit; the test apps dropped
+/// without it kept theirs, about 1,600 of the 2,200 threads a full test run
+/// held at once, past macOS's per-process thread limit.
+impl Drop for Backend {
+    fn drop(&mut self) {
+        if self.thread.is_some() {
+            self.shutdown();
+        }
+    }
+}
+
 struct Worker {
     /// The runtime this worker runs on, for the threads outside it that
     /// block on it (the engine's catalogue).
@@ -4461,6 +4475,34 @@ mod quit_tests {
         backend.shutdown();
         let answer = lookup.join().expect("the lookup panicked at quit");
         assert_eq!(answer, None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A backend dropped without `shutdown` ends its worker (and with it
+    /// the runtime's and the engine's threads) before the drop returns.
+    /// Before, the worker kept its own command sender and ran until the
+    /// process exited.
+    #[test]
+    fn dropping_the_backend_stops_its_worker() {
+        let root = crate::paths::unique_test_dir("backend-drop-test");
+        let dirs = AppDirs {
+            config: root.join("config"),
+            state: root.join("state"),
+            cache: root.join("cache"),
+        };
+        let config = crate::app::engine_config(
+            &dirs,
+            &crate::settings::Settings::default(),
+            ProxyConfig::Off,
+            Arc::default(),
+        );
+        let backend = Backend::spawn(dirs, config, Waker::default(), false);
+        let commands = backend.commands.clone();
+        drop(backend);
+        assert!(
+            commands.is_closed(),
+            "the worker still takes commands after its backend was dropped"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }
