@@ -883,14 +883,10 @@
 			return callOp("audio.progress", { plugin, id: String(this.id) }) ?? undefined;
 		}
 		async download(path, audioQuality) {
-			// A plugin that downloads only to analyse the audio, whose
-			// analysis Tidalfast answers from the live output (media.js),
-			// gets nothing saved and no error.
+			// A download needs the user's permission (asked here at first
+			// use) and goes only where the user picked for this plugin
+			// (otherwise the app asks for a folder first).
 			const plugin = L.pluginFromStack() ?? L.running ?? null;
-			if (L.media?.liveAnalysis?.has(plugin)) return;
-			// Every other download needs the user's permission (asked here
-			// at first use) and goes only where the user picked for this
-			// plugin (otherwise the app asks for a folder first).
 			const target = Array.isArray(path) ? path.filter((p) => p !== undefined && p !== null && p !== "").map(String).join("/") : path;
 			if (typeof target !== "string" || target === "") throw new Error("MediaItem.download needs a file path");
 			await L.permit({ plugin, kind: "save_audio" });

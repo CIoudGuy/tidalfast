@@ -213,7 +213,7 @@ fn store_url(repo: &str, file: &str) -> String {
 }
 
 /// The labels hit exactly the store entries they name and no other entry of
-/// those stores: 15 of the 51 (one entry that only needs an outside account is left out of the list).
+/// those stores: 16 of the 51 (one entry that only needs an outside account is left out of the list).
 #[test]
 fn labels_match_their_store_entries_and_nothing_else() {
     let mut got: Vec<&str> = STORE_INDEX
@@ -225,7 +225,7 @@ fn labels_match_their_store_entries_and_nothing_else() {
     got.sort_unstable();
     want.sort_unstable();
     assert_eq!(got, want);
-    assert_eq!(got.len(), 15);
+    assert_eq!(got.len(), 16);
     // Every row targets an entry of the index, in the repository it names.
     for row in COMPAT {
         assert!(
@@ -372,6 +372,7 @@ const NEW_REASONS: &[&str] = &[
     "@jxnxsdev/discord-utils",
     "MediaKeysFixer",
     "@vmohammad/mpv",
+    "@jxnxsdev/audiovisualiser",
 ];
 
 /// The plugins that run once the user gives them a permission are labelled

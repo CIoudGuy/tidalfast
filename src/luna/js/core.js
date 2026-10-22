@@ -1274,9 +1274,7 @@
 	};
 	const registerNative = async (fileName, code) => {
 		const plugin = nativeOwner();
-		// A few natives Tidalfast answers itself (media.js: the
-		// audiovisualiser's ffmpeg analysis is measured from the output).
-		const exports = L.media?.nativeStandIn?.(plugin, fileName, code) ?? (await L.node.loadNative(plugin, fileName, code, nativeExports));
+		const exports = await L.node.loadNative(plugin, fileName, code, nativeExports);
 		nativeExports[fileName] = exports;
 		const channel = `__LunaNative.${fileName}`;
 		return channel;
