@@ -745,6 +745,31 @@ fn credits(app: &mut App, ui: &mut egui::Ui) {
 /// (a name cut half way, or one "…" per name left over, would run on past
 /// the line's end).
 pub(super) fn names(app: &mut App, ui: &mut egui::Ui, people: &[ArtistRef], font: egui::FontId) {
+    names_in(app, ui, people, font, (GREY, CYAN));
+}
+
+/// The play queue's artist names in `palette` (the queue's own): the
+/// view's grey, and TIDAL's cyan for a followed artist. Under a theme that
+/// paints a light window the names take its words' grey and its accent
+/// (Tidal Light's 70 % black and dark teal), as TIDAL's restyled words do,
+/// where the pale grey and bright cyan would not read on it.
+pub(crate) fn queue_name_colors(palette: &theme::Palette) -> (Color32, Color32) {
+    if palette.themed && !palette.dark {
+        (palette.secondary, palette.accent)
+    } else {
+        (GREY, CYAN)
+    }
+}
+
+/// [`names`] in `colors`: the plain names' and the followed artists'.
+pub(super) fn names_in(
+    app: &mut App,
+    ui: &mut egui::Ui,
+    people: &[ArtistRef],
+    font: egui::FontId,
+    colors: (Color32, Color32),
+) {
+    let (plain, follow) = colors;
     // egui keeps laid-out text in its cache, so measuring each frame is a
     // lookup, not a new layout.
     let width = |text: &str| {
@@ -771,23 +796,23 @@ pub(super) fn names(app: &mut App, ui: &mut egui::Ui, people: &[ArtistRef], font
     ui.spacing_mut().item_spacing.x = 0.0;
     for (index, person) in people[..shown].iter().enumerate() {
         if index > 0 {
-            theme::text(ui, ", ", font.clone(), GREY);
+            theme::text(ui, ", ", font.clone(), plain);
         }
         match &person.id {
             Some(id) => {
                 let followed = app.is_saved(&format!("tidal:artist:{id}")).unwrap_or(false);
-                let color = if followed { CYAN } else { GREY };
+                let color = if followed { follow } else { plain };
                 if theme::link(ui, &person.name, font.clone(), color).clicked() {
                     app.actions.push(Action::Open(Page::Artist(id.clone())));
                 }
             }
             None => {
-                theme::text(ui, &person.name, font.clone(), GREY);
+                theme::text(ui, &person.name, font.clone(), plain);
             }
         }
     }
     if clipped && kept > 0 {
-        theme::text(ui, ", \u{2026}", font, GREY);
+        theme::text(ui, ", \u{2026}", font, plain);
     }
     ui.spacing_mut().item_spacing.x = spacing;
 }

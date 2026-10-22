@@ -1127,7 +1127,8 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
             .max_rect(line(30.0))
             .layout(Layout::left_to_right(Align::Center)),
     );
-    super::now_playing::names(app, &mut artists_ui, &artists, theme::medium(13.0));
+    let colors = super::now_playing::queue_name_colors(&app.palette);
+    super::now_playing::names_in(app, &mut artists_ui, &artists, theme::medium(13.0), colors);
     let mut right = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(egui::Rect::from_min_max(
