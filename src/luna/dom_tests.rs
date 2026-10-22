@@ -3049,11 +3049,21 @@ setTimeout(go, 300);
     let mut t = tree();
     node(&mut t, keys::FOOTER).rect = Some([0.0, 700.0, 800.0, 90.0]);
     luna.sync_dom(t.clone());
-    let o = overlay_until(&luna, 10, |o| {
-        o.hosts
+    // Watched as the UI watches it, straight from the published overlay: a
+    // round trip to the runtime (`overlay_until`) would queue behind the
+    // read's wait and see the change only after the read gave up.
+    let end = Instant::now() + Duration::from_secs(10);
+    let o = loop {
+        let o = luna.dom_overlay();
+        if o.hosts
             .get(keys::FOOTER)
             .is_some_and(|h| h.style.min_width.as_deref() == Some("900px"))
-    });
+        {
+            break o;
+        }
+        assert!(Instant::now() < end, "the change never reached the overlay");
+        std::thread::sleep(Duration::from_millis(1));
+    };
     // The UI takes a while to draw it: the read 20 ms after the change
     // comes first.
     std::thread::sleep(Duration::from_millis(40));
