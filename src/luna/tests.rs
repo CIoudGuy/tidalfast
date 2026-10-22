@@ -838,6 +838,153 @@ fn real_discord_rpc_sets_activity_over_ipc() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The catalogue's songs playing, with every Discord IPC connect sent to a
+/// fake Discord of the test's own (never a Discord running on the computer).
+#[cfg(windows)]
+struct FakeDiscordHost {
+    catalogue: coverage_tests::CatalogueHost,
+    snap: Mutex<PlaybackSnapshot>,
+    pipe: String,
+}
+
+#[cfg(windows)]
+impl LunaHost for FakeDiscordHost {
+    fn playback(&self) -> PlaybackSnapshot {
+        self.snap.lock().unwrap().clone()
+    }
+    fn command(&self, _c: HostCommand) {}
+    fn track(&self, id: &str) -> Option<Value> {
+        self.catalogue.track(id)
+    }
+    fn album(&self, id: &str) -> Option<Value> {
+        self.catalogue.album(id)
+    }
+    fn artist(&self, id: &str) -> Option<Value> {
+        self.catalogue.artist(id)
+    }
+    fn outbound(&self, plugin: Option<&str>, request: &NetRequest) -> NetVerdict {
+        match request {
+            NetRequest::Ipc { .. } => NetVerdict::Redirect(self.pipe.clone()),
+            NetRequest::Fetch { url, .. } if url.contains("musicbrainz.org") => {
+                self.catalogue.outbound(plugin, request)
+            }
+            _ => NetVerdict::Allow,
+        }
+    }
+}
+
+/// The owner's DiscordRPC status said "Chapter 57 by Rihanna" while Rihanna's
+/// "Only Girl (In The World)" played: the real DiscordRPC plugin, unmodified,
+/// against a fake Discord, with MusicBrainz listing the audiobook chapter
+/// that shares the song's ISRC first. Needs the network to fetch the plugin.
+#[cfg(windows)]
+#[test]
+#[ignore]
+fn real_discord_rpc_names_the_playing_song() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let name = format!("discord-ipc-{}", 80 + std::process::id() % 9);
+    let path = format!(r"\\.\pipe\{name}");
+    let frames: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let f2 = frames.clone();
+    let p2 = path.clone();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async move {
+            use tokio::net::windows::named_pipe::ServerOptions;
+            let mut first = true;
+            loop {
+                let mut s = ServerOptions::new()
+                    .first_pipe_instance(first)
+                    .create(&p2)
+                    .unwrap();
+                first = false;
+                s.connect().await.unwrap();
+                loop {
+                    let mut hdr = [0u8; 8];
+                    if s.read_exact(&mut hdr).await.is_err() {
+                        break;
+                    }
+                    let op = u32::from_le_bytes(hdr[0..4].try_into().unwrap());
+                    let len = u32::from_le_bytes(hdr[4..8].try_into().unwrap()) as usize;
+                    let mut body = vec![0u8; len];
+                    if s.read_exact(&mut body).await.is_err() {
+                        break;
+                    }
+                    let v: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
+                    f2.lock().unwrap().push(v.clone());
+                    let reply = if op == 0 {
+                        json!({ "cmd": "DISPATCH", "evt": "READY", "data": { "v": 1, "user": { "id": "1", "username": "test", "discriminator": "0", "avatar": null }, "config": {} } })
+                    } else {
+                        json!({ "cmd": v["cmd"], "nonce": v["nonce"], "evt": null, "data": v["args"]["activity"] })
+                    };
+                    let b = serde_json::to_vec(&reply).unwrap();
+                    let mut out = 1u32.to_le_bytes().to_vec();
+                    out.extend((b.len() as u32).to_le_bytes());
+                    out.extend(b);
+                    if s.write_all(&out).await.is_err() {
+                        break;
+                    }
+                }
+            }
+        });
+    });
+    std::thread::sleep(Duration::from_millis(200));
+    let dir = temp_dir("discord-title");
+    let host = Arc::new(FakeDiscordHost {
+        catalogue: Default::default(),
+        snap: Mutex::new(PlaybackSnapshot {
+            queue: vec![QueueEntry {
+                id: "4".into(),
+                uid: "u".into(),
+                kind: "track".into(),
+            }],
+            current_index: Some(0),
+            state: PlaybackState::Playing,
+            desired_state: PlaybackState::Playing,
+            position: 34.0,
+            ..Default::default()
+        }),
+        pipe: path,
+    });
+    let luna = Luna::start(config(&dir), host.clone()).unwrap();
+    luna.install("https://github.com/Inrixia/luna-plugins/releases/download/latest/DiscordRPC");
+    luna.event(LunaEvent::TrackChanged { id: "4".into() });
+    luna.event(LunaEvent::PlaybackState(PlaybackState::Playing));
+    wait_until(&luna, 60, |_| {
+        frames
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|f| f["cmd"] == "SET_ACTIVITY" && f["args"]["activity"]["details"].is_string())
+    });
+    let f = frames
+        .lock()
+        .unwrap()
+        .iter()
+        .rfind(|f| f["cmd"] == "SET_ACTIVITY" && f["args"]["activity"]["details"].is_string())
+        .cloned()
+        .unwrap();
+    let a = &f["args"]["activity"];
+    assert_eq!(a["details"], "Only Girl (in the World)", "{a}");
+    assert_eq!(
+        a["name"], "Only Girl (in the World) by Artist 100, Artist 101",
+        "{a}"
+    );
+    assert_eq!(a["state"], "Artist 100, Artist 101", "{a}");
+    assert_eq!(a["buttons"][0]["url"], "https://tidal.com/track/4/u", "{a}");
+    // The song's own length, 34 seconds in.
+    let (start, end) = (
+        a["timestamps"]["start"].as_i64().unwrap(),
+        a["timestamps"]["end"].as_i64().unwrap(),
+    );
+    assert_eq!(end - start, 235_000, "{a}");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn dev_install_reloads_when_the_source_changes() {
     let dir = temp_dir("dev");
