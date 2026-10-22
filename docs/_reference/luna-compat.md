@@ -1744,13 +1744,23 @@ fails without it:
   structure, `#sidebar > div[class^="_listSection_"] > ...`, which the
   anchors do not have), and album titles that TIDAL draws as an `h2` in
   the header card (Giorgeous' green capitals).
+- Fourth follow-up: TIDAL fills its page and sidebar with its own
+  `--market-core-fill-black-color` (Sunken Tidal's grey 30); a
+  `[data-wave-color=textSecondary]` colour leaves TIDAL's grey words under
+  its own window (Lunallena's green and Synthwave '77's magenta card
+  subtitles, tabs and bar words); a `#main` as wide as the window runs
+  under the play queue too, so Lunallena centres its pages across the
+  window and the visible sidebar build no longer covers the page's start;
+  the now playing view's backdrop layers carry a second class, so the
+  cotton candy family's and Sugarcoat's exact `[class="now-playing-..."]`
+  rules leave TIDAL's cover behind the view's white words; and TIDAL's
+  colour on the navigation rows' class keeps a theme's `button { color }`
+  off the Collection row (Synthwave '77).
 
 Theme by theme, what still differs is in each row above. Shared by many:
 TIDAL's own layout changes a theme makes that Tidalfast's native views do
 not follow (the bar's clock moved under Play, page offsets, header
-collapses), letter spacing on section titles, TIDAL's
-glass blur, and the now-playing view under the cotton candy family, which
-stays the window's pale colour where TIDAL shows the cover's dark one.
+collapses), letter spacing on section titles and TIDAL's glass blur.
 
 ### Whole-app walks (27 plugins, 2026-10-21)
 
