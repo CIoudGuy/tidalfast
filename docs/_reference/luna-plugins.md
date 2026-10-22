@@ -54,7 +54,9 @@ limits" in `luna-compat.md`; the 2026-10-21 review's tests are in
   the shims' own records count: the owner of a socket, server or program is
   kept where plugin code cannot write it.
 - **Files.** `fs` reaches only the plugin's own data folder (256 MB) and what
-  the user picked for it in a file dialog: no `..`, absolute paths
+  the user picked for it in a file dialog (remembered per plugin until it is
+  removed or reset; the folders above a pick can only be checked, not
+  listed, read or written): no `..`, absolute paths
   elsewhere, symlinks or junctions out, network or device paths, and on
   Windows no alternate data streams. Another plugin's folder, settings and
   permissions are not reachable by name.
@@ -87,13 +89,14 @@ On the Plugins tab each card has the enable switch, Reload, Uninstall and a
 everything ("Factory Reset" in Luna's settings); Tidalfast adds one per plugin.
 It sits under the plugin's settings and shows while the plugin has stored
 anything (settings, stores, `localStorage` items, permissions given with
-Always) and its settings are not folded away. It asks first ("Reset X to its
+Always, files or folders picked for it) and its settings are not folded away. It asks first ("Reset X to its
 defaults? Its settings and saved data are cleared. Downloaded files stay.").
 
 - **Cleared:** its settings under every key it used (`StoredClaims`), the named
   stores and `idbStore` it opened, its `localStorage` items, its permission
-  answers and grants (Always included, programs and account writes too), and
-  the JS side's open settings objects. Then it loads again, so it starts with
+  answers and grants (Always included, programs and account writes too), the
+  files and folders picked for it in file dialogs, and the JS side's open
+  settings objects. Then it loads again, so it starts with
   its defaults.
 - **Kept:** the plugin itself (installed, same enabled state, same code), its
   data folder (downloaded models are not settings) and what it did so far

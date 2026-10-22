@@ -785,8 +785,8 @@ pub struct PluginInfo {
     /// The user folded the plugin's settings away (Luna's `hideSettings`).
     pub hide_settings: bool,
     /// The plugin has stored something (settings, stores, `localStorage`
-    /// items) or was given permissions for good: [`Luna::reset_plugin`] has
-    /// something to clear.
+    /// items), was given permissions for good or has files or folders the
+    /// user picked for it: [`Luna::reset_plugin`] has something to clear.
     pub has_stored: bool,
 }
 

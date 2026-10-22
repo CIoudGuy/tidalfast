@@ -153,6 +153,11 @@ struct PluginRecord {
     /// audio). Never exported and never imported.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     grants: Vec<super::Access>,
+    /// Files and folders the user picked for this plugin in a file dialog,
+    /// which its `fs` may use (see `fsops`); kept so a folder it saved in
+    /// its settings works in the next session too. Never exported.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    picks: Vec<super::fsops::Picked>,
     /// What the plugin has done (network, files, IPC, a server, native
     /// code), recorded by the ops that did it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -202,6 +207,9 @@ struct Inner {
     /// Workers for plugins' other asynchronous ops (`fetch`).
     requests: super::pool::Pool,
     records: Vec<PluginRecord>,
+    /// [`super::fsops::picks_version`] when the records last took in the
+    /// file dialog picks.
+    picks_seen: u64,
     rts: HashMap<String, PluginRt>,
     stores: Vec<String>,
     store_info: HashMap<String, StoreInfo>,
@@ -571,6 +579,27 @@ impl Inner {
         self.dirty = true;
     }
 
+    /// A file dialog (on a worker) gave a plugin a new pick: keep the picks
+    /// with the records, so they hold after a restart.
+    fn save_picks(&mut self) {
+        let now = super::fsops::picks_version();
+        if now == self.picks_seen {
+            return;
+        }
+        self.picks_seen = now;
+        let mut changed = false;
+        for r in &mut self.records {
+            let picks = super::fsops::picks_of(&r.name);
+            if picks != r.picks {
+                r.picks = picks;
+                changed = true;
+            }
+        }
+        if changed {
+            self.save_records();
+        }
+    }
+
     fn save_stores(&mut self) {
         let path = self.cfg.data_dir.join("stores.json");
         if let Err(e) = storage::write_json(&path, &json!(self.stores)) {
@@ -685,7 +714,8 @@ impl Inner {
                     has_stored: !r.stored.is_empty()
                         || !r.programs.is_empty()
                         || r.account_writes
-                        || !r.grants.is_empty(),
+                        || !r.grants.is_empty()
+                        || !r.picks.is_empty(),
                 }
             })
             .collect();
@@ -3967,6 +3997,7 @@ impl Engine {
                         programs: Vec::new(),
                         account_writes: false,
                         grants: Vec::new(),
+                        picks: Vec::new(),
                         used: Vec::new(),
                         stored: StoredClaims::default(),
                     });
@@ -4123,6 +4154,7 @@ impl Engine {
                 r.programs.clear();
                 r.account_writes = false;
                 r.grants.clear();
+                r.picks.clear();
                 // What another plugin shares is still claimed by this one.
                 r.stored.settings.retain(|k| !doomed.settings.contains(k));
                 r.stored.stores.retain(|k| !doomed.stores.contains(k));
@@ -4131,6 +4163,7 @@ impl Engine {
             i.permits.forget(name);
             i.writes.revoke(name);
             i.children.forget_plugin(name);
+            super::fsops::forget_picks(name);
             // The settings box described the values just cleared.
             i.rt(name).settings = None;
             i.save_records();
@@ -4554,6 +4587,8 @@ impl Engine {
             }
             Msg::ContextClick(id) => self.host_call("context_click", json!({ "id": id })),
             Msg::OpDone { id, ok, json } => {
+                // The op may have been a file dialog.
+                self.inner.borrow_mut().save_picks();
                 // A forked process's op goes back to it.
                 let json = self.inner.borrow_mut().forks.op_done(id, ok, json);
                 if let Some(json) = json {
@@ -4992,6 +5027,11 @@ fn dedupe_records(records: &mut Vec<PluginRecord>, data_dir: &std::path::Path) -
                 winner.grants.push(g.clone());
             }
         }
+        for p in &loser.picks {
+            if !winner.picks.contains(p) {
+                winner.picks.push(p.clone());
+            }
+        }
         if loser.name != winner.name {
             let _ =
                 std::fs::remove_file(Storage::new(data_dir.to_path_buf()).code_path(&loser.name));
@@ -5381,6 +5421,11 @@ fn setup_with(
             accelerator,
         });
     }));
+    // What the user picked for each plugin in file dialogs in earlier runs.
+    for r in records.iter().filter(|r| !r.picks.is_empty()) {
+        super::fsops::restore_picks(&r.name, &r.picks);
+    }
+    let picks_seen = super::fsops::picks_version();
     // Bodies a run that ended abruptly left half downloaded.
     super::downloads::sweep(&Storage::new(cfg.data_dir.clone()).spool_dir());
     let inner: S = Rc::new(RefCell::new(Inner {
@@ -5401,6 +5446,7 @@ fn setup_with(
         lookups: super::pool::Pool::new("lookup", LOOKUP_WORKERS, LOOKUPS_PER_PLUGIN),
         requests: super::pool::Pool::new("op", OP_WORKERS, OPS_PER_PLUGIN),
         records,
+        picks_seen,
         rts: HashMap::new(),
         stores,
         store_info: HashMap::new(),

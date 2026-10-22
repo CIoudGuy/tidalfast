@@ -7,7 +7,11 @@
 //! only `discord-ipc-*` entries, and existence checks are allowed for paths
 //! named `discord-ipc-*`. The other is a file or folder the user picked for
 //! the plugin in a native file dialog ([`grant`]): that path, and for a
-//! folder what is under it, can be read and written.
+//! folder what is under it, can be read and written. The folders above a
+//! pick can be checked (exists, `stat`, `access`, `mkdir -p` of a folder
+//! that is there), as Node answers for the folder a save dialog chose, but
+//! not listed, read or written. Picks are kept with the plugin's record
+//! ([`picks_of`], [`restore_picks`]), so they hold across restarts.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -161,6 +165,18 @@ type Pick = (PathBuf, bool);
 /// The most picks kept for one plugin; the oldest go first.
 const GRANTS_PER_PLUGIN: usize = 32;
 
+/// Bumped whenever a pick is added, so the runtime knows to save them.
+static GRANTS_VERSION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// A file or folder the user picked for a plugin, as kept with the plugin's
+/// record in `plugins.json`.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Picked {
+    pub path: PathBuf,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub folder: bool,
+}
+
 /// The user picked `path` for `plugin` in a file dialog: from now on its
 /// `fs` can reach exactly that (and, for a folder, what is in it).
 pub fn grant(plugin: &str, path: &Path, folder: bool) {
@@ -174,6 +190,47 @@ pub fn grant(plugin: &str, path: &Path, folder: bool) {
     list.push((path, folder));
     if list.len() > GRANTS_PER_PLUGIN {
         list.remove(0);
+    }
+    GRANTS_VERSION.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+}
+
+/// Changes with every [`grant`]: the runtime saves [`picks_of`] each plugin
+/// when it moved.
+pub fn picks_version() -> u64 {
+    GRANTS_VERSION.load(std::sync::atomic::Ordering::Acquire)
+}
+
+/// What the user picked for `plugin`, oldest first.
+pub fn picks_of(plugin: &str) -> Vec<Picked> {
+    granted_to(plugin)
+        .into_iter()
+        .map(|(path, folder)| Picked { path, folder })
+        .collect()
+}
+
+/// The picks saved for `plugin` by an earlier run: they replace what is
+/// known for it.
+pub fn restore_picks(plugin: &str, picks: &[Picked]) {
+    let skip = picks.len().saturating_sub(GRANTS_PER_PLUGIN);
+    let list: Vec<Pick> = picks[skip..]
+        .iter()
+        .filter(|p| p.path.is_absolute())
+        .map(|p| (normalize(&p.path), p.folder))
+        .collect();
+    let mut all = GRANTS.lock().unwrap_or_else(|e| e.into_inner());
+    let all = all.get_or_insert_with(Default::default);
+    if list.is_empty() {
+        all.remove(plugin);
+    } else {
+        all.insert(plugin.to_string(), list);
+    }
+}
+
+/// The plugin was reset to its defaults: nothing the user picked for it in
+/// a file dialog opens to it any more.
+pub fn forget_picks(plugin: &str) {
+    if let Some(all) = GRANTS.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+        all.remove(plugin);
     }
 }
 
@@ -268,6 +325,55 @@ fn granted_path(granted: &[Pick], p: &str) -> Option<PathBuf> {
         .then_some(wanted)
 }
 
+/// `p` when it is a folder above something the user picked (the folder a
+/// save dialog chose for the file, the drive a picked folder is on).
+fn ancestor_of_pick(granted: &[Pick], p: &str) -> Option<PathBuf> {
+    let raw = Path::new(p);
+    if granted.is_empty() || !raw.is_absolute() {
+        return None;
+    }
+    let wanted = normalize(raw);
+    granted
+        .iter()
+        .any(|(path, _)| *path != wanted && path.starts_with(&wanted))
+        .then_some(wanted)
+}
+
+/// An operation on a folder above a pick: it may be checked, as a plugin
+/// does before it writes the file the user chose in it, and nothing more.
+/// Node's `mkdir -p` of a folder that is there does nothing; one that is
+/// not there would make a folder the user did not pick, so it is refused.
+fn ancestor_op(path: &Path, p: &str, op: &str, arg: &Value) -> Result<Value, String> {
+    match op {
+        "exists" => Ok(json!(path.exists())),
+        "stat" => stat_json(path, p),
+        "mkdir" if path.is_dir() => {
+            if arg["recursive"].as_bool() == Some(true) {
+                Ok(Value::Null)
+            } else {
+                Err(format!("EEXIST: file already exists, mkdir '{p}'"))
+            }
+        }
+        _ => Err(format!(
+            "EACCES: permission denied, '{p}' is outside this plugin's data folder"
+        )),
+    }
+}
+
+/// `fs.stat`'s answer for `path`.
+fn stat_json(path: &Path, p: &str) -> Result<Value, String> {
+    let m = std::fs::metadata(path).map_err(|e| io_err(e, "stat", p))?;
+    let mtime = m
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as f64)
+        .unwrap_or(0.0);
+    Ok(
+        json!({ "size": m.len(), "file": m.is_file(), "dir": m.is_dir(), "mtimeMs": mtime, "mode": if m.is_dir() { 0o40755 } else { 0o100644 } }),
+    )
+}
+
 /// An operation on a path the user picked in a file dialog.
 fn granted_op(path: &Path, p: &str, op: &str, arg: &Value) -> Result<Value, String> {
     match op {
@@ -298,18 +404,7 @@ fn granted_op(path: &Path, p: &str, op: &str, arg: &Value) -> Result<Value, Stri
             }
             Ok(Value::Array(v))
         }
-        "stat" => {
-            let m = std::fs::metadata(path).map_err(|e| io_err(e, "stat", p))?;
-            let mtime = m
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                .map(|d| d.as_millis() as f64)
-                .unwrap_or(0.0);
-            Ok(
-                json!({ "size": m.len(), "file": m.is_file(), "dir": m.is_dir(), "mtimeMs": mtime, "mode": if m.is_dir() { 0o40755 } else { 0o100644 } }),
-            )
-        }
+        "stat" => stat_json(path, p),
         "realpath" => Ok(json!(path.to_string_lossy())),
         _ => Err(format!(
             "EACCES: permission denied, '{p}' is outside this plugin's data folder"
@@ -534,7 +629,15 @@ fn fs_op_within(home: &Path, arg: &Value, quota: u64, granted: &[Pick]) -> Resul
         return granted_op(&path, p, op, arg);
     }
     std::fs::create_dir_all(home).map_err(|e| io_err(e, "mkdir", &home.to_string_lossy()))?;
-    let path = resolve(home, p)?;
+    let path = match resolve(home, p) {
+        Ok(path) => path,
+        Err(refused) => {
+            return match ancestor_of_pick(granted, p) {
+                Some(path) => ancestor_op(&path, p, op, arg),
+                None => Err(refused),
+            };
+        }
+    };
     match op {
         "exists" => Ok(json!(path.exists())),
         "read" => std::fs::read(&path)
