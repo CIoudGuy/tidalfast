@@ -1591,13 +1591,11 @@ pub(super) const HEADER_NARROW: f32 = 600.0;
 /// at 662: Play, Shuffle, Added, Report and More).
 pub(super) const HEADER_MEDIUM: f32 = 800.0;
 
-/// OWNER DECISION PENDING (2026-10-22): TIDAL hides the header's More ("…")
-/// button in a page narrower than [`HEADER_NARROW`] (its album at 314 shows
-/// Play, Shuffle and Added only), which leaves no way to the album's menu
-/// there. Tidalfast keeps More for now. To match TIDAL, set this to
-/// `false`; nothing else needs to change. See "Narrow window" in
-/// `docs/_reference/tidal-ui-spec.md`.
-pub(super) const NARROW_HEADER_KEEPS_MORE: bool = true;
+/// Whether a header in a page narrower than [`HEADER_NARROW`] keeps its
+/// More ("…") button. TIDAL hides it there (its album at 314 shows Play,
+/// Shuffle and Added only), and so does Tidalfast (owner's decision,
+/// 2026-10-22). See "Narrow window" in `docs/_reference/tidal-ui-spec.md`.
+pub(super) const NARROW_HEADER_KEEPS_MORE: bool = false;
 
 /// Which of its captioned buttons a page header shows at its width.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -6034,7 +6032,9 @@ mod tests {
     #[test]
     fn playlist_refresh_lives_in_more_and_accepts_pointer_and_keyboard() {
         use egui::accesskit::{Action as AccessibleAction, ActionRequest, TreeId};
-        for width in [400.0, 800.0] {
+        // More (and so Refresh) shows from a 600-point header up; narrower,
+        // TIDAL hides More (`NARROW_HEADER_KEEPS_MORE`).
+        for width in [640.0, 800.0] {
             for activation in [None, Some(egui::Key::Enter), Some(egui::Key::Space)] {
                 let ctx = egui::Context::default();
                 ctx.enable_accesskit();
@@ -6872,10 +6872,10 @@ mod tests {
     }
 
     /// A header narrower than 600 keeps Play, Shuffle and its first button
-    /// (TIDAL's album at 314: Added) and, while the owner keeps it, More;
+    /// (TIDAL's album at 314: Added) but not More, which TIDAL hides there;
     /// Credits, Share and Download drop instead of wrapping under the pills.
     #[test]
-    fn a_header_narrower_than_600_keeps_its_first_button_and_more() {
+    fn a_header_narrower_than_600_keeps_only_its_first_button() {
         for width in [314.0, 400.0, 599.0] {
             let buttons = row_buttons(album_header, width);
             let names = names(&buttons);
@@ -6958,7 +6958,7 @@ mod tests {
     }
 
     /// A playlist's header in a page narrower than 600 has TIDAL's round,
-    /// icon-only Play and Shuffle (58), Edit and More beside them.
+    /// icon-only Play and Shuffle (58), and Edit beside them.
     #[test]
     fn a_stacked_playlist_header_has_round_play_and_shuffle() {
         let buttons = row_buttons(own_playlist_header, 314.0);
