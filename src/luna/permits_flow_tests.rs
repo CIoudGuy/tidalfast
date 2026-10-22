@@ -459,9 +459,12 @@ fn fake_program() -> FakeProgram {
             .unwrap()
             .as_nanos()
     );
+    // Directly in the test process's temporary folder: a socket path must be
+    // shorter than `sun_path` (104 bytes on macOS, whose temporary folder is
+    // already a long one under /var/folders), and the folder exists.
     #[cfg(not(windows))]
-    let path = temp_dir("permits-sock")
-        .join("program.sock")
+    let path = std::env::temp_dir()
+        .join(format!("pipe-{}.sock", rand::random::<u32>()))
         .to_string_lossy()
         .into_owned();
     let (counted, name) = (open.clone(), path.clone());
