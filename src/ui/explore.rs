@@ -12,7 +12,7 @@ use crate::api::models::{PageLink, PlayableItem, Shelf, ShelfItem};
 use crate::app::App;
 use crate::i18n::gettext;
 use crate::model::{Action, Loadable, Page, RowContext};
-use crate::theme::{self, Icon};
+use crate::theme::{self, Icon, Palette};
 
 use super::skeleton;
 use super::widgets::{self, TrackRow};
@@ -308,11 +308,12 @@ fn pill_row(app: &mut App, ui: &mut egui::Ui, links: &[PageLink]) {
     if let Some(target) = ui.ctx().data_mut(|data| data.remove_temp::<f32>(target_id)) {
         area = area.horizontal_scroll_offset(target);
     }
+    super::plugin_dom::cloud_row(row);
     let output = crate::autoscroll::show(ui, area, egui::Vec2b::new(true, false), |ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = PILL_GAP;
             for link in links {
-                if pill(ui, &link.title).clicked() {
+                if pill(ui, &palette, &link.title).clicked() {
                     open(app, &link.path, &link.title);
                 }
             }
@@ -387,7 +388,7 @@ fn paint_horizontal_gradient(ui: &egui::Ui, rect: Rect, left: Color32, right: Co
 }
 
 /// One of Explore's grey pills: 16-point semibold, 20 in from each side.
-fn pill(ui: &mut egui::Ui, label: &str) -> egui::Response {
+fn pill(ui: &mut egui::Ui, palette: &Palette, label: &str) -> egui::Response {
     let galley = ui.painter().layout_no_wrap(
         label.to_string(),
         theme::semibold(15.0),
@@ -396,24 +397,43 @@ fn pill(ui: &mut egui::Ui, label: &str) -> egui::Response {
     let size = vec2(galley.size().x + 2.0 * PILL_PADDING, PILL_HEIGHT);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+    // Under a theme, TIDAL's see-through fill or the theme's own.
+    let themed = super::plugin_dom::cloud_pill(rect, palette);
     if ui.is_rect_visible(rect) {
+        let (rest, hover) = match themed.and_then(|s| s.fill) {
+            // TIDAL's hover lightens the pill by about a twentieth of white.
+            Some(fill) => {
+                let white = egui::Rgba::from(Color32::from_white_alpha(13));
+                let over = white + egui::Rgba::from(fill) * (1.0 - white.a());
+                (fill, Color32::from(over))
+            }
+            None => (Color32::from_gray(50), Color32::from_gray(64)),
+        };
         let fill = crate::motion::color(
             ui.ctx(),
             response.id.with("fill"),
             response.hovered(),
-            Color32::from_gray(50),
-            Color32::from_gray(64),
+            rest,
+            hover,
             crate::motion::tidal::HOVER,
         );
-        ui.painter().rect_filled(rect, CornerRadius::same(12), fill);
-        ui.painter().galley(
-            pos2(
-                rect.left() + PILL_PADDING,
-                rect.center().y - galley.size().y / 2.0,
-            ),
-            galley,
-            Color32::from_gray(234),
+        let corner = themed
+            .and_then(|s| s.radius)
+            .map_or(12, |r| r.clamp(0.0, 255.0).round() as u8);
+        if fill.a() > 0 {
+            ui.painter()
+                .rect_filled(rect, CornerRadius::same(corner), fill);
+        }
+        let at = pos2(
+            rect.left() + PILL_PADDING,
+            rect.center().y - galley.size().y / 2.0,
         );
+        match themed.and_then(|s| s.color) {
+            Some(ink) => ui
+                .painter()
+                .galley_with_override_text_color(at, galley, ink),
+            None => ui.painter().galley(at, galley, Color32::from_gray(234)),
+        }
         theme::focus_ring(ui, &response);
     }
     response

@@ -89,3 +89,87 @@ fn shortcut_tiles_carry_their_kinds_link_class_and_id() {
     );
     assert_eq!(fills[2], Some(egui::Color32::from_rgb(1, 160, 70)), "mix");
 }
+
+/// TIDAL fills Explore's pills with `--wave-color-opacity-contrast-fill-thin`
+/// (20 % white, the grey over its black window): under a theme that paints
+/// a light window the pills are a paler shade of it (the cotton candy
+/// family), a theme's own token for it shows (Rose Pine), and a theme's rule
+/// on the pill (`div[data-test=page-links-cloud-row] > a`, TIDAL's
+/// `._button_3357ce6`) wins. Tidalfast drew them opaque charcoal under every
+/// theme. Without a theme nothing changes.
+#[test]
+fn explore_pills_take_tidals_thin_fill_or_the_themes() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom as pd;
+    let rect = |x: f32| egui::Rect::from_min_size(egui::pos2(x, 200.0), egui::vec2(90.0, 46.0));
+    let row = egui::Rect::from_min_size(egui::pos2(300.0, 200.0), egui::vec2(900.0, 46.0));
+    // The anchors Tidalfast notes for one row of two pills.
+    let noted = || {
+        let mut frame = dom_anchors::sample_frame();
+        if let Some(page) = frame.page.as_mut() {
+            page.cloud_rows = vec![Some([300.0, 200.0, 900.0, 46.0])];
+            page.cloud_pills = vec![
+                (0, Some([300.0, 200.0, 90.0, 46.0])),
+                (0, Some([410.0, 200.0, 90.0, 46.0])),
+            ];
+        }
+        dom_anchors::build(&frame)
+    };
+    let style = |css: &str, name: &str, key: &str| {
+        let (luna, o) = overlay_with(name, css, noted(), key);
+        let palette = pd::themed(&Palette::dark(), &o);
+        pd::test_overlay(Some((*o).clone()));
+        pd::test_page_frame();
+        pd::cloud_row(row);
+        let pills = [
+            pd::cloud_pill(rect(300.0), &palette),
+            pd::cloud_pill(rect(410.0), &palette),
+        ];
+        pd::test_overlay(None);
+        luna.shutdown();
+        (palette, pills)
+    };
+
+    let light = r#"/* {"name": "Pale window"} */
+#main { background-color: rgb(250, 190, 240); color: rgb(20, 10, 30); }
+"#;
+    let (palette, pills) = style(light, "pale-window.css", dom_anchors::keys::MAIN);
+    let pill = pills[0].expect("styled under a theme");
+    assert_eq!(pill.fill, Some(egui::Color32::from_white_alpha(51)));
+    assert_eq!(pill.color, Some(palette.text), "the page's words");
+
+    let token = r#"/* {"name": "Own token"} */
+:root { --wave-color-opacity-contrast-fill-thin: #e0c0f033; }
+"#;
+    let (_, pills) = style(token, "own-token.css", "");
+    assert_eq!(
+        pills[0].and_then(|p| p.fill),
+        Some(egui::Color32::from_rgba_unmultiplied(
+            0xe0, 0xc0, 0xf0, 0x33
+        ))
+    );
+
+    let rule = r#"/* {"name": "Pill rule"} */
+#main { background-color: rgb(8, 0, 20); }
+:root { --lollipop: 18, 6, 60; }
+._button_3357ce6 { background-color: rgb(var(--lollipop)); }
+[data-test="page-links-cloud-row"] > a:nth-child(2) { background: none; }
+"#;
+    let (_, pills) = style(rule, "pill-rule.css", &dom_anchors::keys::cloud_btn(1));
+    assert_eq!(
+        pills[0].and_then(|p| p.fill),
+        Some(egui::Color32::from_rgb(18, 6, 60))
+    );
+    assert_eq!(
+        pills[1].and_then(|p| p.fill),
+        Some(egui::Color32::TRANSPARENT),
+        "a rule clearing the second pill"
+    );
+
+    // No theme: the pill keeps Tidalfast's own grey.
+    pd::test_overlay(Some(DomOverlay::default()));
+    pd::test_page_frame();
+    pd::cloud_row(row);
+    assert_eq!(pd::cloud_pill(rect(300.0), &Palette::dark()), None);
+    pd::test_overlay(None);
+}

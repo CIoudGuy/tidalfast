@@ -1962,6 +1962,62 @@ pub fn page_link(hit: Rect, text: Rect) -> Option<NavStyle> {
     (style != NavStyle::default()).then_some(style)
 }
 
+/// A row of Explore's pills is drawn in `r`: its pills ([`cloud_pill`])
+/// follow in it.
+pub fn cloud_row(r: Rect) {
+    if !on() {
+        return;
+    }
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.cloud_rows.push(rect(r));
+        }
+    });
+}
+
+/// One of Explore's pills is drawn in `r`, in the last [`cloud_row`]:
+/// what a theme makes of it. TIDAL fills the pill with
+/// `--wave-color-opacity-contrast-fill-thin` (20 % white, the grey over its
+/// black window), so under a theme the page shows through it (the cotton
+/// candy family's pale pills, Rose Pine's own token) unless the theme's
+/// rules fill the pill themselves (the Nights family's `--card`, Black
+/// Glow's `a { background: none }`); its words are the page's. `None`
+/// without a theme: the pill keeps its own grey.
+pub fn cloud_pill(r: Rect, palette: &Palette) -> Option<NavStyle> {
+    if !on() {
+        return None;
+    }
+    let mut index = None;
+    note(|f| {
+        if let Some(p) = f.page.as_mut()
+            && let Some(row) = p.cloud_rows.len().checked_sub(1)
+        {
+            index = Some(p.cloud_pills.len());
+            p.cloud_pills.push((row, rect(r)));
+        }
+    });
+    let rules = index.and_then(|i| nav_style(&dom_anchors::keys::cloud_btn(i)));
+    let token = with(|s| {
+        let o = &s.overlay;
+        o.vars
+            .get("--wave-color-opacity-contrast-fill-thin")
+            .and_then(|v| css::color(&css::resolve_vars(v, &o.vars)))
+    });
+    // A theme of root tokens alone (Rose Pine) reaches the pill through its
+    // token; other pages' plugins leave it.
+    if !palette.themed && rules.is_none() && token.is_none() {
+        return None;
+    }
+    let mut style = rules.unwrap_or_default();
+    if style.fill.is_none() {
+        style.fill = Some(token.unwrap_or(Color32::from_white_alpha(51)));
+    }
+    if palette.themed {
+        style.color = style.color.or(Some(palette.text));
+    }
+    Some(style)
+}
+
 /// What a theme made of the top bar's search pill: the pill's fill and
 /// corners (`div._searchField_` and its `.searchFieldWithinSearchFieldWithPopover`
 /// wrapper) and the colour of its typed text and glyph (`input`'s `color`).
