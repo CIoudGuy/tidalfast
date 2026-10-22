@@ -4885,16 +4885,28 @@ fn luminance(c: Color32) -> f32 {
 /// plugin's background, else `native`. A page painted by a plugin
 /// ([`paint_page`]) shows through the main area and sidebar.
 /// The player bar's colour when a theme fills `#footerPlayer` itself:
-/// TIDAL lays its own glass (`#282828` at 75 %, its `::before`) over that
-/// fill unless the theme styles that `::before` too (the cotton candy
-/// family hides it). Measured: Tidal Amoled's black bar shows rgb(31, 31,
-/// 31) in TIDAL, Minimalist Black's `#181818` rgb(36, 36, 36). `fill` is
-/// the theme's colour, `under` what lies beneath a see-through one.
+/// TIDAL lays its own glass (`#282828` at 75 %) over that fill unless the
+/// theme styles the bar's `::before` (the cotton candy family hides it)
+/// or clears the background or backdrop filter of its `::after`, where
+/// the glass is (TidalCustomTheme's `[class^="_player_"]:after {
+/// background: none; backdrop-filter: none }` leaves its pink bar pink in
+/// TIDAL). Measured: Tidal Amoled's black bar shows rgb(31, 31, 31) in
+/// TIDAL, Minimalist Black's `#181818` rgb(36, 36, 36). `fill` is the
+/// theme's colour, `under` what lies beneath a see-through one.
 pub fn footer_under_glass(fill: Color32, under: Color32) -> Color32 {
     if !on() {
         return fill;
     }
-    let styled = host(dom_anchors::keys::FOOTER, |h, _| Some(h.before.is_some())).unwrap_or(true);
+    let styled = host(dom_anchors::keys::FOOTER, |h, _| {
+        let glass = h.after.as_ref().is_some_and(|a| {
+            a.background_color.is_some()
+                || a.background_image.is_some()
+                || a.backdrop_filter.is_some()
+                || a.display.is_some()
+        });
+        Some(h.before.is_some() || glass)
+    })
+    .unwrap_or(true);
     let themed = host(dom_anchors::keys::FOOTER, |h, vars| {
         Some(own_fill(h, vars).is_some())
     })
