@@ -89,6 +89,7 @@ pub fn radio(app: &mut App, ui: &mut egui::Ui, seed: &str) {
             title_color: None,
             radio: true,
             add_collaborator: None,
+            stack_narrow: false,
         },
     );
 
@@ -222,6 +223,7 @@ pub fn mix(app: &mut App, ui: &mut egui::Ui, id: &str) {
             title_color,
             radio: true,
             add_collaborator: None,
+            stack_narrow: false,
         },
     );
     let names = app.user_names_revision;

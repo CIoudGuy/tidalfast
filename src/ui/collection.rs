@@ -48,6 +48,9 @@ pub(super) struct Hero<'a> {
     pub radio: bool,
     /// An own playlist's id: its byline ends in TIDAL's "Add collaborator".
     pub add_collaborator: Option<String>,
+    /// A playlist's header, which stacks and centres in a narrow page
+    /// ([`stacked_header`]).
+    pub stack_narrow: bool,
 }
 
 #[derive(Default)]
@@ -139,13 +142,216 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
     // 0 16 32 black 40 % shadow, and the data column 32 to its right,
     // centred on the cover.
     ui.add_space(HERO_TOP);
-    let cover_size = if ui.available_width() > 720.0 {
-        HERO_ART
-    } else {
-        160.0
-    };
+    if hero.stack_narrow && ui.available_width() < HEADER_NARROW {
+        stacked_hero(app, ui, &hero, softened.as_ref());
+        ui.add_space(HERO_GAP);
+        return;
+    }
+    // A narrow page keeps the 240 cover and wraps the title beside it
+    // (TIDAL at 314); it used to shrink both.
+    let narrow = ui.available_width() <= HERO_NARROW;
+    let cover_size = HERO_ART;
     let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), cover_size), Sense::hover());
     let rect = Rect::from_min_size(row.min, Vec2::splat(cover_size));
+    hero_cover(app, ui, &hero, rect, softened.as_ref());
+    let left = rect.right() + 32.0;
+    let width = (row.right() - left).max(0.0);
+    let title_text = super::plugin_dom::page_title_text(hero.title).into_owned();
+    let title_color = hero.title_color.unwrap_or(palette.text);
+    let title = if narrow {
+        let lines = word_lines(
+            ui,
+            &title_text,
+            &super::plugin_dom::headline_font(32.0),
+            width,
+        );
+        super::plugin_dom::headline_galley(
+            ui,
+            lines.join("\n"),
+            super::plugin_dom::headline_font(32.0),
+            title_color,
+        )
+    } else {
+        let mut title_size: f32 = 32.0;
+        loop {
+            let galley = super::plugin_dom::headline_galley(
+                ui,
+                title_text.clone(),
+                super::plugin_dom::headline_font(title_size),
+                title_color,
+            );
+            if galley.size().x <= width || title_size <= 18.0 {
+                break galley;
+            }
+            title_size -= 2.0;
+        }
+    };
+    // The rows a wrapped title adds under its first.
+    let title_row = title.size().y / title.rows.len().max(1) as f32;
+    let title_extra = title.size().y - title_row;
+    let description = hero
+        .description
+        .as_deref()
+        .filter(|description| !description.is_empty())
+        .map(|description| {
+            widgets::ellipsized(
+                ui,
+                description,
+                theme::medium(14.0),
+                DESCRIPTION,
+                width.min(680.0),
+                2,
+            )
+        });
+    let meta_color = palette.text.gamma_multiply(0.8);
+    let lines = hero.meta.len().max(usize::from(hero.badge.is_some()));
+    // A narrow page wraps the meta lines (TIDAL: "20 / TRACKS (1:16:10)").
+    let metas: Vec<_> = (0..lines)
+        .map(|index| {
+            let text = hero.meta.get(index).map(String::as_str).unwrap_or("");
+            if narrow {
+                caps_galley_wrapped(ui, text, meta_color, width)
+            } else {
+                caps_galley(ui, text, meta_color, width)
+            }
+        })
+        .collect();
+    let meta_extra =
+        |galley: &egui::Galley| galley.size().y - galley.size().y / galley.rows.len().max(1) as f32;
+    // The block's height, to centre it on the cover: the 40-point title
+    // line, 10 to the byline, 26 past it, the description and 12 after it,
+    // and the meta lines 31 apart.
+    let byline_height = if hero.byline.is_empty() { 0.0 } else { 44.0 };
+    let has_meta = !(hero.meta.is_empty() && hero.badge.is_none());
+    // The description's 12-point gap only separates it from meta lines.
+    let description_height = description.as_ref().map_or(0.0, |galley| {
+        galley.size().y + if has_meta { 12.0 } else { 0.0 }
+    });
+    let meta_height = if !has_meta {
+        0.0
+    } else {
+        16.0 + 31.0 * (hero.meta.len().max(1) - 1) as f32
+            + 3.0
+            + metas.iter().map(|galley| meta_extra(galley)).sum::<f32>()
+    };
+    let block = 40.0 + title_extra + 10.0 + byline_height + description_height + meta_height;
+    let mut y = (rect.center().y - block / 2.0).max(rect.top());
+    let block_top = y;
+    let title_rect = Rect::from_min_size(pos2(left, y + (40.0 - title_row) / 2.0), title.size());
+    ui.painter().galley(title_rect.min, title, title_color);
+    super::plugin_dom::page_title(ui, hero.title, title_rect, false);
+    // A description straight under the title sits 49 below its top
+    // (TIDAL's mix subtitle).
+    y += title_extra
+        + if hero.byline.is_empty() && description.is_some() {
+            49.0
+        } else {
+            50.0
+        };
+    if !hero.byline.is_empty() {
+        hero_byline(
+            app,
+            ui,
+            &hero,
+            Rect::from_min_size(pos2(left, y), vec2(width, 20.0)),
+        );
+        y += 44.0;
+    }
+    if let Some(description) = description {
+        let height = description.size().y;
+        ui.painter().galley(pos2(left, y), description, DESCRIPTION);
+        y += height + 12.0;
+    }
+    let mut meta_top = y;
+    for (index, galley) in metas.into_iter().enumerate() {
+        let text = hero.meta.get(index).map(String::as_str).unwrap_or("");
+        let text_width = galley.size().x;
+        let extra = meta_extra(&galley);
+        let row_height = galley.size().y - extra;
+        meta_top = y;
+        ui.painter().galley(
+            pos2(left, y + (16.0 - row_height) / 2.0),
+            galley,
+            meta_color,
+        );
+        // The quality badge closes the last line, 8 after its text.
+        if index + 1 == lines
+            && let Some(badge) = hero.badge
+        {
+            let x = if text.is_empty() {
+                left
+            } else {
+                left + text_width + 8.0
+            };
+            quality_badge(ui, pos2(x, y + extra + 8.0), badge);
+        }
+        y += 31.0 + extra;
+    }
+    if super::plugin_dom::on() {
+        let data = Rect::from_min_max(pos2(left, block_top), pos2(left + width, y.max(block_top)));
+        let meta = hero.meta.last().map(|date| {
+            let line = Rect::from_min_size(pos2(left, meta_top), vec2(width, 16.0));
+            (line, date.as_str())
+        });
+        super::plugin_dom::page_header(data, meta);
+        super::plugin_slots::at(
+            ui,
+            crate::luna::dom_anchors::keys::PAGE_DATA,
+            crate::luna::dom::Position::Append,
+            pos2(left, y),
+            egui::Align2::LEFT_TOP,
+        );
+    }
+    // A wrapped title can make the block taller than the cover.
+    let bottom = block_top + block;
+    if narrow && bottom > row.bottom() {
+        ui.add_space(bottom - row.bottom());
+    }
+    ui.add_space(HERO_GAP);
+}
+
+/// A page header narrower than this keeps the 240 cover and wraps its title
+/// and meta lines instead of shrinking them (TIDAL's album and mix at 314).
+const HERO_NARROW: f32 = 720.0;
+/// The cover of a stacked playlist header ([`HEADER_NARROW`], TIDAL: 192).
+const STACKED_ART: f32 = 192.0;
+
+/// `text` broken into lines at its spaces, each as wide as fits `width` in
+/// `font`; a word wider than that keeps its own line whole (TIDAL's title
+/// wraps word by word and runs to the page's edge, where it is cut).
+fn word_lines(ui: &egui::Ui, text: &str, font: &egui::FontId, width: f32) -> Vec<String> {
+    let measure = |line: &str| {
+        ui.painter()
+            .layout_no_wrap(line.to_string(), font.clone(), egui::Color32::PLACEHOLDER)
+            .size()
+            .x
+    };
+    let mut lines: Vec<String> = Vec::new();
+    for word in text.split(' ').filter(|word| !word.is_empty()) {
+        match lines.last_mut() {
+            Some(line) if measure(&format!("{line} {word}")) <= width => {
+                line.push(' ');
+                line.push_str(word);
+            }
+            _ => lines.push(word.to_string()),
+        }
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines
+}
+
+/// The header's cover, `rect`: TIDAL's shadow and corners, or a theme's,
+/// the liked songs' gradient, and the animated cover over the still one.
+fn hero_cover(
+    app: &App,
+    ui: &egui::Ui,
+    hero: &Hero<'_>,
+    rect: Rect,
+    softened: Option<&egui::TextureHandle>,
+) {
+    let palette = app.palette;
     // TIDAL prints no kind ("Album", "Playlist"); a screen reader still
     // hears it with the cover.
     let cover = ui.interact(rect, ui.id().with("hero-cover"), Sense::hover());
@@ -162,7 +368,7 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
     let art_filter = themed.as_ref().and_then(|s| s.filter.clone());
     let art_themed = themed.is_some();
     let radius = if hero.round {
-        cover_size / 2.0
+        rect.width() / 2.0
     } else {
         themed.as_ref().and_then(|s| s.radius).unwrap_or(2.0)
     };
@@ -190,7 +396,7 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
             widgets::CoverSources {
                 requested: hero.images.image,
                 previous: hero.images.previous,
-                softened: softened.as_ref(),
+                softened,
                 thumbnail: hero.images.thumbnail,
                 align_thumbnail: hero.images.align_thumbnail,
                 filter: art_filter.as_ref(),
@@ -214,171 +420,202 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
             );
         }
     }
-    let left = rect.right() + 32.0;
-    let width = (row.right() - left).max(0.0);
-    let mut title_size: f32 = if cover_size > 200.0 { 32.0 } else { 24.0 };
-    let title = loop {
-        let galley = super::plugin_dom::headline_galley(
-            ui,
-            super::plugin_dom::page_title_text(hero.title).into_owned(),
-            super::plugin_dom::headline_font(title_size),
-            hero.title_color.unwrap_or(palette.text),
-        );
-        if galley.size().x <= width || title_size <= 18.0 {
-            break galley;
-        }
-        title_size -= 2.0;
+}
+
+/// The byline's width: the avatar, the names and the "Add collaborator"
+/// button, for a centred byline.
+fn byline_width(ui: &egui::Ui, hero: &Hero<'_>) -> f32 {
+    let font = theme::semibold(14.0);
+    let measure = |text: &str| {
+        ui.painter()
+            .layout_no_wrap(text.to_string(), font.clone(), egui::Color32::PLACEHOLDER)
+            .size()
+            .x
     };
+    let names: f32 = hero.byline.iter().map(|(text, _)| measure(text)).sum();
+    let commas = hero.byline.len().saturating_sub(1) as f32 * measure(", ");
+    let avatar = if hero.avatar.is_some() { 30.0 } else { 0.0 };
+    let invite = if hero.add_collaborator.is_some() {
+        32.0
+    } else {
+        0.0
+    };
+    avatar + names + commas + invite
+}
+
+/// The header's byline in `byline`, a 20-point row: the owner's picture,
+/// the names (links where they lead somewhere) and an own playlist's "Add
+/// collaborator".
+fn hero_byline(app: &mut App, ui: &mut egui::Ui, hero: &Hero<'_>, byline: Rect) {
+    let palette = app.palette;
+    let art = app.backend.art().clone();
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(byline)
+            .layout(Layout::left_to_right(Align::Center)),
+    );
+    child.set_clip_rect(byline.intersect(ui.clip_rect()));
+    child.spacing_mut().item_spacing.x = 10.0;
+    if let Some(avatar) = &hero.avatar {
+        let (avatar_rect, _) = child.allocate_exact_size(Vec2::splat(20.0), Sense::hover());
+        let url = match avatar {
+            Avatar::Placeholder => None,
+            Avatar::Url(url) => Some(url.as_str()),
+        };
+        widgets::paint_cover(
+            &child,
+            &palette,
+            url,
+            avatar_rect,
+            10.0,
+            Icon::User,
+            Some(&art),
+        );
+    }
+    child.spacing_mut().item_spacing.x = 0.0;
+    let link = palette.text.gamma_multiply(0.8);
+    for (index, (text, page)) in hero.byline.iter().enumerate() {
+        if index > 0 {
+            theme::text(&mut child, ", ", theme::semibold(14.0), link);
+        }
+        match page {
+            Some(page) => {
+                if theme::link(&mut child, text, theme::semibold(14.0), link).clicked() {
+                    app.actions.push(Action::Open(page.clone()));
+                }
+            }
+            None => {
+                theme::text(&mut child, text, theme::semibold(14.0), palette.secondary);
+            }
+        }
+    }
+    // An own playlist's "Add collaborator": a 24-point round button 8
+    // after the owner's name.
+    if let Some(playlist_id) = &hero.add_collaborator {
+        child.set_clip_rect(byline.expand(4.0).intersect(ui.clip_rect()));
+        child.add_space(8.0);
+        let (rect, response) = child.allocate_exact_size(Vec2::splat(24.0), Sense::click());
+        let fill = if palette.dark {
+            egui::Color32::from_white_alpha(if response.hovered() { 26 } else { 13 })
+        } else {
+            palette.surface_active
+        };
+        child.painter().circle_filled(rect.center(), 12.0, fill);
+        theme::paint_icon(&child, Icon::Plus, rect, 12.0, palette.secondary);
+        let name = gettext(app.locale, "Add collaborator");
+        response.widget_info(|| {
+            egui::WidgetInfo::labeled(egui::WidgetType::Button, true, name.as_ref())
+        });
+        if response
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .clicked()
+        {
+            app.actions
+                .push(Action::ShowDialog(crate::model::Dialog::Collaborators {
+                    playlist_id: playlist_id.clone(),
+                }));
+        }
+    }
+}
+
+/// A playlist's header in a page narrower than [`HEADER_NARROW`], stacked
+/// and centred as in TIDAL (at 314): the 192 cover, the title 20 under it
+/// wrapped word by word, the byline, the description and the meta line; the
+/// round Play and Shuffle follow ([`stacked_header`]).
+fn stacked_hero(
+    app: &mut App,
+    ui: &mut egui::Ui,
+    hero: &Hero<'_>,
+    softened: Option<&egui::TextureHandle>,
+) {
+    let palette = app.palette;
+    let width = ui.available_width();
+    let font = super::plugin_dom::headline_font(32.0);
+    let title_color = hero.title_color.unwrap_or(palette.text);
+    let title_text = super::plugin_dom::page_title_text(hero.title).into_owned();
+    let titles: Vec<_> = word_lines(ui, &title_text, &font, width)
+        .into_iter()
+        .map(|line| super::plugin_dom::headline_galley(ui, line, font.clone(), title_color))
+        .collect();
+    let title_row = titles.first().map_or(0.0, |galley| galley.size().y);
     let description = hero
         .description
         .as_deref()
         .filter(|description| !description.is_empty())
         .map(|description| {
-            widgets::ellipsized(
-                ui,
-                description,
-                theme::medium(14.0),
-                DESCRIPTION,
-                width.min(680.0),
-                2,
-            )
+            widgets::ellipsized(ui, description, theme::medium(14.0), DESCRIPTION, width, 2)
         });
-    // The block's height, to centre it on the cover: the 40-point title
-    // line, 10 to the byline, 26 past it, the description and 12 after it,
-    // and the meta lines 31 apart.
-    let byline_height = if hero.byline.is_empty() { 0.0 } else { 44.0 };
-    let has_meta = !(hero.meta.is_empty() && hero.badge.is_none());
-    // The description's 12-point gap only separates it from meta lines.
-    let description_height = description.as_ref().map_or(0.0, |galley| {
-        galley.size().y + if has_meta { 12.0 } else { 0.0 }
-    });
-    let meta_height = if !has_meta {
-        0.0
-    } else {
-        16.0 + 31.0 * (hero.meta.len().max(1) - 1) as f32 + 3.0
-    };
-    let block = 40.0 + 10.0 + byline_height + description_height + meta_height;
-    let mut y = (rect.center().y - block / 2.0).max(rect.top());
-    let block_top = y;
-    let title_rect =
-        Rect::from_min_size(pos2(left, y + (40.0 - title.size().y) / 2.0), title.size());
-    ui.painter().galley(
-        title_rect.min,
-        title,
-        hero.title_color.unwrap_or(palette.text),
-    );
-    super::plugin_dom::page_title(ui, hero.title, title_rect, false);
-    // A description straight under the title sits 49 below its top
-    // (TIDAL's mix subtitle).
-    y += if hero.byline.is_empty() && description.is_some() {
-        49.0
-    } else {
-        50.0
-    };
+    let meta_color = palette.text.gamma_multiply(0.8);
+    let metas: Vec<_> = hero
+        .meta
+        .iter()
+        .map(|text| caps_galley(ui, text, meta_color, width))
+        .collect();
+    // The heights, top down: the cover, 20, the title's 40-point line (and
+    // its further rows), 10, the byline's 44, the description and 12, the
+    // meta lines 31 apart; the controls come 43 under the last meta line.
+    let title_height = 40.0 + title_row * titles.len().saturating_sub(1) as f32;
+    let mut height = STACKED_ART + 20.0 + title_height + 10.0;
     if !hero.byline.is_empty() {
-        let byline = Rect::from_min_size(pos2(left, y), vec2(width, 20.0));
-        let mut child = ui.new_child(
-            egui::UiBuilder::new()
-                .max_rect(byline)
-                .layout(Layout::left_to_right(Align::Center)),
+        height += 44.0;
+    }
+    if let Some(description) = &description {
+        height += description.size().y + 12.0;
+    }
+    if !metas.is_empty() {
+        height += 31.0 * (metas.len() - 1) as f32 + 16.0 - 5.0;
+    }
+    let (block, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
+    let center = block.center().x;
+    let cover = Rect::from_min_size(
+        pos2(center - STACKED_ART / 2.0, block.top()),
+        Vec2::splat(STACKED_ART),
+    );
+    hero_cover(app, ui, hero, cover, softened);
+    let mut y = cover.bottom() + 20.0;
+    let mut title_rect: Option<Rect> = None;
+    for (index, galley) in titles.into_iter().enumerate() {
+        let top = y + (40.0 - title_row) / 2.0 + title_row * index as f32;
+        let rect = Rect::from_min_size(pos2(center - galley.size().x / 2.0, top), galley.size());
+        title_rect = Some(title_rect.map_or(rect, |first| first.union(rect)));
+        ui.painter().galley(rect.min, galley, title_color);
+    }
+    if let Some(rect) = title_rect {
+        super::plugin_dom::page_title(ui, hero.title, rect, false);
+    }
+    y += title_height + 10.0;
+    if !hero.byline.is_empty() {
+        let byline = byline_width(ui, hero).min(width);
+        hero_byline(
+            app,
+            ui,
+            hero,
+            Rect::from_min_size(pos2(center - byline / 2.0, y), vec2(byline, 20.0)),
         );
-        child.set_clip_rect(byline.intersect(ui.clip_rect()));
-        child.spacing_mut().item_spacing.x = 10.0;
-        if let Some(avatar) = &hero.avatar {
-            let (avatar_rect, _) = child.allocate_exact_size(Vec2::splat(20.0), Sense::hover());
-            let url = match avatar {
-                Avatar::Placeholder => None,
-                Avatar::Url(url) => Some(url.as_str()),
-            };
-            widgets::paint_cover(
-                &child,
-                &palette,
-                url,
-                avatar_rect,
-                10.0,
-                Icon::User,
-                Some(&art),
-            );
-        }
-        child.spacing_mut().item_spacing.x = 0.0;
-        let link = palette.text.gamma_multiply(0.8);
-        for (index, (text, page)) in hero.byline.iter().enumerate() {
-            if index > 0 {
-                theme::text(&mut child, ", ", theme::semibold(14.0), link);
-            }
-            match page {
-                Some(page) => {
-                    if theme::link(&mut child, text, theme::semibold(14.0), link).clicked() {
-                        app.actions.push(Action::Open(page.clone()));
-                    }
-                }
-                None => {
-                    theme::text(&mut child, text, theme::semibold(14.0), palette.secondary);
-                }
-            }
-        }
-        // An own playlist's "Add collaborator": a 24-point round button 8
-        // after the owner's name.
-        if let Some(playlist_id) = &hero.add_collaborator {
-            child.set_clip_rect(byline.expand(4.0).intersect(ui.clip_rect()));
-            child.add_space(8.0);
-            let (rect, response) = child.allocate_exact_size(Vec2::splat(24.0), Sense::click());
-            let fill = if palette.dark {
-                egui::Color32::from_white_alpha(if response.hovered() { 26 } else { 13 })
-            } else {
-                palette.surface_active
-            };
-            child.painter().circle_filled(rect.center(), 12.0, fill);
-            theme::paint_icon(&child, Icon::Plus, rect, 12.0, palette.secondary);
-            let name = gettext(app.locale, "Add collaborator");
-            response.widget_info(|| {
-                egui::WidgetInfo::labeled(egui::WidgetType::Button, true, name.as_ref())
-            });
-            if response
-                .on_hover_cursor(egui::CursorIcon::PointingHand)
-                .clicked()
-            {
-                app.actions
-                    .push(Action::ShowDialog(crate::model::Dialog::Collaborators {
-                        playlist_id: playlist_id.clone(),
-                    }));
-            }
-        }
         y += 44.0;
     }
     if let Some(description) = description {
-        let height = description.size().y;
-        ui.painter().galley(pos2(left, y), description, DESCRIPTION);
-        y += height + 12.0;
+        let size = description.size();
+        ui.painter()
+            .galley(pos2(center - size.x / 2.0, y), description, DESCRIPTION);
+        y += size.y + 12.0;
     }
-    let meta_color = palette.text.gamma_multiply(0.8);
-    let lines = hero.meta.len().max(usize::from(hero.badge.is_some()));
-    for index in 0..lines {
-        let text = hero.meta.get(index).map(String::as_str).unwrap_or("");
-        let galley = caps_galley(ui, text, meta_color, width);
-        let text_width = galley.size().x;
+    let data_top = cover.bottom() + 20.0;
+    let mut meta_top = y;
+    for galley in metas {
+        meta_top = y;
+        let size = galley.size();
         ui.painter().galley(
-            pos2(left, y + (16.0 - galley.size().y) / 2.0),
+            pos2(center - size.x / 2.0, y + (16.0 - size.y) / 2.0),
             galley,
             meta_color,
         );
-        // The quality badge closes the last line, 8 after its text.
-        if index + 1 == lines
-            && let Some(badge) = hero.badge
-        {
-            let x = if text.is_empty() {
-                left
-            } else {
-                left + text_width + 8.0
-            };
-            quality_badge(ui, pos2(x, y + 8.0), badge);
-        }
         y += 31.0;
     }
     if super::plugin_dom::on() {
-        let data = Rect::from_min_max(pos2(left, block_top), pos2(left + width, y.max(block_top)));
+        let data = Rect::from_min_max(pos2(block.left(), data_top), pos2(block.right(), y));
         let meta = hero.meta.last().map(|date| {
-            let line = Rect::from_min_size(pos2(left, y - 31.0), vec2(width, 16.0));
+            let line = Rect::from_min_size(pos2(block.left(), meta_top), vec2(width, 16.0));
             (line, date.as_str())
         });
         super::plugin_dom::page_header(data, meta);
@@ -386,11 +623,10 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
             ui,
             crate::luna::dom_anchors::keys::PAGE_DATA,
             crate::luna::dom::Position::Append,
-            pos2(left, y),
-            egui::Align2::LEFT_TOP,
+            pos2(center, y),
+            egui::Align2::CENTER_TOP,
         );
     }
-    ui.add_space(HERO_GAP);
 }
 
 /// The colour of a header's description (TIDAL #afafb6).
@@ -412,6 +648,29 @@ fn caps_galley(
     job.wrap.max_rows = 1;
     job.wrap.break_anywhere = true;
     job.wrap.overflow_character = Some(crate::bidi::ELLIPSIS);
+    job.append(
+        &text.to_uppercase(),
+        0.0,
+        egui::TextFormat {
+            font_id: theme::semibold(10.0),
+            color,
+            extra_letter_spacing: 1.2,
+            ..Default::default()
+        },
+    );
+    ui.painter().layout_job(job)
+}
+
+/// [`caps_galley`] wrapped at its spaces to `max_width` (a narrow page's
+/// album header, TIDAL at 314).
+fn caps_galley_wrapped(
+    ui: &egui::Ui,
+    text: &str,
+    color: egui::Color32,
+    max_width: f32,
+) -> Arc<egui::Galley> {
+    let mut job = egui::text::LayoutJob::default();
+    job.wrap.max_width = max_width;
     job.append(
         &text.to_uppercase(),
         0.0,
@@ -531,22 +790,30 @@ pub fn actions_row(
     if pills && !only_pills {
         buttons += 1 + usize::from(has_share);
     }
-    if let Some(uri) = &actions.play_uri
-        && has_share
-        && actions.view.is_some()
-        && downloadable_context(uri)
-    {
-        buttons += 1;
-    }
+    let download = has_download(&actions, has_share);
+    buttons += usize::from(download);
     buttons += usize::from(actions.save_radio.is_some());
     buttons += usize::from(actions.saved.is_some());
-    buttons += usize::from(credits_shown(ui, &actions).is_some());
+    let credits = credits_shown(ui, &actions).is_some();
+    buttons += usize::from(credits);
     if let Some(playlist) = &actions.owned_playlist {
         buttons += 1 + usize::from(playlist.public.is_some());
     }
-    let fit = header_fit(ui.available_width(), pills, buttons, has_share);
-    let shown = buttons - usize::from(has_share && !fit.share);
-    let (pill_rect, btn_rect) = allocate_header(ui, &fit, shown);
+    let set = HeaderButtons {
+        all: buttons,
+        more: pills && !only_pills,
+        share: has_share,
+        credits,
+        first: first_button(&actions, download).is_some(),
+    };
+    let fit = header_fit(
+        ui.available_width(),
+        pills,
+        set,
+        stacked_header(actions.play_uri.as_deref(), ui.available_width()),
+    );
+    let pill_rect = allocate_header(ui, &fit);
+    let btn_rect = pill_rect;
     let name = actions.name.to_string();
     let filtered = filter.as_ref().is_some_and(|f| !f.trim().is_empty());
     // The pinned bar repeats these controls once they have scrolled away;
@@ -589,6 +856,42 @@ pub(super) fn credits_album<'a>(actions: &'a Actions<'_>) -> Option<&'a str> {
     (util::uri_kind(uri) == Some("album") && actions.save_radio.is_none())
         .then(|| util::uri_id(uri))
         .flatten()
+}
+
+/// Whether the header has its Download toggle: albums, playlists and mixes
+/// with their songs listed.
+fn has_download(actions: &Actions<'_>, has_share: bool) -> bool {
+    actions
+        .play_uri
+        .as_deref()
+        .is_some_and(downloadable_context)
+        && has_share
+        && actions.view.is_some()
+}
+
+/// The captioned button a narrow header keeps (see [`HeaderTier::Narrow`]):
+/// the first of the row, the one at its left.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FirstButton {
+    /// An own playlist's Edit.
+    Edit,
+    /// Add or Added.
+    Saved,
+    /// A radio's Save as playlist.
+    SaveRadio,
+    Download,
+}
+
+fn first_button(actions: &Actions<'_>, download: bool) -> Option<FirstButton> {
+    if actions.owned_playlist.is_some() {
+        Some(FirstButton::Edit)
+    } else if actions.saved.is_some() {
+        Some(FirstButton::Saved)
+    } else if actions.save_radio.is_some() {
+        Some(FirstButton::SaveRadio)
+    } else {
+        download.then_some(FirstButton::Download)
+    }
 }
 
 /// The album the header's Credits button opens: none on the Credits page
@@ -684,13 +987,25 @@ fn actions_row_contents(
     let palette = app.palette;
     let locale = app.locale;
     ui.spacing_mut().item_spacing.x = fit.pill_gap;
+    let download = has_download(
+        &actions,
+        actions.save_radio.is_none() && !pills_only(&actions),
+    );
+    let first = first_button(&actions, download);
+    // A narrow header keeps only its first button (and More).
+    let keeps =
+        |button: FirstButton| fit.keeps_all() || (fit.keeps_first() && first == Some(button));
     if let Some(uri) = &actions.play_uri {
         let (icon, label, context_here) = play_face(app, uri);
         let is_filtered = filtered;
         let can_start = actions.view.as_ref().is_none_or(|uris| !uris.is_empty());
         if ui
             .add_enabled_ui(context_here || can_start, |ui| {
-                header_pill_width(ui, &palette, icon, &label, true, fit.pill_w)
+                if fit.round {
+                    header_round_pill(ui, &palette, icon, &label, true)
+                } else {
+                    header_pill_width(ui, &palette, icon, &label, true, fit.pill_w)
+                }
             })
             .inner
             .on_disabled_hover_text(gettext(locale, "No playable tracks in this view").as_ref())
@@ -704,14 +1019,12 @@ fn actions_row_contents(
         // the switch for the mode itself.
         if ui
             .add_enabled_ui(can_start, |ui| {
-                header_pill_width(
-                    ui,
-                    &palette,
-                    Icon::Shuffle,
-                    &gettext(locale, "Shuffle"),
-                    false,
-                    fit.pill_w,
-                )
+                let label = gettext(locale, "Shuffle");
+                if fit.round {
+                    header_round_pill(ui, &palette, Icon::Shuffle, &label, false)
+                } else {
+                    header_pill_width(ui, &palette, Icon::Shuffle, &label, false, fit.pill_w)
+                }
             })
             .inner
             .on_disabled_hover_text(gettext(locale, "No playable songs in this view").as_ref())
@@ -733,10 +1046,12 @@ fn actions_row_contents(
         if let Some(uri) = &actions.play_uri
             && !pills_only(&actions)
         {
-            let more = captioned_button(ui, &palette, Icon::Ellipsis, &gettext(locale, "More"));
-            egui::Popup::menu(&more)
-                .frame(widgets::menu_frame(&palette))
-                .show(|ui| more_menu(ui, app, uri, &actions));
+            if fit.keeps_more() {
+                let more = captioned_button(ui, &palette, Icon::Ellipsis, &gettext(locale, "More"));
+                egui::Popup::menu(&more)
+                    .frame(widgets::menu_frame(&palette))
+                    .show(|ui| more_menu(ui, app, uri, &actions));
+            }
             if actions.save_radio.is_none() && fit.share {
                 // TIDAL's Share opens its menu: an own playlist offers an
                 // invite and the link, everything else the link and embed.
@@ -750,6 +1065,7 @@ fn actions_row_contents(
         }
         // TIDAL's album header lists Credits between Add and Share.
         if let Some(id) = credits_shown(ui, &actions)
+            && fit.keeps_credits()
             && captioned_button(ui, &palette, Icon::Info, &gettext(locale, "Credits")).clicked()
         {
             app.actions.push(Action::ShowAlbumCredits(id.to_string()));
@@ -758,10 +1074,12 @@ fn actions_row_contents(
             && actions.save_radio.is_none()
             && let Some(uris) = &actions.view
             && downloadable_context(uri)
+            && keeps(FirstButton::Download)
         {
             download_toggle(app, ui, uri, actions.name, uris);
         }
         if let Some(seed) = &actions.save_radio
+            && keeps(FirstButton::SaveRadio)
             && captioned_button(
                 ui,
                 &palette,
@@ -772,7 +1090,9 @@ fn actions_row_contents(
         {
             app.actions.push(Action::SaveRadio(seed.clone()));
         }
-        if let Some((uri, saved)) = &actions.saved {
+        if let Some((uri, saved)) = &actions.saved
+            && keeps(FirstButton::Saved)
+        {
             let (icon, caption, tooltip) = if *saved {
                 (
                     actions.saved_icons.1,
@@ -795,7 +1115,9 @@ fn actions_row_contents(
         }
         if let Some(playlist) = &actions.owned_playlist {
             // TIDAL's visibility switch: the state the playlist is in now.
-            if let Some(public) = playlist.public {
+            if let Some(public) = playlist.public
+                && fit.keeps_all()
+            {
                 let (icon, caption) = if public {
                     (Icon::LockOpen, gettext(locale, "Public"))
                 } else {
@@ -808,7 +1130,9 @@ fn actions_row_contents(
                     });
                 }
             }
-            if captioned_button(ui, &palette, Icon::Pencil, &gettext(locale, "Edit")).clicked() {
+            if keeps(FirstButton::Edit)
+                && captioned_button(ui, &palette, Icon::Pencil, &gettext(locale, "Edit")).clicked()
+            {
                 playlist_dialog(app, playlist);
             }
         }
@@ -1163,6 +1487,70 @@ pub(super) fn header_pill_width(
     response
 }
 
+/// TIDAL's round, icon-only Play (white) or Shuffle (white at 8 %) of a
+/// stacked playlist header ([`stacked_header`]): [`ROUND_PILL`] across, the
+/// label for a screen reader and in the tooltip.
+pub(super) fn header_round_pill(
+    ui: &mut egui::Ui,
+    palette: &Palette,
+    icon: Icon,
+    label: &str,
+    primary: bool,
+) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(Vec2::splat(ROUND_PILL), Sense::click());
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label)
+    });
+    let hovered = crate::motion::progress(
+        ui.ctx(),
+        response.id.with("hover"),
+        response.hovered(),
+        crate::motion::Transition::new(0.2, crate::motion::ease::LINEAR),
+    );
+    let scale = crate::motion::press_scale(
+        ui.ctx(),
+        &response,
+        1.0,
+        crate::motion::tidal::PILL_PRESS_SCALE,
+    );
+    super::plugin_dom::page_button(primary, rect, label);
+    let (fill, ink) = if primary {
+        (
+            crate::motion::blend(
+                egui::Color32::WHITE,
+                egui::Color32::from_gray(0xd9),
+                hovered,
+            ),
+            egui::Color32::from_rgb(0x10, 0x10, 0x10),
+        )
+    } else {
+        (
+            crate::motion::blend(
+                egui::Color32::from_white_alpha(20),
+                egui::Color32::from_white_alpha(38),
+                hovered,
+            ),
+            palette.text,
+        )
+    };
+    let fill = if ui.is_enabled() {
+        fill
+    } else {
+        fill.gamma_multiply(0.4)
+    };
+    ui.painter()
+        .circle_filled(rect.center(), ROUND_PILL / 2.0 * scale, fill);
+    theme::paint_icon(
+        ui,
+        icon,
+        Rect::from_center_size(rect.center(), Vec2::splat(24.0)),
+        24.0,
+        ink,
+    );
+    theme::focus_ring(ui, &response);
+    response.on_hover_text(label)
+}
+
 /// TIDAL's captioned header button: 80 x 48, a 20-point icon over a
 /// 12-point semibold caption, white. Where the row is too narrow for the
 /// captions it is the icon alone, the caption in its tooltip.
@@ -1181,11 +1569,59 @@ pub(super) fn captioned_button(
 }
 
 const PILL_WIDTH: f32 = 160.0;
-const MIN_PILL_WIDTH: f32 = 112.0;
+/// TIDAL's pills beside a captioned button in a header narrower than
+/// [`HEADER_NARROW`] (its album at 314: Play and Shuffle 114, then Added).
+const NARROW_PILL_WIDTH: f32 = 114.0;
+/// The narrowest pill that still keeps a button beside it; narrower, the
+/// buttons go.
+const MIN_PILL_WIDTH: f32 = 96.0;
+/// TIDAL's round, icon-only Play and Shuffle of a stacked playlist header.
+pub(super) const ROUND_PILL: f32 = 58.0;
 const BUTTON_WIDTH: f32 = 80.0;
 const ICON_BUTTON_WIDTH: f32 = 48.0;
 /// The least space between the pills and the icon buttons.
 const GROUP_GAP: f32 = 8.0;
+
+/// A page header narrower than this keeps Play, Shuffle and its first
+/// captioned button only (TIDAL's album at 314: Play, Shuffle and Added;
+/// its artist: Follow; an own playlist: Edit). See also
+/// [`NARROW_HEADER_KEEPS_MORE`].
+pub(super) const HEADER_NARROW: f32 = 600.0;
+/// A page header narrower than this drops Credits and Share (TIDAL's album
+/// at 662: Play, Shuffle, Added, Report and More).
+pub(super) const HEADER_MEDIUM: f32 = 800.0;
+
+/// OWNER DECISION PENDING (2026-10-22): TIDAL hides the header's More ("…")
+/// button in a page narrower than [`HEADER_NARROW`] (its album at 314 shows
+/// Play, Shuffle and Added only), which leaves no way to the album's menu
+/// there. Tidalfast keeps More for now. To match TIDAL, set this to
+/// `false`; nothing else needs to change. See "Narrow window" in
+/// `docs/_reference/tidal-ui-spec.md`.
+pub(super) const NARROW_HEADER_KEEPS_MORE: bool = true;
+
+/// Which of its captioned buttons a page header shows at its width.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum HeaderTier {
+    /// All of them (Share moves into More only when nothing else fits).
+    Wide,
+    /// All but Credits and Share ([`HEADER_MEDIUM`]).
+    Medium,
+    /// The first button and More ([`HEADER_NARROW`]); either is `false`
+    /// when the header has none or no room for it (More goes first).
+    Narrow { first: bool, more: bool },
+}
+
+/// The captioned buttons a page header has.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct HeaderButtons {
+    /// All of them, More, Share and Credits among them.
+    pub all: usize,
+    pub more: bool,
+    pub share: bool,
+    pub credits: bool,
+    /// A button that a narrow header keeps (Added, Follow, Edit…).
+    pub first: bool,
+}
 
 /// How a page header's controls share the width they have: the Play and
 /// Shuffle pills at the left, the captioned buttons at the right.
@@ -1197,103 +1633,169 @@ pub(super) struct HeaderFit {
     pub btn_gap: f32,
     /// The buttons carry their captions (otherwise icon only).
     pub labels: bool,
-    /// The buttons sit on a second row under the pills.
-    pub wrap: bool,
     /// The Share button is shown (otherwise Share lives in the More menu).
     pub share: bool,
+    pub tier: HeaderTier,
+    /// Play and Shuffle are TIDAL's round icons ([`ROUND_PILL`]).
+    pub round: bool,
+}
+
+impl HeaderFit {
+    /// Every button but Credits and Share shows.
+    pub fn keeps_all(&self) -> bool {
+        !matches!(self.tier, HeaderTier::Narrow { .. })
+    }
+
+    pub fn keeps_credits(&self) -> bool {
+        self.tier == HeaderTier::Wide
+    }
+
+    pub fn keeps_more(&self) -> bool {
+        match self.tier {
+            HeaderTier::Narrow { more, .. } => more,
+            _ => true,
+        }
+    }
+
+    /// The first button (see [`HeaderButtons::first`]) shows.
+    pub fn keeps_first(&self) -> bool {
+        match self.tier {
+            HeaderTier::Narrow { first, .. } => first,
+            _ => true,
+        }
+    }
+}
+
+/// A playlist's header stacks and centres in a page narrower than
+/// [`HEADER_NARROW`] (TIDAL at 314): the cover over the title, and round
+/// Play and Shuffle icons.
+pub(super) fn stacked_header(play_uri: Option<&str>, width: f32) -> bool {
+    width < HEADER_NARROW && play_uri.and_then(util::uri_kind) == Some("playlist")
 }
 
 fn group_width(count: usize, width: f32, gap: f32) -> f32 {
     count as f32 * width + count.saturating_sub(1) as f32 * gap
 }
 
-/// Fits `buttons` captioned buttons (Share among them when `has_share`)
-/// and the pills into `avail`, giving up the least first: the gaps shrink,
-/// then the captions go, then the buttons move under the pills, then Share
-/// moves into the More menu.
-pub(super) fn header_fit(avail: f32, pills: bool, buttons: usize, has_share: bool) -> HeaderFit {
+/// Fits the pills and `set`'s buttons into `avail`. From [`HEADER_MEDIUM`]
+/// every button shows, giving up the least first: the gaps shrink, then the
+/// captions go. Narrower, the buttons drop rather than wrap, as in TIDAL:
+/// Credits and Share first, then (under [`HEADER_NARROW`]) all but the
+/// first button and More. `stacked` is a playlist's stacked header, whose
+/// Play and Shuffle are round icons there.
+pub(super) fn header_fit(avail: f32, pills: bool, set: HeaderButtons, stacked: bool) -> HeaderFit {
     let pills_width = |width: f32, gap: f32| if pills { 2.0 * width + gap } else { 0.0 };
-    let between = if pills && buttons > 0 { GROUP_GAP } else { 0.0 };
+    let between = |count: usize| if pills && count > 0 { GROUP_GAP } else { 0.0 };
     let fit = HeaderFit {
         pill_w: PILL_WIDTH,
         pill_gap: 16.0,
         btn_w: BUTTON_WIDTH,
         btn_gap: 8.0,
         labels: true,
-        wrap: false,
-        share: has_share,
+        share: set.share,
+        tier: HeaderTier::Wide,
+        round: false,
     };
-    let steps = [
-        (16.0, BUTTON_WIDTH, 8.0),
-        (8.0, BUTTON_WIDTH, 0.0),
-        (8.0, ICON_BUTTON_WIDTH, 0.0),
-    ];
-    for (pill_gap, btn_w, btn_gap) in steps {
-        let total =
-            pills_width(PILL_WIDTH, pill_gap) + between + group_width(buttons, btn_w, btn_gap);
-        if total <= avail {
-            return HeaderFit {
-                pill_gap,
-                btn_w,
-                btn_gap,
-                labels: btn_w > ICON_BUTTON_WIDTH,
-                ..fit
-            };
-        }
-    }
-    let mut wrapped = fit;
-    wrapped.wrap = pills;
-    wrapped.pill_w = ((avail - 8.0) / 2.0).clamp(MIN_PILL_WIDTH, PILL_WIDTH);
-    wrapped.pill_gap = if avail >= 2.0 * PILL_WIDTH + 16.0 {
-        16.0
-    } else {
-        8.0
-    };
-    let rows = [
-        (BUTTON_WIDTH, 8.0, true),
-        (BUTTON_WIDTH, 0.0, true),
-        (ICON_BUTTON_WIDTH, 8.0, false),
-        (ICON_BUTTON_WIDTH, 0.0, false),
-    ];
-    for share in [has_share, false] {
-        let count = buttons - usize::from(has_share && !share);
-        for (btn_w, btn_gap, labels) in rows {
-            if group_width(count, btn_w, btn_gap) <= avail {
+    if avail >= HEADER_MEDIUM {
+        let steps = [
+            (16.0, BUTTON_WIDTH, 8.0),
+            (8.0, BUTTON_WIDTH, 0.0),
+            (8.0, ICON_BUTTON_WIDTH, 0.0),
+        ];
+        for (pill_gap, btn_w, btn_gap) in steps {
+            let total = pills_width(PILL_WIDTH, pill_gap)
+                + between(set.all)
+                + group_width(set.all, btn_w, btn_gap);
+            if total <= avail {
                 return HeaderFit {
+                    pill_gap,
                     btn_w,
                     btn_gap,
-                    labels,
-                    share,
-                    ..wrapped
+                    labels: btn_w > ICON_BUTTON_WIDTH,
+                    ..fit
                 };
             }
         }
     }
-    let count = (buttons - usize::from(has_share)).max(1);
-    HeaderFit {
-        btn_w: (avail / count as f32).clamp(32.0, ICON_BUTTON_WIDTH),
-        btn_gap: 0.0,
-        labels: false,
-        share: false,
-        ..wrapped
+    if avail >= HEADER_NARROW {
+        let count = set.all - usize::from(set.share) - usize::from(set.credits);
+        for (btn_w, btn_gap) in [(BUTTON_WIDTH, 8.0), (ICON_BUTTON_WIDTH, 0.0)] {
+            let total =
+                pills_width(PILL_WIDTH, 16.0) + between(count) + group_width(count, btn_w, btn_gap);
+            if total <= avail {
+                return HeaderFit {
+                    btn_w,
+                    btn_gap,
+                    labels: btn_w > ICON_BUTTON_WIDTH,
+                    share: false,
+                    tier: HeaderTier::Medium,
+                    ..fit
+                };
+            }
+        }
+    }
+    let round = pills && stacked;
+    let mut first = set.first;
+    let mut more = set.more && NARROW_HEADER_KEEPS_MORE;
+    loop {
+        let count = usize::from(first) + usize::from(more);
+        let narrow = HeaderFit {
+            pill_w: if round { ROUND_PILL } else { NARROW_PILL_WIDTH },
+            share: false,
+            tier: HeaderTier::Narrow { first, more },
+            round,
+            ..fit
+        };
+        if count == 0 {
+            // Pills alone keep TIDAL's 160 while they can (its Tracks page).
+            let pill_w = if round {
+                ROUND_PILL
+            } else {
+                ((avail - 16.0) / 2.0).clamp(0.0, PILL_WIDTH)
+            };
+            return HeaderFit { pill_w, ..narrow };
+        }
+        for (btn_w, btn_gap) in [(BUTTON_WIDTH, 8.0), (ICON_BUTTON_WIDTH, 0.0)] {
+            let total = pills_width(narrow.pill_w, 16.0)
+                + between(count)
+                + group_width(count, btn_w, btn_gap);
+            if total <= avail {
+                return HeaderFit {
+                    btn_w,
+                    btn_gap,
+                    labels: btn_w > ICON_BUTTON_WIDTH,
+                    ..narrow
+                };
+            }
+        }
+        // The pills narrow to keep the buttons beside them.
+        let buttons = group_width(count, ICON_BUTTON_WIDTH, 0.0);
+        let pill_w = (avail - 16.0 - between(count) - buttons) / 2.0;
+        if pills && !round && pill_w >= MIN_PILL_WIDTH {
+            return HeaderFit {
+                pill_w,
+                btn_w: ICON_BUTTON_WIDTH,
+                btn_gap: 0.0,
+                labels: false,
+                ..narrow
+            };
+        }
+        // No room: More goes first (as in TIDAL), then the first button.
+        if more {
+            more = false;
+        } else {
+            first = false;
+        }
     }
 }
 
-/// Reserves the header's rows for `shown` buttons, and returns the
-/// rectangles of the pills and of the buttons (the same one while they
-/// share a row).
-pub(super) fn allocate_header(ui: &mut egui::Ui, fit: &HeaderFit, shown: usize) -> (Rect, Rect) {
+/// Reserves the header's row and returns it: the pills at its left, the
+/// buttons at its right.
+pub(super) fn allocate_header(ui: &mut egui::Ui, fit: &HeaderFit) -> Rect {
     let width = ui.available_width();
-    let height = if fit.wrap { 48.0 + 8.0 + 48.0 } else { 48.0 };
-    let (row, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
-    let top = Rect::from_min_size(row.min, vec2(width, 48.0));
-    if fit.wrap {
-        let used = group_width(shown, fit.btn_w, fit.btn_gap).min(width);
-        let below = Rect::from_min_size(pos2(row.left(), row.bottom() - 48.0), vec2(used, 48.0));
-        (top, below)
-    } else {
-        (top, top)
-    }
+    let height = if fit.round { ROUND_PILL } else { 48.0 };
+    ui.allocate_exact_size(vec2(width, height), Sense::hover())
+        .0
 }
 
 fn button_style_id() -> egui::Id {
@@ -3174,6 +3676,7 @@ fn playlist_hero<'a>(
                 .user_id()
                 .is_some_and(|user| playlist.owned_by(user))
                 .then(|| playlist.id.clone()),
+            stack_narrow: true,
         },
     );
 }
@@ -3314,6 +3817,7 @@ pub(super) fn album_hero(
             title_color: None,
             radio: false,
             add_collaborator: None,
+            stack_narrow: false,
         },
     );
 }
@@ -6283,5 +6787,288 @@ mod tests {
             app.table_rows.contains_key(&Page::Playlist("pl4".into())),
             "the open page stays"
         );
+    }
+
+    /// The buttons `actions_row` draws for `actions` in a row `width` wide:
+    /// each one's name and bounds.
+    fn row_buttons(
+        actions: impl Fn() -> Actions<'static>,
+        width: f32,
+    ) -> Vec<(String, egui::accesskit::Rect)> {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        theme::install(&ctx);
+        let mut app = test_app();
+        let mut buttons = Vec::new();
+        for _ in 0..2 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(width, 600.0))),
+                    ..Default::default()
+                },
+                |ui| actions_row(&mut app, ui, actions(), None),
+            );
+            output.textures_delta.clear();
+            buttons = output
+                .platform_output
+                .accesskit_update
+                .unwrap()
+                .nodes
+                .iter()
+                .filter(|(_, node)| node.role() == egui::accesskit::Role::Button)
+                .filter_map(|(_, node)| Some((node.label()?.to_string(), node.bounds()?)))
+                .collect();
+        }
+        app.backend.shutdown();
+        buttons
+    }
+
+    fn album_header() -> Actions<'static> {
+        Actions {
+            play_uri: Some("tidal:album:1".into()),
+            view: Some(Arc::from(["tidal:track:a".to_string()])),
+            saved: Some(("tidal:album:1".into(), true)),
+            saved_icons: (Icon::Heart, Icon::HeartFilled),
+            saved_tooltips: Default::default(),
+            owned_playlist: None,
+            reload: None,
+            name: "The Search",
+            save_radio: None,
+        }
+    }
+
+    fn own_playlist_header() -> Actions<'static> {
+        Actions {
+            play_uri: Some("tidal:playlist:1".into()),
+            view: Some(Arc::from(["tidal:track:a".to_string()])),
+            saved: None,
+            saved_icons: (Icon::Heart, Icon::HeartFilled),
+            saved_tooltips: Default::default(),
+            owned_playlist: Some(Playlist {
+                id: "1".into(),
+                public: Some(false),
+                ..Default::default()
+            }),
+            reload: None,
+            name: "e2",
+            save_radio: None,
+        }
+    }
+
+    fn names(buttons: &[(String, egui::accesskit::Rect)]) -> Vec<&str> {
+        buttons.iter().map(|(name, _)| name.as_str()).collect()
+    }
+
+    /// Every control of a header shares one row: they drop, never wrap.
+    fn assert_one_row(buttons: &[(String, egui::accesskit::Rect)], at: f32) {
+        let centre = |rect: &egui::accesskit::Rect| (rect.y0 + rect.y1) / 2.0;
+        let first = centre(&buttons[0].1);
+        for (name, rect) in buttons {
+            assert!(
+                (centre(rect) - first).abs() < 1.0,
+                "{at}: {name} wraps {rect:?}"
+            );
+        }
+    }
+
+    /// A header narrower than 600 keeps Play, Shuffle and its first button
+    /// (TIDAL's album at 314: Added) and, while the owner keeps it, More;
+    /// Credits, Share and Download drop instead of wrapping under the pills.
+    #[test]
+    fn a_header_narrower_than_600_keeps_its_first_button_and_more() {
+        for width in [314.0, 400.0, 599.0] {
+            let buttons = row_buttons(album_header, width);
+            let names = names(&buttons);
+            let mut expected = vec!["Play", "Shuffle", "Added"];
+            if NARROW_HEADER_KEEPS_MORE {
+                expected.push("More");
+            }
+            let mut sorted = names.clone();
+            sorted.sort_unstable();
+            expected.sort_unstable();
+            assert_eq!(sorted, expected, "{width}");
+            assert_one_row(&buttons, width);
+        }
+        // With room for its captions, the pills are TIDAL's 114.
+        let buttons = row_buttons(album_header, 500.0);
+        let play = &buttons.iter().find(|(name, _)| name == "Play").unwrap().1;
+        assert!(
+            (play.x1 - play.x0 - NARROW_PILL_WIDTH as f64).abs() < 1.0,
+            "{play:?}"
+        );
+    }
+
+    /// From 600 to 800 a header drops Credits and Share only, its pills
+    /// back at 160 (TIDAL's album at 662: Play, Shuffle, Added, Report and
+    /// More).
+    #[test]
+    fn a_header_from_600_to_800_drops_credits_and_share() {
+        for width in [600.0, 662.0, 799.0] {
+            let buttons = row_buttons(album_header, width);
+            let names = names(&buttons);
+            assert!(
+                !names.contains(&"Credits") && !names.contains(&"Share"),
+                "{width}: {names:?}"
+            );
+            for name in ["Play", "Shuffle", "Download", "Added", "More"] {
+                assert!(names.contains(&name), "{width}: {names:?}");
+            }
+            assert_one_row(&buttons, width);
+            let play = &buttons.iter().find(|(name, _)| name == "Play").unwrap().1;
+            assert!((play.x1 - play.x0 - 160.0).abs() < 1.0, "{width}: {play:?}");
+        }
+        // From 800 every button is back.
+        let names_wide = row_buttons(album_header, 1104.0);
+        for name in ["Credits", "Share"] {
+            assert!(names(&names_wide).contains(&name), "{names_wide:?}");
+        }
+    }
+
+    /// The narrow tier keeps More exactly when [`NARROW_HEADER_KEEPS_MORE`]
+    /// says so, the one place the owner's decision lives; with no room for
+    /// it, More goes before the first button.
+    #[test]
+    fn the_narrow_headers_more_follows_the_owner_switch() {
+        let album = HeaderButtons {
+            all: 5,
+            more: true,
+            share: true,
+            credits: true,
+            first: true,
+        };
+        let fit = header_fit(314.0, true, album, false);
+        assert_eq!(
+            fit.tier,
+            HeaderTier::Narrow {
+                first: true,
+                more: NARROW_HEADER_KEEPS_MORE
+            }
+        );
+        assert!(!fit.share);
+        // Too narrow even for the icons beside the narrowest pills: More
+        // goes first.
+        let tight = header_fit(260.0, true, album, false);
+        assert!(matches!(tight.tier, HeaderTier::Narrow { more: false, .. }));
+        // Wide headers are as they were.
+        let wide = header_fit(1104.0, true, album, false);
+        assert_eq!(
+            (wide.tier, wide.share, wide.pill_w),
+            (HeaderTier::Wide, true, 160.0)
+        );
+    }
+
+    /// A playlist's header in a page narrower than 600 has TIDAL's round,
+    /// icon-only Play and Shuffle (58), Edit and More beside them.
+    #[test]
+    fn a_stacked_playlist_header_has_round_play_and_shuffle() {
+        let buttons = row_buttons(own_playlist_header, 314.0);
+        let names = names(&buttons);
+        for name in ["Play", "Shuffle", "Edit"] {
+            assert!(names.contains(&name), "{names:?}");
+        }
+        assert_eq!(
+            names.contains(&"More"),
+            NARROW_HEADER_KEEPS_MORE,
+            "{names:?}"
+        );
+        for name in ["Share", "Download", "Private"] {
+            assert!(!names.contains(&name), "{names:?}");
+        }
+        for name in ["Play", "Shuffle"] {
+            let rect = &buttons.iter().find(|(n, _)| n == name).unwrap().1;
+            assert_eq!(
+                (rect.x1 - rect.x0, rect.y1 - rect.y0),
+                (58.0, 58.0),
+                "{name}"
+            );
+        }
+        assert_one_row(&buttons, 314.0);
+        // An album keeps its pills.
+        let album = row_buttons(album_header, 314.0);
+        let play = &album.iter().find(|(n, _)| n == "Play").unwrap().1;
+        assert_eq!(play.y1 - play.y0, 48.0);
+    }
+
+    /// The cover a header draws in a page `width` wide.
+    fn hero_cover_bounds(stack_narrow: bool, width: f32) -> egui::accesskit::Rect {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        theme::install(&ctx);
+        let mut app = test_app();
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(width, 900.0))),
+                ..Default::default()
+            },
+            |ui| {
+                hero(
+                    &mut app,
+                    ui,
+                    Hero {
+                        images: HeroImages::default(),
+                        liked: false,
+                        kind: "Album".into(),
+                        title: "The Search",
+                        description: None,
+                        byline: vec![("NF".into(), None)],
+                        avatar: None,
+                        round: false,
+                        meta: vec!["20 tracks (1:16:10)".into(), "2019".into()],
+                        badge: None,
+                        title_color: None,
+                        radio: false,
+                        add_collaborator: None,
+                        stack_narrow,
+                    },
+                );
+            },
+        );
+        output.textures_delta.clear();
+        app.backend.shutdown();
+        output
+            .platform_output
+            .accesskit_update
+            .unwrap()
+            .nodes
+            .iter()
+            .find(|(_, node)| node.label() == Some("Album: The Search"))
+            .and_then(|(_, node)| node.bounds())
+            .expect("the cover")
+    }
+
+    /// An album or mix header keeps TIDAL's 240 cover at the left in a
+    /// narrow page (it shrank to 160 under 720); a playlist's stacks, its
+    /// 192 cover centred, under 600.
+    #[test]
+    fn a_narrow_header_keeps_tidals_cover() {
+        for width in [314.0, 662.0, 720.0, 1104.0] {
+            let cover = hero_cover_bounds(false, width);
+            assert_eq!((cover.x0, cover.x1 - cover.x0), (0.0, 240.0), "{width}");
+        }
+        let stacked = hero_cover_bounds(true, 314.0);
+        assert_eq!(stacked.x1 - stacked.x0, 192.0);
+        assert_eq!(stacked.x0, (314.0 - 192.0) / 2.0);
+        let beside = hero_cover_bounds(true, 662.0);
+        assert_eq!((beside.x0, beside.x1 - beside.x0), (0.0, 240.0));
+    }
+
+    /// A narrow header's title wraps word by word (TIDAL at 314: "The" over
+    /// "Search" in a 42-point column); a word wider than the column keeps
+    /// its own line whole, for the page's edge to cut.
+    #[test]
+    fn a_narrow_title_wraps_word_by_word() {
+        let ctx = egui::Context::default();
+        theme::install(&ctx);
+        let mut lines = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let font = theme::bold(32.0);
+            lines.push(word_lines(ui, "The Search", &font, 42.0));
+            lines.push(word_lines(ui, "The Search", &font, 390.0));
+            lines.push(word_lines(ui, "", &font, 42.0));
+        });
+        output.textures_delta.clear();
+        assert_eq!(lines[0], ["The", "Search"]);
+        assert_eq!(lines[1], ["The Search"]);
+        assert_eq!(lines[2], [""]);
     }
 }
