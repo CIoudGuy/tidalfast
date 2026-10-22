@@ -1487,3 +1487,33 @@ fn panel_words_follow_market_text_rules_not_a_variable_name() {
     luna.shutdown();
     assert_eq!(queue.secondary, egui::Color32::from_white_alpha(140));
 }
+
+/// A theme's `::before` / `::after` words and its `--track-vibrant-color`
+/// are read whatever they say: a made-up theme with its own words (single
+/// quotes, an `::after`) and colour gets them as Tidal TUI's `Tabs` and
+/// `Main` and Abyss Neptune's white do.
+#[test]
+fn pseudo_words_and_vibrant_colour_are_not_one_themes() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{FIXED_NAV, MAIN};
+    let css = r#"/* {"name": "Own words"} */
+:root { --track-vibrant-color: rgb(12, 200, 99); }
+[class*="_fixedNavigation_"]::after { content: 'Zone A'; position: absolute; }
+[class*="_hasDockedPlayer_"]:not([class*="_nowPlayingVisible_"])::before { content: "Seite " "1"; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.now_playing = None;
+    let (luna, o) = overlay_with("own-words.css", css, dom_anchors::build(&frame), MAIN);
+    let after = o.hosts[FIXED_NAV]
+        .after
+        .as_ref()
+        .expect("the nav's ::after");
+    assert_eq!(after.content.as_deref(), Some("Zone A"));
+    let before = o.hosts[MAIN].before.as_ref().expect("main's ::before");
+    assert_eq!(before.content.as_deref(), Some("Seite 1"));
+    pd::test_overlay(Some((*o).clone()));
+    let vibrant = pd::theme_var_color("--track-vibrant-color");
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(vibrant, Some(egui::Color32::from_rgb(12, 200, 99)));
+}
