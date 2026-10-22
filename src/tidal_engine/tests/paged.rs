@@ -194,6 +194,49 @@ fn a_start_in_a_later_page_waits_for_that_page() {
     assert_eq!(wait_for_queue(&engine, 8).len(), 8);
 }
 
+/// A song far down a long playlist waits for every page before it. Shuffle
+/// switched off in that wait is how the songs after it play: the named song
+/// first, then the rest in order, and the engine says Shuffle is off. It
+/// started shuffled while the player bar showed Shuffle off (the owner's
+/// "shuffle off but it played Escape Plan").
+#[test]
+fn shuffle_switched_off_while_a_later_page_loads_plays_in_order() {
+    let catalog = PagedCatalog::new(1, Duration::ZERO, true);
+    let (engine, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+    until(&states, |state| state.connected);
+    load_artist(&engine, true, Some("tidal:track:17"));
+    thread::sleep(Duration::from_millis(100));
+    engine.command(PlayerCommand::Shuffle(false)).unwrap();
+    catalog.allow(PAGES);
+    let started = until(&states, paused_on("tidal:track:17"));
+    assert!(!started.shuffle, "the engine keeps Shuffle as last set");
+    let all = wait_for_queue(&engine, 8);
+    let expected: Vec<String> = (17..25).map(|n| format!("tidal:track:{n}")).collect();
+    assert_eq!(all, expected, "the songs after it follow in order");
+}
+
+/// The other way round: Shuffle switched on while the page with the named
+/// song loads plays that song first and shuffles the rest.
+#[test]
+fn shuffle_switched_on_while_a_later_page_loads_shuffles_the_rest() {
+    let catalog = PagedCatalog::new(1, Duration::ZERO, true);
+    let (engine, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+    until(&states, |state| state.connected);
+    load_artist(&engine, false, Some("tidal:track:17"));
+    thread::sleep(Duration::from_millis(100));
+    engine.command(PlayerCommand::Shuffle(true)).unwrap();
+    catalog.allow(PAGES);
+    let started = until(&states, paused_on("tidal:track:17"));
+    assert!(started.shuffle, "the engine keeps Shuffle as last set");
+    // Every song of the artist, the named one first and only once.
+    let all = wait_for_queue(&engine, (PAGES * PER_PAGE) as usize);
+    assert_eq!(all[0], "tidal:track:17");
+    let mut sorted = all.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), all.len(), "no repeats: {all:?}");
+}
+
 /// Time from the load to the first song, with 300 ms per page: the whole
 /// list first (before) and the first page first (after).
 #[test]

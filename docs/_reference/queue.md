@@ -23,6 +23,9 @@ Starting and resuming are separate actions. With Shuffle off, a playlist's
 A page's or card's **Play** always starts the first item in the page's
 order and turns Shuffle off; **Shuffle** turns it on and starts a random
 item. Double-clicking a row starts there and keeps the current Shuffle mode.
+Shuffle switched while the song is still loading (a song far down a long
+playlist waits for the pages before it) is the mode it plays in: with
+Shuffle off, the songs after it follow in the playlist's order.
 A song in an artist's Popular tracks plays the artist from that song, all of
 their songs as the artist's **Play** does, under the artist's name; not only
 the songs shown.
