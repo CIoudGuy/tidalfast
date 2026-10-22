@@ -934,12 +934,15 @@ fn resetting_a_plugin_clears_what_it_stored_and_runs_it_with_defaults() {
     assert_eq!(earlier("Other"), Some(serde_json::Value::Null));
     assert_eq!(local_items(&dir)["Other-item"], "1");
     let records = crate::luna::storage::read_json(&dir.join("plugins.json")).unwrap();
-    let names: Vec<&str> = records
+    // Both installs fetch at once, so the file lists them in whichever order
+    // they finished: what matters is that neither record was lost.
+    let mut names: Vec<&str> = records
         .as_array()
         .unwrap()
         .iter()
         .filter_map(|r| r["name"].as_str())
         .collect();
+    names.sort_unstable();
     assert_eq!(names, ["Mine", "Other"], "{records}");
 
     // A disabled plugin is reset too, and stays off.
