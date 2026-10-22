@@ -98,6 +98,10 @@ pub struct Storage {
     pending: BTreeSet<PathBuf>,
     written: HashMap<PathBuf, Instant>,
     writer: Option<Writer>,
+    /// The time changes are stamped with, set by tests that drive the
+    /// interval themselves.
+    #[cfg(test)]
+    clock: Option<Instant>,
 }
 
 pub const PLUGIN_STORAGE: &str = "@luna/pluginStorage";
@@ -236,7 +240,17 @@ impl Storage {
             pending: BTreeSet::new(),
             written: HashMap::new(),
             writer: None,
+            #[cfg(test)]
+            clock: None,
         }
+    }
+
+    fn now(&self) -> Instant {
+        #[cfg(test)]
+        if let Some(t) = self.clock {
+            return t;
+        }
+        Instant::now()
     }
 
     /// Where a store key lives. Plugin storage gets one file per plugin.
@@ -314,7 +328,7 @@ impl Storage {
     /// A store changed: hand it to the writer now, or when its interval
     /// since the last write is up.
     fn changed(&mut self, file: PathBuf) {
-        let now = Instant::now();
+        let now = self.now();
         let recent = self
             .written
             .get(&file)
@@ -389,7 +403,7 @@ impl Storage {
     /// Write every change now and wait (up to a few seconds) until it is
     /// on disk.
     pub fn flush(&mut self) {
-        let now = Instant::now();
+        let now = self.now();
         let pending: Vec<PathBuf> = self.pending.iter().cloned().collect();
         for file in pending {
             self.write(&file, now);
@@ -523,7 +537,9 @@ mod tests {
 
     /// L3: a store changed every frame is written at once, then at most
     /// once per interval with the newest value; flush and drop write the
-    /// rest.
+    /// rest. The test sets the time itself: a slow machine taking longer
+    /// than the interval over the hundred changes must not change what it
+    /// checks.
     #[test]
     fn rapid_changes_are_written_together() {
         let root = dir("coalesce");
@@ -531,20 +547,31 @@ mod tests {
             .join("storage")
             .join(format!("{}.json", safe_name("s")));
         let mut s = Storage::new(root.clone());
+        let t0 = Instant::now();
+        s.clock = Some(t0);
         s.set("s", "k", json!(0)).unwrap();
         for i in 1..=100 {
+            // A change a frame, all inside the interval.
+            s.clock = Some(t0 + Duration::from_millis(4 * i));
             s.set("s", "k", json!(i)).unwrap();
         }
         s.settle();
         assert_eq!(read_json(&file), Some(json!({ "k": 0 })));
         assert_eq!(s.get("s", "k"), Some(json!(100)));
-        let left = s.flush_due(Instant::now()).expect("a write is waiting");
-        assert!(left <= COALESCE, "{left:?}");
-        assert_eq!(s.flush_due(Instant::now() + COALESCE), None);
+        let at = t0 + Duration::from_millis(400);
+        assert_eq!(s.flush_due(at), Some(COALESCE - Duration::from_millis(400)));
+        s.settle();
+        assert_eq!(read_json(&file), Some(json!({ "k": 0 })));
+        assert_eq!(s.flush_due(t0 + COALESCE), None);
         s.settle();
         assert_eq!(read_json(&file), Some(json!({ "k": 100 })));
 
+        // Written at `t0 + COALESCE`: a change just after waits, and drop
+        // writes it.
+        s.clock = Some(t0 + COALESCE + Duration::from_millis(1));
         s.set("s", "k", json!("last")).unwrap();
+        s.settle();
+        assert_eq!(read_json(&file), Some(json!({ "k": 100 })));
         drop(s);
         assert_eq!(read_json(&file), Some(json!({ "k": "last" })));
         let _ = std::fs::remove_dir_all(&root);
