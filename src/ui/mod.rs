@@ -510,15 +510,43 @@ fn cover_backdrop(app: &mut App) -> Option<CoverBackdrop> {
 const ALBUM_VEIL: f32 = 0.6;
 const BLURRED_VEIL: f32 = 0.4;
 
+/// The box of TIDAL's `._dataContainer::before` in `page`: its top 450
+/// points, or the height a theme gives the box. The header's box holds the
+/// whole page under it, its songs included, so a percentage is of the
+/// page's content (Sunken Tidal's `height: 100%` lays the dimmed cover,
+/// fading to black, behind every row).
+pub(crate) fn cover_backdrop_rect(page: Rect) -> Rect {
+    let content = plugin_dom::main_content_height()
+        .unwrap_or(0.0)
+        .max(page.height());
+    let height = plugin_dom::before_height(crate::luna::dom_anchors::keys::PAGE_DATA, content)
+        .unwrap_or(COVER_BACKDROP_HEIGHT);
+    Rect::from_min_size(page.min, vec2(page.width(), height))
+}
+
+/// TIDAL's header art box: the page's top 450 points.
+const COVER_BACKDROP_HEIGHT: f32 = 450.0;
+
 /// TIDAL's `._dataContainer::before`: the cover scaled to cover the page's
 /// top 450 points, under black fading to solid black at the foot. An
 /// album's cover is laid as it is under 60 % black; a playlist's, mix's or
 /// radio's is blurred 50 px under 40 %, painted from a pre-blurred small
 /// texture.
 fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: &CoverBackdrop) {
-    let header = Rect::from_min_size(page.min, vec2(page.width(), 450.0));
+    let header = cover_backdrop_rect(page);
     let mut layer = ui.new_child(egui::UiBuilder::new().max_rect(header));
-    layer.set_clip_rect(header.intersect(ui.clip_rect()));
+    let clip = ui.clip_rect();
+    layer.set_clip_rect(if header.height() > COVER_BACKDROP_HEIGHT {
+        // A box taller than the page moves up with it: what scrolls into
+        // view from below is clipped to the page once the page's scroll is
+        // known (`scroll_backdrop`).
+        header.intersect(Rect::from_min_max(
+            clip.min,
+            pos2(clip.max.x, f32::INFINITY),
+        ))
+    } else {
+        header.intersect(clip)
+    });
     // Themes restyle that box (`[class^=_dataContainer_]::before`): drop
     // the art, tint it, frost it.
     let key = crate::luna::dom_anchors::keys::PAGE_DATA;
@@ -807,7 +835,7 @@ fn scroll_backdrop(
     offset: f32,
     page: Rect,
 ) {
-    if offset == 0.0 || end.0 <= start.0 {
+    if end.0 <= start.0 {
         return;
     }
     let layer = ui.layer_id();
@@ -817,7 +845,9 @@ fn scroll_backdrop(
         for index in start.0..end.0 {
             list.mutate_shape(egui::layers::ShapeIdx(index), |clipped| {
                 clipped.clip_rect = shift.mul_rect(clipped.clip_rect).intersect(page);
-                clipped.shape.transform(shift);
+                if offset != 0.0 {
+                    clipped.shape.transform(shift);
+                }
             });
         }
     });

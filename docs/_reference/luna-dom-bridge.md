@@ -695,7 +695,11 @@ blur changes nothing, so nothing is drawn). A theme that removes the header
 art TIDAL paints in `[class^=_dataContainer_]::before` (`background-image:
 none`, `--img: none`, `display: none`) removes the cover wash. A theme that
 leaves that box alone keeps TIDAL's wash, darkened to black at its foot,
-over its own page colour, as TIDAL draws it (Meteor Night). The header's
+over its own page colour, as TIDAL draws it (Meteor Night). That box is
+450 points of the page's top; a `height` a theme gives it takes its place,
+a percentage of the page's whole content, since the header's box holds the
+songs under it (Sunken Tidal's `height: 100%` lays the dimmed cover,
+fading to black, behind every row). The header's
 Play and Shuffle pills are TIDAL 2.43.2's market buttons
 (`button._marketButton_1d16h_1._medium_1d16h_4._primary_1d16h_6` with
 `data-test=play-all`, Shuffle `_secondary_1d16h_7` with `data-test=shuffle-all`,
