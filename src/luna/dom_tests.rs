@@ -2931,6 +2931,41 @@ for (const c of ["dm-nav", "dm-nav on"]) {
     finish(luna, dir);
 }
 
+/// The UI's `transitionend` reaches a listener as a `TransitionEvent` with
+/// its `propertyName` and `elapsedTime` (radiant-lyrics checks
+/// `propertyName === "min-width"` before it hangs its menu).
+#[test]
+fn a_transition_event_carries_its_property() {
+    let (luna, _host, dir) = start(
+        r##"
+const el = document.createElement("div");
+el.className = "t-tab";
+el.addEventListener("transitionend", (e) => {
+	R.seen = { cls: e instanceof TransitionEvent, name: e.propertyName, elapsed: e.elapsedTime, bubbles: e.bubbles, cancelable: e.cancelable };
+});
+document.body.append(el);
+"##,
+    );
+    luna.sync_dom(tree());
+    let o = overlay_until(&luna, 10, |o| o.at("", Position::Append).count() >= 1);
+    let tab = o
+        .at("", Position::Append)
+        .find(|v| v.attrs.iter().any(|(_, c)| c == "t-tab"))
+        .expect("the tab");
+    assert!(tab.listens.contains(&"transitionend".to_string()));
+    luna.dom_event(DomEvent {
+        target: DomTarget::Node(tab.id),
+        kind: "transitionend".into(),
+        data: json!({ "propertyName": "min-width", "elapsedTime": 0.12, "pseudoElement": "" }),
+    });
+    let r = results_until(&luna, &dir, 10, |r| !r["seen"].is_null());
+    assert_eq!(
+        r["seen"],
+        json!({ "cls": true, "name": "min-width", "elapsed": 0.12, "bubbles": true, "cancelable": false })
+    );
+    finish(luna, dir);
+}
+
 /// DownloadManager's About body (`overflow-y: auto`) reaches the UI, which
 /// scrolls it; a list's `list-style` gives its marker type.
 #[test]

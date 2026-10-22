@@ -3145,6 +3145,11 @@
 		else if (/^pointer/.test(type)) ev = new g.PointerEvent(type, init);
 		else if (type === "focus" || type === "blur" || type === "focusin" || type === "focusout") ev = new FocusEvent(type, init);
 		else if (type === "input") ev = new InputEvent(type, init);
+		// The UI's transition and animation events: `propertyName`,
+		// `animationName`, `elapsedTime` as the event's own fields; they
+		// bubble and cannot be cancelled, as in Chromium.
+		else if (/^transition(run|start|end|cancel)$/.test(type)) ev = new g.TransitionEvent(type, { ...init, cancelable: false });
+		else if (/^animation(start|iteration|end|cancel)$/.test(type)) ev = new g.AnimationEvent(type, { ...init, cancelable: false });
 		else if (type === "drop" || type === "dragover" || type === "dragenter") {
 			// Files dropped on the window: [{ name, type, b64 }] become File objects.
 			const files = (d.files ?? []).map((f) => {
