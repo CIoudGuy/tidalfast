@@ -54,6 +54,10 @@ pub struct ThemeLayout {
     /// (Lunallena's `left: calc(var(--sidebarWidth) * -1)`, which lays the
     /// page under the whole sidebar and leaves the sidebar floating over it).
     pub main_reach: f32,
+    /// `#main`'s left padding under that reach: how far in from the page's
+    /// left its content starts, in points (Lunallena's visible sidebar
+    /// build pads the page 50 so that it starts beside the card).
+    pub main_inset: f32,
     /// `#mainHeader` lifted above the page as a tab (Snusehunden,
     /// Lunallena), which their `:hover` rules slide down.
     pub header: Option<HeaderTab>,
@@ -65,6 +69,7 @@ impl ThemeLayout {
             && self.sidebar.is_none()
             && self.sidebar_shift == 0.0
             && self.main_reach == 0.0
+            && self.main_inset == 0.0
             && self.header.is_none()
     }
 }
@@ -128,15 +133,18 @@ pub fn resolve(
     viewport: [f32; 2],
 ) -> ThemeLayout {
     let sidebar = sidebar.filter(|h| !h.hidden());
+    let main = main.filter(|h| !h.hidden());
+    let main_reach = main.map_or(0.0, |h| main_reach(&h.style, vars, viewport));
     ThemeLayout {
         player_bar: footer
             .filter(|h| !h.hidden())
             .and_then(|h| player_bar(&h.style, vars, viewport)),
         sidebar: sidebar.and_then(|h| side_card(&h.style, vars, viewport)),
         sidebar_shift: sidebar.map_or(0.0, |h| side_shift(&h.style, vars, viewport)),
-        main_reach: main
-            .filter(|h| !h.hidden())
-            .map_or(0.0, |h| main_reach(&h.style, vars, viewport)),
+        main_reach,
+        main_inset: main
+            .filter(|_| main_reach > 0.0)
+            .map_or(0.0, |h| main_inset(&h.style, vars, viewport)),
         header: header
             .filter(|h| !h.hidden())
             .and_then(|h| header_tab(&h.style, vars, viewport)),
@@ -181,6 +189,24 @@ fn main_reach(style: &Style, vars: &BTreeMap<String, String>, viewport: [f32; 2]
         .into_iter()
         .any(|w| len(w, vars, vw, viewport).is_some_and(|w| w >= vw - 1.0));
     if spans { (-left).min(vw).round() } else { 0.0 }
+}
+
+/// `#main`'s left padding (`padding-left`, else the `padding` shorthand's
+/// left side), at most the window's width.
+fn main_inset(style: &Style, vars: &BTreeMap<String, String>, viewport: [f32; 2]) -> f32 {
+    let [vw, _] = viewport;
+    let left = len(style.padding_left.as_deref(), vars, vw, viewport).or_else(|| {
+        let v = css::resolve_vars(style.padding.as_deref()?, vars);
+        let words = css::words(v.trim().trim_end_matches("!important").trim());
+        let side = match words.len() {
+            0 => return None,
+            1 => words[0],
+            2 | 3 => words[1],
+            _ => words[3],
+        };
+        len(Some(side), vars, vw, viewport)
+    });
+    left.map_or(0.0, |l| l.clamp(0.0, vw.max(0.0)).round())
 }
 
 /// A `length` or `percentage` as (fraction, points).
@@ -491,6 +517,7 @@ mod tests {
                 "margin-top" => s.margin_top = v,
                 "padding-top" => s.padding_top = v,
                 "padding-left" => s.padding_left = v,
+                "padding" => s.padding = v,
                 "padding-right" => s.padding_right = v,
                 _ => panic!("{k}"),
             }
@@ -714,5 +741,24 @@ mod tests {
             main(&[("left", "-9000px"), ("min-width", "100vw")]),
             VIEW[0]
         );
+    }
+
+    /// Lunallena's visible sidebar build pads the page that reaches under
+    /// the sidebar (`#main { left: calc(var(--sidebarWidth) * -1);
+    /// padding-left: 50px; min-width: 100vw }`): TIDAL starts its album 28
+    /// points right of the plain build's (361, beside the card, against
+    /// 333). Tidalfast read the reach only and laid the page's content under
+    /// the card. A page that does not reach keeps its padding to itself.
+    #[test]
+    fn a_reaching_pages_left_padding_insets_its_content() {
+        let vars = BTreeMap::new();
+        let inset = |css: &[(&str, &str)]| {
+            resolve(None, None, None, Some(&host(css)), &vars, VIEW).main_inset
+        };
+        let reach = [("left", "-240px"), ("min-width", "100vw")];
+        assert_eq!(inset(&[reach[0], reach[1], ("padding-left", "50px")]), 50.0);
+        assert_eq!(inset(&[reach[0], reach[1], ("padding", "0 0 0 2vw")]), 28.0);
+        assert_eq!(inset(&reach), 0.0, "the plain build");
+        assert_eq!(inset(&[("padding", "16px")]), 0.0, "no reach");
     }
 }

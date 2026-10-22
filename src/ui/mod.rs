@@ -178,9 +178,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         } else {
             0.0
         };
-        let reach = plugin_dom::theme_layout(ctx).map_or(0.0, |l| l.main_reach);
+        let (reach, inset) =
+            plugin_dom::theme_layout(ctx).map_or((0.0, 0.0), |l| (l.main_reach, l.main_inset));
         let page_left = if reach > 0.0 {
-            Some(sidebar_over_page(app, ui, reach))
+            // `#main`'s left padding: its content starts that far in.
+            Some(sidebar_over_page(app, ui, reach) + inset)
         } else {
             let _part = part!("sidebar");
             sidebar::show(app, ui);
