@@ -136,11 +136,16 @@ process.on("message", () => {{
 }});
 `;
 exports.run = () => {{
-	let ticks = 0;
-	const t = setInterval(() => ticks++, 20);
-	return forkScript(script, [], {{}}, () => {{}}, (child) => child.send("go")).then((r) => {{
+	let ticks = 0, last = 0, gap = 0, sent = 0;
+	const t = setInterval(() => {{
+		const now = Date.now();
+		if (sent && last) gap = Math.max(gap, now - last);
+		last = now;
+		ticks++;
+	}}, 20);
+	return forkScript(script, [], {{}}, () => {{}}, (child) => {{ child.send("go"); sent = Date.now(); }}).then((r) => {{
 		clearInterval(t);
-		return {{ ...r, ticks }};
+		return {{ ...r, ticks, gap, busy: Date.now() - sent }};
 	}});
 }};
 "#
@@ -151,7 +156,13 @@ exports.run = () => {{
         None,
     );
     let run = &r["run"];
-    assert!(run["ticks"].as_u64().unwrap_or(0) >= 20, "{r}");
+    // The timer kept firing while the script computed: no wait between two
+    // ticks came near the 1.5 s the script held its own thread. How many
+    // ticks fit depends on the machine (a loaded runner fires a 20 ms
+    // timer far less often), so the longest wait is what is checked.
+    assert!(run["busy"].as_u64().unwrap_or(0) >= 1500, "{r}");
+    assert!(run["ticks"].as_u64().unwrap_or(0) >= 3, "{r}");
+    assert!(run["gap"].as_u64().is_some_and(|gap| gap < 750), "{r}");
     assert!(
         run["seen"]
             .as_array()
