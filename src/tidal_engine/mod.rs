@@ -1109,6 +1109,9 @@ impl Core {
             let start = Start::Uri(uri.clone());
             let first = queue.load(spec.context_uri.clone(), vec![track], start, shuffle);
             queue.set_autoplay(false);
+            // Alone until its context is placed round it: Next, Previous
+            // and its end wait for that context, also with Repeat all.
+            queue.hold_for_context(true);
             first
         };
         let Some(first) = first else {
@@ -2088,7 +2091,9 @@ impl Core {
         log::info!("playback stopped");
         self.load_play = None;
         self.load_steps = 0;
-        self.placing = None;
+        if self.placing.take().is_some() {
+            lock(&self.queue).hold_for_context(false);
+        }
         self.current = None;
         self.next = None;
         self.outgoing = None;
@@ -2217,6 +2222,8 @@ impl Core {
             let blocked = queue.blocked().clone();
             *queue = snapshot.queue.clone();
             queue.set_blocked(blocked);
+            // No context is on its way to the restored queue.
+            queue.hold_for_context(false);
             (queue.current().cloned(), queue.shuffle(), queue.repeat())
         };
         self.bump_load();

@@ -329,3 +329,35 @@ fn next_then_previous_while_a_load_waits_plays_the_row() {
     expected.extend(rows_after(9));
     wait_for_queue(&engine, &expected);
 }
+
+/// With Repeat all, Next or Previous while a clicked row's song plays
+/// early, before its page is in, still waits for the context: the row
+/// after it, or above it, plays once the page is in. Repeat all wrapped
+/// round the song alone in the queue meanwhile and started it again, and
+/// Next then never left it.
+#[test]
+fn repeat_all_next_or_previous_while_the_row_plays_early_moves_from_it() {
+    for (command, row) in [(PlayerCommand::Next, 10), (PlayerCommand::Previous, 8)] {
+        let catalog = Listed::new(0);
+        let (engine, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+        until(&states, |state| state.connected);
+        engine
+            .command(PlayerCommand::Repeat(RepeatMode::Context))
+            .unwrap();
+        until(&states, |state| state.repeat == RepeatMode::Context);
+        load_row(&engine, 9, true);
+        let started = until(&states, paused_on(&song_at(9).uri));
+        engine.command(command).unwrap();
+        let again = within(&states, Duration::from_millis(300), |state| {
+            state.track_sequence != started.track_sequence
+        });
+        assert!(
+            again.is_none(),
+            "a song started before the context was in: {:?}",
+            again.and_then(|state| state.track).map(|track| track.uri)
+        );
+        catalog.allow_all();
+        until(&states, paused_on(&song_at(row).uri));
+        engine.shutdown();
+    }
+}
