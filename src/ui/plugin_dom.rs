@@ -2026,13 +2026,15 @@ pub fn header_pill(primary: bool) -> Option<HeaderPill> {
             dom_anchors::keys::PAGE_SHUFFLE_LABEL,
         )
     };
-    // TIDAL's own CSS colours the label on these classes, so a theme's
-    // catch-all `* { color }` (Meteor Night's white) never reaches it
-    // there: the label takes a theme's colour only with the theme's fill.
+    // TIDAL's own CSS colours the button, not its label: the label only
+    // inherits, so any theme rule on it wins (Meteor Night's catch-all
+    // `* { color: white }` leaves TIDAL's white Play with a white label,
+    // its words invisible). A theme's colour on the button itself loses
+    // to TIDAL's own rule unless the theme paints the pill too.
     let fill = host(key, pill_fill);
     let pill = HeaderPill {
         fill,
-        ink: fill.and_then(|_| color(label).or_else(|| color(key))),
+        ink: color(label).or_else(|| fill.and_then(|_| color(key))),
         border: host(key, |h, vars| {
             css::border(&css::resolve_vars(h.style.border.as_deref()?, vars))
                 .filter(|(width, color)| *width > 0.0 && color.a() > 0)
