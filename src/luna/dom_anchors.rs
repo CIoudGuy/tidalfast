@@ -30,6 +30,9 @@ pub mod keys {
     pub const MAIN: &str = "main";
     pub const HEADER: &str = "main-header";
     pub const NAV_ARROWS: &str = "navigation-arrows";
+    /// The back and forward buttons in [`NAV_ARROWS`].
+    pub const NAV_BACK: &str = "navigation-arrows:back";
+    pub const NAV_FORWARD: &str = "navigation-arrows:forward";
     pub const SEARCH: &str = "search";
     pub const SEARCH_FIELD: &str = "search-field";
     pub const SEARCH_INPUT: &str = "search-input";
@@ -583,6 +586,8 @@ pub struct Shell {
     /// The page header (`[data-test=main-layout-header]`).
     pub header: Option<Rect>,
     pub nav_arrows: Option<Rect>,
+    /// Back and forward have nowhere to go (`button[disabled]`).
+    pub nav_disabled: [bool; 2],
     pub search: Option<Rect>,
     pub search_text: String,
     /// The account button (`button._profilePicture_`), with `svg` inside.
@@ -1168,6 +1173,23 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
             .modules(&["navigationArrows"])
             .at(s.nav_arrows),
     );
+    // Its two 32-point buttons, 2 in and 2 apart (Abyss Neptune's
+    // `[data-test="navigation-arrows"] > button` light boxes, grey when
+    // `:disabled`).
+    for (i, (key, label)) in [(NAV_BACK, "Back"), (NAV_FORWARD, "Forward")]
+        .into_iter()
+        .enumerate()
+    {
+        let mut button = el(key, Some(NAV_ARROWS), "button")
+            .attr("aria-label", label)
+            .at(s
+                .nav_arrows
+                .map(|[x, y, _, _]| [x + 2.0 + i as f32 * 34.0, y + 2.0, 32.0, 32.0]));
+        if s.nav_disabled[i] {
+            button = button.attr("disabled", "");
+        }
+        out.push(button);
+    }
     out.push(
         el(SEARCH, Some(HEADER), "div")
             .test("search-popover-container")

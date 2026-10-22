@@ -594,10 +594,16 @@ fn nav_arrows(
     let (rect, _) = ui.allocate_exact_size(vec2(70.0, 36.0), Sense::hover());
     ui.painter()
         .rect_filled(rect, CornerRadius::same(18), palette.chip());
+    super::plugin_dom::note(|f| f.shell.nav_disabled = [!can_back, !can_forward]);
     let mut clicked = [false; 2];
-    for (index, (icon, enabled, label)) in [
-        (Icon::ChevronLeft, can_back, back_label),
-        (Icon::ChevronRight, can_forward, forward_label),
+    for (index, (icon, enabled, label, key)) in [
+        (Icon::ChevronLeft, can_back, back_label, keys::NAV_BACK),
+        (
+            Icon::ChevronRight,
+            can_forward,
+            forward_label,
+            keys::NAV_FORWARD,
+        ),
     ]
     .into_iter()
     .enumerate()
@@ -624,17 +630,30 @@ fn nav_arrows(
             enabled && response.hovered(),
             crate::motion::tidal::HOVER,
         );
-        if hover > 0.0 {
+        // A theme's box for the button (Abyss Neptune's light squares), with
+        // the theme's colour for its chevron. A colour alone (a catch-all
+        // `* { color }`, Black Glow's `a, button`) leaves TIDAL's, whose
+        // class rule it does not beat.
+        let themed =
+            super::plugin_dom::nav_style(key).filter(|s| s.fill.is_some_and(|f| f.a() > 0));
+        if let Some(fill) = themed.and_then(|s| s.fill) {
+            let radius = themed.and_then(|s| s.radius).unwrap_or(16.0);
+            ui.painter().rect_filled(
+                button,
+                CornerRadius::same(radius.clamp(0.0, 255.0).round() as u8),
+                fill,
+            );
+        } else if hover > 0.0 {
             ui.painter().circle_filled(
                 button.center(),
                 16.0,
                 egui::Color32::from_white_alpha(20).gamma_multiply(hover),
             );
         }
-        let color = if enabled {
-            palette.text
-        } else {
-            palette.text.gamma_multiply(0.15)
+        let color = match themed.and_then(|s| s.color) {
+            Some(ink) => ink,
+            None if enabled => palette.text,
+            None => palette.text.gamma_multiply(0.15),
         };
         theme::paint_icon(ui, icon, button, 16.0, color);
         if enabled {

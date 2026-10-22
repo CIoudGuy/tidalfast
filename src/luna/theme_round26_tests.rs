@@ -350,3 +350,36 @@ fn the_queue_title_takes_its_own_rules() {
     assert_eq!(color, Some(egui::Color32::from_rgb(170, 255, 120)));
     assert_eq!(size, 19.0, "TIDAL's size, not the section headings'");
 }
+
+/// Abyss Neptune boxes TIDAL's back and forward buttons
+/// (`[data-test="navigation-arrows"] > button { background-color; color;
+/// border-radius }`, grey when `:disabled`): TIDAL shows two light squares
+/// with dark chevrons. The arrows had no button anchors, so Tidalfast kept
+/// its dark pill.
+#[test]
+fn the_back_and_forward_buttons_take_a_themes_box() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{NAV_BACK, NAV_FORWARD};
+    let css = r#"/* {"name": "Pebbles"} */
+:root { --pebble: rgb(240, 240, 235); }
+[data-test="navigation-arrows"] > button { background-color: var(--pebble) !important; color: rgb(5, 5, 5) !important; border-radius: 5px; }
+[data-test="navigation-arrows"] > button:disabled { background-color: rgb(200, 200, 200) !important; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.shell.nav_arrows = Some([256.0, 14.0, 70.0, 36.0]);
+    frame.shell.nav_disabled = [false, true];
+    let (luna, o) = overlay_with("pebbles.css", css, dom_anchors::build(&frame), NAV_FORWARD);
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let back = pd::nav_style(NAV_BACK).expect("styled");
+    let forward = pd::nav_style(NAV_FORWARD).expect("styled");
+    pd::test_overlay(None);
+    assert_eq!(back.fill, Some(egui::Color32::from_rgb(240, 240, 235)));
+    assert_eq!(back.radius, Some(5.0));
+    assert_eq!(back.color, Some(egui::Color32::from_rgb(5, 5, 5)));
+    assert_eq!(
+        forward.fill,
+        Some(egui::Color32::from_rgb(200, 200, 200)),
+        "disabled"
+    );
+}
