@@ -382,9 +382,16 @@ mod tests {
         );
     }
 
+    /// Against the embedded notes and this build's own version: a stable
+    /// build lists only stable releases, so its list is counted from those.
     #[test]
     fn only_the_missed_releases_are_listed() {
-        let all = entries();
+        let stable = Semver::parse(env!("CARGO_PKG_VERSION")).is_some_and(|v| !v.is_prerelease());
+        let all: Vec<Entry> = entries()
+            .into_iter()
+            .filter(|e| !(stable && Semver::parse(&e.version).is_some_and(|v| v.is_prerelease())))
+            .collect();
+        assert!(!all.is_empty());
         assert_eq!(entries_since(None).len(), all.len());
         assert!(entries_since(Some("99.0.0")).is_empty());
         let newest = &all[0].version;
