@@ -19,6 +19,9 @@
 //! text STRING       type text
 //! wait MS           pause before the next line
 //! shot PATH         write a PNG of the window's frame buffer to PATH
+//! focus             from here on the window reports itself focused, as
+//!                   one the user is working in (the app and plugins then
+//!                   act as for a window in front, not in the background)
 //! ```
 //!
 //! Without the variable nothing here runs. With it, one thread checks for
@@ -48,6 +51,7 @@ enum Step {
     Wait(Duration),
     Shot(PathBuf),
     Drop(egui::DroppedFileHandle),
+    Focus,
 }
 
 #[derive(Default)]
@@ -58,6 +62,8 @@ pub struct DevScript {
     resume_at: Option<Instant>,
     pos: egui::Pos2,
     shot: Option<PathBuf>,
+    /// `focus` was played: the window reports itself focused.
+    focus: bool,
 }
 
 impl DevScript {
@@ -77,6 +83,9 @@ impl DevScript {
         // into does: egui gives text fields no input while the window is
         // unfocused, and an off-screen test window is never focused.
         raw.focused = true;
+        if self.focus {
+            raw.viewports.entry(raw.viewport_id).or_default().focused = Some(true);
+        }
         if !std::mem::replace(&mut self.started, true) {
             let ctx = ctx.clone();
             let watched = path.clone();
@@ -107,6 +116,10 @@ impl DevScript {
         match self.steps.pop_front() {
             Some(Step::Events(events)) => raw.events.extend(events),
             Some(Step::Drop(file)) => raw.dropped_files.push(file),
+            Some(Step::Focus) => {
+                self.focus = true;
+                raw.viewports.entry(raw.viewport_id).or_default().focused = Some(true);
+            }
             Some(Step::Wait(d)) => self.resume_at = Some(Instant::now() + d),
             Some(Step::Shot(p)) => {
                 self.shot = Some(p);
@@ -268,6 +281,7 @@ impl DevScript {
                 "wait" if !nums.is_empty() => self
                     .steps
                     .push_back(Step::Wait(Duration::from_millis(nums[0] as u64))),
+                "focus" => self.steps.push_back(Step::Focus),
                 "shot" => {
                     if let Some(p) = words.next() {
                         self.steps.push_back(Step::Shot(PathBuf::from(p)));
@@ -296,7 +310,7 @@ click 1 1",
             match step {
                 Step::Events(e) => events.extend(e),
                 Step::Wait(d) => waited += d,
-                Step::Shot(_) | Step::Drop(_) => {}
+                Step::Shot(_) | Step::Drop(_) | Step::Focus => {}
             }
         }
         assert_eq!(waited, Duration::from_millis(200));
