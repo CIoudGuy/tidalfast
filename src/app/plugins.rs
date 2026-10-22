@@ -105,6 +105,26 @@ fn track_json(track: &Track) -> Value {
     })
 }
 
+/// The tier a song plays at before its stream has said: its own best
+/// (HiRes when TIDAL's tags name it, else its `audioQuality`), no higher
+/// than the quality asked of TIDAL. What `playbackContext` names while the
+/// song loads, so that a plugin colouring by it at the song's change is
+/// right for a HiRes song too.
+fn expected_quality(
+    track: Option<&Track>,
+    asked: crate::tidal_engine::Quality,
+) -> crate::tidal_engine::Quality {
+    use crate::tidal_engine::Quality;
+    let own = track.and_then(|track| {
+        if track.quality_tags.iter().any(|tag| tag == "HIRES_LOSSLESS") {
+            Some(Quality::HiResLossless)
+        } else {
+            track.audio_quality.as_deref().and_then(Quality::from_api)
+        }
+    });
+    own.map_or(asked, |own| own.min(asked))
+}
+
 fn luna_repeat(mode: RepeatMode) -> LunaRepeat {
     match mode {
         RepeatMode::Off => LunaRepeat::Off,
@@ -649,14 +669,32 @@ impl App {
             .as_ref()
             .and_then(|id| self.track_cache.get(id))
             .map(track_json);
+        // The stream's format is the playing song's only once the engine
+        // plays that song: a song just double-clicked is shown at once,
+        // while the engine still reports the one before it, whose format
+        // plugins took for the new song's (Tidal Tags' pill kept the
+        // previous song's figures). Until the stream says, the context
+        // names the tier the song is expected at and no figures.
+        let format = self
+            .local
+            .format
+            .as_ref()
+            .filter(|_| self.local.track.as_ref().is_some_and(|t| t.uri == now.uri));
         if now.local
-            && let Some(format) = &self.local.format
+            && let Some(format) = format
         {
             snap.audio_quality = format.quality.map(|q| q.api_name().to_string());
             snap.bit_depth = format.bit_depth;
             snap.sample_rate = Some(format.sample_rate);
             snap.codec = Some(format.codec.clone());
             snap.bitrate = format.bitrate;
+        } else if now.local {
+            let track = now.id.as_ref().and_then(|id| self.track_cache.get(id));
+            snap.audio_quality = Some(
+                expected_quality(track, self.settings.quality())
+                    .api_name()
+                    .to_string(),
+            );
         }
         if now.local
             && self
@@ -1423,6 +1461,97 @@ mod tests {
                 tray: false,
             },
         )
+    }
+
+    /// A song just started is shown at once while the engine still reports
+    /// the song before it. The playbackContext plugins read named the new
+    /// song with the old one's format (Tidal Tags' pill kept "16-bit
+    /// 44.1kHz 569kb/s" on a 24-bit song), and the "LOSSLESS" it fell back
+    /// to before the stream said coloured a HiRes song as lossless. Until
+    /// the engine plays the song, the context names the tier it is expected
+    /// at and no figures; then the stream's own.
+    #[test]
+    fn the_playing_songs_context_never_carries_the_song_befores_format() {
+        use crate::tidal_engine::{LocalTrack, Quality, StreamFormat};
+        let mut app = app("plugin-format");
+        app.settings.tidal_quality = "HI_RES_LOSSLESS".into();
+        app.local.track = Some(LocalTrack {
+            uri: "tidal:track:1".into(),
+            ..LocalTrack::default()
+        });
+        app.local.format = Some(StreamFormat {
+            codec: "flac".into(),
+            sample_rate: 44_100,
+            bit_depth: Some(16),
+            quality: Some(Quality::Lossless),
+            bitrate: Some(569_000),
+            ..StreamFormat::default()
+        });
+        app.track_cache.insert(
+            "2".into(),
+            Track {
+                id: Some("2".into()),
+                uri: "tidal:track:2".into(),
+                audio_quality: Some("LOSSLESS".into()),
+                quality_tags: vec!["LOSSLESS".into(), "HIRES_LOSSLESS".into()],
+                ..Track::default()
+            },
+        );
+        let now = NowPlaying {
+            local: true,
+            device_name: None,
+            device_kind: None,
+            uri: "tidal:track:2".into(),
+            id: Some("2".into()),
+            title: String::new(),
+            artists: Vec::new(),
+            subtitle: String::new(),
+            album_name: String::new(),
+            album_id: None,
+            art_url: None,
+            art_small: None,
+            duration_ms: 200_000,
+            position_ms: 0,
+            playing: true,
+            loading: true,
+            shuffle: false,
+            repeat: RepeatMode::Off,
+            volume_percent: 50,
+            can_control: true,
+            can_set_volume: true,
+            resuming: false,
+        };
+        let snap = app.luna_playback(Some(&now));
+        assert_eq!(snap.audio_quality.as_deref(), Some("HI_RES_LOSSLESS"));
+        assert_eq!(
+            (snap.sample_rate, snap.bit_depth, snap.bitrate),
+            (None, None, None),
+            "none of the song before's figures"
+        );
+        // No higher than the quality asked of TIDAL.
+        app.settings.tidal_quality = "LOSSLESS".into();
+        let snap = app.luna_playback(Some(&now));
+        assert_eq!(snap.audio_quality.as_deref(), Some("LOSSLESS"));
+        // The engine plays it: the stream's own figures.
+        app.local.track = Some(LocalTrack {
+            uri: "tidal:track:2".into(),
+            ..LocalTrack::default()
+        });
+        app.local.format = Some(StreamFormat {
+            codec: "flac".into(),
+            sample_rate: 96_000,
+            bit_depth: Some(24),
+            quality: Some(Quality::HiResLossless),
+            bitrate: Some(1_960_000),
+            ..StreamFormat::default()
+        });
+        let snap = app.luna_playback(Some(&now));
+        assert_eq!(snap.audio_quality.as_deref(), Some("HI_RES_LOSSLESS"));
+        assert_eq!(
+            (snap.sample_rate, snap.bit_depth, snap.bitrate),
+            (Some(96_000), Some(24), Some(1_960_000))
+        );
+        app.backend.shutdown();
     }
 
     /// quick-queue's row button queues a track by id. The queue row shows

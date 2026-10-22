@@ -904,10 +904,23 @@
 		// fixes (16-bit 44.1 kHz FLAC for LOSSLESS, AAC 320/96 kb/s) or what
 		// was seen when they played.
 		withFormat(u, audioQuality, listener) {
-			const entry = { audioQuality, listener };
+			// A listener for the playing song at the quality its
+			// playbackContext names (or at none) asks for the format of
+			// what plays: it hears the engine's figures once the stream
+			// has them, whatever tier the stream turns out to be.
+			const ctx = PlayState.playbackContext;
+			const playing = ctx && String(ctx.actualProductId) === String(this.id) && (audioQuality === undefined || audioQuality === null || audioQuality === ctx.actualAudioQuality);
+			const entry = { audioQuality, listener, playing, trace: this.trace };
 			watchFormats();
 			this.formatListeners.add(entry);
-			const unload = () => this.formatListeners.delete(entry);
+			const watchers = formatWatchers.get(String(this.id)) ?? new Set();
+			formatWatchers.set(String(this.id), watchers);
+			watchers.add(entry);
+			const unload = () => {
+				this.formatListeners.delete(entry);
+				watchers.delete(entry);
+				if (watchers.size === 0 && formatWatchers.get(String(this.id)) === watchers) formatWatchers.delete(String(this.id));
+			};
 			u?.add(unload);
 			const known = knownFormat(this.id, audioQuality);
 			if (known) {
@@ -924,13 +937,20 @@
 			const id = String(this.id);
 			const playing = () => {
 				const ctx = PlayState.playbackContext;
-				return ctx && String(ctx.actualProductId) === id && (audioQuality === undefined || audioQuality === null || ctx.actualAudioQuality === audioQuality) ? ctx : undefined;
+				return ctx && String(ctx.actualProductId) === id ? ctx : undefined;
 			};
+			// Asked of the playing song at the quality its playbackContext
+			// names, or at none: the format of what plays. The context
+			// names the expected tier while the stream loads, and the
+			// stream may turn out another; its figures are the answer.
+			const asked = playing();
+			const ofPlaying = asked !== undefined && (audioQuality === undefined || audioQuality === null || asked.actualAudioQuality === audioQuality);
 			let fmt;
 			let fromEngine = false;
-			if (playing()) {
-				// The engine reports the decoded format a moment after the song starts.
-				for (let i = 0; i < 20 && !playing()?.sampleRate; i++) await new Promise((r) => setTimeout(r, 250));
+			if (ofPlaying) {
+				// The engine reports the decoded format a moment after the
+				// song starts; waiting ends if another song plays meanwhile.
+				for (let i = 0; i < 20 && playing() && !playing().sampleRate; i++) await new Promise((r) => setTimeout(r, 250));
 				const ctx = playing();
 				if (ctx?.sampleRate) {
 					fmt = engineFormat(ctx);
@@ -951,8 +971,9 @@
 			if (!fmt) return undefined;
 			formatCache.set(`${id}|${fmt.audioQuality}`, fmt);
 			if (fromEngine) engineKeys.add(`${id}|${fmt.audioQuality}`);
-			for (const { audioQuality: want, listener } of this.formatListeners) {
-				if (want !== undefined && want !== null && want !== fmt.audioQuality) continue;
+			for (const { audioQuality: want, listener, playing: forPlaying } of this.formatListeners) {
+				const hears = want === undefined || want === null || want === fmt.audioQuality || (fromEngine && (forPlaying || want === audioQuality));
+				if (!hears) continue;
 				try {
 					await listener(fmt);
 				} catch (err) {
@@ -966,6 +987,9 @@
 	const formatCache = new Map();
 	// The keys of formats the engine reported (they stay over a playback info's).
 	const engineKeys = new Set();
+	// `withFormat` listeners by song id, for the engine's figures to reach
+	// as the song plays.
+	const formatWatchers = new Map();
 	// What TIDAL's playback info says of a song (bit depth, sample rate, and
 	// the codec and bit rate its manifest names; the manifest itself never
 	// reaches plugins) is the song's format for `withFormat` and
@@ -1032,8 +1056,21 @@
 		const key = `${ctx.actualProductId}|${ctx.actualAudioQuality}|${ctx.sampleRate}|${ctx.bitDepth}|${ctx.bitrate}`;
 		if (key === lastFormatKey) return;
 		lastFormatKey = key;
-		formatCache.set(`${ctx.actualProductId}|${ctx.actualAudioQuality}`, engineFormat(ctx));
+		const fmt = engineFormat(ctx);
+		formatCache.set(`${ctx.actualProductId}|${ctx.actualAudioQuality}`, fmt);
 		engineKeys.add(`${ctx.actualProductId}|${ctx.actualAudioQuality}`);
+		// However the song started, its listeners hear what it plays at: a
+		// listener for that tier, for any, or for the playing song.
+		for (const entry of [...(formatWatchers.get(String(ctx.actualProductId)) ?? [])]) {
+			const want = entry.audioQuality;
+			if (want !== undefined && want !== null && want !== fmt.audioQuality && !entry.playing) continue;
+			try {
+				const r = entry.listener(fmt);
+				if (r instanceof Promise) r.catch((err) => entry.trace.err.withContext("withFormat.listener")(err));
+			} catch (err) {
+				entry.trace.err.withContext("withFormat.listener")(err);
+			}
+		}
 	};
 
 	// ---------------------------------------------------------------- PlayState

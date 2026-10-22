@@ -866,6 +866,121 @@ say(`listed:${f.sampleRate}/${f.bitDepth}/${f.codec}/${Object.keys(f).sort().joi
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A plugin showing the playing song's format the way Tidal Tags does: at
+/// each song change it colours `#progressBar` with the tier the
+/// playbackContext names and asks `withFormat` and `updateFormat` at that
+/// tier, while the stream is still loading. The stream's figures reach it
+/// once the engine has them, also when the stream turns out another tier
+/// than the context named while it loaded; and the progress bar's colour
+/// is the native fill's. The plugin got the tier's guess (16-bit 44.1 kHz)
+/// for a 24-bit song instead.
+#[test]
+fn the_playing_songs_format_reaches_withformat_at_every_song_change() {
+    use super::dom::DomOverlay;
+    use super::dom_anchors::{self, keys};
+    let mut snap = PlaybackSnapshot {
+        queue: vec![entry("101", "u1")],
+        current_index: Some(0),
+        current_item: Some(item(101, "Before")),
+        audio_quality: Some("LOSSLESS".into()),
+        bit_depth: Some(16),
+        sample_rate: Some(44100),
+        codec: Some("FLAC".into()),
+        bitrate: Some(569_000),
+        ..PlaybackSnapshot::default()
+    };
+    for id in [202, 303] {
+        snap.known_items.insert(
+            id.to_string(),
+            json!({ "id": id, "title": "Song", "duration": 200, "audioQuality": "LOSSLESS" }),
+        );
+    }
+    let (luna, host, dir) = start(
+        r##"
+let off;
+const show = async (item) => {
+	const ctx = lib.PlayState.playbackContext;
+	if (item.id != ctx.actualProductId) return;
+	const q = ctx.actualAudioQuality;
+	document.getElementById("progressBar").style.color = lib.Quality.fromAudioQuality(q)?.color ?? "#cfcfcf";
+	off?.();
+	off = item.withFormat(unloads, q, (f) => say(`${item.id}:${f.bitDepth}/${f.sampleRate}/${f.bitrate}`));
+	await item.updateFormat(q);
+};
+lib.MediaItem.onMediaTransition(unloads, show);
+say("ready");
+"##,
+        snap,
+    );
+    luna.sync_dom(dom_anchors::sample_tree());
+    host.wait(&luna, "the plugin", |h| {
+        h.notes().iter().any(|n| n == "ready")
+    });
+    // Each song as the app names it while its stream loads (the tier it
+    // is expected at, no figures), then the figures the engine reports.
+    let play = |id: &str, expected: &str, quality: &str, bits: u32, rate: u32, bitrate: u32| {
+        {
+            let mut snap = host.snap.lock().unwrap();
+            snap.queue = vec![entry(id, "u2")];
+            snap.current_item = Some(item(id.parse().unwrap(), "Song"));
+            snap.audio_quality = Some(expected.into());
+            snap.bit_depth = None;
+            snap.sample_rate = None;
+            snap.bitrate = None;
+        }
+        luna.event(LunaEvent::TrackChanged { id: id.into() });
+        luna.sync(Duration::from_secs(5));
+        std::thread::sleep(Duration::from_millis(300));
+        {
+            let mut snap = host.snap.lock().unwrap();
+            snap.audio_quality = Some(quality.into());
+            snap.bit_depth = Some(bits);
+            snap.sample_rate = Some(rate);
+            snap.bitrate = Some(bitrate);
+        }
+        luna.event(LunaEvent::Position(1.0));
+        let want = format!("{id}:{bits}/{rate}/{bitrate}");
+        host.wait(&luna, &want, |h| h.notes().contains(&want));
+    };
+    // A HiRes song, expected HiRes: the fill turns HiRes gold.
+    play(
+        "202",
+        "HI_RES_LOSSLESS",
+        "HI_RES_LOSSLESS",
+        24,
+        96_000,
+        1_960_000,
+    );
+    let gold = |o: &DomOverlay| {
+        o.hosts
+            .get(keys::PROGRESS_BAR)
+            .and_then(|h| h.style.color.as_deref())
+            .is_some_and(|c| c.eq_ignore_ascii_case("#ffd432") || c == "rgb(255, 212, 50)")
+    };
+    let end = Instant::now() + Duration::from_secs(10);
+    loop {
+        luna.sync(Duration::from_secs(5));
+        if gold(&luna.dom_overlay()) {
+            break;
+        }
+        assert!(
+            Instant::now() < end,
+            "the progress bar's colour is the tier's"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    // A song the context named lossless while it loaded that streams at
+    // 24 bits: the plugin hears the stream's figures, not the tier's.
+    play("303", "LOSSLESS", "HI_RES_LOSSLESS", 24, 44_100, 1_400_000);
+    let notes = host.notes();
+    assert!(
+        !notes.iter().any(|n| n.starts_with("303:16/")),
+        "the tier's guess was never shown: {notes:?}"
+    );
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// AltPlay: a plugin mutes TIDAL's player element and plays the song from
 /// the listener's own server in an `<audio>` of its own, through a
 /// node:http proxy it runs on 127.0.0.1. Tidalfast's engine plays the
