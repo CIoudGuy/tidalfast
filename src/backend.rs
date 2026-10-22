@@ -30,6 +30,7 @@ use crate::player::{
     Engine, EngineConfig, EngineEvent, Heard, LoadSpec, LocalState, LocalTrack, PlaybackResume,
     PlayerCommand, RepeatMode,
 };
+use crate::runtime_gate::RuntimeGate;
 use crate::settings::ProxyConfig;
 
 pub use crate::api::tidal::activity::{ActivityTimeline, TopArtistsReport};
@@ -1071,34 +1072,38 @@ pub use fastframe_shell::Waker;
 /// The signed-in TIDAL client and the runtime to run its requests on, for
 /// callers off the backend thread (the Luna plugin host).
 #[derive(Clone, Default)]
-pub struct TidalAccess(Arc<std::sync::OnceLock<(Arc<ApiGateway>, tokio::runtime::Handle)>>);
+pub struct TidalAccess(Arc<std::sync::OnceLock<(Arc<ApiGateway>, RuntimeGate)>>);
 
 impl TidalAccess {
     /// Run `f` against the TIDAL client once the account is ready. Blocks;
-    /// never call it on the UI thread or inside the async runtime.
+    /// never call it on the UI thread or inside the async runtime. `None`
+    /// as well once the app is closing.
     pub fn block_on<T, F, Fut>(&self, f: F) -> Option<T>
     where
         F: FnOnce(Arc<TidalClient>) -> Fut,
         Fut: std::future::Future<Output = Result<T, ApiError>>,
     {
-        let (api, handle) = self.0.get()?;
+        let (api, runtime) = self.0.get()?;
         if tokio::runtime::Handle::try_current().is_ok() || crate::http::offline_mode() {
             return None;
         }
-        handle.block_on(async {
-            let client = tokio::time::timeout(Duration::from_secs(10), api.tidal_ready())
-                .await
-                .ok()?
-                .ok()?;
-            match tokio::time::timeout(Duration::from_secs(20), f(client)).await {
-                Ok(Ok(value)) => Some(value),
-                Ok(Err(error)) => {
-                    log::debug!("plugin lookup failed: {error}");
-                    None
+        runtime
+            .block_on(async {
+                let client = tokio::time::timeout(Duration::from_secs(10), api.tidal_ready())
+                    .await
+                    .ok()?
+                    .ok()?;
+                match tokio::time::timeout(Duration::from_secs(20), f(client)).await {
+                    Ok(Ok(value)) => Some(value),
+                    Ok(Err(error)) => {
+                        log::debug!("plugin lookup failed: {error}");
+                        None
+                    }
+                    Err(_) => None,
                 }
-                Err(_) => None,
-            }
-        })
+            })
+            .ok()
+            .flatten()
     }
 }
 
@@ -1194,7 +1199,10 @@ impl Backend {
                 Http::unavailable(error)
             })
         };
-        let art = ArtLoader::new(http.clone(), runtime.handle().clone(), dirs.art_cache_dir());
+        // What threads outside the runtime block on: closed before the
+        // runtime shuts down (`runtime_gate::shut_down`).
+        let gate = RuntimeGate::new(runtime.handle().clone());
+        let art = ArtLoader::new(http.clone(), gate.clone(), dirs.art_cache_dir());
         let activity = Arc::new(NetActivity::default());
 
         let worker_activity = Arc::clone(&activity);
@@ -1202,11 +1210,14 @@ impl Backend {
         let worker_commands = command_tx.clone();
         let tidal_access = TidalAccess::default();
         let worker_access = tidal_access.clone();
+        let worker_gate = gate;
         let thread = std::thread::Builder::new()
             .name("tidalfast-backend".to_string())
             .spawn(move || {
+                let worker_runtime = worker_gate.clone();
                 runtime.block_on(async move {
                     let mut worker = Worker::new(
+                        worker_runtime,
                         dirs,
                         engine_config,
                         http,
@@ -1218,14 +1229,19 @@ impl Backend {
                     );
                     let _ = worker_access
                         .0
-                        .set((worker.api.clone(), tokio::runtime::Handle::current()));
+                        .set((worker.api.clone(), worker.runtime.clone()));
                     if restore_sign_in {
                         worker.restore_session();
                     }
                     worker.run(command_rx).await;
                 });
-                // Give the engine's threads a moment to release the audio device.
-                runtime.shutdown_timeout(Duration::from_secs(2));
+                // The worker, and with it the engine, is gone. The threads
+                // still blocked on the runtime from outside (the engine's
+                // catalogue requests, plugin lookups, covers) are ended and
+                // let go before it shuts down: a timer polled on a runtime
+                // shutting down panics, which aborts the app. Then give the
+                // engine's threads a moment to release the audio device.
+                crate::runtime_gate::shut_down(runtime, &worker_gate, Duration::from_secs(2));
             })
             .expect("unable to start the backend thread");
 
@@ -1564,6 +1580,9 @@ impl Backend {
 }
 
 struct Worker {
+    /// The runtime this worker runs on, for the threads outside it that
+    /// block on it (the engine's catalogue).
+    runtime: RuntimeGate,
     dirs: AppDirs,
     credentials: CredentialStore,
     restoring_proxy: bool,
@@ -1613,6 +1632,7 @@ struct Worker {
 impl Worker {
     #[allow(clippy::too_many_arguments)]
     fn new(
+        runtime: RuntimeGate,
         dirs: AppDirs,
         engine_config: EngineConfig,
         http: Http,
@@ -1629,6 +1649,7 @@ impl Worker {
             report_plays,
         );
         Self {
+            runtime,
             plays,
             activity_dumped: false,
             offline_jobs: HashMap::new(),
@@ -2520,10 +2541,7 @@ impl Worker {
             return;
         }
         self.carry_volume();
-        let catalog = Arc::new(TidalCatalog::new(
-            self.api.tidal(),
-            tokio::runtime::Handle::current(),
-        ));
+        let catalog = Arc::new(TidalCatalog::new(self.api.tidal(), self.runtime.clone()));
         self.emit(Event::Playback(LocalPlayback::Connecting));
         match Engine::new(self.engine_config.clone(), catalog, self.engine_notify()) {
             Ok(engine) => {
@@ -2579,10 +2597,7 @@ impl Worker {
                 return;
             }
         };
-        let catalog = Arc::new(TidalCatalog::new(
-            self.api.tidal(),
-            tokio::runtime::Handle::current(),
-        ));
+        let catalog = Arc::new(TidalCatalog::new(self.api.tidal(), self.runtime.clone()));
         let events = self.events.clone();
         let waker = self.waker.clone();
         let job = store.download_from(
@@ -2638,7 +2653,7 @@ impl Worker {
     }
 
     fn offline_context_tracks(&self, uri: String) {
-        let catalog = TidalCatalog::new(self.api.tidal(), tokio::runtime::Handle::current());
+        let catalog = TidalCatalog::new(self.api.tidal(), self.runtime.clone());
         let events = self.events.clone();
         let waker = self.waker.clone();
         // On the runtime itself: the blocking catalogue refuses to run on a
@@ -4388,6 +4403,66 @@ fn write_playlist_manifest(
             writer.flush()
         },
     )
+}
+
+#[cfg(test)]
+mod quit_tests {
+    use super::*;
+
+    /// The crash at quit in 7.10.5 to 7.17.1: a plugin's TIDAL lookup
+    /// ("luna-lookup") waiting on its request when the backend shut its
+    /// runtime down. The request's timeout timer was then polled on a
+    /// runtime shutting down, which panics, and the release build aborted.
+    /// Now quitting ends the lookup unanswered and the thread carries on.
+    #[test]
+    fn quitting_during_a_plugin_lookup_ends_it_without_a_panic() {
+        let root = crate::paths::unique_test_dir("lookup-at-quit-test");
+        let _ = std::fs::remove_dir_all(&root);
+        let dirs = AppDirs {
+            config: root.join("config"),
+            state: root.join("state"),
+            cache: root.join("cache"),
+        };
+        let config = crate::app::engine_config(
+            &dirs,
+            &crate::settings::Settings::default(),
+            ProxyConfig::Off,
+            Arc::default(),
+        );
+        let mut backend = Backend::spawn(dirs, config, Waker::default(), false);
+        let tidal = backend.tidal_access();
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        let api = loop {
+            if let Some((api, _)) = tidal.0.get() {
+                break Arc::clone(api);
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the backend never started"
+            );
+            std::thread::yield_now();
+        };
+        // Signed in, so the lookup reaches its request.
+        api.install(crate::api::AccountId::new("1"));
+        let (asked, waiting) = std::sync::mpsc::channel();
+        let lookup = std::thread::Builder::new()
+            .name("luna-lookup".into())
+            .spawn(move || {
+                tidal.block_on(move |_client| {
+                    let _ = asked.send(());
+                    // TIDAL that does not answer before the quit.
+                    std::future::pending::<Result<(), ApiError>>()
+                })
+            })
+            .unwrap();
+        waiting
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the lookup never asked");
+        backend.shutdown();
+        let answer = lookup.join().expect("the lookup panicked at quit");
+        assert_eq!(answer, None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
 
 #[cfg(test)]

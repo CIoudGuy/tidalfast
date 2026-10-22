@@ -13,6 +13,7 @@ use egui::load::{
 use sha1::{Digest, Sha1};
 
 use crate::http::Http;
+use crate::runtime_gate::RuntimeGate;
 
 /// Maximum artwork bytes held in memory.
 ///
@@ -174,7 +175,9 @@ struct Inner {
     /// still held.
     textures: Mutex<HashMap<String, HashMap<String, PaintedCopy>>>,
     http: Http,
-    runtime: tokio::runtime::Handle,
+    /// The backend's runtime: fetches run on it, and threads outside it
+    /// block on it through the gate, which ends them when the app closes.
+    runtime: RuntimeGate,
     cache_dir: PathBuf,
 }
 
@@ -184,14 +187,14 @@ pub struct ArtLoader {
 }
 
 impl ArtLoader {
-    pub fn new(http: impl Into<Http>, runtime: tokio::runtime::Handle, cache_dir: PathBuf) -> Self {
+    pub fn new(http: impl Into<Http>, runtime: impl Into<RuntimeGate>, cache_dir: PathBuf) -> Self {
         let _ = std::fs::create_dir_all(&cache_dir);
         Self {
             inner: Arc::new(Inner {
                 entries: Mutex::new(HashMap::new()),
                 textures: Mutex::new(HashMap::new()),
                 http: http.into(),
-                runtime,
+                runtime: runtime.into(),
                 cache_dir,
             }),
         }
@@ -199,7 +202,7 @@ impl ArtLoader {
 
     /// The image loader that scales this loader's artwork for painting.
     pub fn scaler(&self) -> CoverScaler {
-        CoverScaler::new(self.inner.runtime.clone())
+        CoverScaler::new(self.inner.runtime.handle().clone())
     }
 
     /// Bytes for `url`, from memory, disk, or the network.
@@ -207,9 +210,13 @@ impl ArtLoader {
         self.inner.fetch(url).await
     }
 
-    /// [`Self::fetch`] from a thread outside the loader's runtime.
+    /// [`Self::fetch`] from a thread outside the loader's runtime. Fails
+    /// once the app is closing.
     pub fn fetch_blocking(&self, url: &str) -> Result<Arc<[u8]>, String> {
-        self.inner.runtime.block_on(self.inner.fetch(url))
+        self.inner
+            .runtime
+            .block_on(self.inner.fetch(url))
+            .unwrap_or_else(|closing| Err(closing.to_string()))
     }
 
     /// Waits until every artwork fetch asked for so far has an answer. Tests
@@ -563,7 +570,7 @@ impl Inner {
                 let bytes: Arc<[u8]> = Arc::from(bytes.as_ref());
                 let write_path = path.clone();
                 let payload = Arc::clone(&bytes);
-                self.runtime.spawn_blocking(move || {
+                self.runtime.handle().spawn_blocking(move || {
                     let temporary = write_path.with_extension("part");
                     if std::fs::write(&temporary, &payload).is_ok() {
                         let _ = std::fs::rename(&temporary, &write_path);
@@ -578,7 +585,7 @@ impl Inner {
     fn start(self: &Arc<Self>, ctx: &egui::Context, url: String) {
         let loader = Arc::clone(self);
         let ctx = ctx.clone();
-        self.runtime.spawn(async move {
+        self.runtime.handle().spawn(async move {
             let result = loader.fetch(&url).await;
             let entry = match result {
                 Ok(bytes) => Entry::Ready {
@@ -795,10 +802,11 @@ impl LyricsBackdrop {
             let ctx = ctx.clone();
             let inner = Arc::clone(&loader.inner);
             let url = uri.to_string();
-            loader.inner.runtime.spawn(async move {
+            loader.inner.runtime.handle().spawn(async move {
                 let result = match inner.fetch(&url).await {
                     Ok(bytes) => inner
                         .runtime
+                        .handle()
                         .spawn_blocking(move || {
                             let mut image = blurred_background(&bytes, LYRICS_BLUR)?;
                             crate::ui::player_background::saturate(
@@ -991,10 +999,11 @@ impl SoftenedCovers {
         let ready_uri = uri.to_string();
         let ctx = ctx.clone();
         let inner = Arc::clone(&loader.inner);
-        loader.inner.runtime.spawn(async move {
+        loader.inner.runtime.handle().spawn(async move {
             let result = match inner.fetch(&source).await {
                 Ok(bytes) => inner
                     .runtime
+                    .handle()
                     .spawn_blocking(move || blurred_background(&bytes, sigma))
                     .await
                     .map_err(|error| error.to_string()),
