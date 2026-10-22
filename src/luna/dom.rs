@@ -141,6 +141,12 @@ pub struct Style {
     pub text_align: Option<String>,
     pub line_height: Option<String>,
     pub overflow: Option<String>,
+    /// `auto` or `scroll` makes a box of a definite height scroll what it
+    /// holds (DownloadManager's About window body).
+    pub overflow_y: Option<String>,
+    /// The marker list items draw (`disc` unless set; `none` draws none),
+    /// inherited from their list.
+    pub list_style_type: Option<String>,
     pub outline: Option<String>,
     /// How far out of the border box the outline is drawn (element-hider's
     /// `2px` ring round the element it would hide).

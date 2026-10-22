@@ -461,6 +461,30 @@ pub fn installed_faces(family: &str) -> Option<[Arc<FontData>; 4]> {
     found
 }
 
+/// The system face a browser falls back to for symbols a page's font lacks
+/// (arrows, gears, check marks): Chromium draws DownloadManager's `⬇` and
+/// `⚙` with Segoe UI Symbol's thin outlines on Windows.
+const SYMBOL_FAMILIES: &[&str] = if cfg!(target_os = "windows") {
+    &["Segoe UI Symbol"]
+} else if cfg!(target_os = "macos") {
+    &["Apple Symbols"]
+} else {
+    &["DejaVu Sans", "Noto Sans Symbols 2", "Noto Sans Symbols"]
+};
+
+static SYMBOLS: OnceLock<Option<[Arc<FontData>; 4]>> = OnceLock::new();
+
+/// Finds the system's symbol face once. Mapping fonts is slow,
+/// so this runs off the UI thread; [`symbol_faces`] reads what it found.
+pub fn warm_symbols() {
+    SYMBOLS.get_or_init(|| SYMBOL_FAMILIES.iter().find_map(|f| installed_faces(f)));
+}
+
+/// The symbol face at the four weights, once [`warm_symbols`] found it.
+pub fn symbol_faces() -> Option<&'static [Arc<FontData>; 4]> {
+    SYMBOLS.get()?.as_ref()
+}
+
 fn map_installed_faces(key: &str) -> Option<[Arc<FontData>; 4]> {
     let faces = family_index().get(key)?;
     let upright: Vec<&Indexed> = faces.iter().filter(|f| f.upright).collect();

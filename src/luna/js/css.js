@@ -774,7 +774,7 @@
 	// properties, the initial value for the boxes the app paints.
 	const UNSET_INHERITED = { "font-size": "14px", "font-weight": "500", "line-height": "20px" };
 	const UNSET_INITIAL = { "background-color": "transparent", "background-image": "none", "border-radius": "0px", "box-shadow": "none" };
-	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "margin-left", "margin-right", "column-gap", "padding-top", "padding-left", "padding-right", "padding-bottom", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "outline-offset", "border-color", "letter-spacing", "text-transform", "fill", "white-space", "flex", "flex-wrap", "order", "pointer-events", "background-position", "background-size", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns"]);
+	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "margin-left", "margin-right", "column-gap", "padding-top", "padding-left", "padding-right", "padding-bottom", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "outline-offset", "border-color", "letter-spacing", "text-transform", "fill", "white-space", "flex", "flex-wrap", "order", "pointer-events", "background-position", "background-size", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns", "overflow-y", "list-style-type"]);
 	const ANIM_LONG = ["animation-name", "animation-duration", "animation-delay", "animation-iteration-count", "animation-direction", "animation-timing-function", "animation-play-state", "animation-fill-mode"];
 	const seconds = (t) => (/ms$/i.test(t) ? parseFloat(t) / 1000 : parseFloat(t));
 	// A timing function as one word for the lists below: lower case, no spaces
@@ -889,7 +889,7 @@
 		}
 		return out;
 	};
-	const INHERITED = new Set(["color", "font-family", "font-size", "font-weight", "font-style", "visibility", "line-height", "text-align", "cursor", "letter-spacing", "text-transform", "fill", "white-space", "direction"]);
+	const INHERITED = new Set(["color", "font-family", "font-size", "font-weight", "font-style", "visibility", "line-height", "text-align", "cursor", "letter-spacing", "text-transform", "fill", "white-space", "direction", "list-style-type"]);
 	const isImage = (v) => /url\(|gradient\(|image-set\(/i.test(v);
 	// The colour in a `background` shorthand without an image (`0 0`,
 	// `red`, `center / cover #111`): transparent when it names none.
@@ -996,6 +996,12 @@
 			}
 			else if (name === "translate" || name === "rotate" || name === "scale") {
 				if (!/^none$/i.test(v.trim())) set(`-${name}`, v);
+			}
+			// `list-style: none` (or `square inside`): the marker's type, which
+			// list items inherit from their list.
+			else if (name === "list-style") {
+				const type = v.trim().split(/\s+/).find((w) => !/^(inside|outside|url\(.*)$/i.test(w));
+				if (type) set("list-style-type", type);
 			}
 		}
 		// `margin-left` / `-right` (LuckyLP's 16px gap after the title) and

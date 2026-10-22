@@ -5637,6 +5637,12 @@ fn fonts_tick(ctx: &egui::Context) {
                         element_fonts.insert(value.clone(), name);
                     }
                 }
+                // Plugin families fall back to the system's symbol face
+                // (`theme::install_plugin_fonts`), mapped here, off the UI
+                // thread.
+                if !loaded.is_empty() {
+                    crate::fonts::warm_symbols();
+                }
                 let _ = tx.send((loaded, primary, element_fonts));
                 waker.request_repaint();
             })

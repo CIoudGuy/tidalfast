@@ -883,6 +883,54 @@ struct Inherit {
     /// `text-shadow` layers (inherited, as in CSS), offset and colour; the
     /// first is painted on top.
     shadow: [Option<(Vec2, Color32)>; 2],
+    /// The block round this text cuts it with "…" (`text-overflow:
+    /// ellipsis`): its inline content, words in spans included.
+    ellipsis: bool,
+    /// `list-style-type`, inherited from the list: what a list item's
+    /// marker is.
+    marker: Marker,
+}
+
+/// A list item's marker (`list-style-type`).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+enum Marker {
+    #[default]
+    Disc,
+    Circle,
+    Square,
+    Decimal,
+    None,
+}
+
+impl Marker {
+    fn parse(value: &str) -> Option<Self> {
+        Some(match value.trim().to_ascii_lowercase().as_str() {
+            "disc" => Self::Disc,
+            "circle" => Self::Circle,
+            "square" => Self::Square,
+            "decimal" | "decimal-leading-zero" => Self::Decimal,
+            "none" => Self::None,
+            _ => return None,
+        })
+    }
+
+    /// The marker's text for the `n`-th item (from 1), as Chromium writes
+    /// it before the item: a bullet, or the number and a full stop.
+    fn text(self, n: usize) -> Option<String> {
+        Some(match self {
+            Self::Disc => "\u{2022}".into(),
+            Self::Circle => "\u{25E6}".into(),
+            Self::Square => "\u{25AA}".into(),
+            Self::Decimal => format!("{n}."),
+            Self::None => return None,
+        })
+    }
+}
+
+thread_local! {
+    /// The items counted so far in each list being drawn, innermost last
+    /// (an `<ol>`'s numbers).
+    static LIST_ITEMS: std::cell::RefCell<Vec<usize>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -930,6 +978,21 @@ impl Inherit {
             fill: None,
             line_height: None,
             shadow: [None; 2],
+            ellipsis: false,
+            marker: Marker::Disc,
+        }
+    }
+
+    /// What an element appended to `body` starts from: TIDAL's body text is
+    /// weight 500 (measured in TIDAL 2.43.2), and plugin text that sets no
+    /// weight keeps it. In Chromium on Windows a family without a 500 cut
+    /// draws it with its semibold one (DownloadManager's window title and
+    /// its "Output:" row, in Segoe UI), as [`crate::fonts::pick_weight`]
+    /// picks it here.
+    fn body(ui: &egui::Ui) -> Self {
+        Self {
+            weight: 500,
+            ..Self::root(ui)
         }
     }
 }
@@ -1798,7 +1861,7 @@ pub fn floating(ui: &egui::Ui) {
         keyframes: &overlay.keyframes,
     };
     let screen = ui.ctx().content_rect();
-    let inherit = Inherit::root(ui);
+    let inherit = Inherit::body(ui);
     let nodes = overlay
         .injected
         .iter()
@@ -3118,7 +3181,39 @@ fn block(tag: &str) -> bool {
             | "form"
             | "table"
             | "tr"
+            | "hr"
+            | "menu"
     )
+}
+
+/// CSS `font-weight: bolder` from the parent's weight.
+fn bolder(weight: u16) -> u16 {
+    match weight {
+        0..350 => 400,
+        350..550 => 700,
+        _ => 900,
+    }
+}
+
+/// Draw `add` in a vertical scroll area when `scroll` gives its height
+/// (`true`: the box is that tall; `false`: at most that tall), else as it is.
+fn scroll_box<R>(
+    ui: &mut egui::Ui,
+    id: u64,
+    scroll: Option<(f32, bool)>,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    match scroll {
+        Some((height, fixed)) => {
+            egui::ScrollArea::vertical()
+                .id_salt(("luna-scroll", id))
+                .max_height(height.max(1.0))
+                .auto_shrink([false, !fixed])
+                .show(ui, add)
+                .inner
+        }
+        None => add(ui),
+    }
 }
 
 /// Whether a child sits on a line of text: a text node, an element with
@@ -3150,22 +3245,30 @@ fn inline_level(n: &VNode) -> bool {
         )
 }
 
-/// A block box whose children are all inline-level and at least one asks for
-/// `display: inline*` explicitly: its children flow in lines and wrap, as a
-/// browser sets them (radiant-lyrics' words are `inline-block` spans in a
-/// `<p>`). A block of plain text and phrasing tags keeps its column.
+/// A block box whose children are all inline-level and either at least one
+/// asks for `display: inline*` explicitly (radiant-lyrics' words are
+/// `inline-block` spans in a `<p>`) or words sit beside a phrasing element
+/// (DownloadManager's About text: `as <strong>FLAC</strong>, with`): its
+/// children flow in lines and wrap, as a browser sets them. A block of
+/// phrasing tags alone keeps its column.
 fn inline_flow(tag: &str, display: &str, flow: &[&VNode]) -> bool {
+    let shown = |c: &&&VNode| !c.style.hidden();
+    let words = flow
+        .iter()
+        .filter(shown)
+        .any(|c| c.tag == "#text" && c.text.as_deref().is_some_and(|t| !t.trim().is_empty()));
+    let elements = flow.iter().filter(shown).any(|c| c.tag != "#text");
     block(tag)
         && !display.contains("flex")
         && !display.contains("grid")
         && flow.iter().all(|c| c.style.hidden() || inline_level(c))
-        && flow.iter().any(|c| {
-            !c.style.hidden()
-                && c.style
+        && ((words && elements)
+            || flow.iter().filter(shown).any(|c| {
+                c.style
                     .display
                     .as_deref()
                     .is_some_and(|d| d.trim().starts_with("inline"))
-        })
+            }))
 }
 
 /// Break inline children into lines that wrap at `avail`: `widths` are the
@@ -3239,11 +3342,23 @@ fn draw_inline_flow(
     let known = widths.iter().all(Option::is_some);
     let avail = ui.available_width();
     let lines = inline_lines(&widths, &spaced, space, avail);
+    // Each line is at least the block's own line box tall (its strut:
+    // `line-height`, else the face's row), and lines follow one another with
+    // no room between, as in CSS. egui's own rows are 28 points tall
+    // (DownloadManager's 18.6-point About lines were 30 apart).
+    let strut = inherit.line_height.map_or_else(
+        || {
+            let font = font_of(ui.ctx(), inherit, &Style::default());
+            ui.ctx().fonts_mut(|f| f.row_height(&font))
+        },
+        |l| l.points(inherit.size),
+    );
     let mut drawn = false;
     ui.scope(|ui| {
         if !known {
             ui.set_invisible();
         }
+        ui.spacing_mut().item_spacing.y = 0.0;
         for line in &lines {
             let used: f32 = line
                 .iter()
@@ -3252,39 +3367,44 @@ fn draw_inline_flow(
                     widths[i].unwrap_or(0.0) + if n > 0 && spaced[i] { space } else { 0.0 }
                 })
                 .sum();
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
-                if known {
-                    match align {
-                        "center" => ui.add_space(((avail - used) / 2.0).max(0.0)),
-                        "right" | "end" => ui.add_space((avail - used).max(0.0)),
-                        _ => {}
-                    }
-                }
-                for (n, &i) in line.iter().enumerate() {
-                    if n > 0 && spaced[i] {
-                        ui.add_space(space);
-                    }
-                    // A box wider than the line is alone on it and wraps
-                    // its own text at the line's width (as a block of text
-                    // does); its natural width stays as measured.
-                    let too_wide = widths[i].is_some_and(|w| w > avail + 0.5);
-                    let r = ui.scope(|ui| {
-                        if too_wide {
-                            ui.set_max_width(avail);
-                        } else {
-                            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+            ui.allocate_ui_with_layout(
+                vec2(avail, strut),
+                Layout::left_to_right(Align::Center),
+                |ui| {
+                    ui.set_min_height(strut);
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    if known {
+                        match align {
+                            "center" => ui.add_space(((avail - used) / 2.0).max(0.0)),
+                            "right" | "end" => ui.add_space((avail - used).max(0.0)),
+                            _ => {}
                         }
-                        draw(ui, &units[i], inherit, cx)
-                    });
-                    drawn |= r.inner;
-                    let w = r.response.rect.width().max(0.0);
-                    if !too_wide && widths[i].is_none_or(|l| (l - w).abs() > 0.5) {
-                        ui.data_mut(|d| d.insert_temp(key(i), w));
-                        ui.ctx().request_repaint();
                     }
-                }
-            });
+                    for (n, &i) in line.iter().enumerate() {
+                        if n > 0 && spaced[i] {
+                            ui.add_space(space);
+                        }
+                        // A box wider than the line is alone on it and wraps
+                        // its own text at the line's width (as a block of text
+                        // does); its natural width stays as measured.
+                        let too_wide = widths[i].is_some_and(|w| w > avail + 0.5);
+                        let r = ui.scope(|ui| {
+                            if too_wide {
+                                ui.set_max_width(avail);
+                            } else {
+                                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+                            }
+                            draw(ui, &units[i], inherit, cx)
+                        });
+                        drawn |= r.inner;
+                        let w = r.response.rect.width().max(0.0);
+                        if !too_wide && widths[i].is_none_or(|l| (l - w).abs() > 0.5) {
+                            ui.data_mut(|d| d.insert_temp(key(i), w));
+                            ui.ctx().request_repaint();
+                        }
+                    }
+                },
+            );
         }
     });
     drawn
@@ -3702,6 +3822,8 @@ thread_local! {
     /// items that grow (`flex: 1`). DownloadManager's window nav runs the
     /// window's height, its start menu's footer sits at the foot.
     static GIVEN_HEIGHT: std::cell::Cell<Option<f32>> = const { std::cell::Cell::new(None) };
+    /// Set while a plugin box draws what it holds.
+    static NESTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// Draw `child` as a flex item that is `given` points tall (margins
@@ -3836,6 +3958,28 @@ fn draw_box(
             inherit.family = plugin_dom::element_font_id(BUTTON_FONT);
         }
     }
+    // The browser's own sheet: `strong` and `b` are `bolder` than their
+    // parent, `em` and `i` italic (DownloadManager's About text).
+    match node.tag.as_str() {
+        "strong" | "b" => inherit.weight = bolder(parent.weight),
+        "em" | "i" | "cite" | "dfn" | "var" => inherit.italic = true,
+        _ => {}
+    }
+    // `text-overflow` cuts a block's own line of words, spans in it
+    // included, not what a block inside it holds.
+    if !inline_level(node) {
+        inherit.ellipsis = false;
+    }
+    // Lists: `ul` draws discs and `ol` numbers unless the list says
+    // otherwise; the items inherit it.
+    match node.tag.as_str() {
+        "ul" => inherit.marker = Marker::Disc,
+        "ol" => inherit.marker = Marker::Decimal,
+        _ => {}
+    }
+    if let Some(m) = style.list_style_type.as_deref().and_then(Marker::parse) {
+        inherit.marker = m;
+    }
     if let Some(size) = cx.len(&style.font_size, parent.size, parent.size) {
         inherit.size = size.clamp(6.0, 96.0);
     }
@@ -3882,7 +4026,11 @@ fn draw_box(
         let Some(text) = node.text.as_deref().filter(|t| !t.trim().is_empty()) else {
             return false;
         };
-        let wrap = (!breakable(text)).then_some(egui::TextWrapMode::Extend);
+        let wrap = if inherit.ellipsis {
+            Some(egui::TextWrapMode::Truncate)
+        } else {
+            (!breakable(text)).then_some(egui::TextWrapMode::Extend)
+        };
         let text = rich(ui.ctx(), text, inherit, style);
         add_text(ui, text, wrap, inherit);
         return true;
@@ -4038,10 +4186,15 @@ fn draw_box(
     let outer_h = cx
         .len(&style.height, font, ui.available_height().min(400.0))
         .or_else(|| given.map(|g| (g - margin.map_or(0.0, |m| m[0] + m[2])).max(0.0)));
-    // A growing flex item without a width fills the share its row gave it.
+    // A growing flex item without a width fills the share its row gave it:
+    // its border box, inside its margins (DownloadManager's About body keeps
+    // its 24-point padding at the right).
+    let margin_x = margin.map_or(0.0, |m| m[1] + m[3]);
     let width = outer_w
         .map(|w| (w - inset).max(0.0))
-        .or_else(|| (flex_grow(style) > 0.0).then(|| ui.available_width()))
+        .or_else(|| {
+            (flex_grow(style) > 0.0).then(|| (ui.available_width() - inset - margin_x).max(0.0))
+        })
         .map(|w| w * stretch.x);
     let height = outer_h.map(|h| (h - block_inset).max(0.0) * stretch.y);
     // `transition: width .3s` (a bar growing): the size on its way. Only a
@@ -4267,6 +4420,12 @@ fn draw_box(
                 .overflow
                 .as_deref()
                 .is_some_and(|o| o.contains("hidden"));
+    // A block's words, in it or in its spans, end in "…" where they reach
+    // its edge (DownloadManager's tile labels); a flex or grid box has no
+    // line of its own to cut.
+    if ellipsis && !display.contains("flex") && !display.contains("grid") {
+        inherit.ellipsis = true;
+    }
     let (flow, placed): (Vec<&VNode>, Vec<&VNode>) = node
         .children
         .iter()
@@ -4287,6 +4446,32 @@ fn draw_box(
         flow.retain(|c| {
             c.tag != "#text" || c.text.as_deref().is_some_and(|t| !t.trim().is_empty())
         });
+    }
+    // `overflow-y: auto|scroll` (or `overflow`): a box of a definite height,
+    // or one held to a `max-height`, scrolls what it holds instead of
+    // growing past it (DownloadManager's About window keeps 440 by 540).
+    let scrolls = style
+        .overflow_y
+        .as_deref()
+        .or_else(|| {
+            style
+                .overflow
+                .as_deref()
+                .and_then(|o| css::words(o).last().copied())
+        })
+        .is_some_and(|o| matches!(o.trim(), "auto" | "scroll" | "overlay"));
+    let scroll = scrolls
+        .then(|| {
+            height.map(|h| (h, true)).or_else(|| {
+                cx.len(&style.max_height, font, ui.available_height().min(400.0))
+                    .map(|m| ((m - block_inset).max(0.0), false))
+            })
+        })
+        .flatten();
+    // An `<ol>`'s items are numbered from 1 within it.
+    let list = matches!(node.tag.as_str(), "ul" | "ol" | "menu");
+    if list {
+        LIST_ITEMS.with(|l| l.borrow_mut().push(0));
     }
     let box_id = egui::Id::new(("luna-box", node.id));
     let mut drawn = false;
@@ -4332,6 +4517,9 @@ fn draw_box(
     if !own_context {
         drawn |= paint_under(ui, false);
     }
+    // Whether this box sits inside another plugin box (not a slot's own
+    // element): its children are nested.
+    let nested = NESTED.with(|n| n.replace(true));
     let inner = ui.scope(|ui| {
         if let Some(o) = opacity {
             ui.multiply_opacity(o);
@@ -4421,167 +4609,309 @@ fn draw_box(
                             .or(min_height)
                             .or(inherit.line_height.map(|l| l.points(inherit.size)))
                             .unwrap_or_else(|| {
-                                held.unwrap_or(0.0).max(ui.spacing().interact_size.y)
+                                // A row inside another box is as tall as
+                                // what it holds, as in CSS (DownloadManager's
+                                // nav items are 34 points, not egui's
+                                // 28-point row and their padding); a slot's
+                                // own element keeps egui's row.
+                                let replaced = matches!(
+                                    node.tag.as_str(),
+                                    "img"
+                                        | "svg"
+                                        | "canvas"
+                                        | "video"
+                                        | "input"
+                                        | "textarea"
+                                        | "select"
+                                );
+                                let least = if nested && !replaced {
+                                    0.0
+                                } else {
+                                    ui.spacing().interact_size.y
+                                };
+                                held.unwrap_or(least).max(least)
                             })
                             .min(ui.available_height()),
                     )
                 } else {
                     ui.available_size()
                 };
-                ui.allocate_ui_with_layout(room, layout, |ui| {
-                    if shrink {
-                        // Its width is what it holds, which must not depend
-                        // on the room it got last frame.
-                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-                    }
-                    if row {
-                        ui.spacing_mut().item_spacing.x = gap;
-                    } else {
-                        ui.spacing_mut().item_spacing.y = gap;
-                    }
-                    // `justify-content` centre/end: shift by the free room
-                    // left last frame.
-                    let last: Option<Vec2> = ui.data(|d| d.get_temp(content_id));
-                    if let Some(used) = last
-                        && matches!(
-                            justify,
-                            "center" | "flex-end" | "end" | "space-around" | "space-evenly"
-                        )
-                    {
-                        // Only a box with a definite size has room to share.
-                        let free = if row {
-                            width.or(min_width).map_or(0.0, |w| w - used.x)
-                        } else {
-                            height.or(min_height).map_or(0.0, |h| h - used.y)
-                        };
-                        let part = if justify == "flex-end" || justify == "end" {
-                            1.0
-                        } else {
-                            0.5
-                        };
-                        if free > 0.5 {
-                            ui.add_space(free * part);
+                scroll_box(ui, node.id, scroll, |ui| {
+                    ui.allocate_ui_with_layout(room, layout, |ui| {
+                        if shrink {
+                            // Its width is what it holds, which must not depend
+                            // on the room it got last frame.
+                            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
                         }
-                    }
-                    let begin = ui.cursor().min;
-                    drawn |= leaf(ui, node, inherit, width, height, rot, cx);
-                    if let Some(text) = node.text.as_deref().filter(|t| !t.is_empty())
-                        && !matches!(
-                            node.tag.as_str(),
-                            "input" | "textarea" | "select" | "svg" | "img"
-                        )
-                    {
-                        let wrap = if ellipsis {
-                            Some(egui::TextWrapMode::Truncate)
+                        if row {
+                            ui.spacing_mut().item_spacing.x = gap;
                         } else {
-                            (!breakable(text)).then_some(egui::TextWrapMode::Extend)
-                        };
-                        let text = rich(ui.ctx(), text, inherit, style);
-                        match text_place {
-                            Some(align) if !ellipsis => {
-                                add_aligned(ui, text, inherit, align);
-                            }
-                            _ => {
-                                add_text(ui, text, wrap, inherit);
-                            }
+                            ui.spacing_mut().item_spacing.y = gap;
                         }
-                        drawn = true;
-                    }
-                    // A grid's gap is its own (none unless set).
-                    let grid_gap = cx.len(&style.gap, font, 0.0).unwrap_or(0.0);
-                    let grid = display
-                        .contains("grid")
-                        .then_some(style.grid_template_columns.as_deref())
-                        .flatten()
-                        .and_then(|t| {
-                            grid_columns(
-                                &css::resolve_vars(t, cx.vars),
-                                ui.available_width(),
-                                grid_gap,
-                                font,
-                                cx.viewport,
+                        // `justify-content` centre/end: shift by the free room
+                        // left last frame.
+                        let last: Option<Vec2> = ui.data(|d| d.get_temp(content_id));
+                        if let Some(used) = last
+                            && matches!(
+                                justify,
+                                "center" | "flex-end" | "end" | "space-around" | "space-evenly"
                             )
-                        });
-                    if let Some(cols) = &grid {
-                        drawn |= draw_grid(ui, &flow, cols, grid_gap, center, inherit, cx);
-                    } else if flows {
-                        let align = style.text_align.as_deref().map_or("", str::trim);
-                        drawn |= draw_inline_flow(ui, node.id, &flow, align, inherit, cx);
-                    } else if !matches!(node.tag.as_str(), "select" | "svg" | "canvas" | "video") {
-                        // A row of a set width whose items all grow shares
-                        // it out by their `flex-grow` (the audiovisualiser's
-                        // bars); otherwise items take their own sizes.
-                        let grows: Vec<f32> = flow.iter().map(|c| flex_grow(&c.style)).collect();
-                        let total: f32 = grows.iter().sum();
-                        let shared = row
-                            && width.is_some()
-                            && !flow.is_empty()
-                            && grows.iter().all(|g| *g > 0.0);
-                        if shared {
-                            let gaps = gap * (flow.len() - 1) as f32;
-                            let room = (ui.available_width() - gaps).max(0.0);
-                            let h = ui.available_height();
-                            for (child, g) in flow.iter().zip(&grows) {
-                                let share = room * g / total;
-                                // `align-items` places the item in its cell
-                                // by the height its style gives it.
-                                let own = cx
-                                    .len(&child.style.height, font, h)
-                                    .map(|v| {
-                                        v * child
-                                            .style
-                                            .transform
-                                            .as_deref()
-                                            .map_or(1.0, |t| axis_scale(t).y)
-                                    })
-                                    .unwrap_or(h)
-                                    .clamp(0.0, h);
-                                let skip = if end {
-                                    h - own
-                                } else if center {
-                                    (h - own) / 2.0
-                                } else {
-                                    0.0
-                                };
-                                // The cell keeps the row's height (a `%`
-                                // height is of it), moved down by `skip`.
-                                let at = ui.cursor().min;
-                                let mut cell = ui.new_child(
-                                    UiBuilder::new()
-                                        .max_rect(Rect::from_min_size(
-                                            egui::pos2(at.x, at.y + skip),
-                                            vec2(share, h),
-                                        ))
-                                        .layout(Layout::top_down(Align::Min)),
-                                );
-                                drawn |=
-                                    draw_given(&mut cell, child, stretched(child), inherit, cx);
-                                ui.allocate_exact_size(vec2(share, h), Sense::hover());
+                        {
+                            // Only a box with a definite size has room to share.
+                            let free = if row {
+                                width.or(min_width).map_or(0.0, |w| w - used.x)
+                            } else {
+                                height.or(min_height).map_or(0.0, |h| h - used.y)
+                            };
+                            let part = if justify == "flex-end" || justify == "end" {
+                                1.0
+                            } else {
+                                0.5
+                            };
+                            if free > 0.5 {
+                                ui.add_space(free * part);
                             }
-                        } else if row && total > 0.0 {
-                            // Some items grow (AltPlay's `flex: 1` spacer
-                            // between its status and its buttons): they
-                            // share what the others, as wide as last frame,
-                            // leave, so the ones after them stay inside.
-                            let width_id = |c: &VNode| egui::Id::new(("luna-flex-w", c.id));
-                            let others: f32 = flow
-                                .iter()
-                                .zip(&grows)
-                                .filter(|(_, g)| **g <= 0.0)
-                                .map(|(c, _)| {
-                                    ui.data(|d| d.get_temp::<f32>(width_id(c))).unwrap_or(0.0)
-                                })
-                                .sum();
-                            let gaps = gap * flow.len().saturating_sub(1) as f32;
-                            let free = (ui.available_width() - others - gaps).max(0.0);
-                            for (child, g) in flow.iter().zip(&grows) {
-                                if *g > 0.0 {
-                                    let w = free * g / total;
-                                    ui.allocate_ui_with_layout(
-                                        vec2(w, ui.available_height()),
-                                        Layout::left_to_right(Align::Center),
-                                        |ui| {
-                                            ui.set_width(w);
+                        }
+                        let begin = ui.cursor().min;
+                        drawn |= leaf(ui, node, inherit, width, height, rot, cx);
+                        if let Some(text) = node.text.as_deref().filter(|t| !t.is_empty())
+                            && !matches!(
+                                node.tag.as_str(),
+                                "input" | "textarea" | "select" | "svg" | "img"
+                            )
+                        {
+                            let wrap = if ellipsis {
+                                Some(egui::TextWrapMode::Truncate)
+                            } else {
+                                (!breakable(text)).then_some(egui::TextWrapMode::Extend)
+                            };
+                            let text = rich(ui.ctx(), text, inherit, style);
+                            match text_place {
+                                Some(align) if !ellipsis => {
+                                    add_aligned(ui, text, inherit, align);
+                                }
+                                _ => {
+                                    add_text(ui, text, wrap, inherit);
+                                }
+                            }
+                            drawn = true;
+                        }
+                        // A grid's gap is its own (none unless set).
+                        let grid_gap = cx.len(&style.gap, font, 0.0).unwrap_or(0.0);
+                        let grid = display
+                            .contains("grid")
+                            .then_some(style.grid_template_columns.as_deref())
+                            .flatten()
+                            .and_then(|t| {
+                                grid_columns(
+                                    &css::resolve_vars(t, cx.vars),
+                                    ui.available_width(),
+                                    grid_gap,
+                                    font,
+                                    cx.viewport,
+                                )
+                            });
+                        if let Some(cols) = &grid {
+                            drawn |= draw_grid(ui, &flow, cols, grid_gap, center, inherit, cx);
+                        } else if flows {
+                            let align = style.text_align.as_deref().map_or("", str::trim);
+                            drawn |= draw_inline_flow(ui, node.id, &flow, align, inherit, cx);
+                        } else if !matches!(
+                            node.tag.as_str(),
+                            "select" | "svg" | "canvas" | "video"
+                        ) {
+                            // A row of a set width whose items all grow shares
+                            // it out by their `flex-grow` (the audiovisualiser's
+                            // bars); otherwise items take their own sizes.
+                            let grows: Vec<f32> =
+                                flow.iter().map(|c| flex_grow(&c.style)).collect();
+                            let total: f32 = grows.iter().sum();
+                            let shared = row
+                                && width.is_some()
+                                && !flow.is_empty()
+                                && grows.iter().all(|g| *g > 0.0);
+                            if shared {
+                                let gaps = gap * (flow.len() - 1) as f32;
+                                let room = (ui.available_width() - gaps).max(0.0);
+                                let h = ui.available_height();
+                                for (child, g) in flow.iter().zip(&grows) {
+                                    let share = room * g / total;
+                                    // `align-items` places the item in its cell
+                                    // by the height its style gives it.
+                                    let own = cx
+                                        .len(&child.style.height, font, h)
+                                        .map(|v| {
+                                            v * child
+                                                .style
+                                                .transform
+                                                .as_deref()
+                                                .map_or(1.0, |t| axis_scale(t).y)
+                                        })
+                                        .unwrap_or(h)
+                                        .clamp(0.0, h);
+                                    let skip = if end {
+                                        h - own
+                                    } else if center {
+                                        (h - own) / 2.0
+                                    } else {
+                                        0.0
+                                    };
+                                    // The cell keeps the row's height (a `%`
+                                    // height is of it), moved down by `skip`.
+                                    let at = ui.cursor().min;
+                                    let mut cell = ui.new_child(
+                                        UiBuilder::new()
+                                            .max_rect(Rect::from_min_size(
+                                                egui::pos2(at.x, at.y + skip),
+                                                vec2(share, h),
+                                            ))
+                                            .layout(Layout::top_down(Align::Min)),
+                                    );
+                                    drawn |=
+                                        draw_given(&mut cell, child, stretched(child), inherit, cx);
+                                    ui.allocate_exact_size(vec2(share, h), Sense::hover());
+                                }
+                            } else if row && total > 0.0 {
+                                // Some items grow (AltPlay's `flex: 1` spacer
+                                // between its status and its buttons): they
+                                // share what the others, as wide as last frame,
+                                // leave, so the ones after them stay inside.
+                                let width_id = |c: &VNode| egui::Id::new(("luna-flex-w", c.id));
+                                let others: f32 = flow
+                                    .iter()
+                                    .zip(&grows)
+                                    .filter(|(_, g)| **g <= 0.0)
+                                    .map(|(c, _)| {
+                                        ui.data(|d| d.get_temp::<f32>(width_id(c))).unwrap_or(0.0)
+                                    })
+                                    .sum();
+                                let gaps = gap * flow.len().saturating_sub(1) as f32;
+                                let free = (ui.available_width() - others - gaps).max(0.0);
+                                for (child, g) in flow.iter().zip(&grows) {
+                                    if *g > 0.0 {
+                                        let w = free * g / total;
+                                        ui.allocate_ui_with_layout(
+                                            vec2(w, ui.available_height()),
+                                            Layout::left_to_right(Align::Center),
+                                            |ui| {
+                                                ui.set_width(w);
+                                                drawn |= draw_given(
+                                                    ui,
+                                                    child,
+                                                    stretched(child),
+                                                    inherit,
+                                                    cx,
+                                                );
+                                            },
+                                        );
+                                    } else {
+                                        let r = ui.scope(|ui| {
+                                            draw_given(ui, child, stretched(child), inherit, cx)
+                                        });
+                                        drawn |= r.inner;
+                                        let used = r.response.rect.width();
+                                        let last: Option<f32> =
+                                            ui.data(|d| d.get_temp(width_id(child)));
+                                        if last.is_none_or(|l| (l - used).abs() > 0.5) {
+                                            ui.data_mut(|d| d.insert_temp(width_id(child), used));
+                                            ui.ctx().request_repaint();
+                                        }
+                                    }
+                                }
+                            } else if row && wraps(style) {
+                                drawn |= draw_wrapped(ui, &flow, gap, font, inherit, cx);
+                            } else {
+                                // A row of a set height that centres its items
+                                // (a backdrop holding a dialog) puts each box in
+                                // the middle by the height it had last frame.
+                                let cross = !stretch_items
+                                    && row
+                                    && center
+                                    && height.or(min_height).is_some();
+                                // A column of a definite height shares what its
+                                // other items, as tall as last frame, leave among
+                                // those that grow (DownloadManager's app list,
+                                // `flex: 1`, puts its footer at the menu's foot).
+                                let height_id = |c: &VNode| egui::Id::new(("luna-flex-h", c.id));
+                                let column_free =
+                                    (!row && total > 0.0).then_some(height).flatten().map(|h| {
+                                        let others: f32 = flow
+                                            .iter()
+                                            .zip(&grows)
+                                            .filter(|(_, g)| **g <= 0.0)
+                                            .map(|(c, _)| {
+                                                ui.data(|d| d.get_temp::<f32>(height_id(c)))
+                                                    .unwrap_or(0.0)
+                                            })
+                                            .sum();
+                                        let gaps = gap * flow.len().saturating_sub(1) as f32;
+                                        (h - others - gaps).max(0.0)
+                                    });
+                                for (child, g) in flow.iter().zip(&grows) {
+                                    if let Some(align) = text_place
+                                        && child.tag == "#text"
+                                    {
+                                        if let Some(text) =
+                                            child.text.as_deref().filter(|t| !t.trim().is_empty())
+                                        {
+                                            add_aligned(
+                                                ui,
+                                                rich(ui.ctx(), text, inherit, &child.style),
+                                                inherit,
+                                                align,
+                                            );
+                                            drawn = true;
+                                        }
+                                        continue;
+                                    }
+                                    if cross && child.tag != "#text" {
+                                        let full = ui.available_height();
+                                        let hid = egui::Id::new(("luna-cross", child.id));
+                                        let last: Option<f32> = ui.data(|d| d.get_temp(hid));
+                                        let skip = ((full - last.unwrap_or(full)) / 2.0).max(0.0);
+                                        let r = ui.allocate_ui_with_layout(
+                                            vec2(ui.available_width(), full),
+                                            Layout::top_down(Align::Min),
+                                            |ui| {
+                                                ui.add_space(skip);
+                                                let top = ui.cursor().min.y;
+                                                let shown = draw(ui, child, inherit, cx);
+                                                (shown, ui.min_rect().max.y - top)
+                                            },
+                                        );
+                                        let (shown, used) = r.inner;
+                                        drawn |= shown;
+                                        if last.is_none_or(|l| (l - used).abs() > 0.5) {
+                                            ui.data_mut(|d| d.insert_temp(hid, used));
+                                            ui.ctx().request_repaint();
+                                        }
+                                        continue;
+                                    }
+                                    SHRINK.with(|s| s.set(!row && cross_center));
+                                    IN_COLUMN.with(|s| s.set(!row && !cross_center));
+                                    FLEX_COLUMN.with(|s| {
+                                        s.set(!row && !cross_center && display.contains("flex"))
+                                    });
+                                    match column_free {
+                                        Some(free) if *g > 0.0 => {
+                                            let share = free * g / total;
+                                            drawn |=
+                                                draw_given(ui, child, Some(share), inherit, cx);
+                                        }
+                                        Some(_) => {
+                                            let r = ui.scope(|ui| draw(ui, child, inherit, cx));
+                                            drawn |= r.inner;
+                                            let used = r.response.rect.height();
+                                            let last: Option<f32> =
+                                                ui.data(|d| d.get_temp(height_id(child)));
+                                            if last.is_none_or(|l| (l - used).abs() > 0.5) {
+                                                ui.data_mut(|d| {
+                                                    d.insert_temp(height_id(child), used)
+                                                });
+                                                ui.ctx().request_repaint();
+                                            }
+                                        }
+                                        None => {
                                             drawn |= draw_given(
                                                 ui,
                                                 child,
@@ -4589,143 +4919,37 @@ fn draw_box(
                                                 inherit,
                                                 cx,
                                             );
-                                        },
-                                    );
-                                } else {
-                                    let r = ui.scope(|ui| {
-                                        draw_given(ui, child, stretched(child), inherit, cx)
-                                    });
-                                    drawn |= r.inner;
-                                    let used = r.response.rect.width();
-                                    let last: Option<f32> =
-                                        ui.data(|d| d.get_temp(width_id(child)));
-                                    if last.is_none_or(|l| (l - used).abs() > 0.5) {
-                                        ui.data_mut(|d| d.insert_temp(width_id(child), used));
-                                        ui.ctx().request_repaint();
-                                    }
-                                }
-                            }
-                        } else if row && wraps(style) {
-                            drawn |= draw_wrapped(ui, &flow, gap, font, inherit, cx);
-                        } else {
-                            // A row of a set height that centres its items
-                            // (a backdrop holding a dialog) puts each box in
-                            // the middle by the height it had last frame.
-                            let cross =
-                                !stretch_items && row && center && height.or(min_height).is_some();
-                            // A column of a definite height shares what its
-                            // other items, as tall as last frame, leave among
-                            // those that grow (DownloadManager's app list,
-                            // `flex: 1`, puts its footer at the menu's foot).
-                            let height_id = |c: &VNode| egui::Id::new(("luna-flex-h", c.id));
-                            let column_free =
-                                (!row && total > 0.0).then_some(height).flatten().map(|h| {
-                                    let others: f32 = flow
-                                        .iter()
-                                        .zip(&grows)
-                                        .filter(|(_, g)| **g <= 0.0)
-                                        .map(|(c, _)| {
-                                            ui.data(|d| d.get_temp::<f32>(height_id(c)))
-                                                .unwrap_or(0.0)
-                                        })
-                                        .sum();
-                                    let gaps = gap * flow.len().saturating_sub(1) as f32;
-                                    (h - others - gaps).max(0.0)
-                                });
-                            for (child, g) in flow.iter().zip(&grows) {
-                                if let Some(align) = text_place
-                                    && child.tag == "#text"
-                                {
-                                    if let Some(text) =
-                                        child.text.as_deref().filter(|t| !t.trim().is_empty())
-                                    {
-                                        add_aligned(
-                                            ui,
-                                            rich(ui.ctx(), text, inherit, &child.style),
-                                            inherit,
-                                            align,
-                                        );
-                                        drawn = true;
-                                    }
-                                    continue;
-                                }
-                                if cross && child.tag != "#text" {
-                                    let full = ui.available_height();
-                                    let hid = egui::Id::new(("luna-cross", child.id));
-                                    let last: Option<f32> = ui.data(|d| d.get_temp(hid));
-                                    let skip = ((full - last.unwrap_or(full)) / 2.0).max(0.0);
-                                    let r = ui.allocate_ui_with_layout(
-                                        vec2(ui.available_width(), full),
-                                        Layout::top_down(Align::Min),
-                                        |ui| {
-                                            ui.add_space(skip);
-                                            let top = ui.cursor().min.y;
-                                            let shown = draw(ui, child, inherit, cx);
-                                            (shown, ui.min_rect().max.y - top)
-                                        },
-                                    );
-                                    let (shown, used) = r.inner;
-                                    drawn |= shown;
-                                    if last.is_none_or(|l| (l - used).abs() > 0.5) {
-                                        ui.data_mut(|d| d.insert_temp(hid, used));
-                                        ui.ctx().request_repaint();
-                                    }
-                                    continue;
-                                }
-                                SHRINK.with(|s| s.set(!row && cross_center));
-                                IN_COLUMN.with(|s| s.set(!row && !cross_center));
-                                FLEX_COLUMN.with(|s| {
-                                    s.set(!row && !cross_center && display.contains("flex"))
-                                });
-                                match column_free {
-                                    Some(free) if *g > 0.0 => {
-                                        let share = free * g / total;
-                                        drawn |= draw_given(ui, child, Some(share), inherit, cx);
-                                    }
-                                    Some(_) => {
-                                        let r = ui.scope(|ui| draw(ui, child, inherit, cx));
-                                        drawn |= r.inner;
-                                        let used = r.response.rect.height();
-                                        let last: Option<f32> =
-                                            ui.data(|d| d.get_temp(height_id(child)));
-                                        if last.is_none_or(|l| (l - used).abs() > 0.5) {
-                                            ui.data_mut(|d| d.insert_temp(height_id(child), used));
-                                            ui.ctx().request_repaint();
                                         }
                                     }
-                                    None => {
-                                        drawn |=
-                                            draw_given(ui, child, stretched(child), inherit, cx);
-                                    }
+                                    SHRINK.with(|s| s.set(false));
+                                    IN_COLUMN.with(|s| s.set(false));
+                                    FLEX_COLUMN.with(|s| s.set(false));
                                 }
-                                SHRINK.with(|s| s.set(false));
-                                IN_COLUMN.with(|s| s.set(false));
-                                FLEX_COLUMN.with(|s| s.set(false));
                             }
                         }
-                    }
-                    if shrink {
-                        let used = ui.min_rect().width();
-                        if wrapped.is_none_or(|w| (w - used).abs() > 0.5) {
-                            ui.data_mut(|d| d.insert_temp(shrink_id, used));
-                            ui.ctx().request_repaint();
+                        if shrink {
+                            let used = ui.min_rect().width();
+                            if wrapped.is_none_or(|w| (w - used).abs() > 0.5) {
+                                ui.data_mut(|d| d.insert_temp(shrink_id, used));
+                                ui.ctx().request_repaint();
+                            }
                         }
-                    }
-                    if free_height {
-                        let h = ui.min_rect().height();
-                        if held.is_none_or(|l| (l - h).abs() > 0.5) {
-                            ui.data_mut(|d| d.insert_temp(row_height_id, h));
-                            ui.ctx().request_repaint();
+                        if free_height {
+                            let h = ui.min_rect().height();
+                            if held.is_none_or(|l| (l - h).abs() > 0.5) {
+                                ui.data_mut(|d| d.insert_temp(row_height_id, h));
+                                ui.ctx().request_repaint();
+                            }
                         }
-                    }
-                    if !justify.is_empty() {
-                        let used = ui.min_rect().max - begin;
-                        let used = vec2(used.x.max(0.0), used.y.max(0.0));
-                        if last.is_none_or(|l| (l - used).length() > 0.5) {
-                            ui.data_mut(|d| d.insert_temp(content_id, used));
-                            ui.ctx().request_repaint();
+                        if !justify.is_empty() {
+                            let used = ui.min_rect().max - begin;
+                            let used = vec2(used.x.max(0.0), used.y.max(0.0));
+                            if last.is_none_or(|l| (l - used).length() > 0.5) {
+                                ui.data_mut(|d| d.insert_temp(content_id, used));
+                                ui.ctx().request_repaint();
+                            }
                         }
-                    }
+                    })
                 });
             })
             .response;
@@ -4786,6 +5010,68 @@ fn draw_box(
         shown
     });
     let rect = inner.inner.rect;
+    NESTED.with(|n| n.set(nested));
+    if list {
+        LIST_ITEMS.with(|l| l.borrow_mut().pop());
+    }
+    // A list item's marker hangs outside it, as Chromium's `outside`
+    // marker: its text ends a space before the item's border box, on the
+    // middle of its first line (DownloadManager's About bullets).
+    if node.tag == "li" && (display.is_empty() || display.contains("list-item")) {
+        let n = LIST_ITEMS.with(|l| {
+            let mut l = l.borrow_mut();
+            l.last_mut().map_or(1, |c| {
+                *c += 1;
+                *c
+            })
+        });
+        let m = margin.unwrap_or([0.0; 4]);
+        let font_id = font_of(ui.ctx(), inherit, style);
+        let row = ui.ctx().fonts_mut(|f| f.row_height(&font_id));
+        let line = inherit.line_height.map_or(row, |l| l.points(inherit.size));
+        let left = rect.left() + m[3];
+        let top = rect.top() + m[0] + bw[0] + pads.map_or(0.0, |p| p[0]);
+        // The first line's baseline, the face's ascent being about 0.8 of
+        // its row.
+        let ascent = row * 0.8;
+        let baseline = top + (line - row) / 2.0 + ascent;
+        match inherit.marker {
+            Marker::None => {}
+            Marker::Decimal => {
+                if let Some(text) = inherit.marker.text(n) {
+                    // "1. ": the number, then a space before the item.
+                    let galley = ui.painter().layout_no_wrap(text, font_id, inherit.color);
+                    let pos = egui::pos2(
+                        left - inherit.size * 0.28 - galley.size().x,
+                        top + (line - galley.size().y) / 2.0,
+                    );
+                    ui.painter().galley(pos, galley, inherit.color);
+                }
+            }
+            shape => {
+                // Chromium's symbol marker (`LayoutListMarker`): a box
+                // `(ascent * 2/3 + 1) / 2` wide, its top half the ascent over
+                // the baseline, 7 pixels of padding before the item.
+                let d = ((ascent * 2.0 / 3.0 + 1.0) / 2.0).floor().max(2.0);
+                let r = Rect::from_min_size(
+                    egui::pos2(left - 7.0 - d + 1.0, baseline - ascent / 2.0),
+                    vec2(d, d),
+                );
+                let p = ui.painter();
+                match shape {
+                    Marker::Square => {
+                        p.rect_filled(r, 0.0, inherit.color);
+                    }
+                    Marker::Circle => {
+                        p.circle_stroke(r.center(), d / 2.0 - 0.5, Stroke::new(1.0, inherit.color));
+                    }
+                    _ => {
+                        p.circle_filled(r.center(), d / 2.0, inherit.color);
+                    }
+                }
+            }
+        }
+    }
     if !under.is_empty() {
         let last: Option<Rect> = ui.data(|d| d.get_temp(box_id));
         if last.is_none_or(|l| {
@@ -6696,7 +6982,7 @@ mod tests {
             ..DomOverlay::default()
         }));
         plugin_dom::test_viewport([1240.0, 800.0]);
-        let ctx = egui::Context::default();
+        let ctx = app_fonts_ctx();
         let at = Pos2::new(60.0, 40.0);
         let input = |events: Vec<egui::Event>| egui::RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1240.0, 800.0))),
@@ -6861,7 +7147,7 @@ mod tests {
             ..DomOverlay::default()
         }));
         plugin_dom::test_viewport([800.0, 600.0]);
-        let ctx = egui::Context::default();
+        let ctx = app_fonts_ctx();
         let mut shapes = Vec::new();
         for _ in 0..3 {
             let mut out = ctx.run_ui(
@@ -6970,7 +7256,8 @@ mod tests {
             })
             .expect("the row's words");
         assert_eq!(font.size, 18.0);
-        assert_eq!(font, crate::theme::regular(18.0));
+        // The page's weight is TIDAL's body's, 500: the app's medium face.
+        assert_eq!(font, crate::theme::medium(18.0));
     }
 
     /// The shapes a floating overlay of `nodes` paints in an 800 by 600
@@ -6986,7 +7273,7 @@ mod tests {
             ..DomOverlay::default()
         }));
         plugin_dom::test_viewport([800.0, 600.0]);
-        let ctx = egui::Context::default();
+        let ctx = app_fonts_ctx();
         let mut shapes = Vec::new();
         for _ in 0..3 {
             let mut out = ctx.run_ui(
@@ -7294,7 +7581,7 @@ mod tests {
             ..DomOverlay::default()
         };
         plugin_dom::test_viewport([1400.0, 900.0]);
-        let ctx = egui::Context::default();
+        let ctx = app_fonts_ctx();
         let input = || egui::RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 900.0))),
             ..egui::RawInput::default()
@@ -7635,6 +7922,26 @@ mod tests {
     /// `node` drawn in `main` in an 800 x 600 window after a few passes:
     /// the rect of each box filled with a colour, by colour.
     fn filled_rects(node: VNode) -> Vec<(Color32, Rect)> {
+        filled_rects_in(node, &egui::Context::default())
+    }
+
+    /// A context with the app's faces at every weight: what `body`
+    /// elements draw in (TIDAL's weight 500 is the app's medium face).
+    fn app_fonts_ctx() -> egui::Context {
+        let ctx = egui::Context::default();
+        crate::theme::install_plugin_fonts(&ctx, &[], None);
+        ctx
+    }
+
+    /// [`filled_rects`] with the app's 28-point interactive rows, which
+    /// egui's own 18 points would hide.
+    fn filled_rects_app(node: VNode) -> Vec<(Color32, Rect)> {
+        let ctx = egui::Context::default();
+        ctx.all_styles_mut(|s| s.spacing.interact_size = vec2(40.0, 28.0));
+        filled_rects_in(node, &ctx)
+    }
+
+    fn filled_rects_in(node: VNode, ctx: &egui::Context) -> Vec<(Color32, Rect)> {
         plugin_dom::test_viewport([800.0, 600.0]);
         plugin_dom::test_overlay(Some(DomOverlay {
             version: 1,
@@ -7645,7 +7952,6 @@ mod tests {
             }],
             ..DomOverlay::default()
         }));
-        let ctx = egui::Context::default();
         let mut rects = Vec::new();
         for _ in 0..5 {
             let input = egui::RawInput {
@@ -7934,6 +8240,63 @@ mod tests {
         assert!((bar.left() - row.left()).abs() < 0.5, "{bar:?} {row:?}");
     }
 
+    /// DownloadManager's window nav item: a flex row (`align-items:
+    /// center`, `padding: 9px 12px 9px 9px`) of a glyph and a 12-point
+    /// label is its padding and its line tall, 34 points as in TIDAL, not
+    /// egui's 28-point row plus padding.
+    #[test]
+    fn a_centred_flex_row_is_as_tall_as_its_words() {
+        let span = |id: u64, text: &str| VNode {
+            id,
+            tag: "span".into(),
+            children: vec![text_node(id * 10, text)],
+            ..VNode::default()
+        };
+        let item = VNode {
+            id: 2,
+            tag: "button".into(),
+            style: Style {
+                display: Some("flex".into()),
+                align_items: Some("center".into()),
+                gap: Some("10px".into()),
+                padding: Some("9px 12px 9px 9px".into()),
+                font_size: Some("12px".into()),
+                background_color: Some("#e6e6e6".into()),
+                ..Style::default()
+            },
+            children: vec![span(3, "v"), span(4, "Downloads")],
+            ..VNode::default()
+        };
+        let nav = filled(
+            1,
+            "#f3f3f3",
+            Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                width: Some("160px".into()),
+                ..Style::default()
+            },
+            vec![item],
+        );
+        let content = VNode {
+            id: 9,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                width: Some("500px".into()),
+                height: Some("400px".into()),
+                ..Style::default()
+            },
+            children: vec![nav],
+            ..VNode::default()
+        };
+        let rects = filled_rects_app(content);
+        let row = filled_rect(&rects, Color32::from_rgb(0xe6, 0xe6, 0xe6));
+        // Its padding and one line of the test's 12-point face (about 14),
+        // not a 28-point row: 46 before.
+        assert!((30.0..36.0).contains(&row.height()), "{row:?}");
+    }
+
     /// DownloadManager's empty queue: a plain block with `text-align:
     /// center` is as wide as its column, and its words stand in the middle.
     #[test]
@@ -8039,7 +8402,7 @@ mod tests {
             }],
             ..DomOverlay::default()
         }));
-        let ctx = egui::Context::default();
+        let ctx = app_fonts_ctx();
         let _ = plugin_dom::take_test_events();
         for _ in 0..5 {
             let input = egui::RawInput {
@@ -8536,7 +8899,7 @@ mod tests {
             }],
             ..DomOverlay::default()
         }));
-        let ctx = egui::Context::default();
+        let ctx = app_fonts_ctx();
         let mut shapes = Vec::new();
         for _ in 0..4 {
             let input = egui::RawInput {
@@ -8609,7 +8972,7 @@ mod tests {
             }],
             ..DomOverlay::default()
         }));
-        let ctx = egui::Context::default();
+        let ctx = app_fonts_ctx();
         let mut shapes = Vec::new();
         for _ in 0..5 {
             let input = egui::RawInput {
@@ -8746,7 +9109,7 @@ mod tests {
             }],
             ..DomOverlay::default()
         }));
-        let ctx = egui::Context::default();
+        let ctx = app_fonts_ctx();
         let mut shapes = Vec::new();
         for _ in 0..5 {
             let input = egui::RawInput {
@@ -9369,5 +9732,302 @@ mod tests {
             _ => false,
         });
         assert!(!boxed, "{shapes:?}");
+    }
+
+    /// A `position: fixed` box `width` points wide at the window's corner,
+    /// holding `children`.
+    fn fixed_box(width: &str, children: Vec<VNode>) -> VNode {
+        VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                top: Some("0".into()),
+                left: Some("0".into()),
+                width: Some(width.into()),
+                ..Style::default()
+            },
+            children,
+            ..VNode::default()
+        }
+    }
+
+    /// Each text shape's words, box on the screen and font.
+    fn texts(shapes: &[egui::Shape]) -> Vec<(String, Rect, egui::FontId)> {
+        shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::Text(t) => Some((
+                    t.galley.text().to_owned(),
+                    t.galley.rect.translate(t.pos.to_vec2()),
+                    t.galley.job.sections[0].format.font_id.clone(),
+                )),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// DownloadManager's About text: words and a `<strong>` in a `<p>` flow
+    /// on one line, the bold word between the others (the line broke before
+    /// and after each element), and the `<strong>` is bolder.
+    #[test]
+    fn words_and_a_strong_word_flow_on_one_line() {
+        let strong = VNode {
+            id: 3,
+            tag: "strong".into(),
+            children: vec![text_node(30, "FLAC")],
+            ..VNode::default()
+        };
+        let p = VNode {
+            id: 2,
+            tag: "p".into(),
+            children: vec![
+                text_node(20, "save as "),
+                strong,
+                text_node(21, ", with lyrics"),
+            ],
+            ..VNode::default()
+        };
+        let shapes = floating_shapes(vec![fixed_box("400px", vec![p])]);
+        let texts = texts(&shapes);
+        let find = |w: &str| {
+            texts
+                .iter()
+                .find(|(t, ..)| t == w)
+                .unwrap_or_else(|| panic!("{w:?} in {texts:?}"))
+                .clone()
+        };
+        let (_, save, plain) = find("save");
+        let (_, flac, bold) = find("FLAC");
+        let (_, with, _) = find(",");
+        assert!(
+            (save.center().y - flac.center().y).abs() < 2.0,
+            "{save:?} {flac:?}"
+        );
+        assert!(
+            (flac.center().y - with.center().y).abs() < 2.0,
+            "{flac:?} {with:?}"
+        );
+        assert!(flac.left() > save.right() && with.left() >= flac.right() - 0.5);
+        assert_eq!(plain, crate::theme::medium(plain.size));
+        assert_eq!(bold, crate::theme::bold(bold.size));
+    }
+
+    /// The lines of a flowing paragraph follow one another at its
+    /// `line-height` (DownloadManager's 18.6-point lines were egui's
+    /// 28-point rows apart).
+    #[test]
+    fn flowing_lines_are_their_line_height_apart() {
+        let strong = VNode {
+            id: 3,
+            tag: "strong".into(),
+            children: vec![text_node(30, "bold")],
+            ..VNode::default()
+        };
+        let p = VNode {
+            id: 2,
+            tag: "p".into(),
+            style: Style {
+                font_size: Some("12px".into()),
+                line_height: Some("1.25".into()),
+                ..Style::default()
+            },
+            children: vec![
+                text_node(20, "one two three four five six seven eight nine ten "),
+                strong,
+                text_node(21, " eleven twelve thirteen fourteen fifteen sixteen"),
+            ],
+            ..VNode::default()
+        };
+        let shapes = floating_shapes(vec![fixed_box("150px", vec![p])]);
+        let mut tops: Vec<f32> = texts(&shapes).iter().map(|(_, r, _)| r.top()).collect();
+        tops.sort_by(f32::total_cmp);
+        tops.dedup_by(|a, b| (*a - *b).abs() < 1.0);
+        assert!(tops.len() >= 3, "{tops:?}");
+        for pair in tops.windows(2) {
+            assert!((pair[1] - pair[0] - 15.0).abs() < 1.0, "{tops:?}");
+        }
+    }
+
+    /// A list's items have their marker: a disc a little before each item
+    /// of a `<ul>` (DownloadManager's About list had none), and none for
+    /// `list-style: none`, which the items inherit.
+    #[test]
+    fn list_items_have_discs_unless_their_list_says_none() {
+        let list = |style: Style| VNode {
+            id: 2,
+            tag: "ul".into(),
+            style: Style {
+                padding_left: Some("20px".into()),
+                ..style
+            },
+            children: vec![VNode {
+                id: 3,
+                tag: "li".into(),
+                children: vec![text_node(30, "Item")],
+                ..VNode::default()
+            }],
+            ..VNode::default()
+        };
+        let discs = |style: Style| -> Vec<(Pos2, f32)> {
+            let shapes = floating_shapes(vec![fixed_box("200px", vec![list(style)])]);
+            shapes
+                .iter()
+                .filter_map(|s| match s {
+                    egui::Shape::Circle(c) if c.fill.a() > 0 => Some((c.center, c.radius)),
+                    _ => None,
+                })
+                .collect()
+        };
+        let shown = discs(Style::default());
+        assert_eq!(shown.len(), 1, "{shown:?}");
+        let (centre, radius) = shown[0];
+        assert!((1.5..4.0).contains(&radius), "{radius}");
+        // Before the item's words (20 points in), inside the list.
+        assert!(centre.x > 3.0 && centre.x < 17.0, "{centre:?}");
+        let none = discs(Style {
+            list_style_type: Some("none".into()),
+            ..Style::default()
+        });
+        assert!(none.is_empty(), "{none:?}");
+    }
+
+    /// `overflow-y: auto` on a box of a set height scrolls what it holds:
+    /// the box keeps its height (DownloadManager's About window grew past
+    /// its 540 points and the taskbar).
+    #[test]
+    fn an_overflowing_box_of_a_set_height_scrolls() {
+        let tall = filled(
+            3,
+            "#00ff00",
+            Style {
+                height: Some("300px".into()),
+                ..Style::default()
+            },
+            vec![],
+        );
+        let scroller = filled(
+            2,
+            "#ff0000",
+            Style {
+                height: Some("100px".into()),
+                overflow_y: Some("auto".into()),
+                ..Style::default()
+            },
+            vec![tall],
+        );
+        let rects = filled_rects(VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                width: Some("200px".into()),
+                ..Style::default()
+            },
+            children: vec![scroller],
+            ..VNode::default()
+        });
+        let outer = filled_rect(&rects, Color32::from_rgb(255, 0, 0));
+        assert!((outer.height() - 100.0).abs() < 0.5, "{outer:?}");
+    }
+
+    /// Words in a block with `text-overflow: ellipsis` end in "…" at its
+    /// edge, words in its spans too (DownloadManager's start menu tile
+    /// label ran past its tile).
+    #[test]
+    fn words_in_an_ellipsised_block_end_in_an_ellipsis() {
+        let label = VNode {
+            id: 2,
+            tag: "div".into(),
+            style: Style {
+                white_space: Some("nowrap".into()),
+                overflow: Some("hidden".into()),
+                text_overflow: Some("ellipsis".into()),
+                ..Style::default()
+            },
+            children: vec![text_node(20, "Downloader Manager with a long name")],
+            ..VNode::default()
+        };
+        let shapes = floating_shapes(vec![fixed_box("80px", vec![label])]);
+        let galley = shapes
+            .iter()
+            .find_map(|s| match s {
+                egui::Shape::Text(t) => Some(t.galley.clone()),
+                _ => None,
+            })
+            .expect("the label");
+        assert!(galley.elided, "cut with an ellipsis: {:?}", galley.rect);
+        assert!(galley.rect.width() <= 80.5, "{:?}", galley.rect);
+    }
+
+    /// TIDAL's body text is weight 500: words a plugin appends to `body`
+    /// with no weight of their own are drawn at it (DownloadManager's
+    /// window title and its "Output:" row are semibold in Segoe UI there),
+    /// and a button keeps the browser's normal weight.
+    #[test]
+    fn body_text_takes_tidals_weight_and_a_button_the_browsers() {
+        let shapes = floating_shapes(vec![fixed_box(
+            "300px",
+            vec![
+                VNode {
+                    id: 2,
+                    tag: "span".into(),
+                    children: vec![text_node(20, "Output")],
+                    ..VNode::default()
+                },
+                VNode {
+                    children: vec![text_node(30, "Choose")],
+                    style: Style {
+                        font_family: Some("inherit".into()),
+                        ..Style::default()
+                    },
+                    ..button(3, "")
+                },
+            ],
+        )]);
+        let texts = texts(&shapes);
+        let font = |w: &str| {
+            texts
+                .iter()
+                .find(|(t, ..)| t == w)
+                .map(|(.., f)| f.clone())
+                .unwrap_or_else(|| panic!("{w:?} in {texts:?}"))
+        };
+        assert_eq!(font("Output"), crate::theme::medium(13.0));
+        assert_eq!(font("Choose").size, 40.0 / 3.0);
+        assert_eq!(font("Choose"), crate::theme::regular(40.0 / 3.0));
+    }
+
+    /// A growing flex item with padding fills its share of the row with
+    /// its border box, padding inside (DownloadManager's About body ran its
+    /// words 48 points past the window's right edge).
+    #[test]
+    fn a_growing_item_keeps_its_padding_inside_the_row() {
+        let body = filled(
+            2,
+            "#ff0000",
+            Style {
+                flex: Some("1".into()),
+                padding: Some("10px 24px".into()),
+                ..Style::default()
+            },
+            vec![text_node(20, "Words")],
+        );
+        let row = filled(
+            1,
+            "#0000ff",
+            Style {
+                display: Some("flex".into()),
+                width: Some("300px".into()),
+                ..Style::default()
+            },
+            vec![body],
+        );
+        let rects = filled_rects(row);
+        let outer = filled_rect(&rects, Color32::from_rgb(0, 0, 255));
+        let grown = filled_rect(&rects, Color32::from_rgb(255, 0, 0));
+        assert!(
+            (grown.width() - outer.width()).abs() < 0.5,
+            "{grown:?} in {outer:?}"
+        );
     }
 }
