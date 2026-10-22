@@ -193,10 +193,9 @@ alike. Normal widths (800 and up) are unchanged.
   narrower than 600 (`HEADER_NARROW`) only the first button stays (album: Added; artist: Follow; own playlist:
   Edit), pills 114 (narrowed further if the buttons need it; captions go first). A Tracks page with pills only
   keeps them 160 while they fit.
-- **Open owner decision: More at narrow width.** TIDAL hides More ("...") below 600 (its album at 314 shows
-  only Play, Shuffle and Added), which leaves no way to the album's menu there. Tidalfast keeps More for now;
-  the single switch is `collection::NARROW_HEADER_KEEPS_MORE` (set it to `false` to match TIDAL). With no
-  room, More goes before the first button.
+- More at narrow width: TIDAL hides More ("...") below 600 (its album at 314 shows only Play, Shuffle and
+  Added), and Tidalfast does too (owner's decision, 2026-10-22; the switch is
+  `collection::NARROW_HEADER_KEEPS_MORE`).
 - Shelves (Home, artist page): TIDAL fixes a shelf's card count when the page mounts and shrinks the cards; a
   freshly opened narrow page shows one card a row, as Tidalfast does (an earlier capture with 7 tiny cards
   was a page that had not remounted). An artist's portrait in a shelf stops at a 200 circle at the cell's
