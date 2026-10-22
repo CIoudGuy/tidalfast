@@ -1707,6 +1707,19 @@ fails without it:
   keeps TIDAL's.
 - Shuffle keeps TIDAL's white words under a theme; a page font's
   semibold leads with its medium face (TIDAL draws those words at 500).
+- Follow-up: `var(--img)` is TIDAL's own header cover (Abyss Neptune keeps
+  the album art); the volume popup takes `--wave-color-solid-base-brighter`
+  (Rose Pine's `#26233a`); the navigation rows are `_navigationItem_` only
+  (2.43.2 has no `_sidebarItem_`, so Abyss Neptune's grey labels are gone);
+  a body fill of TIDAL's own black leaves TIDAL's surfaces (Black Glow's
+  tiles, queue and menus); library rows are links (Black Glow's `a {
+  background: none }` drops the selected pill); a track row's hover takes
+  its cells' corners (square under Tidal TUI); `#main` is TIDAL's
+  `_hasDockedPlayer_` box (Tidal TUI's `Main` label, inside its padding);
+  the Collection chevron and the playlists' "+" and sort icons take a
+  theme's colour (black under Tidal Light). The play queue's playing row
+  words under Tidal Light (black in TIDAL) are not mapped: the row's TIDAL
+  classes are not captured.
 
 Theme by theme, what still differs is in each row above. Shared by many:
 TIDAL's own layout changes a theme makes that Tidalfast's native views do
