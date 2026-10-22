@@ -1865,3 +1865,47 @@ fn a_themes_height_on_the_header_art_box_reaches_down_the_page() {
     luna.shutdown();
     assert_eq!(fixed, 600.0);
 }
+
+/// A theme that paints a light window restyles the play queue's artist
+/// lines and TIDAL's accent with its own colours (Tidal Light: its 70 %
+/// black words and dark teal), so TIDAL's queue shows readable names on
+/// the light card. Tidalfast drew them in the now-playing view's pale grey
+/// and a followed artist in its bright cyan, almost invisible on white.
+/// Under a dark window, and without a theme, the queue keeps those.
+#[test]
+fn queue_artist_names_take_a_light_themes_words_and_accent() {
+    use crate::theme::Palette;
+    use crate::ui::now_playing::queue_name_colors;
+    use crate::ui::plugin_dom::{self as pd, SidePanel, themed, tidal_panel_text};
+    let words = egui::Color32::from_rgb(67, 67, 67);
+    let teal = egui::Color32::from_rgb(0x2a, 0x9d, 0x8f);
+    let css = r#"/* {"name": "Pale page"} */
+:root { --wave-color-solid-accent-fill: #2a9d8f !important; }
+body { background-color: #ffffff !important; }
+[class*="_marketText_"][class*="_text20_"] { color: rgb(67, 67, 67) !important; }
+"#;
+    let (luna, o) = overlay_with(
+        "pale-page.css",
+        css,
+        dom_anchors::sample_tree(),
+        dom_anchors::keys::QUEUE_ROLE_SECONDARY,
+    );
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let light = tidal_panel_text(themed(&Palette::light(), &o), SidePanel::Queue);
+    pd::test_overlay(None);
+    assert_eq!(queue_name_colors(&light), (words, teal));
+    // A dark window keeps TIDAL's grey and cyan, as does no theme.
+    let native = queue_name_colors(&Palette::dark());
+    assert_eq!(queue_name_colors(&Palette::light()), native);
+    let css = r#"/* {"name": "Dark page"} */
+:root { --wave-color-solid-accent-fill: #2a9d8f !important; }
+body { background-color: #101010 !important; }
+"#;
+    let (luna, o) = overlay_with("dark-page.css", css, dom_anchors::sample_tree(), "");
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let dark = tidal_panel_text(themed(&Palette::dark(), &o), SidePanel::Queue);
+    pd::test_overlay(None);
+    assert_eq!(queue_name_colors(&dark), native);
+}
