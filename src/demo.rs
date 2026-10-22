@@ -15857,8 +15857,9 @@ mod tests {
             );
             assert_eq!(fills(&themed, egui::Color32::WHITE), 0);
             assert!(text_in(&themed, ink), "the theme's label colour");
-            // Meteor Night's `* { color: white }` reaches the labels but
-            // not TIDAL's pills, whose own CSS colours them: no change.
+            // Meteor Night's `* { color: white }` reaches the labels, which
+            // TIDAL's own CSS leaves to inherit, but not the pills: TIDAL's
+            // white Play stays, with white words.
             let mut catch_all = overlay(3, false);
             for key in [keys::PAGE_PLAY_LABEL, keys::PAGE_SHUFFLE_LABEL] {
                 catch_all.hosts.insert(
@@ -15873,9 +15874,15 @@ mod tests {
                 );
             }
             plugin_dom::test_overlay(Some(catch_all));
+            let caught = shapes(&ctx, &mut app);
+            assert_eq!(
+                fills(&caught, egui::Color32::WHITE),
+                1,
+                "TIDAL's white Play stays: light={light}"
+            );
             assert!(
-                shapes(&ctx, &mut app) == on,
-                "a label colour alone leaves the pills native: light={light}"
+                caught != on,
+                "the labels take the catch-all's white: light={light}"
             );
             plugin_dom::test_overlay(Some(overlay(4, false)));
             assert!(

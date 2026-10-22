@@ -1157,3 +1157,31 @@ fn a_themes_border_on_a_rows_wrappers_draws_round_the_row() {
     );
     assert!(row_wrapper_borders("album:55", 1).is_empty(), "no theme");
 }
+
+/// TIDAL's own CSS colours the header pills, not their labels, so Meteor
+/// Night's catch-all `* { color: var(--text-primary) }` (white) reaches
+/// the Play label: TIDAL shows its white Play pill with the words white on
+/// white (b10, b12). Tidalfast took a label colour only with a theme's
+/// fill and drew the words dark.
+#[test]
+fn a_catch_all_colour_reaches_a_header_pills_label() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::PAGE_PLAY_LABEL;
+    let css = r#"/* {"name": "Catch-all"} */
+:root { --text-primary: #ffffff; }
+* { color: var(--text-primary); }
+"#;
+    let (luna, o) = overlay_with(
+        "catch-all.css",
+        css,
+        dom_anchors::build(&dom_anchors::sample_frame()),
+        PAGE_PLAY_LABEL,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let pill = pd::header_pill(true);
+    pd::test_overlay(None);
+    luna.shutdown();
+    let pill = pill.expect("the label is themed");
+    assert_eq!(pill.fill, None, "TIDAL's own white pill");
+    assert_eq!(pill.ink, Some(egui::Color32::WHITE));
+}
