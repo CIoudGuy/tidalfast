@@ -138,6 +138,8 @@ struct State {
     /// Anchors' colours and opacities on their way by the anchor's
     /// `transition` (a theme's hover fill fading in).
     host_motion: HostMotion,
+    /// Transition and animation events waiting for their time.
+    motion_events: super::motion_events::Pending,
     #[cfg(test)]
     test_overlay: bool,
 }
@@ -280,7 +282,10 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
         }
         let overlay = luna.dom_overlay();
         if overlay.version != s.overlay.version {
-            s.overlay = overlay;
+            let old = std::mem::replace(&mut s.overlay, overlay);
+            // The transitions and animations this overlay starts, timed
+            // from now, when the UI starts drawing them.
+            s.motion_events.schedule(&old, &s.overlay, Instant::now());
             if let Some((key, seq)) = &s.overlay.scroll_to
                 && *seq != s.scroll_seq
             {
@@ -439,10 +444,17 @@ pub fn end_frame(ctx: &egui::Context) {
         s.next_playlist = None;
         let mut frame = std::mem::take(&mut s.frame);
         let mut unchanged = s.last_frame.as_ref() == Some(&frame);
+        // Transition and animation events due now go after the boxes as
+        // they are now, whatever the throttles say: radiant-lyrics measures
+        // its widened tab when the tab's transition ends.
+        let motion_now = Instant::now();
+        let motion_due = s.motion_events.take_due(motion_now);
+        let force = !motion_due.is_empty();
         // The now-playing cover leans under a moving pointer on every pass:
         // its new lean goes out as often as plugins hear the pointer move,
         // and the pass after the wait sends the latest one.
         if !unchanged
+            && !force
             && let Some(last) = &s.last_frame
             && only_tilt_moved(last, &mut frame)
         {
@@ -460,7 +472,7 @@ pub fn end_frame(ctx: &egui::Context) {
                 Some(old) if *old == tree => false,
                 Some(old) if same_but_rects(old, &tree) => {
                     let since = s.sent_at.map_or(RECT_THROTTLE, |t| t.elapsed());
-                    if since >= RECT_THROTTLE {
+                    if since >= RECT_THROTTLE || force {
                         true
                     } else {
                         ctx.request_repaint_after(RECT_THROTTLE - since);
@@ -489,6 +501,18 @@ pub fn end_frame(ctx: &egui::Context) {
                     ctx.request_repaint();
                 }
             }
+        }
+        if let Some(luna) = &s.luna {
+            for e in motion_due {
+                luna.dom_event(DomEvent {
+                    target: e.target,
+                    kind: e.kind.into(),
+                    data: e.data,
+                });
+            }
+        }
+        if let Some(next) = s.motion_events.next_due() {
+            ctx.request_repaint_after(next.saturating_duration_since(motion_now));
         }
         // Keep the allocations for the next frame's notes.
         let mut next = frame;
