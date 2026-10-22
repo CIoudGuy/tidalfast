@@ -1286,6 +1286,49 @@ fn the_sidebars_chevron_and_heading_icons_take_the_themes_colour() {
     assert_eq!(colors, [Some(egui::Color32::BLACK); 3]);
 }
 
+/// TIDAL's navigation rows have their colour on their class, so a theme's
+/// rule for a tag does not reach them: Synthwave '77's `button { color:
+/// magenta }` leaves the Collection row (TIDAL's only navigation `button`)
+/// white like the other rows, while a rule for the row's class still
+/// colours it. Tidalfast drew Collection magenta.
+#[test]
+fn a_tag_rule_leaves_the_navigation_rows_colour() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::sidebar_item;
+    let collection = || dom_anchors::SidebarItem {
+        test: "sidebar-collection-menu".into(),
+        label: "Collection".into(),
+        href: Some("/my-collection".into()),
+        selected: false,
+        rect: Some([16.0, 248.0, 208.0, 40.0]),
+    };
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.items.push(collection());
+    let row = sidebar_item("sidebar-collection-menu");
+    // The arrow's rule only says when the theme reached the tree.
+    let css = r#"/* {"name": "Tag ink"} */
+:root { --tag-ink: rgb(225, 0, 255); }
+button { color: var(--tag-ink); }
+._arrowRight_f57b400 { opacity: 0.9; }
+"#;
+    let arrow = dom_anchors::keys::sidebar_item_arrow("sidebar-collection-menu");
+    let (luna, o) = overlay_with("tag-ink.css", css, dom_anchors::build(&frame), &arrow);
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let tag = pd::nav_style(&row).and_then(|s| s.color);
+    pd::test_overlay(None);
+    assert_eq!(tag, None, "the row keeps its own colour");
+    let css = r#"/* {"name": "Class ink"} */
+[class*="_navigationItem_"] { color: rgb(225, 0, 255); }
+"#;
+    let (luna, o) = overlay_with("class-ink.css", css, dom_anchors::build(&frame), &row);
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let class = pd::nav_style(&row).and_then(|s| s.color);
+    pd::test_overlay(None);
+    assert_eq!(class, Some(egui::Color32::from_rgb(225, 0, 255)));
+}
+
 /// TIDAL's virtual list holds each track row in two boxes
 /// (`[data-test="media-table"] > div > div[k] > div > div._tableRow_`).
 /// Abyss Neptune lines the inner one (`> div > div > div { border: 1px
