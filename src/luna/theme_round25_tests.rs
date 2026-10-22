@@ -1185,3 +1185,64 @@ fn a_catch_all_colour_reaches_a_header_pills_label() {
     assert_eq!(pill.fill, None, "TIDAL's own white pill");
     assert_eq!(pill.ink, Some(egui::Color32::WHITE));
 }
+
+/// Meteor Night's glass `[class*="card"] { background; border;
+/// border-radius: 12px }` matches TIDAL's `._cardContainer_`, so TIDAL
+/// draws a rounded glass box round each whole shelf row, under its cards
+/// (its b01 and b13). Tidalfast gave the row an anchor but never painted
+/// it. Without a theme the shelf paints nothing more.
+#[test]
+fn a_themes_box_on_a_shelf_row_is_drawn_under_its_cards() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Shelf glass"} */
+[class*="card"] { background: rgba(10, 15, 30, 0.3) !important; border: 1px solid #ffffff14 !important; border-radius: 12px; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(p) = frame.page.as_mut() {
+        p.feed = true;
+        p.shelves = vec![Some([260.0, 300.0, 1000.0, 260.0])];
+    }
+    let key = dom_anchors::keys::shelf(0);
+    let (luna, o) = overlay_with("shelf-glass.css", css, dom_anchors::build(&frame), &key);
+    let glass = egui::Color32::from_rgba_unmultiplied(10, 15, 30, 77);
+    let marker = egui::Color32::from_rgb(1, 2, 3);
+    let draw = || {
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            crate::ui::widgets::shelf(
+                ui,
+                &crate::theme::Palette::dark(),
+                "glass-shelf",
+                "Shelf",
+                |ui| {
+                    let (r, _) =
+                        ui.allocate_exact_size(egui::vec2(100.0, 100.0), egui::Sense::hover());
+                    ui.painter().rect_filled(r, 0.0, marker);
+                },
+            );
+        });
+        let mut out = out;
+        out.textures_delta.clear();
+        // The fills in drawing order.
+        let mut fills = Vec::new();
+        let mut stack: Vec<egui::Shape> = out.shapes.into_iter().map(|c| c.shape).rev().collect();
+        while let Some(shape) = stack.pop() {
+            match shape {
+                egui::Shape::Vec(inner) => stack.extend(inner.into_iter().rev()),
+                egui::Shape::Rect(r) => fills.push(r.fill),
+                _ => {}
+            }
+        }
+        fills
+    };
+    pd::test_overlay(Some((*o).clone()));
+    let themed = draw();
+    pd::test_overlay(None);
+    luna.shutdown();
+    let at = |fills: &[egui::Color32], c| fills.iter().position(|f| *f == c);
+    let card = at(&themed, marker).expect("the card");
+    let row = at(&themed, glass).expect("the row's glass");
+    assert!(row < card, "the glass is under the card");
+    assert_eq!(at(&draw(), glass), None, "without a theme");
+}

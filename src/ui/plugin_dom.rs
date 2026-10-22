@@ -2444,6 +2444,44 @@ pub fn shelf_row(r: Rect) {
     });
 }
 
+/// Paints the box a theme draws round the row of cards of the shelf about
+/// to be registered by [`shelf_row`], `r` being the row's box: Meteor
+/// Night's glass `[class*="card"]` matches TIDAL's `._cardContainer_` and
+/// boxes each whole row in TIDAL. Negative side margins widen the box
+/// (Sunken Tidal's `margin: 0 -100vh` band across the page). False while
+/// no theme styles the row, so nothing is drawn.
+pub fn paint_shelf_box(ui: &egui::Ui, r: Rect) -> bool {
+    if !on() {
+        return false;
+    }
+    let index = with(|s| s.frame.page.as_ref().map_or(0, |p| p.shelves.len()));
+    let key = dom_anchors::keys::shelf(index);
+    let viewport = viewport();
+    let [left, right] = host(&key, |h, vars| {
+        let s = &h.style;
+        let base = s
+            .margin
+            .as_deref()
+            .map_or([0.0; 4], |v| css::sides(&css::resolve_vars(v, vars), 14.0));
+        let side = |v: Option<&String>, fallback: f32| {
+            v.and_then(|v| css::length(&css::resolve_vars(v, vars), 14.0, 0.0, viewport))
+                .filter(|n| n.is_finite())
+                .unwrap_or(fallback)
+        };
+        let wider = |m: f32| (-m).clamp(0.0, viewport[0].max(0.0));
+        Some([
+            wider(side(s.margin_left.as_ref(), base[3])),
+            wider(side(s.margin_right.as_ref(), base[1])),
+        ])
+    })
+    .unwrap_or([0.0; 2]);
+    let r = Rect::from_min_max(
+        egui::pos2(r.left() - left, r.top()),
+        egui::pos2(r.right() + right, r.bottom()),
+    );
+    paint_themed_box(ui, &key, r, egui::CornerRadius::ZERO)
+}
+
 /// TIDAL's module id of the shelf about to be drawn (`YOUR_FAVORITE_ARTISTS`),
 /// which its row's `data-test` carries.
 pub fn shelf_module(id: &str) {
