@@ -1,7 +1,7 @@
 //! DOM bridge tests: the host tree reconciled into the plugins' document,
 //! mutation records, injected elements, events from the UI, scrolling,
 //! animation frames and plugin CSS, each with a small inline plugin; plus
-//! ignored network tests running the owner's real DOM plugins unmodified.
+//! ignored network tests running real DOM plugins unmodified.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -1034,7 +1034,7 @@ new MutationObserver(go).observe(document.body, { childList: true, subtree: true
 
 // ------------------------------------------------------------------ real plugins
 
-/// The owner's DOM plugins from their release URLs, unmodified, against the
+/// Real DOM plugins from their release URLs, unmodified, against the
 /// sample anchor tree. Needs the network.
 #[test]
 #[ignore]

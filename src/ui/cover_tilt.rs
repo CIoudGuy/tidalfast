@@ -3,8 +3,8 @@
 //! each axis), with a soft glare opposite the pointer, and springs back flat
 //! when the pointer leaves (stiffness 200, damping 30).
 //!
-//! The amount is measured from TIDAL 2.43's own cover (the shots in
-//! `.internal/luna-reference/visiuun-3d-cover`): the cover's corners there
+//! The amount is measured from TIDAL 2.43's own cover (reference
+//! captures): the cover's corners there
 //! fit `rotateX`/`rotateY` within a pixel at 4.5° with the pointer near the
 //! right edge and -3.8°/3.7° near the bottom right, and the 3d-cover plugin,
 //! which reads TIDAL's matrix, expects about 4°.

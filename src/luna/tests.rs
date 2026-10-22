@@ -875,7 +875,7 @@ impl LunaHost for FakeDiscordHost {
     }
 }
 
-/// The owner's DiscordRPC status said "Chapter 57 by Rihanna" while Rihanna's
+/// A user's DiscordRPC status said "Chapter 57 by Rihanna" while Rihanna's
 /// "Only Girl (In The World)" played: the real DiscordRPC plugin, unmodified,
 /// against a fake Discord, with MusicBrainz listing the audiobook chapter
 /// that shares the song's ISRC first. Needs the network to fetch the plugin.
@@ -1077,7 +1077,7 @@ fn saved_stores(dir: &Path) -> Vec<String> {
 fn the_owners_store_is_always_in_the_list_and_cannot_be_removed() {
     let owner = PINNED_STORES[0];
     let dir = temp_dir("pinned-store");
-    // A first run lists TidaLuna's stores and the owner's.
+    // A first run lists TidaLuna's stores and the maintainer's.
     let luna = Luna::start(default_store_config(&dir), Arc::new(MockHost::default())).unwrap();
     let s = wait_until(&luna, 10, |s| !s.stores.is_empty());
     assert_eq!(s.stores.len(), DEFAULT_STORES.len() + 1);
@@ -1095,7 +1095,7 @@ fn the_owners_store_is_always_in_the_list_and_cannot_be_removed() {
     });
     assert!(store_urls(&s).iter().any(|u| u == owner));
     assert!(saved_stores(&dir).iter().any(|u| u == owner));
-    // Reset puts TidaLuna's list back, with the owner's.
+    // Reset puts TidaLuna's list back, with the maintainer's.
     luna.reset_all();
     let s = wait_until(&luna, 10, |s| {
         store_urls(s).iter().any(|u| u == DEFAULT_STORES[0])
@@ -1120,7 +1120,7 @@ fn the_owners_store_is_always_in_the_list_and_cannot_be_removed() {
     assert_eq!(
         store_urls(&s),
         [old[0].as_str(), old[1].as_str(), owner],
-        "the user's order is kept, the owner's comes last"
+        "the user's order is kept, the maintainer's comes last"
     );
     assert_eq!(saved_stores(&dir).last().map(String::as_str), Some(owner));
     luna.shutdown();

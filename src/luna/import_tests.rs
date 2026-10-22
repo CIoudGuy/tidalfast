@@ -340,7 +340,7 @@ fn build_install(origin: &str, base: &str) -> Install {
     dev["url"] = json!("http://127.0.0.1:3000/MyDevPlugin");
     table.push(data(DB_PLUGINS, "MyDevPlugin", &dev, true));
 
-    // Settings, as the owner's install had them (luna-plugins.md).
+    // Settings, as an existing TidaLuna install had them (luna-plugins.md).
     let settings = [
         ("VolumeScroll", json!({ "changeBy": 2, "changeByShift": 1 })),
         (

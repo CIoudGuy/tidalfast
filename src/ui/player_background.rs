@@ -38,7 +38,7 @@ const COAST_SECONDS: f64 = 1.5;
 /// Dragging the seek bar across the whole song turns the cover this far.
 const SCRUB_DEGREES: f32 = 180.0;
 /// Playing again or opening the view starts at five times the steady
-/// speed and eases into it over 1.5 s (the owner's "little spin").
+/// speed and eases into it over 1.5 s (a "little spin").
 const BOOST_SECONDS: f32 = 1.5;
 const BOOST_EXTRA: f32 = 4.0;
 /// The square's side, in vmax: TIDAL's 40vmax scaled by `--blur-upscale: 4`.

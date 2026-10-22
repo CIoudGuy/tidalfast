@@ -337,7 +337,7 @@ R.done = true;
     assert_eq!(r["page"], "3,3,0,-1", "{r}");
 }
 
-/// The owner's DiscordRPC status read "Chapter 57 by Rihanna" for Rihanna's
+/// A user's DiscordRPC status read "Chapter 57 by Rihanna" for Rihanna's
 /// "Only Girl (In The World)": MusicBrainz gives its ISRC to an audiobook
 /// chapter too, and the title came from whichever recording it listed
 /// first. The title, MusicBrainz id and ISRCs are the playing song's.

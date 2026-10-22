@@ -193,7 +193,7 @@ fn asked(catalog: &PagedCatalog, what: &str) -> usize {
 }
 
 /// A double-clicked row far down a long playlist plays at once: its song
-/// starts while no page before it has come (the owner waited 2 to 3 s in
+/// starts while no page before it has come (a user waited 2 to 3 s in
 /// silence for the six pages before row 553). The pages then put the
 /// context around it: the songs after it follow in the playlist's order,
 /// and the songs before it are behind it (Previous goes to the row above).
@@ -322,7 +322,7 @@ fn next_before_the_pages_come_plays_the_song_after_the_row() {
 /// Shuffle switched off while the context is still read up to the named
 /// song is how the songs after it play: the named song first, then the
 /// rest in order, and the engine says Shuffle is off. It started shuffled
-/// while the player bar showed Shuffle off (the owner's "shuffle off but it
+/// while the player bar showed Shuffle off (a report: "shuffle off but it
 /// played Escape Plan").
 #[test]
 fn shuffle_switched_off_while_a_later_page_loads_plays_in_order() {
@@ -383,7 +383,7 @@ fn within(
 
 /// Play or Space while a load still waits for its song (a context whose
 /// first page has not come) is for that load: it does not start the song
-/// of the queue being replaced again. The owner pressed Space during a
+/// of the queue being replaced again. A user pressed Space during a
 /// long load and heard the previous song restart.
 #[test]
 fn play_during_a_load_does_not_restart_the_previous_song() {

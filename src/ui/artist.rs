@@ -2468,7 +2468,7 @@ mod tests {
         assert_eq!(ids, ["b"]);
     }
 
-    /// The owner's report: a song double-clicked in an artist's Popular
+    /// A report: a song double-clicked in an artist's Popular
     /// tracks played those 20 songs as a list of their own, then autoplay
     /// took over, under a "Next up from" with no name. The song plays the
     /// artist from that song instead, all of their songs, as Play does.

@@ -455,7 +455,7 @@ fn next_past_the_end_continues_with_autoplay() {
 /// Once the context ends and autoplay plays on, the songs come from the
 /// radio of the song it was seeded with, and that is what the queue says
 /// it plays from ("<song> Radio", opening that radio): no longer the album
-/// or playlist that ended, which the owner saw still named while autoplay
+/// or playlist that ended, which a user saw still named while autoplay
 /// played.
 #[test]
 fn autoplay_plays_from_the_seed_songs_radio_not_the_context_that_ended() {

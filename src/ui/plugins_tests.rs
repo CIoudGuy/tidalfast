@@ -1614,7 +1614,7 @@ fn a_plugin_listed_by_several_stores_shows_once() {
         }
     }
     // The author's own store wins over the mirror and the fork (Solo: the
-    // owner's store, though listed last, is the author's).
+    // maintainer's store, though listed last, is the author's).
     let snap = snapshot(None);
     let view = store::view_for_tests(&snap, &index, "", store::Sort::Name, NOW);
     let url_of = |name: &str| {

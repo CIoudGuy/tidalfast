@@ -12,7 +12,7 @@
 //! 5xx; and turns TIDAL's `subStatus` errors into readable messages. It uses
 //! the process-wide [`Http`] client, so proxy settings apply.
 //!
-//! Internal URIs are `tidal:<kind>:<id>` (.internal/docs/TIDAL-PORT.md).
+//! Internal URIs are `tidal:<kind>:<id>`
 
 pub mod activity;
 pub mod convert;

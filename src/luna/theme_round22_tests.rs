@@ -1,5 +1,5 @@
 //! Luna themes round 22: themes compared view by view with TIDAL running
-//! them (`.internal/luna-reference/themes`), and the general fixes that
+//! them (reference captures), and the general fixes that
 //! comparison asked for.
 
 use std::sync::Arc;

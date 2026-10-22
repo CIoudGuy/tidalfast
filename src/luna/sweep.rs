@@ -26,7 +26,7 @@ use super::redux::EMITTED_ACTIONS;
 use super::*;
 
 /// Stores beyond [`DEFAULT_STORES`] (which are upstream Luna's list, with
-/// Inrixia's `dev` channel): stores of plugins the owner has installed.
+/// Inrixia's `dev` channel): other community stores whose plugins the sweep also runs.
 pub(super) const EXTRA_STORES: &[&str] = &[
     "https://github.com/CIoudGuy/TidaLuna-Plugins/releases/download/latest",
     // Community stores outside upstream's default list (GitHub search,
@@ -39,7 +39,7 @@ pub(super) const EXTRA_STORES: &[&str] = &[
 ];
 
 /// Stream-to-file downloaders: load and render settings only (project
-/// decision, see .internal/docs/TIDAL-PORT.md section 6).
+/// decision).
 pub(crate) const REFUSED: &[&str] = &[
     "Song Downloader",
     "DownloadManager",
