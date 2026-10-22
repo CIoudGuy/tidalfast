@@ -56,6 +56,20 @@ contract, and the queue tests in `src/app.rs` enforce them. Read
 touching `src/luna/` or `src/plugins/`. Read the nearby module tests before
 changing a state machine or API fallback.
 
+No per-plugin code in the Luna runtime. The owner's words: "don't fix
+individual plugins fix their translation layer so if the owner updates they
+update properly applies to all themes too". Plugins and themes work through
+the generic layer only (TIDAL's DOM, classes and anchors, the `luna.lib`,
+redux and native APIs, Chromium's CSS and events). Never key runtime
+behaviour to a plugin's or theme's name, file name, package, hash or URL, or
+to its own private classes, ids or variables: fix the API, selector or CSS
+feature it uses, and prove it with a synthetic plugin or theme in the test.
+If the generic layer cannot reach the result, label the plugin honestly in
+`COMPAT` instead. Store labels, permission and refusal lists by name, the
+store catalogue, test fixtures, sweep lists and docs are descriptions, not
+patches, and stay. Details under "No per-plugin code" in
+`docs/_reference/luna-plugins.md`.
+
 TIDAL's client API is undocumented for these clients and can change. Before
 promising a TIDAL-facing feature, and before answering an issue that asks for
 one, check `tidal-api.md` for what is known to work; if a limit there has
