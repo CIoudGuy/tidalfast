@@ -4441,37 +4441,3 @@ msgstr "上傳完成"
 #: src/app/uploads.rs:868
 msgid "Couldn't save your changes. Try again."
 msgstr "無法儲存你的變更。請重試。"
-
-#, rust-format
-#~ msgid "{count} follower"
-#~ msgid_plural "{count} followers"
-#~ msgstr[0] "{count} 位追蹤者"
-
-#~ msgid ""
-#~ "It saves TIDAL songs as files, which Tidalfast does not allow (use "
-#~ "Download in Tidalfast to listen offline)."
-#~ msgstr ""
-#~ "它會把 TIDAL 歌曲儲存為檔案，而 Tidalfast 不允許這樣做（若要離線聆聽，請使"
-#~ "用 Tidalfast 中的「下載」）。"
-
-#~ msgid ""
-#~ "It sends your TIDAL sign-in to the author's server, which Tidalfast never "
-#~ "allows, so its remote control cannot run."
-#~ msgstr ""
-#~ "它會把你的 TIDAL 登入資訊傳送到作者的伺服器，Tidalfast 絕不允許這樣做，因"
-#~ "此它的遙控功能無法執行。"
-
-#~ msgid ""
-#~ "It needs to listen for media keys across the whole computer, which "
-#~ "Tidalfast does not allow (Tidalfast has its own media controls)."
-#~ msgstr ""
-#~ "它需要在整台電腦上監聽媒體鍵，Tidalfast 不允許這樣做（Tidalfast 有自己的媒"
-#~ "體控制）。"
-
-#~ msgid ""
-#~ "It plays through the mpv program and talks to it over a channel Tidalfast "
-#~ "does not allow."
-#~ msgstr "它透過 mpv 程式播放，並透過 Tidalfast 不允許的通道與其通訊。"
-
-#~ msgid "Review"
-#~ msgstr "評論"

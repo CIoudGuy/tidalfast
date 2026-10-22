@@ -4575,39 +4575,3 @@ msgstr "アップロードが完了しました"
 #: src/app/uploads.rs:868
 msgid "Couldn't save your changes. Try again."
 msgstr "変更を保存できませんでした。もう一度お試しください。"
-
-#, rust-format
-#~ msgid "{count} follower"
-#~ msgid_plural "{count} followers"
-#~ msgstr[0] "フォロワー{count}人"
-
-#~ msgid ""
-#~ "It saves TIDAL songs as files, which Tidalfast does not allow (use "
-#~ "Download in Tidalfast to listen offline)."
-#~ msgstr ""
-#~ "TIDALの曲をファイルとして保存しますが、Tidalfastでは許可されていません（オ"
-#~ "フラインで聴くにはTidalfastのダウンロードを使ってください）。"
-
-#~ msgid ""
-#~ "It sends your TIDAL sign-in to the author's server, which Tidalfast never "
-#~ "allows, so its remote control cannot run."
-#~ msgstr ""
-#~ "TIDALのサインイン情報を作者のサーバーに送信します。Tidalfastはこれを一切許"
-#~ "可しないため、リモコン機能は動作しません。"
-
-#~ msgid ""
-#~ "It needs to listen for media keys across the whole computer, which "
-#~ "Tidalfast does not allow (Tidalfast has its own media controls)."
-#~ msgstr ""
-#~ "コンピューター全体でメディアキーを監視する必要がありますが、Tidalfastでは"
-#~ "許可されていません（Tidalfastには独自のメディアコントロールがあります）。"
-
-#~ msgid ""
-#~ "It plays through the mpv program and talks to it over a channel Tidalfast "
-#~ "does not allow."
-#~ msgstr ""
-#~ "mpvというプログラムで再生し、Tidalfastが許可していないチャンネルを通じてや"
-#~ "り取りします。"
-
-#~ msgid "Review"
-#~ msgstr "レビュー"
