@@ -642,9 +642,11 @@ onto the palette roles: `--wave-color-solid-base-fill` (or `-base-base`,
 surfaces, menus and outlines derived from it; `-base-bright` -> panel;
 `-base-brighter` -> surfaces; `-base-brightest` -> hover surfaces and menus;
 `--wave-color-background-hover/active/elevated`, `--wave-color-border`;
-`--cover-ui-color`, `--wave-color-text-main`, `-solid-contrast-fill` or the
-page's text colour -> text; `--wave-color-text-secondary` /
-`-contrast-darker` -> secondary text; `-text-tertiary` / `-contrast-darkest`
+the colour a rule gives TIDAL's words (the `span.wave-text-body-medium`
+stand-in: a plugin's `span { color }` over any token), `--wave-color-text-main`,
+`-solid-contrast-fill` or the page's text colour -> text; where the theme
+paints the window, the `[data-wave-color=textSecondary]` stand-in's colour,
+`--wave-color-text-secondary` or `-contrast-darker` -> secondary text; `-text-tertiary` / `-contrast-darkest`
 -> dim text; `-solid-accent-fill` (and `-accent-bright` for hover) ->
 accent; `-solid-warning-fill` -> danger; `-rainbow-yellow-fill` -> warning;
 `--wave-border-radius--small` -> the corner radius of egui's windows, menus

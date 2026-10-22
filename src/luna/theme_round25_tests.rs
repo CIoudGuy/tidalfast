@@ -1699,3 +1699,55 @@ body { background-color: #101820; }
         egui::Color32::from_rgb(0xc4, 0xf0, 0x6a)
     );
 }
+
+/// A plugin that colours every word (cover-colored-ui's `:root { --its-own:
+/// <cover colour> } span { color: var(--its-own) !important }`) colours them
+/// in TIDAL over any theme's text tokens. The palette read the colour only
+/// under cover-colored-ui's own variable name, and a plugin calling it
+/// anything else lost to the theme's `--wave-color-solid-contrast-fill`.
+/// The text roles' stand-ins take the rule, whatever its variable is called.
+#[test]
+fn a_rule_colouring_every_word_outranks_the_text_tokens() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom::themed;
+    let tint = egui::Color32::from_rgb(200, 120, 40);
+    let css = r#"/* {"name": "Tint of the day"} */
+:root {
+    --wave-color-solid-contrast-fill: #e0e0e0;
+    --tint-of-the-day: rgb(200, 120, 40);
+}
+span { color: var(--tint-of-the-day) !important; }
+"#;
+    let (luna, o) = overlay_with(
+        "tint-of-the-day.css",
+        css,
+        dom_anchors::sample_tree(),
+        dom_anchors::keys::THEME_TEXT,
+    );
+    luna.shutdown();
+    let base = Palette::dark();
+    let p = themed(&base, &o);
+    assert_eq!(p.text, tint);
+    // TIDAL's own window keeps its grey words.
+    assert_eq!(p.secondary, base.secondary);
+    // Where the theme paints the window, the grey words take it too.
+    let css = r#"/* {"name": "Tint over a window"} */
+:root {
+    --wave-color-solid-contrast-fill: #e0e0e0;
+    --wave-color-text-secondary: #888888;
+    --tint-of-the-day: rgb(200, 120, 40);
+}
+body { background-color: #101820; }
+span { color: var(--tint-of-the-day) !important; }
+"#;
+    let (luna, o) = overlay_with(
+        "tint-over-a-window.css",
+        css,
+        dom_anchors::sample_tree(),
+        dom_anchors::keys::THEME_SECONDARY,
+    );
+    luna.shutdown();
+    let p = themed(&base, &o);
+    assert_eq!(p.text, tint);
+    assert_eq!(p.secondary, tint);
+}

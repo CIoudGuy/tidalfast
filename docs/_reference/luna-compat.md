@@ -83,8 +83,8 @@ Notes that apply to every plugin:
   five plugins (DiscordRPC, VolumeScroll, total-play-time, scroll-to-playing,
   oneko) about 0.31% of a core on a quiet machine (Luna off 0.05 to 0.3%).
 - Colours: Luna with no theme enabled leaves the app's palette alone; the
-  palette changes only through `--wave-color-*` / `--cover-ui-color` variables
-  or a page colour a theme or theme plugin sets.
+  palette changes only through `--wave-color-*` variables, the colour a rule
+  gives TIDAL's words, or a page colour a theme or theme plugin sets.
 - A plugin's settings are drawn natively (see "Plugin settings"); the number of
   controls is in each plugin's Settings card, not repeated here.
 
