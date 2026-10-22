@@ -535,6 +535,9 @@ struct Songs {
     outage: Arc<Mutex<Option<Outage>>>,
     /// TIDAL cannot be reached for streams: no answer at all.
     streams_down: AtomicBool,
+    /// How long a try after the first one for a stream takes to find
+    /// TIDAL unreachable: a slow machine, or a slow network.
+    slow_retry: Mutex<Duration>,
     /// Nor for stations.
     stations_down: AtomicBool,
 }
@@ -599,6 +602,7 @@ impl Songs {
             autoplay_delay: Duration::ZERO,
             outage,
             streams_down: AtomicBool::new(false),
+            slow_retry: Mutex::new(Duration::ZERO),
             stations_down: AtomicBool::new(false),
         }
     }
@@ -616,6 +620,14 @@ impl Songs {
 
     fn note(&self, what: String) {
         lock(&self.asked).push(what);
+    }
+
+    /// How many times `what` has been noted.
+    fn times_noted(&self, what: &str) -> usize {
+        lock(&self.asked)
+            .iter()
+            .filter(|asked| *asked == what)
+            .count()
     }
 }
 
@@ -639,6 +651,10 @@ impl Catalog for Songs {
         let id: u32 = track_id.parse()?;
         self.note(format!("stream {id}"));
         if self.streams_down.load(Ordering::SeqCst) {
+            if self.times_noted(&format!("stream {id}")) > 1 {
+                thread::sleep(*lock(&self.slow_retry));
+            }
+            self.note(format!("unreachable {id}"));
             return Err(catalog::unreachable(
                 "network error: dns error: no such host is known",
             ));
@@ -1378,11 +1394,20 @@ impl Player {
         }
     }
 
-    /// Takes in what the engine reports for `time`.
-    fn watch(&mut self, time: Duration) {
-        let until = Instant::now() + time;
-        while let Some(left) = until.checked_duration_since(Instant::now()) {
-            if let Ok(state) = self.states.recv_timeout(left) {
+    /// Takes in what the engine reports until `done` holds, which is
+    /// looked at again every few milliseconds, as the engine may have
+    /// nothing to report. Waits for the thing itself, never for a time
+    /// it should take: a slow machine delays it, and only a silent
+    /// engine fails.
+    fn watch_until(&mut self, done: impl Fn() -> bool) {
+        let silent_until = Instant::now() + super::ENGINE_SILENCE;
+        while !done() {
+            assert!(
+                Instant::now() < silent_until,
+                "never got there; saw {:?}",
+                self.seen
+            );
+            if let Ok(state) = self.states.recv_timeout(Duration::from_millis(10)) {
                 self.observe(&state);
             }
         }
@@ -1419,8 +1444,10 @@ fn offline_at_a_songs_start_it_waits_with_the_queue_unchanged_then_plays_on() {
     assert_eq!(waiting.track.unwrap().uri, "tidal:track:2");
     assert_eq!(waiting.position_ms, 400, "at its place");
     assert!(waiting.position_at.is_none(), "the position is held");
-    // Past the first try again: still the same song, still one message.
-    player.watch(RETRY_FIRST + Duration::from_millis(800));
+    // Past the first try again, which takes longer than a pause should (a
+    // busy machine): still the same song, still one message.
+    *lock(&songs.slow_retry) = Duration::from_secs(1);
+    player.watch_until(|| songs.times_noted("unreachable 2") >= 2);
     let queue = player.engine.queue(10);
     assert_eq!(queue.current.unwrap().uri, "tidal:track:2");
     assert_eq!(
@@ -1432,10 +1459,6 @@ fn offline_at_a_songs_start_it_waits_with_the_queue_unchanged_then_plays_on() {
     assert!(!player.seen.stopped);
     assert_eq!(player.seen.errors, [NETWORK_WAIT]);
     let asked = lock(&songs.asked).clone();
-    assert!(
-        asked.iter().filter(|a| *a == "stream 2").count() >= 2,
-        "it tried again: {asked:?}"
-    );
     assert!(!asked.contains(&"stream 3".to_string()), "nothing skipped");
 
     songs.streams_down.store(false, Ordering::SeqCst);
