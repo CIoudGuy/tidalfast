@@ -861,6 +861,35 @@ fn a_theme_that_clears_the_bars_after_keeps_its_fill() {
     assert_eq!(c, fill);
 }
 
+/// TIDAL's play queue panel is `#playQueueSidebar`: TidalCustomTheme's
+/// `#sidebar, #playQueueSidebar, ... { background-color:
+/// var(--kl-sidebar-color) !important }` makes it `#f89cbf` in TIDAL
+/// (Blur's glass and Abyss Neptune's lifted panel come from the same id).
+/// The panel's anchor had no id, so Tidalfast drew it in the page's pale
+/// pink.
+#[test]
+fn the_play_queue_panel_is_play_queue_sidebar() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::QUEUE_PANEL;
+    let css = r#"/* {"name": "Queue sidebar"} */
+:root { --kl-sidebar-color: color-mix(in srgb, #f89cbf, transparent 0%); }
+#sidebar, #playQueueSidebar { background-color: var(--kl-sidebar-color) !important; background-image: none; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.queue_panel = Some((Some([1795.0, 60.0, 334.0, 900.0]), false));
+    let (luna, o) = overlay_with(
+        "queue-sidebar.css",
+        css,
+        dom_anchors::build(&frame),
+        QUEUE_PANEL,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let fill = pd::fill(QUEUE_PANEL);
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(fill, Some(egui::Color32::from_rgb(0xf8, 0x9c, 0xbf)));
+}
+
 /// TIDAL colours a mix's title by `--track-vibrant-color`, which Abyss
 /// Neptune sets itself (`--track-vibrant-color: white !important`): TIDAL
 /// shows the title white there. Tidalfast drew it in the mix's own colour.
