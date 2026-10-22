@@ -386,7 +386,10 @@
 	// picture is a circle that a theme's plain `[class*="image"]` radius
 	// (Meteor Night's, one class deep) does not change in TIDAL, while a
 	// deeper rule (Giorgeous's `[class*="_card_"] [class*="_imageContainer_"]
-	// [class*="round"]`) or an `!important` one (Tidal TUI's) does.
+	// [class*="round"]`) or an `!important` one (Tidal TUI's) does. A queue
+	// row's artist line has TIDAL's own grey, which a theme's catch-all `*
+	// { color }` (Meteor Night's white) does not reach in TIDAL and a class
+	// rule does (`initial`: the app's own colour).
 	let tidal = null;
 	const tidalSheet = () => {
 		if (!tidal) {
@@ -395,7 +398,8 @@
 				'[class^="_fullscreen_"] { position: absolute; inset: 0; z-index: 10; }\n' +
 					'[class^="_utilityButtons_"] > button { display: flex; width: 32px; height: 32px; padding: 1px 6px; border: 0; background-color: transparent; align-items: center; justify-content: center; cursor: pointer; }\n' +
 					'[class^="_utilityButtons_"] > button svg { width: 16px; height: 16px; }\n' +
-					"._artistVariant_63c8c96 ._round_5776dee { border-radius: 50%; }",
+					"._artistVariant_63c8c96 ._round_5776dee { border-radius: 50%; }\n" +
+					"._artistText_73966a1 { color: initial; }",
 			);
 		}
 		return tidal;

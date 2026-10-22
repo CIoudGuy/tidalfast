@@ -1414,3 +1414,76 @@ fn a_themes_box_on_a_shelf_row_is_drawn_under_its_cards() {
     assert!(row < card, "the glass is under the card");
     assert_eq!(at(&draw(), glass), None, "without a theme");
 }
+
+/// The sidebar's and the play queue's words take what a theme's rules give
+/// TIDAL's market text in each panel, never a variable by its name: a root
+/// `--text-default` that no rule reads leaves TIDAL's white (Tidalfast
+/// read that one theme's variable), a bare `._marketText_` rule recolours
+/// both panels, and a rule scoped to TIDAL's queue rows
+/// (`[class="_playQueueItemsContainer_01c88fe"]`, Sugarcoat's white queue
+/// over its dark sidebar names) reaches the queue only.
+#[test]
+fn panel_words_follow_market_text_rules_not_a_variable_name() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom::{SidePanel, test_overlay, themed, tidal_panel_text};
+    use dom_anchors::keys::{QUEUE_ROLES, QUEUE_WRAPPER};
+    let rgb = egui::Color32::from_rgb;
+    let named = r#"/* {"name": "Named only"} */
+:root { --text-default: #000; --text-secondary: #000000b3; }
+#main { background-color: rgb(32, 48, 64); }
+"#;
+    let (luna, o) = overlay_with("named-only.css", named, dom_anchors::sample_tree(), "");
+    let palette = themed(&Palette::dark(), &o);
+    assert!(palette.themed);
+    test_overlay(Some((*o).clone()));
+    let sidebar = tidal_panel_text(palette, SidePanel::Sidebar);
+    test_overlay(None);
+    luna.shutdown();
+    assert_eq!(sidebar.text, egui::Color32::WHITE);
+    assert_eq!(sidebar.secondary, egui::Color32::from_white_alpha(140));
+
+    let scoped = r#"/* {"name": "Scoped words"} */
+:root { --plum: rgb(20, 0, 40); }
+#main { background-color: rgb(32, 48, 64); }
+._marketText_1lyag_1 { color: var(--plum); }
+[class="_playQueueItemsContainer_01c88fe"] { ._marketText_1lyag_1._medium20_1lyag_192 { color: rgb(250, 240, 230); } }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.queue_panel = Some((Some([930.0, 92.0, 350.0, 600.0]), false));
+    let tree = dom_anchors::build(&frame);
+    let roles = tree
+        .nodes
+        .iter()
+        .find(|n| n.key == QUEUE_ROLES)
+        .expect("queue roles");
+    assert_eq!(
+        roles.parent.as_deref(),
+        Some(QUEUE_WRAPPER),
+        "in the open panel"
+    );
+    let (luna, o) = overlay_with("scoped-words.css", scoped, tree, "");
+    let palette = themed(&Palette::dark(), &o);
+    test_overlay(Some((*o).clone()));
+    let sidebar = tidal_panel_text(palette, SidePanel::Sidebar);
+    let queue = tidal_panel_text(palette, SidePanel::Queue);
+    test_overlay(None);
+    luna.shutdown();
+    assert_eq!(sidebar.text, rgb(20, 0, 40));
+    assert_eq!(sidebar.secondary, rgb(20, 0, 40));
+    assert_eq!(queue.text, rgb(250, 240, 230));
+    assert_eq!(queue.secondary, rgb(20, 0, 40));
+
+    // A catch-all colour loses to TIDAL's own grey on a queue row's artist
+    // line (Meteor Night's `* { color: white }`).
+    let catch_all = r#"/* {"name": "Catch-all"} */
+#main { background-color: rgb(32, 48, 64); }
+* { color: rgb(200, 100, 0); }
+"#;
+    let (luna, o) = overlay_with("catch-all.css", catch_all, dom_anchors::sample_tree(), "");
+    let palette = themed(&Palette::dark(), &o);
+    test_overlay(Some((*o).clone()));
+    let queue = tidal_panel_text(palette, SidePanel::Queue);
+    test_overlay(None);
+    luna.shutdown();
+    assert_eq!(queue.secondary, egui::Color32::from_white_alpha(140));
+}

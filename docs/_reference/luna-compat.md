@@ -1664,8 +1664,13 @@ fails without it:
   paints the window itself (Tidal Light, the cotton candy family, Meteor
   Night), whose rules read them.
 - The sidebar and the play queue keep TIDAL's white and 55 % white words
-  whatever the tokens say; only `--text-default` / `--text-secondary`
-  (Tidal Light) recolour them. Library rows carry TIDAL's words
+  whatever the tokens say; only a theme's rules for TIDAL's market text
+  in each panel recolour them, read off hidden stand-ins (the sidebar's
+  `._marketText_` and `._subtitle_c0fd197` second line; the queue's
+  `._playQueueItemsContainer_01c88fe` title and `._artistText_73966a1`
+  line, whose TIDAL grey a catch-all `* { color }` does not reach): Tidal
+  Light's black, Sugarcoat's dark sidebar over its white queue. They were
+  keyed to Tidal Light's own `--text-default` variable. Library rows carry TIDAL's words
   (`._textContent_ > ._marketText_._medium20_` and `._text20_`), the
   navigation rows theirs (`._marketText_`), the "All playlists" heading
   `._sectionHeader_ca54638 > ._titleText_1d0e44e`: the cotton candy

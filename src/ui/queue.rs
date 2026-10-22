@@ -735,7 +735,10 @@ pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
                 ui.set_max_size(inner);
                 // Under a theme the panel's words are TIDAL's own colours.
                 let page_palette = app.palette;
-                app.palette = super::plugin_dom::tidal_panel_text(page_palette);
+                app.palette = super::plugin_dom::tidal_panel_text(
+                    page_palette,
+                    super::plugin_dom::SidePanel::Queue,
+                );
                 floating_contents(app, ui);
                 app.palette = page_palette;
             });
