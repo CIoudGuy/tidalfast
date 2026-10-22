@@ -365,16 +365,18 @@ pub fn paint_track_row(ui: &Ui, palette: &Palette, rect: Rect, columns: Columns)
         14.0,
     );
     x += cells.title;
-    paint_text(
-        ui,
-        palette,
-        x,
-        line_top,
-        (cells.artist - 24.0) * 0.5,
-        20.0,
-        14.0,
-    );
-    x += cells.artist;
+    if cells.artist > 0.0 {
+        paint_text(
+            ui,
+            palette,
+            x,
+            line_top,
+            (cells.artist - 24.0) * 0.5,
+            20.0,
+            14.0,
+        );
+        x += cells.artist;
+    }
     if cells.album > 0.0 {
         paint_text(
             ui,
@@ -388,7 +390,9 @@ pub fn paint_track_row(ui: &Ui, palette: &Palette, rect: Rect, columns: Columns)
         x += cells.album;
     }
     x += cells.added_by + cells.added;
-    paint_text(ui, palette, x, line_top, 32.0, 20.0, 14.0);
+    if cells.time > 0.0 {
+        paint_text(ui, palette, x, line_top, 32.0, 20.0, 14.0);
+    }
 }
 
 /// A track table skeleton: `rows` rows `height` high.

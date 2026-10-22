@@ -161,11 +161,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                             render_top(ui, app);
                         }
                     };
-                    if dj {
-                        widgets::with_dj_columns(|| draw_table(ui, app));
-                    } else {
-                        draw_table(ui, app);
-                    }
+                    widgets::with_top_tracks_columns(|| {
+                        if dj {
+                            widgets::with_dj_columns(|| draw_table(ui, app));
+                        } else {
+                            draw_table(ui, app);
+                        }
+                    });
                 }
                 Loadable::Loaded(_) => {
                     theme::subtle(ui, &palette, &gettext(locale, "No popular tracks to show."));
@@ -1834,11 +1836,13 @@ fn track_table(
             render(ui, app);
         }
     };
-    if dj {
-        widgets::with_dj_columns(|| draw(ui, app));
-    } else {
-        draw(ui, app);
-    }
+    widgets::with_top_tracks_columns(|| {
+        if dj {
+            widgets::with_dj_columns(|| draw(ui, app));
+        } else {
+            draw(ui, app);
+        }
+    });
 }
 
 // ---- the account's own profile -------------------------------------------

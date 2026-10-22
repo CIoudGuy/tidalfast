@@ -233,9 +233,11 @@ fn recommended_row(
         widgets::explicit_badge(&mut title, &palette);
     }
     x += cols.title;
-    let mut artists = cell_ui(ui, cell(x, cols.artist));
-    widgets::artist_links_clipped(&mut artists, app, &song.artists, font.clone(), palette.text);
-    x += cols.artist;
+    if cols.artist > 0.0 {
+        let mut artists = cell_ui(ui, cell(x, cols.artist));
+        widgets::artist_links_clipped(&mut artists, app, &song.artists, font.clone(), palette.text);
+        x += cols.artist;
+    }
     if cols.album > 0.0 {
         if let Some(album) = &song.album {
             let mut child = cell_ui(ui, cell(x, cols.album));
@@ -249,16 +251,25 @@ fn recommended_row(
         x += cols.album;
     }
     x += cols.added_by + cols.added + cols.extra;
-    ui.painter().text(
-        pos2(x, rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        crate::util::format_duration_ms(song.duration_ms),
-        font,
-        palette.text,
-    );
+    if cols.time > 0.0 {
+        ui.painter().text(
+            pos2(x, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            crate::util::format_duration_ms(song.duration_ms),
+            font,
+            palette.text,
+        );
+    }
     x += cols.time + cols.bpm + cols.key;
-    // The table's "+" is the second of its row buttons, 24 wide on a 32 pitch.
-    let button = Rect::from_min_size(pos2(x + 33.0, rect.center().y - 12.0), vec2(24.0, 24.0));
+    // The table's "+" is the second of its row buttons, 24 wide on a 32 pitch;
+    // a narrow table has no buttons cell, and the "+" takes the row's end,
+    // where the table's "…" sits.
+    let left = if cols.buttons {
+        x + 33.0
+    } else {
+        rect.right() - 31.0
+    };
+    let button = Rect::from_min_size(pos2(left, rect.center().y - 12.0), vec2(24.0, 24.0));
     let mut add = ui.new_child(
         UiBuilder::new()
             .max_rect(button)
