@@ -57,6 +57,18 @@ fields in `data`; capture, target and bubble phases, `stopPropagation`,
 handlers work. `input`/`change` apply `data.value`/`data.checked` first;
 `scroll` applies `data.scrollTop`; `fullscreenchange` with
 `data.fullscreen` tells plugins the window changed fullscreen by itself.
+Transition and animation events come from the UI (`ui/motion_events.rs`):
+when an overlay changes a property an element's `transition` covers (a
+TIDAL anchor or a plugin element that listens, its own listeners or those
+an event on it reaches), `transitionrun` goes at once, `transitionstart`
+after the delay and `transitionend` at the end, `transitioncancel` when a
+new change interrupts it; an animation newly in a plugin element's list
+sends `animationstart`, `animationiteration` and, when finite,
+`animationend`. They are `TransitionEvent`/`AnimationEvent`s with
+`propertyName`/`animationName` and `elapsedTime`, timed from the frame the
+UI got the overlay, and sent after the anchor tree as it is then (the rect
+throttle is skipped), so a handler measuring reads the end state. The first
+overlay starts nothing.
 
 **Fullscreen.** `requestFullscreen`/`exitFullscreen` send
 `HostCommand::SetFullscreen` (op `window.fullscreen`), set
@@ -740,3 +752,32 @@ rows, go to their host keys when listened.
   goes beside the search field unless an element's own auto margin keeps it
   at the arrows (TIDAL's arrows have `margin-right: auto`). The sidebar's
   fixed navigation lays plugin elements 16 points in.
+
+### Text, lists and scrolling (round 27)
+
+- A block whose children are all inline-level flows them in lines when one
+  asks for `display: inline*` or words sit beside a phrasing element
+  (`<strong>`, `<code>`, `<a>`): each word and element is a unit placed
+  from its width last frame. Lines are at least the block's line box tall
+  (`line-height`, else the face's row) with nothing between them. A block
+  of phrasing elements alone keeps its column.
+- The browser's own sheet: `strong`/`b` are `bolder`, `em`/`i` italic,
+  `<hr>` a block. Text in elements under `body` starts at weight 500,
+  TIDAL's body text; a family without a 500 cut draws its semibold, as
+  Chromium does with Segoe UI. Buttons keep normal weight.
+- List items draw an outside marker: a disc (`circle`, `square`) of
+  Chromium's size 7 points before the item's border box on its first line,
+  or `1.` numbers in an `<ol>`; `list-style(-type)` is inherited, `none`
+  draws none.
+- `overflow-y` (or `overflow`) `auto|scroll` on a box of a definite height
+  (its own, or one its flex container gives) scrolls what it holds; with
+  only a `max-height` it grows to that and then scrolls.
+- `text-overflow: ellipsis` (or `nowrap` with `overflow: hidden`) on a
+  block cuts the words in it and in its spans with "…"; a flex or grid box
+  passes nothing on.
+- A growing flex item without a width fills its share with its border
+  box, padding inside. A flex row nested in another plugin box is as tall
+  as what it holds; a slot's own element keeps egui's 28-point row.
+- A plugin's font family falls back to the system's symbol face (Segoe UI
+  Symbol, Apple Symbols, DejaVu Sans) before the app's faces, so arrows and
+  gears are outlines as in Chromium, not the emoji face's boxes.
