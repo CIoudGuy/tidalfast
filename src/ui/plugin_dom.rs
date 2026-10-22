@@ -4752,8 +4752,7 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         tokens
             .then(|| host_color(dom_anchors::keys::THEME_SECONDARY))
             .flatten()
-    })
-    {
+    }) {
         p.secondary = opaque_over(c, p.window);
     }
     if let Some(c) = ramp(&[

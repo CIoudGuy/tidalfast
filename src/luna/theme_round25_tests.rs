@@ -1607,7 +1607,12 @@ fn exact_class_rules_leave_tidals_now_playing_backdrop() {
 [class="now-playing-gradient-overlay"] { display: none !important; }
 .now-playing-gradient-overlay { background-color: rgb(250, 240, 245); }
 "#;
-    let (luna, o) = overlay_with("pale-view.css", css, dom_anchors::sample_tree(), NP_BG_GRADIENT);
+    let (luna, o) = overlay_with(
+        "pale-view.css",
+        css,
+        dom_anchors::sample_tree(),
+        NP_BG_GRADIENT,
+    );
     luna.shutdown();
     for key in [NP_BG_BLACK, NP_BG_IMAGE, NP_BG_GRADIENT] {
         assert!(!o.hidden(key), "{key}");
@@ -1654,7 +1659,10 @@ fn a_page_as_wide_as_the_window_runs_under_the_queue() {
         output.textures_delta.clear();
         out.expect("the frame ran")
     };
-    assert!(reserve() > 300.0, "without a theme the panel keeps its room");
+    assert!(
+        reserve() > 300.0,
+        "without a theme the panel keeps its room"
+    );
     pd::test_overlay(Some((*o).clone()));
     let themed = reserve();
     pd::test_overlay(None);
