@@ -332,6 +332,12 @@ pub struct LoadSpec {
     /// shows them: it starts at once, before its context is read. Without
     /// them the load waits for the context's pages up to that song.
     pub offset_track: Option<Box<LocalTrack>>,
+    /// The clicked row of a playlist: which entry `offset_uri` is, by its
+    /// own index among all the playlist's entries (TIDAL's index, counting
+    /// the ones that do not play). A song listed twice starts at that
+    /// entry, not at its first one. Without it, or when that entry no
+    /// longer holds the song, the song's first entry starts.
+    pub offset_row: Option<u32>,
     pub offset_index: Option<u32>,
     pub position_ms: u32,
     pub play: bool,

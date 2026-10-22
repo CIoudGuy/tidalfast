@@ -61,6 +61,9 @@ pub struct PlayRequest {
     pub context_uri: Option<String>,
     pub uris: Vec<String>,
     pub offset_uri: Option<String>,
+    /// The clicked playlist row `offset_uri` is in, by its index among the
+    /// playlist's entries: a song listed twice starts at that entry.
+    pub offset_row: Option<u32>,
     pub offset_position: Option<u32>,
     pub position_ms: u32,
     /// A shuffled play order to resume: the context songs after the chosen
@@ -88,6 +91,14 @@ impl PlayRequest {
 
     pub fn starting_at_uri(mut self, uri: impl Into<String>) -> Self {
         self.offset_uri = Some(uri.into());
+        self
+    }
+
+    /// Starts at the playlist row `row`, which holds `uri`: that entry,
+    /// also when the song is listed more than once.
+    pub fn starting_at_row(mut self, uri: impl Into<String>, row: u32) -> Self {
+        self.offset_uri = Some(uri.into());
+        self.offset_row = Some(row);
         self
     }
 

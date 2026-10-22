@@ -1499,6 +1499,24 @@ impl TidalClient {
         Ok(playlist_tracks_page(page, limit.min(ITEMS_LIMIT)))
     }
 
+    /// [`Self::playlist_tracks`] with each song's own entry in the
+    /// playlist: its index, counting the entries that are neither (the
+    /// rows the playlist page shows as unavailable). The engine starts a
+    /// clicked row by it, which tells a song listed twice apart.
+    pub async fn playlist_track_rows(
+        &self,
+        id: &str,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Page<(u32, Track)>> {
+        let (page, _) = self.playlist_items_raw(id, offset, limit).await?;
+        Ok(playlist_track_rows_page(
+            page,
+            offset,
+            limit.min(ITEMS_LIMIT),
+        ))
+    }
+
     /// Requested songs already present in a playlist.
     pub async fn playlist_duplicates(&self, id: &str, uris: &[String]) -> Result<Vec<String>> {
         let wanted: HashSet<&str> = uris.iter().map(String::as_str).collect();
@@ -3350,6 +3368,29 @@ fn playlist_tracks_page(page: RawPage<Wrapped<RawTrack>>, limit: u32) -> Page<Tr
     let items = std::mem::take(&mut mapped.items)
         .into_iter()
         .flatten()
+        .collect();
+    Page {
+        items,
+        total: mapped.total,
+        limit: mapped.limit,
+        offset: mapped.offset,
+        next: mapped.next,
+    }
+}
+
+/// [`playlist_tracks_page`] with each song's entry in the playlist, the
+/// page read from entry `offset`: the entries left out keep their numbers,
+/// as the playlist page's rows do.
+fn playlist_track_rows_page(
+    page: RawPage<Wrapped<RawTrack>>,
+    offset: u32,
+    limit: u32,
+) -> Page<(u32, Track)> {
+    let mut mapped = page.map(limit, playlist_entry_track);
+    let items = std::mem::take(&mut mapped.items)
+        .into_iter()
+        .zip(offset..)
+        .filter_map(|(track, row)| Some((row, track?)))
         .collect();
     Page {
         items,

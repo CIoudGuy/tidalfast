@@ -32,7 +32,8 @@ to the row above it. Shuffle switched before then is the mode the rest
 plays in, and Next pressed before then plays the song after the row once it
 is known, not autoplay. Play or Space while a song is still loading decides
 whether that song plays when it starts; it never starts the song that played
-before again.
+before again. A song listed twice in a playlist starts at the row clicked,
+not at its first entry, and **Next up** follows from there, as in TIDAL.
 A song in an artist's Popular tracks plays the artist from that song, all of
 their songs as the artist's **Play** does, under the artist's name; not only
 the songs shown.

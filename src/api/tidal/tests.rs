@@ -97,6 +97,35 @@ fn playlist_items_keep_positions_and_show_videos_as_video_rows() {
     assert_eq!(playable.total, 4);
 }
 
+/// The engine's playlist songs keep their own entries in the playlist, as
+/// the playlist page's rows number them: an entry that is no song leaves
+/// its number unused, and a song listed twice has two entries.
+#[test]
+fn playlist_songs_keep_their_own_entry_numbers() {
+    let page: RawPage<Wrapped<RawTrack>> = fixture(
+        r#"{"limit": 4, "offset": 200, "totalNumberOfItems": 400, "items": [
+            {"item": {"id": 5, "title": "Twice"}, "type": "track"},
+            {"item": null, "type": "track"},
+            {"item": {"id": 6, "title": "Between"}, "type": "track"},
+            {"item": {"id": 5, "title": "Twice"}, "type": "track"}]}"#,
+    );
+    let rows = playlist_track_rows_page(page, 200, 4);
+    let numbered: Vec<(u32, &str)> = rows
+        .items
+        .iter()
+        .map(|(row, track)| (*row, track.uri.as_str()))
+        .collect();
+    assert_eq!(
+        numbered,
+        [
+            (200, "tidal:track:5"),
+            (202, "tidal:track:6"),
+            (203, "tidal:track:5")
+        ]
+    );
+    assert_eq!(rows.next_offset(), Some(204));
+}
+
 #[test]
 fn playlists_know_their_owner_and_art() {
     let playlist = convert::playlist(fixture(include_str!("fixtures/playlist.json")));

@@ -305,15 +305,16 @@ impl Queue {
     /// Puts the context around the song `uri`, which a load started on its
     /// own before the context was read (a row far down a long playlist
     /// plays at once). `tracks` is the context in its own order, as far as
-    /// it has been read. The song takes its place there, its first
-    /// occurrence, as a load by uri does; a context without it gets it in
-    /// front. Unshuffled, the songs after it follow in order; shuffled, the
+    /// it has been read. The song takes its place there: at `at`, the
+    /// clicked row's own entry when the song is listed more than once, else
+    /// its first occurrence, as a load by uri does; a context without it
+    /// gets it in front. Unshuffled, the songs after it follow in order; shuffled, the
     /// rest is shuffled behind it, as a shuffled load from it would be.
     /// Shuffle is the mode set last, the playing song (or a queued one
     /// played meanwhile) plays on, and the songs queued by hand stay.
     /// `false`, and nothing changes, when the context is not the one that
     /// song started.
-    pub fn place(&mut self, mut tracks: Vec<LocalTrack>, uri: &str) -> bool {
+    pub fn place(&mut self, mut tracks: Vec<LocalTrack>, uri: &str, at: Option<usize>) -> bool {
         let started = self
             .pos
             .and_then(|pos| self.order.get(pos))
@@ -321,7 +322,8 @@ impl Queue {
         let Some(started) = started.filter(|started| !self.autoplay && started.uri == uri) else {
             return false;
         };
-        let at = match tracks.iter().position(|track| track.uri == uri) {
+        let named = at.filter(|at| tracks.get(*at).is_some_and(|track| track.uri == uri));
+        let at = match named.or_else(|| tracks.iter().position(|track| track.uri == uri)) {
             Some(at) => at,
             None => {
                 tracks.insert(0, started.clone());
@@ -785,8 +787,8 @@ mod tests {
             );
             assert_eq!(first, Some(track(5)));
             assert!(queue.view(10).next_up.is_empty());
-            assert!(!queue.place(album(8), &track(6).uri), "another song");
-            assert!(queue.place(album(8), &track(5).uri));
+            assert!(!queue.place(album(8), &track(6).uri, None), "another song");
+            assert!(queue.place(album(8), &track(5).uri, None));
             let view = queue.view(100);
             assert_eq!(view.current, Some(track(5)));
             assert_eq!(view.queued, vec![track(90)]);
@@ -805,7 +807,7 @@ mod tests {
         // A context that no longer holds the song gets it in front.
         let mut queue = Queue::seeded(7);
         queue.load(None, vec![track(9)], Start::Uri(track(9).uri), false);
-        assert!(queue.place(album(2), &track(9).uri));
+        assert!(queue.place(album(2), &track(9).uri, None));
         assert_eq!(queue.view(10).next_up, album(2));
     }
 

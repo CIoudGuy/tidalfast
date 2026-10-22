@@ -10859,7 +10859,16 @@ impl App {
                 RowContext::Context {
                     uri: context_uri, ..
                 } => {
-                    let request = PlayRequest::context(context_uri).starting_at_uri(uri);
+                    // A playlist row starts its own entry, as TIDAL's does:
+                    // a song listed twice plays from the row clicked, and
+                    // Next up follows from there.
+                    let playlist = crate::util::uri_kind(&context_uri) == Some("playlist");
+                    let request = PlayRequest::context(context_uri);
+                    let request = if playlist {
+                        request.starting_at_row(uri, index)
+                    } else {
+                        request.starting_at_uri(uri)
+                    };
                     self.play_request(request, false);
                 }
                 RowContext::Uris(uris) => {
@@ -13845,6 +13854,7 @@ fn local_load(request: &PlayRequest, shuffle: bool) -> LoadSpec {
         uris: request.uris.clone(),
         offset_uri: request.offset_uri.clone(),
         offset_track: None,
+        offset_row: request.offset_row,
         offset_index: request.offset_position,
         position_ms: request.position_ms,
         play: true,
@@ -17718,6 +17728,75 @@ mod tests {
             app.offset_track(&load("tidal:track:e")).is_none(),
             "a song the settings refuse waits for its context, as before"
         );
+        app.backend.shutdown();
+    }
+
+    /// A double-clicked playlist row hands the engine its own entry, so a
+    /// song listed twice starts at the row clicked (row 9), not at its
+    /// first entry (row 3). A sorted view starts its own place in the list
+    /// it plays. An album row, whose numbers the engine does not keep,
+    /// names its song only.
+    #[test]
+    fn a_double_clicked_row_names_its_own_entry() {
+        let ctx = egui::Context::default();
+        let mut app = headless_app();
+        app.backend.set_offline(true);
+        let play = |app: &mut App, context: RowContext, index: u32| {
+            app.queued_play = None;
+            app.apply(
+                Action::PlayFromRow {
+                    context,
+                    uri: "tidal:track:twice".into(),
+                    index,
+                },
+                &ctx,
+            );
+            let request = app
+                .queued_play
+                .clone()
+                .expect("the play waits for the engine");
+            (local_load(&request, false), request)
+        };
+        let (load, _) = play(
+            &mut app,
+            RowContext::Context {
+                uri: "tidal:playlist:e2".into(),
+                editable_playlist: None,
+            },
+            9,
+        );
+        assert_eq!(load.offset_uri.as_deref(), Some("tidal:track:twice"));
+        assert_eq!(load.offset_row, Some(9), "row 9's own entry");
+        assert_eq!(
+            crate::backend::load_spec(&app.queued_play.clone().unwrap(), None).offset_row,
+            Some(9),
+            "also through the backend's load"
+        );
+        let view: Arc<[String]> = ["a", "twice", "b", "twice", "c"]
+            .map(|id| format!("tidal:track:{id}"))
+            .into();
+        let (load, request) = play(
+            &mut app,
+            RowContext::View {
+                uris: view,
+                context_uri: "tidal:playlist:e2".into(),
+                editable_playlist: None,
+            },
+            3,
+        );
+        assert_eq!(request.offset_position, Some(3), "the second copy's place");
+        assert_eq!(load.offset_index, Some(3));
+        assert_eq!(load.offset_uri, None);
+        let (load, _) = play(
+            &mut app,
+            RowContext::Context {
+                uri: "tidal:album:1".into(),
+                editable_playlist: None,
+            },
+            4,
+        );
+        assert_eq!(load.offset_uri.as_deref(), Some("tidal:track:twice"));
+        assert_eq!(load.offset_row, None);
         app.backend.shutdown();
     }
 

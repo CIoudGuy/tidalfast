@@ -121,6 +121,8 @@ enum Msg {
         id: u64,
         spec: LoadSpec,
         result: Result<Vec<LocalTrack>>,
+        /// Where in `result` the clicked row is ([`row_position`]).
+        at: Option<usize>,
     },
     /// The song a load names, ready to start before its context is read.
     Early {
@@ -133,6 +135,8 @@ enum Msg {
     Placed {
         id: u64,
         tracks: Vec<LocalTrack>,
+        /// Where in `tracks` the clicked row is ([`row_position`]).
+        at: Option<usize>,
     },
     /// Later pages of the context a load started on its first page.
     ContextMore {
@@ -770,9 +774,14 @@ impl Core {
     fn handle(&mut self, message: Msg) -> bool {
         match message {
             Msg::Command(command) => self.command(command),
-            Msg::Context { id, spec, result } => {
+            Msg::Context {
+                id,
+                spec,
+                result,
+                at,
+            } => {
                 if id == self.load_id {
-                    self.context_loaded(spec, result);
+                    self.context_loaded(spec, result, at);
                 }
             }
             Msg::Early { id, spec, track } => {
@@ -780,9 +789,9 @@ impl Core {
                     self.start_early(spec, track);
                 }
             }
-            Msg::Placed { id, tracks } => {
+            Msg::Placed { id, tracks, at } => {
                 if id == self.load_id {
-                    self.placed(tracks);
+                    self.placed(tracks, at);
                 }
             }
             Msg::ContextMore { id, tracks } => {
@@ -961,11 +970,21 @@ impl Core {
                 return;
             }
             let result = resolve_or_fall_back(catalog.as_ref(), offline.as_deref(), &spec);
-            let _ = sender.send(Msg::Context { id, spec, result });
+            let _ = sender.send(Msg::Context {
+                id,
+                spec,
+                result,
+                at: None,
+            });
         });
     }
 
-    fn context_loaded(&mut self, spec: LoadSpec, result: Result<Vec<LocalTrack>>) {
+    fn context_loaded(
+        &mut self,
+        spec: LoadSpec,
+        result: Result<Vec<LocalTrack>>,
+        at: Option<usize>,
+    ) {
         let tracks = match result {
             Ok(tracks) => tracks,
             Err(error) if spec.autoplay => {
@@ -981,7 +1000,11 @@ impl Core {
                 return;
             }
         };
-        let start = if let Some(uri) = spec.offset_uri.clone() {
+        // The clicked row's own entry, for a song listed more than once;
+        // otherwise the song's first entry.
+        let start = if let Some(at) = at {
+            Start::Index(at)
+        } else if let Some(uri) = spec.offset_uri.clone() {
             Start::Uri(uri)
         } else if let Some(index) = spec.offset_index {
             Start::Index(index as usize)
@@ -1075,11 +1098,11 @@ impl Core {
     /// The context of a song that started early is in: the queue holds it
     /// around that song, and what the listener asked meanwhile (Next, or
     /// the song's end) moves on now.
-    fn placed(&mut self, tracks: Vec<LocalTrack>) {
+    fn placed(&mut self, tracks: Vec<LocalTrack>, at: Option<usize>) {
         let Some(placing) = self.placing.take() else {
             return;
         };
-        let placed = lock(&self.queue).place(tracks, &placing.uri);
+        let placed = lock(&self.queue).place(tracks, &placing.uri, at);
         if !placed {
             log::warn!(
                 "the context of {} could not be placed around it",
@@ -2352,6 +2375,8 @@ fn load_in_pages(
         None => false,
     };
     let mut held: Vec<LocalTrack> = Vec::new();
+    // Each held song's own entry in the context, to find the clicked row.
+    let mut rows: Vec<u32> = Vec::new();
     let mut started = false;
     // A shuffle from nowhere in particular waits (for a few pages at most)
     // for a song not played lately, so it does not open on the same few
@@ -2360,7 +2385,7 @@ fn load_in_pages(
         (spec.shuffle == Some(true) && spec.offset_uri.is_none() && spec.offset_index.is_none())
             .then(|| lock(queue).recent_in(&context));
     let mut pages = 0;
-    let outcome = catalog.context_pages(&context, &mut |page| {
+    let outcome = catalog.context_rows(&context, &mut |page| {
         if live.load(Ordering::SeqCst) != id {
             return false;
         }
@@ -2376,9 +2401,13 @@ fn load_in_pages(
             if live.load(Ordering::SeqCst) != id {
                 return false;
             }
-            return sender.send(Msg::ContextMore { id, tracks: page }).is_ok();
+            let tracks = page.into_iter().map(|(_, track)| track).collect();
+            return sender.send(Msg::ContextMore { id, tracks }).is_ok();
         }
-        held.extend(page);
+        for (row, track) in page {
+            rows.push(row);
+            held.push(track);
+        }
         pages += 1;
         let ready = !held.is_empty()
             && lately.as_ref().is_none_or(|lately| {
@@ -2388,19 +2417,26 @@ fn load_in_pages(
                 .offset_uri
                 .as_ref()
                 .is_none_or(|uri| held.iter().any(|track| track.uri == *uri))
+            // A song listed again further down waits for the page that
+            // holds the clicked row.
+            && spec
+                .offset_row
+                .is_none_or(|row| rows.last().is_some_and(|last| *last >= row))
             && spec
                 .offset_index
                 .is_none_or(|index| (index as usize) < held.len());
         if ready {
             started = true;
+            let at = row_position(&spec, &held, &rows);
             let tracks = std::mem::take(&mut held);
             let message = if early {
-                Msg::Placed { id, tracks }
+                Msg::Placed { id, tracks, at }
             } else {
                 Msg::Context {
                     id,
                     spec: spec.clone(),
                     result: Ok(tracks),
+                    at,
                 }
             };
             return sender.send(message).is_ok();
@@ -2415,9 +2451,12 @@ fn load_in_pages(
     }
     // Every page is in without the start in it, or the first could not be
     // read: what the load did before pages, with the same fallbacks.
-    let result = match outcome {
-        Ok(()) if !held.is_empty() => Ok(held),
-        _ => resolve_or_fall_back(catalog, offline, &spec),
+    let (result, at) = match outcome {
+        Ok(()) if !held.is_empty() => {
+            let at = row_position(&spec, &held, &rows);
+            (Ok(held), at)
+        }
+        _ => (resolve_or_fall_back(catalog, offline, &spec), None),
     };
     if early {
         // The song plays on; it is all there is when nothing can be read.
@@ -2425,10 +2464,27 @@ fn load_in_pages(
             log::warn!("{context} could not be read: {error:#}");
             Vec::new()
         });
-        let _ = sender.send(Msg::Placed { id, tracks });
+        let _ = sender.send(Msg::Placed { id, tracks, at });
         return;
     }
-    let _ = sender.send(Msg::Context { id, spec, result });
+    let _ = sender.send(Msg::Context {
+        id,
+        spec,
+        result,
+        at,
+    });
+}
+
+/// Where the clicked row of a playlist is among the songs read so far,
+/// whose own entries in the playlist are `rows`: the entry
+/// [`LoadSpec::offset_row`] names, when it still holds the song. A song
+/// listed twice then starts where it was clicked, as in TIDAL, and Next up
+/// follows from there. `None` leaves the start to the song's first entry.
+fn row_position(spec: &LoadSpec, tracks: &[LocalTrack], rows: &[u32]) -> Option<usize> {
+    let uri = spec.offset_uri.as_deref()?;
+    let row = spec.offset_row?;
+    let at = rows.iter().position(|held| *held == row)?;
+    tracks.get(at).filter(|track| track.uri == uri).map(|_| at)
 }
 
 fn spawn_worker(work: impl FnOnce() + Send + 'static) {
