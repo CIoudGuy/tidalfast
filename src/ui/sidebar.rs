@@ -687,6 +687,7 @@ fn rail(app: &mut App, ui: &mut egui::Ui) {
         create,
         Icon::CirclePlusFilled,
         &gettext(locale, "Create a playlist"),
+        None,
     )
     .clicked()
     {
@@ -1504,7 +1505,13 @@ fn nav_row(
             words,
         );
         if chevron {
-            Icon::ChevronRight.image(palette.tertiary(), 16.0).paint_at(
+            // A theme's colour for TIDAL's `svg._arrowRight_` (Tidal
+            // Light's black).
+            let ink =
+                super::plugin_dom::color(&crate::luna::dom_anchors::keys::sidebar_item_arrow(test))
+                    .filter(|c| c.a() > 0)
+                    .unwrap_or(palette.tertiary());
+            Icon::ChevronRight.image(ink, 16.0).paint_at(
                 ui,
                 Rect::from_center_size(
                     pos2(rect.right() - 16.0, rect.center().y),
@@ -1562,13 +1569,15 @@ fn rail_button(ui: &mut egui::Ui, palette: &Palette, icon: Icon, active: bool) -
 }
 
 /// A 16-point icon in TIDAL's text-30 grey that turns white under the
-/// pointer, inside a slightly larger hit box.
+/// pointer, inside a slightly larger hit box; `themed` is a theme's colour
+/// for the icon (Tidal Light's black), which it keeps under the pointer.
 fn sidebar_icon_button(
     ui: &mut egui::Ui,
     palette: &Palette,
     rect: Rect,
     icon: Icon,
     tooltip: &str,
+    themed: Option<egui::Color32>,
 ) -> egui::Response {
     let response = ui.interact(
         rect,
@@ -1586,6 +1595,7 @@ fn sidebar_icon_button(
         palette.text,
         crate::motion::tidal::HOVER,
     );
+    let color = themed.filter(|c| c.a() > 0).unwrap_or(color);
     icon.image(color, 16.0)
         .paint_at(ui, Rect::from_center_size(rect.center(), Vec2::splat(16.0)));
     theme::focus_ring(ui, &response);
@@ -1945,6 +1955,7 @@ fn list_header(app: &mut App, ui: &mut egui::Ui, filter: Filter, sort: LibrarySo
         create,
         Icon::CirclePlusFilled,
         &gettext(locale, "Create a playlist"),
+        super::plugin_dom::color(crate::luna::dom_anchors::keys::LIB_CREATE_ICON),
     );
     egui::Popup::menu(&create_button)
         .frame(super::widgets::menu_frame(&palette))
@@ -1987,6 +1998,7 @@ fn list_header(app: &mut App, ui: &mut egui::Ui, filter: Filter, sort: LibrarySo
         sort_rect,
         Icon::ArrowUpDown,
         &gettext(locale, "Sort playlists"),
+        super::plugin_dom::color(crate::luna::dom_anchors::keys::LIB_SORT_ICON),
     );
     sort_menu(app, &sort_button, filter, sort);
 }
@@ -2038,6 +2050,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
             &gettext(locale, "Hide sidebar (Ctrl+B)"),
             &gettext(locale, "Hide sidebar (Cmd+B)"),
         ),
+        None,
     )
     .clicked()
     {

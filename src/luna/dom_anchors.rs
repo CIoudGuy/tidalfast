@@ -72,6 +72,12 @@ pub mod keys {
     /// (`span._titleText_1d0e44e._medium20_ ._marketText_`).
     pub const LIB_HEADING: &str = "sidebar-lib-heading";
     pub const LIB_HEADING_TITLE: &str = "sidebar-lib-heading:title";
+    /// The heading's create ("+") and sort buttons and their icons
+    /// (`button > svg._icon_77f3f89`, which Tidal Light colours black).
+    pub const LIB_CREATE: &str = "sidebar-lib-heading:create";
+    pub const LIB_CREATE_ICON: &str = "sidebar-lib-heading:create:svg";
+    pub const LIB_SORT: &str = "sidebar-lib-heading:sort";
+    pub const LIB_SORT_ICON: &str = "sidebar-lib-heading:sort:svg";
     /// `div._collectionWrapper_` around the Collection entry and its menu
     /// button (AltPlay puts its link after it).
     pub const COLLECTION_WRAPPER: &str = "sidebar-collection-wrapper";
@@ -221,6 +227,11 @@ pub mod keys {
     /// colours by `[class^="_marketText_"]`).
     pub fn sidebar_item_label(test: &str) -> String {
         format!("sidebar:{test}:label")
+    }
+    /// The chevron of a navigation row that opens a menu (Collection's
+    /// `svg._arrowRight_f57b400`).
+    pub fn sidebar_item_arrow(test: &str) -> String {
+        format!("sidebar:{test}:arrow")
     }
     /// The `div[data-type=media-table]` of a list.
     pub fn list(list: &str) -> String {
@@ -1216,6 +1227,17 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             .class("_marketText_1lyag_1")
             .at(item.rect),
         );
+        // Collection opens its menu: TIDAL's `svg._arrowRight_f57b400`.
+        if item.test == "sidebar-collection-menu" {
+            out.push(
+                el(
+                    keys::sidebar_item_arrow(&item.test),
+                    Some(&keys::sidebar_item(&item.test)),
+                    "svg",
+                )
+                .class("_arrowRight_f57b400"),
+            );
+        }
     }
     if let Some(rect) = side.heading {
         // Exactly TIDAL's class: the cotton candy family names it as
@@ -1233,6 +1255,15 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
                 .text("All playlists")
                 .at(Some(rect)),
         );
+        // The "+" and sort buttons beside it, each `button >
+        // svg._icon_77f3f89` as TIDAL's.
+        for (button, icon, label) in [
+            (LIB_CREATE, LIB_CREATE_ICON, "Create a playlist"),
+            (LIB_SORT, LIB_SORT_ICON, "Sort playlists"),
+        ] {
+            out.push(el(button, Some(LIB_HEADING), "button").attr("aria-label", label));
+            out.push(el(icon, Some(button), "svg").modules(&["icon"]));
+        }
     }
     for (i, (rect, selected)) in side.rows.iter().enumerate() {
         // A link in TIDAL (`a[href*='/playlist/']`): Black Glow's `a,
