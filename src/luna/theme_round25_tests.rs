@@ -1546,3 +1546,34 @@ fn tidals_window_variable_paints_the_window() {
     luna.shutdown();
     assert_eq!(themed(&base, &o), base);
 }
+
+/// A theme's `[data-wave-color=textSecondary] { color }` reaches in TIDAL
+/// only the few words that carry the attribute: under TIDAL's own window
+/// (Lunallena's accent green, Synthwave '77's magenta) its card subtitles,
+/// tabs, the bar's artist line and the filter placeholder stay grey.
+/// Tidalfast made the colour every grey word's. Where the theme paints the
+/// window the colour still stands for the grey words.
+#[test]
+fn a_text_secondary_rule_leaves_tidals_grey_words() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom::themed;
+    let css = r#"/* {"name": "Lime notes"} */
+:root { --lime-note: #c4f06a; }
+[data-wave-color=textSecondary] { color: var(--lime-note); }
+"#;
+    let (luna, o) = overlay_with("lime-notes.css", css, dom_anchors::sample_tree(), "");
+    luna.shutdown();
+    let base = Palette::dark();
+    assert_eq!(themed(&base, &o).secondary, base.secondary);
+    let css = r#"/* {"name": "Lime window"} */
+:root { --lime-note: #c4f06a; }
+body { background-color: #101820; }
+[data-wave-color=textSecondary] { color: var(--lime-note); }
+"#;
+    let (luna, o) = overlay_with("lime-window.css", css, dom_anchors::sample_tree(), "");
+    luna.shutdown();
+    assert_eq!(
+        themed(&base, &o).secondary,
+        egui::Color32::from_rgb(0xc4, 0xf0, 0x6a)
+    );
+}
