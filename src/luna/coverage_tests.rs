@@ -36,6 +36,61 @@ fn song(id: u64, isrc: &str, album: u64, tags: &[&str], quality: &str) -> Value 
     })
 }
 
+fn only_girl(id: u64, isrc: &str) -> Value {
+    let mut t = song(id, isrc, 10, &["LOSSLESS"], "LOSSLESS");
+    t["title"] = json!("Only Girl (In The World)");
+    t["duration"] = json!(235);
+    t
+}
+
+/// MusicBrainz's ISRC answer for USUM71023200 (live 2026-10-22, in one of
+/// the orders it gives): Pride and Prejudice's chapter 57 and two Only Girl
+/// recordings share it.
+fn brainz_only_girl(url: &str) -> Option<Value> {
+    let chapter = json!({ "id": "chapter57", "title": "Chapter 57", "length": 614000 });
+    if url.contains("/isrc/USUM71023200") {
+        return Some(json!({ "recordings": [
+            chapter,
+            { "id": "rnb2012", "title": "Only Girl (In the World)", "length": 230507 },
+            { "id": "loud", "title": "Only Girl (In the World)", "length": 235493 },
+        ] }));
+    }
+    if url.contains("/isrc/ISRC5") {
+        return Some(json!({ "recordings": [chapter] }));
+    }
+    let release = |title: &str, track: &str, rec: &str, isrcs: Value| {
+        json!({ "releases": [{ "title": title, "text-representation": { "language": "eng" }, "media": [{ "tracks": [{
+            "title": track, "artist-credit": [{ "joinphrase": "" }],
+            "recording": { "id": rec, "isrcs": isrcs },
+        }] }] }] })
+    };
+    if url.contains("/recording/chapter57") {
+        return Some(release(
+            "Pride and Prejudice",
+            "Chapter 57",
+            "chapter57",
+            json!(["USUM71023200", "ISRC57"]),
+        ));
+    }
+    if url.contains("/recording/loud") {
+        return Some(release(
+            "Loud",
+            "Only Girl (in the World)",
+            "loud",
+            json!(["USUM71023200", "USUM71112341"]),
+        ));
+    }
+    if url.contains("/recording/rnb2012") {
+        return Some(release(
+            "R&B Collection 2012",
+            "Only Girl (In the World)",
+            "rnb2012",
+            json!(["USUM71023200"]),
+        ));
+    }
+    None
+}
+
 impl LunaHost for CatalogueHost {
     fn playback(&self) -> PlaybackSnapshot {
         PlaybackSnapshot::default()
@@ -54,6 +109,11 @@ impl LunaHost for CatalogueHost {
                 "HI_RES_LOSSLESS",
             )),
             "3" => Some(song(3, "ISRC3", 10, &["DOLBY_ATMOS"], "HI_RES_LOSSLESS")),
+            // Rihanna's "Only Girl (In The World)" from Loud, whose ISRC
+            // MusicBrainz also gives an audiobook chapter, and a song whose
+            // ISRC MusicBrainz knows only for that chapter.
+            "4" => Some(only_girl(4, "USUM71023200")),
+            "5" => Some(only_girl(5, "ISRC5")),
             _ => None,
         }
     }
@@ -121,8 +181,10 @@ impl LunaHost for CatalogueHost {
         let NetRequest::Fetch { url, .. } = request else {
             return NetVerdict::Allow;
         };
-        let body = if url.contains("musicbrainz.org/ws/2/isrc/ISRC1") {
-            json!({ "recordings": [{ "id": "rec1" }] })
+        let body = if let Some(b) = brainz_only_girl(url) {
+            b
+        } else if url.contains("musicbrainz.org/ws/2/isrc/ISRC1") {
+            json!({ "recordings": [{ "id": "rec1", "title": "Song", "length": 201000 }] })
         } else if url.contains("musicbrainz.org/ws/2/recording/rec1") {
             json!({ "releases": [{ "text-representation": { "language": "eng" }, "media": [{ "tracks": [{
                 "title": "MB Title", "artist-credit": [{ "joinphrase": "" }],
@@ -273,6 +335,40 @@ R.done = true;
     assert_eq!(r["albumTitles"], "MB Album|Album Eleven", "{r}");
     assert_eq!(r["label"], "Label X|none", "{r}");
     assert_eq!(r["page"], "3,3,0,-1", "{r}");
+}
+
+/// The owner's DiscordRPC status read "Chapter 57 by Rihanna" for Rihanna's
+/// "Only Girl (In The World)": MusicBrainz gives its ISRC to an audiobook
+/// chapter too, and the title came from whichever recording it listed
+/// first. The title, MusicBrainz id and ISRCs are the playing song's.
+#[test]
+fn a_shared_isrc_keeps_the_songs_own_recording() {
+    let (r, _host) = run_catalogue(
+        r##"
+const { MediaItem } = lib;
+const m = await MediaItem.fromId(4);
+R.title = await m.title();
+R.mbId = await m.brainzId();
+const isrcs = []; for await (const i of m.isrcs()) isrcs.push(i);
+R.isrcs = isrcs.join(",");
+R.flacTitle = (await m.flacTags()).tags.title;
+// Only the chapter has the ISRC: TIDAL's own title stays.
+const lone = await MediaItem.fromId(5);
+R.loneTitle = await lone.title();
+R.loneMbId = String(await lone.brainzId());
+const loneIsrcs = []; for await (const i of lone.isrcs()) loneIsrcs.push(i);
+R.loneIsrcs = loneIsrcs.join(",");
+R.done = true;
+"##,
+        |_, _| {},
+    );
+    assert_eq!(r["title"], "Only Girl (in the World)", "{r}");
+    assert_eq!(r["mbId"], "loud", "{r}");
+    assert_eq!(r["isrcs"], "USUM71023200,USUM71112341", "{r}");
+    assert_eq!(r["flacTitle"], "Only Girl (in the World)", "{r}");
+    assert_eq!(r["loneTitle"], "Only Girl (In The World)", "{r}");
+    assert_eq!(r["loneMbId"], "undefined", "{r}");
+    assert_eq!(r["loneIsrcs"], "ISRC5", "{r}");
 }
 
 #[test]

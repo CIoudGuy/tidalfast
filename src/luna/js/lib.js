@@ -428,6 +428,53 @@
 			return undefined;
 		}
 	};
+	// A song's title without what versions add to it ("(Remix)", "[Live]",
+	// "feat. X", "- Remastered"), case, accents and punctuation, so that
+	// TIDAL's and MusicBrainz's spellings of one song compare equal.
+	const baseTitle = (title) => {
+		if (typeof title !== "string") return "";
+		const plain = (s) =>
+			s
+				.normalize("NFKD")
+				.replace(/\p{M}/gu, "")
+				.toLowerCase()
+				.replace(/[^\p{L}\p{N}]+/gu, "");
+		const base = plain(title.replace(/\s*[([].*?[)\]]/g, "").replace(/\s+(feat\.?|ft\.|featuring)\s.*$/i, "").replace(/\s+-\s.*$/, ""));
+		return base || plain(title);
+	};
+	// Same song, by length: MusicBrainz's milliseconds against TIDAL's
+	// seconds, within ten seconds (one recording's lengths differ by a few).
+	const SAME_LENGTH_MS = 10000;
+	const lengthGap = (tidalItem, length) => {
+		const seconds = Number(tidalItem?.duration);
+		if (!(seconds > 0) || !(Number(length) > 0)) return undefined;
+		return Math.abs(Number(length) - seconds * 1000);
+	};
+	// The MusicBrainz recording for this TIDAL track among those an ISRC
+	// lookup answers. MusicBrainz lets unrelated recordings share an ISRC
+	// (Rihanna's "Only Girl (In the World)", USUM71023200, is also chapter
+	// 57 of a Pride and Prejudice audiobook) and lists them in no fixed
+	// order, so the first one can be another song. A recording counts when
+	// its length is the track's or, with no length to compare, its title is;
+	// the closest one wins. None counts: undefined, and the title stays
+	// TIDAL's.
+	const matchingRecording = (tidalItem, recordings) => {
+		const title = baseTitle(tidalItem?.title);
+		let best;
+		let bestScore;
+		for (const rec of recordings ?? []) {
+			if (rec?.id === undefined) continue;
+			const gap = lengthGap(tidalItem, rec.length);
+			const sameTitle = title !== "" && baseTitle(rec.title) === title;
+			if (gap === undefined ? !sameTitle : gap > SAME_LENGTH_MS) continue;
+			const score = (sameTitle ? 0 : SAME_LENGTH_MS + 1) + (gap ?? SAME_LENGTH_MS);
+			if (bestScore === undefined || score < bestScore) {
+				best = rec;
+				bestScore = score;
+			}
+		}
+		return best;
+	};
 	class Album extends ContentBase {
 		static trace = libTrace.withSource(".Album").trace;
 		constructor(id, tidalAlbum) {
@@ -628,7 +675,10 @@
 					return releaseTrack;
 				};
 				if (this.tidalItem.isrc) {
-					const recording = (await brainz(`isrc/${encodeURIComponent(this.tidalItem.isrc)}?inc=isrcs`))?.recordings?.[0];
+					// Not simply the first recording, as Luna takes: see
+					// matchingRecording.
+					const recordings = (await brainz(`isrc/${encodeURIComponent(this.tidalItem.isrc)}?inc=isrcs`))?.recordings;
+					const recording = matchingRecording(this.tidalItem, recordings);
 					if (recording !== undefined) return fromRecording(recording);
 				}
 				const albumRelease = await (await this.album())?.brainzRelease();
