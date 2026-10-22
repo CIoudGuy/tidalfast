@@ -97,11 +97,18 @@ impl Catalog for PagedCatalog {
     }
 }
 
+/// Loads the artist, from the row `offset` names when given, with that
+/// row's details as the app sends them.
 fn load_artist(engine: &Engine, shuffle: bool, offset: Option<&str>) {
+    let row = offset
+        .and_then(crate::util::uri_id)
+        .and_then(|id| id.parse().ok())
+        .map(|n| Box::new(track(n)));
     engine
         .command(PlayerCommand::Load(LoadSpec {
             context_uri: Some(ARTIST.into()),
             offset_uri: offset.map(str::to_string),
+            offset_track: row,
             shuffle: Some(shuffle),
             play: false,
             ..LoadSpec::default()
@@ -180,12 +187,112 @@ fn play_starts_with_the_first_song_and_later_pages_follow_in_order() {
     assert_eq!(all, expected);
 }
 
+/// What the catalogue was asked for `what` ("tracks", "autoplay"...).
+fn asked(catalog: &PagedCatalog, what: &str) -> usize {
+    lock(&catalog.inner.asked).get(what).copied().unwrap_or(0)
+}
+
+/// A double-clicked row far down a long playlist plays at once: its song
+/// starts while no page before it has come (the owner waited 2 to 3 s in
+/// silence for the six pages before row 553). The pages then put the
+/// context around it: the songs after it follow in the playlist's order,
+/// and the songs before it are behind it (Previous goes to the row above).
 #[test]
-fn a_start_in_a_later_page_waits_for_that_page() {
-    let catalog = PagedCatalog::new(1, Duration::ZERO, true);
+fn a_row_in_a_later_page_plays_at_once_and_the_rest_follows_in_order() {
+    let catalog = PagedCatalog::new(0, Duration::ZERO, true);
     let (engine, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
     until(&states, |state| state.connected);
     load_artist(&engine, false, Some("tidal:track:17"));
+    // Not one page is in.
+    let started = until(&states, paused_on("tidal:track:17"));
+    assert_eq!(started.track.unwrap().title, "Song 17");
+    assert!(!started.shuffle);
+    let view = engine.queue(10);
+    assert_eq!(
+        view.current.map(|track| track.uri).as_deref(),
+        Some("tidal:track:17")
+    );
+    assert!(view.next_up.is_empty(), "nothing after it is known yet");
+    assert_eq!(view.context_uri.as_deref(), Some(ARTIST), "Playing from");
+
+    catalog.allow(PAGES);
+    let all = wait_for_queue(&engine, 8);
+    let expected: Vec<String> = (17..25).map(|n| format!("tidal:track:{n}")).collect();
+    assert_eq!(all, expected, "the songs after it follow in order");
+    engine.command(PlayerCommand::Previous).unwrap();
+    until(&states, paused_on("tidal:track:16"));
+}
+
+/// The same with Shuffle on: the row's song plays at once, and once the
+/// pages are in, every other song follows shuffled, each once.
+#[test]
+fn a_row_in_a_later_page_plays_at_once_and_the_rest_follows_shuffled() {
+    let catalog = PagedCatalog::new(0, Duration::ZERO, true);
+    let (engine, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+    until(&states, |state| state.connected);
+    load_artist(&engine, true, Some("tidal:track:17"));
+    let started = until(&states, paused_on("tidal:track:17"));
+    assert!(started.shuffle);
+    assert!(engine.queue(10).next_up.is_empty());
+
+    catalog.allow(PAGES);
+    let all = wait_for_queue(&engine, (PAGES * PER_PAGE) as usize);
+    assert_eq!(all[0], "tidal:track:17");
+    let mut sorted = all.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), all.len(), "no repeats: {all:?}");
+    let artists_songs: Vec<String> = (10..25).map(|n| format!("tidal:track:{n}")).collect();
+    assert_eq!(sorted, artists_songs, "every song of the artist");
+    let in_order: Vec<String> = artists_songs
+        .into_iter()
+        .filter(|uri| uri != "tidal:track:17")
+        .collect();
+    assert_ne!(all[1..], in_order[..], "the rest is shuffled");
+}
+
+/// The row's own details start it: the catalogue is not asked for the
+/// song, and the player bar shows the row's title from the first report.
+#[test]
+fn the_rows_own_details_start_it_without_asking_the_catalogue() {
+    let catalog = PagedCatalog::new(0, Duration::ZERO, true);
+    let (engine, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+    until(&states, |state| state.connected);
+    engine
+        .command(PlayerCommand::Load(LoadSpec {
+            context_uri: Some(ARTIST.into()),
+            offset_uri: Some("tidal:track:20".into()),
+            offset_track: Some(Box::new(LocalTrack {
+                title: "As the row shows it".into(),
+                ..track(20)
+            })),
+            play: false,
+            ..LoadSpec::default()
+        }))
+        .unwrap();
+    let first = until(&states, |state| state.track.is_some());
+    assert_eq!(first.track.unwrap().title, "As the row shows it");
+    until(&states, paused_on("tidal:track:20"));
+    assert_eq!(asked(&catalog, "tracks"), 0);
+    catalog.allow(PAGES);
+    assert_eq!(wait_for_queue(&engine, 5).len(), 5);
+}
+
+/// A load that names its song without the row's details (a plugin's)
+/// waits for the page that holds it, as before.
+#[test]
+fn a_named_song_without_the_rows_details_waits_for_its_page() {
+    let catalog = PagedCatalog::new(1, Duration::ZERO, true);
+    let (engine, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+    until(&states, |state| state.connected);
+    engine
+        .command(PlayerCommand::Load(LoadSpec {
+            context_uri: Some(ARTIST.into()),
+            offset_uri: Some("tidal:track:17".into()),
+            play: false,
+            ..LoadSpec::default()
+        }))
+        .unwrap();
     thread::sleep(Duration::from_millis(200));
     assert!(engine.queue(10).current.is_none(), "nothing starts early");
     catalog.allow(3);
@@ -194,11 +301,29 @@ fn a_start_in_a_later_page_waits_for_that_page() {
     assert_eq!(wait_for_queue(&engine, 8).len(), 8);
 }
 
-/// A song far down a long playlist waits for every page before it. Shuffle
-/// switched off in that wait is how the songs after it play: the named song
-/// first, then the rest in order, and the engine says Shuffle is off. It
-/// started shuffled while the player bar showed Shuffle off (the owner's
-/// "shuffle off but it played Escape Plan").
+/// Next before the pages are in waits for them, then plays the song after
+/// the row; it does not end the context into autoplay.
+#[test]
+fn next_before_the_pages_come_plays_the_song_after_the_row() {
+    let catalog = PagedCatalog::new(0, Duration::ZERO, true);
+    let (engine, states) = engine_with(config(), Arc::clone(&catalog) as Arc<dyn Catalog>);
+    until(&states, |state| state.connected);
+    load_artist(&engine, false, Some("tidal:track:17"));
+    until(&states, paused_on("tidal:track:17"));
+    engine.command(PlayerCommand::Next).unwrap();
+    until(&states, |state| state.loading);
+    thread::sleep(Duration::from_millis(100));
+    catalog.allow(PAGES);
+    until(&states, paused_on("tidal:track:18"));
+    assert_eq!(asked(&catalog, "autoplay"), 0);
+    assert_eq!(wait_for_queue(&engine, 7)[0], "tidal:track:18");
+}
+
+/// Shuffle switched off while the context is still read up to the named
+/// song is how the songs after it play: the named song first, then the
+/// rest in order, and the engine says Shuffle is off. It started shuffled
+/// while the player bar showed Shuffle off (the owner's "shuffle off but it
+/// played Escape Plan").
 #[test]
 fn shuffle_switched_off_while_a_later_page_loads_plays_in_order() {
     let catalog = PagedCatalog::new(1, Duration::ZERO, true);
@@ -208,8 +333,9 @@ fn shuffle_switched_off_while_a_later_page_loads_plays_in_order() {
     thread::sleep(Duration::from_millis(100));
     engine.command(PlayerCommand::Shuffle(false)).unwrap();
     catalog.allow(PAGES);
-    let started = until(&states, paused_on("tidal:track:17"));
-    assert!(!started.shuffle, "the engine keeps Shuffle as last set");
+    until(&states, |state| {
+        paused_on("tidal:track:17")(state) && !state.shuffle
+    });
     let all = wait_for_queue(&engine, 8);
     let expected: Vec<String> = (17..25).map(|n| format!("tidal:track:{n}")).collect();
     assert_eq!(all, expected, "the songs after it follow in order");
@@ -226,8 +352,9 @@ fn shuffle_switched_on_while_a_later_page_loads_shuffles_the_rest() {
     thread::sleep(Duration::from_millis(100));
     engine.command(PlayerCommand::Shuffle(true)).unwrap();
     catalog.allow(PAGES);
-    let started = until(&states, paused_on("tidal:track:17"));
-    assert!(started.shuffle, "the engine keeps Shuffle as last set");
+    until(&states, |state| {
+        paused_on("tidal:track:17")(state) && state.shuffle
+    });
     // Every song of the artist, the named one first and only once.
     let all = wait_for_queue(&engine, (PAGES * PER_PAGE) as usize);
     assert_eq!(all[0], "tidal:track:17");
@@ -235,30 +362,6 @@ fn shuffle_switched_on_while_a_later_page_loads_shuffles_the_rest() {
     sorted.sort();
     sorted.dedup();
     assert_eq!(sorted.len(), all.len(), "no repeats: {all:?}");
-}
-
-/// Time from the load to the first song, with 300 ms per page: the whole
-/// list first (before) and the first page first (after).
-#[test]
-fn first_song_time_with_slow_pages() {
-    let mut took = Vec::new();
-    for progressive in [false, true] {
-        let catalog = PagedCatalog::new(PAGES, Duration::from_millis(300), progressive);
-        let (engine, states) = engine_with(config(), catalog as Arc<dyn Catalog>);
-        until(&states, |state| state.connected);
-        let started = Instant::now();
-        load_artist(&engine, true, None);
-        until(&states, |state| {
-            state.playback == Playback::Paused && !state.loading && state.track.is_some()
-        });
-        took.push(started.elapsed());
-    }
-    eprintln!(
-        "first song: whole list first {:?}, first page first {:?}",
-        took[0], took[1]
-    );
-    assert!(took[0] >= Duration::from_millis(1500));
-    assert!(took[1] < Duration::from_millis(1000));
 }
 
 /// Waits up to `limit` for a state that passes `test`.
@@ -332,4 +435,28 @@ fn play_during_a_load_does_not_restart_the_previous_song() {
         state.playback == Playback::Playing
     })
     .expect("Space plays it");
+}
+
+/// Time from the load to the first song, with 300 ms per page: the whole
+/// list first (before) and the first page first (after).
+#[test]
+fn first_song_time_with_slow_pages() {
+    let mut took = Vec::new();
+    for progressive in [false, true] {
+        let catalog = PagedCatalog::new(PAGES, Duration::from_millis(300), progressive);
+        let (engine, states) = engine_with(config(), catalog as Arc<dyn Catalog>);
+        until(&states, |state| state.connected);
+        let started = Instant::now();
+        load_artist(&engine, true, None);
+        until(&states, |state| {
+            state.playback == Playback::Paused && !state.loading && state.track.is_some()
+        });
+        took.push(started.elapsed());
+    }
+    eprintln!(
+        "first song: whole list first {:?}, first page first {:?}",
+        took[0], took[1]
+    );
+    assert!(took[0] >= Duration::from_millis(1500));
+    assert!(took[1] < Duration::from_millis(1000));
 }

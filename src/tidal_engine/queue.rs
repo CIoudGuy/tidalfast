@@ -302,6 +302,46 @@ impl Queue {
         true
     }
 
+    /// Puts the context around the song `uri`, which a load started on its
+    /// own before the context was read (a row far down a long playlist
+    /// plays at once). `tracks` is the context in its own order, as far as
+    /// it has been read. The song takes its place there, its first
+    /// occurrence, as a load by uri does; a context without it gets it in
+    /// front. Unshuffled, the songs after it follow in order; shuffled, the
+    /// rest is shuffled behind it, as a shuffled load from it would be.
+    /// Shuffle is the mode set last, the playing song (or a queued one
+    /// played meanwhile) plays on, and the songs queued by hand stay.
+    /// `false`, and nothing changes, when the context is not the one that
+    /// song started.
+    pub fn place(&mut self, mut tracks: Vec<LocalTrack>, uri: &str) -> bool {
+        let started = self
+            .pos
+            .and_then(|pos| self.order.get(pos))
+            .map(|index| self.context[*index].clone());
+        let Some(started) = started.filter(|started| !self.autoplay && started.uri == uri) else {
+            return false;
+        };
+        let at = match tracks.iter().position(|track| track.uri == uri) {
+            Some(at) => at,
+            None => {
+                tracks.insert(0, started.clone());
+                0
+            }
+        };
+        if let Some((current, Origin::Context)) = &mut self.current
+            && current.uri == uri
+            && current.title.is_empty()
+        {
+            *current = tracks[at].clone();
+        }
+        self.context = tracks;
+        self.next_round = None;
+        self.order = self.play_order(Some(at));
+        self.pos = Some(if self.shuffle { 0 } else { at });
+        self.prepare_round();
+        true
+    }
+
     /// How many context songs are still to play after the current one.
     pub fn ahead(&self) -> usize {
         self.order
@@ -726,6 +766,47 @@ mod tests {
             Advance::Track(track) => track.uri,
             Advance::NeedAutoplay => "autoplay".into(),
         }
+    }
+
+    /// A song that started alone, before its context was read, takes its
+    /// place in the context when it comes: in order the songs after it
+    /// follow and the songs before it are behind it; shuffled, the others
+    /// follow shuffled. The songs queued by hand stay first either way.
+    #[test]
+    fn a_song_started_early_takes_its_place_when_the_context_comes() {
+        for shuffle in [false, true] {
+            let mut queue = Queue::seeded(7);
+            queue.add(track(90));
+            let first = queue.load(
+                Some("tidal:playlist:e2".into()),
+                vec![track(5)],
+                Start::Uri(track(5).uri),
+                shuffle,
+            );
+            assert_eq!(first, Some(track(5)));
+            assert!(queue.view(10).next_up.is_empty());
+            assert!(!queue.place(album(8), &track(6).uri), "another song");
+            assert!(queue.place(album(8), &track(5).uri));
+            let view = queue.view(100);
+            assert_eq!(view.current, Some(track(5)));
+            assert_eq!(view.queued, vec![track(90)]);
+            assert_eq!(view.context_uri.as_deref(), Some("tidal:playlist:e2"));
+            if shuffle {
+                let mut rest: Vec<String> = view.next_up.iter().map(|t| t.uri.clone()).collect();
+                rest.sort();
+                let mut others: Vec<String> = [1, 2, 3, 4, 6, 7, 8].map(|n| track(n).uri).to_vec();
+                others.sort();
+                assert_eq!(rest, others);
+            } else {
+                assert_eq!(view.next_up, vec![track(6), track(7), track(8)]);
+                assert_eq!(queue.previous(), Some(track(4)));
+            }
+        }
+        // A context that no longer holds the song gets it in front.
+        let mut queue = Queue::seeded(7);
+        queue.load(None, vec![track(9)], Start::Uri(track(9).uri), false);
+        assert!(queue.place(album(2), &track(9).uri));
+        assert_eq!(queue.view(10).next_up, album(2));
     }
 
     fn loaded(count: usize) -> Queue {

@@ -328,6 +328,10 @@ pub struct LoadSpec {
     pub context_uri: Option<String>,
     pub uris: Vec<String>,
     pub offset_uri: Option<String>,
+    /// The details of the song `offset_uri` names, as the clicked row
+    /// shows them: it starts at once, before its context is read. Without
+    /// them the load waits for the context's pages up to that song.
+    pub offset_track: Option<Box<LocalTrack>>,
     pub offset_index: Option<u32>,
     pub position_ms: u32,
     pub play: bool,
