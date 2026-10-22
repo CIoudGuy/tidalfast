@@ -34,26 +34,19 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     egui::Frame::new()
         .inner_margin(egui::Margin::symmetric(12, 0))
         .show(ui, |ui| {
-            // Wrapped: beside an open queue or lyrics panel the pills do not
-            // fit one row, and the ones past the edge could not be reached.
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-                for (filter, label) in &labels {
-                    // TIDAL lights a pill only for a narrower filter: on
-                    // the top results every pill is grey.
-                    let selected = *filter == app.search.filter;
-                    let lit = selected && *filter != SearchFilter::All;
-                    if widgets::tidal_pill_lit(ui, label, selected, lit).clicked() {
-                        chosen = Some(*filter);
-                    }
-                }
-            });
+            // TIDAL keeps the pills in one row that scrolls sideways when
+            // the page (beside an open queue or lyrics panel, or a narrow
+            // window) is too narrow for them, cut at the page's padding
+            // with no arrow: the wheel and a drag move it, and the ones
+            // past the edge can still be reached.
+            chosen = filter_pills(ui, &labels, app.search.filter);
         });
     if let Some(filter) = chosen {
         app.actions.push(Action::SetSearchFilter(filter));
     }
-    // A hairline 24 under the pills, the results 8 below it.
-    ui.add_space(24.0);
+    // The hairline 24 under the pills (12 of that is the row's own room
+    // for its scrollbar), the results 8 below it.
+    ui.add_space(24.0 - PILLS_ROOM);
     let (line, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
     ui.painter()
         .rect_filled(line, 0.0, egui::Color32::from_white_alpha(20));
@@ -178,6 +171,52 @@ pub fn shown_did_you_mean(results: &SearchResults, committed: &str) -> Option<St
             !suggestion.is_empty() && !suggestion.eq_ignore_ascii_case(committed.trim())
         })
         .map(str::to_string)
+}
+
+/// The room TIDAL's pill row keeps under the 40-point pills (its wrapper is
+/// 52 high): where the scrollbar's thumb shows while the row is scrolled.
+const PILLS_ROOM: f32 = 12.0;
+
+/// The filter pills as one row. It scrolls sideways (the wheel, a drag, the
+/// scrollbar's thumb that shows while it moves) when they do not fit, as
+/// TIDAL's does, and is as it was where they do. Returns the pill pressed.
+fn filter_pills(
+    ui: &mut egui::Ui,
+    labels: &[(SearchFilter, std::borrow::Cow<'_, str>)],
+    current: SearchFilter,
+) -> Option<SearchFilter> {
+    let mut chosen = None;
+    // The wheel turns the row whichever way it spins, until it is at its
+    // end; the page takes it from there.
+    ui.style_mut().always_scroll_the_only_direction = true;
+    let page = ui.clip_rect();
+    egui::ScrollArea::horizontal()
+        .id_salt("search-pills")
+        .auto_shrink([false, true])
+        // A drag moves it with a mouse too, not only on a touch screen.
+        .scroll_source(egui::scroll_area::ScrollSource::ALL)
+        .show(ui, |ui| {
+            // The focus ring is drawn outside the pill: the row's clip is
+            // the page's up and down, and the page's padding sideways.
+            ui.set_clip_rect(Rect::from_x_y_ranges(
+                ui.clip_rect().x_range(),
+                page.y_range(),
+            ));
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                for (filter, label) in labels {
+                    // TIDAL lights a pill only for a narrower filter: on
+                    // the top results every pill is grey.
+                    let selected = *filter == current;
+                    let lit = selected && *filter != SearchFilter::All;
+                    if widgets::tidal_pill_lit(ui, label, selected, lit).clicked() {
+                        chosen = Some(*filter);
+                    }
+                }
+            });
+            ui.add_space(PILLS_ROOM);
+        });
+    chosen
 }
 
 /// "Did you mean <query>?" under the pills, as on TIDAL: the suggestion is
