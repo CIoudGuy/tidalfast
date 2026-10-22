@@ -1517,3 +1517,32 @@ fn pseudo_words_and_vibrant_colour_are_not_one_themes() {
     luna.shutdown();
     assert_eq!(vibrant, Some(egui::Color32::from_rgb(12, 200, 99)));
 }
+
+/// TIDAL 2.43.2 fills its window, the page and the sidebar, with its own
+/// `--market-core-fill-black-color`: Sunken Tidal's `* { --market-core-fill-
+/// black-color: rgb(30, 30, 30) }` makes TIDAL's page and sidebar grey (30)
+/// while its play queue (22), menus and hovers keep TIDAL's own colours.
+/// Tidalfast ignored the variable and drew the window black.
+#[test]
+fn tidals_window_variable_paints_the_window() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom::themed;
+    let css = r#"/* {"name": "Grey well"} */
+:root { --well-edge: solid 1px rgb(255 255 255 / 10%); }
+* { --market-core-fill-black-color: rgb(30, 30, 30) !important; }
+"#;
+    let (luna, o) = overlay_with("grey-well.css", css, dom_anchors::sample_tree(), "");
+    luna.shutdown();
+    let base = Palette::dark();
+    let p = themed(&base, &o);
+    assert_eq!(p.window, egui::Color32::from_gray(30));
+    assert_eq!(p.surface, base.surface, "TIDAL's cards stay");
+    assert_eq!(p.secondary, base.secondary, "TIDAL's grey words stay");
+    assert!(p.tidal_dark(), "TIDAL's own Dark shades stay");
+    assert_eq!(p.menu_bg(), base.menu_bg());
+    // TIDAL's own black there changes nothing.
+    let css = "/* {\"name\": \"Black well\"} */\n* { --market-core-fill-black-color: #000; }\n";
+    let (luna, o) = overlay_with("black-well.css", css, dom_anchors::sample_tree(), "");
+    luna.shutdown();
+    assert_eq!(themed(&base, &o), base);
+}

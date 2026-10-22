@@ -4640,6 +4640,17 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         .or(container_bg)
         .or(main_bg)
         .or(page_bg);
+    // TIDAL 2.43.2 fills its window (the page and the sidebar) with its own
+    // `--market-core-fill-black-color`, so a theme that sets that variable
+    // (Sunken's `rgb(30, 30, 30)`) repaints the window while TIDAL's other
+    // surfaces (queue, menus, hovers) keep their own colours. One that turns
+    // the window light or dark against the base is a painted window.
+    let market_black = var(&["--market-core-fill-black-color"])
+        .map(opaque)
+        .filter(|c| painted.is_none() && *c != base.window);
+    let same_side = |c: &Color32| (luminance(*c) < 0.5) == base.dark;
+    let own_window = market_black.filter(same_side);
+    let painted = painted.or(market_black.filter(|c| !same_side(c)));
     let tokens = painted.is_some();
     let ramp = |names: &[&str]| if tokens { var(names) } else { None };
     if let Some(c) = ramp(&[
@@ -4672,6 +4683,9 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         p.surface_active = blend(p.window, toward, 0.17);
         p.overlay = blend(p.window, toward, if p.dark { 0.1 } else { 0.0 });
         p.outline = blend(p.window, toward, 0.14);
+    }
+    if let Some(c) = own_window {
+        p.window = c;
     }
     if let Some(c) = ramp(&["--wave-color-solid-base-bright"]) {
         p.panel = opaque_over(c, p.window);
@@ -4809,7 +4823,7 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
     }
     readable(&mut p, base);
     p.themed = p != *base;
-    p.own_surfaces = p.window == base.window
+    p.own_surfaces = (p.window == base.window || own_window == Some(p.window))
         && p.panel == base.panel
         && p.surface == base.surface
         && p.surface_hover == base.surface_hover
