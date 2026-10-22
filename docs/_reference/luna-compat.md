@@ -1720,11 +1720,30 @@ fails without it:
   theme's colour (black under Tidal Light). The play queue's playing row
   words under Tidal Light (black in TIDAL) are not mapped: the row's TIDAL
   classes are not captured.
+- Third follow-up (TidalCustomTheme, Giorgeous): TIDAL's bar glass is in
+  the bar's `::after`, so a theme that clears its background or backdrop
+  filter keeps its own bar colour (TidalCustomTheme's pink bar); the play
+  queue panel is `#playQueueSidebar` (TidalCustomTheme's sidebar pink,
+  Blur's glass and Abyss Neptune's 80 % black reach it; like the cotton
+  candy family's glass, a see-through fill shows the page under it without
+  TIDAL's blur); a theme's fill on `aside#sidebar` colours the sidebar when
+  the wrapper has none; the navigation icons take a theme's `svg` fill or
+  colour; a library row's second line is a market text paragraph
+  (TidalCustomTheme's blue second lines); page titles, section titles and
+  the queue's title follow a theme's `text-transform` on TIDAL's headline
+  words, `h1` and `h2` (Giorgeous' and Sunken Tidal's capitals). Not
+  mapped: the play queue's words (TidalCustomTheme's dark red; the cotton
+  candy family's light panel keeps white words in TIDAL, so a light panel
+  alone does not decide it, and the rows' TIDAL classes are not captured),
+  the "All playlists" heading's dark red (its rule names TIDAL's sidebar
+  structure, `#sidebar > div[class^="_listSection_"] > ...`, which the
+  anchors do not have), and album titles that TIDAL draws as an `h2` in
+  the header card (Giorgeous' green capitals).
 
 Theme by theme, what still differs is in each row above. Shared by many:
 TIDAL's own layout changes a theme makes that Tidalfast's native views do
 not follow (the bar's clock moved under Play, page offsets, header
-collapses), `text-transform` and letter spacing on section titles, TIDAL's
+collapses), letter spacing on section titles, TIDAL's
 glass blur, and the now-playing view under the cotton candy family, which
 stays the window's pale colour where TIDAL shows the cover's dark one.
 
