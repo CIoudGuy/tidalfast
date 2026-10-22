@@ -127,6 +127,7 @@ pub fn viewport(
 /// Keeps the window's place and size in the settings, saved shortly after.
 /// A maximized or fullscreen window is not a compact size and is not kept.
 fn remember_geometry(app: &mut App, ctx: &egui::Context) {
+    let zoom = ctx.zoom_factor();
     let (outer, inner, big) = ctx.input(|input| {
         let viewport = input.viewport();
         (
@@ -140,14 +141,14 @@ fn remember_geometry(app: &mut App, ctx: &egui::Context) {
     }
     let mut changed = false;
     if let Some(inner) = inner {
-        let size = [inner.width().round(), inner.height().round()];
+        let size = logical(inner.size(), zoom);
         if size == start_size(size) && size != app.settings.compact_size {
             app.settings.compact_size = size;
             changed = true;
         }
     }
     if let Some(outer) = outer {
-        let pos = Some([outer.min.x.round(), outer.min.y.round()]);
+        let pos = Some(logical(outer.min.to_vec2(), zoom));
         if pos != app.settings.compact_pos {
             app.settings.compact_pos = pos;
             changed = true;
@@ -156,6 +157,17 @@ fn remember_geometry(app: &mut App, ctx: &egui::Context) {
     if changed {
         app.mark_settings_dirty();
     }
+}
+
+/// A size or place the window reports in egui points, in the unit the
+/// settings keep and [`viewport`] opens the window with: logical pixels,
+/// egui points at a zoom factor of 1 (a new window's context starts at 1,
+/// and egui-winit scales the builder's values by it). Kept in points at
+/// the interface zoom instead, the window opened smaller by the zoom each
+/// time compact mode came back, and its place moved toward the corner.
+fn logical(points: Vec2, zoom: f32) -> [f32; 2] {
+    let pixels = points * zoom;
+    [pixels.x.round(), pixels.y.round()]
 }
 
 /// Everything in the window, laid out in `rect`. `window` is false where
@@ -764,6 +776,34 @@ mod tests {
         assert_eq!(viewport.position, Some(pos2(1500.0, 40.0)));
         // The main window's geometry is untouched by any of this.
         assert_eq!(main_window(true).size, Some([1920.0, 1040.0]));
+    }
+
+    /// At an interface zoom of 1.1 the window reports its size and place in
+    /// points at that zoom; they are kept in logical pixels, so the window
+    /// opens again exactly where and as big as it was. It shrank 320 to 219
+    /// over a few toggles, and its place drifted -4000 to -3636.
+    #[test]
+    fn a_zoomed_compact_window_keeps_its_size_and_place() {
+        let zoom = 1.1;
+        let mut settings = crate::settings::Settings {
+            compact_size: [320.0, 320.0],
+            compact_pos: Some([-4000.0, -4000.0]),
+            ..Default::default()
+        };
+        for _ in 0..8 {
+            let builder = viewport(&settings, &main_window(false));
+            // The window opens at the builder's values in logical pixels
+            // (the new context's zoom is 1), and reports them divided by
+            // the zoom once the app applies it.
+            let size = builder.inner_size.expect("a size") / zoom;
+            let pos = builder.position.expect("a place").to_vec2() / zoom;
+            settings.compact_size = logical(size, zoom);
+            settings.compact_pos = Some(logical(pos, zoom));
+        }
+        assert_eq!(settings.compact_size, [320.0, 320.0]);
+        assert_eq!(settings.compact_pos, Some([-4000.0, -4000.0]));
+        assert_eq!(logical(vec2(290.909_1, 260.0), zoom), [320.0, 286.0]);
+        assert_eq!(logical(vec2(-3_636.363_6, 40.0), 1.0), [-3636.0, 40.0]);
     }
 
     #[test]
