@@ -22330,11 +22330,15 @@ mod tests {
             output.textures_delta.clear();
         }
 
+        // Playback's own pass lands just after the clock's next second
+        // (`next_clock_tick`, at most 1030 ms here, as the position stays 0
+        // without a start time); egui then takes its predicted frame off.
+        // Something else may ask sooner on some platforms, never later.
         let soonest = delays.lock().unwrap().iter().copied().min();
         assert!(
-            soonest.is_some_and(|delay| delay > Duration::ZERO && delay <= Duration::from_secs(1)),
-            "a hidden window's logic must wake again within a second while playing, \
-             without spinning; asked for {soonest:?}"
+            soonest.is_some_and(|delay| delay > Duration::ZERO && delay <= next_clock_tick(0)),
+            "a hidden window's logic must wake again on the clock's next second while \
+             playing, without spinning; asked for {soonest:?}"
         );
     }
 
