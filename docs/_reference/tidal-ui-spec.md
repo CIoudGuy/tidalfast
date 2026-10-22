@@ -169,3 +169,40 @@ Where it differs from tidal.com above, Tidalfast follows the desktop app.
   three lines on a 32-point white 8 % disc while the queue is open.
 - My Collection grids: six cards a row in a 1451-wide column (229 each).
 - Artist header: "19.1K fans".
+
+## 16. Narrow window (TIDAL desktop, 1000x1183)
+Measured 2026-10 with the window 1000 wide: beside the open play queue the page runs from x 240 to 650 (album
+and playlist content 288..602, 314 wide; Home 280..610); with the queue closed album content is about 662.
+Tidalfast's breakpoints work on the page column's own width, so any window or panel that narrows it behaves
+alike. Normal widths (800 and up) are unchanged.
+- Track tables (album, playlist, mix, Tracks; `widgets::tidal_columns`): narrower than 600
+  (`TABLE_TITLE_ONLY`) only #, cover and title remain, the title to the row's end; no ARTIST/ALBUM/TIME
+  headings, no row buttons, the "..." alone under the pointer, centred 19 in from the row's end. From 600 to
+  800 (`TABLE_NO_TIME`) the artist sits beside the title (title 10 wider: 315/305 at 662); still no time or
+  buttons. TIDAL showed every column at 1104; where between 662 and 1104 the time returns was not captured,
+  so 800 is an estimate. An artist's Top Tracks keep title, artist and album side by side in thirds.
+  TIDAL's E badge stays after the title.
+- Album and mix header (`collection::hero`): narrower than 720 the cover stays 240 at the left (it used to drop
+  to 160); the 32-point title wraps word by word in the column right of it, a word wider than the column
+  keeps its line whole and is cut at the page's edge ("The / Search" at 314); the meta lines wrap too.
+- Playlist header narrower than 600 (`collection::stacked_header`): stacked and centred, cover 192 (349..541 at
+  314), the title 20 under it, the creator, the meta line; then round, icon-only Play and Shuffle (58, 16
+  apart) at the left and the buttons at the right.
+- Header buttons drop instead of wrapping under the pills (`collection::header_fit`): from 600 to 800
+  (`HEADER_MEDIUM`) Credits and Share go (TIDAL's album at 662: Play 160, Shuffle 160, Added, Report, More);
+  narrower than 600 (`HEADER_NARROW`) only the first button stays (album: Added; artist: Follow; own playlist:
+  Edit), pills 114 (narrowed further if the buttons need it; captions go first). A Tracks page with pills only
+  keeps them 160 while they fit.
+- **Open owner decision: More at narrow width.** TIDAL hides More ("...") below 600 (its album at 314 shows
+  only Play, Shuffle and Added), which leaves no way to the album's menu there. Tidalfast keeps More for now;
+  the single switch is `collection::NARROW_HEADER_KEEPS_MORE` (set it to `false` to match TIDAL). With no
+  room, More goes before the first button.
+- Shelves (Home, artist page): TIDAL fixes a shelf's card count when the page mounts and shrinks the cards; a
+  freshly opened narrow page shows one card a row, as Tidalfast does (an earlier capture with 7 tiny cards
+  was a page that had not remounted). An artist's portrait in a shelf stops at a 200 circle at the cell's
+  left, the name centred under it (`widgets::SHELF_PORTRAIT_MAX`); My Collection's grids keep theirs full
+  width (228 at normal width).
+- Now playing without a tab: the cover leaves 105 either side (440 in the 650 beside the queue); at normal
+  width it is limited by the height as before.
+- Not matched yet: Search's filter pills are one horizontally scrolled row in TIDAL (Tidalfast wraps them);
+  Explore's pill rows are cut at the content edge with no arrow.
