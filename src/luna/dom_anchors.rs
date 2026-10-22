@@ -913,6 +913,7 @@ pub fn build(frame: &Frame) -> HostTree {
         path: frame.path.clone(),
         light: frame.light,
         reduced_motion: frame.reduced_motion,
+        laid_out: 0,
     }
 }
 

@@ -223,7 +223,11 @@ struct Inner {
     /// DOM bridge: what plugins did to the document, shared with the UI.
     overlay: OverlayCell,
     /// The newest host tree not yet reconciled (syncs coalesce).
-    pending_tree: Option<HostTree>,
+    trees: TreeCell,
+    /// The newest overlay that could move boxes, and the newest one the
+    /// reconciled boxes were laid out with ([`HostTree::laid_out`]).
+    boxes_version: u64,
+    laid_out: u64,
     /// Plugins with live reload on (never saved: Luna resets it on start),
     /// dev plugins the user turned it off for, and checks in flight.
     live: HashSet<String>,
@@ -251,6 +255,9 @@ struct Inner {
 }
 
 pub(crate) type OverlayCell = Arc<Mutex<Arc<DomOverlay>>>;
+/// The newest host tree the UI sent, not reconciled yet (trees coalesce),
+/// and the signal that one arrived.
+pub(crate) type TreeCell = Arc<(Mutex<Option<HostTree>>, std::sync::Condvar)>;
 
 type S = Rc<RefCell<Inner>>;
 
@@ -261,6 +268,10 @@ const MAX_LOG_LINE: usize = 4000;
 /// the window repaint): a plugin logging every frame costs one snapshot
 /// per interval, not one per line.
 const LOG_PUBLISH: Duration = Duration::from_millis(500);
+/// The longest one tick runs timers that keep coming due (a plugin's busy
+/// intervals while each overlay build takes a while) before the messages
+/// waiting get their turn.
+const TICK_BUDGET: Duration = Duration::from_millis(50);
 
 fn push_log(logs: &mut VecDeque<LogLine>, level: LogLevel, mut message: String) {
     if logs.len() >= LOG_LINES {
@@ -1796,18 +1807,63 @@ It is installed and switched on; what it may do is asked when it does it, and it
                 };
                 ov.version = cur.version;
                 if **cur == ov {
-                    false
+                    None
                 } else {
+                    let moved = cur.may_move_boxes(&ov);
                     ov.version += 1;
+                    let version = ov.version;
                     *cur = Arc::new(ov);
-                    true
+                    Some((moved, version))
                 }
             };
-            if changed {
-                REPAINTS[1].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            // Whether the boxes can have moved: the next read of one waits
+            // for them (`dom.wait_layout`).
+            let Some((moved, version)) = changed else {
+                return Ok(Value::Null);
+            };
+            REPAINTS[1].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if moved {
+                inner.borrow_mut().boxes_version = version;
+                host.boxes_changed();
+            } else {
                 host.changed();
             }
-            Ok(Value::Null)
+            Ok(Value::Bool(moved))
+        }
+        // A plugin reads a box after a change that can move boxes: wait (at
+        // most `ms`) for the UI's tree laid out with it, and hand it to the
+        // document to reconcile, as a browser lays out on such a read.
+        "dom.wait_layout" => {
+            let ms = a["ms"].as_u64().unwrap_or(64).min(250);
+            let (cell, want) = {
+                let i = inner.borrow();
+                if i.laid_out >= i.boxes_version {
+                    return Ok(Value::Null);
+                }
+                (i.trees.clone(), i.boxes_version)
+            };
+            let deadline = Instant::now() + Duration::from_millis(ms);
+            let (slot, arrived) = &*cell;
+            let mut slot = slot.lock().map_err(|_| "host tree".to_string())?;
+            loop {
+                if slot.as_ref().is_some_and(|t| t.laid_out >= want) {
+                    break;
+                }
+                let left = deadline.saturating_duration_since(Instant::now());
+                if left.is_zero() {
+                    break;
+                }
+                slot = arrived
+                    .wait_timeout(slot, left)
+                    .map_err(|_| "host tree".to_string())?
+                    .0;
+            }
+            let Some(tree) = slot.take() else {
+                return Ok(Value::Null);
+            };
+            drop(slot);
+            inner.borrow_mut().laid_out = tree.laid_out;
+            serde_json::to_value(&tree).map_err(|e| e.to_string())
         }
         // The question before an account write (see `writes.rs`): where this
         // plugin stands, and the user's answer.
@@ -3099,14 +3155,20 @@ impl Engine {
     /// Run queued promise jobs, all of them within one watchdog budget: an
     /// endless promise chain (`const f = async () => { await null; f(); }`)
     /// is a runaway like an endless loop, and is stopped the same way.
-    fn pump(&self) {
+    /// Returns whether any job ran.
+    fn pump(&self) -> bool {
         self.deadline.set(Some(Instant::now() + self.watchdog()));
         super::caller::new_turn();
+        let mut ran = false;
         loop {
             match self.rt.execute_pending_job() {
-                Ok(true) => continue,
+                Ok(true) => {
+                    ran = true;
+                    continue;
+                }
                 Ok(false) => break,
                 Err(ex) => {
+                    ran = true;
                     let failure = ex.0.with(|ctx| {
                         let v = ctx.catch();
                         let caught = match rquickjs::Exception::from_object(
@@ -3133,6 +3195,7 @@ impl Engine {
         self.report_rejections();
         self.deadline.set(None);
         self.apply_disables();
+        ran
     }
 
     /// Log the promise rejections still unhandled now that the queued jobs
@@ -3299,9 +3362,11 @@ impl Engine {
 
     /// Reconcile the newest host tree into the plugins' document.
     fn apply_dom_sync(&self) {
-        let Some(tree) = self.inner.borrow_mut().pending_tree.take() else {
+        let cell = self.inner.borrow().trees.clone();
+        let Some(tree) = cell.0.lock().ok().and_then(|mut t| t.take()) else {
             return;
         };
+        self.inner.borrow_mut().laid_out = tree.laid_out;
         match serde_json::to_string(&tree) {
             Ok(json) => self.dom_call("sync", json),
             Err(e) => log::warn!(target: "luna", "host tree: {e}"),
@@ -3316,23 +3381,46 @@ impl Engine {
         }
     }
 
-    /// Run due timers and promise jobs; returns the time to the next timer.
+    /// `__luna_tick`: run the due timers (or, with `peek`, none) and return
+    /// the time to the next one.
+    fn timers_tick(&self, peek: bool) -> Option<Duration> {
+        let args = if peek {
+            vec![Arg::S("peek".into())]
+        } else {
+            vec![]
+        };
+        match self.call("__luna_tick", args) {
+            Ok(v) => {
+                let ms = v.as_f64().unwrap_or(-1.0);
+                (ms >= 0.0).then(|| Duration::from_millis(ms as u64))
+            }
+            Err(f) => {
+                self.on_failure(f);
+                Some(Duration::from_millis(10))
+            }
+        }
+    }
+
+    /// Run due timers and promise jobs; returns the time to the next timer
+    /// (zero when some are still due after [`TICK_BUDGET`]).
     fn tick(&self) -> Option<Duration> {
         let mut next = None;
+        let started = Instant::now();
         for _ in 0..50 {
             self.pump();
-            match self.call("__luna_tick", vec![]) {
-                Ok(v) => {
-                    let ms = v.as_f64().unwrap_or(-1.0);
-                    next = (ms >= 0.0).then(|| Duration::from_millis(ms as u64));
-                }
-                Err(f) => {
-                    self.on_failure(f);
-                    next = Some(Duration::from_millis(10));
-                }
+            next = self.timers_tick(false);
+            let due_now = next == Some(Duration::ZERO);
+            // The code after an `await` on a timer runs in these jobs, and
+            // the timers it sets (a plugin's `await sleep(2)` loop) were not
+            // there when the time to the next one was worked out: ask again,
+            // without running any.
+            if self.pump() {
+                next = self.timers_tick(true);
             }
-            self.pump();
-            if next != Some(Duration::ZERO) {
+            // Timers still due go round again, but not for longer than
+            // TICK_BUDGET: messages (the user's clicks, the UI's boxes) get
+            // their turn in between while plugins keep the thread busy.
+            if !due_now || started.elapsed() >= TICK_BUDGET {
                 break;
             }
         }
@@ -4121,8 +4209,7 @@ impl Engine {
     fn handle(&self, msg: Msg) -> bool {
         // Host trees coalesce: only the newest is reconciled, but always
         // before anything else that may read the document.
-        if let Msg::DomSync(tree) = msg {
-            self.inner.borrow_mut().pending_tree = Some(tree);
+        if let Msg::DomSync = msg {
             return true;
         }
         self.apply_dom_sync();
@@ -4538,7 +4625,7 @@ impl Engine {
                 "editor",
                 json!({ "window": window, "closed": text.is_none(), "text": text }),
             ),
-            Msg::DomSync(_) => {}
+            Msg::DomSync => {}
             Msg::Shutdown => return false,
         }
         true
@@ -4981,6 +5068,7 @@ fn setup(
     tx: Sender<Msg>,
     shared: Arc<Mutex<LunaSnapshot>>,
     overlay: OverlayCell,
+    trees: TreeCell,
 ) -> anyhow::Result<Engine> {
     std::fs::create_dir_all(&cfg.data_dir)?;
     let mut records: Vec<PluginRecord> = storage::read_json(&cfg.data_dir.join("plugins.json"))
@@ -5071,7 +5159,9 @@ fn setup(
         warned_actions: HashSet::new(),
         dev_busy: HashSet::new(),
         overlay,
-        pending_tree: None,
+        trees,
+        boxes_version: 0,
+        laid_out: 0,
         live: HashSet::new(),
         live_off_dev: HashSet::new(),
         live_busy: HashSet::new(),
@@ -5277,18 +5367,18 @@ fn run(
     rx: Receiver<Msg>,
     shared: Arc<Mutex<LunaSnapshot>>,
     overlay: OverlayCell,
+    trees: TreeCell,
 ) -> anyhow::Result<()> {
     let auto_update = cfg.auto_update;
     let interval = cfg.update_interval;
     let wait_for_dom = cfg.wait_for_dom;
-    let engine = setup(cfg, host, tx, shared, overlay)?;
+    let engine = setup(cfg, host, tx, shared, overlay, trees)?;
     // The page exists before plugins run (TIDAL's does): the first host
     // tree is in the document when their code starts.
     let until = Instant::now() + wait_for_dom;
     while Instant::now() < until {
         match rx.recv_timeout(until.saturating_duration_since(Instant::now())) {
-            Ok(Msg::DomSync(tree)) => {
-                engine.inner.borrow_mut().pending_tree = Some(tree);
+            Ok(Msg::DomSync) => {
                 engine.apply_dom_sync();
                 break;
             }
@@ -5423,7 +5513,7 @@ impl LoopStats {
             Msg::Event(LunaEvent::Position(_)) => "event:position",
             Msg::Event(LunaEvent::Action { .. }) => "event:action",
             Msg::Event(_) => "event:other",
-            Msg::DomSync(_) => "dom-sync",
+            Msg::DomSync => "dom-sync",
             Msg::DomEvent(_) => "dom-event",
             Msg::Hidden(_) => "visibility",
             Msg::Net(_) => "net",
@@ -5467,6 +5557,7 @@ pub(crate) fn spawn(
     rx: Receiver<Msg>,
     shared: Arc<Mutex<LunaSnapshot>>,
     overlay: OverlayCell,
+    trees: TreeCell,
 ) -> anyhow::Result<std::thread::JoinHandle<()>> {
     std::fs::create_dir_all(&cfg.data_dir)?;
     let shared2 = shared.clone();
@@ -5476,7 +5567,7 @@ pub(crate) fn spawn(
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
             let r = std::panic::catch_unwind(AssertUnwindSafe(|| {
-                run(cfg, host, tx, rx, shared, overlay)
+                run(cfg, host, tx, rx, shared, overlay, trees)
             }));
             let err = match r {
                 Ok(Ok(())) => None,

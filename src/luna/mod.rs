@@ -1052,7 +1052,8 @@ pub(crate) enum Msg {
         reply: Sender<bool>,
     },
     /// The UI's anchor tree changed (DOM bridge).
-    DomSync(dom::HostTree),
+    /// A new host tree is in [`runtime::TreeCell`].
+    DomSync,
     /// User input on a host widget or a plugin element.
     DomEvent(dom::DomEvent),
     /// The window was hidden (minimized, closed to the tray) or shown again.
@@ -1076,6 +1077,8 @@ pub struct Luna {
     shared: Arc<Mutex<LunaSnapshot>>,
     /// What plugins did to the virtual DOM, for the UI (see [dom]).
     overlay: Arc<Mutex<Arc<dom::DomOverlay>>>,
+    /// The newest host tree, for the runtime (see [`Luna::sync_dom`]).
+    trees: runtime::TreeCell,
     thread: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
 }
 
@@ -1086,6 +1089,7 @@ impl Luna {
         let (tx, rx) = std::sync::mpsc::channel();
         let shared = Arc::new(Mutex::new(LunaSnapshot::default()));
         let overlay = Arc::new(Mutex::new(Arc::new(dom::DomOverlay::default())));
+        let trees = runtime::TreeCell::default();
         let thread = runtime::spawn(
             config,
             host,
@@ -1093,11 +1097,13 @@ impl Luna {
             rx,
             shared.clone(),
             overlay.clone(),
+            trees.clone(),
         )?;
         Ok(Luna {
             tx,
             shared,
             overlay,
+            trees,
             thread: Arc::new(Mutex::new(Some(thread))),
         })
     }
@@ -1110,8 +1116,15 @@ impl Luna {
 
     /// Mirror the UI's anchor tree into the plugins' document. Send it
     /// only when it changed (the caller compares with the last tree sent).
+    /// Trees coalesce: the runtime reconciles the newest one, and a plugin
+    /// measuring after its change can wait for it (`dom.wait_layout`).
     pub fn sync_dom(&self, tree: dom::HostTree) {
-        let _ = self.tx.send(Msg::DomSync(tree));
+        let (slot, arrived) = &*self.trees;
+        if let Ok(mut slot) = slot.lock() {
+            *slot = Some(tree);
+            arrived.notify_all();
+        }
+        let _ = self.tx.send(Msg::DomSync);
     }
 
     /// Forward user input to the plugins' DOM listeners.

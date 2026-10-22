@@ -383,7 +383,18 @@
 			}
 		: null;
 	lunaInternal.stat = stat;
-	g.__luna_tick = () => {
+	// The time to the next timer (-1: none).
+	const nextDue = () => {
+		let next = -1;
+		for (const t of timers.values()) {
+			const d = Math.max(0, dueOf(t) - Date.now());
+			if (next < 0 || d < next) next = d;
+		}
+		return next;
+	};
+	// `peek`: only the time to the next timer, nothing run.
+	g.__luna_tick = (mode) => {
+		if (mode === "peek") return nextDue();
 		const now = Date.now();
 		const due = [];
 		for (const [id, t] of timers) if (dueOf(t) <= now) due.push([id, t]);
@@ -418,12 +429,7 @@
 			stats.clear();
 			statsSince = now;
 		}
-		let next = -1;
-		for (const t of timers.values()) {
-			const d = Math.max(0, dueOf(t) - Date.now());
-			if (next < 0 || d < next) next = d;
-		}
-		return next;
+		return nextDue();
 	};
 	lunaInternal.reportError = (err) => {
 		const stack = err?.stack ?? "";

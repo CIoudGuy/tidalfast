@@ -74,7 +74,15 @@
 	const markStyleDirty = (el) => {
 		restyled.add(el);
 		styleGen++;
+		noteLayout(el);
 		contentDirty();
+	};
+	// A style, class or matched attribute of an app element (or of the
+	// page round them) changed: the boxes may move, and a box read before
+	// the overlay goes out publishes it at once (see forced layout).
+	let layoutDirty = false;
+	const noteLayout = (el) => {
+		if (el && (el._hostKey !== undefined || el.localName === "html" || el.localName === "body" || el.id === "wimp")) layoutDirty = true;
 	};
 	// ---------------------------------------------------------------- style passes
 	// A browser works out the style of an element it was given at its next
@@ -132,8 +140,11 @@
 	const attrChanged = (k, el) => {
 		const name = String(k).toLowerCase();
 		if (!MATCH_ATTRS.has(name) && !L.css?.attrMatters(name)) markContentDirty();
-		else if (el && !SHEET_TAGS.has(el.localName) && L.css?.structural?.() === false) markMatchDirty(el);
-		else {
+		else if (el && !SHEET_TAGS.has(el.localName) && L.css?.structural?.() === false) {
+			noteLayout(el);
+			markMatchDirty(el);
+		} else {
+			noteLayout(el);
 			if (L.stat) L.stat(`restyle for [${name}] on ${el?.localName}`, Date.now());
 			markDirty();
 		}
@@ -1354,6 +1365,7 @@
 		// ------------------------------------------------ geometry
 		getBoundingClientRect() {
 			touch();
+			forceLayout();
 			const r = rectOf(this);
 			if (!r || this._pluginRemoved || !this.isConnected) return rectObj(null);
 			if (this._rect) return rectObj(r);
@@ -2926,7 +2938,52 @@
 	g.ResizeObserver = ResizeObserver;
 	g.IntersectionObserver = IntersectionObserver;
 	const checkGeometry = () => {
-		for (const o of [...sizeObservers]) o._check();
+		const busy = layoutBusy;
+		layoutBusy = true;
+		try {
+			for (const o of [...sizeObservers]) o._check();
+		} finally {
+			layoutBusy = busy;
+		}
+	};
+
+	// ---------------------------------------------------------------- forced layout
+	// A browser lays the page out when a script reads a box after changing
+	// a style. Here the UI lays it out: once an overlay that can move boxes
+	// went out (`dom.overlay` says so), the first read of a box waits a
+	// moment for the UI's tree laid out from it, so a plugin that measures
+	// after its change (radiant-lyrics hangs its menu under its widened
+	// Lyrics tab 200 ms after the click) reads the new box. One wait per
+	// change, none while the window is hidden, and none at all while
+	// nothing changed.
+	let boxesPending = false;
+	let layoutBusy = false;
+	const LAYOUT_WAIT_MS = 64;
+	const forceLayout = () => {
+		if (layoutBusy || reconciling || L.hidden) return;
+		// The change is not out yet (the overlay goes at most every 33 ms):
+		// out with it now, as a browser works out styles on such a read.
+		if (layoutDirty && dirty && !inFrame) {
+			layoutBusy = true;
+			try {
+				D.flush();
+			} finally {
+				layoutBusy = false;
+			}
+		}
+		if (!boxesPending) return;
+		boxesPending = false;
+		let tree = null;
+		const t0 = L.stat ? Date.now() : 0;
+		try {
+			tree = L.callOp("dom.wait_layout", { ms: LAYOUT_WAIT_MS });
+		} catch (err) {
+			L.reportError(err);
+		}
+		if (L.stat) L.stat(tree ? "layout wait" : "layout wait, no tree", t0);
+		// Observers and `resize` hear of it as of a frame, not inside the
+		// read.
+		if (tree) sync(tree, true);
 	};
 
 	// ---------------------------------------------------------------- unload hygiene
@@ -2976,7 +3033,7 @@
 	// whether the app has drawn since they began.
 	let syncs = 0;
 	D.syncCount = () => syncs;
-	const sync = (tree) => {
+	const sync = (tree, forced) => {
 		syncs++;
 		reconciling = true;
 		let resized = false;
@@ -3110,12 +3167,16 @@
 		} finally {
 			reconciling = false;
 		}
-		if (resized) dispatch(winTarget, new g.Event("resize"));
-		checkGeometry();
-		// Structure, class and attribute changes marked the overlay while
-		// they were applied; a new viewport or colour scheme can change
-		// what @media rules match.
-		if (resized) markDirty();
+		const after = () => {
+			if (resized) dispatch(winTarget, new g.Event("resize"));
+			checkGeometry();
+			// Structure, class and attribute changes marked the overlay while
+			// they were applied; a new viewport or colour scheme can change
+			// what @media rules match.
+			if (resized) markDirty();
+		};
+		if (forced) Promise.resolve().then(after);
+		else after();
 		// TIDAL announces each rendered page; DOM plugins hook their elements then.
 		if (pageChanged) {
 			pageChanged = false;
@@ -3474,6 +3535,7 @@
 		flushQueued = false;
 		if (!dirty) return;
 		dirty = false;
+		layoutDirty = false;
 		lastFlush = Date.now();
 		checkGeometry();
 		let ov;
@@ -3490,7 +3552,7 @@
 		lastJson = json;
 		const t1 = L.stat ? Date.now() : 0;
 		try {
-			L.callOp("dom.overlay", ov);
+			if (L.callOp("dom.overlay", ov) === true) boxesPending = true;
 		} catch (err) {
 			L.reportError(err);
 		}

@@ -77,6 +77,15 @@ pub struct HostTree {
     /// The desktop asks for less motion (`prefers-reduced-motion: reduce`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub reduced_motion: bool,
+    /// The newest overlay version that could move boxes
+    /// ([`DomOverlay::may_move_boxes`]) and that these boxes were laid out
+    /// with: a plugin measuring after its change waits for it.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub laid_out: u64,
+}
+
+fn is_zero(n: &u64) -> bool {
+    *n == 0
 }
 
 /// Resolved CSS for one element: plain CSS values as strings, only the
@@ -397,7 +406,104 @@ pub struct DomOverlay {
     pub hover: bool,
 }
 
+impl Style {
+    /// Whether the two styles lay a box out the same: only colours, opacity,
+    /// shadows, transforms, filters and the like differ (a theme's hover
+    /// colour, radiant-lyrics' player bar tint), which move no box.
+    pub fn same_layout(&self, other: &Style) -> bool {
+        macro_rules! same {
+            ($($field:ident),* $(,)?) => { true $(&& self.$field == other.$field)* };
+        }
+        same!(
+            display,
+            font_family,
+            font_size,
+            font_weight,
+            font_style,
+            padding,
+            margin,
+            margin_top,
+            margin_bottom,
+            margin_left,
+            margin_right,
+            column_gap,
+            padding_top,
+            padding_left,
+            padding_right,
+            padding_bottom,
+            border,
+            border_width,
+            width,
+            height,
+            min_width,
+            max_width,
+            min_height,
+            max_height,
+            gap,
+            flex_direction,
+            align_items,
+            justify_content,
+            position,
+            top,
+            right,
+            bottom,
+            left,
+            line_height,
+            overflow,
+            overflow_y,
+            list_style_type,
+            letter_spacing,
+            text_transform,
+            white_space,
+            flex,
+            flex_wrap,
+            order,
+            grid_template_columns,
+        )
+    }
+}
+
 impl DomOverlay {
+    /// Whether `new` can lay the app's elements out differently from this
+    /// overlay: an anchor's layout ([`Style::same_layout`]) or text changed,
+    /// or plugin elements came
+    /// or went. Restyling a plugin element (oneko's sprite, a spinning
+    /// cover) or changing its words (total-play-time's count, each second)
+    /// moves no anchor. A plugin that changed a box may be about to measure
+    /// it, so such an overlay is drawn, and its boxes sent back, without
+    /// waiting.
+    pub fn may_move_boxes(&self, new: &DomOverlay) -> bool {
+        // Elements only: a text node replaced (`textContent = ...` each
+        // second) is a change of words.
+        fn same_shape(a: &[VNode], b: &[VNode]) -> bool {
+            let mut a = a.iter().filter(|n| n.tag != "#text");
+            let mut b = b.iter().filter(|n| n.tag != "#text");
+            loop {
+                match (a.next(), b.next()) {
+                    (None, None) => return true,
+                    (Some(x), Some(y))
+                        if x.id == y.id
+                            && x.tag == y.tag
+                            && same_shape(&x.children, &y.children) => {}
+                    _ => return false,
+                }
+            }
+        }
+        let hosts = self.hosts.len() != new.hosts.len()
+            || self.hosts.iter().zip(&new.hosts).any(|((ka, a), (kb, b))| {
+                ka != kb
+                    || !a.style.same_layout(&b.style)
+                    || a.text != b.text
+                    || a.before != b.before
+                    || a.after != b.after
+            });
+        hosts
+            || self.injected.len() != new.injected.len()
+            || self.injected.iter().zip(&new.injected).any(|(a, b)| {
+                a.anchor != b.anchor || a.position != b.position || !same_shape(&a.nodes, &b.nodes)
+            })
+    }
+
     pub fn host(&self, key: &str) -> Option<&HostOverride> {
         self.hosts.get(key)
     }

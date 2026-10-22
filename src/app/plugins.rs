@@ -436,7 +436,9 @@ impl App {
             self.plugins
                 .host
                 .set_next_pass(self.next_pass().map(|due| std::time::Instant::now() + due));
-            self.luna_visibility(self.luna_hidden(ctx, window));
+            let hidden = self.luna_hidden(ctx, window);
+            self.plugins.host.set_hidden(hidden);
+            self.luna_visibility(hidden);
             if self.plugins.seen.focused != Some(window.focused) {
                 self.plugins.seen.focused = Some(window.focused);
                 if let Some(luna) = &self.plugins.luna {
