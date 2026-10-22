@@ -639,10 +639,19 @@ pub fn page_reserve(open: bool, page: egui::Rect, panel_left: f32) -> f32 {
 
 /// The room the page gives the play queue this frame (see [`page_reserve`]).
 pub fn reserve_for(app: &App, ctx: &egui::Context, page: egui::Rect) -> f32 {
-    if !app.show_queue_panel {
+    reserve_in(ctx, app.show_queue_panel, page)
+}
+
+/// [`reserve_for`] with the panel `open` or not. A theme that keeps `#main`
+/// as wide as the window (Lunallena's `left: calc(var(--sidebarWidth) * -1);
+/// min-width: 100vw`) lays the page under the floating panel as well: TIDAL
+/// centres its album 333 in from a 2137 window with the queue open, the
+/// middle of the whole window, not of what the panel leaves.
+pub fn reserve_in(ctx: &egui::Context, open: bool, page: egui::Rect) -> f32 {
+    if super::plugin_dom::theme_layout(ctx).is_some_and(|l| l.main_reach > 0.0) {
         return 0.0;
     }
-    page_reserve(true, page, floating_rect(ctx, ctx.content_rect()).left())
+    page_reserve(open, page, floating_rect(ctx, ctx.content_rect()).left())
 }
 
 /// TIDAL's play queue, floating over the page: the title with save and

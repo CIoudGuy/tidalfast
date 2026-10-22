@@ -1547,6 +1547,49 @@ fn tidals_window_variable_paints_the_window() {
     assert_eq!(themed(&base, &o), base);
 }
 
+/// Lunallena's visible sidebar build pulls `#main` under the sidebar card
+/// and keeps it as wide as the window (`left: calc(var(--sidebarWidth) *
+/// -1); padding-left: 50px; min-width: 100vw`): TIDAL centres the album
+/// across the whole window, under the open play queue too (its rows at
+/// 361, beside the card). Tidalfast still kept the queue's room beside the
+/// page, so the album's column was centred in what the panel leaves and
+/// started under the card ("Playlists" read "lists").
+#[test]
+fn a_page_as_wide_as_the_window_runs_under_the_queue() {
+    use crate::ui::plugin_dom as pd;
+    use crate::ui::queue::reserve_in;
+    let css = r#"/* {"name": "Wide page"} */
+:root { --rail: 240px; }
+#main { left: calc(var(--rail) * -1); padding-left: 50px; min-width: 100vw; }
+"#;
+    let (luna, o) = overlay_with(
+        "wide-page.css",
+        css,
+        dom_anchors::sample_tree(),
+        dom_anchors::keys::MAIN,
+    );
+    luna.shutdown();
+    let window = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(2137.0, 1183.0));
+    let reserve = || {
+        let ctx = egui::Context::default();
+        let mut out = None;
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(window),
+                ..Default::default()
+            },
+            |ui| out = Some(reserve_in(ui.ctx(), true, window)),
+        );
+        output.textures_delta.clear();
+        out.expect("the frame ran")
+    };
+    assert!(reserve() > 300.0, "without a theme the panel keeps its room");
+    pd::test_overlay(Some((*o).clone()));
+    let themed = reserve();
+    pd::test_overlay(None);
+    assert_eq!(themed, 0.0);
+}
+
 /// A theme's `[data-wave-color=textSecondary] { color }` reaches in TIDAL
 /// only the few words that carry the attribute: under TIDAL's own window
 /// (Lunallena's accent green, Synthwave '77's magenta) its card subtitles,
