@@ -7,6 +7,36 @@
 > by default (`plugins.luna_enabled`). Old settings keys for the ports are
 > ignored on load.
 
+## No per-plugin code
+
+Owner's rule, in the owner's words: "don't fix individual plugins fix their
+translation layer so if the owner updates they update properly applies to
+all themes too".
+
+- Every plugin and theme runs through the generic translation layer:
+  TIDAL's DOM, classes and anchors (`dom_anchors`), the `luna.lib`, redux
+  and native APIs, and Chromium's CSS and events. Code in `src/luna/`
+  (Rust and `js/`), the DOM bridge (`plugin_dom`, `plugin_slots`) and the
+  theme mapping never checks a plugin's or theme's name, file name,
+  package, hash or URL, or a class, id or variable only that plugin or
+  theme defines. Such code breaks when the author updates, and other
+  plugins using the same API get nothing from it.
+- A plugin that misbehaves shows a gap in the layer: implement the API
+  pattern, selector or CSS feature it relies on, for everyone, and test it
+  with a synthetic plugin or theme that is not the original.
+- When the layer cannot reach the result, the plugin keeps an honest
+  "Not supported" or "Partly supported" label (`COMPAT`) instead of a hack.
+- Not hacks, and kept: the store labels and compat rows, permission
+  declarations and refusal lists by name (they describe, they do not
+  patch), the store catalogue, test fixtures, sweep lists and docs. Code
+  comments may name a plugin as an example of what a generic rule serves.
+- Applied 2026-10-22: NoBuffer's native module was answered by its file
+  name; `fetchMediaItemStream` now recognises any consumer that only drops
+  the bytes (see "Permissions a plugin asks for" in `luna-compat.md`). The
+  audiovisualiser's ffmpeg analyser was answered by its file name from the
+  output tap; that could not be made generic (it forks a Node worker that
+  runs ffmpeg), so it went and the plugin is labelled "Not supported".
+
 ## Security
 
 Plugins and themes are other people's code. What the runtime guarantees, in
