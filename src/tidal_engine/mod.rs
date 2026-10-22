@@ -265,6 +265,7 @@ impl Engine {
                     sounded: false,
                     factor: 1.0,
                     prefer_album: false,
+                    shuffle_since_load: None,
                     load_id: 0,
                     live_load: Arc::default(),
                     autoplay_id: None,
@@ -485,6 +486,10 @@ struct Core {
     sounded: bool,
     factor: f64,
     prefer_album: bool,
+    /// Shuffle as the listener set it after the latest load was asked for:
+    /// a context still being read starts in this mode, not the one the
+    /// load was asked with.
+    shuffle_since_load: Option<bool>,
     load_id: u64,
     /// `load_id` as workers read it, so a context still being read page by
     /// page stops once another load replaces it.
@@ -818,6 +823,7 @@ impl Core {
                 self.update(|state| set(&mut state.volume, volume));
             }
             PlayerCommand::Shuffle(shuffle) => {
+                self.shuffle_since_load = Some(shuffle);
                 lock(&self.queue).set_shuffle(shuffle);
                 self.prefer_album &= !shuffle;
                 self.check_preload();
@@ -846,6 +852,7 @@ impl Core {
 
     fn load(&mut self, spec: LoadSpec) {
         self.bump_load();
+        self.shuffle_since_load = None;
         let id = self.load_id;
         self.autoplay_id = None;
         self.autoplay_waiting = false;
@@ -929,7 +936,13 @@ impl Core {
         } else {
             Start::Beginning
         };
-        let shuffle = spec.shuffle.unwrap_or(false);
+        // Shuffle switched while the context was read (a song far down a
+        // long playlist waits for every page before it) is the mode it
+        // starts in: the load's own mode is older than the listener's.
+        let shuffle = self
+            .shuffle_since_load
+            .take()
+            .unwrap_or_else(|| spec.shuffle.unwrap_or(false));
         let context_uri = spec.context_uri.clone();
         let named = spec.offset_uri.is_some() || spec.offset_index.is_some();
         let first = {
