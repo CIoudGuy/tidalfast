@@ -312,6 +312,14 @@ pub mod keys {
         format!("page-link-text:{index}")
     }
     pub const PAGE_LINKS: &str = "page-links";
+    /// A row of Explore's pills (`cloud-row:<index>`) and one of its pills
+    /// (`cloud-btn:<index>`, numbered across the rows).
+    pub fn cloud_row(index: usize) -> String {
+        format!("cloud-row:{index}")
+    }
+    pub fn cloud_btn(index: usize) -> String {
+        format!("cloud-btn:{index}")
+    }
     pub fn thumb(index: usize) -> String {
         format!("thumb:{index}")
     }
@@ -665,6 +673,10 @@ pub struct Page {
     pub artist_header: Option<Rect>,
     /// Explore's icon links (`PAGE_LINKS`): each link's box and its words'.
     pub page_links: Vec<(Option<Rect>, Option<Rect>)>,
+    /// Explore's rows of pills (genres, moods, decades): each row's box.
+    pub cloud_rows: Vec<Option<Rect>>,
+    /// The pills of those rows: the row each sits in and its box.
+    pub cloud_pills: Vec<(usize, Option<Rect>)>,
 }
 
 /// A shortcut tile of the home page: `a._disableUnderline_8e517ad._link_ >
@@ -1621,6 +1633,28 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 el(keys::page_link_text(i), Some(&keys::page_link(i)), "span")
                     .class("_text_d2b2b39")
                     .at(*text),
+            );
+        }
+    }
+    // Explore's pills: `div[data-test=page-links-cloud-row] >
+    // a._button_3357ce6[data-test=page-links-cloud-btn]` (TidalCustomTheme
+    // and Abyss Neptune name the row and the pill; the cotton candy Nights
+    // family's `._button_3357ce6 { background-color: rgb(var(--card)) }` is
+    // the fill TIDAL shows on them).
+    for (i, row) in page.cloud_rows.iter().enumerate() {
+        out.push(
+            el(keys::cloud_row(i), Some(PAGE), "div")
+                .test("page-links-cloud-row")
+                .at(*row),
+        );
+    }
+    for (i, (row, pill)) in page.cloud_pills.iter().enumerate() {
+        if *row < page.cloud_rows.len() {
+            out.push(
+                el(keys::cloud_btn(i), Some(&keys::cloud_row(*row)), "a")
+                    .class("_button_3357ce6")
+                    .test("page-links-cloud-btn")
+                    .at(*pill),
             );
         }
     }
