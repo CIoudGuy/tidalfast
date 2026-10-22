@@ -407,7 +407,9 @@ pub fn track_rows(ui: &mut Ui, palette: &Palette, rows: usize, height: f32, colu
 /// Shuffle pills and the captioned buttons, at the real header's spacing.
 pub fn page_header(ui: &mut Ui, palette: &Palette, round: bool) {
     ui.add_space(super::collection::HERO_TOP);
-    let size = if ui.available_width() > 720.0 {
+    // The real header keeps its 240 cover in a narrow page (an artist's
+    // portrait still shrinks there).
+    let size = if ui.available_width() > 720.0 || !round {
         240.0
     } else {
         160.0

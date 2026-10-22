@@ -13,7 +13,7 @@ use crate::util;
 use egui::{Rect, Sense, pos2, vec2};
 
 use super::collection::{
-    Actions, HERO_TOP, Table, actions_row, allocate_header, captioned_button,
+    Actions, HERO_TOP, HeaderButtons, Table, actions_row, allocate_header, captioned_button,
     captioned_button_tinted, clear_button_style, header_fit, header_pill_width, icon_only,
     remember_table_items, set_button_style, table, table_items_hit,
 };
@@ -819,10 +819,17 @@ fn artist_actions(app: &mut App, ui: &mut egui::Ui, artist: &Artist, bio_height:
     let following = app.is_saved(&artist.uri).unwrap_or(false);
     // TIDAL: the controls 92 under the fan count (a bio sits between).
     ui.add_space((ARTIST_CONTROLS_GAP - bio_height).max(16.0));
-    // Follow, Artist radio, Share and More.
-    let fit = header_fit(ui.available_width(), true, 4, true);
-    let shown = if fit.share { 4 } else { 3 };
-    let (pill_rect, btn_rect) = allocate_header(ui, &fit, shown);
+    // Follow, Artist radio, Share and More; narrow, Follow (and More).
+    let set = HeaderButtons {
+        all: 4,
+        more: true,
+        share: true,
+        credits: false,
+        first: true,
+    };
+    let fit = header_fit(ui.available_width(), true, set, false);
+    let pill_rect = allocate_header(ui, &fit);
+    let btn_rect = pill_rect;
     let mut child = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(pill_rect)
@@ -869,10 +876,12 @@ fn artist_actions(app: &mut App, ui: &mut egui::Ui, artist: &Artist, bio_height:
     {
         let ui = &mut right;
         ui.spacing_mut().item_spacing.x = fit.btn_gap;
-        let more = captioned_button(ui, &palette, Icon::Ellipsis, &gettext(locale, "More"));
-        egui::Popup::menu(&more)
-            .frame(widgets::menu_frame(&palette))
-            .show(|ui| widgets::artist_menu(ui, app, artist));
+        if fit.keeps_more() {
+            let more = captioned_button(ui, &palette, Icon::Ellipsis, &gettext(locale, "More"));
+            egui::Popup::menu(&more)
+                .frame(widgets::menu_frame(&palette))
+                .show(|ui| widgets::artist_menu(ui, app, artist));
+        }
         if fit.share {
             let share = captioned_button(ui, &palette, Icon::Share, &gettext(locale, "Share"));
             let opts = super::menus::ShareOpts::for_uri(&artist.uri, false);
@@ -880,7 +889,10 @@ fn artist_actions(app: &mut App, ui: &mut egui::Ui, artist: &Artist, bio_height:
                 .frame(widgets::menu_frame(&palette))
                 .show(|ui| super::menus::share_items(ui, app, &artist.uri, &opts));
         }
-        if captioned_button(ui, &palette, Icon::Radio, &gettext(locale, "Artist radio")).clicked() {
+        if fit.keeps_all()
+            && captioned_button(ui, &palette, Icon::Radio, &gettext(locale, "Artist radio"))
+                .clicked()
+        {
             app.actions
                 .push(Action::Open(Page::Radio(artist.uri.clone())));
         }
@@ -1639,7 +1651,7 @@ pub fn sticky_header(app: &mut App, ui: &mut egui::Ui, area: Rect, id: &str, scr
         let ui = &mut right;
         ui.spacing_mut().item_spacing.x = 0.0;
         super::collection::set_button_width(ui, fit.button_width, fit.labels);
-        own_buttons(app, ui, &artist, fit.share);
+        own_buttons(app, ui, &artist, fit.share, true);
         if !content.tracks.is_empty() {
             let shuffle = super::collection::captioned_button(
                 ui,
@@ -1983,9 +1995,17 @@ fn own_actions(
     let locale = app.locale;
     ui.add_space((ARTIST_CONTROLS_GAP - bio_height).max(16.0));
     let playable = !content.tracks.is_empty();
-    let fit = header_fit(ui.available_width(), playable, 3, true);
-    let shown = if fit.share { 3 } else { 2 };
-    let (pill_rect, btn_rect) = allocate_header(ui, &fit, shown);
+    // Edit, Share and More; narrow, Edit (and More).
+    let set = HeaderButtons {
+        all: 3,
+        more: true,
+        share: true,
+        credits: false,
+        first: true,
+    };
+    let fit = header_fit(ui.available_width(), playable, set, false);
+    let pill_rect = allocate_header(ui, &fit);
+    let btn_rect = pill_rect;
     if playable {
         let mut child = ui.new_child(
             egui::UiBuilder::new()
@@ -2021,7 +2041,7 @@ fn own_actions(
     {
         let ui = &mut right;
         ui.spacing_mut().item_spacing.x = fit.btn_gap;
-        own_buttons(app, ui, artist, fit.share);
+        own_buttons(app, ui, artist, fit.share, fit.keeps_more());
     }
     clear_button_style(&right);
     ui.add_space(40.0);
@@ -2056,13 +2076,15 @@ fn own_play(app: &mut App, artist: &Artist, content: &OwnProfile, play: bool, sh
 /// More, Share and Edit, drawn right to left. TIDAL's Report is left out:
 /// on the own profile it reports inaccurate releases, through calls not
 /// known here.
-fn own_buttons(app: &mut App, ui: &mut egui::Ui, artist: &Artist, share: bool) {
+fn own_buttons(app: &mut App, ui: &mut egui::Ui, artist: &Artist, share: bool, more: bool) {
     let palette = app.palette;
     let locale = app.locale;
-    let more = captioned_button(ui, &palette, Icon::Ellipsis, &gettext(locale, "More"));
-    egui::Popup::menu(&more)
-        .frame(widgets::menu_frame(&palette))
-        .show(|ui| widgets::artist_menu(ui, app, artist));
+    if more {
+        let more = captioned_button(ui, &palette, Icon::Ellipsis, &gettext(locale, "More"));
+        egui::Popup::menu(&more)
+            .frame(widgets::menu_frame(&palette))
+            .show(|ui| widgets::artist_menu(ui, app, artist));
+    }
     if share {
         let share = captioned_button(ui, &palette, Icon::Share, &gettext(locale, "Share"));
         let opts = super::menus::ShareOpts::for_uri(&artist.uri, false);

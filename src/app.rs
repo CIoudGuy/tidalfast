@@ -14159,7 +14159,9 @@ mod tests {
 
     /// Middle-clicks a real playlist row, moves over the queue, and checks
     /// that the list scrolls exactly where autoscroll is on, and that the
-    /// click never plays the row.
+    /// click never plays the row. The window is 1000 high: beside the open
+    /// queue the playlist's header stacks as in TIDAL and its rows start
+    /// lower.
     fn middle_click_a_playlist_row(chosen: bool) {
         use egui::accesskit::Role;
         let on = crate::autoscroll::enabled(chosen);
@@ -14173,7 +14175,7 @@ mod tests {
                 egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
                         egui::Pos2::ZERO,
-                        egui::vec2(1280.0, 800.0),
+                        egui::vec2(1280.0, 1000.0),
                     )),
                     time: Some(time as f64 / 60.0),
                     events,
@@ -14212,7 +14214,7 @@ mod tests {
                             && rect.x0 < 700.0
                             && rect.width() > 400.0
                             && rect.y0 > 60.0
-                            && rect.y1 < 700.0
+                            && rect.y1 < 900.0
                     })
             })
             .expect("a visible playlist row");
