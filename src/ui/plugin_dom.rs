@@ -4742,7 +4742,17 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         "--wave-color-solid-contrast-darker",
         "--wave-color-opacity-contrast-fill-ultra-thick",
     ])
-    .or_else(|| host_color(dom_anchors::keys::THEME_SECONDARY))
+    // A theme's `[data-wave-color=textSecondary]` colour reaches in TIDAL
+    // only the few words that carry the attribute: under TIDAL's own window
+    // its card subtitles, tabs, bar words and placeholders keep their grey
+    // (Lunallena's accent, Synthwave '77's magenta). It stands for the grey
+    // words only where the theme paints the window, whose rules recolour
+    // them too.
+    .or_else(|| {
+        tokens
+            .then(|| host_color(dom_anchors::keys::THEME_SECONDARY))
+            .flatten()
+    })
     {
         p.secondary = opaque_over(c, p.window);
     }
