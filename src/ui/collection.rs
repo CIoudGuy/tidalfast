@@ -157,29 +157,33 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
     let left = rect.right() + 32.0;
     let width = (row.right() - left).max(0.0);
     let title_text = super::plugin_dom::page_title_text(hero.title).into_owned();
+    // TIDAL's header title is an `h2`, not the page's `h1`.
+    let kind = super::plugin_dom::Title::Header;
     let title_color = hero
         .title_color
-        .unwrap_or(super::plugin_dom::headline_color(palette.text));
+        .unwrap_or(super::plugin_dom::title_color(kind, palette.text));
     let title = if narrow {
         let lines = word_lines(
             ui,
             &title_text,
-            &super::plugin_dom::headline_font(32.0),
+            &super::plugin_dom::title_font(kind, 32.0),
             width,
         );
-        super::plugin_dom::headline_galley(
+        super::plugin_dom::title_galley(
             ui,
+            kind,
             lines.join("\n"),
-            super::plugin_dom::headline_font(32.0),
+            super::plugin_dom::title_font(kind, 32.0),
             title_color,
         )
     } else {
         let mut title_size: f32 = 32.0;
         loop {
-            let galley = super::plugin_dom::headline_galley(
+            let galley = super::plugin_dom::title_galley(
                 ui,
+                kind,
                 title_text.clone(),
-                super::plugin_dom::headline_font(title_size),
+                super::plugin_dom::title_font(kind, title_size),
                 title_color,
             );
             if galley.size().x <= width || title_size <= 18.0 {
@@ -532,14 +536,15 @@ fn stacked_hero(
 ) {
     let palette = app.palette;
     let width = ui.available_width();
-    let font = super::plugin_dom::headline_font(32.0);
+    let kind = super::plugin_dom::Title::Header;
+    let font = super::plugin_dom::title_font(kind, 32.0);
     let title_color = hero
         .title_color
-        .unwrap_or(super::plugin_dom::headline_color(palette.text));
+        .unwrap_or(super::plugin_dom::title_color(kind, palette.text));
     let title_text = super::plugin_dom::page_title_text(hero.title).into_owned();
     let titles: Vec<_> = word_lines(ui, &title_text, &font, width)
         .into_iter()
-        .map(|line| super::plugin_dom::headline_galley(ui, line, font.clone(), title_color))
+        .map(|line| super::plugin_dom::title_galley(ui, kind, line, font.clone(), title_color))
         .collect();
     let title_row = titles.first().map_or(0.0, |galley| galley.size().y);
     let description = hero
