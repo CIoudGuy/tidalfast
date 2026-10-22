@@ -4942,6 +4942,10 @@ pub fn surface(key: &str, native: Color32) -> Color32 {
             // boxes in it paint: CoverTheme clears the sidebar's wrapper and
             // tints `aside#sidebar` in it 30 % grey over its gradients.
             Some(c) if c.a() == 0 => stacked_fill(key).or(Some(c)),
+            // A box the theme leaves alone shows the boxes in it that it
+            // fills: TidalCustomTheme paints `#sidebar` (the `aside` in
+            // the wrapper) its sidebar pink, not the wrapper.
+            None => stacked_fill(key),
             other => other,
         }
     };

@@ -861,6 +861,30 @@ fn a_theme_that_clears_the_bars_after_keeps_its_fill() {
     assert_eq!(c, fill);
 }
 
+/// TidalCustomTheme fills `#sidebar` (the `aside` inside TIDAL's sidebar
+/// wrapper) with its sidebar pink, `#f89cbf`, and leaves the wrapper
+/// alone: TIDAL's sidebar is that pink. Tidalfast took only the wrapper's
+/// fill and drew the sidebar in the page's paler pink.
+#[test]
+fn a_fill_on_the_sidebars_aside_colours_the_sidebar() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{SIDEBAR, SIDEBAR_NAV};
+    let css = r#"/* {"name": "Aside fill"} */
+#sidebar { background-color: color-mix(in srgb, #f89cbf, transparent 0%) !important; background-image: none; }
+"#;
+    let (luna, o) = overlay_with(
+        "aside-fill.css",
+        css,
+        dom_anchors::sample_tree(),
+        SIDEBAR_NAV,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let fill = pd::surface(SIDEBAR, egui::Color32::BLACK);
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(fill, egui::Color32::from_rgb(0xf8, 0x9c, 0xbf));
+}
+
 /// TIDAL's play queue panel is `#playQueueSidebar`: TidalCustomTheme's
 /// `#sidebar, #playQueueSidebar, ... { background-color:
 /// var(--kl-sidebar-color) !important }` makes it `#f89cbf` in TIDAL
