@@ -6497,6 +6497,165 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// A plugin that hides song rows (`display: none` on a
+    /// `tracklist-row`, as a filter plugin could) leaves each hidden row's
+    /// place empty: the rows below it stay where they were drawn, and a
+    /// double-click on one plays that row's own song, never the song of
+    /// the row that was there before or of a row that moved into its
+    /// place. A double-click on the hidden row's empty place plays nothing.
+    #[test]
+    fn a_double_click_beside_rows_a_plugin_hid_plays_the_row_under_the_pointer() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::ui::widgets::{TrackRow, track_row};
+        use egui::accesskit::Role;
+        let (ctx, mut app) = accessible_app("hidden-rows");
+        let items: Vec<PlayableItem> = (0..8)
+            .map(|n| {
+                PlayableItem::Track(Track {
+                    id: Some(n.to_string()),
+                    uri: format!("tidal:track:{n}"),
+                    name: format!("Song {n}"),
+                    ..Default::default()
+                })
+            })
+            .collect();
+        let context = crate::model::RowContext::Context {
+            uri: "tidal:playlist:e2".into(),
+            editable_playlist: None,
+        };
+        let list = crate::ui::plugin_dom::list_id(&context);
+        // Each double-click a second after the last, as separate ones are.
+        let mut time = 0.0;
+        let mut render = |app: &mut App, events: Vec<egui::Event>| {
+            app.actions.clear();
+            time += if events.is_empty() { 0.05 } else { 1.0 };
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(900.0, 800.0),
+                    )),
+                    time: Some(time),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    for (index, item) in items.iter().enumerate() {
+                        track_row(
+                            ui,
+                            app,
+                            TrackRow {
+                                index,
+                                number: Some(index + 1),
+                                item,
+                                context: &context,
+                                show_cover: false,
+                                numbered: true,
+                                show_album: false,
+                                added_at: None,
+                                show_added: false,
+                                added_by: None,
+                                show_added_by: false,
+                                compact: false,
+                                shift: 0.0,
+                                picked: false,
+                                picked_songs: &[],
+                            },
+                        );
+                    }
+                },
+            );
+            output.textures_delta.clear();
+            (
+                output.platform_output.accesskit_update.unwrap(),
+                app.actions.clone(),
+            )
+        };
+        let centre = |tree: &egui::accesskit::TreeUpdate, n: usize| {
+            tree.nodes
+                .iter()
+                .find(|(_, node)| {
+                    node.role() == Role::Button
+                        && node
+                            .label()
+                            .is_some_and(|label| label.starts_with(&format!("Play Song {n},")))
+                })
+                .and_then(|(_, node)| node.bounds())
+                .map(|b| egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32))
+        };
+        let double_click = |at: egui::Pos2| {
+            let press = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            vec![
+                egui::Event::PointerMoved(at),
+                press(true),
+                press(false),
+                press(true),
+                press(false),
+            ]
+        };
+        let (plain, _) = render(&mut app, vec![]);
+        let places: Vec<egui::Pos2> = (0..8)
+            .map(|n| centre(&plain, n).expect("every row is drawn"))
+            .collect();
+
+        // Rows 2, 3 and 4 hidden by the plugin, as four rows of remixes
+        // might be.
+        let hidden = |index: usize| {
+            (
+                crate::luna::dom_anchors::keys::row(&list, index),
+                HostOverride {
+                    style: Style {
+                        display: Some("none".into()),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            )
+        };
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            hosts: [hidden(2), hidden(3), hidden(4)].into_iter().collect(),
+            ..DomOverlay::default()
+        }));
+        let (tree, _) = render(&mut app, vec![]);
+        for n in [0, 1, 5, 6, 7] {
+            assert_eq!(centre(&tree, n), Some(places[n]), "row {n} keeps its place");
+        }
+        for n in [1, 5, 7] {
+            let (_, actions) = render(&mut app, double_click(places[n]));
+            render(&mut app, vec![]);
+            let named: Vec<(String, u32)> = actions
+                .iter()
+                .filter_map(|action| match action {
+                    crate::model::Action::PlayFromRow { uri, index, .. } => {
+                        Some((uri.clone(), *index))
+                    }
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                named,
+                [(format!("tidal:track:{n}"), n as u32)],
+                "the row under the pointer"
+            );
+        }
+        // The empty place of a hidden row plays nothing.
+        let (_, actions) = render(&mut app, double_click(places[3]));
+        crate::ui::plugin_dom::test_overlay(None);
+        assert!(
+            !actions
+                .iter()
+                .any(|action| matches!(action, crate::model::Action::PlayFromRow { .. })),
+            "{actions:?}"
+        );
+        app.backend.shutdown();
+    }
+
     #[test]
     fn accessible_tab_reaches_songs_beyond_the_visible_list() {
         use crate::ui::widgets::{TrackRow, track_row, virtual_rows};
