@@ -3724,55 +3724,59 @@ msgstr "Trouvez-en dans la boutique de plugins."
 
 #: src/luna/mod.rs:388
 msgid "Connects to the internet"
-msgstr ""
+msgstr "Se connecte à Internet"
 
 #: src/luna/mod.rs:390
 msgid "Talks to other apps on this computer (Discord)"
-msgstr ""
+msgstr "Communique avec d’autres applications sur cet ordinateur (Discord)"
 
 #: src/luna/mod.rs:394
 msgid "Runs a local server other apps on this computer can use"
 msgstr ""
+"Lance un serveur local que d’autres applications de cet ordinateur peuvent "
+"utiliser"
 
 #: src/luna/mod.rs:396
 msgid "Stores files in its own data folder only"
-msgstr ""
+msgstr "Stocke des fichiers uniquement dans son propre dossier de données"
 
 #: src/luna/mod.rs:398
 msgid "Runs background (native) code in the sandbox"
-msgstr ""
+msgstr "Exécute du code en arrière-plan (natif) dans le bac à sable"
 
 #: src/luna/mod.rs:400
 msgid "Changes the app's look or adds controls"
-msgstr ""
+msgstr "Modifie l’apparence de l’application ou ajoute des commandes"
 
 #: src/luna/mod.rs:402
 msgid "Runs programs on your computer (asks you first)"
-msgstr ""
+msgstr "Lance des programmes sur votre ordinateur (demande d’abord)"
 
 #: src/luna/mod.rs:406
 msgid "Changes your TIDAL playlists and favourites itself (asks you first)"
-msgstr ""
+msgstr "Modifie lui-même vos playlists et favoris TIDAL (demande d’abord)"
 
 #: src/luna/mod.rs:408
 msgid "Uses your TIDAL sign-in (asks you first)"
-msgstr ""
+msgstr "Utilise votre connexion à TIDAL (demande d’abord)"
 
 #: src/luna/mod.rs:411
 msgid "Uses keyboard shortcuts across your whole computer (asks you first)"
-msgstr ""
+msgstr "Utilise des raccourcis clavier sur tout l’ordinateur (demande d’abord)"
 
 #: src/luna/mod.rs:415
 msgid "Talks to another program over its own pipe or socket (asks you first)"
 msgstr ""
+"Communique avec un autre programme par son propre tube ou socket (demande "
+"d’abord)"
 
 #: src/luna/mod.rs:417
 msgid "Saves TIDAL songs as files (asks you first)"
-msgstr ""
+msgstr "Enregistre des titres TIDAL sous forme de fichiers (demande d’abord)"
 
 #: src/luna/mod.rs:420
 msgid "Switches the output to exclusive (bit-perfect) mode (asks you first)"
-msgstr ""
+msgstr "Passe la sortie en mode exclusif (bit-perfect) (demande d’abord)"
 
 #: src/luna/mod.rs:457
 msgid "Not supported"
@@ -3784,7 +3788,7 @@ msgstr "Partiellement pris en charge"
 
 #: src/luna/mod.rs:459
 msgid "Needs your permission"
-msgstr ""
+msgstr "Demande votre autorisation"
 
 #: src/luna/mod.rs:483
 msgid ""
@@ -3798,6 +3802,9 @@ msgid ""
 "It saves TIDAL songs as files, which it does only after you allow it (this "
 "may break TIDAL's terms of use)."
 msgstr ""
+"Il enregistre des titres TIDAL sous forme de fichiers, mais seulement après "
+"votre autorisation (cela peut enfreindre les conditions d’utilisation de "
+"TIDAL)."
 
 #: src/luna/mod.rs:491
 msgid ""
@@ -3810,12 +3817,16 @@ msgid ""
 "It works out its bars with ffmpeg in a separate Node process, which "
 "Tidalfast does not have."
 msgstr ""
+"Il calcule ses barres avec ffmpeg dans un processus Node séparé, que "
+"Tidalfast n’a pas."
 
 #: src/luna/mod.rs:499
 msgid ""
 "It sends your TIDAL sign-in to its author's server, which it does only after "
 "you allow it."
 msgstr ""
+"Il envoie votre connexion à TIDAL au serveur de son auteur, mais seulement "
+"après votre autorisation."
 
 #: src/luna/mod.rs:503
 msgid ""
@@ -3830,12 +3841,16 @@ msgid ""
 "It takes the media keys across the whole computer, which it does only after "
 "you allow it (Windows only)."
 msgstr ""
+"Il prend le contrôle des touches multimédia sur tout l’ordinateur, mais "
+"seulement après votre autorisation (Windows uniquement)."
 
 #: src/luna/mod.rs:511
 msgid ""
 "It plays through mpv, which needs your permission to start mpv, talk to it "
 "over its pipe and get TIDAL's audio."
 msgstr ""
+"Il lit via mpv, ce qui nécessite votre autorisation pour lancer mpv, "
+"communiquer avec lui par son tube et obtenir l’audio de TIDAL."
 
 #: src/luna/mod.rs:515
 msgid ""
@@ -3874,6 +3889,8 @@ msgid ""
 "The Small depth model works, but the Base model (about 100 MB) is more than "
 "a plugin may download here."
 msgstr ""
+"Le modèle de profondeur Small fonctionne, mais le modèle Base (environ 100 "
+"Mo) dépasse ce qu’un plugin peut télécharger ici."
 
 #: src/app/plugins.rs:486
 #, rust-format
@@ -4146,12 +4163,12 @@ msgstr "Aucun plugin installé !"
 #: src/ui/plugins.rs:1200
 #, rust-format
 msgid "Downloading {got} of {total} MB ({file})"
-msgstr ""
+msgstr "Téléchargement de {got} sur {total} Mo ({file})"
 
 #: src/ui/plugins.rs:1202
 #, rust-format
 msgid "Downloading {got} MB ({file})"
-msgstr ""
+msgstr "Téléchargement de {got} Mo ({file})"
 
 #: src/ui/plugins.rs:2206
 msgid "Press keys…"

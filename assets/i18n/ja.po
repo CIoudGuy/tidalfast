@@ -3667,55 +3667,58 @@ msgstr "プラグインストアで探してみましょう。"
 
 #: src/luna/mod.rs:388
 msgid "Connects to the internet"
-msgstr ""
+msgstr "インターネットに接続します"
 
 #: src/luna/mod.rs:390
 msgid "Talks to other apps on this computer (Discord)"
-msgstr ""
+msgstr "このコンピューター上の他のアプリと通信します（Discord）"
 
 #: src/luna/mod.rs:394
 msgid "Runs a local server other apps on this computer can use"
-msgstr ""
+msgstr "このコンピューター上の他のアプリが使えるローカルサーバーを起動します"
 
 #: src/luna/mod.rs:396
 msgid "Stores files in its own data folder only"
-msgstr ""
+msgstr "専用のデータフォルダーにのみファイルを保存します"
 
 #: src/luna/mod.rs:398
 msgid "Runs background (native) code in the sandbox"
-msgstr ""
+msgstr "サンドボックス内でバックグラウンドの（ネイティブ）コードを実行します"
 
 #: src/luna/mod.rs:400
 msgid "Changes the app's look or adds controls"
-msgstr ""
+msgstr "アプリの外観を変更したり、コントロールを追加したりします"
 
 #: src/luna/mod.rs:402
 msgid "Runs programs on your computer (asks you first)"
-msgstr ""
+msgstr "コンピューター上でプログラムを実行します（事前に確認します）"
 
 #: src/luna/mod.rs:406
 msgid "Changes your TIDAL playlists and favourites itself (asks you first)"
-msgstr ""
+msgstr "TIDALのプレイリストやお気に入りを自分で変更します（事前に確認します）"
 
 #: src/luna/mod.rs:408
 msgid "Uses your TIDAL sign-in (asks you first)"
-msgstr ""
+msgstr "TIDALのログイン情報を使用します（事前に確認します）"
 
 #: src/luna/mod.rs:411
 msgid "Uses keyboard shortcuts across your whole computer (asks you first)"
 msgstr ""
+"コンピューター全体でキーボードショートカットを使用します（事前に確認します）"
 
 #: src/luna/mod.rs:415
 msgid "Talks to another program over its own pipe or socket (asks you first)"
 msgstr ""
+"独自のパイプまたはソケットで別のプログラムと通信します（事前に確認します）"
 
 #: src/luna/mod.rs:417
 msgid "Saves TIDAL songs as files (asks you first)"
-msgstr ""
+msgstr "TIDALの曲をファイルとして保存します（事前に確認します）"
 
 #: src/luna/mod.rs:420
 msgid "Switches the output to exclusive (bit-perfect) mode (asks you first)"
 msgstr ""
+"出力を排他（ビットパーフェクト）モードに切り替えます（事前に確認します）"
 
 #: src/luna/mod.rs:457
 msgid "Not supported"
@@ -3727,7 +3730,7 @@ msgstr "一部対応"
 
 #: src/luna/mod.rs:459
 msgid "Needs your permission"
-msgstr ""
+msgstr "許可が必要です"
 
 #: src/luna/mod.rs:483
 msgid ""
@@ -3740,6 +3743,8 @@ msgid ""
 "It saves TIDAL songs as files, which it does only after you allow it (this "
 "may break TIDAL's terms of use)."
 msgstr ""
+"TIDALの曲をファイルとして保存しますが、許可した後にのみ行います（TIDALの利用"
+"規約に違反する可能性があります）。"
 
 #: src/luna/mod.rs:491
 msgid ""
@@ -3751,12 +3756,15 @@ msgid ""
 "It works out its bars with ffmpeg in a separate Node process, which "
 "Tidalfast does not have."
 msgstr ""
+"別のNodeプロセスでffmpegを使ってバーを計算しますが、Tidalfastにはそれがありま"
+"せん。"
 
 #: src/luna/mod.rs:499
 msgid ""
 "It sends your TIDAL sign-in to its author's server, which it does only after "
 "you allow it."
 msgstr ""
+"TIDALのログイン情報を作者のサーバーに送信しますが、許可した後にのみ行います。"
 
 #: src/luna/mod.rs:503
 msgid ""
@@ -3770,12 +3778,16 @@ msgid ""
 "It takes the media keys across the whole computer, which it does only after "
 "you allow it (Windows only)."
 msgstr ""
+"コンピューター全体でメディアキーを使用しますが、許可した後にのみ行います（"
+"Windowsのみ）。"
 
 #: src/luna/mod.rs:511
 msgid ""
 "It plays through mpv, which needs your permission to start mpv, talk to it "
 "over its pipe and get TIDAL's audio."
 msgstr ""
+"mpv経由で再生します。mpvの起動、パイプ経由の通信、TIDALの音声の取得には許可が"
+"必要です。"
 
 #: src/luna/mod.rs:515
 msgid ""
@@ -3814,6 +3826,8 @@ msgid ""
 "The Small depth model works, but the Base model (about 100 MB) is more than "
 "a plugin may download here."
 msgstr ""
+"Smallの深度モデルは動作しますが、Baseモデル（約100 MB）はプラグインがここでダ"
+"ウンロードできるサイズを超えています。"
 
 #: src/app/plugins.rs:486
 #, rust-format
@@ -4084,12 +4098,12 @@ msgstr "インストールされているプラグインはありません！"
 #: src/ui/plugins.rs:1200
 #, rust-format
 msgid "Downloading {got} of {total} MB ({file})"
-msgstr ""
+msgstr "{got} / {total} MBをダウンロード中（{file}）"
 
 #: src/ui/plugins.rs:1202
 #, rust-format
 msgid "Downloading {got} MB ({file})"
-msgstr ""
+msgstr "{got} MBをダウンロード中（{file}）"
 
 #: src/ui/plugins.rs:2206
 msgid "Press keys…"
