@@ -283,6 +283,7 @@ impl Engine {
                     prefer_album: false,
                     shuffle_since_load: None,
                     load_play: None,
+                    load_steps: 0,
                     placing: None,
                     load_id: 0,
                     live_load: Arc::default(),
@@ -469,10 +470,13 @@ fn set<T: PartialEq>(target: &mut T, value: T) -> bool {
 /// asked of the queue meanwhile waits for the context.
 struct Placing {
     uri: String,
-    /// Songs to move on by once the context is in: Next, or the song
-    /// ending or failing, with nothing after it yet. The song stops
-    /// sounding meanwhile.
-    advances: u32,
+    /// Songs to move by once the context is in: on for Next, or the song
+    /// ending or failing, with nothing after it yet; back for Previous
+    /// with nothing before it yet.
+    steps: i32,
+    /// The song stopped sounding for those moves: something starts once
+    /// the context is in, the song itself again when they cancel out.
+    waiting: bool,
 }
 
 /// The engine thread's state.
@@ -523,6 +527,10 @@ struct Core {
     /// load's own wish, turned round by Play or Space meanwhile. `None`
     /// with no load waiting for its song.
     load_play: Option<bool>,
+    /// Next (one on) and Previous (one back) pressed while a load still
+    /// waits for its song: they move from that song once it is known, in
+    /// the context it starts, never in the queue it replaces.
+    load_steps: i32,
     /// The song the latest load named plays already while its context is
     /// read up to it ([`Msg::Early`]).
     placing: Option<Placing>,
@@ -913,6 +921,7 @@ impl Core {
         self.shuffle_since_load = None;
         self.placing = None;
         self.load_play = Some(spec.play);
+        self.load_steps = 0;
         let id = self.load_id;
         self.autoplay_id = None;
         self.autoplay_waiting = false;
@@ -1052,11 +1061,26 @@ impl Core {
             }
             return;
         };
-        self.begin_load(first, shuffle, &spec);
+        let steps = std::mem::take(&mut self.load_steps);
+        if steps == 0 {
+            return self.begin_load(first, shuffle, &spec, spec.position_ms);
+        }
+        // Next or Previous while the song was on its way: the song it
+        // leads to starts instead, from its beginning.
+        log::info!("moving {steps} from {} as asked while it loaded", first.uri);
+        let target = step(&mut lock(&self.queue), first, steps);
+        match target {
+            Some(track) => self.begin_load(track, shuffle, &spec, 0),
+            None => {
+                self.playing = self.load_play.take().unwrap_or(spec.play);
+                self.update(|state| set(&mut state.shuffle, shuffle));
+                self.context_ended();
+            }
+        }
     }
 
     /// Starts a load's first song, playing as the listener last asked.
-    fn begin_load(&mut self, first: LocalTrack, shuffle: bool, spec: &LoadSpec) {
+    fn begin_load(&mut self, first: LocalTrack, shuffle: bool, spec: &LoadSpec, position_ms: u32) {
         self.prefer_album = !shuffle
             && spec
                 .context_uri
@@ -1067,7 +1091,7 @@ impl Core {
         self.next = None;
         self.failures = 0;
         let play = self.load_play.take().unwrap_or(spec.play);
-        self.start_track(first, spec.position_ms, play, false);
+        self.start_track(first, position_ms, play, false);
     }
 
     /// The song the load names starts now, alone in its context, while the
@@ -1090,9 +1114,28 @@ impl Core {
         let Some(first) = first else {
             return;
         };
+        let steps = std::mem::take(&mut self.load_steps);
+        self.placing = Some(Placing {
+            uri: uri.clone(),
+            steps,
+            waiting: steps != 0,
+        });
+        if steps != 0 {
+            // Next or Previous came before the song could start: it does
+            // not start, and the move waits for the context, in silence.
+            log::info!("{uri} waits for its context: moving {steps} from it was asked");
+            self.playing = self.load_play.take().unwrap_or(spec.play);
+            let held = !self.playing;
+            self.update(|state| {
+                let mut changed = set(&mut state.shuffle, shuffle);
+                changed |= set(&mut state.held_paused, held);
+                changed |= set(&mut state.loading, true);
+                changed
+            });
+            return;
+        }
         log::info!("{uri} starts before the rest of its context is read");
-        self.placing = Some(Placing { uri, advances: 0 });
-        self.begin_load(first, shuffle, &spec);
+        self.begin_load(first, shuffle, &spec, spec.position_ms);
     }
 
     /// The context of a song that started early is in: the queue holds it
@@ -1122,20 +1165,12 @@ impl Core {
         }
         self.check_preload();
         self.update(|_| true);
-        if placing.advances == 0 {
+        if !placing.waiting {
             return;
         }
-        let mut next = None;
-        for _ in 0..placing.advances {
-            match lock(&self.queue).advance(false) {
-                Advance::Track(track) => next = Some(track),
-                Advance::NeedAutoplay => {
-                    next = None;
-                    break;
-                }
-            }
-        }
-        match next {
+        let from = lock(&self.queue).current().cloned();
+        let target = from.and_then(|from| step(&mut lock(&self.queue), from, placing.steps));
+        match target {
             Some(track) => {
                 let play = self.playing;
                 self.start_track(track, 0, play, false);
@@ -1144,15 +1179,17 @@ impl Core {
         }
     }
 
-    /// Next, or the end of the song, with nothing after it while the
-    /// context of a song that started early is still being read: the move
-    /// waits for the context, in silence. `false` when nothing is read.
-    fn wait_for_context(&mut self) -> bool {
+    /// Next (`step` 1), the end of the song (1), or Previous (-1) with no
+    /// song there yet while the context of a song that started early is
+    /// still being read: the move waits for the context, in silence.
+    /// `false` when nothing is read.
+    fn wait_for_context(&mut self, step: i32) -> bool {
         let Some(placing) = &mut self.placing else {
             return false;
         };
-        placing.advances += 1;
-        log::info!("the next song waits for the rest of the context");
+        placing.steps += step;
+        placing.waiting = true;
+        log::info!("the song {step} from here waits for the rest of the context");
         self.current = None;
         self.next = None;
         self.outgoing = None;
@@ -1601,7 +1638,32 @@ impl Core {
         }
     }
 
+    /// Next or Previous while a load still waits for its song, or while
+    /// the song of one that started early is held for its context: the
+    /// move is from that song, once it is known. The queue being replaced
+    /// plays nothing more meanwhile.
+    fn step_while_loading(&mut self, step: i32) -> bool {
+        if self.current.is_some() {
+            return false;
+        }
+        if self.load_play.is_some() {
+            self.load_steps += step;
+            log::info!("moving {} once the loading song is known", self.load_steps);
+            return true;
+        }
+        match &mut self.placing {
+            Some(placing) if placing.waiting => {
+                placing.steps += step;
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn next_track(&mut self) {
+        if self.step_while_loading(1) {
+            return;
+        }
         let advance = lock(&self.queue).advance(false);
         match advance {
             Advance::Track(track) => {
@@ -1609,7 +1671,7 @@ impl Core {
                 self.start_track(track, 0, play, false);
             }
             Advance::NeedAutoplay => {
-                if !self.wait_for_context() {
+                if !self.wait_for_context(1) {
                     self.context_ended();
                 }
             }
@@ -1617,6 +1679,9 @@ impl Core {
     }
 
     fn previous(&mut self) {
+        if self.step_while_loading(-1) {
+            return;
+        }
         let position = lock(&self.state).position_now();
         if position > RESTART_AFTER_MS || self.current.is_none() {
             return self.seek(0);
@@ -1628,6 +1693,9 @@ impl Core {
                 self.next = None;
                 self.start_track(track, 0, play, false);
             }
+            // The song above it is not known yet: Previous goes there once
+            // its context is in.
+            None if self.wait_for_context(-1) => {}
             None => self.seek(0),
         }
     }
@@ -1806,7 +1874,7 @@ impl Core {
         match advance {
             Advance::Track(track) => self.start_track(track, 0, true, true),
             Advance::NeedAutoplay => {
-                if !self.wait_for_context() {
+                if !self.wait_for_context(1) {
                     self.context_ended();
                 }
             }
@@ -1855,7 +1923,7 @@ impl Core {
                     self.start_track(track, 0, play, false);
                     true
                 }
-                Advance::NeedAutoplay if self.wait_for_context() => true,
+                Advance::NeedAutoplay if self.wait_for_context(1) => true,
                 Advance::NeedAutoplay if self.playing && self.sounded => {
                     self.context_ended();
                     self.autoplay_waiting
@@ -2019,6 +2087,7 @@ impl Core {
     fn stop(&mut self) {
         log::info!("playback stopped");
         self.load_play = None;
+        self.load_steps = 0;
         self.placing = None;
         self.current = None;
         self.next = None;
@@ -2152,6 +2221,7 @@ impl Core {
         };
         self.bump_load();
         self.load_play = None;
+        self.load_steps = 0;
         self.placing = None;
         self.update(|state| {
             let mut changed = set(&mut state.shuffle, shuffle);
@@ -2485,6 +2555,26 @@ fn row_position(spec: &LoadSpec, tracks: &[LocalTrack], rows: &[u32]) -> Option<
     let row = spec.offset_row?;
     let at = rows.iter().position(|held| *held == row)?;
     tracks.get(at).filter(|track| track.uri == uri).map(|_| at)
+}
+
+/// The song `steps` from `from`, the queue's playing song, moving the
+/// queue there: on by Next, back by Previous (which stays on the first
+/// song). `None` when Next runs past the end of the context.
+fn step(queue: &mut Queue, from: LocalTrack, steps: i32) -> Option<LocalTrack> {
+    let mut track = from;
+    for _ in 0..steps.max(0) {
+        match queue.advance(false) {
+            Advance::Track(next) => track = next,
+            Advance::NeedAutoplay => return None,
+        }
+    }
+    for _ in 0..(-steps).max(0) {
+        match queue.previous() {
+            Some(previous) => track = previous,
+            None => break,
+        }
+    }
+    Some(track)
 }
 
 fn spawn_worker(work: impl FnOnce() + Send + 'static) {
