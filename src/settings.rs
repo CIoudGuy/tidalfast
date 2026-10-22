@@ -444,10 +444,12 @@ pub struct Settings {
     /// Show the interactive Now Playing widget when hovering over the MacBook notch.
     pub mac_notch_widget: bool,
     /// Where compact mode's small window was left: its outer corner, in
-    /// points. `None` until it has been moved.
+    /// logical pixels (egui points at zoom 1, whatever the interface zoom).
+    /// `None` until it has been moved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compact_pos: Option<[f32; 2]>,
-    /// The compact window's inner size, in points.
+    /// The compact window's inner size, in logical pixels (egui points at
+    /// zoom 1, whatever the interface zoom).
     pub compact_size: [f32; 2],
     /// Ask the update host once a day whether a newer release exists.
     pub check_for_updates: bool,
