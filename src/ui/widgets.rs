@@ -3431,6 +3431,30 @@ fn card_width_id() -> egui::Id {
     egui::Id::new("tidal-card-width")
 }
 
+/// The widest an artist's portrait grows in a shelf: a wider card (one or
+/// two to a row in a narrow page) keeps a 200 circle at its left with the
+/// name centred under it (TIDAL's Home at 330). Grids keep theirs full width.
+pub(crate) const SHELF_PORTRAIT_MAX: f32 = 200.0;
+
+/// Set while a shelf draws its cards (see [`SHELF_PORTRAIT_MAX`]).
+fn shelf_portrait_id() -> egui::Id {
+    egui::Id::new("tidal-shelf-portrait")
+}
+
+/// The width a card's cover takes: a portrait in a shelf stops at
+/// [`SHELF_PORTRAIT_MAX`].
+fn card_cover_width(ui: &Ui, width: f32, circular: bool) -> f32 {
+    let in_shelf = ui
+        .ctx()
+        .data(|data| data.get_temp::<bool>(shelf_portrait_id()))
+        .unwrap_or(false);
+    if circular && in_shelf {
+        width.min(SHELF_PORTRAIT_MAX)
+    } else {
+        width
+    }
+}
+
 pub(crate) fn set_card_width(ui: &Ui, width: f32) {
     ui.ctx()
         .data_mut(|data| data.insert_temp(card_width_id(), width));
@@ -3472,7 +3496,8 @@ pub fn card(
         mark,
     } = cover;
     let palette = app.palette;
-    let width = card_width(ui);
+    let cell = card_width(ui);
+    let width = card_cover_width(ui, cell, circular);
     // Square Sans at weight 500 reads as heavy as Inter semibold.
     let title_font = theme::semibold(14.0);
     let subtitle_font = theme::regular(14.0);
@@ -3488,7 +3513,9 @@ pub fn card(
         } else {
             CARD_TEXT_HEIGHT
         };
-    let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click_and_drag());
+    let (cell_rect, response) = ui.allocate_exact_size(vec2(cell, height), Sense::click_and_drag());
+    // A capped portrait sits at the cell's left.
+    let rect = Rect::from_min_size(cell_rect.min, vec2(width, height));
     response.widget_info(|| {
         egui::WidgetInfo::labeled(
             egui::WidgetType::Button,
@@ -4352,7 +4379,11 @@ pub fn shelf_sized(
     let output = crate::autoscroll::show(ui, area, egui::Vec2b::new(true, false), |ui| {
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = sizing.gap;
+            ui.ctx()
+                .data_mut(|data| data.insert_temp(shelf_portrait_id(), true));
             add_contents(ui);
+            ui.ctx()
+                .data_mut(|data| data.remove::<bool>(shelf_portrait_id()));
         });
     });
     ui.ctx().data_mut(|data| {
@@ -5594,6 +5625,24 @@ mod tests {
             ..CardMark::default()
         };
         assert_eq!(card_marks_width(upload.with_album(&explicit)), 24.0 + 29.0);
+    }
+
+    /// An artist's portrait in a shelf stops at 200 (TIDAL's Home at 330:
+    /// a 200 circle at the cell's left); grids and other cards keep the
+    /// cell's width.
+    #[test]
+    fn a_shelf_portrait_stops_at_200() {
+        let ctx = egui::Context::default();
+        let mut widths = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            widths.push(card_cover_width(ui, 330.0, true));
+            ctx.data_mut(|data| data.insert_temp(shelf_portrait_id(), true));
+            widths.push(card_cover_width(ui, 330.0, true));
+            widths.push(card_cover_width(ui, 330.0, false));
+            widths.push(card_cover_width(ui, 173.0, true));
+        });
+        output.textures_delta.clear();
+        assert_eq!(widths, [330.0, SHELF_PORTRAIT_MAX, 330.0, 173.0]);
     }
 
     /// Tidal Tags' BITRATE, SAMPLE RATE and DEPTH headings are clones of
