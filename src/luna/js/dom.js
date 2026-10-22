@@ -1141,7 +1141,7 @@
 			return this.getAttribute(k);
 		}
 		setAttributeNS(_, k, v) {
-			return this.setAttribute(String(k).replace(/^xlink:/, "xlink:"), v);
+			return this.setAttribute(String(k), v);
 		}
 		removeAttributeNS(_, k) {
 			return this.removeAttribute(k);
