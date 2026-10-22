@@ -4439,6 +4439,7 @@ pub fn shelf_sized(
     if moving.is_some() {
         ui.ctx().request_repaint();
     }
+    let cards_start = paint_list_end(ui);
     let output = crate::autoscroll::show(ui, area, egui::Vec2b::new(true, false), |ui| {
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = sizing.gap;
@@ -4453,9 +4454,49 @@ pub fn shelf_sized(
         data.insert_temp(offset_id, output.state.offset.x);
         data.insert_temp(extent_id, output.content_size.x);
     });
+    // A theme's box round the row (Meteor Night's glass), under the cards:
+    // its size is known only once they are laid out.
+    let box_start = paint_list_end(ui);
+    if super::plugin_dom::paint_shelf_box(ui, output.inner_rect) {
+        paint_first(ui, cards_start, box_start, paint_list_end(ui));
+    }
     super::plugin_dom::shelf_row(output.inner_rect);
     ui.add_space((40.0 + below).max(0.0));
     more_clicked
+}
+
+/// Where the next shape painted into `ui`'s layer will go.
+fn paint_list_end(ui: &Ui) -> egui::layers::ShapeIdx {
+    let layer = ui.layer_id();
+    ui.ctx()
+        .graphics_mut(|graphics| graphics.entry(layer).next_idx())
+}
+
+/// Moves the shapes painted on `ui`'s layer from `mid` to `end` before
+/// those from `start` to `mid`: what was painted last is drawn under them.
+fn paint_first(
+    ui: &Ui,
+    start: egui::layers::ShapeIdx,
+    mid: egui::layers::ShapeIdx,
+    end: egui::layers::ShapeIdx,
+) {
+    if mid.0 <= start.0 || end.0 <= mid.0 {
+        return;
+    }
+    let layer = ui.layer_id();
+    ui.ctx().graphics_mut(|graphics| {
+        let list = graphics.entry(layer);
+        let mut shapes: Vec<egui::epaint::ClippedShape> = list
+            .all_entries()
+            .skip(start.0)
+            .take(end.0 - start.0)
+            .cloned()
+            .collect();
+        shapes.rotate_left(mid.0 - start.0);
+        for (i, shape) in shapes.into_iter().enumerate() {
+            list.mutate_shape(egui::layers::ShapeIdx(start.0 + i), |c| *c = shape);
+        }
+    });
 }
 
 /// The widest TIDAL lets a feed column grow (Home, Explore, Search).
