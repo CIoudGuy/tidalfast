@@ -3027,11 +3027,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     finish(luna, dir);
 }
 
-/// A plugin that changes an element's style and reads its box a moment
-/// later, before the UI has sent the boxes laid out with the change, reads
-/// the new box, as a browser lays out on such a read: radiant-lyrics widens
-/// its Lyrics tab and, 200 ms after the click, hangs its menu under it.
-/// The read waits for the tree that says it was laid out with that overlay.
+/// A plugin that changes an element's style and reads its box at once,
+/// before the UI has sent the boxes laid out with the change, reads the new
+/// box, as a browser lays out on such a read: radiant-lyrics widens its
+/// Lyrics tab and, 200 ms after the click, hangs its menu under it. The
+/// read waits on the UI's frame that draws the change, however long that
+/// frame takes: on a slow machine it came after the fixed 64 ms the read
+/// used to wait, and the read saw the old box. The test drives the frames
+/// and the time the wait goes by.
 #[test]
 fn a_box_read_after_a_change_waits_for_its_layout() {
     let (luna, _host, dir) = start(
@@ -3041,37 +3044,107 @@ const go = () => {
 	if (!el) return setTimeout(go, 20);
 	R.before = el.getBoundingClientRect().width;
 	el.style.minWidth = "900px";
-	setTimeout(() => (R.after = el.getBoundingClientRect().width), 20);
+	R.after = el.getBoundingClientRect().width;
 };
 setTimeout(go, 300);
 "#,
     );
+    let t0 = Instant::now();
+    luna.set_layout_clock(t0);
     let mut t = tree();
     node(&mut t, keys::FOOTER).rect = Some([0.0, 700.0, 800.0, 90.0]);
     luna.sync_dom(t.clone());
-    // Watched as the UI watches it, straight from the published overlay: a
-    // round trip to the runtime (`overlay_until`) would queue behind the
-    // read's wait and see the change only after the read gave up.
-    let end = Instant::now() + Duration::from_secs(10);
-    let o = loop {
-        let o = luna.dom_overlay();
-        if o.hosts
-            .get(keys::FOOTER)
-            .is_some_and(|h| h.style.min_width.as_deref() == Some("900px"))
-        {
-            break o;
-        }
-        assert!(Instant::now() < end, "the change never reached the overlay");
-        std::thread::sleep(Duration::from_millis(1));
-    };
-    // The UI takes a while to draw it: the read 20 ms after the change
-    // comes first.
-    std::thread::sleep(Duration::from_millis(40));
+    let o = draw_until_footer_width(&luna, &mut t, "900px", 0);
+    until_layout_waiting(&luna, |w| w == Some(t0));
+    // The UI starts the frame that draws it, a slow one: its tree comes
+    // well after the 64 ms the read used to wait, and the read sees that
+    // time go by before it comes.
+    luna.drawing_boxes(o.version);
+    luna.set_layout_clock(t0 + Duration::from_millis(400));
+    until_layout_waiting(&luna, |w| w != Some(t0));
     node(&mut t, keys::FOOTER).rect = Some([0.0, 700.0, 900.0, 90.0]);
     t.laid_out = o.version;
     luna.sync_dom(t);
     let r = results_until(&luna, &dir, 10, |r| !r["after"].is_null());
     assert_eq!(r["before"].as_f64(), Some(800.0));
     assert_eq!(r["after"].as_f64(), Some(900.0));
+    finish(luna, dir);
+}
+
+/// Play the UI until the footer's `min-width` is `width`: draw each overlay
+/// after version `drawn` published before it at once, and send the tree
+/// laid out with it (`t`). Returns that overlay, not drawn. Read straight
+/// from the published overlay, as the UI reads it: a round trip to the
+/// runtime would queue behind a read's wait.
+fn draw_until_footer_width(
+    luna: &Luna,
+    t: &mut HostTree,
+    width: &str,
+    mut drawn: u64,
+) -> Arc<DomOverlay> {
+    let end = Instant::now() + Duration::from_secs(10);
+    loop {
+        let o = luna.dom_overlay();
+        if o.hosts
+            .get(keys::FOOTER)
+            .is_some_and(|h| h.style.min_width.as_deref() == Some(width))
+        {
+            return o;
+        }
+        if o.version > drawn {
+            drawn = o.version;
+            luna.drawing_boxes(drawn);
+            t.laid_out = drawn;
+            luna.sync_dom(t.clone());
+        }
+        assert!(Instant::now() < end, "the change never reached the overlay");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
+/// Wait until what [`Luna::layout_waiting`] says meets `cond`.
+fn until_layout_waiting(luna: &Luna, mut cond: impl FnMut(Option<Instant>) -> bool) {
+    let end = Instant::now() + Duration::from_secs(10);
+    while !cond(luna.layout_waiting()) {
+        assert!(Instant::now() < end, "the read never got there");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
+/// A read never stalls the runtime for a window that does not lay the
+/// change out: it gives up when the UI did not start drawing it in time,
+/// or, drawing it, did not send its tree, and reads the boxes it has.
+#[test]
+fn a_box_read_gives_up_on_a_window_that_does_not_lay_out() {
+    let (luna, _host, dir) = start(
+        r#"
+const go = () => {
+	const el = document.querySelector('[data-test="footer-player"]');
+	if (!el) return setTimeout(go, 20);
+	el.style.minWidth = "900px";
+	R.undrawn = el.getBoundingClientRect().width;
+	el.style.minWidth = "1000px";
+	R.unsent = el.getBoundingClientRect().width;
+};
+setTimeout(go, 300);
+"#,
+    );
+    let t0 = Instant::now();
+    luna.set_layout_clock(t0);
+    let mut t = tree();
+    node(&mut t, keys::FOOTER).rect = Some([0.0, 700.0, 800.0, 90.0]);
+    luna.sync_dom(t.clone());
+    // The UI never starts a frame with the first change.
+    let first = draw_until_footer_width(&luna, &mut t, "900px", 0);
+    let mut now = t0 + super::layout::PICKUP_CAP;
+    luna.set_layout_clock(now);
+    // It starts one with the second, and never sends its tree.
+    let o = draw_until_footer_width(&luna, &mut t, "1000px", first.version);
+    luna.drawing_boxes(o.version);
+    now += super::layout::CARRY;
+    luna.set_layout_clock(now);
+    let r = results_until(&luna, &dir, 10, |r| !r["unsent"].is_null());
+    assert_eq!(r["undrawn"].as_f64(), Some(800.0));
+    assert_eq!(r["unsent"].as_f64(), Some(800.0));
     finish(luna, dir);
 }

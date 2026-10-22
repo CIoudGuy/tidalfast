@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::child::{self, ChildHub};
-use super::dom::{DomEvent, DomOverlay, HostTree};
+use super::dom::{DomEvent, DomOverlay};
 use super::fork::{FromChild, Reply as ForkReply, Route as ForkRoute, ToChild};
 use super::host::{HostCommand, LunaEvent, LunaHost, NetRequest, NetVerdict, NotifyLevel};
 use super::net::{NetHub, Target};
@@ -245,7 +245,7 @@ struct Inner {
     /// The newest host tree not yet reconciled (syncs coalesce).
     trees: TreeCell,
     /// The newest overlay that could move boxes, and the newest one the
-    /// reconciled boxes were laid out with ([`HostTree::laid_out`]).
+    /// reconciled boxes were laid out with ([`super::dom::HostTree::laid_out`]).
     boxes_version: u64,
     laid_out: u64,
     /// Plugins with live reload on (never saved: Luna resets it on start),
@@ -275,9 +275,7 @@ struct Inner {
 }
 
 pub(crate) type OverlayCell = Arc<Mutex<Arc<DomOverlay>>>;
-/// The newest host tree the UI sent, not reconciled yet (trees coalesce),
-/// and the signal that one arrived.
-pub(crate) type TreeCell = Arc<(Mutex<Option<HostTree>>, std::sync::Condvar)>;
+pub(crate) use super::layout::TreeCell;
 
 type S = Rc<RefCell<Inner>>;
 
@@ -1840,9 +1838,9 @@ It is installed and switched on; what it may do is asked when it does it, and it
         "dom.overlay" => {
             let mut ov: DomOverlay =
                 serde_json::from_value(a.clone()).map_err(|e| format!("overlay: {e}"))?;
-            let (cell, host) = {
+            let (cell, host, trees) = {
                 let i = inner.borrow();
-                (i.overlay.clone(), i.host.clone())
+                (i.overlay.clone(), i.host.clone(), i.trees.clone())
             };
             let changed = {
                 let Ok(mut cur) = cell.lock() else {
@@ -1855,6 +1853,11 @@ It is installed and switched on; what it may do is asked when it does it, and it
                     let moved = cur.may_move_boxes(&ov);
                     ov.version += 1;
                     let version = ov.version;
+                    // Noted before the UI can see it: the UI's frame that
+                    // draws it is timed from it.
+                    if moved && let Ok(mut slot) = trees.0.lock() {
+                        slot.published(version);
+                    }
                     *cur = Arc::new(ov);
                     Some((moved, version))
                 }
@@ -1873,11 +1876,13 @@ It is installed and switched on; what it may do is asked when it does it, and it
             }
             Ok(Value::Bool(moved))
         }
-        // A plugin reads a box after a change that can move boxes: wait (at
-        // most `ms`) for the UI's tree laid out with it, and hand it to the
-        // document to reconcile, as a browser lays out on such a read.
+        // A plugin reads a box after a change that can move boxes: wait for
+        // the UI's tree laid out with it (on the frame that draws it, the
+        // UI getting at least `ms` to start that frame; see `layout.rs`),
+        // and hand it to the document to reconcile, as a browser lays out
+        // on such a read.
         "dom.wait_layout" => {
-            let ms = a["ms"].as_u64().unwrap_or(64).min(250);
+            let floor = Duration::from_millis(a["ms"].as_u64().unwrap_or(64).min(250));
             let (cell, want) = {
                 let i = inner.borrow();
                 if i.laid_out >= i.boxes_version {
@@ -1885,26 +1890,9 @@ It is installed and switched on; what it may do is asked when it does it, and it
                 }
                 (i.trees.clone(), i.boxes_version)
             };
-            let deadline = Instant::now() + Duration::from_millis(ms);
-            let (slot, arrived) = &*cell;
-            let mut slot = slot.lock().map_err(|_| "host tree".to_string())?;
-            loop {
-                if slot.as_ref().is_some_and(|t| t.laid_out >= want) {
-                    break;
-                }
-                let left = deadline.saturating_duration_since(Instant::now());
-                if left.is_zero() {
-                    break;
-                }
-                slot = arrived
-                    .wait_timeout(slot, left)
-                    .map_err(|_| "host tree".to_string())?
-                    .0;
-            }
-            let Some(tree) = slot.take() else {
+            let Some(tree) = super::layout::wait(&cell, want, floor) else {
                 return Ok(Value::Null);
             };
-            drop(slot);
             inner.borrow_mut().laid_out = tree.laid_out;
             serde_json::to_value(&tree).map_err(|e| e.to_string())
         }
@@ -3615,7 +3603,7 @@ impl Engine {
     /// Reconcile the newest host tree into the plugins' document.
     fn apply_dom_sync(&self) {
         let cell = self.inner.borrow().trees.clone();
-        let Some(tree) = cell.0.lock().ok().and_then(|mut t| t.take()) else {
+        let Some(tree) = cell.0.lock().ok().and_then(|mut t| t.tree.take()) else {
             return;
         };
         self.inner.borrow_mut().laid_out = tree.laid_out;

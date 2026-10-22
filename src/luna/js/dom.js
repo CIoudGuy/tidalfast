@@ -2950,14 +2950,15 @@
 	// ---------------------------------------------------------------- forced layout
 	// A browser lays the page out when a script reads a box after changing
 	// a style. Here the UI lays it out: once an overlay that can move boxes
-	// went out (`dom.overlay` says so), the first read of a box waits a
-	// moment for the UI's tree laid out from it, so a plugin that measures
-	// after its change (radiant-lyrics hangs its menu under its widened
-	// Lyrics tab 200 ms after the click) reads the new box. One wait per
-	// change, none while the window is hidden, and none at all while
-	// nothing changed.
+	// went out (`dom.overlay` says so), the first read of a box waits for
+	// the UI's tree laid out from it, on the UI's frame that draws it
+	// (`layout.rs`), so a plugin that measures after its change
+	// (radiant-lyrics hangs its menu under its widened Lyrics tab 200 ms
+	// after the click) reads the new box. One wait per change, none while
+	// the window is hidden, and none at all while nothing changed.
 	let boxesPending = false;
 	let layoutBusy = false;
+	// The least time the UI gets to start drawing the change.
 	const LAYOUT_WAIT_MS = 64;
 	const forceLayout = () => {
 		if (layoutBusy || reconciling || L.hidden) return;

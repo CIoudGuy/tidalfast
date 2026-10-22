@@ -306,7 +306,12 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
         let overlay = luna.dom_overlay();
         if overlay.version != s.overlay.version {
             let old = std::mem::replace(&mut s.overlay, overlay);
-            s.boxes_moved |= old.may_move_boxes(&s.overlay);
+            if old.may_move_boxes(&s.overlay) {
+                s.boxes_moved = true;
+                // A plugin reading a box now waits for this frame's
+                // layout, which the next pass's tree carries.
+                luna.drawing_boxes(s.overlay.version);
+            }
             // The transitions and animations this overlay starts, timed
             // from now, when the UI starts drawing them.
             s.motion_events.schedule(&old, &s.overlay, Instant::now());

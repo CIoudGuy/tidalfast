@@ -59,12 +59,17 @@ it the UI sends rect-only changes every frame instead of at most every
 100 ms (`SETTLE` in `plugin_dom.rs`). The frame after it is drawn too, and
 its tree carries `laid_out` (that overlay's version). The first box read
 (`getBoundingClientRect`, `offset*`, `client*`) after such an overlay waits
-at most 64 ms (`dom.wait_layout`) for that tree and reconciles it, so a
-plugin that changes a style and measures a moment later reads the new box
-(radiant-lyrics hangs its options menu under its widened Lyrics tab 200 ms
-after the click); observers and `resize` hear of that tree in a microtask,
-not inside the read. One wait per change, none while nothing changed or the
-window is hidden.
+for that tree (`dom.wait_layout`, `src/luna/layout.rs`) and reconciles it,
+so a plugin that changes a style and measures a moment later reads the new
+box (radiant-lyrics hangs its options menu under its widened Lyrics tab
+200 ms after the click); observers and `resize` hear of that tree in a
+microtask, not inside the read. The read waits on the UI's frame that draws
+the change (`Luna::drawing_boxes`), however long that frame takes, as a
+browser's read is always current. Two bounds keep a window that does not
+lay out from stalling the runtime: the UI gets 64 ms to start drawing the
+change, or twice as long as it lately took, up to 250 ms; once it draws
+it, the tree has 500 ms (a window hidden between the two passes). One wait
+per change, none while nothing changed or the window is hidden.
 
 **Events** (`Luna::dom_event`). `Host(key)` targets the host element,
 `Host("")` the focused element or `body` (keyboard: the path runs
