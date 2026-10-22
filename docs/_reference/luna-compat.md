@@ -117,7 +117,7 @@ Notes that apply to every plugin:
 | @jxnxsdev/utils | jxnxsdev/luna-plugins | ✅ live r13 | Library. A probe plugin called its exports: LRC parser, `clamp`, `toRgbString`, `sanitizeSearchQuery`, `retryWithBackoff`, QR data URL, media snapshot and cover colours all work; `getTidalCredentials` asks for the TIDAL sign-in permission first. r20: no UI and no view changed, as in TIDAL. Whole-app walk (2026-10-21, every main view and the narrow window, against TidaLuna's): 1:1, no view changes; its card on the Plugins page. |
 | @jxnxsdev/streamer-tools | jxnxsdev/luna-plugins | ✅ live r13 | With its port setting moved off 2403 the overlay, widgets and `/_plugins` answer; unmatched routes answer 404. The default port 2403 fails with EACCES on PCs where Windows reserves it (machine-specific). 1:1 in the app (r20): no UI besides its settings, no view changed. |
 | @jxnxsdev/qr-share | jxnxsdev/luna-plugins | ✅ live r21 | 'Share via QR Code' is the last row of a track's and an album's menu, as in TIDAL. Its full-window overlay shows the 600-pixel card as TIDAL draws it (r21: the card's 12-pixel corners, the caption in Segoe UI Bold from its `bold 32px system-ui`, Save and Close in the browser's control font, Arial 13.33), Save's hover and Close checked. Differs only in the demo: the caption has no "by <artist>" and playlists have no QR row, because demo ids are not TIDAL's numbers or UUIDs. |
-| @jxnxsdev/audiovisualiser | jxnxsdev/luna-plugins | ✅ live r13 | Coloured bars along the bottom edge follow the music; its native analyser is answered from the post-EQ tap and its `MediaItem.download` saves nothing (every other plugin's download stays refused). r20: nothing shows until the first song change and while paused, as in TIDAL. Differs: TIDAL analyses a downloaded copy of the song, Tidalfast the live output; the TIDAL capture never ran it, so there is no picture of it there to compare. |
+| @jxnxsdev/audiovisualiser | jxnxsdev/luna-plugins | ⛔ by design | Its bars come from a whole-song analysis: on each song change it downloads the song (`MediaItem.download`), then `child_process.fork`s a worker script that runs `ffmpeg ... -f f32le` and sums eight bands per 128 samples. Tidalfast has no Node process to fork and runs no ffmpeg of its own, so the analysis cannot run. From r13 to 2026-10-22 Tidalfast answered that module by its file name with bands from the post-EQ tap and let its download save nothing; that was code for one plugin (owner rule: no per-plugin code, see `luna-plugins.md`), so it went, and the store labels it "Not supported". Its settings and bar layout still draw; the download asks for the save-audio permission like any other. A version that reads `AnalyserNode` (which Tidalfast feeds from the output tap) would work with no change here. |
 | @jxnxsdev/cover-colored-ui | jxnxsdev/luna-plugins | ✅ live r20 | 1:1: nothing until a song change, then every text and icon in one flat colour from the cover (`--cover-ui-color`), secondary text included. |
 | @jxnxsdev/custom-fonts | jxnxsdev/luna-plugins | ✅ live r21 | A chosen font (Comic Sans MS checked r21, Impact r13) draws every text. Its title rewrite and Comic Sans tag land in the title bar as in TIDAL (`._title_a453dad` is the app's name there), drawn once, since r21 as TIDAL draws it: at the title's 12 pixels, tilted 3 degrees with its words, its gold and pink text shadows, and its 2-pixel pink dashed border over the pink-to-blue gradient. Differs: the `skew(-3deg)` is not drawn, and the tilted tag's top pixel is cut by the 28-point bar (TIDAL's is 30). Its settings are drawn in `@luna/ui`'s look (see "Plugin settings"). The font file must be inside the plugin's data folder (a path like `C:\Windows\Fonts\...` is refused with EACCES, by design). |
 | @jxnxsdev/discord-utils | jxnxsdev/luna-plugins | 🔑 permission | Connects to its author's bridge server and hands it TIDAL's access token (`getCredentials`): asks for the TIDAL sign-in first; the prompt says the plugin can act as the user on TIDAL and send the sign-in anywhere. Its bridge itself was not run. r20: with no Discord ID it adds nothing, as in TIDAL (its socket's `window` listeners used to hide the playlist filter's outline). |
@@ -359,9 +359,7 @@ Transfer and never imported. Code: `src/luna/permits.rs`, the prompt in
   extension its bytes have (`.m4a` for a DASH stream). It is written as
   `.part` and renamed when whole. `fetchMediaItemStream` is a Node `Readable`
   of the same bytes. Downloads and streams stop with the plugin and on
-  Revoke. Files are saved without tags. The audiovisualiser's analysis-only
-  download still saves nothing and needs no permission. Neither does a
-  stream every consumer of which throws the bytes away: piped only into
+  Revoke. Files are saved without tags. A stream every consumer of which throws the bytes away: piped only into
   Writables whose `write` (or `_write`) just calls back and never reads the
   chunk, or `resume()`d with nobody listening (Node's way to consume a
   stream without its data). Nothing is opened until the stream is
@@ -695,14 +693,8 @@ Plugin elements in the player bar (a genre chip after the title, star ratings an
   no memory, no work per frame (the interface checks one counter).
 - CatJam (790x604 VP9 with alpha, 325 frames, drawn 52 points tall): see the
   measurements in `performance.md`.
-- The audiovisualiser's track analysis is answered from the output tap (the
-  same post-EQ tap `AnalyserNode` reads): its native `analyse` returns a
-  one-entry timeline whose eight band sums are measured over the last 128
-  samples whenever the plugin reads them, on its own scale. The tap is armed
-  only while it reads (it reads only while a song plays). `MediaItem.download`
-  saves nothing and resolves for a plugin whose analysis is answered this way
-  (only after its analyser module registers); every other plugin needs the
-  permission to save TIDAL audio (see "Permissions a plugin asks for"). The DOM renderer gained what its bars need: `flex-grow`
+- The audiovisualiser's track analysis is not answered (see its row: it
+  forks a Node worker that runs ffmpeg). The DOM renderer gained what its bars need: `flex-grow`
   shares in a fixed-width row, `align-items: flex-end`, and `scaleX`/`scaleY`
   as a stretch of the box.
 

@@ -615,104 +615,53 @@ try {
     finish(luna, dir);
 }
 
+/// A native module runs its own code whatever its file is called, and
+/// `MediaItem.download` asks for the permission to save TIDAL audio
+/// whatever the plugin registered: nothing is answered for one plugin by
+/// its name (Tidalfast once answered jxnxsdev's audiovisualiser's ffmpeg
+/// analyser from the output tap and let its downloads save nothing).
 #[test]
-fn audiovisualiser_bands_come_from_the_output_tap() {
-    let _tap = TAP
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    // jxnxsdev's audiovisualiser: a native module that runs ffmpeg on a
-    // downloaded track, and MediaItem.download to fetch it. Until that
-    // module is registered a download needs the permission to save TIDAL
-    // audio (denied here); then its `analyse` answers with live bands from
-    // the tap and the download saves nothing, without asking.
-    let feed = |n: u64| {
-        let s = (std::f64::consts::TAU * 1000.0 * n as f64 / 48_000.0).sin() as f32;
-        // The same signal as `analysers_read_the_output_tap`, which may run
-        // alongside: the tap is one for the process.
-        crate::audio_tap::push(&[s * 0.8, s * 0.2], 48_000);
-    };
-    let filled = 2 * crate::audio_tap::FRAMES as u64;
-    (0..filled).for_each(feed);
+fn natives_run_their_own_code_and_downloads_ask_whatever_the_names() {
     let (luna, dir) = start(
         "Visualiser",
         r##"
 try {
 	const lib = luna.core.modules["@luna/lib"];
 	const dl = (path) => lib.MediaItem.prototype.download.call({}, path).then(() => "saved nothing", (e) => "refused: " + e.message);
-	R.before = await dl("/MusicVis/Cache/1.flac");
 	const code = `"use strict"; const { execSync } = require("child_process");
-exports.analyse = async (f) => { execSync(\`ffmpeg -y -i "\${f}" -map 0:a:0 -ac 1 -ar 44100 -f f32le out.pcm\`); return new Map(); };`;
+exports.analyse = async (f) => { execSync(\`ffmpeg -y -i "\${f}" -map 0:a:0 -ac 1 -ar 44100 -f f32le out.pcm\`); return new Map(); };
+exports.own = () => "its own code";`;
 	const ch = await __ipcRenderer.invoke("__Luna.registerNative", "@jxnxsdev/audiovisualiser/analyser.native.ts", code);
+	R.own = await __ipcRenderer.invoke(ch, "own");
 	R.after = await dl("/MusicVis/Cache/1.flac");
-	const other = await __ipcRenderer.invoke("__Luna.registerNative", "Visualiser/other.native.ts", `exports.x = () => 1;`);
-	R.other = await __ipcRenderer.invoke(other, "x");
-	const map = await __ipcRenderer.invoke(ch, "analyse", "/MusicVis/Cache/1.flac");
-	const entries = Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
-	R.timeline = entries.map((e) => e[0]);
-	const live = entries[0][1];
-	R.length = live.length;
-	const poll = setInterval(() => {
-		const bands = live.map((s) => (Number.isFinite(s) ? s : 0));
-		const top = bands.indexOf(Math.max(...bands));
-		if (bands[top] > 1) {
-			R.result = { bands, top };
-			clearInterval(poll);
-		}
-	}, 20);
-	unloads.add(() => clearInterval(poll));
+	R.done = 1;
 } catch (e) { fail("main", e); }
 "##,
     );
-    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let asked = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let feeder = {
-        let stop = stop.clone();
-        let (luna, asked) = (luna.clone(), asked.clone());
-        std::thread::spawn(move || {
-            let mut n = filled;
-            let mut last = 0;
-            while !stop.load(std::sync::atomic::Ordering::Relaxed) {
-                // Each question once (the snapshot shows it until the
-                // runtime has the answer).
-                if let Some(q) = luna.pending_permission()
-                    && q.id != last
-                {
-                    last = q.id;
-                    asked.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let asked = std::thread::spawn({
+        let luna = luna.clone();
+        move || {
+            let end = std::time::Instant::now() + Duration::from_secs(30);
+            while std::time::Instant::now() < end {
+                if let Some(q) = luna.pending_permission() {
                     luna.answer_permission(q.id, ProgramChoice::Deny);
-                }
-                for _ in 0..480 {
-                    feed(n);
-                    n += 1;
+                    return true;
                 }
                 std::thread::sleep(Duration::from_millis(10));
             }
-        })
-    };
-    let r = until(&luna, &dir, 30, |r| {
-        !r["result"].is_null() || !r["main"].is_null()
+            false
+        }
     });
-    stop.store(true, std::sync::atomic::Ordering::Relaxed);
-    let _ = feeder.join();
+    let r = until(&luna, &dir, 30, |r| {
+        !r["done"].is_null() || !r["main"].is_null()
+    });
     assert_eq!(r["main"], Value::Null, "{r}");
+    assert_eq!(r["own"], json!("its own code"), "{r}");
     assert_eq!(
-        r["before"],
+        r["after"],
         json!("refused: EACCES: you did not allow this plugin to save TIDAL songs as files")
     );
-    assert_eq!(r["after"], json!("saved nothing"));
-    assert_eq!(
-        asked.load(std::sync::atomic::Ordering::Relaxed),
-        1,
-        "only the download before the module asked"
-    );
-    assert_eq!(r["other"], json!(1), "other natives still load: {r}");
-    assert_eq!(r["timeline"], json!([0]));
-    assert_eq!(r["length"], json!(8));
-    // 1 kHz falls in the 848-1821 Hz band; on the plugin's own scale a
-    // 0.5 sine sums to tens, not fractions (its peak normaliser floors at 1).
-    assert_eq!(r["result"]["top"], json!(4), "{r}");
-    let peak = r["result"]["bands"][4].as_f64().unwrap();
-    assert!((5.0..200.0).contains(&peak), "{r}");
+    assert!(asked.join().unwrap(), "the download asked");
     finish(luna, dir);
 }
 

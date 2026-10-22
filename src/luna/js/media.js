@@ -2373,65 +2373,6 @@
 	}
 	Object.assign(g, { AudioContext, webkitAudioContext: AudioContext, BaseAudioContext, AnalyserNode, ChannelSplitterNode, ChannelMergerNode, GainNode, BiquadFilterNode, OscillatorNode, AudioBuffer, AudioBufferSourceNode, AudioDestinationNode, MediaStreamAudioSourceNode, MediaElementAudioSourceNode });
 
-	// ---------------------------------------------------------------- live band analysis
-	// jxnxsdev's audiovisualiser downloads every track (MediaItem.download)
-	// and has its native module run ffmpeg in a child process to work out
-	// eight band energies for the whole song ahead of time, then reads the
-	// band list for the playing second. Tidalfast saves no tracks and runs no
-	// processes; instead that native module's `analyse` answers with a
-	// timeline of one entry whose bands are measured from the output tap
-	// (post-EQ, what plays) each time the plugin reads them. Its download
-	// call then saves nothing and succeeds, for that plugin only: other
-	// plugins' downloads stay refused. The tap is read only while the
-	// visualiser draws (it reads only while playing), so a paused song or a
-	// plugin that is off costs nothing.
-	const LIVE_BANDS = {
-		// File name, a phrase its code must contain, and the bands it sums
-		// (Hz), as its own analyser does over 128-sample windows.
-		"@jxnxsdev/audiovisualiser/analyser.native.ts": {
-			needs: "-f f32le",
-			bands: [
-				[40, 85],
-				[85, 184],
-				[184, 395],
-				[395, 848],
-				[848, 1821],
-				[1821, 3908],
-				[3908, 8387],
-				[8387, 20000],
-			],
-		},
-	};
-	const BAND_WINDOW = 128;
-	// Its analyser sums plain magnitudes of Hann-windowed blocks; the tap's
-	// FFT is |X|/N over a Blackman window. This puts them on its scale.
-	const BAND_SCALE = BAND_WINDOW * (0.5 / 0.42);
-	const liveBands = (ranges) => {
-		const mags = new Float32Array(N.audioFft(BAND_WINDOW, -1));
-		const binHz = audioRate() / BAND_WINDOW;
-		return ranges.map(([lo, hi]) => {
-			let sum = 0;
-			const end = Math.min(Math.floor(hi / binHz), mags.length - 1);
-			for (let k = Math.floor(lo / binHz); k <= end; k++) sum += Number.isFinite(mags[k]) ? mags[k] : 0;
-			return sum * BAND_SCALE;
-		});
-	};
-	// Plugins whose track analysis is answered live.
-	M.liveAnalysis = new Set();
-	// Exports standing in for a plugin's native module, or undefined to load
-	// the module as it is.
-	M.nativeStandIn = (plugin, fileName, code) => {
-		const spec = LIVE_BANDS[fileName];
-		if (!spec || !String(code).includes(spec.needs)) return undefined;
-		M.liveAnalysis.add(plugin);
-		// Reads like a band list (`.map`, `.length`, indexes) and measures
-		// the bands anew on each `.map`.
-		const now = { map: (f) => liveBands(spec.bands).map(f), length: spec.bands.length };
-		return {
-			analyse: async () => new Map([[0, now]]),
-		};
-	};
-
 	// ---------------------------------------------------------------- <video>
 	// A plugin's own <video> (CatJam's dancing cat). Given a src, the clip is
 	// fetched and read by __video (src/luna/video.rs); the interface decodes

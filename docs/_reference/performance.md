@@ -205,6 +205,10 @@ unfocused, Idle priority:
 
 #### Plugin `<video>` and the audiovisualiser (2026-10-15)
 
+(Historical: the audiovisualiser was answered from the output tap by its
+module's name until 2026-10-22; that per-plugin code is gone and it is not
+supported now, see `luna-compat.md`.)
+
 Same method (release demo build, off-screen and unfocused, Idle priority,
 45 s after start then 60 s), two interleaved runs each. CatJam alone: its
 clip is a 790x604 VP9 WebM with alpha (325 frames), drawn 52 points tall.

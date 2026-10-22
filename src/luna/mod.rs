@@ -489,6 +489,10 @@ impl CompatNote {
                 locale,
                 "It needs TIDAL's own remote control code, which Tidalfast does not have.",
             ),
+            "It works out its bars with ffmpeg in a separate Node process, which Tidalfast does not have." => gettext(
+                locale,
+                "It works out its bars with ffmpeg in a separate Node process, which Tidalfast does not have.",
+            ),
             "It sends your TIDAL sign-in to its author's server, which it does only after you allow it." => gettext(
                 locale,
                 "It sends your TIDAL sign-in to its author's server, which it does only after you allow it.",
@@ -600,6 +604,11 @@ const COMPAT: &[CompatRow] = &[
         "Inrixia/luna-plugins",
         "DesktopConnect",
         "It needs TIDAL's own remote control code, which Tidalfast does not have.",
+    ),
+    not_supported(
+        "jxnxsdev/luna-plugins",
+        "@jxnxsdev/audiovisualiser",
+        "It works out its bars with ffmpeg in a separate Node process, which Tidalfast does not have.",
     ),
     needs_permission(
         "jxnxsdev/luna-plugins",
