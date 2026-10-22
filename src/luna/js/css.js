@@ -392,7 +392,11 @@
 	// rule does (`initial`: the app's own colour). A navigation row has
 	// TIDAL's own colour on its class, so a theme's rule for a tag (Synthwave
 	// '77's `button { color }`, which the Collection row is) does not reach
-	// it in TIDAL and a class rule does.
+	// it in TIDAL and a class rule does. Its words and icon take the row's
+	// colour over a theme's catch-all `* { color }` (Meteor Night's white
+	// leaves TIDAL's inactive rows dim), while any rule naming them (one
+	// class, TidalCustomTheme's `[class^="_marketText_"]`; a tag,
+	// its `svg { fill }`) still wins: the rule adds no weight of its own.
 	let tidal = null;
 	const tidalSheet = () => {
 		if (!tidal) {
@@ -403,7 +407,9 @@
 					'[class^="_utilityButtons_"] > button svg { width: 16px; height: 16px; }\n' +
 					"._artistVariant_63c8c96 ._round_5776dee { border-radius: 50%; }\n" +
 					"._artistText_73966a1 { color: initial; }\n" +
-					"._navigationItem_4e9deae { color: initial; }",
+					"._navigationItem_4e9deae { color: initial; }\n" +
+					":where(._navigationItem_4e9deae) > ._marketText_1lyag_1 { color: initial; }\n" +
+					":where(._navigationItem_4e9deae) > svg { color: initial; }",
 			);
 		}
 		return tidal;

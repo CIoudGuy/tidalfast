@@ -211,6 +211,57 @@ fn the_queues_playing_song_follows_the_theme() {
     assert_eq!(queue.accent, egui::Color32::from_rgb(255, 250, 240));
 }
 
+/// TIDAL's navigation rows keep their own dim words and icon under a
+/// theme's catch-all `* { color }` (Meteor Night's white: TIDAL shows the
+/// inactive rows dimmed), while a rule naming the words (one class, as
+/// TidalCustomTheme's `[class^="_marketText_"]`) still colours them.
+/// Tidalfast took the catch-all on the words and drew every row white.
+#[test]
+fn a_catch_all_colour_leaves_the_navigation_rows_words() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{sidebar_item_icon, sidebar_item_label};
+    let row = || dom_anchors::SidebarItem {
+        test: "sidebar-explore".into(),
+        label: "Explore".into(),
+        href: Some("/explore".into()),
+        selected: false,
+        rect: Some([16.0, 128.0, 208.0, 40.0]),
+    };
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.items.push(row());
+    let label = sidebar_item_label("sidebar-explore");
+    let icon = sidebar_item_icon("sidebar-explore");
+    let catch_all = r#"/* {"name": "Starlight"} */
+:root { --starlight: rgb(240, 250, 10); }
+* { color: var(--starlight); }
+"#;
+    // The words' stand-in takes the catch-all: the theme has reached the tree.
+    let (luna, o) = overlay_with(
+        "starlight.css",
+        catch_all,
+        dom_anchors::build(&frame),
+        dom_anchors::keys::THEME_TEXT,
+    );
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let words = pd::nav_style(&label).and_then(|s| s.color);
+    let ink = pd::sidebar_icon(&icon);
+    pd::test_overlay(None);
+    assert_eq!(words, None, "the row's own words");
+    assert_eq!(ink, None, "the row's own icon");
+
+    let named = r#"/* {"name": "Named words"} */
+* { color: rgb(240, 250, 10); }
+[class^="_marketText_"] { color: rgb(120, 10, 40); }
+"#;
+    let (luna, o) = overlay_with("named-words.css", named, dom_anchors::build(&frame), &label);
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let words = pd::nav_style(&label).and_then(|s| s.color);
+    pd::test_overlay(None);
+    assert_eq!(words, Some(egui::Color32::from_rgb(120, 10, 40)));
+}
+
 /// The play queue's title is TIDAL's market heading text, not a section's
 /// `headerContainer > h2`: Lunallena's `[class*="heading"]` makes it lime
 /// and its 30px rule for section headings leaves it small in TIDAL;
