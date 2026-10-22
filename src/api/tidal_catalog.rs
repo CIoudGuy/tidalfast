@@ -10,6 +10,7 @@ use anyhow::{Context, anyhow, bail};
 use super::models::Track;
 use super::tidal::{ReleaseGroup, TidalClient};
 use crate::content_filter::ContentFilter;
+use crate::runtime_gate::RuntimeGate;
 pub use crate::tidal_engine::{Catalog, LocalTrack, Quality, StreamInfo};
 
 /// A context never grows past this many tracks in the engine's queue.
@@ -32,21 +33,29 @@ pub struct ContextTracks {
 /// thread on the backend's runtime.
 pub struct TidalCatalog {
     client: Arc<TidalClient>,
-    runtime: tokio::runtime::Handle,
+    runtime: RuntimeGate,
 }
 
 impl TidalCatalog {
-    pub fn new(client: Arc<TidalClient>, runtime: tokio::runtime::Handle) -> Self {
-        Self { client, runtime }
+    pub fn new(client: Arc<TidalClient>, runtime: impl Into<RuntimeGate>) -> Self {
+        Self {
+            client,
+            runtime: runtime.into(),
+        }
     }
 
+    /// Runs `future` on the backend's runtime. Once the app is closing the
+    /// request ends unanswered, as one that could not reach TIDAL: the
+    /// engine then holds the song rather than skip it.
     fn block<T>(&self, future: impl Future<Output = T>) -> anyhow::Result<T> {
         if tokio::runtime::Handle::try_current().is_ok() {
             // Blocking a runtime worker would deadlock it; the engine calls
             // from its own threads, so this is a wiring mistake.
             bail!("the catalogue was called from inside the async runtime");
         }
-        Ok(self.runtime.block_on(future))
+        self.runtime
+            .block_on(future)
+            .map_err(crate::tidal_engine::catalog::unreachable)
     }
 
     /// Reads a collection page by page, handing each page to `deliver`
@@ -589,6 +598,13 @@ mod tests {
             .build()
             .unwrap();
         let http = reqwest::Client::builder().no_proxy().build().unwrap();
+        let catalog = catalog_with(base, http, runtime.handle().clone().into());
+        (catalog, runtime)
+    }
+
+    /// A catalogue against `base` through `http`, signed in, blocking on
+    /// `runtime`.
+    fn catalog_with(base: &str, http: reqwest::Client, runtime: RuntimeGate) -> TidalCatalog {
         let client = TidalClient::with_bases(
             http,
             Arc::new(crate::api::NetActivity::default()),
@@ -610,8 +626,56 @@ mod tests {
             refresher,
             None,
         )));
-        let catalog = TidalCatalog::new(Arc::new(client), runtime.handle().clone());
-        (catalog, runtime)
+        TidalCatalog::new(Arc::new(client), runtime)
+    }
+
+    /// The crash at quit (1.0.2-alpha.2, and on "luna-lookup" before it):
+    /// an engine thread blocked on a catalogue request when the backend
+    /// shut its runtime down. The request's timeout timer was then polled
+    /// on a runtime shutting down, which panics, and the release build
+    /// aborted. Shut down in the backend's order, the request now ends as
+    /// unreachable and the thread carries on.
+    #[test]
+    fn quitting_during_a_request_ends_it_without_a_panic() {
+        // A server that takes the request and never answers it.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let (accepted, arrived) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut held = Vec::new();
+            for stream in listener.incoming() {
+                let Ok(stream) = stream else { return };
+                held.push(stream);
+                let _ = accepted.send(());
+            }
+        });
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        let gate = RuntimeGate::new(runtime.handle().clone());
+        // As the app's client: every request has a timeout, a timer.
+        let http = reqwest::Client::builder()
+            .no_proxy()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap();
+        let catalog = catalog_with(&base, http, gate.clone());
+        let worker = std::thread::Builder::new()
+            .name("tidal-catalog".into())
+            .spawn(move || catalog.stream("1", Quality::High).map(|_| ()))
+            .unwrap();
+        arrived
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .expect("the request never left");
+        // The app closes while the request waits on TIDAL.
+        crate::runtime_gate::shut_down(runtime, &gate, std::time::Duration::from_secs(2));
+        let error = worker
+            .join()
+            .expect("the catalogue thread panicked at quit")
+            .unwrap_err();
+        assert!(is_unreachable(&format!("{error:#}")), "{error:#}");
     }
 
     /// Through the real client: a server that is not there (stopped, or the

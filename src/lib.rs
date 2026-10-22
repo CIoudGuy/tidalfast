@@ -65,6 +65,7 @@ pub mod power;
 pub mod processing;
 pub mod recent_searches;
 pub mod resample;
+pub mod runtime_gate;
 pub mod save_later;
 pub mod settings;
 pub mod single_instance;
