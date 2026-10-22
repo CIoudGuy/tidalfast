@@ -154,11 +154,24 @@ fn an_install_redirected_to_plain_http_elsewhere_is_refused() {
         "/Hop.mjs".into(),
         b"export const unloads = new Set();\n".to_vec(),
     );
-    // `serve` listens on 127.0.0.1 only: 127.0.0.2 relays to it.
+    // `serve` listens on 127.0.0.1 only: the far address relays to it.
     let near = serve(files);
     let port = near.rsplit(':').next().unwrap().to_string();
-    let far = TcpListener::bind("127.0.0.2:0").unwrap();
-    let far_base = format!("http://{}", far.local_addr().unwrap());
+    // Windows and Linux answer on all of 127.0.0.0/8. macOS's loopback has
+    // only 127.0.0.1 unless an alias is added, so there the far address is
+    // 0.0.0.0, which a connection reaches this computer by and which the
+    // policy does not count as this computer either.
+    #[cfg(not(target_os = "macos"))]
+    let (far, far_host) = (TcpListener::bind("127.0.0.2:0").unwrap(), "127.0.0.2");
+    #[cfg(target_os = "macos")]
+    let (far, far_host) = (TcpListener::bind("127.0.0.1:0").unwrap(), "0.0.0.0");
+    let far_base = format!("http://{far_host}:{}", far.local_addr().unwrap().port());
+    assert!(!crate::luna::runtime::is_secure_source(&format!(
+        "{far_base}/Hop.mjs"
+    )));
+    // The relay is reachable there, so a refusal below is the policy's.
+    std::net::TcpStream::connect(format!("{far_host}:{}", far.local_addr().unwrap().port()))
+        .expect("the far address reaches the relay");
     std::thread::spawn(move || {
         use std::io::Write;
         for s in far.incoming() {
