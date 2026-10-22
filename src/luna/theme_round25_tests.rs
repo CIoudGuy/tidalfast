@@ -91,6 +91,41 @@ fn library_rows_take_their_words_from_the_theme() {
     luna.shutdown();
 }
 
+/// TidalCustomTheme colours a paragraph of market text with its heading
+/// blue (`[class^="_marketText_"][class*="_paragraph"] { color: #6f9bfb
+/// !important }`): TIDAL's sidebar playlists have blue second lines under
+/// dark red names. The second line's anchor was no paragraph, so it took
+/// the dark red too.
+#[test]
+fn a_library_rows_second_line_is_a_paragraph() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Paragraphs"} */
+[class^="_marketText_"] { color: #8a0022 !important; }
+[class^="_marketText_"][class*="_paragraph"] { color: #6f9bfb !important; }
+"#;
+    let tree = dom_anchors::build(&frame_with_library_row());
+    let (luna, o) = overlay_with(
+        "paragraphs.css",
+        css,
+        tree,
+        &dom_anchors::keys::lib_row_subtitle(0),
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let style = pd::library_row(
+        egui::Rect::from_min_size(egui::pos2(8.0, 300.0), egui::vec2(224.0, 52.0)),
+        false,
+        false,
+    )
+    .expect("the row is styled");
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(style.color, Some(egui::Color32::from_rgb(0x8a, 0x00, 0x22)));
+    assert_eq!(
+        style.secondary,
+        Some(egui::Color32::from_rgb(0x6f, 0x9b, 0xfb))
+    );
+}
+
 /// TIDAL marks the open queue's button `_activeButton_122ab25`, which the
 /// cotton candy family paints as a rounded gradient square
 /// (`border-radius: .5em; background-image: linear-gradient(...)`). The

@@ -1308,10 +1308,15 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             title = title.class("_textWhite_1lyag_319");
         }
         out.push(title.class("_title_8b245d1").at(*rect));
+        // The second line is a paragraph of market text: TidalCustomTheme's
+        // `[class^="_marketText_"][class*="_paragraph"]` makes it its blue
+        // `#6f9bfb` in TIDAL. Not `_paragraph20_`: Cotton Candy Nights'
+        // rule for that leaves TIDAL's second lines alone.
         out.push(
             el(keys::lib_row_subtitle(i), Some(&words), "span")
                 .class("_marketText_1lyag_1")
                 .class("_text20_1lyag_291")
+                .class("_paragraph10_1lyag_156")
                 .at(*rect),
         );
     }
