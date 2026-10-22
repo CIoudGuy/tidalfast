@@ -30,6 +30,7 @@ use serde_json::{Value, json};
 
 use super::child::{self, ChildHub};
 use super::dom::{DomEvent, DomOverlay, HostTree};
+use super::fork::{FromChild, Reply as ForkReply, Route as ForkRoute, ToChild};
 use super::host::{HostCommand, LunaEvent, LunaHost, NetRequest, NetVerdict, NotifyLevel};
 use super::net::{NetHub, Target};
 use super::redux::{
@@ -42,6 +43,15 @@ use super::{
     ContextMenuItem, ContextTarget, LogLevel, LogLine, LunaConfig, LunaSnapshot, Msg, Permission,
     PluginInfo, PluginStatus, StoreInfo, StorePlugin,
 };
+
+/// The shims a forked process runs ([`super::fork`]): the browser-ish
+/// globals and Node's modules, without the page, React or Luna's own API.
+pub(super) fn shims_for_fork() -> impl Iterator<Item = (&'static str, &'static str)> {
+    SHIMS
+        .iter()
+        .copied()
+        .filter(|(file, _)| matches!(*file, "prelude.js" | "node.js"))
+}
 
 const SHIMS: &[(&str, &str)] = &[
     ("prelude.js", include_str!("js/prelude.js")),
@@ -173,6 +183,8 @@ struct Inner {
     storage: Storage,
     net: NetHub,
     children: ChildHub,
+    /// Plugins' forked processes (`child_process.fork`, see [`super::fork`]).
+    forks: super::fork::ForkHub,
     /// Who may change the account (see [`super::writes`]).
     writes: Arc<super::writes::Grants>,
     /// The other permissions plugins ask for (see [`super::permits`]).
@@ -428,6 +440,7 @@ impl Inner {
         super::downloads::stop_plugin(name);
         self.net.close_plugin(name);
         self.children.close_plugin(name);
+        self.forks.close_plugin(name);
         self.end_run(name);
     }
 
@@ -780,19 +793,19 @@ pub(super) fn bytes_of(buf: &ArrayBuffer<'_>, off: f64, len: f64) -> Vec<u8> {
         .unwrap_or_default()
 }
 
-fn utf8_enc<'js>(ctx: Ctx<'js>, s: String) -> rquickjs::Result<ArrayBuffer<'js>> {
+pub(super) fn utf8_enc<'js>(ctx: Ctx<'js>, s: String) -> rquickjs::Result<ArrayBuffer<'js>> {
     ArrayBuffer::new(ctx, s.into_bytes())
 }
 
-fn utf8_dec(buf: ArrayBuffer<'_>, off: f64, len: f64) -> String {
+pub(super) fn utf8_dec(buf: ArrayBuffer<'_>, off: f64, len: f64) -> String {
     String::from_utf8_lossy(&bytes_of(&buf, off, len)).into_owned()
 }
 
-fn b64_enc(buf: ArrayBuffer<'_>, off: f64, len: f64) -> String {
+pub(super) fn b64_enc(buf: ArrayBuffer<'_>, off: f64, len: f64) -> String {
     B64.encode(bytes_of(&buf, off, len))
 }
 
-fn b64_dec<'js>(ctx: Ctx<'js>, s: String) -> rquickjs::Result<ArrayBuffer<'js>> {
+pub(super) fn b64_dec<'js>(ctx: Ctx<'js>, s: String) -> rquickjs::Result<ArrayBuffer<'js>> {
     let bytes = B64
         .decode(s.trim_end_matches('=').as_bytes())
         .or_else(|_| {
@@ -2128,6 +2141,27 @@ It is installed and switched on; what it may do is asked when it does it, and it
         "child.spawn" | "child.spawnSync" => {
             child_spawn(inner, &who.acting()?, name == "child.spawnSync", a)
         }
+        "fork.start" => fork_start(inner, &who.acting()?, a),
+        "fork.send" | "fork.disconnect" | "fork.kill" => {
+            let plugin = who.acting()?;
+            let handle = a["handle"].as_u64().unwrap_or(0) as u32;
+            let i = inner.borrow();
+            match name {
+                "fork.send" => {
+                    i.forks
+                        .send(&plugin, handle, str_of(a, "data").to_string())?;
+                    Ok(Value::Null)
+                }
+                "fork.disconnect" => {
+                    i.forks.disconnect(&plugin, handle);
+                    Ok(Value::Null)
+                }
+                _ => {
+                    let signal = a["signal"].as_str().unwrap_or("SIGTERM");
+                    Ok(json!(i.forks.kill(&plugin, handle, signal)))
+                }
+            }
+        }
         "child.stdin" | "child.stdinEnd" | "child.kill" => {
             let plugin = who.acting()?;
             let handle = a["handle"].as_u64().unwrap_or(0) as u32;
@@ -2184,6 +2218,7 @@ fn child_request(a: &Value) -> child::Request {
         *slot = v.as_bool().unwrap_or(true);
     }
     child::Request {
+        plugin: String::new(),
         file: str_of(a, "file").to_string(),
         args: strings("args"),
         command: a["command"].as_str().map(String::from),
@@ -2201,40 +2236,9 @@ fn child_request(a: &Value) -> child::Request {
 /// `plugin` is the acting plugin, checked against the live frames: a plugin
 /// cannot run programs (or use another's allowed list) under another name.
 fn child_spawn(inner: &S, plugin: &str, sync: bool, a: &Value) -> Result<Value, String> {
-    let plugin = plugin.to_string();
-    let (data_dir, tx, watchdog) = {
-        let i = inner.borrow();
-        if i.record(&plugin).is_none() {
-            return Err(format!("EACCES: unknown plugin {plugin}"));
-        }
-        (i.storage.data_dir(&plugin), i.tx.clone(), i.cfg.watchdog)
-    };
-    let _ = std::fs::create_dir_all(&data_dir);
-    let notify = notifier(tx);
-    let prepared = child::prepare(&child_request(a), &data_dir);
-    let mut i = inner.borrow_mut();
-    i.used(&plugin, Permission::RunPrograms);
-    let allowed_for = |i: &Inner, program: &str| {
-        i.record(&plugin)
-            .is_some_and(|r| r.programs.iter().any(|x| child::same_program(x, program)))
-    };
     if sync {
-        let p = prepared?;
-        if p.shell {
-            return Err(
-                "EACCES: this command needs a shell. Plugins can start those only with the asynchronous exec/spawn, where the user can be asked".into(),
-            );
-        }
-        let allowed = allowed_for(&i, &p.program) && p.remember;
-        if !allowed && !i.children.take_once(&plugin, &p.program) {
-            i.children.ask_for_later(&plugin, &p);
-            i.dirty = true;
-            return Err(format!(
-                "EACCES: {} is not allowed yet. The user was asked: call again after they answered",
-                p.name
-            ));
-        }
-        drop(i);
+        let spec = sync_program(inner, plugin, a)?;
+        let watchdog = inner.borrow().cfg.watchdog;
         let wanted = Duration::from_millis(a["timeout"].as_u64().unwrap_or(3000).max(1));
         let room = watchdog
             .saturating_sub(Duration::from_millis(1500))
@@ -2244,7 +2248,7 @@ fn child_spawn(inner: &S, plugin: &str, sync: bool, a: &Value) -> Result<Value, 
             Some(s) => Some(B64.decode(s).map_err(|e| e.to_string())?),
             None => None,
         };
-        let r = child::run_sync(&p.spec, input, wanted.min(room), max);
+        let r = child::run_sync(&spec, input, wanted.min(room), max);
         return Ok(json!({
             "pid": r.pid,
             "status": r.status,
@@ -2254,6 +2258,13 @@ fn child_spawn(inner: &S, plugin: &str, sync: bool, a: &Value) -> Result<Value, 
             "error": r.error,
         }));
     }
+    let (plugin, notify, prepared) = prepare_program(inner, plugin, a)?;
+    let mut i = inner.borrow_mut();
+    i.used(&plugin, Permission::RunPrograms);
+    let allowed_for = |i: &Inner, program: &str| {
+        i.record(&plugin)
+            .is_some_and(|r| r.programs.iter().any(|x| child::same_program(x, program)))
+    };
     i.dirty = true;
     match prepared {
         Err(e) => Ok(json!(i.children.reject(&notify, &e))),
@@ -2263,6 +2274,107 @@ fn child_spawn(inner: &S, plugin: &str, sync: bool, a: &Value) -> Result<Value, 
             Ok(json!(handle))
         }
     }
+}
+
+/// `child_process.fork`: the module the plugin named, read through its own
+/// `fs`, starts as a forked process ([`super::fork`]) acting as the plugin.
+fn fork_start(inner: &S, plugin: &str, a: &Value) -> Result<Value, String> {
+    let (home, limit, tx) = {
+        let mut i = inner.borrow_mut();
+        if i.record(plugin).is_none() {
+            return Err(format!("EACCES: unknown plugin {plugin}"));
+        }
+        i.used(plugin, Permission::PluginFiles);
+        (i.storage.data_dir(plugin), i.cfg.memory_limit, i.tx.clone())
+    };
+    let file = str_of(a, "path").to_string();
+    let bytes = super::fsops::read_bytes(plugin, &home, &file)
+        .map_err(|e| format!("MODULE_NOT_FOUND: Cannot find module '{file}' ({e})"))?;
+    if bytes.len() > MAX_CODE {
+        return Err("E2BIG: the module is too large".into());
+    }
+    let code = String::from_utf8(bytes).map_err(|_| "EINVAL: the module is not UTF-8 text")?;
+    let strings = |k: &str| -> Vec<String> {
+        a[k].as_array()
+            .map(|v| {
+                v.iter()
+                    .filter_map(|x| x.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let spawn = super::fork::Spawn {
+        plugin: plugin.to_string(),
+        file,
+        code,
+        args: strings("args"),
+        exec_argv: strings("execArgv"),
+        env: a.get("env").filter(|e| e.is_object()).cloned(),
+        cwd: a["cwd"]
+            .as_str()
+            .map_or_else(|| home.to_string_lossy().into_owned(), String::from),
+        pipes: [
+            a["stdout"].as_bool() == Some(true),
+            a["stderr"].as_bool() == Some(true),
+        ],
+        serialization: str_of(a, "serialization").to_string(),
+        ipc: true,
+        memory_limit: limit,
+        home,
+    };
+    let handle = inner.borrow_mut().forks.start(spawn, tx)?;
+    Ok(json!(handle))
+}
+
+/// What `child_process` asked to run, resolved for the acting `plugin`:
+/// the plugin, where its program's events go, and the program or why it
+/// cannot start.
+type PreparedProgram = (String, child::Notifier, Result<child::Prepared, String>);
+
+fn prepare_program(inner: &S, plugin: &str, a: &Value) -> Result<PreparedProgram, String> {
+    let plugin = plugin.to_string();
+    let (data_dir, tx) = {
+        let i = inner.borrow();
+        if i.record(&plugin).is_none() {
+            return Err(format!("EACCES: unknown plugin {plugin}"));
+        }
+        (i.storage.data_dir(&plugin), i.tx.clone())
+    };
+    let _ = std::fs::create_dir_all(&data_dir);
+    let mut request = child_request(a);
+    request.plugin = plugin.clone();
+    let prepared = child::prepare(&request, &data_dir);
+    Ok((plugin, notifier(tx), prepared))
+}
+
+/// A synchronous run (`spawnSync`, `execSync`): only a program the user
+/// allowed for good, or once for this call, may run, since nobody can be
+/// asked while the caller waits; otherwise the question is filed for the
+/// next call. The program to run.
+fn sync_program(inner: &S, plugin: &str, a: &Value) -> Result<child::Spec, String> {
+    let (plugin, _, prepared) = prepare_program(inner, plugin, a)?;
+    let mut i = inner.borrow_mut();
+    i.used(&plugin, Permission::RunPrograms);
+    let p = prepared?;
+    if p.shell {
+        return Err(
+            "EACCES: this command needs a shell. Plugins can start those only with the asynchronous exec/spawn, where the user can be asked".into(),
+        );
+    }
+    let allowed = i.record(&plugin).is_some_and(|r| {
+        r.programs
+            .iter()
+            .any(|x| child::same_program(x, &p.program))
+    }) && p.remember;
+    if !allowed && !i.children.take_once(&plugin, &p.program) {
+        i.children.ask_for_later(&plugin, &p);
+        i.dirty = true;
+        return Err(format!(
+            "EACCES: {} is not allowed yet. The user was asked: call again after they answered",
+            p.name
+        ));
+    }
+    Ok(p.spec)
 }
 
 fn url_parts(u: &url::Url) -> Value {
@@ -2853,6 +2965,9 @@ fn audio_save(a: &Value, host: &dyn LunaHost) -> Result<Value, String> {
         std::fs::create_dir_all(parent).map_err(|e| format!("EIO: {e}"))?;
     }
     super::audio::save(plugin, id, source, &target)?;
+    // The plugin goes on naming the file by the path it gave (a program it
+    // hands it to, its own `fs`): that path is this file.
+    super::fsops::alias(plugin, wanted, &target);
     Ok(json!({ "path": target.to_string_lossy() }))
 }
 
@@ -3257,6 +3372,113 @@ impl Engine {
                         format!("Unhandled promise rejection: {}", f.message),
                     );
                 }
+            }
+        }
+    }
+
+    /// What a forked process ([`super::fork`]) did or asks for.
+    fn fork_msg(&self, m: FromChild) {
+        match m {
+            FromChild::Event {
+                handle,
+                kind: "log",
+                data,
+            } => {
+                let v: Value = serde_json::from_str(&data).unwrap_or(Value::Null);
+                let mut i = self.inner.borrow_mut();
+                let plugin = i.forks.plugin_of(handle).map(str::to_string);
+                i.log(
+                    plugin.as_deref(),
+                    level_of(str_of(&v, "level")),
+                    str_of(&v, "msg").to_string(),
+                );
+            }
+            FromChild::Event { handle, kind, data } => {
+                let last = kind == "close";
+                let mine = {
+                    let mut i = self.inner.borrow_mut();
+                    let msg = ToChild::Fork { handle, kind, data };
+                    let mine = i.forks.forward(ForkRoute::Fork, handle, msg, last);
+                    if last {
+                        i.forks.ended(handle);
+                    }
+                    mine
+                };
+                if let Some(ToChild::Fork { handle, kind, data }) = mine {
+                    if let Err(f) = self.call(
+                        "__luna_fork",
+                        vec![Arg::N(handle as f64), Arg::S(kind.into()), Arg::S(data)],
+                    ) {
+                        self.on_failure(f);
+                    }
+                    self.pump();
+                }
+            }
+            FromChild::Op {
+                handle,
+                name,
+                arg,
+                claimed,
+                reply,
+            } => {
+                let plugin = self
+                    .inner
+                    .borrow()
+                    .forks
+                    .plugin_of(handle)
+                    .map(str::to_string);
+                let Some(plugin) = plugin else {
+                    let gone = json!({ "err": "ESRCH: the process has ended" }).to_string();
+                    let _ = reply.send(ForkReply::Json(gone));
+                    return;
+                };
+                // The fork acts as its plugin, whatever it claims.
+                let who = Who {
+                    caller: Caller::Plugin(plugin),
+                    claimed,
+                };
+                if name == "child.spawnSync" {
+                    let a: Value = serde_json::from_str(&arg).unwrap_or(Value::Null);
+                    let spec = who.acting().and_then(|p| sync_program(&self.inner, &p, &a));
+                    let _ = reply.send(ForkReply::Program(spec));
+                    return;
+                }
+                let out = op_sync(&self.inner, who, &name, &arg);
+                // What the fork opened: its events go to it.
+                let route = match name.as_str() {
+                    "child.spawn" => Some(ForkRoute::Child),
+                    "net.connect" | "net.listen" => Some(ForkRoute::Net),
+                    "fork.start" => Some(ForkRoute::Fork),
+                    _ => None,
+                };
+                if let Some(route) = route
+                    && let Some(h) = serde_json::from_str::<Value>(&out)
+                        .ok()
+                        .and_then(|v| v["ok"].as_u64())
+                {
+                    self.inner.borrow_mut().forks.route(route, h as u32, handle);
+                }
+                let _ = reply.send(ForkReply::Json(out));
+            }
+            FromChild::OpAsync {
+                handle,
+                name,
+                arg,
+                id,
+                claimed,
+            } => {
+                let (plugin, gid) = {
+                    let mut i = self.inner.borrow_mut();
+                    match i.forks.plugin_of(handle).map(str::to_string) {
+                        Some(p) => (p, i.forks.op_id(handle, id)),
+                        None => return,
+                    }
+                };
+                let who = Who {
+                    caller: Caller::Plugin(plugin),
+                    claimed,
+                };
+                op_async(&self.inner, who, name, arg, gid);
             }
         }
     }
@@ -4332,47 +4554,73 @@ impl Engine {
             }
             Msg::ContextClick(id) => self.host_call("context_click", json!({ "id": id })),
             Msg::OpDone { id, ok, json } => {
-                if let Err(f) =
-                    self.call("__luna_resolve", vec![Arg::N(id), Arg::B(ok), Arg::S(json)])
-                {
-                    self.on_failure(f);
+                // A forked process's op goes back to it.
+                let json = self.inner.borrow_mut().forks.op_done(id, ok, json);
+                if let Some(json) = json {
+                    if let Err(f) =
+                        self.call("__luna_resolve", vec![Arg::N(id), Arg::B(ok), Arg::S(json)])
+                    {
+                        self.on_failure(f);
+                    }
+                    self.pump();
                 }
-                self.pump();
             }
             Msg::Net(mut ev) => {
-                if ev.kind == "close" {
-                    self.inner.borrow_mut().net.forget(ev.handle);
+                let last = ev.kind == "close";
+                let mine = {
+                    let mut i = self.inner.borrow_mut();
+                    if last {
+                        i.net.forget(ev.handle);
+                    }
+                    if let Some(a) = ev.accepted.take() {
+                        let accepted = a.handle;
+                        i.net.adopt(ev.handle, a);
+                        if let Some(fork) = i.forks.routed(ForkRoute::Net, ev.handle) {
+                            i.forks.route(ForkRoute::Net, accepted, fork);
+                        }
+                    }
+                    let msg = ToChild::Net {
+                        handle: ev.handle,
+                        kind: ev.kind,
+                        data: std::mem::take(&mut ev.data),
+                    };
+                    i.forks.forward(ForkRoute::Net, ev.handle, msg, last)
+                };
+                if let Some(ToChild::Net { handle, kind, data }) = mine {
+                    if let Err(f) = self.call(
+                        "__luna_net",
+                        vec![Arg::N(handle as f64), Arg::S(kind.into()), Arg::S(data)],
+                    ) {
+                        self.on_failure(f);
+                    }
+                    self.pump();
                 }
-                if let Some(a) = ev.accepted.take() {
-                    self.inner.borrow_mut().net.adopt(ev.handle, a);
-                }
-                if let Err(f) = self.call(
-                    "__luna_net",
-                    vec![
+            }
+            Msg::Child(ev) => {
+                let last = ev.kind == "close";
+                let mine = {
+                    let mut i = self.inner.borrow_mut();
+                    if last {
+                        i.children.forget(ev.handle);
+                    }
+                    let handle = ev.handle;
+                    i.forks
+                        .forward(ForkRoute::Child, handle, ToChild::Child(ev), last)
+                };
+                if let Some(ToChild::Child(mut ev)) = mine {
+                    let args = vec![
                         Arg::N(ev.handle as f64),
                         Arg::S(ev.kind.into()),
-                        Arg::S(ev.data),
-                    ],
-                ) {
-                    self.on_failure(f);
+                        Arg::S(std::mem::take(&mut ev.data)),
+                    ];
+                    drop(ev);
+                    if let Err(f) = self.call("__luna_child", args) {
+                        self.on_failure(f);
+                    }
+                    self.pump();
                 }
-                self.pump();
             }
-            Msg::Child(mut ev) => {
-                if ev.kind == "close" {
-                    self.inner.borrow_mut().children.forget(ev.handle);
-                }
-                let args = vec![
-                    Arg::N(ev.handle as f64),
-                    Arg::S(ev.kind.into()),
-                    Arg::S(std::mem::take(&mut ev.data)),
-                ];
-                drop(ev);
-                if let Err(f) = self.call("__luna_child", args) {
-                    self.on_failure(f);
-                }
-                self.pump();
-            }
+            Msg::Fork(m) => self.fork_msg(m),
             Msg::ProgramAnswer { id, choice } => {
                 let notify = notifier(self.inner.borrow().tx.clone());
                 let mut i = self.inner.borrow_mut();
@@ -4663,6 +4911,7 @@ impl Engine {
             i.close_plugin_io(&n);
         }
         i.children.stop_all();
+        i.forks.stop_all();
         i.hotkeys.stop_all();
         // What the unloads saved is on disk before the thread ends.
         i.storage.flush();
@@ -5142,6 +5391,7 @@ fn setup_with(
         shared,
         net: NetHub::default(),
         children: ChildHub::default(),
+        forks: super::fork::ForkHub::default(),
         writes,
         permits,
         hotkeys,
@@ -5374,11 +5624,12 @@ const ENTRY_POINTS: &[&str] = &[
     "__luna_net",
     "__luna_ipc",
     "__luna_child",
+    "__luna_fork",
 ];
 
 /// Removes the natives and entry points from the global object once the
 /// shims hold them.
-const LOCKDOWN: &str = r#"for (const k of ["__op", "__op_async", "__caller", "__eval", "__utf8_enc", "__utf8_dec", "__b64_enc", "__b64_dec", "__fetch_take", "__fs_bytes", "__canvas", "__wasm", "__video", "__depth", "__luna_module", "__lunaInternal", "__luna_host", "__luna_tick", "__luna_resolve", "__luna_dispatch", "__luna_dom", "__luna_net", "__luna_ipc", "__luna_child"]) delete globalThis[k];"#;
+const LOCKDOWN: &str = r#"for (const k of ["__op", "__op_async", "__caller", "__eval", "__utf8_enc", "__utf8_dec", "__b64_enc", "__b64_dec", "__fetch_take", "__fs_bytes", "__canvas", "__wasm", "__video", "__depth", "__luna_module", "__lunaInternal", "__luna_host", "__luna_tick", "__luna_resolve", "__luna_dispatch", "__luna_dom", "__luna_net", "__luna_ipc", "__luna_child", "__luna_fork"]) delete globalThis[k];"#;
 
 fn run(
     cfg: LunaConfig,

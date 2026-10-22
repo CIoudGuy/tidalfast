@@ -1486,7 +1486,19 @@
 		machine: () => process.arch,
 		hostname: () => "tidalfast",
 		homedir: () => process.cwd(),
-		tmpdir: () => ENV.TMPDIR ?? ENV.TEMP ?? ENV.TMP ?? (PLATFORM === "win32" ? "C:\\Windows\\Temp" : "/tmp"),
+		// The plugin's own temporary folder, in its data folder: the one place
+		// its `fs` (and a program or forked script it hands the path to) can
+		// write. The system's temporary folder is outside the sandbox.
+		tmpdir: () => {
+			const plugin = L.pluginFromStack();
+			const home = L.node.homeOf(plugin);
+			if (home === undefined) return ENV.TMPDIR ?? ENV.TEMP ?? ENV.TMP ?? (PLATFORM === "win32" ? "C:\\Windows\\Temp" : "/tmp");
+			const dir = path.join(home, "tmp");
+			try {
+				callOp("fs", { plugin, op: "mkdir", path: dir, recursive: true });
+			} catch {}
+			return dir;
+		},
 		EOL: PLATFORM === "win32" ? "\r\n" : "\n",
 		cpus: () => [],
 		totalmem: () => 0,
@@ -1935,7 +1947,8 @@
 	// ---------------------------------------------------------------- child_process
 	// Every program is started by the host, which first asks the user (Allow
 	// once / Always / Deny) and tells the plugin the answer as events. Nothing
-	// is spawned from here, and `fork` (a Node process) does not exist.
+	// is spawned from here. `fork` runs the plugin's own script as a process
+	// of its own (src/luna/fork.rs): no program, nothing to ask.
 	const children = new Map();
 	const cpError = (message, extra) => {
 		const m = /^([A-Z][A-Z0-9_]+): ([\s\S]*)$/.exec(String(message));
@@ -2057,7 +2070,7 @@
 						this.exitCode = this._failed ? -2 : code;
 						this.signalCode = signal;
 					}
-					children.delete(this.handle);
+					if (children.get(this.handle) === this) children.delete(this.handle);
 					this.stdout?.push(null);
 					this.stderr?.push(null);
 					this.stdin?.destroy?.();
@@ -2242,6 +2255,230 @@
 		if (r.error || r.status !== 0 || r.signal) throw failedSync(r, command);
 		return r.stdout;
 	};
+	// IPC messages, as Node serialises them: JSON (the default), or with
+	// `serialization: "advanced"` what the structured clone keeps (Map, Set,
+	// Date, RegExp, BigInt, undefined, typed arrays, errors), tagged in JSON.
+	const TAG = "\u0000luna";
+	const ipcEncode = (value, advanced) => {
+		if (!advanced) return JSON.stringify(value);
+		const seen = new Set();
+		const enc = (x) => {
+			if (x === undefined) return { [TAG]: "u" };
+			if (typeof x === "bigint") return { [TAG]: "n", v: String(x) };
+			if (typeof x === "number") return Number.isFinite(x) && !Object.is(x, -0) ? x : { [TAG]: "f", v: Object.is(x, -0) ? "-0" : String(x) };
+			if (typeof x === "function" || typeof x === "symbol") throw Object.assign(new Error(`${String(x)} could not be cloned.`), { name: "DataCloneError" });
+			if (x === null || typeof x !== "object") return x;
+			if (seen.has(x)) throw Object.assign(new Error("A circular value could not be cloned."), { name: "DataCloneError" });
+			seen.add(x);
+			try {
+				if (x instanceof Date) return { [TAG]: "d", v: x.getTime() };
+				if (x instanceof RegExp) return { [TAG]: "r", v: x.source, f: x.flags };
+				if (x instanceof Map) return { [TAG]: "m", v: [...x].map(([k, v]) => [enc(k), enc(v)]) };
+				if (x instanceof Set) return { [TAG]: "s", v: [...x].map(enc) };
+				if (x instanceof ArrayBuffer) return { [TAG]: "ab", v: L.b64enc(new Uint8Array(x)) };
+				if (ArrayBuffer.isView(x)) return { [TAG]: "ta", c: x.constructor?.name ?? "Uint8Array", v: L.b64enc(new Uint8Array(x.buffer, x.byteOffset, x.byteLength)) };
+				if (x instanceof Error) return { [TAG]: "e", n: x.name, m: x.message, s: x.stack };
+				if (Array.isArray(x)) return x.map(enc);
+				const out = {};
+				for (const k of Object.keys(x)) out[k] = enc(x[k]);
+				return out;
+			} finally {
+				seen.delete(x);
+			}
+		};
+		return JSON.stringify(enc(value));
+	};
+	const VIEWS = { Buffer, Uint8Array, Int8Array, Uint8ClampedArray, Uint16Array, Int16Array, Uint32Array, Int32Array, Float32Array, Float64Array, BigInt64Array, BigUint64Array, DataView };
+	const ipcDecode = (text, advanced) => {
+		const value = JSON.parse(text);
+		if (!advanced) return value;
+		const dec = (x) => {
+			if (x === null || typeof x !== "object") return x;
+			if (Array.isArray(x)) return x.map(dec);
+			switch (Object.prototype.hasOwnProperty.call(x, TAG) ? x[TAG] : undefined) {
+				case "u":
+					return undefined;
+				case "n":
+					return BigInt(x.v);
+				case "f":
+					return x.v === "-0" ? -0 : Number(x.v);
+				case "d":
+					return new Date(x.v);
+				case "r":
+					return new RegExp(x.v, x.f);
+				case "m":
+					return new Map(x.v.map(([k, v]) => [dec(k), dec(v)]));
+				case "s":
+					return new Set(x.v.map(dec));
+				case "ab":
+					return L.b64dec(x.v).buffer;
+				case "ta": {
+					const bytes = L.b64dec(x.v);
+					const View = VIEWS[x.c] ?? Uint8Array;
+					if (View === DataView) return new DataView(bytes.buffer);
+					return View === Buffer ? Buffer.from(bytes) : new View(bytes.buffer, 0, bytes.byteLength / (View.BYTES_PER_ELEMENT ?? 1));
+				}
+				case "e": {
+					const e = new Error(x.m);
+					e.name = x.n;
+					if (x.s) e.stack = x.s;
+					return e;
+				}
+			}
+			const out = {};
+			for (const k of Object.keys(x)) out[k] = dec(x[k]);
+			return out;
+		};
+		return dec(value);
+	};
+	L.node.ipcEncode = ipcEncode;
+	L.node.ipcDecode = ipcDecode;
+
+	// A forked process: the plugin's script in a runtime of its own, with
+	// the IPC channel Node gives `fork`.
+	const forks = new Map();
+	class ForkedProcess extends ChildProcess {
+		constructor(plugin, file, args, pipes, advanced) {
+			super(plugin, file, args, [false, pipes[0], pipes[1]]);
+			this._advanced = advanced;
+			this.connected = true;
+			this.channel = { ref() {}, unref() {}, hasRef: () => true };
+		}
+		kill(signal) {
+			if (this._over || this.handle === undefined) return false;
+			let sent = false;
+			try {
+				sent = callOp("fork.kill", { plugin: ownerOf(this), handle: this.handle, signal: typeof signal === "string" ? signal : "SIGTERM" });
+			} catch {}
+			if (sent) this.killed = true;
+			return sent;
+		}
+		send(message, sendHandle, options, callback) {
+			if (typeof sendHandle === "function") [callback, sendHandle] = [sendHandle, undefined];
+			else if (typeof options === "function") [callback, options] = [options, undefined];
+			if (message === undefined) throw cpError('ERR_MISSING_ARGS: The "message" argument must be specified');
+			const fail = (err) => {
+				if (typeof callback === "function") queueMicrotask(() => callback(err));
+				else queueMicrotask(() => this.emit("error", err));
+				return false;
+			};
+			if (!this.connected || this.handle === undefined) return fail(cpError("ERR_IPC_CHANNEL_CLOSED: Channel closed"));
+			const data = ipcEncode(message, this._advanced);
+			try {
+				callOp("fork.send", { plugin: ownerOf(this), handle: this.handle, data });
+			} catch (err) {
+				return fail(cpError(err.message));
+			}
+			if (typeof callback === "function") queueMicrotask(() => callback(null));
+			return true;
+		}
+		disconnect() {
+			if (!this.connected) {
+				queueMicrotask(() => this.emit("error", cpError("ERR_IPC_DISCONNECTED: IPC channel is already disconnected")));
+				return;
+			}
+			this._closed();
+			try {
+				callOp("fork.disconnect", { plugin: ownerOf(this), handle: this.handle });
+			} catch {}
+			queueMicrotask(() => this.emit("disconnect"));
+		}
+		_closed() {
+			this.connected = false;
+			this.channel = undefined;
+		}
+		_event(kind, data) {
+			switch (kind) {
+				case "message": {
+					if (!this.connected) return;
+					let message;
+					try {
+						message = ipcDecode(data, this._advanced);
+					} catch (err) {
+						L.reportError(err);
+						return;
+					}
+					this.emit("message", message, undefined);
+					return;
+				}
+				case "disconnect":
+					if (this.connected) {
+						this._closed();
+						this.emit("disconnect");
+					}
+					return;
+				case "close":
+					if (this.connected) {
+						this._closed();
+						this.emit("disconnect");
+					}
+					forks.delete(this.handle);
+					break;
+			}
+			super._event(kind, data);
+		}
+	}
+	L.node.forkEvent = (handle, kind, data) => forks.get(handle)?._event(kind, data);
+	g.__luna_fork = (handle, kind, data) => L.node.forkEvent(handle, kind, data);
+	// What keeps a forked process alive besides its timers and ops.
+	L.node.openHandles = () => children.size + sockets.size + forks.size;
+	const cpFork = (modulePath, args, opts) => {
+		if (modulePath instanceof g.URL) modulePath = url.fileURLToPath(modulePath);
+		if (typeof modulePath !== "string" || modulePath === "") throw cpError('ERR_INVALID_ARG_TYPE: The "modulePath" argument must be of type string or an instance of URL');
+		if (!Array.isArray(args)) [args, opts] = [[], args];
+		opts = opts ?? {};
+		const stdio = opts.stdio ?? (opts.silent ? "pipe" : "inherit");
+		if (Array.isArray(stdio) && !stdio.includes("ipc")) {
+			throw cpError("ERR_CHILD_PROCESS_IPC_REQUIRED: Forked processes must have an IPC channel, missing value 'ipc' in options.stdio");
+		}
+		const pipes = pipesOf(stdio);
+		const plugin = L.pluginFromStack();
+		const execArgv = Array.isArray(opts.execArgv) ? opts.execArgv.map(String) : [...process.execArgv];
+		// Node runs `node <modulePath>` in the child's working directory.
+		const file = path.resolve(opts.cwd === undefined || opts.cwd === null ? process.cwd() : String(opts.cwd), modulePath);
+		const strArgs = args.map(String);
+		const advanced = opts.serialization === "advanced";
+		const child = new ForkedProcess(plugin, process.execPath, [...execArgv, file, ...strArgs], [pipes[1], pipes[2]], advanced);
+		try {
+			child.handle = callOp("fork.start", {
+				plugin: plugin ?? null,
+				path: file,
+				args: strArgs,
+				execArgv,
+				env: envOf(opts.env),
+				cwd: opts.cwd === undefined || opts.cwd === null ? undefined : String(opts.cwd),
+				stdout: pipes[1],
+				stderr: pipes[2],
+				serialization: advanced ? "advanced" : "json",
+			});
+			forks.set(child.handle, child);
+		} catch (err) {
+			const m = /^MODULE_NOT_FOUND: ([\s\S]*)$/.exec(err.message);
+			queueMicrotask(() => {
+				if (m) {
+					// As in Node: the process starts, cannot load the script and
+					// ends with code 1, saying why on its stderr.
+					const why = `Error: ${m[1]}\n`;
+					if (child.stderr) child.stderr.push(Buffer.from(why));
+					else callOp("log", { plugin: plugin ?? null, level: "error", msg: `fork: ${m[1]}` });
+					child._event("spawn", "0");
+					child._event("exit", JSON.stringify({ code: 1, signal: null }));
+					child._event("close", JSON.stringify({ code: 1, signal: null }));
+				} else {
+					child._closed();
+					child._failed = true;
+					child.emit("error", cpError(err.message, { syscall: "spawn", path: file }));
+					child._event("close", JSON.stringify({ code: null, signal: null }));
+				}
+			});
+			return child;
+		}
+		if (opts.timeout > 0) {
+			const timer = setTimeout(() => child.kill(typeof opts.killSignal === "string" ? opts.killSignal : "SIGTERM"), opts.timeout);
+			child.once("close", () => clearTimeout(timer));
+		}
+		return child;
+	};
 	const childProcess = {
 		ChildProcess,
 		spawn: cpSpawn,
@@ -2250,7 +2487,7 @@
 		spawnSync: cpSpawnSync,
 		execSync: cpExecSync,
 		execFileSync: cpExecFileSync,
-		fork: notAvailable("child_process.fork (there is no Node here to run a script)"),
+		fork: cpFork,
 	};
 	// http/https clients on top of fetch (so the host's network policy and
 	// limits apply). Bodies are buffered; servers are not available.
@@ -4281,6 +4518,7 @@
 	};
 	const esmDefault = (m) => (m && m.__esModule ? m.default : m && m.default !== undefined ? m.default : m);
 	const esmNamed = (m) => ((m && typeof m === "object") || typeof m === "function" ? m : {});
+	L.node.esm = { esmDefault, esmNamed };
 	L.node.isEsm = (code) => ESM_RE.test(code);
 	L.node.esmToCjs = esmToCjs;
 	L.node.loadNative = (plugin, fileName, code, nativeExports) => {

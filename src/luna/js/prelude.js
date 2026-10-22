@@ -152,6 +152,8 @@
 		else p.reject(new Error(typeof value === "string" ? value : stringify(value)));
 	};
 	const lunaInternal = (g.__lunaInternal = { callOp, callOpAsync, blobUrls: new Map(), blobModules: new Map() });
+	// Async ops still in flight (a forked process lives while it waits for one).
+	lunaInternal.pendingOps = () => pending.size;
 	lunaInternal.evalAs = native.eval;
 	lunaInternal.b64encRaw = native.b64enc;
 	lunaInternal.b64decRaw = native.b64dec;

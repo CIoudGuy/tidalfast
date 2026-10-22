@@ -34,8 +34,10 @@ all themes too".
   name; `fetchMediaItemStream` now recognises any consumer that only drops
   the bytes (see "Permissions a plugin asks for" in `luna-compat.md`). The
   audiovisualiser's ffmpeg analyser was answered by its file name from the
-  output tap; that could not be made generic (it forks a Node worker that
-  runs ffmpeg), so it went and the plugin is labelled "Not supported".
+  output tap; that went. The same day `child_process.fork` became generic
+  Node support (a forked script runs in a runtime of its own, see
+  `luna-compat.md`), so the unmodified plugin analyses songs itself once
+  the user allows it to save songs and run ffmpeg.
 
 ## Security
 
@@ -214,7 +216,7 @@ Descriptions from the records. Effort in brackets if ported; "needs X" = TIDAL f
 - Inrixia: LastFM / ListenBrainz scrobblers (M, `reqwest`+md5, new settings), NoBuffer (n/a, CDN kick), RealMAX (see above), Shazam (won't, needs audio fingerprint), PersistSettings/SmallWindow/Avatar/Themer/CoverTheme/Tidal Tags (quality tags, S: show quality badges; CoverTheme overlaps `images::accent_color`, S), DesktopConnect (needs TIDAL Connect, L).
 - Renskursa: MusicVideoButton (needs music videos, which Tidalfast lacks, L), SongReleaseDate (S).
 - Foukapik: OneClickLyrics (S, shortcut to lyrics view), PlayerKeyScroller (Shift+Left/Right seek, S), HorizontalVolumeSlider (previously installed; Tidalfast already has a slider, wheel covered by #1).
-- jxnxsdev: audiovisualiser (not supported: its analysis forks a Node worker that runs ffmpeg, see `luna-compat.md`), cover-colored-ui (S via `images::accent_color`), custom-fonts (S; `fastframe-fonts` + `system_fonts.rs` exist), fadeout/crossfade (M, sink), lyrics-everywhere (overlap with `ui/lyrics.rs`), miniplayer (won't, Tidalfast has no mini player), playlist-export m3u8 (S), qr-share (S, `qrcode` crate), spinny-cover (S), streamer-tools (won't, web overlay server), syncify and squadgazzz sync plugins (M, import from another service), uwu-ifier (S, joke), tidal-wave (unfinished).
+- jxnxsdev: audiovisualiser (works behind permissions: its analysis forks a worker that runs ffmpeg, which must be installed, see `luna-compat.md`), cover-colored-ui (S via `images::accent_color`), custom-fonts (S; `fastframe-fonts` + `system_fonts.rs` exist), fadeout/crossfade (M, sink), lyrics-everywhere (overlap with `ui/lyrics.rs`), miniplayer (won't, Tidalfast has no mini player), playlist-export m3u8 (S), qr-share (S, `qrcode` crate), spinny-cover (S), streamer-tools (won't, web overlay server), syncify and squadgazzz sync plugins (M, import from another service), uwu-ifier (S, joke), tidal-wave (unfinished).
 - meowarex: radiant-lyrics, colorama-lyrics, copy-lyrics, element-hider, obsidian theme, audio-visualizer (Linux only). Lyrics ones overlap `ui/lyrics.rs`.
 - vMohammad24: mpv (replaces the player; runs as a Luna plugin once the user allows starting mpv, mpv's pipe and TIDAL's audio, see "Permissions a plugin asks for" in `luna-compat.md`), noTrack (n/a), QoL, translate, quickExclusiveMode (S if sink exposes exclusive mode), betterFullscreen.
 - Others: tidarr-integration (downloader, won't), DownloadManager (Kisakay, FLAC rip: runs behind the save-audio permission since 2026-10-22, see luna-compat.md), Deleter, Starry Night/Clear-Coat (themes: Tidalfast has `theme.rs`), TidalAPI/TidalMediaControls (Tidalfast already has media controls via `MediaControls`), star-ratings, altplay (Jellyfin), multipleplaylists, up-next, quick-queue, tidal-genres, track-radio, playlist-tools, etc.
