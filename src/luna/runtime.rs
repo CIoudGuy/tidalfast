@@ -5070,6 +5070,19 @@ fn setup(
     overlay: OverlayCell,
     trees: TreeCell,
 ) -> anyhow::Result<Engine> {
+    setup_with(cfg, host, tx, shared, overlay, trees, SHIMS)
+}
+
+/// [`setup`] with the shims given (a test gives a broken one).
+fn setup_with(
+    cfg: LunaConfig,
+    host: Arc<dyn LunaHost>,
+    tx: Sender<Msg>,
+    shared: Arc<Mutex<LunaSnapshot>>,
+    overlay: OverlayCell,
+    trees: TreeCell,
+    shims: &[(&str, &str)],
+) -> anyhow::Result<Engine> {
     std::fs::create_dir_all(&cfg.data_dir)?;
     let mut records: Vec<PluginRecord> = storage::read_json(&cfg.data_dir.join("plugins.json"))
         .and_then(|v| serde_json::from_value(v).ok())
@@ -5222,7 +5235,19 @@ fn setup(
     )));
     let ctx = Context::full(&rt)?;
     super::caller::set_context(Some(ctx.as_raw()));
-    let entries = ctx.with(|ctx| -> anyhow::Result<HashMap<&'static str, Persistent<Function<'static>>>> {
+    // The engine exists before any shim runs: when one throws, dropping it
+    // lets go of what the natives keep (the wasm host function, the module
+    // entry, the caller's context) before the runtime goes, as QuickJS
+    // requires, and the error is reported instead of the process aborting.
+    let mut engine = Engine {
+        rt,
+        ctx,
+        inner,
+        deadline,
+        entries: HashMap::new(),
+    };
+    let (inner, deadline) = (engine.inner.clone(), engine.deadline.clone());
+    let entries = engine.ctx.with(|ctx| -> anyhow::Result<HashMap<&'static str, Persistent<Function<'static>>>> {
         let g = ctx.globals();
         let i = inner.clone();
         g.set(
@@ -5299,7 +5324,7 @@ fn setup(
         ))
         .catch(&ctx)
         .map_err(|e| anyhow::anyhow!("versions: {e}"))?;
-        for (file, src) in SHIMS {
+        for (file, src) in shims {
             let mut opts = EvalOptions::default();
             opts.strict = false;
             opts.filename = Some(format!("luna:{file}"));
@@ -5335,13 +5360,8 @@ fn setup(
             .map_err(|e| anyhow::anyhow!("lockdown: {e}"))?;
         Ok(entries)
     })?;
-    Ok(Engine {
-        rt,
-        ctx,
-        inner,
-        deadline,
-        entries,
-    })
+    engine.entries = entries;
+    Ok(engine)
 }
 
 /// The shim functions Rust calls.
@@ -5589,4 +5609,63 @@ pub(crate) fn spawn(
             }
         })?;
     Ok(t)
+}
+
+#[cfg(test)]
+mod setup_tests {
+    use super::*;
+    use crate::luna::host::PlaybackSnapshot;
+
+    struct Quiet;
+
+    impl LunaHost for Quiet {
+        fn playback(&self) -> PlaybackSnapshot {
+            PlaybackSnapshot::default()
+        }
+        fn command(&self, _: HostCommand) {}
+    }
+
+    /// A shim that throws while it is evaluated ends the runtime's start
+    /// with that error. Before, `setup` returned before the engine existed,
+    /// so the wasm host function `wasm.js` hands to Rust was still held when
+    /// the runtime was freed, and debug builds aborted on QuickJS's
+    /// `gc_obj_list` assertion instead of reporting the error.
+    #[test]
+    fn a_shim_that_throws_is_reported_not_an_abort() {
+        let dir = std::env::temp_dir().join(format!("luna-broken-shim-{}", std::process::id()));
+        let mut cfg = LunaConfig::new(dir.clone());
+        cfg.default_stores = false;
+        cfg.auto_update = false;
+        assert_eq!((SHIMS[0].0, SHIMS[1].0), ("prelude.js", "wasm.js"));
+        let r = std::thread::Builder::new()
+            .stack_size(32 * 1024 * 1024)
+            .spawn(move || {
+                let shims = [
+                    SHIMS[0],
+                    SHIMS[1],
+                    ("broken.js", "throw new Error('a broken shim');"),
+                ];
+                let (tx, _rx) = std::sync::mpsc::channel();
+                setup_with(
+                    cfg,
+                    Arc::new(Quiet),
+                    tx,
+                    Arc::default(),
+                    Arc::default(),
+                    TreeCell::default(),
+                    &shims,
+                )
+                .err()
+                .map(|e| format!("{e:#}"))
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        let err = r.expect("the start failed");
+        assert!(
+            err.contains("broken.js") && err.contains("a broken shim"),
+            "{err}"
+        );
+    }
 }
