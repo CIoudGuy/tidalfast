@@ -1824,3 +1824,44 @@ fn a_themes_now_playing_paint_lies_under_tidals_cover() {
     assert!(!bare.contains(&marker), "no cover: {bare:?}");
     assert!(bare.contains(&pale), "the view's own paint: {bare:?}");
 }
+
+/// TIDAL's album, playlist and mix header art is the header box's
+/// `::before`, 450 points of the cover under black fading to solid black.
+/// The box holds the whole page under the header, so a theme's
+/// `[class*="dataContainer"]:before { height: 100% }` (Sunken Tidal) lays
+/// the dimmed cover behind every row and the page under the header is
+/// near black where the theme's window is grey. Tidalfast kept the 450, so
+/// the rows lay on the theme's grey. Without a theme the box keeps 450.
+#[test]
+fn a_themes_height_on_the_header_art_box_reaches_down_the_page() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::PAGE_DATA;
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(page) = frame.page.as_mut() {
+        page.data = Some([240.0, 92.0, 1040.0, 300.0]);
+    }
+    let page = egui::Rect::from_min_size(egui::pos2(0.0, 30.0), egui::vec2(1600.0, 1000.0));
+    assert_eq!(crate::ui::cover_backdrop_rect(page).height(), 450.0);
+    let css = r#"/* {"name": "Tall header art"} */
+[class*="dataContainer"]:before { height: 100% !important; }
+"#;
+    let (luna, o) = overlay_with("tall-art.css", css, dom_anchors::build(&frame), PAGE_DATA);
+    pd::test_overlay(Some((*o).clone()));
+    let full = pd::before_height(PAGE_DATA, 2400.0);
+    // A page shorter than the window still has the box reach its foot.
+    let rect = crate::ui::cover_backdrop_rect(page);
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(full, Some(2400.0));
+    assert_eq!(rect.min, page.min);
+    assert!(rect.height() >= page.height(), "{rect:?}");
+    let css = r#"/* {"name": "Fixed header art"} */
+[class*="dataContainer"]:before { height: 600px; }
+"#;
+    let (luna, o) = overlay_with("fixed-art.css", css, dom_anchors::build(&frame), PAGE_DATA);
+    pd::test_overlay(Some((*o).clone()));
+    let fixed = crate::ui::cover_backdrop_rect(page).height();
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(fixed, 600.0);
+}
