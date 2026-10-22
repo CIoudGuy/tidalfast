@@ -12,8 +12,8 @@
 //!   Cyrillic run is drawn by Inter from its first letter to its last.
 //!   Inter was picked over a second grotesque because it is already in the
 //!   binary, covers every Greek and Cyrillic block and all of Vietnamese,
-//!   and is a weight-for-weight sibling (see `.internal/font-choice.md` for
-//!   the comparison: Inter is the same height and 9% wider, hence the scale).
+//!   and is a weight-for-weight sibling (Inter is the same height and
+//!   9% wider, hence the scale).
 //! - **Every other script** (Arabic, Hebrew, CJK, Thai, Devanagari, ...): the
 //!   installed face `fastframe-fonts` found for it, but at the requested
 //!   weight. A variable face gets its `wght` coordinate; a static one is

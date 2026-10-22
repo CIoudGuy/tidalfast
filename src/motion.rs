@@ -119,8 +119,7 @@ impl Transition {
     }
 }
 
-/// TIDAL's transitions, read from its stylesheets (.internal/docs/PARITY-PROGRESS.md,
-/// "Motion").
+/// TIDAL's transitions, read from its stylesheets.
 pub mod tidal {
     use super::{Bezier, Transition, ease};
 

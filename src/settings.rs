@@ -362,7 +362,7 @@ pub struct Settings {
     /// and skips them in playback and the queue (videos are not included).
     pub allow_explicit: bool,
     /// TIDAL's "Allow AI content": off greys out the tracks TIDAL labels AI
-    /// and skips them in playback and the queue. Off by default (owner's
+    /// and skips them in playback and the queue. Off by default (the project's
     /// choice; TIDAL's own default is on), so AI-labelled tracks are skipped
     /// until the user allows them.
     pub allow_ai: bool,
@@ -612,7 +612,7 @@ impl Default for Settings {
             lyrics_width: 360.0,
             queue_width: 360.0,
             // Off by default: each new frame of a clip costs a full interface
-            // frame (measured in .internal/docs/FEED-COVERS-PROGRESS.md).
+            // frame.
             animated_covers: false,
             middle_click_autoscroll: false,
             appimage_integration: true,

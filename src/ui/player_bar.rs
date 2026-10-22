@@ -408,7 +408,7 @@ const NOW_PLAYING_TEXT_INSET: f32 = 24.0;
 /// [`NOW_PLAYING_TEXT_INSET`], or 10 points less where a plugin sets
 /// `display: flex` on TIDAL's `track-info`: in TIDAL the words then start
 /// 30 from the window's edge instead of 40 while the cover is left out
-/// (tidal-genres' layout override, seen in the owner's captures).
+/// (tidal-genres' layout override, seen in reference captures).
 fn now_playing_text_inset() -> f32 {
     let flex = plugin_dom::display(keys::TRACK_INFO).is_some_and(|d| d.contains("flex"));
     if flex {

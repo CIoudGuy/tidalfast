@@ -6,8 +6,7 @@
 //! Tidalfast's own Settings pages keep the app's widgets.
 //!
 //! Sizes and colours come from `@luna/ui`'s sources and MUI's defaults, and
-//! were checked against TidaLuna 1.17.1-beta's captures
-//! (`.internal/luna-reference/<plugin>/settings.png`).
+//! were checked against TidaLuna 1.17.1-beta's captures.
 
 use egui::{
     Align, Align2, Color32, CornerRadius, FontId, Layout, Pos2, Rect, Sense, Stroke, StrokeKind,

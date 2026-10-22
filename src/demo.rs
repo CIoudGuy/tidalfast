@@ -3564,7 +3564,7 @@ mod tests {
             menu(false),
             [
                 "Profile",
-                // Not in TIDAL's own menu: added at the owner's request.
+                // Not in TIDAL's own menu: Tidalfast adds it.
                 "My Activity",
                 "Manage subscription",
                 "Settings",
@@ -5508,7 +5508,7 @@ mod tests {
     }
 
     /// Play next from a search result's menu records the song, as playing it
-    /// does (owner report: songs added with Play next never showed in Recent
+    /// does (reported: songs added with Play next never showed in Recent
     /// Searches).
     #[test]
     fn play_next_from_a_search_result_is_a_recent_search() {
@@ -16542,8 +16542,8 @@ mod tests {
         painted.iter().map(|(text, _)| text.as_str()).collect()
     }
 
-    /// The album page leaves TIDAL's review to its Credits page (owner's
-    /// call: it was shown twice), and the header offers Credits.
+    /// The album page leaves TIDAL's review to its Credits page (it
+    /// was shown twice), and the header offers Credits.
     #[test]
     fn an_album_page_leaves_its_review_to_credits_and_offers_credits() {
         use egui::accesskit::{Action as Access, Role};

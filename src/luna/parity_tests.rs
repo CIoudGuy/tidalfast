@@ -538,7 +538,7 @@ export function Settings() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Kisakay's DownloadManager runs like the other downloaders (owner
+/// Kisakay's DownloadManager runs like the other downloaders (project
 /// decision, 2026-10-20): its store entry is not refused and an installed
 /// copy loads; what it saves goes through the save-audio permission, off
 /// until the user allows it. (It was refused because it "froze the app at
@@ -571,7 +571,7 @@ fn download_manager_is_offered_and_an_installed_copy_loads() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Owner decision: LastFM (it reads TIDAL's own Last.fm API key) is not
+/// Project decision: LastFM (it reads TIDAL's own Last.fm API key) is not
 /// supported. Its store entry is refused by URL; a copy that arrives any
 /// other way (an import from TIDAL) stays installed with its settings,
 /// disabled with the reason.

@@ -1,4 +1,4 @@
-//! Plugins compared with the owner's TidaLuna in batch 4 (CoverTheme,
+//! Plugins compared with TidaLuna in batch 4 (CoverTheme,
 //! StarryNight, NoPlaylistBackgroundImage and the rest): what their store
 //! builds do to TIDAL's markup, held against Tidalfast's anchors.
 

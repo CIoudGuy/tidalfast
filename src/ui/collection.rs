@@ -1597,7 +1597,7 @@ pub(super) const HEADER_MEDIUM: f32 = 800.0;
 
 /// Whether a header in a page narrower than [`HEADER_NARROW`] keeps its
 /// More ("…") button. TIDAL hides it there (its album at 314 shows Play,
-/// Shuffle and Added only), and so does Tidalfast (owner's decision,
+/// Shuffle and Added only), and so does Tidalfast (maintainer's decision,
 /// 2026-10-22). See "Narrow window" in `docs/_reference/tidal-ui-spec.md`.
 pub(super) const NARROW_HEADER_KEEPS_MORE: bool = false;
 
@@ -6929,7 +6929,7 @@ mod tests {
     }
 
     /// The narrow tier keeps More exactly when [`NARROW_HEADER_KEEPS_MORE`]
-    /// says so, the one place the owner's decision lives; with no room for
+    /// says so, the one place that decision lives; with no room for
     /// it, More goes before the first button.
     #[test]
     fn the_narrow_headers_more_follows_the_owner_switch() {

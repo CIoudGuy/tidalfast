@@ -1,6 +1,6 @@
 //! A blocking adapter that serves the engine's [`Catalog`] from
 //! [`TidalClient`]. The trait and its types belong to the engine
-//! (`src/tidal_engine/catalog.rs`, .internal/docs/TIDAL-PORT.md) and are re-exported.
+//! (`src/tidal_engine/catalog.rs`) and are re-exported.
 
 use std::collections::HashSet;
 use std::sync::Arc;

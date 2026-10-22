@@ -1,4 +1,4 @@
-//! Regression tests for the Luna hardening round (`.internal` bug review,
+//! Regression tests for the Luna hardening round (bug review,
 //! 2026-10-15): one test per fixed finding, through the real plugin manager
 //! where the finding is about plugin behaviour.
 

@@ -150,7 +150,7 @@ pub(crate) fn migrated_plugin_url(retired: &[(String, String)], url: &str) -> Op
     migrated_store(retired, store).map(|new| format!("{new}/{file}"))
 }
 
-/// Stores that are always listed, beside TidaLuna's own: the owner's. They
+/// Stores that are always listed, beside TidaLuna's own: the maintainer's. They
 /// cannot be removed (the remove command is ignored), and are added back to a
 /// saved list that lacks them, after a settings import and after a reset. Only
 /// while [`LunaConfig::default_stores`] is on, which is the app's setting.
@@ -424,7 +424,7 @@ impl Permission {
     }
 }
 
-/// Plugins Tidalfast does not run (owner decision), by package name, with
+/// Plugins Tidalfast does not run (project decision), by package name, with
 /// the reason shown where the plugin would be: they are left out of the
 /// Plugin Store, refused on install, and disabled when imported.
 pub const UNSUPPORTED: &[(&str, &str)] = &[(
