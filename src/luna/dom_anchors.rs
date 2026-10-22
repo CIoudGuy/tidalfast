@@ -679,6 +679,21 @@ pub struct Tile {
     /// editors or other users made (the cotton candy family's tiles are
     /// pink for the first, blue-to-pink for the rest).
     pub owned: bool,
+    /// What the tile opens: TIDAL's link and tile carry it in their class
+    /// and id.
+    pub kind: TileKind,
+}
+
+/// What a shortcut tile opens. TIDAL gives each kind its own `_link_`
+/// class (an artist's link `_link_0c5cc7e`, which the cotton candy family
+/// paints in its second colour) and id (`#mix-shortcut`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TileKind {
+    #[default]
+    Playlist,
+    Mix,
+    Album,
+    Artist,
 }
 
 /// A card of a shelf or grid: `div[data-test=grid-item]._card_38c6c04`
@@ -1549,20 +1564,25 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
             out.push(
                 el(keys::tile(i), Some(FEED_TILES), "a")
                     .class("_disableUnderline_8e517ad")
-                    .class(if tile.owned {
-                        "_link_86815a7"
-                    } else {
-                        "_link_5308097"
+                    .class(match tile.kind {
+                        TileKind::Artist => "_link_0c5cc7e",
+                        _ if tile.owned => "_link_86815a7",
+                        _ => "_link_5308097",
                     })
                     .at(tile.rect),
             );
             out.push(
                 el(keys::tile_item(i), Some(&keys::tile(i)), "div")
                     .class("_shortcutItem_6c8e7b4")
-                    // Every shortcut is a playlist here; TIDAL's ids for the
-                    // kinds are `playlist-shortcut`, `mix-shortcut` and
-                    // `album-shortcut` (`#playlist-shortcut > img`).
-                    .id("playlist-shortcut")
+                    // TIDAL's ids for the kinds: `playlist-shortcut`,
+                    // `mix-shortcut`, `album-shortcut` (`#playlist-shortcut
+                    // > img`) and `artist-shortcut`.
+                    .id(match tile.kind {
+                        TileKind::Playlist => "playlist-shortcut",
+                        TileKind::Mix => "mix-shortcut",
+                        TileKind::Album => "album-shortcut",
+                        TileKind::Artist => "artist-shortcut",
+                    })
                     .at(tile.rect),
             );
             out.push(el(keys::tile_img(i), Some(&keys::tile_item(i)), "img").at(tile.image));

@@ -2284,7 +2284,7 @@ pub fn grid_card(r: Rect, artist: bool) -> Option<String> {
 /// A shortcut tile of the home page drawn at `r` with its picture at
 /// `image`: its box's key, for [`grid_card_style`] and
 /// [`paint_host_layers`]. `None` while Luna is off.
-pub fn home_tile(r: Rect, image: Rect, owned: bool) -> Option<String> {
+pub fn home_tile(r: Rect, image: Rect, owned: bool, kind: dom_anchors::TileKind) -> Option<String> {
     if !on() {
         return None;
     }
@@ -2296,6 +2296,7 @@ pub fn home_tile(r: Rect, image: Rect, owned: bool) -> Option<String> {
                 rect: rect(r),
                 image: rect(image),
                 owned,
+                kind,
             });
         }
     });

@@ -7,6 +7,7 @@ use egui::{CornerRadius, Rect, Sense, Vec2, pos2, vec2};
 use crate::api::models::{PlayableItem, Playlist, ShelfItem, ShelfLayout, pick_image};
 use crate::app::App;
 use crate::i18n::gettext;
+use crate::luna::dom_anchors::TileKind;
 use crate::model::{Action, Loadable, Page, RowContext};
 use crate::theme::{self, Icon};
 
@@ -135,6 +136,8 @@ struct Tile {
     owned_playlist: Option<Playlist>,
     /// An artist's cover is a circle.
     round: bool,
+    /// What the tile opens, for TIDAL's link class and id.
+    kind: TileKind,
 }
 
 /// The height of a shortcut tile.
@@ -203,6 +206,7 @@ fn playlist_tile(app: &App, playlist: &Playlist, tile_art: u32, user_id: &str) -
         uri: Some(playlist.uri.clone()),
         owned_playlist: owned.then(|| playlist.clone()),
         round: false,
+        kind: TileKind::Playlist,
     }
 }
 
@@ -218,6 +222,7 @@ fn shortcut_tile(app: &App, item: &ShelfItem, tile_art: u32, user_id: &str) -> O
             uri: Some(mix.uri.clone()),
             owned_playlist: None,
             round: false,
+            kind: TileKind::Mix,
         },
         ShelfItem::Album(album) => Tile {
             image: pick_image(&album.images, tile_art).map(str::to_string),
@@ -229,6 +234,7 @@ fn shortcut_tile(app: &App, item: &ShelfItem, tile_art: u32, user_id: &str) -> O
             uri: Some(album.uri.clone()),
             owned_playlist: None,
             round: false,
+            kind: TileKind::Album,
         },
         ShelfItem::Artist(artist) => Tile {
             image: pick_image(&artist.images, tile_art).map(str::to_string),
@@ -238,6 +244,7 @@ fn shortcut_tile(app: &App, item: &ShelfItem, tile_art: u32, user_id: &str) -> O
             uri: Some(artist.uri.clone()),
             owned_playlist: None,
             round: true,
+            kind: TileKind::Artist,
         },
         ShelfItem::Track(track) => {
             let album = track.album.as_ref().filter(|album| !album.id.is_empty())?;
@@ -251,6 +258,7 @@ fn shortcut_tile(app: &App, item: &ShelfItem, tile_art: u32, user_id: &str) -> O
                 uri: Some(track.uri.clone()),
                 owned_playlist: None,
                 round: false,
+                kind: TileKind::Album,
             }
         }
         ShelfItem::Video(_) => return None,
@@ -280,6 +288,7 @@ fn quick_access(app: &mut App, ui: &mut egui::Ui) {
                     uri,
                     owned_playlist,
                     round,
+                    kind,
                 }) = tiles.get(row * columns + column)
                 else {
                     break;
@@ -308,7 +317,7 @@ fn quick_access(app: &mut App, ui: &mut egui::Ui) {
                     // A theme's box for the tile (the cotton candy family's
                     // gradient tiles) replaces the grey one.
                     let themed =
-                        super::plugin_dom::home_tile(rect, cover, owned_playlist.is_some());
+                        super::plugin_dom::home_tile(rect, cover, owned_playlist.is_some(), *kind);
                     // A plugin hid the tile (`display: none`): its cell stays, empty.
                     if themed.as_deref().is_some_and(super::plugin_dom::hidden) {
                         continue;
