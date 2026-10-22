@@ -484,9 +484,9 @@ fn artist_hero_own(
     ui.painter().text(
         pos2(name_rect.left(), name_rect.center().y),
         egui::Align2::LEFT_CENTER,
-        super::plugin_dom::headline_case(&artist.name),
-        super::plugin_dom::headline_font(32.0),
-        super::plugin_dom::headline_color(palette.text),
+        super::plugin_dom::title_case(super::plugin_dom::Title::ArtistName, &artist.name),
+        super::plugin_dom::title_font(super::plugin_dom::Title::ArtistName, 32.0),
+        super::plugin_dom::title_color(super::plugin_dom::Title::ArtistName, palette.text),
     );
     let name_response = ui.interact(name_rect, ui.id().with("artist-name"), Sense::hover());
     let label = format!("{}: {}", gettext(locale, "Artist"), artist.name);

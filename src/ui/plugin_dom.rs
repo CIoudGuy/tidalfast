@@ -4118,6 +4118,82 @@ pub fn headline_font(size: f32) -> egui::FontId {
     )
 }
 
+/// TIDAL's large titles that are not a page's `h1` (whose words
+/// [`headline_font`] and the rest read): the `h2` in an album's, playlist's
+/// or mix's header, and an artist's name (`h2[data-test=artist-name]`). A
+/// theme styles them apart: Lunallena's lime `h1` leaves an album's title
+/// white in TIDAL, Giorgeous' `h2` sets it in large green capitals.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Title {
+    Header,
+    ArtistName,
+}
+
+impl Title {
+    /// The title's words and the heading round them.
+    fn keys(self) -> (&'static str, &'static str) {
+        use dom_anchors::keys::*;
+        match self {
+            Title::Header => (THEME_TITLE_TEXT, THEME_TITLE),
+            Title::ArtistName => (THEME_ARTIST_NAME, THEME_ARTIST_NAME),
+        }
+    }
+}
+
+/// [`headline_font`] for `title`.
+pub fn title_font(title: Title, size: f32) -> egui::FontId {
+    let (text, heading) = title.keys();
+    heading_font(text, heading, size)
+}
+
+/// [`headline_color`] for `title`.
+pub fn title_color(title: Title, native: Color32) -> Color32 {
+    let (text, heading) = title.keys();
+    heading_color(text, heading).unwrap_or(native)
+}
+
+/// [`headline_case`] for `title`.
+pub fn title_case(title: Title, text: &str) -> Cow<'_, str> {
+    if !on() {
+        return Cow::Borrowed(text);
+    }
+    let (words, heading) = title.keys();
+    let upper = uppercase(words)
+        .or_else(|| uppercase(heading))
+        .unwrap_or(false);
+    cased(text, upper)
+}
+
+/// [`headline_galley`] for `title`.
+pub fn title_galley(
+    ui: &egui::Ui,
+    title: Title,
+    text: String,
+    font: egui::FontId,
+    color: Color32,
+) -> Arc<egui::Galley> {
+    let text = match title_case(title, &text) {
+        Cow::Owned(upper) => upper,
+        Cow::Borrowed(_) => text,
+    };
+    match spacing(title.keys().0) {
+        Some(spacing) => {
+            let mut job = egui::text::LayoutJob::single_section(
+                text,
+                egui::TextFormat {
+                    font_id: font,
+                    color,
+                    extra_letter_spacing: spacing,
+                    ..Default::default()
+                },
+            );
+            job.wrap.max_width = f32::INFINITY;
+            ui.painter().layout_job(job)
+        }
+        None => ui.painter().layout_no_wrap(text, font, color),
+    }
+}
+
 /// A section title's font ("Your favorite artists", the play queue's
 /// title), as [`headline_font`] for TIDAL's section headings and their
 /// `h2`.
@@ -4174,7 +4250,12 @@ fn heading_color(text: &str, heading: &str) -> Option<Color32> {
 /// The `letter-spacing` a theme gives page titles, in points (Tidal TUI's
 /// 6px).
 pub fn headline_spacing() -> Option<f32> {
-    host(dom_anchors::keys::THEME_HEADLINE, |h, vars| {
+    spacing(dom_anchors::keys::THEME_HEADLINE)
+}
+
+/// The `letter-spacing` a theme gives `key`'s words, in points.
+fn spacing(key: &str) -> Option<f32> {
+    host(key, |h, vars| {
         let v = css::resolve_vars(h.style.letter_spacing.as_deref()?, vars);
         css::length(&v, 14.0, 0.0, [0.0, 0.0]).filter(|s| *s != 0.0)
     })

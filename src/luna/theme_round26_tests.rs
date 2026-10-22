@@ -262,6 +262,68 @@ fn a_catch_all_colour_leaves_the_navigation_rows_words() {
     assert_eq!(words, Some(egui::Color32::from_rgb(120, 10, 40)));
 }
 
+/// TIDAL draws an album's, playlist's or mix's title as an `h2` in its
+/// header and an artist's name as `h2[data-test=artist-name]`, not as the
+/// page's `h1`: Lunallena's lime `h1` leaves them white in TIDAL, and
+/// Giorgeous' `h2 { font-size: 30px; text-transform: uppercase; color }`
+/// sets them in large green capitals (its artist name at 50px). Tidalfast
+/// read the `h1` for them.
+#[test]
+fn header_titles_are_tidals_h2_not_the_pages_h1() {
+    use crate::ui::plugin_dom::{self as pd, Title};
+    let white = egui::Color32::WHITE;
+    let page_heading = r#"/* {"name": "Lime pages"} */
+:root { --lime-zest: rgb(150, 255, 100); }
+h1 { font-size: 30px !important; color: var(--lime-zest) !important; }
+"#;
+    let (luna, o) = overlay_with(
+        "lime-pages.css",
+        page_heading,
+        dom_anchors::sample_tree(),
+        dom_anchors::keys::THEME_H1,
+    );
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let page = pd::headline_color(white);
+    let header = pd::title_color(Title::Header, white);
+    let artist = pd::title_color(Title::ArtistName, white);
+    let size = pd::title_font(Title::Header, 32.0).size;
+    pd::test_overlay(None);
+    assert_eq!(
+        page,
+        egui::Color32::from_rgb(150, 255, 100),
+        "the page's h1"
+    );
+    assert_eq!(header, white, "an album's title");
+    assert_eq!(artist, white, "an artist's name");
+    assert_eq!(size, 32.0);
+
+    let headings = r#"/* {"name": "Moss capitals"} */
+:root { --moss: rgb(190, 250, 40); }
+h2 { font-size: 30px !important; text-transform: uppercase !important; color: var(--moss) !important; }
+h2[data-test='artist-name'] { font-size: 50px !important; }
+"#;
+    let (luna, o) = overlay_with(
+        "moss-capitals.css",
+        headings,
+        dom_anchors::sample_tree(),
+        dom_anchors::keys::THEME_ARTIST_NAME,
+    );
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let color = pd::title_color(Title::Header, white);
+    let case = pd::title_case(Title::Header, "Late night focus").into_owned();
+    let size = pd::title_font(Title::Header, 32.0).size;
+    let artist = pd::title_font(Title::ArtistName, 32.0).size;
+    let artist_case = pd::title_case(Title::ArtistName, "Bonobo").into_owned();
+    pd::test_overlay(None);
+    assert_eq!(color, egui::Color32::from_rgb(190, 250, 40));
+    assert_eq!(case, "LATE NIGHT FOCUS");
+    assert_eq!(size, 30.0);
+    assert_eq!(artist, 50.0);
+    assert_eq!(artist_case, "BONOBO");
+}
+
 /// The play queue's title is TIDAL's market heading text, not a section's
 /// `headerContainer > h2`: Lunallena's `[class*="heading"]` makes it lime
 /// and its 30px rule for section headings leaves it small in TIDAL;

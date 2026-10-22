@@ -220,6 +220,12 @@ pub mod keys {
     /// in TIDAL's `h1` (Lunallena's `h1 { font-size; color }`).
     pub const THEME_HEADLINE: &str = "theme-roles:headline";
     pub const THEME_H1: &str = "theme-roles:h1";
+    /// The header title of an album, playlist or mix: TIDAL's `h2` with
+    /// its headline words, outside any section's `headerContainer`.
+    pub const THEME_TITLE: &str = "theme-roles:title";
+    pub const THEME_TITLE_TEXT: &str = "theme-roles:title-text";
+    /// An artist page's name, `h2[data-test=artist-name]`.
+    pub const THEME_ARTIST_NAME: &str = "theme-roles:artist-name";
     /// `span.wave-text-subheadline-bold`: a section's title on a page
     /// ("Your favorite artists") and the play queue's, in TIDAL's `h2` in
     /// its header box (Lunallena's `[class*="headerContainer"] > h2`).
@@ -1063,6 +1069,9 @@ pub fn theme_roles(out: &mut Vec<HostNode>) {
     );
     out.push(el(THEME_H1, Some(THEME_ROLES), "h1"));
     out.push(el(THEME_HEADLINE, Some(THEME_H1), "span").class("wave-text-headline-bold"));
+    out.push(el(THEME_TITLE, Some(THEME_ROLES), "h2"));
+    out.push(el(THEME_TITLE_TEXT, Some(THEME_TITLE), "span").class("wave-text-headline-bold"));
+    out.push(el(THEME_ARTIST_NAME, Some(THEME_ROLES), "h2").test("artist-name"));
     out.push(el(THEME_SECTION, Some(THEME_ROLES), "div").modules(&["headerContainer"]));
     out.push(el(THEME_H2, Some(THEME_SECTION), "h2"));
     out.push(el(THEME_SUBHEADLINE, Some(THEME_H2), "span").class("wave-text-subheadline-bold"));
