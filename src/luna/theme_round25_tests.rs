@@ -835,6 +835,32 @@ fn tidals_bar_glass_lies_over_a_themes_bar_fill() {
     );
 }
 
+/// TidalCustomTheme fills `#footerPlayer` pink (`#ff90ba` at 90 %) and
+/// clears the bar's `::after` (`[class^="_player_"]:after { background:
+/// none; backdrop-filter: none }`), where TIDAL's glass is: TIDAL shows
+/// the bar pink, rgb(220, 126, 161). Tidalfast laid the glass over it and
+/// drew a dark maroon bar, rgb(88, 63, 72).
+#[test]
+fn a_theme_that_clears_the_bars_after_keeps_its_fill() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Pink bar"} */
+#footerPlayer { background-color: color-mix(in srgb, #ff90ba, transparent 10%) !important; background: none; }
+[class^="_player_"]:after { background: none; backdrop-filter: none; }
+"#;
+    let (luna, o) = overlay_with(
+        "bar-after.css",
+        css,
+        dom_anchors::sample_tree(),
+        dom_anchors::keys::FOOTER,
+    );
+    let fill = egui::Color32::from_rgba_unmultiplied(0xff, 0x90, 0xba, 230);
+    pd::test_overlay(Some((*o).clone()));
+    let c = pd::footer_under_glass(fill, egui::Color32::BLACK);
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(c, fill);
+}
+
 /// TIDAL colours a mix's title by `--track-vibrant-color`, which Abyss
 /// Neptune sets itself (`--track-vibrant-color: white !important`): TIDAL
 /// shows the title white there. Tidalfast drew it in the mix's own colour.
