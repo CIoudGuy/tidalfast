@@ -1554,45 +1554,15 @@ fn track_row_contents(
             };
             ui.painter().rect_filled(bar, corners, color);
         }
+        // The boxes TIDAL's virtual list holds the row in, then the row's own.
+        for (sides, color, radius) in row_wrapper_borders(&list, row.index) {
+            paint_border(ui.painter(), rect, sides, color, radius);
+        }
         if let Some((sides, color)) = super::plugin_dom::outline_sides(
             &crate::luna::dom_anchors::keys::row(&list, row.index),
             app.palette.accent,
         ) {
-            let [top, right, bottom, left] = sides;
-            if sides.iter().all(|w| (w - top).abs() < 0.01) {
-                ui.painter().rect_stroke(
-                    rect.shrink(top / 2.0),
-                    4.0,
-                    egui::Stroke::new(top, color),
-                    egui::StrokeKind::Inside,
-                );
-            } else {
-                // Only the sides that have a style: a line over the row.
-                let painter = ui.painter();
-                let edges = [
-                    (
-                        top,
-                        Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + top)),
-                    ),
-                    (
-                        right,
-                        Rect::from_min_max(pos2(rect.right() - right, rect.top()), rect.max),
-                    ),
-                    (
-                        bottom,
-                        Rect::from_min_max(pos2(rect.left(), rect.bottom() - bottom), rect.max),
-                    ),
-                    (
-                        left,
-                        Rect::from_min_max(rect.min, pos2(rect.left() + left, rect.bottom())),
-                    ),
-                ];
-                for (width, edge) in edges {
-                    if width > 0.0 {
-                        painter.rect_filled(edge, 0.0, color);
-                    }
-                }
-            }
+            paint_border(ui.painter(), rect, sides, color, 4.0);
         }
     }
     // A plugin hid the row (`display: none`): its place stays, empty. Its
@@ -2738,6 +2708,64 @@ pub fn table_header(
         }
     }
     clicked
+}
+
+/// A theme's borders on the boxes TIDAL's virtual list wraps a track row
+/// in (`div[k] > div > div._tableRow_`): Abyss Neptune's
+/// `[data-test="media-table"] > div > div > div { border: 1px solid ... }`
+/// lines each row and its macOS variant's `> div > div { border-radius:
+/// 8px; border: 1px solid ... }` boxes it, round the row's rect with the
+/// box's own corners. Empty without a theme.
+pub(crate) fn row_wrapper_borders(list: &str, index: usize) -> Vec<([f32; 4], Color32, f32)> {
+    use crate::luna::dom_anchors::keys::row_cell;
+    if !super::plugin_dom::on() {
+        return Vec::new();
+    }
+    ["slot", "inner"]
+        .into_iter()
+        .filter_map(|part| super::plugin_dom::box_border(&row_cell(list, index, part)))
+        .collect()
+}
+
+/// A border of `sides` (top, right, bottom, left) round `rect`: one stroke
+/// with `radius` corners when the sides match, else a line on each side
+/// that has one.
+fn paint_border(painter: &egui::Painter, rect: Rect, sides: [f32; 4], color: Color32, radius: f32) {
+    let [top, right, bottom, left] = sides;
+    if sides.iter().all(|w| (w - top).abs() < 0.01) {
+        if top > 0.0 {
+            painter.rect_stroke(
+                rect.shrink(top / 2.0),
+                radius,
+                egui::Stroke::new(top, color),
+                egui::StrokeKind::Inside,
+            );
+        }
+        return;
+    }
+    let edges = [
+        (
+            top,
+            Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + top)),
+        ),
+        (
+            right,
+            Rect::from_min_max(pos2(rect.right() - right, rect.top()), rect.max),
+        ),
+        (
+            bottom,
+            Rect::from_min_max(pos2(rect.left(), rect.bottom() - bottom), rect.max),
+        ),
+        (
+            left,
+            Rect::from_min_max(rect.min, pos2(rect.left() + left, rect.bottom())),
+        ),
+    ];
+    for (width, edge) in edges {
+        if width > 0.0 {
+            painter.rect_filled(edge, 0.0, color);
+        }
+    }
 }
 
 /// The corners of a track row's hover and picked fill: TIDAL paints it on

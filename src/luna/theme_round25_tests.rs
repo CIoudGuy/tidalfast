@@ -1117,3 +1117,43 @@ fn the_sidebars_chevron_and_heading_icons_take_the_themes_colour() {
     luna.shutdown();
     assert_eq!(colors, [Some(egui::Color32::BLACK); 3]);
 }
+
+/// TIDAL's virtual list holds each track row in two boxes
+/// (`[data-test="media-table"] > div > div[k] > div > div._tableRow_`).
+/// Abyss Neptune lines the inner one (`> div > div > div { border: 1px
+/// solid rgb(25, 25, 25) }`) and its macOS variant rounds the outer one
+/// (`> div > div { border-radius: 8px; border: 1px solid ... }`); TIDAL
+/// draws both round each row. Tidalfast read a border on the row only.
+#[test]
+fn a_themes_border_on_a_rows_wrappers_draws_round_the_row() {
+    use crate::ui::plugin_dom as pd;
+    use crate::ui::widgets::row_wrapper_borders;
+    use dom_anchors::keys::row_cell;
+    let css = r#"/* {"name": "Row wrappers"} */
+:root { --ultra-thin: #fffafa1a; }
+[data-test="media-table"]>div>div>div { border: 1px solid rgb(25, 25, 25) !important; }
+[data-test="media-table"] > div > div { border-radius: 8px; border: 1px solid var(--ultra-thin) !important; }
+"#;
+    let (luna, o) = overlay_with(
+        "row-wrappers.css",
+        css,
+        dom_anchors::build(&dom_anchors::sample_frame()),
+        &row_cell("album:55", 1, "inner"),
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let borders = row_wrapper_borders("album:55", 1);
+    pd::test_overlay(None);
+    luna.shutdown();
+    assert_eq!(
+        borders,
+        vec![
+            (
+                [1.0; 4],
+                egui::Color32::from_rgba_unmultiplied(255, 250, 250, 0x1a),
+                8.0
+            ),
+            ([1.0; 4], egui::Color32::from_rgb(25, 25, 25), 0.0),
+        ]
+    );
+    assert!(row_wrapper_borders("album:55", 1).is_empty(), "no theme");
+}
