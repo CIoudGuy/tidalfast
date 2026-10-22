@@ -2364,10 +2364,69 @@ pub(crate) struct TidalColumns {
     pub key: f32,
     /// Columns Luna plugins insert before the time (Tidal Tags), 0 without.
     pub extra: f32,
+    /// The row buttons ("…", "+" and the heart) have their own cell after
+    /// the time. In a narrow table they have none: the "…" alone shows
+    /// over the row's right end under the pointer.
+    pub buttons: bool,
 }
+
+/// TIDAL's track tables give columns up in a narrow page (a 1000-point
+/// window, or a page beside the open play queue) rather than squeeze them.
+/// Narrower than this the table keeps its #, cover and title, and the "…"
+/// over the row's end under the pointer (TIDAL's album, playlist, mix and
+/// Tracks pages, 314 wide beside the queue).
+pub(crate) const TABLE_TITLE_ONLY: f32 = 600.0;
+/// Narrower than this the artist sits beside the title, the time and the
+/// row buttons still gone (TIDAL's album at 662: title 315, artist 305).
+/// TIDAL showed every column at 1104; where between 662 and 1104 the time
+/// comes back was not captured, and 800 is an estimate.
+pub(crate) const TABLE_NO_TIME: f32 = 800.0;
 
 thread_local! {
     static DJ_COLUMNS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static TOP_TRACKS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `draw` with the track tables it paints laid out as an artist's Top
+/// Tracks: narrow, TIDAL keeps their title, artist and album side by side
+/// (only the time, BPM, key and buttons go).
+pub(crate) fn with_top_tracks_columns<R>(draw: impl FnOnce() -> R) -> R {
+    TOP_TRACKS.with(|on| on.set(true));
+    let result = draw();
+    TOP_TRACKS.with(|on| on.set(false));
+    result
+}
+
+/// [`tidal_columns`] in a table narrower than [`TABLE_NO_TIME`].
+fn narrow_columns(width: f32, number: f32, show_cover: bool, show_album: bool) -> TidalColumns {
+    let cover = if show_cover { 54.0 } else { 0.0 };
+    let rest = (width - number - cover).max(0.0);
+    let (title, artist, album) = if TOP_TRACKS.with(std::cell::Cell::get) {
+        if show_album {
+            (rest / 3.0, rest / 3.0, rest / 3.0)
+        } else {
+            (rest / 2.0, rest / 2.0, 0.0)
+        }
+    } else if width < TABLE_TITLE_ONLY {
+        (rest, 0.0, 0.0)
+    } else {
+        // TIDAL at 662: the title 10 wider than the artist.
+        ((rest + 10.0) / 2.0, (rest - 10.0) / 2.0, 0.0)
+    };
+    TidalColumns {
+        number,
+        cover,
+        title,
+        artist,
+        album,
+        added_by: 0.0,
+        added: 0.0,
+        time: 0.0,
+        bpm: 0.0,
+        key: 0.0,
+        extra: 0.0,
+        buttons: false,
+    }
 }
 
 /// Runs `draw` with TIDAL's BPM and KEY columns added to the track tables
@@ -2400,6 +2459,9 @@ pub(crate) fn tidal_columns(
 ) -> TidalColumns {
     // Without the # column (a mix) TIDAL's buttons cell is 130 wide.
     let number = if numbered { 42.0 } else { 0.0 };
+    if width < TABLE_NO_TIME {
+        return narrow_columns(width, number, show_cover, show_album);
+    }
     // With the BPM and KEY columns the time cell is 104 wide, BPM 102 and
     // KEY 34 before the buttons.
     let dj = DJ_COLUMNS.with(std::cell::Cell::get);
@@ -2467,6 +2529,7 @@ pub(crate) fn tidal_columns(
                 bpm,
                 key,
                 extra,
+                buttons: true,
             };
         }
     }
@@ -2613,9 +2676,11 @@ pub fn table_header(
         );
     }
     x += cols.cover + cols.title;
-    let artist = pgettext(locale, "column heading", "ARTIST");
-    heading(ui, x, &artist, SortColumn::Artist, sort_by(&artist));
-    x += cols.artist;
+    if cols.artist > 0.0 {
+        let artist = pgettext(locale, "column heading", "ARTIST");
+        heading(ui, x, &artist, SortColumn::Artist, sort_by(&artist));
+        x += cols.artist;
+    }
     if cols.album > 0.0 {
         let album = pgettext(locale, "column heading", "ALBUM");
         heading(ui, x, &album, SortColumn::Album, sort_by(&album));
@@ -2647,15 +2712,17 @@ pub fn table_header(
         );
         x += cols.extra;
     }
-    let time = pgettext(locale, "column heading", "TIME");
-    heading(
-        ui,
-        x,
-        &time,
-        SortColumn::Duration,
-        gettext(locale, "Sort by duration").into_owned(),
-    );
-    x += cols.time;
+    if cols.time > 0.0 {
+        let time = pgettext(locale, "column heading", "TIME");
+        heading(
+            ui,
+            x,
+            &time,
+            SortColumn::Duration,
+            gettext(locale, "Sort by duration").into_owned(),
+        );
+        x += cols.time;
+    }
     if cols.bpm > 0.0 {
         for (text, left) in [
             (pgettext(locale, "column heading", "BPM"), x),
@@ -2879,7 +2946,7 @@ fn tidal_row_cells(
         x += cols.title;
     }
     // Artist.
-    {
+    if cols.artist > 0.0 {
         let artist_rect = cell(x, cols.artist);
         let mut child = ui.new_child(
             UiBuilder::new()
@@ -2995,14 +3062,16 @@ fn tidal_row_cells(
         );
         x += cols.extra;
     }
-    painter.text(
-        pos2(x, rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        util::format_duration_ms(row.item.duration_ms()),
-        text_font,
-        time_color,
-    );
-    x += cols.time;
+    if cols.time > 0.0 {
+        painter.text(
+            pos2(x, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            util::format_duration_ms(row.item.duration_ms()),
+            text_font,
+            time_color,
+        );
+        x += cols.time;
+    }
     if cols.bpm > 0.0 {
         let PlayableItem::Track(track) = row.item;
         let analysis = track.audio_analysis.as_ref();
@@ -3063,10 +3132,13 @@ fn tidal_row_cells(
         egui::Popup::open_id(ui.ctx(), menu_id);
     }
     let button = |index: f32| {
-        Rect::from_min_size(
-            pos2(x + 1.0 + index * 32.0, rect.center().y - 12.0),
-            Vec2::splat(24.0),
-        )
+        // A narrow table's "…" centres 19 in from the row's end (TIDAL).
+        let left = if cols.buttons {
+            x + 1.0 + index * 32.0
+        } else {
+            rect.right() - 31.0
+        };
+        Rect::from_min_size(pos2(left, rect.center().y - 12.0), Vec2::splat(24.0))
     };
     let quiet = palette.text.gamma_multiply(0.6);
     {
@@ -3092,6 +3164,9 @@ fn tidal_row_cells(
             .id(menu_id)
             .frame(menu_frame(&palette))
             .show(|ui| item_menu(ui, app, row.item, Some(row.context), Some(row.index)));
+    }
+    if !cols.buttons {
+        return number;
     }
     let add_id = ui.id().with(("row-add", row.index));
     let mut child = ui.new_child(
@@ -5555,7 +5630,8 @@ mod tests {
     /// A track table that is too narrow for every column drops the least
     /// important one (Added by, Date added, then Album) instead of cutting
     /// the title, artist or album to a stub; wide tables keep TIDAL's
-    /// widths.
+    /// widths. Below [`TABLE_NO_TIME`] TIDAL's own narrow rules take over
+    /// (the tests after this one).
     #[test]
     fn a_narrow_track_table_drops_columns_instead_of_cutting_them_short() {
         // The playlist at 1104 (see `tidal_columns`): unchanged.
@@ -5565,28 +5641,24 @@ mod tests {
             (289.0, 231.0, 173.0)
         );
         assert!(wide.added > 0.0);
-        for width in (380..1300).step_by(10) {
+        for width in (800..1300).step_by(10) {
             let width = width as f32;
             let cols = tidal_columns(width, true, true, true, true, true);
+            assert!(cols.buttons, "{width}: {cols:?}");
             let fixed = cols.number + cols.cover + cols.time + 100.0;
             let sum = fixed + cols.title + cols.artist + cols.album + cols.added + cols.added_by;
             assert!(sum <= width + 1.0, "{width}: {sum} wide");
             if cols.album > 0.0 {
                 assert!(cols.album >= 110.0, "{width}: album {cols:?}");
             }
-            // Whatever is left shows the title and artist at a readable width
-            // whenever the table has the room for the fixed columns.
-            if width >= 520.0 {
-                assert!(
-                    cols.artist >= 120.0 && cols.title >= 150.0,
-                    "{width}: {cols:?}"
-                );
-            }
-            // The covers stay until the table is down to its narrowest, and
-            // always on a table without a # column, where one is the play control.
-            if width >= 580.0 {
-                assert!(cols.cover > 0.0, "{width}: {cols:?}");
-            }
+            // Whatever is left shows the title and artist at a readable width.
+            assert!(
+                cols.artist >= 120.0 && cols.title >= 150.0,
+                "{width}: {cols:?}"
+            );
+            // The covers stay, and always on a table without a # column,
+            // where one is the play control.
+            assert!(cols.cover > 0.0, "{width}: {cols:?}");
             let mix = tidal_columns(width, false, true, true, true, true);
             assert!(mix.cover > 0.0, "{width}: {mix:?}");
             // Dropped in order: Added by, Date added, Album.
@@ -5600,6 +5672,137 @@ mod tests {
                 assert!(cols.added_by == 0.0, "{width}: {cols:?}");
             }
         }
+    }
+
+    /// The columns a narrow table drops that cost room: everything but the
+    /// #, cover, title, artist and album.
+    fn spare_columns(cols: &TidalColumns) -> f32 {
+        cols.added_by + cols.added + cols.time + cols.bpm + cols.key + cols.extra
+    }
+
+    /// Narrower than [`TABLE_TITLE_ONLY`] TIDAL's track tables keep the #,
+    /// the cover and the title to the row's end (the album beside the open
+    /// queue, 314 wide): no artist, album, time or row buttons, only the "…"
+    /// under the pointer. Tidalfast squeezed every column into the room.
+    #[test]
+    fn a_table_narrower_than_600_keeps_only_the_title() {
+        for width in [250.0, 314.0, 450.0, 599.0] {
+            for (cover, album) in [(true, true), (false, false)] {
+                let cols = tidal_columns(width, true, cover, album, true, true);
+                assert!(!cols.buttons, "{width}: {cols:?}");
+                assert_eq!((cols.artist, cols.album), (0.0, 0.0), "{width}: {cols:?}");
+                assert_eq!(spare_columns(&cols), 0.0, "{width}: {cols:?}");
+                assert_eq!(cols.number, 42.0);
+                assert_eq!(cols.cover, if cover { 54.0 } else { 0.0 });
+                assert_eq!(cols.number + cols.cover + cols.title, width);
+            }
+            // A mix has no # column; its cover (the play control) stays.
+            let mix = tidal_columns(width, false, true, true, true, true);
+            assert_eq!((mix.number, mix.cover), (0.0, 54.0));
+            assert_eq!(mix.title, width - 54.0);
+        }
+    }
+
+    /// From [`TABLE_TITLE_ONLY`] to [`TABLE_NO_TIME`] the artist sits beside
+    /// the title (TIDAL's album at 662: title 315, artist 305), still with
+    /// no album, time or row buttons.
+    #[test]
+    fn a_table_from_600_to_800_shows_the_title_and_artist() {
+        let at_662 = tidal_columns(662.0, true, false, true, true, false);
+        assert_eq!((at_662.title, at_662.artist), (315.0, 305.0));
+        for width in [600.0, 662.0, 700.0, 799.0] {
+            let cols = tidal_columns(width, true, true, true, true, true);
+            assert!(!cols.buttons, "{width}: {cols:?}");
+            assert_eq!(cols.album, 0.0, "{width}: {cols:?}");
+            assert_eq!(spare_columns(&cols), 0.0, "{width}: {cols:?}");
+            assert_eq!(cols.title - cols.artist, 10.0, "{width}: {cols:?}");
+            assert_eq!(cols.number + cols.cover + cols.title + cols.artist, width);
+        }
+        // From 800 the wide layout is back, the time and buttons with it.
+        let cols = tidal_columns(800.0, true, true, true, true, true);
+        assert!(cols.buttons && cols.time > 0.0, "{cols:?}");
+    }
+
+    /// An artist's Top Tracks keep the title, artist and album side by side
+    /// in a narrow page (TIDAL's artist page beside the queue), in thirds;
+    /// only the time and the row buttons go.
+    #[test]
+    fn narrow_top_tracks_split_title_artist_and_album_in_thirds() {
+        let cols =
+            with_top_tracks_columns(|| tidal_columns(370.0, false, true, true, false, false));
+        assert!(!cols.buttons);
+        assert_eq!(spare_columns(&cols), 0.0);
+        let third = (370.0 - 54.0) / 3.0;
+        assert_eq!((cols.title, cols.artist, cols.album), (third, third, third));
+        // A table without its album column halves the room.
+        let cols =
+            with_top_tracks_columns(|| tidal_columns(370.0, false, true, false, false, false));
+        assert_eq!((cols.title, cols.artist, cols.album), (158.0, 158.0, 0.0));
+        // The flag ends with the call: the next table is an ordinary one.
+        let plain = tidal_columns(370.0, false, true, true, false, false);
+        assert_eq!((plain.artist, plain.album), (0.0, 0.0));
+    }
+
+    /// The sort headings a track table header offers at `width`.
+    fn header_headings(width: f32) -> Vec<String> {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        theme::install(&ctx);
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(width, 200.0))),
+                ..Default::default()
+            },
+            |ui| {
+                let _ = table_header(
+                    ui,
+                    &Palette::dark(),
+                    Locale::English,
+                    true,
+                    false,
+                    false,
+                    true,
+                    true,
+                    None,
+                );
+            },
+        );
+        output.textures_delta.clear();
+        let tree = output
+            .platform_output
+            .accesskit_update
+            .expect("screen-reader tree");
+        tree.nodes
+            .iter()
+            .filter_map(|(_, node)| node.label())
+            .filter(|label| label.starts_with("Sort by"))
+            .map(str::to_string)
+            .collect()
+    }
+
+    /// A narrow table's header names only the columns it shows: no ARTIST
+    /// below 600 and no TIME below 800 (it named both over cells that are
+    /// no longer drawn).
+    #[test]
+    fn a_narrow_tables_header_drops_the_headings_of_dropped_columns() {
+        let has = |headings: &[String], column: &str| headings.iter().any(|h| h.ends_with(column));
+        let narrow = header_headings(314.0);
+        assert!(has(&narrow, "TITLE"), "{narrow:?}");
+        assert!(
+            !has(&narrow, "ARTIST") && !has(&narrow, "duration"),
+            "{narrow:?}"
+        );
+        let middle = header_headings(662.0);
+        assert!(has(&middle, "ARTIST"), "{middle:?}");
+        assert!(
+            !has(&middle, "ALBUM") && !has(&middle, "duration"),
+            "{middle:?}"
+        );
+        let wide = header_headings(1104.0);
+        assert!(
+            has(&wide, "ARTIST") && has(&wide, "ALBUM") && has(&wide, "duration"),
+            "{wide:?}"
+        );
     }
 
     /// WCAG contrast of `text` on `fill` laid over the page `ground`.
