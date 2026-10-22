@@ -116,13 +116,15 @@ struct Placement {
 /// TIDAL desktop's open play queue in a 2137 window, the view 1787 wide,
 /// the tab's words from x 926); a view too narrow for a cover worth showing
 /// (TIDAL's 1000 window with the queue open) shows the tab alone, 58 in.
+/// Alone in a narrow view the cover leaves 105 either side (TIDAL: 440 in
+/// the 650 left beside the open queue of a 1000 window).
 fn place(area: Rect, chrome: f32, content_bottom: f32, tab: bool) -> Placement {
     let top = area.top() + chrome;
     let height = (area.bottom() - top).max(0.0);
     let centre_y = top + height / 2.0;
     let width = area.width();
     if !tab {
-        let side = (height * 0.667).min(width - 96.0).max(0.0);
+        let side = (height * 0.667).min(width - 210.0).max(0.0);
         return Placement {
             cover: Rect::from_center_size(pos2(area.center().x, centre_y), vec2(side, side)),
             content: None,
@@ -1100,5 +1102,15 @@ mod tests {
         let beside = place(narrow, 30.0, 1095.0, true);
         assert_eq!(beside.cover.width(), 0.0);
         assert_eq!(beside.content.unwrap().left(), 58.0);
+    }
+
+    /// Alone in the 650 a 1000 window leaves beside the open queue, TIDAL's
+    /// cover is 440, 105 from either side (Tidalfast drew 554, 48 in).
+    #[test]
+    fn a_narrow_views_cover_leaves_tidals_margins() {
+        let narrow = Rect::from_min_max(pos2(0.0, 0.0), pos2(650.0, 1183.0));
+        let alone = place(narrow, 30.0, 1095.0, false);
+        assert_eq!(alone.cover.width(), 440.0);
+        assert_eq!(alone.cover.left(), 105.0);
     }
 }
