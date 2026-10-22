@@ -90,6 +90,11 @@ pub struct Queue {
     /// Songs and artists TIDAL's block lists name: never played from the
     /// queue or the context (a song named by hand at a load still is).
     blocked: BlockedSet,
+    /// The context holds only the song a load started early, the rest of
+    /// it still being read ([`Self::hold_for_context`]): Repeat all does
+    /// not wrap round that song alone, so Next, Previous and its end wait
+    /// for the context instead of playing it again.
+    partial: bool,
 }
 
 impl Default for Queue {
@@ -122,6 +127,7 @@ impl Queue {
             next_round: None,
             recent: Recent::default(),
             blocked: BlockedSet::default(),
+            partial: false,
         }
     }
 
@@ -147,7 +153,7 @@ impl Queue {
         if let Some(at) = (start..self.order.len()).find(|at| !self.is_blocked(*at)) {
             return Some((at, false));
         }
-        if self.repeat == RepeatMode::Context && !self.order.is_empty() {
+        if self.repeat == RepeatMode::Context && !self.partial && !self.order.is_empty() {
             let round = match &self.next_round {
                 Some(round) if self.shuffle => round,
                 _ => &self.order,
@@ -223,6 +229,7 @@ impl Queue {
         self.context_uri = context_uri;
         self.context = tracks;
         self.autoplay = false;
+        self.partial = false;
         self.shuffle = shuffle;
         self.next_round = None;
         if self.context.is_empty() {
@@ -315,6 +322,7 @@ impl Queue {
     /// `false`, and nothing changes, when the context is not the one that
     /// song started.
     pub fn place(&mut self, mut tracks: Vec<LocalTrack>, uri: &str, at: Option<usize>) -> bool {
+        self.partial = false;
         let started = self
             .pos
             .and_then(|pos| self.order.get(pos))
@@ -528,7 +536,7 @@ impl Queue {
             (Origin::Queued, Some(pos)) => pos,
             (Origin::Queued, None) => return None,
             (Origin::Context, Some(pos)) if pos > 0 => pos - 1,
-            (Origin::Context, Some(_)) if self.repeat == RepeatMode::Context => {
+            (Origin::Context, Some(_)) if self.repeat == RepeatMode::Context && !self.partial => {
                 self.order.len().checked_sub(1)?
             }
             (Origin::Context, _) => return None,
@@ -662,6 +670,7 @@ impl Queue {
         self.recent_from = self.order.len();
         self.pos = None;
         self.autoplay = true;
+        self.partial = false;
         self.next_round = None;
         true
     }
@@ -677,6 +686,14 @@ impl Queue {
             .into_iter()
             .filter(|track| !self.blocked.hit(track) && !lately.hit(track) && seen.admit(track))
             .collect()
+    }
+
+    /// Marks the context as the one song a load started early, the rest of
+    /// the context still to come (`true`): until [`Self::place`] puts it
+    /// there, Repeat all does not wrap round that song alone. `false` when
+    /// the rest will not come after all.
+    pub fn hold_for_context(&mut self, hold: bool) {
+        self.partial = hold;
     }
 
     /// Marks the context as autoplay's own, a station rather than what the

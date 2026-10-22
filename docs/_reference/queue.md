@@ -35,7 +35,8 @@ whether that song plays when it starts; it never starts the song that played
 before again. Next and Previous while a song is still loading move from that
 song, in its playlist, once the songs around it are known: Next plays the
 row after it and Previous the row above it, and the song that played before
-does not play again meanwhile. A song listed twice in a playlist starts at
+does not play again meanwhile. Repeat all does not change this: the clicked
+song alone does not wrap round to itself while the rest is read. A song listed twice in a playlist starts at
 the row clicked, not at its first entry, and **Next up** follows from there,
 as in TIDAL.
 A song in an artist's Popular tracks plays the artist from that song, all of
