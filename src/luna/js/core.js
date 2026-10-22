@@ -1240,38 +1240,28 @@
 		showErrorBox: (title, content) => void L.askUser({ title: String(title ?? "Error"), message: String(content ?? ""), buttons: ["OK"] }),
 		clipboardWriteText: async (text) => callOp("clipboard", { text: String(text) }),
 		openExternal: async (url) => callOp("open_url", { url: String(url) }),
-		// A track's TIDAL audio as a Node Readable, for a plugin the user
-		// allowed to save TIDAL audio (asked here at first use). Only an
-		// unencrypted stream; the plugin never sees a stream URL.
+		// A track's TIDAL audio as a Node Readable. Its bytes go only to a
+		// plugin the user allowed to save TIDAL audio (asked when it first
+		// reads them); a stream consumed only by sinks that drop every chunk
+		// is read to its end by the app instead, and asks nothing (see
+		// `AudioStream` in node.js). Only an unencrypted stream; the plugin
+		// never sees a stream URL.
 		fetchMediaItemStream: async (playbackInfo, opts) => {
 			const plugin = L.pluginFromStack() ?? L.running ?? null;
 			const id = playbackInfo?.trackId ?? playbackInfo?.id ?? playbackInfo?.mediaItemId;
 			if (id === undefined || id === null) throw new Error("fetchMediaItemStream needs a track's playback info");
-			await L.permit({ plugin, kind: "save_audio" });
-			const info = await callOpAsync("audio.open", { plugin, id: String(id), quality: playbackInfo?.audioQuality ?? null });
-			return L.node.audioStream(plugin, info, opts);
+			const track = { plugin, id: String(id), quality: playbackInfo?.audioQuality ?? null };
+			const source = {
+				open: async () => {
+					await L.permit({ plugin, kind: "save_audio" });
+					return await callOpAsync("audio.open", track);
+				},
+				drain: () => callOpAsync("audio.void", track),
+			};
+			return L.node.audioStream(plugin, source, opts);
 		},
 	};
 	nativeExports["@luna/lib.native"] = libNative;
-	// NoBuffer's `voidTrack` reads the playing song's stream to its end into
-	// a Writable that drops every chunk: after a stall it makes TIDAL's CDN
-	// fetch the song again, and keeps nothing. The host does that itself, so
-	// the bytes never reach the plugin and nothing is saved: it needs no
-	// permission to save TIDAL audio (whose prompt says "save as files").
-	// Only that module, only while its code still throws the bytes away.
-	const DISCARDS = /Writable\(\{\s*write:\s*\(\s*\w+\s*,\s*\w+\s*,\s*(\w+)\s*\)\s*=>\s*\1\(\)\s*\}\)/;
-	const voidStandIn = (fileName, code) => {
-		if (fileName !== "NoBuffer/voidTrack.native.ts") return undefined;
-		const c = String(code);
-		if (!c.includes("fetchMediaItemStream") || !DISCARDS.test(c)) return undefined;
-		return {
-			voidTrack: async (playbackInfo) => {
-				const id = playbackInfo?.trackId ?? playbackInfo?.id ?? playbackInfo?.mediaItemId;
-				if (id === undefined || id === null) throw new Error("voidTrack needs a track's playback info");
-				await callOpAsync("audio.void", { id: String(id), quality: playbackInfo?.audioQuality ?? null });
-			},
-		};
-	};
 	// The native file name is the plugin's source path, which is not always
 	// its package name ("@scope/name/x.native.ts", "plugins/Utils/..."); the
 	// owner is the plugin asking to register it, read from the live frames
@@ -1286,7 +1276,7 @@
 		const plugin = nativeOwner();
 		// A few natives Tidalfast answers itself (media.js: the
 		// audiovisualiser's ffmpeg analysis is measured from the output).
-		const exports = voidStandIn(fileName, code) ?? L.media?.nativeStandIn?.(plugin, fileName, code) ?? (await L.node.loadNative(plugin, fileName, code, nativeExports));
+		const exports = L.media?.nativeStandIn?.(plugin, fileName, code) ?? (await L.node.loadNative(plugin, fileName, code, nativeExports));
 		nativeExports[fileName] = exports;
 		const channel = `__LunaNative.${fileName}`;
 		return channel;

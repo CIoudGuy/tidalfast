@@ -2723,9 +2723,11 @@ fn op_async_run(
             })
         }
         "audio.save" => audio_save(a, host),
-        // NoBuffer's CDN kick: the song's stream read to its end and
-        // dropped here. Nothing reaches the plugin or a file, so it needs no
-        // permission (TIDAL fetches it silently too).
+        // A `fetchMediaItemStream` consumed only by sinks that drop every
+        // chunk (node.js's `AudioStream`, a CDN warm-up after a stall): the
+        // song's stream read to its end and dropped here. Nothing reaches
+        // the plugin or a file, so it needs no permission (TIDAL fetches it
+        // silently too).
         "audio.void" => {
             let plugin = a.get("plugin").and_then(Value::as_str).ok_or("EACCES")?;
             let source =

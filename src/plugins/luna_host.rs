@@ -589,8 +589,9 @@ impl LunaHost for AppHost {
     }
 
     /// A track's unencrypted stream for a plugin the user allowed to save
-    /// TIDAL audio (the runtime checked), or for NoBuffer's CDN kick, which
-    /// the runtime reads and drops itself. The stream is the one the app
+    /// TIDAL audio (the runtime checked), or for a stream a plugin only
+    /// throws away (a CDN warm-up), which the runtime reads and drops
+    /// itself. The stream is the one the app
     /// would play: TIDAL's answer is refused when it is protected (DRM,
     /// Dolby Atmos), and nothing is decrypted. The off-screen Luna demo
     /// hands a second of made-up silence instead.

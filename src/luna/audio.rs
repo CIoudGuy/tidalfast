@@ -272,8 +272,9 @@ pub fn with_extension(path: &Path, source: &AudioSource) -> PathBuf {
     }
 }
 
-/// Reads a track's stream to its end and drops every byte (NoBuffer's kick
-/// of TIDAL's CDN after a stall); how many bytes came. Nothing is kept.
+/// Reads a track's stream to its end and drops every byte (a plugin's
+/// stream that only sinks dropping every chunk consume, such as a kick of
+/// TIDAL's CDN after a stall); how many bytes came. Nothing is kept.
 /// Blocks: worker threads only.
 pub fn drain(plugin: &str, source: AudioSource) -> Result<u64, String> {
     let at = epoch(plugin);
