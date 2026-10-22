@@ -31,9 +31,14 @@ class History(unittest.TestCase):
         self.assertEqual(found[0], {"version": "7.11.0", "date": "2026-10-01", "notes": "Notes 7.11.0"})
         self.assertEqual(found[2]["date"], "")
 
-    def test_prerelease_sorts_below_its_release(self):
+    def test_a_stable_release_leaves_out_prereleases(self):
         found = self.history("8.0.0")
-        self.assertEqual([e["version"] for e in found][:2], ["8.0.0", "8.0.0-beta.1"])
+        self.assertNotIn("8.0.0-beta.1", [e["version"] for e in found])
+        self.assertEqual(found[0]["version"], "8.0.0")
+
+    def test_a_prerelease_lists_its_channel_and_sorts_below_its_release(self):
+        found = self.history("8.0.0-beta.1")
+        self.assertEqual(found[0]["version"], "8.0.0-beta.1")
 
     def test_limit(self):
         self.assertEqual(len(self.history("8.0.0", limit=2)), 2)

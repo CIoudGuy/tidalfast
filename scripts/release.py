@@ -89,6 +89,10 @@ def release_history(version, notes_dir=None, metainfo=None, limit=HISTORY_LIMIT)
         key = version_key(name)
         if key is None or (top is not None and key > top):
             continue
+        # A stable release lists stable releases only, as the app's What's
+        # new does: the dev and beta notes are for those channels.
+        if top is not None and top[3] and not key[3]:
+            continue
         found.append((key, name, path))
     found.sort(reverse=True)
     history = []
