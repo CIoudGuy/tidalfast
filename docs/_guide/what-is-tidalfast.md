@@ -35,14 +35,22 @@ plays what that account is allowed to play.
   similar tracks, credits, and lyrics. The equalizer is in **Settings**.
 - **Background playback.** Closing the window keeps the music playing from
   the system tray. Use your keyboard's media keys to play, pause, and skip.
+- **Offline.** Download albums, playlists and mixes, and switch on Offline
+  mode to play only your downloads. If the connection drops, the playing
+  song waits and carries on when you are back online.
+- **Upload and My Activity.** Upload your own music and edit your releases,
+  and see your monthly top artists from TIDAL.
 - **Themes and languages.** Choose TIDAL's dark or light look, or follow
-  your system. The interface is translated into several languages.
+  your system, and add any of 52 plugin themes when plugins are on. The
+  interface is translated into 16 languages and follows TIDAL's narrow layout
+  in a small window.
 
 ## What it does not do
 
 - It needs a TIDAL subscription. It does not unlock features your plan lacks.
 - It plays only streams TIDAL delivers unencrypted. It never decrypts
-  protected streams, and it does not download or export songs.
+  protected streams. Downloads are offline copies kept inside Tidalfast, not
+  files you can export; a plugin can save songs as files only after you allow it.
 - It does not control other devices: music plays on the computer running
   Tidalfast.
 - No podcasts or social features. Music videos play, but only those TIDAL serves unprotected.
