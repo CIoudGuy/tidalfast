@@ -502,6 +502,13 @@ pub trait LunaHost: Send + Sync + 'static {
     /// Something in [`crate::luna::LunaSnapshot`] changed; repaint the
     /// Plugins page. Called on the Luna thread.
     fn changed(&self) {}
+    /// The plugins' overlay changed in a way that can move the page's
+    /// boxes ([`crate::luna::dom::DomOverlay::may_move_boxes`]): a plugin
+    /// may be about to measure them, so the window draws it at its next
+    /// frame. Called on the Luna thread.
+    fn boxes_changed(&self) {
+        self.changed();
+    }
 }
 
 /// Things that happened in Tidalfast, pushed into the runtime with

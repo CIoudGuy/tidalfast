@@ -2999,3 +2999,67 @@ for (const [tag, c] of [["div", "dm-body"], ["ul", "dm-list"], ["ol", "dm-sq"]])
     assert_eq!(by("dm-sq").style.list_style_type.as_deref(), Some("square"));
     finish(luna, dir);
 }
+
+/// A plugin that waits on a timer after an `await` (`await sleep(5)` in a
+/// loop, polling a box until it changes) set that timer in a promise job
+/// that ran after the time to the next timer was worked out: the runtime
+/// slept until something else woke it (the next host tree, up to a
+/// second later), and the loop ran a step per wake.
+#[test]
+fn timers_set_after_an_await_keep_their_time() {
+    let (luna, _host, dir) = start(
+        r#"
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+(async () => {
+	const t0 = Date.now();
+	for (let i = 0; i < 20; i++) await sleep(5);
+	R.took = Date.now() - t0;
+})();
+"#,
+    );
+    // Nothing else wakes the runtime meanwhile.
+    std::thread::sleep(Duration::from_millis(1500));
+    let r = results_until(&luna, &dir, 10, |r| !r["took"].is_null());
+    let took = r["took"].as_u64().unwrap();
+    assert!(took < 1000, "twenty 5 ms sleeps took {took} ms");
+    finish(luna, dir);
+}
+
+/// A plugin that changes an element's style and reads its box a moment
+/// later, before the UI has sent the boxes laid out with the change, reads
+/// the new box, as a browser lays out on such a read: radiant-lyrics widens
+/// its Lyrics tab and, 200 ms after the click, hangs its menu under it.
+/// The read waits for the tree that says it was laid out with that overlay.
+#[test]
+fn a_box_read_after_a_change_waits_for_its_layout() {
+    let (luna, _host, dir) = start(
+        r#"
+const go = () => {
+	const el = document.querySelector('[data-test="footer-player"]');
+	if (!el) return setTimeout(go, 20);
+	R.before = el.getBoundingClientRect().width;
+	el.style.minWidth = "900px";
+	setTimeout(() => (R.after = el.getBoundingClientRect().width), 20);
+};
+setTimeout(go, 300);
+"#,
+    );
+    let mut t = tree();
+    node(&mut t, keys::FOOTER).rect = Some([0.0, 700.0, 800.0, 90.0]);
+    luna.sync_dom(t.clone());
+    let o = overlay_until(&luna, 10, |o| {
+        o.hosts
+            .get(keys::FOOTER)
+            .is_some_and(|h| h.style.min_width.as_deref() == Some("900px"))
+    });
+    // The UI takes a while to draw it: the read 20 ms after the change
+    // comes first.
+    std::thread::sleep(Duration::from_millis(40));
+    node(&mut t, keys::FOOTER).rect = Some([0.0, 700.0, 900.0, 90.0]);
+    t.laid_out = o.version;
+    luna.sync_dom(t);
+    let r = results_until(&luna, &dir, 10, |r| !r["after"].is_null());
+    assert_eq!(r["before"].as_f64(), Some(800.0));
+    assert_eq!(r["after"].as_f64(), Some(900.0));
+    finish(luna, dir);
+}

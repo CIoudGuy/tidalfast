@@ -48,6 +48,24 @@ parent lays them out in a line (radiant-lyrics' word spans).
 `scrollHeight`/`scrollTop` come from `HostNode::scroll`; containers without
 it never look scrollable.
 
+**Boxes after a change.** A browser lays out when a script reads a box
+after changing a style; here the UI lays out, so the boxes come back with
+the next tree. An overlay that can move boxes
+(`DomOverlay::may_move_boxes`: an anchor's layout properties or text, or
+plugin elements added or removed; not colours, opacity, transforms, a
+plugin element's restyle or its words) is drawn at once, even in a window
+in the background (not while it is hidden or covered), and for 100 ms after
+it the UI sends rect-only changes every frame instead of at most every
+100 ms (`SETTLE` in `plugin_dom.rs`). The frame after it is drawn too, and
+its tree carries `laid_out` (that overlay's version). The first box read
+(`getBoundingClientRect`, `offset*`, `client*`) after such an overlay waits
+at most 64 ms (`dom.wait_layout`) for that tree and reconciles it, so a
+plugin that changes a style and measures a moment later reads the new box
+(radiant-lyrics hangs its options menu under its widened Lyrics tab 200 ms
+after the click); observers and `resize` hear of that tree in a microtask,
+not inside the read. One wait per change, none while nothing changed or the
+window is hidden.
+
 **Events** (`Luna::dom_event`). `Host(key)` targets the host element,
 `Host("")` the focused element or `body` (keyboard: the path runs
 `body → html → document → window`), `Node(id)` an injected element. Wheel,
@@ -165,7 +183,11 @@ child`, `:empty`, `:root`, `:checked`, `:disabled`, combinators, escapes.
 
 **Frames and observers.** `requestAnimationFrame` callbacks run together on
 ~16 ms frame boundaries, only while some are queued. `ResizeObserver` and
-`IntersectionObserver` fire initially and when host rects change.
+`IntersectionObserver` fire initially and when host rects change, once per
+tree that changed them (each frame while boxes settle after a plugin's
+change, at most every 100 ms otherwise). Timers a plugin sets in the code
+after an `await` keep their time (the runtime asks for the next timer again
+after the promise jobs of a tick).
 `lib.observe`/`observePromise` use one shared `MutationObserver`; as in
 Luna's `observable.ts`, each parent the host tree mutated is checked
 (`matches` and `querySelectorAll`), so an element that already matched is

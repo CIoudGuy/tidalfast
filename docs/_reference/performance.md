@@ -631,6 +631,82 @@ window's passes are not paced by the display), and the owner's own
 profile; the 57% was not reproduced as such, the nearest being now playing
 with the seven plugins and a moving pointer.
 
+## Boxes after a plugin's change (2026-10-22)
+
+A plugin that changes a style and then measures the element read the box
+from before the change: radiant-lyrics widens its Lyrics tab and, at the
+tab's `transitionend` or 200 ms after the click, hangs its options menu
+under it, and the menu opened under the tab's old place. In Chromium a read
+lays the page out at once, and the next frame has the new boxes.
+
+Measured with a probe plugin that toggles the now-playing Lyrics tab's
+`min-width` every 1.2 s and polls `getBoundingClientRect` (and a
+`ResizeObserver`) until the new width shows: "idle" with nothing else
+changing, "steady" with another element restyled every frame, "transition"
+with `transition: min-width .12s` on the tab. Release demo builds, window
+2200 by 1260 at `-4000,-4000`, focused through the dev script's new `focus`
+line unless said otherwise; milliseconds from the change, median (p90).
+
+| Case | Before | After |
+| --- | --- | --- |
+| Idle | 779 (827) | 9 (14) |
+| Steady | 50 (60) | 9 (18) |
+| While a transition runs | did not finish within the probe's 1 s wait per toggle | 8 (9) |
+| Idle, window in the background | 794 (808) | 10 (13) |
+| Steady, window in the background | 62 (67) | 10 (14) |
+| `ResizeObserver` callbacks per change | 1 | 1 |
+
+What held them back, each with a test that fails without its fix:
+
+- **Timers set after an `await`.** The runtime worked out the time to the
+  next timer before the promise jobs of a tick ran, so a timer set in the
+  code after an `await` (`await sleep(2)` in a polling loop, and the
+  overlay's own flush timer when a plugin changed a style there) waited
+  for whatever woke the thread next: the playing song's next second, up to
+  a second later. It asks again after those jobs, without running anything
+  (`__luna_tick("peek")`), and a tick that keeps finding timers due hands
+  the messages waiting (clicks, trees) their turn after 50 ms.
+- **The rect throttle.** Rect-only changes went to the runtime at most
+  every 100 ms. For 100 ms after an overlay that can move boxes
+  (`DomOverlay::may_move_boxes`: an anchor's layout properties or text, or
+  plugin elements added or removed; not colours, opacity, transforms, a
+  plugin element's restyle or its words) every frame's boxes go, the frame
+  after it is drawn too (a box laid out from last frame's sizes shows the
+  change a pass later), and that tree says which overlay it was laid out
+  with (`HostTree::laid_out`). Scrolling and animations with no change from
+  plugins keep the 100 ms throttle.
+- **The background wait.** In a window without focus a plugin's change
+  waited for the window's next pass, up to a second. A change that can move
+  boxes is drawn at once in a window someone can see; other changes still
+  share passes, and a covered or minimised window still rests.
+- **Reading before the boxes came back.** The first box read after such a
+  change publishes it if it is still waiting for the 33 ms flush, and waits
+  at most 64 ms for the tree laid out with it (`dom.wait_layout`), as a
+  browser lays out on a read. radiant-lyrics' menu now opens under the
+  widened tab (left 1982, width 150, as the tab), as in TIDAL; before it
+  opened at the tab's old box (left 2045, width 87). Its heavy overlay
+  builds (about 200 ms each with its style sheet) are its own and unchanged.
+
+spinny-cover, up-next, quick-queue and 3d-cover draw the same before and
+after (Home, a playlist with a hovered row, now playing with the pointer on
+the cover), with no errors in their logs.
+
+Passes and Luna wake-ups, the same six plugins as the pass of 2026-10-20
+without no-remix (DiscordRPC, total-play-time, tidal-genres, Tidal Tags,
+CatJam, oneko), same window, two interleaved runs each, 15 s settled then
+15 s sampled. Other agents were building on the machine, so CPU is
+indicative only (it varied by up to a factor of two between runs of the
+same build); the pass and wake-up counts are what to compare.
+
+| Scenario | Before: passes/s, Luna wakes/s, CPU | After: passes/s, Luna wakes/s, CPU |
+| --- | --- | --- |
+| Home, paused, background | 28, 8.5, 12 to 14% | 28, 8.2 to 8.7, 14 to 15% |
+| Home, playing, background | 20, 7.3 to 7.7, 9 to 11% | 19 to 20, 7.0 to 7.6, 9 to 11% |
+| Home, playing, focused | 57, 12.5, 21 to 22% | 57 to 58, 12.3 to 17.9, 22 to 26% |
+| Now playing, pointer moving, background | 145, 58, 42 to 48% | 145, 57 to 58, 45 to 74% |
+| Now playing, pointer moving, focused | 145, 74, 45 to 104% | 145, 74 to 76, 35 to 40% |
+| Home, playing, covered | 2 to 4, 1.9 to 2.1, 3% | 1.7 to 2, 2.1 to 2.2, 3% |
+
 ## Animated covers
 
 TIDAL's animated covers (Settings, Appearance) stay **off by default**: on

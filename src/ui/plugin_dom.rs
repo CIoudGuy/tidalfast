@@ -5,7 +5,9 @@
 //! become the TIDAL-shaped [`HostTree`] ([`crate::luna::dom_anchors`]) and
 //! go to the runtime when they changed. Structure or text changes go at
 //! once; rect-only changes (scrolling, animations) at most ten times a
-//! second. The runtime's [`DomOverlay`] comes back the other way: hidden
+//! second, except while boxes settle after plugins changed something:
+//! then each frame's boxes go, as a browser lays out every frame. The
+//! runtime's [`DomOverlay`] comes back the other way: hidden
 //! anchors, restyled hosts, text overrides, theme variables, fonts, and
 //! plugin elements for [`super::plugin_slots`].
 //!
@@ -30,8 +32,13 @@ use crate::theme::Palette;
 
 use super::plugin_slots::css;
 
-/// Rect-only changes go out at most this often.
+/// Rect-only changes go out at most this often, unless boxes are settling.
 const RECT_THROTTLE: Duration = Duration::from_millis(100);
+/// How long after an overlay that can move boxes they count as settling:
+/// rect-only changes then go out every frame, so a plugin that changed a
+/// style and measures reads the new box by the next frame (radiant-lyrics
+/// hangs its menu under its widened Lyrics tab).
+const SETTLE: Duration = Duration::from_millis(100);
 /// The now-playing cover's lean goes out at most this often: as often as
 /// pointer moves reach plugins (`pointer_events`). Each tree sent costs the
 /// runtime a reconcile; the lean changed on every pass while the pointer
@@ -56,6 +63,18 @@ struct State {
     last_frame: Option<Frame>,
     sent: Option<HostTree>,
     sent_at: Option<Instant>,
+    /// Boxes settle until then: rect-only changes go every frame.
+    settle_until: Option<Instant>,
+    /// The new overlay can move anchors' boxes
+    /// ([`DomOverlay::may_move_boxes`]): the frame after it is drawn too,
+    /// and its tree goes out saying it was laid out with that overlay
+    /// ([`HostTree::laid_out`]), moved or not, for a plugin waiting to
+    /// measure.
+    boxes_moved: bool,
+    /// The overlay version the next frame's tree says it was laid out with.
+    ack_due: Option<u64>,
+    /// The newest such version a tree said so for.
+    laid_out: u64,
     overlay: Arc<DomOverlay>,
     luna: Option<Luna>,
     scroll_seq: u64,
@@ -283,6 +302,7 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
         let overlay = luna.dom_overlay();
         if overlay.version != s.overlay.version {
             let old = std::mem::replace(&mut s.overlay, overlay);
+            s.boxes_moved |= old.may_move_boxes(&s.overlay);
             // The transitions and animations this overlay starts, timed
             // from now, when the UI starts drawing them.
             s.motion_events.schedule(&old, &s.overlay, Instant::now());
@@ -450,6 +470,27 @@ pub fn end_frame(ctx: &egui::Context) {
         let motion_now = Instant::now();
         let motion_due = s.motion_events.take_due(motion_now);
         let force = !motion_due.is_empty();
+        // Plugins changed something that can move boxes: the boxes settle,
+        // and each frame's go out. A box laid out from last frame's sizes
+        // (a right-to-left row, the now-playing tabs) shows the change a
+        // pass later, so such an overlay asks for that pass, whose tree says
+        // it was laid out with it.
+        let ack = s.ack_due.take();
+        if std::mem::take(&mut s.boxes_moved) {
+            s.settle_until = Some(motion_now + SETTLE);
+            s.ack_due = Some(s.overlay.version);
+            // Nobody measures in a window nobody sees (plugins see it
+            // hidden): the next pass it has anyway carries the tree.
+            let hidden = crate::occlusion::covered(ctx)
+                || ctx.input(|i| i.viewport().minimized.unwrap_or(false));
+            if !hidden {
+                ctx.request_repaint();
+            }
+        }
+        if let Some(version) = ack {
+            s.laid_out = version;
+        }
+        let settling = s.settle_until.is_some_and(|t| motion_now < t);
         // The now-playing cover leans under a moving pointer on every pass:
         // its new lean goes out as often as plugins hear the pointer move,
         // and the pass after the wait sends the latest one.
@@ -464,15 +505,16 @@ pub fn end_frame(ctx: &egui::Context) {
                 unchanged = true;
             }
         }
-        if !unchanged {
+        if !unchanged || ack.is_some() {
             #[cfg(test)]
             TREE_BUILDS.with(|n| n.set(n.get() + 1));
-            let tree = dom_anchors::build(&frame);
+            let mut tree = dom_anchors::build(&frame);
+            tree.laid_out = s.laid_out;
             let send = match &s.sent {
                 Some(old) if *old == tree => false,
                 Some(old) if same_but_rects(old, &tree) => {
                     let since = s.sent_at.map_or(RECT_THROTTLE, |t| t.elapsed());
-                    if since >= RECT_THROTTLE || force {
+                    if since >= RECT_THROTTLE || force || settling {
                         true
                     } else {
                         ctx.request_repaint_after(RECT_THROTTLE - since);
@@ -884,6 +926,7 @@ pub fn host_rect(key: &str) -> Option<Rect> {
 fn same_but_rects(a: &HostTree, b: &HostTree) -> bool {
     a.viewport == b.viewport
         && a.path == b.path
+        && a.laid_out == b.laid_out
         && a.nodes.len() == b.nodes.len()
         && a.nodes.iter().zip(&b.nodes).all(|(x, y)| {
             x.key == y.key
@@ -6417,6 +6460,7 @@ mod tests {
             path: "/".into(),
             light: false,
             reduced_motion: false,
+            laid_out: 0,
         }
     }
 
@@ -6467,6 +6511,135 @@ mod tests {
                 .any(|n| n.text.as_deref() == Some("Two"))
         );
         test_overlay(None);
+    }
+
+    /// A plugin that changes a style and measures the element reads the
+    /// new box on the next frame, as in a browser: radiant-lyrics widens
+    /// its Lyrics tab and hangs its menu under it. A box that moved while
+    /// nothing from plugins changed (a scroll) still waits for the rect
+    /// throttle, and so does one moving after the boxes settled.
+    #[test]
+    fn boxes_a_plugin_changed_reach_the_runtime_by_the_next_frame() {
+        let ctx = egui::Context::default();
+        test_overlay(Some(DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        }));
+        let frame = |width: f32| {
+            note(|f| {
+                f.viewport = [800.0, 600.0];
+                f.player = Some(dom_anchors::PlayerBar {
+                    rect: Some([0.0, 510.0, width, 90.0]),
+                    title: "One".into(),
+                    ..Default::default()
+                });
+            });
+            end_frame(&ctx);
+            let sent = with(|s| s.sent.clone()).unwrap();
+            sent.nodes
+                .iter()
+                .find_map(|n| n.rect.filter(|r| r[1] == 510.0).map(|r| r[2]))
+                .unwrap()
+        };
+        assert_eq!(frame(800.0), 800.0);
+        // Nothing from plugins changed: a moved box waits for the throttle.
+        assert_eq!(frame(801.0), 800.0);
+        // A plugin restyles the bar; the frame that draws it lays it out
+        // narrower, and that box goes out at once.
+        with(|s| {
+            let mut o = (*s.overlay).clone();
+            o.version += 1;
+            o.hosts.insert(
+                dom_anchors::keys::FOOTER.into(),
+                HostOverride {
+                    style: Style {
+                        width: Some("780px".into()),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            );
+            let old = std::mem::replace(&mut s.overlay, Arc::new(o));
+            s.boxes_moved |= old.may_move_boxes(&s.overlay);
+        });
+        assert_eq!(frame(780.0), 780.0);
+        // Still settling (a layout taking a pass more): each frame's box,
+        // and the tree says it was laid out with the new overlay.
+        assert_eq!(frame(779.0), 779.0);
+        assert_eq!(with(|s| s.sent.as_ref().unwrap().laid_out), 2);
+        // Settled: back to the throttle.
+        std::thread::sleep(SETTLE + Duration::from_millis(5));
+        let after = frame(778.0);
+        assert_eq!(frame(777.0), after);
+        test_overlay(None);
+    }
+
+    /// Only an overlay that can move anchors asks for the extra pass that
+    /// sends their settled boxes: restyling a plugin's own element (oneko's
+    /// sprite every few steps), changing its words (total-play-time's
+    /// count) or recolouring an anchor does not; an anchor's size or an
+    /// element added does.
+    #[test]
+    fn only_overlays_that_can_move_anchors_ask_for_a_settling_pass() {
+        use crate::luna::dom::{Injected, Position, VNode};
+        let sprite = |x: &str, text: Option<&str>| DomOverlay {
+            injected: vec![Injected {
+                anchor: String::new(),
+                position: Position::Append,
+                nodes: vec![VNode {
+                    id: 7,
+                    tag: "div".into(),
+                    text: text.map(str::to_string),
+                    style: Style {
+                        transform: Some(format!("translate({x})")),
+                        ..Style::default()
+                    },
+                    ..VNode::default()
+                }],
+            }],
+            ..DomOverlay::default()
+        };
+        assert!(!sprite("1px", None).may_move_boxes(&sprite("2px", None)));
+        assert!(!sprite("1px", None).may_move_boxes(&sprite("1px", Some("3:01"))));
+        // `textContent = ...` replaces the text node: still only words.
+        let words = |id: u64| {
+            let mut o = sprite("1px", None);
+            o.injected[0].nodes[0].children.push(VNode {
+                id,
+                tag: "#text".into(),
+                text: Some(id.to_string()),
+                ..VNode::default()
+            });
+            o
+        };
+        assert!(!words(20).may_move_boxes(&words(21)));
+        let mut more = sprite("1px", None);
+        more.injected[0].nodes.push(VNode {
+            id: 8,
+            tag: "span".into(),
+            ..VNode::default()
+        });
+        assert!(sprite("1px", None).may_move_boxes(&more));
+        let mut tab = sprite("1px", None);
+        tab.hosts.insert(
+            "toggle-lyrics".into(),
+            HostOverride {
+                style: Style {
+                    min_width: Some("150px".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        assert!(sprite("1px", None).may_move_boxes(&tab));
+        // Recolouring the anchor (radiant-lyrics' player bar tint) moves
+        // nothing.
+        let mut tinted = tab.clone();
+        if let Some(h) = tinted.hosts.get_mut("toggle-lyrics") {
+            h.style.background_color = Some("#123".into());
+            h.style.opacity = Some("0.5".into());
+        }
+        assert!(!tab.may_move_boxes(&tinted));
     }
 
     /// The now-playing cover leans on every pass while the pointer moves

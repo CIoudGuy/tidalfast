@@ -55,6 +55,8 @@ pub struct AppHost {
     /// When the window paints next anyway (the playing song's next second),
     /// as the app last said; `None` when nothing is due.
     next_pass: Mutex<Option<std::time::Instant>>,
+    /// Nobody sees the window (minimised, closed to the tray, covered).
+    hidden: std::sync::atomic::AtomicBool,
     /// Spaces out the TIDAL calls plugins make with the user's session.
     tidal_pace: Pace,
 }
@@ -104,6 +106,7 @@ impl AppHost {
             tidal,
             waker,
             next_pass: Mutex::new(None),
+            hidden: std::sync::atomic::AtomicBool::new(false),
             tidal_pace: Pace::new(TIDAL_GAP),
         }
     }
@@ -145,19 +148,32 @@ impl AppHost {
         *self.next_pass.lock().unwrap_or_else(|l| l.into_inner()) = at;
     }
 
+    /// Whether nobody sees the window (minimised, closed to the tray,
+    /// covered), as the app last said.
+    pub fn set_hidden(&self, hidden: bool) {
+        self.hidden
+            .store(hidden, std::sync::atomic::Ordering::Relaxed);
+    }
+
     /// How long a change plugins made may wait before the window shows it:
     /// none while the window has focus; in the background, until the
     /// window's own next pass when one is due within
     /// [`BACKGROUND_PASS_WAIT`], else [`BACKGROUND_PASS_IDLE`]. A sprite
     /// plugin's frames (oneko) and the playing song's seconds then share
-    /// one pass instead of two.
-    pub fn change_delay(&self, now: std::time::Instant) -> Option<std::time::Duration> {
+    /// one pass instead of two. A change that can move boxes (`boxes`) is
+    /// drawn at once in a window someone can see, as a browser lays out
+    /// at its next frame: the plugin that made it may be measuring.
+    pub fn change_delay(
+        &self,
+        now: std::time::Instant,
+        boxes: bool,
+    ) -> Option<std::time::Duration> {
         let focused = self
             .window
             .lock()
             .unwrap_or_else(|l| l.into_inner())
             .focused;
-        if focused {
+        if focused || (boxes && !self.hidden.load(std::sync::atomic::Ordering::Relaxed)) {
             return None;
         }
         let next = *self.next_pass.lock().unwrap_or_else(|l| l.into_inner());
@@ -166,6 +182,18 @@ impl AppHost {
                 .filter(|d| *d <= BACKGROUND_PASS_WAIT)
                 .unwrap_or(BACKGROUND_PASS_IDLE),
         )
+    }
+
+    /// Wake the window for a change plugins made, now or after
+    /// [`AppHost::change_delay`].
+    fn wake_for_change(&self, boxes: bool) {
+        let Some(waker) = &self.waker else {
+            return;
+        };
+        match self.change_delay(std::time::Instant::now(), boxes) {
+            Some(delay) if !delay.is_zero() => waker.wake_after(delay),
+            _ => waker.wake(),
+        }
     }
 
     /// Text pasted into the app, for `clipboard.readText()`.
@@ -654,13 +682,11 @@ impl LunaHost for AppHost {
     /// paints it (the frame reads both as it starts), now or, in the
     /// background, with its next pass ([`AppHost::change_delay`]).
     fn changed(&self) {
-        let Some(waker) = &self.waker else {
-            return;
-        };
-        match self.change_delay(std::time::Instant::now()) {
-            Some(delay) if !delay.is_zero() => waker.wake_after(delay),
-            _ => waker.wake(),
-        }
+        self.wake_for_change(false);
+    }
+
+    fn boxes_changed(&self) {
+        self.wake_for_change(true);
     }
 
     /// Plugins may reach the network (that is what the permissions on the
@@ -1204,12 +1230,20 @@ mod tests {
             focused: true,
             ..WindowState::default()
         });
-        assert_eq!(host.change_delay(now), None);
+        assert_eq!(host.change_delay(now, false), None);
         host.set_window(WindowState::default());
-        assert_eq!(host.change_delay(now), Some(BACKGROUND_PASS_IDLE));
+        assert_eq!(host.change_delay(now, false), Some(BACKGROUND_PASS_IDLE));
         host.set_next_pass(Some(now + Duration::from_millis(600)));
-        assert_eq!(host.change_delay(now), Some(Duration::from_millis(600)));
+        assert_eq!(
+            host.change_delay(now, false),
+            Some(Duration::from_millis(600))
+        );
         host.set_next_pass(Some(now + Duration::from_secs(5)));
-        assert_eq!(host.change_delay(now), Some(BACKGROUND_PASS_IDLE));
+        assert_eq!(host.change_delay(now, false), Some(BACKGROUND_PASS_IDLE));
+        // A change that can move boxes goes at once while the window shows,
+        // and waits as any other while nobody sees it.
+        assert_eq!(host.change_delay(now, true), None);
+        host.set_hidden(true);
+        assert_eq!(host.change_delay(now, true), Some(BACKGROUND_PASS_IDLE));
     }
 }
