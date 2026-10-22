@@ -67,16 +67,25 @@ pub fn entries() -> Vec<Entry> {
 /// The releases a person missed: those after `since` up to the running
 /// version, newest first. Without `since`, every release.
 pub fn entries_since(since: Option<&str>) -> Vec<Entry> {
-    let current = Semver::parse(env!("CARGO_PKG_VERSION"));
+    missed(entries(), since, env!("CARGO_PKG_VERSION"))
+}
+
+/// [`entries_since`] for the release `running`. A stable release lists only
+/// stable releases: the dev and beta builds' notes are for those channels.
+fn missed(all: Vec<Entry>, since: Option<&str>, running: &str) -> Vec<Entry> {
+    let current = Semver::parse(running);
+    let stable = current
+        .as_ref()
+        .is_some_and(|current| !current.is_prerelease());
     let since = since.and_then(Semver::parse);
-    entries()
-        .into_iter()
+    all.into_iter()
         .filter(|entry| {
             let version = Semver::parse(&entry.version);
             since
                 .as_ref()
                 .is_none_or(|since| version.as_ref() > Some(since))
                 && (since.is_none() || current.is_none() || version <= current)
+                && !(stable && version.as_ref().is_some_and(Semver::is_prerelease))
         })
         .collect()
 }
@@ -346,6 +355,31 @@ mod tests {
         };
         assert_eq!(dot[1].link.as_deref(), Some("https://example.com/a"));
         assert_eq!(dot[2].text, ".");
+    }
+
+    /// A stable release lists only the stable releases a person missed; a
+    /// dev or beta build lists every release, its own channel's included.
+    #[test]
+    fn a_stable_release_leaves_out_the_dev_builds_notes() {
+        let entry = |version: &str| Entry {
+            version: version.to_string(),
+            date: None,
+            blocks: Vec::new(),
+        };
+        let all = || {
+            vec![
+                entry("1.1.0"),
+                entry("1.0.2-alpha.3"),
+                entry("1.0.2-alpha.1"),
+                entry("1.0.1"),
+            ]
+        };
+        let versions = |list: Vec<Entry>| list.into_iter().map(|e| e.version).collect::<Vec<_>>();
+        assert_eq!(versions(missed(all(), Some("1.0.1"), "1.1.0")), ["1.1.0"]);
+        assert_eq!(
+            versions(missed(all(), Some("1.0.1"), "1.0.2-alpha.3")),
+            ["1.0.2-alpha.3", "1.0.2-alpha.1"]
+        );
     }
 
     #[test]
