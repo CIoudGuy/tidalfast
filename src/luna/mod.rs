@@ -45,6 +45,7 @@ mod fsops;
 pub mod host;
 pub mod hotkeys;
 pub mod import;
+mod layout;
 mod net;
 mod onnx;
 mod onnx_run;
@@ -1125,10 +1126,41 @@ impl Luna {
     pub fn sync_dom(&self, tree: dom::HostTree) {
         let (slot, arrived) = &*self.trees;
         if let Ok(mut slot) = slot.lock() {
-            *slot = Some(tree);
+            slot.tree = Some(tree);
             arrived.notify_all();
         }
         let _ = self.tx.send(Msg::DomSync);
+    }
+
+    /// The UI starts a frame with overlay `version`, which can move boxes
+    /// from the one it drew before ([`dom::DomOverlay::may_move_boxes`]):
+    /// the tree of its next pass says it was laid out with it, and a plugin
+    /// reading a box meanwhile waits for that tree. Cheap enough for every
+    /// such frame.
+    pub fn drawing_boxes(&self, version: u64) {
+        let (slot, arrived) = &*self.trees;
+        if let Ok(mut slot) = slot.lock() {
+            slot.drawing(version);
+            arrived.notify_all();
+        }
+    }
+
+    /// Set the time a plugin's wait for laid-out boxes goes by
+    /// (`dom.wait_layout`), for a test that drives it.
+    #[cfg(test)]
+    pub(crate) fn set_layout_clock(&self, at: std::time::Instant) {
+        let (slot, arrived) = &*self.trees;
+        if let Ok(mut slot) = slot.lock() {
+            slot.set_clock(at);
+            arrived.notify_all();
+        }
+    }
+
+    /// While a plugin's read waits for laid-out boxes, the time it last
+    /// went by ([`Luna::set_layout_clock`]).
+    #[cfg(test)]
+    pub(crate) fn layout_waiting(&self) -> Option<std::time::Instant> {
+        self.trees.0.lock().ok().and_then(|s| s.waiting)
     }
 
     /// Forward user input to the plugins' DOM listeners.
