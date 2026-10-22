@@ -306,12 +306,12 @@ passes fell, because the GPU clocks down under a lighter load), so it is not
 quoted; passes a second and CPU time are.
 
 With covers off, the turning background's 33 ms request still ran at
-about 58 passes a second for the reason above. The owner chose 30 frames a
+about 58 passes a second for the reason above. The project chose 30 frames a
 second; see "Now-playing background at 30 frames a second" below.
 
 ## Now-playing background at 30 frames a second, and covered windows (2026-10-17)
 
-The owner's installed app averaged about a quarter of a core overnight, most
+An installed app averaged about a quarter of a core overnight, most
 likely the now-playing view: its turning background asked for a frame every
 33 ms, which egui's predicted frame (16.7 ms taken off every timed request)
 turned into about 60 passes a second, and on Windows a window under other
@@ -350,7 +350,7 @@ X11 and macOS but not on Windows.
   targets never report covered here.
 
 Measured with release demo builds of `e56a5df` (before) and this change
-(after) on a signed-in test profile, "Lose Yourself" (no animated
+(after) on a signed-in profile, "Lose Yourself" (no animated
 cover), Blur background, animated covers on, window 1000 by 800 at
 `-4000,-4000`, unfocused, BelowNormal priority, volume 0, 60 seconds each.
 "Covered" is a borderless, opaque window of the test's own, 20 pixels
@@ -627,7 +627,7 @@ row's previous listener when it fills the row again). The plugin runtime's
 heap is capped at 256 MB.
 
 Not measured here: a visible window at the display's rate (the off-screen
-window's passes are not paced by the display), and the owner's own
+window's passes are not paced by the display), and a long-lived real
 profile; the 57% was not reproduced as such, the nearest being now playing
 with the seven plugins and a moving pointer.
 
@@ -694,7 +694,7 @@ the cover), with no errors in their logs.
 Passes and Luna wake-ups, the same six plugins as the pass of 2026-10-20
 without no-remix (DiscordRPC, total-play-time, tidal-genres, Tidal Tags,
 CatJam, oneko), same window, two interleaved runs each, 15 s settled then
-15 s sampled. Other agents were building on the machine, so CPU is
+15 s sampled. Other builds were running on the machine, so CPU is
 indicative only (it varied by up to a factor of two between runs of the
 same build); the pass and wake-up counts are what to compare.
 

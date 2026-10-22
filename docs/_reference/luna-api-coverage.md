@@ -137,7 +137,7 @@ Rows above (an API family is one row), by round (2026-10-16):
 | after round 3 | 61 | 0 | 0 | 9 | 70 |
 | after the permissions (2026-10-20) | 65 | 0 | 0 | 6 | 71 |
 
-The permissions (owner decision, 2026-10-20) moved three refused rows to
+The permissions (project decision, 2026-10-20) moved three refused rows to
 works once the user allows them (`MediaItem.download`, `getCredentials`,
 `fetchMediaItemStream`), and system-wide `globalShortcut` (Windows only) left
 the `BrowserWindow` row as a works row of its own; see
