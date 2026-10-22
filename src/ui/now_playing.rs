@@ -53,6 +53,25 @@ pub fn backdrop_in(app: &mut App, ui: &mut egui::Ui, rect: Rect, clip: Rect) {
             .rect_filled(rect, 0.0, Color32::BLACK);
         return;
     }
+    backdrop_layers(ui, rect, clip, |ui| {
+        super::player_background::paint(app, ui, rect, clip);
+    });
+}
+
+/// The view's backdrop over `rect` within `clip`: TIDAL's blurred cover
+/// (`cover`), or what a theme leaves when it hides that.
+///
+/// TIDAL's backdrop layers (the black, the cover, the gradient) are boxes
+/// inside `#nowPlaying`, so they lie over whatever a theme paints on the
+/// view itself: an opaque `#nowPlaying { background }` (Tidal Amoled's
+/// black, a pale gradient with dots) shows only where the theme hides the
+/// cover too.
+pub(crate) fn backdrop_layers(
+    ui: &mut egui::Ui,
+    rect: Rect,
+    clip: Rect,
+    cover: impl FnOnce(&mut egui::Ui),
+) {
     // A Luna plugin hid TIDAL's backdrop (radiant-lyrics): the view's own
     // fill if it set one, else what lies behind the view shows, its layers
     // behind the page included.
@@ -87,17 +106,9 @@ pub fn backdrop_in(app: &mut App, ui: &mut egui::Ui, rect: Rect, clip: Rect) {
         );
         return;
     }
-    super::player_background::paint(app, ui, rect, clip);
-    // A theme's layers on `#nowPlaying` (gradients, glass, images).
-    if super::plugin_dom::on() {
-        let mut layer = ui.new_child(egui::UiBuilder::new().max_rect(rect));
-        layer.set_clip_rect(clip);
-        super::plugin_dom::paint_host_layers(
-            &layer,
-            crate::luna::dom_anchors::keys::NOW_PLAYING,
-            rect,
-        );
-    }
+    // The theme's own layers on `#nowPlaying` lie under the cover, which
+    // is opaque: nothing of them shows.
+    cover(ui);
 }
 
 /// Where the view's parts go in a window of `area` (the view's rect with

@@ -1751,3 +1751,76 @@ span { color: var(--tint-of-the-day) !important; }
     assert_eq!(p.text, tint);
     assert_eq!(p.secondary, tint);
 }
+
+/// TIDAL's backdrop layers of the now playing view (the black, the blurred
+/// cover, the gradient) are boxes inside `#nowPlaying`, so a theme's
+/// opaque `#nowPlaying { background-image }` lies under the cover and never
+/// shows while the cover does (Cotton Candy: Calavera paints the view a pale
+/// pink gradient with dots, and TIDAL still shows the cover's dark colours
+/// behind its white words). Tidalfast painted the view's layers over the
+/// cover, so the view was a pale page with unreadable words. Where a theme
+/// hides the cover too, the view's own layers are what shows.
+#[test]
+fn a_themes_now_playing_paint_lies_under_tidals_cover() {
+    use crate::ui::plugin_dom as pd;
+    let pale = egui::Color32::from_rgb(255, 177, 229);
+    let marker = egui::Color32::from_rgb(1, 2, 3);
+    // The fills a frame of the view's backdrop paints, in drawing order,
+    // the cover standing in as one marker fill.
+    let draw = || {
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(800.0, 600.0));
+            crate::ui::now_playing::backdrop_layers(ui, rect, rect, |ui| {
+                ui.painter().rect_filled(rect, 0.0, marker);
+            });
+        });
+        out.textures_delta.clear();
+        let mut fills = Vec::new();
+        let mut stack: Vec<egui::Shape> = out.shapes.into_iter().map(|c| c.shape).rev().collect();
+        while let Some(shape) = stack.pop() {
+            match shape {
+                egui::Shape::Vec(inner) => stack.extend(inner.into_iter().rev()),
+                egui::Shape::Rect(r) => fills.push(r.fill),
+                egui::Shape::Mesh(m) => fills.extend(m.vertices.first().map(|v| v.color)),
+                _ => {}
+            }
+        }
+        fills
+    };
+    let css = r#"/* {"name": "Pale view paint"} */
+#nowPlaying, .now-playing-background-container {
+    background-image: linear-gradient(180deg, rgb(255, 177, 229), rgb(255, 177, 229)) !important;
+}
+[class="now-playing-background-image"] { display: none !important; }
+"#;
+    let (luna, o) = overlay_with(
+        "pale-view-paint.css",
+        css,
+        dom_anchors::sample_tree(),
+        dom_anchors::keys::NOW_PLAYING,
+    );
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let themed = draw();
+    pd::test_overlay(None);
+    assert_eq!(themed, vec![marker], "the cover alone: {themed:?}");
+    // A theme that hides the cover by its class shows the view's own paint.
+    let css = r#"/* {"name": "Pale view no cover"} */
+#nowPlaying { background-image: linear-gradient(180deg, rgb(255, 177, 229), rgb(255, 177, 229)) !important; }
+.now-playing-background-image { display: none !important; }
+"#;
+    let (luna, o) = overlay_with(
+        "pale-view-no-cover.css",
+        css,
+        dom_anchors::sample_tree(),
+        dom_anchors::keys::NOW_PLAYING,
+    );
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let bare = draw();
+    pd::test_overlay(None);
+    assert!(!bare.contains(&marker), "no cover: {bare:?}");
+    assert!(bare.contains(&pale), "the view's own paint: {bare:?}");
+}
