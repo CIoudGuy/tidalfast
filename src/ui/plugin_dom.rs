@@ -1604,11 +1604,12 @@ pub fn queue_fill_from(base: Color32) -> Color32 {
 /// than taking them from the token ramp: Rose Pine and Catppuccin (root
 /// `--wave-color-solid-contrast-fill`, `-contrast-darker`) and the cotton
 /// candy family (a dark root `--wave-color-solid-contrast-darker`) leave
-/// them white and 55 % white there. Only the `--text-default` and
-/// `--text-secondary` variables a theme declares at the root (Tidal
-/// Light's black and 70 % black) recolour them. Without a theme `palette`
-/// is returned as is.
-pub fn tidal_panel_text(palette: Palette) -> Palette {
+/// them white and 55 % white there. Only a theme's rules for TIDAL's
+/// market text in that panel recolour them (Tidal Light's
+/// `._marketText_1lyag_1` black and `._marketText_1lyag_1._text20_1lyag_291`
+/// 70 % black), read off its stand-ins there. Without a theme `palette` is
+/// returned as is.
+pub fn tidal_panel_text(palette: Palette, panel: SidePanel) -> Palette {
     if !on() || !palette.themed {
         return palette;
     }
@@ -1616,16 +1617,16 @@ pub fn tidal_panel_text(palette: Palette) -> Palette {
         let version = s.overlay.version;
         if let Some((v, boxes)) = &s.theme_boxes
             && *v == version
-            && let Some(roles) = boxes.panel_text
+            && let Some(roles) = boxes.panel_text[panel as usize]
         {
             return roles;
         }
-        let roles = tidal_text_roles(&s.overlay);
+        let roles = tidal_text_roles(&s.overlay, panel);
         let boxes = match &mut s.theme_boxes {
             Some((v, boxes)) if *v == version => boxes,
             slot => &mut slot.insert((version, ThemeBoxes::default())).1,
         };
-        boxes.panel_text = Some(roles);
+        boxes.panel_text[panel as usize] = Some(roles);
         roles
     });
     Palette {
@@ -1636,19 +1637,30 @@ pub fn tidal_panel_text(palette: Palette) -> Palette {
     }
 }
 
-fn tidal_text_roles(o: &DomOverlay) -> (Color32, Color32, Color32) {
-    let var = |names: &[&str]| {
-        names.iter().find_map(|n| {
-            let v = o.vars.get(*n)?;
-            css::color(&css::resolve_vars(v, &o.vars)).filter(|c| c.a() > 0)
-        })
+/// One of TIDAL's side panels, whose words [`tidal_panel_text`] colours.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SidePanel {
+    Sidebar = 0,
+    Queue = 1,
+}
+
+fn tidal_text_roles(o: &DomOverlay, panel: SidePanel) -> (Color32, Color32, Color32) {
+    use dom_anchors::keys;
+    let role = |key: &str| {
+        let h = o.hosts.get(key)?;
+        style_color(&h.style, |s| s.color.as_ref(), &o.vars).filter(|c| c.a() > 0)
+    };
+    let (text_key, secondary_key) = match panel {
+        SidePanel::Sidebar => (keys::SIDEBAR_TEXT, keys::SIDEBAR_SECONDARY),
+        SidePanel::Queue => (keys::QUEUE_ROLE_TEXT, keys::QUEUE_ROLE_SECONDARY),
     };
     // TIDAL's white text and its 55 % and 30 % whites, which let the
-    // panel's colour show through (`rgba(255, 255, 255, 0.55)` on a nav row).
-    let text = var(&["--text-default"]);
+    // panel's colour show through (`rgba(255, 255, 255, 0.55)` on a nav row),
+    // unless the theme's rules colour TIDAL's market text in the panel.
+    let text = role(text_key);
     (
         text.unwrap_or(Color32::WHITE),
-        var(&["--text-secondary"]).unwrap_or(Color32::from_white_alpha(140)),
+        role(secondary_key).unwrap_or(Color32::from_white_alpha(140)),
         text.map_or(Color32::from_white_alpha(77), |c| c.gamma_multiply(0.55)),
     )
 }
@@ -2165,7 +2177,7 @@ struct ThemeBoxes {
     nav: std::collections::HashMap<String, Option<NavStyle>>,
     /// The text, secondary and dim colours TIDAL's sidebar and play queue
     /// take ([`tidal_panel_text`]).
-    panel_text: Option<(Color32, Color32, Color32)>,
+    panel_text: [Option<(Color32, Color32, Color32)>; 2],
 }
 
 fn theme_boxes<R>(f: impl FnOnce(&mut ThemeBoxes) -> R) -> R {

@@ -1016,7 +1016,8 @@ pub(super) fn place(app: &mut App, ui: &mut egui::Ui) -> Placed {
     // its dark panel unless the theme's root tokens say otherwise), not the
     // page's.
     let page_palette = app.palette;
-    app.palette = super::plugin_dom::tidal_panel_text(page_palette);
+    app.palette =
+        super::plugin_dom::tidal_panel_text(page_palette, super::plugin_dom::SidePanel::Sidebar);
     let placed = place_panel(app, ui);
     app.palette = page_palette;
     placed

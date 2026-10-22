@@ -259,13 +259,14 @@ fn header_pills_inside_the_header_controls_take_a_nested_rules_gradient() {
 /// either (TIDAL running Rose Pine and Catppuccin, which set
 /// `--wave-color-solid-contrast-fill` at the root, keeps its sidebar
 /// names pure white and its nav labels 55 % white); round 22 took them
-/// from those tokens. A root `--text-default` / `--text-secondary` (Tidal
-/// Light) does recolour them. Without a theme the palette is the app's,
-/// untouched.
+/// from those tokens. A theme's rules for TIDAL's market text (Tidal
+/// Light's black) do recolour them. Without a theme the palette is the
+/// app's, untouched.
 #[test]
 fn the_sidebar_and_queue_keep_tidals_text_colours_under_a_theme() {
     use crate::theme::Palette;
-    use crate::ui::plugin_dom::{test_overlay, themed, tidal_panel_text};
+    use crate::ui::plugin_dom::{SidePanel, test_overlay, themed};
+    let tidal_panel_text = |p| crate::ui::plugin_dom::tidal_panel_text(p, SidePanel::Sidebar);
     let page_only = r#"/* {"name": "Page only"} */
 #main { --wave-color-text-main: black; background-color: #ffc0f0; }
 .mainContent { --wave-color-solid-contrast-fill: black; }
@@ -296,11 +297,13 @@ fn the_sidebar_and_queue_keep_tidals_text_colours_under_a_theme() {
     test_overlay(None);
     luna.shutdown();
 
-    let light = r#"/* {"name": "Text variables"} */
-:root { --text-default: #000; --text-secondary: #000000b3; --wave-color-solid-base-fill: #fff; }
+    let light = r#"/* {"name": "Market text"} */
+:root { --ink: #000; --ink-soft: #000000b3; --wave-color-solid-base-fill: #fff; }
 body, [class^="_main"] { background-color: var(--wave-color-solid-base-fill) !important; }
+._marketText_1lyag_1 { color: var(--ink) !important; }
+._marketText_1lyag_1._text20_1lyag_291 { color: var(--ink-soft) !important; }
 "#;
-    let (luna, o) = overlay_with("text-vars.css", light, dom_anchors::sample_tree(), "");
+    let (luna, o) = overlay_with("market-text.css", light, dom_anchors::sample_tree(), "");
     let palette = themed(&Palette::dark(), &o);
     test_overlay(Some((*o).clone()));
     let panel = tidal_panel_text(palette);

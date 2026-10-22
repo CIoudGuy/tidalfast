@@ -78,6 +78,14 @@ pub mod keys {
     pub const LIB_CREATE_ICON: &str = "sidebar-lib-heading:create:svg";
     pub const LIB_SORT: &str = "sidebar-lib-heading:sort";
     pub const LIB_SORT_ICON: &str = "sidebar-lib-heading:sort:svg";
+    /// TIDAL's market text in the sidebar, as a theme's rules colour it
+    /// there (no rect: hidden stand-ins after the sidebar's content): its
+    /// words (`span._marketText_1lyag_1`) and a playlist's second line
+    /// (`span._subtitle_c0fd197._text20_ ._paragraph10_ ._marketText_`).
+    /// The sidebar takes its words' colours from them.
+    pub const SIDEBAR_ROLES: &str = "sidebar-roles";
+    pub const SIDEBAR_TEXT: &str = "sidebar-roles:text";
+    pub const SIDEBAR_SECONDARY: &str = "sidebar-roles:secondary";
     /// `div._collectionWrapper_` around the Collection entry and its menu
     /// button (AltPlay puts its link after it).
     pub const COLLECTION_WRAPPER: &str = "sidebar-collection-wrapper";
@@ -155,6 +163,14 @@ pub mod keys {
     pub const QUEUE_PANEL: &str = "queue-panel";
     /// `div._playQueueWrapper_cbf5aaa` inside it, around the title and rows.
     pub const QUEUE_WRAPPER: &str = "queue-wrapper";
+    /// Hidden stand-ins for the queue rows' words (no rect): a title
+    /// (`span._marketText_1lyag_1._medium20_1lyag_192`) and an artist line
+    /// (`span._artistText_73966a1._text20_ ._paragraph20_ ._marketText_`)
+    /// in TIDAL's `div._playQueueItemsContainer_01c88fe`. The play queue
+    /// takes its words' colours from them.
+    pub const QUEUE_ROLES: &str = "queue-roles";
+    pub const QUEUE_ROLE_TEXT: &str = "queue-roles:text";
+    pub const QUEUE_ROLE_SECONDARY: &str = "queue-roles:secondary";
     pub const FULLSCREEN: &str = "fullscreen-button";
     pub const FULLSCREEN_SPAN: &str = "fullscreen-button:span";
 
@@ -943,6 +959,33 @@ pub fn build(frame: &Frame) -> HostTree {
         );
         title_parent = keys::QUEUE_WRAPPER;
     }
+    // TIDAL's queue rows' words as a theme's rules colour them
+    // (`div._playQueueItemsContainer_01c88fe` round a title's market text
+    // and an artist line), in the open panel; while it is closed the same
+    // stand-ins wait in the main container, so the panel opens in the
+    // theme's colours.
+    let roles_parent = if frame.queue_panel.is_some() {
+        keys::QUEUE_WRAPPER
+    } else {
+        keys::MAIN_CONTAINER
+    };
+    out.push(
+        el(keys::QUEUE_ROLES, Some(roles_parent), "div")
+            .class("_playQueueItemsContainer_01c88fe")
+            .attr("aria-hidden", "true"),
+    );
+    out.push(
+        el(keys::QUEUE_ROLE_TEXT, Some(keys::QUEUE_ROLES), "span")
+            .class("_marketText_1lyag_1")
+            .class("_medium20_1lyag_192"),
+    );
+    out.push(
+        el(keys::QUEUE_ROLE_SECONDARY, Some(keys::QUEUE_ROLES), "span")
+            .class("_artistText_73966a1")
+            .class("_text20_1lyag_291")
+            .class("_paragraph20_1lyag_138")
+            .class("_marketText_1lyag_1"),
+    );
     if let Some((text, rect)) = &frame.queue_title {
         out.push(
             el(keys::QUEUE_TITLE, Some(title_parent), "h2")
@@ -1328,6 +1371,19 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
         );
         out.push(el(keys::thumb_img(i), Some(&keys::thumb(i)), "img").at(*rect));
     }
+    // TIDAL's market text as the theme's rules colour it in the sidebar
+    // (Tidal Light's `._marketText_1lyag_1 { color: var(--text-default) }`
+    // makes the panel's words black), after the content so no structural
+    // selector of the rows counts it.
+    out.push(el(SIDEBAR_ROLES, Some(SIDEBAR_NAV), "div").attr("aria-hidden", "true"));
+    out.push(el(SIDEBAR_TEXT, Some(SIDEBAR_ROLES), "span").class("_marketText_1lyag_1"));
+    out.push(
+        el(SIDEBAR_SECONDARY, Some(SIDEBAR_ROLES), "span")
+            .class("_subtitle_c0fd197")
+            .class("_text20_1lyag_291")
+            .class("_paragraph10_1lyag_156")
+            .class("_marketText_1lyag_1"),
+    );
 }
 
 pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
