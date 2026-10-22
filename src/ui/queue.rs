@@ -798,10 +798,10 @@ fn floating_contents(app: &mut App, ui: &mut egui::Ui) {
                 )),
                 super::plugin_dom::themed_font(
                     crate::luna::dom_anchors::keys::QUEUE_TITLE,
-                    super::plugin_dom::subheadline_font(19.0),
+                    theme::bold(19.0),
                     700,
                 ),
-                palette.text,
+                super::plugin_dom::queue_title_color().unwrap_or(palette.text),
             );
             if luna {
                 let text = gettext(locale, "Play queue").to_string();
@@ -957,7 +957,7 @@ fn from_heading(
                     theme::text(ui, format!("{label}: "), theme::bold(14.0), palette.text);
                     let link = egui::RichText::new(&from.name)
                         .font(theme::bold(14.0))
-                        .color(palette.accent)
+                        .color(source_link_ink(&palette))
                         .underline();
                     let response = ui.add(
                         egui::Label::new(link)
@@ -998,6 +998,17 @@ fn from_heading(
     );
     ui.add_space(10.0);
     cleared
+}
+
+/// The colour of the "Playing from" link: under a theme TIDAL draws it in
+/// the heading's colour, underlined (the cotton candy family's white, Tidal
+/// Light's black); without one it stays the accent.
+fn source_link_ink(palette: &crate::theme::Palette) -> egui::Color32 {
+    if palette.themed {
+        palette.text
+    } else {
+        palette.accent
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -1235,6 +1246,22 @@ mod history_click_tests {
                 tray: false,
             },
         )
+    }
+
+    /// Under a theme the "Playing from" link is the heading's colour, as
+    /// in TIDAL (it was the accent: cyan under the cotton candy family,
+    /// whose links are white); without one it keeps the accent.
+    #[test]
+    fn the_source_link_takes_the_headings_colour_under_a_theme() {
+        let plain = crate::theme::Palette::dark();
+        assert_eq!(super::source_link_ink(&plain), plain.accent);
+        let themed = crate::theme::Palette {
+            themed: true,
+            text: egui::Color32::from_rgb(250, 240, 245),
+            accent: egui::Color32::from_rgb(0, 200, 210),
+            ..plain
+        };
+        assert_eq!(super::source_link_ink(&themed), themed.text);
     }
 
     /// A single click on a History row inside its scroll area plays it.

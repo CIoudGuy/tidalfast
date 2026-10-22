@@ -173,3 +173,67 @@ fn explore_pills_take_tidals_thin_fill_or_the_themes() {
     assert_eq!(pd::cloud_pill(rect(300.0), &Palette::dark()), None);
     pd::test_overlay(None);
 }
+
+/// TIDAL's play queue draws the playing song in a theme's rule for the
+/// queue's titles (the cotton candy family's white) or else in the theme's
+/// accent token, on a dark window too (Rose Pine's foam, Tidalify's red,
+/// Minimalist Black's green); Tidalfast kept its own cyan.
+#[test]
+fn the_queues_playing_song_follows_the_theme() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom::{SidePanel, test_overlay, themed, tidal_panel_text};
+    let token = r#"/* {"name": "Queue token"} */
+:root { --wave-color-solid-accent-fill: #ff7f11; }
+"#;
+    let (luna, o) = overlay_with("queue-token.css", token, dom_anchors::sample_tree(), "");
+    let palette = themed(&Palette::dark(), &o);
+    test_overlay(Some((*o).clone()));
+    let queue = tidal_panel_text(palette, SidePanel::Queue);
+    let sidebar = tidal_panel_text(palette, SidePanel::Sidebar);
+    test_overlay(None);
+    luna.shutdown();
+    assert_eq!(queue.accent, egui::Color32::from_rgb(0xff, 0x7f, 0x11));
+    assert_eq!(sidebar.accent, palette.accent, "the sidebar keeps TIDAL's");
+
+    let rule = r#"/* {"name": "Queue titles"} */
+:root { --wave-color-solid-accent-fill: #101010; }
+#main { background-color: rgb(240, 200, 230); }
+[class="_playQueueItemsContainer_01c88fe"] { ._marketText_1lyag_1._medium20_1lyag_192 { color: rgb(255, 250, 240); } }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.queue_panel = Some((Some([930.0, 92.0, 350.0, 600.0]), false));
+    let (luna, o) = overlay_with("queue-titles.css", rule, dom_anchors::build(&frame), "");
+    let palette = themed(&Palette::dark(), &o);
+    test_overlay(Some((*o).clone()));
+    let queue = tidal_panel_text(palette, SidePanel::Queue);
+    test_overlay(None);
+    luna.shutdown();
+    assert_eq!(queue.accent, egui::Color32::from_rgb(255, 250, 240));
+}
+
+/// The play queue's title is TIDAL's market heading text, not a section's
+/// `headerContainer > h2`: Lunallena's `[class*="heading"]` makes it lime
+/// and its 30px rule for section headings leaves it small in TIDAL;
+/// Giorgeous' green `h2` colours it. Tidalfast drew it in the panel's white
+/// at the section headings' size.
+#[test]
+fn the_queue_title_takes_its_own_rules() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::QUEUE_TITLE;
+    let css = r#"/* {"name": "Citrus headings"} */
+:root { --citrus: rgb(170, 255, 120); }
+[class*="headerContainer"] > h2 { font-size: 30px !important; color: var(--citrus); }
+[class*="heading"] { color: var(--citrus); }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.queue_panel = Some((Some([930.0, 92.0, 350.0, 600.0]), false));
+    frame.queue_title = Some(("Play queue".into(), Some([946.0, 110.0, 120.0, 26.0])));
+    let (luna, o) = overlay_with("citrus.css", css, dom_anchors::build(&frame), QUEUE_TITLE);
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let color = pd::queue_title_color();
+    let size = pd::themed_font(QUEUE_TITLE, crate::theme::bold(19.0), 700).size;
+    pd::test_overlay(None);
+    assert_eq!(color, Some(egui::Color32::from_rgb(170, 255, 120)));
+    assert_eq!(size, 19.0, "TIDAL's size, not the section headings'");
+}

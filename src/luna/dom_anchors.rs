@@ -1013,9 +1013,15 @@ pub fn build(frame: &Frame) -> HostTree {
             .class("_paragraph20_1lyag_138")
             .class("_marketText_1lyag_1"),
     );
+    // The title is TIDAL's market heading text (the cotton candy family's
+    // `._marketText_1lyag_1._heading20_1lyag_75 { color: white }` in the
+    // queue, Lunallena's `[class*="heading"]` lime), not a section's
+    // `headerContainer > h2`: Lunallena's 30px rule for those leaves it small.
     if let Some((text, rect)) = &frame.queue_title {
         out.push(
             el(keys::QUEUE_TITLE, Some(title_parent), "h2")
+                .class("_marketText_1lyag_1")
+                .class("_heading20_1lyag_75")
                 .test("playqueue-title")
                 .text(text.clone())
                 .at(*rect),

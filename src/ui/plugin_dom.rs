@@ -1612,8 +1612,17 @@ pub fn queue_fill_from(base: Color32) -> Color32 {
 /// 70 % black), read off its stand-ins there. Without a theme `palette` is
 /// returned as is.
 pub fn tidal_panel_text(palette: Palette, panel: SidePanel) -> Palette {
-    if !on() || !palette.themed {
+    if !on() {
         return palette;
+    }
+    let accent = match panel {
+        SidePanel::Queue => with(|s| queue_accent(&s.overlay)).unwrap_or(palette.accent),
+        SidePanel::Sidebar => palette.accent,
+    };
+    // A theme of root tokens alone keeps TIDAL's words but its accent
+    // reaches the queue's playing song.
+    if !palette.themed {
+        return Palette { accent, ..palette };
     }
     let (text, secondary, dim) = with(|s| {
         let version = s.overlay.version;
@@ -1635,8 +1644,28 @@ pub fn tidal_panel_text(palette: Palette, panel: SidePanel) -> Palette {
         text,
         secondary,
         dim,
+        accent,
         ..palette
     }
+}
+
+/// The colour TIDAL gives the play queue's playing song under a theme: a
+/// theme's rule for the queue's titles (TIDAL's market text there, the
+/// cotton candy family's white), else the theme's accent token, which the
+/// queue reads whatever the window (Rose Pine's foam, Tidalify's red,
+/// Minimalist Black's green, Lunallena's mint). `None` keeps the accent.
+fn queue_accent(o: &DomOverlay) -> Option<Color32> {
+    let role = o
+        .hosts
+        .get(dom_anchors::keys::QUEUE_ROLE_TEXT)
+        .and_then(|h| style_color(&h.style, |s| s.color.as_ref(), &o.vars).filter(|c| c.a() > 0));
+    role.or_else(|| {
+        o.vars
+            .get("--wave-color-solid-accent-fill")
+            .and_then(|v| css::color(&css::resolve_vars(v, &o.vars)))
+            .filter(|c| c.a() > 0)
+    })
+    .map(opaque)
 }
 
 /// One of TIDAL's side panels, whose words [`tidal_panel_text`] colours.
@@ -4198,6 +4227,15 @@ pub fn subheadline_case(text: &str) -> Cow<'_, str> {
         .or_else(|| uppercase(dom_anchors::keys::THEME_H2))
         .unwrap_or(false);
     cased(text, upper)
+}
+
+/// The colour a theme's rules give the play queue's title (Giorgeous'
+/// green `h2`, TidalCustomTheme's dark red market text), if any.
+pub fn queue_title_color() -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    color(dom_anchors::keys::QUEUE_TITLE).filter(|c| c.a() > 0)
 }
 
 /// The play queue's title as a theme's `text-transform` for its `h2`
