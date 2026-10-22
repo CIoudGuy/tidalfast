@@ -257,7 +257,7 @@ fn data_page(app: &mut App, ui: &mut egui::Ui, path: &str, shelves: &[Shelf], ti
         if !shelf.title.is_empty() && shelf.title != title {
             theme::text(
                 ui,
-                &shelf.title,
+                super::plugin_dom::subheadline_case(&shelf.title),
                 super::plugin_dom::subheadline_font(19.0),
                 super::plugin_dom::subheadline_color(palette.text),
             );

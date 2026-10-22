@@ -4278,7 +4278,7 @@ fn section_header_parts(
     ui.painter().text(
         pos2(rect.left(), rect.center().y),
         egui::Align2::LEFT_CENTER,
-        title,
+        super::plugin_dom::subheadline_case(title),
         super::plugin_dom::subheadline_font(19.0),
         super::plugin_dom::subheadline_color(palette.text),
     );

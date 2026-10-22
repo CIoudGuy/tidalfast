@@ -21,7 +21,7 @@ pub fn page(app: &mut App, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         theme::text(
             ui,
-            gettext(app.locale, "Queue"),
+            super::plugin_dom::headline_case(&gettext(app.locale, "Queue")),
             super::plugin_dom::headline_font(28.0),
             super::plugin_dom::headline_color(palette.text),
         );
@@ -780,8 +780,10 @@ fn floating_contents(app: &mut App, ui: &mut egui::Ui) {
             let native = gettext(locale, "Play queue");
             let title = theme::text(
                 ui,
-                super::plugin_dom::text(crate::luna::dom_anchors::keys::QUEUE_TITLE, &native)
-                    .as_ref(),
+                super::plugin_dom::queue_title_case(&super::plugin_dom::text(
+                    crate::luna::dom_anchors::keys::QUEUE_TITLE,
+                    &native,
+                )),
                 super::plugin_dom::themed_font(
                     crate::luna::dom_anchors::keys::QUEUE_TITLE,
                     super::plugin_dom::subheadline_font(19.0),

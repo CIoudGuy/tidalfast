@@ -4058,13 +4058,79 @@ pub fn headline_spacing() -> Option<f32> {
     })
 }
 
-/// A page title laid out in `font` with the theme's letter spacing.
+/// Whether a theme's `text-transform` on `key` sets its words in capitals:
+/// `Some(true)` for `uppercase`, `Some(false)` for a value that stops
+/// them (`none`), `None` without one or for `inherit` (the words take the
+/// element round them).
+fn uppercase(key: &str) -> Option<bool> {
+    host(key, |h, vars| {
+        let v = css::resolve_vars(h.style.text_transform.as_deref()?, vars);
+        let v = v.trim().to_ascii_lowercase();
+        match v.as_str() {
+            "" | "inherit" | "unset" => None,
+            _ => Some(v == "uppercase"),
+        }
+    })
+}
+
+/// `text` in capitals when `upper`.
+fn cased(text: &str, upper: bool) -> Cow<'_, str> {
+    if upper {
+        Cow::Owned(text.to_uppercase())
+    } else {
+        Cow::Borrowed(text)
+    }
+}
+
+/// A page title's words as a theme's `text-transform` for TIDAL's
+/// headline text or its `h1` sets them.
+pub fn headline_case(text: &str) -> Cow<'_, str> {
+    if !on() {
+        return Cow::Borrowed(text);
+    }
+    let upper = uppercase(dom_anchors::keys::THEME_HEADLINE)
+        .or_else(|| uppercase(dom_anchors::keys::THEME_H1))
+        .unwrap_or(false);
+    cased(text, upper)
+}
+
+/// A section title's words as a theme's `text-transform` for TIDAL's
+/// section headings or their `h2` sets them (Giorgeous' and Sunken
+/// Tidal's `h2 { text-transform: uppercase }`: "YOUR FAVORITE ARTISTS").
+pub fn subheadline_case(text: &str) -> Cow<'_, str> {
+    if !on() {
+        return Cow::Borrowed(text);
+    }
+    let upper = uppercase(dom_anchors::keys::THEME_SUBHEADLINE)
+        .or_else(|| uppercase(dom_anchors::keys::THEME_H2))
+        .unwrap_or(false);
+    cased(text, upper)
+}
+
+/// The play queue's title as a theme's `text-transform` for its `h2`
+/// sets it (Giorgeous' "PLAY QUEUE").
+pub fn queue_title_case(text: &str) -> Cow<'_, str> {
+    if !on() {
+        return Cow::Borrowed(text);
+    }
+    cased(
+        text,
+        uppercase(dom_anchors::keys::QUEUE_TITLE).unwrap_or(false),
+    )
+}
+
+/// A page title laid out in `font` with the theme's letter spacing and
+/// `text-transform`.
 pub fn headline_galley(
     ui: &egui::Ui,
     text: String,
     font: egui::FontId,
     color: Color32,
 ) -> Arc<egui::Galley> {
+    let text = match headline_case(&text) {
+        Cow::Owned(upper) => upper,
+        Cow::Borrowed(_) => text,
+    };
     match headline_spacing() {
         Some(spacing) => {
             let mut job = egui::text::LayoutJob::single_section(

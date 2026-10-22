@@ -54,7 +54,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let title_rect = ui.painter().text(
         heading.left_center(),
         Align2::LEFT_CENTER,
-        title.as_ref(),
+        super::plugin_dom::headline_case(title.as_ref()),
         super::plugin_dom::headline_font(27.0),
         super::plugin_dom::headline_color(palette.text),
     );

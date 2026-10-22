@@ -60,7 +60,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
             ui.painter().text(
                 pos2(heading.left(), heading.center().y),
                 egui::Align2::LEFT_CENTER,
-                gettext(locale, "Top Tracks"),
+                super::plugin_dom::subheadline_case(&gettext(locale, "Top Tracks")),
                 super::plugin_dom::subheadline_font(19.0),
                 super::plugin_dom::subheadline_color(palette.text),
             );
@@ -318,7 +318,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                 ui.painter().text(
                     pos2(heading.left(), heading.center().y),
                     egui::Align2::LEFT_CENTER,
-                    gettext(locale, "Credits"),
+                    super::plugin_dom::subheadline_case(&gettext(locale, "Credits")),
                     super::plugin_dom::subheadline_font(19.0),
                     super::plugin_dom::subheadline_color(palette.text),
                 );
@@ -484,7 +484,7 @@ fn artist_hero_own(
     ui.painter().text(
         pos2(name_rect.left(), name_rect.center().y),
         egui::Align2::LEFT_CENTER,
-        &artist.name,
+        super::plugin_dom::headline_case(&artist.name),
         super::plugin_dom::headline_font(32.0),
         super::plugin_dom::headline_color(palette.text),
     );
@@ -1202,7 +1202,7 @@ pub fn top_tracks(app: &mut App, ui: &mut egui::Ui, id: &str) {
     let title_rect = ui.painter().text(
         heading.left_center(),
         egui::Align2::LEFT_CENTER,
-        super::plugin_dom::page_title_text(title.as_ref()),
+        super::plugin_dom::headline_case(&super::plugin_dom::page_title_text(title.as_ref())),
         super::plugin_dom::headline_font(27.0),
         super::plugin_dom::headline_color(palette.text),
     );
@@ -1296,7 +1296,7 @@ pub fn section(app: &mut App, ui: &mut egui::Ui, id: &str, section: ArtistSectio
     let title_rect = ui.painter().text(
         heading.left_center(),
         egui::Align2::LEFT_CENTER,
-        super::plugin_dom::page_title_text(title.as_ref()),
+        super::plugin_dom::headline_case(&super::plugin_dom::page_title_text(title.as_ref())),
         super::plugin_dom::headline_font(27.0),
         super::plugin_dom::headline_color(palette.text),
     );
@@ -2107,7 +2107,7 @@ fn heading_view_all(app: &App, ui: &mut egui::Ui, title: &str, salt: &str) -> bo
     ui.painter().text(
         pos2(heading.left(), heading.center().y),
         egui::Align2::LEFT_CENTER,
-        title,
+        super::plugin_dom::subheadline_case(title),
         super::plugin_dom::subheadline_font(19.0),
         super::plugin_dom::subheadline_color(palette.text),
     );
