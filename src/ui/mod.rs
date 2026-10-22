@@ -30,7 +30,7 @@ mod lyrics;
 pub mod lyrics_follow;
 pub mod menus;
 mod motion_events;
-mod now_playing;
+pub(crate) mod now_playing;
 mod now_playing_video;
 pub mod page_options;
 

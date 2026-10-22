@@ -720,7 +720,10 @@ hides the image by its class takes the blurred cover away and the page shows
 behind. In TIDAL 2.43.2 the layers carry more than that class, so a rule for
 the exact attribute (`[class="now-playing-background-image"]`, the cotton
 candy family's) leaves TIDAL's cover; each stand-in has a second class
-(`now-playing-layer`) for that. Canvas text measures and draws
+(`now-playing-layer`) for that. The layers are boxes inside `#nowPlaying`,
+so what a theme paints on the view itself (`#nowPlaying { background }`,
+Tidal Amoled's black, Calavera's pale gradient with dots) lies under the
+opaque cover and shows only where the theme hides the cover too. Canvas text measures and draws
 with installed families too, so custom-fonts can tell which are installed.
 When plugins stop overriding, or Luna is turned off, the user's palette and
 fonts return.
