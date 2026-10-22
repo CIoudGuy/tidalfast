@@ -767,7 +767,7 @@ fn rail(app: &mut App, ui: &mut egui::Ui) {
                             CornerRadius::same(2),
                             egui::Color32::from_black_alpha(150),
                         );
-                        Icon::Volume2.image(palette.accent, 16.0).paint_at(
+                        Icon::Volume2.image(palette.playing_name(), 16.0).paint_at(
                             ui,
                             Rect::from_center_size(cover.center(), Vec2::splat(16.0)),
                         );
@@ -2438,7 +2438,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                                 t.title_color.unwrap_or(palette.text)
                             }
                             Some(t) if t.title_inherits => t.color.unwrap_or(palette.text),
-                            _ => palette.accent,
+                            _ => palette.playing_name(),
                         }
                     } else {
                         themed.and_then(|t| t.color).unwrap_or(palette.text)
@@ -2565,7 +2565,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             Vec2::splat(16.0),
                         );
                         Icon::Volume2
-                            .image(palette.accent, 16.0)
+                            .image(palette.playing_name(), 16.0)
                             .paint_at(ui, icon_rect);
                     } else if pinned {
                         let icon_rect = Rect::from_center_size(
@@ -2830,7 +2830,7 @@ fn library_grid(
                             &entry.name,
                             theme::medium(13.5),
                             if playing {
-                                palette.accent
+                                palette.playing_name()
                             } else {
                                 palette.text
                             },

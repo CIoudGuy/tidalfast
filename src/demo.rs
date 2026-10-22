@@ -5243,6 +5243,50 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// TIDAL desktop draws the playing playlist in the sidebar (its name and
+    /// the speaker over its cover) in its green-teal #16d8a7, measured from
+    /// its plain captures, and the seek bar, the queue's playing song and
+    /// links in the cyan accent #33ffee. Tidalfast drew the sidebar's in the
+    /// cyan too. Light has no TIDAL reference: it keeps its one deep teal.
+    #[test]
+    fn the_playing_playlist_in_the_sidebar_is_tidals_teal_and_the_queue_stays_cyan() {
+        for light in [false, true] {
+            let (ctx, mut app) = accessible_app("sidebar-playing-teal");
+            if light {
+                app.settings.theme = crate::settings::ThemeChoice::Light;
+                app.actions.push(Action::SettingsChanged);
+            }
+            app.show_queue_panel = true;
+            for _ in 0..3 {
+                accessible_frame(&ctx, &mut app, vec![]);
+            }
+            let colors = text_colors(&ctx, &mut app, "Late night focus");
+            let accent = app.palette.accent;
+            assert_eq!(
+                accent,
+                if light {
+                    egui::Color32::from_rgb(0x00, 0x78, 0x6e)
+                } else {
+                    egui::Color32::from_rgb(0x33, 0xff, 0xee)
+                },
+                "the accent is TIDAL's #33ffee in Dark (measured on its seek bar)"
+            );
+            if light {
+                assert!(!colors.contains(&crate::theme::TEAL), "{colors:?}");
+            } else {
+                assert!(
+                    colors.contains(&crate::theme::TEAL),
+                    "the sidebar's playing playlist is the teal: {colors:?}"
+                );
+            }
+            assert!(
+                colors.contains(&accent),
+                "the queue's 'Playing from' link keeps the accent: {colors:?}"
+            );
+            app.backend.shutdown();
+        }
+    }
+
     /// With TIDAL's "Show collection in sidebar" the navigation is taller
     /// than a short window, or the room above the cover: it then scrolls
     /// with the playlists, so Downloaded can be reached. In a tall window
