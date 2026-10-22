@@ -3710,6 +3710,16 @@ pub fn outline_sides(key: &str, fallback: Color32) -> Option<([f32; 4], Color32)
     Some((sides.unwrap_or([width; 4]), color))
 }
 
+/// A theme's own border on a box that has no look of its own in Tidalfast
+/// (the wrappers TIDAL's virtual list holds a track row in): only a
+/// `border` style counts, never the classes [`outline`] marks, as its
+/// sides, colour and corner radius.
+pub fn box_border(key: &str) -> Option<([f32; 4], Color32, f32)> {
+    host(key, |h, _| h.style.border.as_ref().map(|_| ()))?;
+    let (sides, color) = outline_sides(key, Color32::TRANSPARENT)?;
+    Some((sides, color, radius(key).unwrap_or(0.0)))
+}
+
 /// A plugin's inset edge on an anchor: a sharp `box-shadow: inset Xpx 0 0
 /// <colour>` (scroll-to-playing's 3-point bar down the playing row's left),
 /// as its width (negative for the right edge) and colour.
