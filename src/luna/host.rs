@@ -463,8 +463,9 @@ pub trait LunaHost: Send + Sync + 'static {
     }
     /// A track's TIDAL audio for a plugin the user allowed to save it
     /// ([`crate::luna::Access::SaveAudio`]; the runtime checks that before
-    /// it asks), or for NoBuffer's CDN kick, whose bytes the runtime reads
-    /// and drops without handing them to the plugin (no permission). Only
+    /// it asks), or for a stream a plugin consumes only by dropping every
+    /// chunk (a CDN warm-up), whose bytes the runtime reads and drops
+    /// without handing them to the plugin (no permission). Only
     /// an unencrypted stream: a protected one (Dolby Atmos,
     /// any DRM) is an error, never handed out. Called on a worker thread.
     /// The default has none.

@@ -885,6 +885,41 @@
 			}
 		}
 	}
+	// Whether `fn(chunk, encoding, callback)` throws the chunk away: its
+	// whole body calls back and nothing else (`(_c, _e, cb) => cb()`,
+	// `function (c, e, done) { done(null); }`, `write(c, e, next) {
+	// setImmediate(next) }`). Read from its source; anything else, or a
+	// function whose source is not there, keeps the chunk.
+	const discardsChunk = (fn) => {
+		if (typeof fn !== "function") return false;
+		let src;
+		try {
+			src = Function.prototype.toString.call(fn);
+		} catch {
+			return false;
+		}
+		const m = /^\s*(?:async\s+)?(?:function\b\s*[\w$]*|[\w$]+)?\s*\(([^()]*)\)\s*(=>)?\s*([\s\S]*)$/.exec(src);
+		if (!m) return false;
+		const params = m[1].split(",").map((p) => p.trim());
+		if (params.length !== 3 || !params.every((p) => /^[A-Za-z_$][\w$]*$/.test(p))) return false;
+		let body = m[3].trim();
+		if (body.startsWith("{")) {
+			if (!body.endsWith("}")) return false;
+			body = body.slice(1, -1).trim().replace(/;+$/, "").trim().replace(/^return\b/, "");
+		} else if (!m[2]) return false;
+		const cb = params[2];
+		const calls = [`${cb}()`, `${cb}(null)`, `${cb}(undefined)`, `${cb}(void0)`, `void${cb}()`, `setImmediate(${cb})`, `process.nextTick(${cb})`, `queueMicrotask(${cb})`];
+		return calls.includes(body.replace(/\s+/g, ""));
+	};
+	// A sink that drops everything written to it: one of these Writables
+	// (not a Duplex or Transform, which pass data on) whose `write` is its
+	// own and whose `_write` throws the chunk away, given as the `write`
+	// option or by a subclass.
+	const discards = (dest) => {
+		if (!(dest instanceof Writable) || dest.write !== Writable.prototype.write || typeof dest._writev === "function") return false;
+		if (Object.prototype.hasOwnProperty.call(dest, "_write")) return dest._write === dest.__lunaDiscards;
+		return dest._write !== Writable.prototype._write && discardsChunk(dest._write);
+	};
 	class Writable extends Stream {
 		constructor(opts = {}) {
 			super();
@@ -893,6 +928,8 @@
 			this.writableEnded = false;
 			this.writableFinished = false;
 			if (opts.write) this._write = opts.write.bind(this);
+			// `discards` checks the bound copy is still the one made here.
+			if (opts.write && discardsChunk(opts.write)) Object.defineProperty(this, "__lunaDiscards", { value: this._write, configurable: true });
 			if (opts.writev) this._writev = opts.writev.bind(this);
 			if (opts.final) this._final = opts.final.bind(this);
 			if (opts.destroy) this._destroy = opts.destroy.bind(this);
@@ -3274,44 +3311,138 @@
 			L.reportError?.(err);
 		}
 	};
-	// A track's TIDAL audio as a Readable (fetchMediaItemStream): read from
-	// the app chunk by chunk; destroying it closes the stream there.
-	L.node.audioStream = (plugin, info, opts) => {
-		let downloaded = 0;
-		let closed = false;
-		const close = () => {
-			if (closed) return;
-			closed = true;
+	// A track's TIDAL audio as a Readable (fetchMediaItemStream). Nothing is
+	// opened until something consumes it, and what consumes it decides how:
+	// - Every consumer throws the bytes away (it is piped only into sinks
+	//   whose `write` never reads the chunk, see `discards`, or `resume()`d
+	//   with nobody listening, Node's way to consume a stream without its
+	//   data): the app reads the stream to its end and drops it
+	//   (`source.drain`). Nothing reaches the plugin and nothing is saved,
+	//   so it needs no permission; then "end", and the sinks are ended as
+	//   `pipe` ends them. (A CDN warm-up after a stall reads a song this way.)
+	// - Anything else gets the bytes from `source.open` (which asks for the
+	//   permission first), read from the app chunk by chunk; destroying the
+	//   stream closes it there. An open that fails is the stream's "error".
+	class AudioStream extends Readable {
+		constructor(plugin, source, opts) {
+			super();
+			this._lunaAudio = { plugin, source, opts, mode: null, scheduled: false, wants: false, resumed: false, pipes: [], handle: null, closed: false };
+		}
+		_destroy(err, cb) {
+			this._lunaClose();
+			cb?.(err);
+		}
+		_lunaClose() {
+			const a = this._lunaAudio;
+			if (a.closed) return;
+			a.closed = true;
+			if (a.handle === null) return;
 			try {
-				callOp("audio.close", { plugin, handle: info.handle });
+				callOp("audio.close", { plugin: a.plugin, handle: a.handle });
 			} catch {}
-		};
-		const r = new Readable({ destroy: (err, cb) => (close(), cb?.(err)) });
-		Object.assign(r, { mimeType: info.mimeType, codec: info.codec, extension: info.extension });
-		const signal = opts?.signal;
-		(async () => {
-			try {
-				for (;;) {
-					if (closed || r.destroyed) return close();
-					if (signal?.aborted) throw signal.reason ?? new Error("aborted");
-					const chunk = await L.callOpAsync("audio.read", { plugin, handle: info.handle });
-					if (chunk === null || chunk === undefined) break;
-					const b = Buffer.from(L.b64dec(chunk));
-					downloaded += b.length;
-					r.push(b);
-					try {
-						opts?.onProgress?.({ total: undefined, downloaded, percent: undefined });
-					} catch {}
+		}
+		// Decided once, after the code that attached the first consumer has
+		// attached the rest.
+		_lunaDecide() {
+			const a = this._lunaAudio;
+			if (a.mode !== null || a.scheduled) return;
+			a.scheduled = true;
+			queueMicrotask(() => {
+				a.scheduled = false;
+				if (a.mode !== null || this.destroyed) return;
+				const sinks = a.pipes.every((p) => discards(p.dest));
+				if (!a.wants && sinks && (a.pipes.length > 0 || a.resumed)) this._lunaDrain();
+				else this._lunaRead();
+			});
+		}
+		_lunaDrain() {
+			const a = this._lunaAudio;
+			a.mode = "drain";
+			for (const p of a.pipes) p.dest.emit?.("pipe", this);
+			a.source.drain().then(
+				() => {
+					if (this.destroyed) return;
+					a.closed = true;
+					this._ended = true;
+					this.readableEnded = true;
+					this.emit("end");
+					for (const p of a.pipes) if (p.opts?.end !== false) p.dest.end?.();
+					this.emit("close");
+				},
+				(err) => this.destroy(err),
+			);
+		}
+		_lunaRead() {
+			const a = this._lunaAudio;
+			a.mode = "read";
+			for (const p of a.pipes) Readable.prototype.pipe.call(this, p.dest, p.opts);
+			const signal = a.opts?.signal;
+			let downloaded = 0;
+			(async () => {
+				try {
+					const info = await a.source.open();
+					a.handle = info.handle;
+					Object.assign(this, { mimeType: info.mimeType, codec: info.codec, extension: info.extension });
+					for (;;) {
+						if (a.closed || this.destroyed) return this._lunaClose();
+						if (signal?.aborted) throw signal.reason ?? new Error("aborted");
+						const chunk = await L.callOpAsync("audio.read", { plugin: a.plugin, handle: a.handle });
+						if (chunk === null || chunk === undefined) break;
+						const b = Buffer.from(L.b64dec(chunk));
+						downloaded += b.length;
+						this.push(b);
+						try {
+							a.opts?.onProgress?.({ total: undefined, downloaded, percent: undefined });
+						} catch {}
+					}
+					a.closed = true;
+					this.push(null);
+				} catch (err) {
+					this._lunaClose();
+					this.destroy(err);
 				}
-				closed = true;
-				r.push(null);
-			} catch (err) {
-				close();
-				r.destroy(err);
+			})();
+		}
+		_add(name, fn, prepend, once) {
+			const a = this._lunaAudio;
+			if (a?.mode === null && (name === "data" || name === "readable")) {
+				a.wants = true;
+				this._lunaDecide();
 			}
-		})();
-		return r;
-	};
+			return super._add(name, fn, prepend, once);
+		}
+		pipe(dest, opts) {
+			const a = this._lunaAudio;
+			if (a.mode !== null) return super.pipe(dest, opts);
+			a.pipes.push({ dest, opts });
+			this._lunaDecide();
+			return dest;
+		}
+		unpipe(dest) {
+			const a = this._lunaAudio;
+			if (a.mode !== null) return super.unpipe(dest);
+			a.pipes = dest ? a.pipes.filter((p) => p.dest !== dest) : [];
+			return this;
+		}
+		read() {
+			const a = this._lunaAudio;
+			if (a.mode === null) {
+				a.wants = true;
+				this._lunaDecide();
+				return null;
+			}
+			return super.read();
+		}
+		resume() {
+			const a = this._lunaAudio;
+			if (a.mode === null) {
+				a.resumed = true;
+				this._lunaDecide();
+			}
+			return super.resume();
+		}
+	}
+	L.node.audioStream = (plugin, source, opts) => new AudioStream(plugin, source, opts);
 	const accelKeys = { commandorcontrol: "ctrl", cmdorctrl: "ctrl", control: "ctrl", ctrl: "ctrl", command: "meta", cmd: "meta", super: "meta", meta: "meta", option: "alt", alt: "alt", altgr: "alt", shift: "shift" };
 	const parseAccel = (acc) => {
 		const want = { ctrl: false, meta: false, alt: false, shift: false, key: "" };

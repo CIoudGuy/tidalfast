@@ -307,11 +307,15 @@ R.done = run;
     let _ = std::fs::remove_dir_all(&dir_out);
 }
 
-/// NoBuffer's `voidTrack` (its native module, as published) reads the
+/// NoBuffer's `voidTrack` (its native module, as published) pipes the
 /// playing song's stream into a Writable that drops every chunk: it saves
 /// nothing, so it is not asked the save-audio question, whose prompt says
 /// "save as files". The host reads the stream to its end and keeps nothing;
-/// the plugin never gets the bytes.
+/// the plugin never gets the bytes. Nothing here knows the plugin: this is
+/// `fetchMediaItemStream`'s generic answer to a discarding sink (see
+/// `streams_consumed_only_by_sinks_that_drop_every_chunk_ask_nothing`). As
+/// in TidaLuna, its promise waits for "end" on that Writable, which emits
+/// "finish" instead, so it is not awaited.
 #[test]
 fn no_buffers_cdn_kick_reads_the_stream_without_the_save_audio_question() {
     let host = Arc::new(PermitHost::default());
@@ -319,12 +323,14 @@ fn no_buffers_cdn_kick_reads_the_stream_without_the_save_audio_question() {
 const voidNative = `"use strict";var s=Object.create;var o=Object.defineProperty;var f=Object.getOwnPropertyDescriptor;var p=Object.getOwnPropertyNames;var b=Object.getPrototypeOf,c=Object.prototype.hasOwnProperty;var w=(e,n)=>()=>{try{return n||e((n={exports:{}}).exports,n),n.exports}catch(a){throw n=0,a}},v=(e,n)=>{for(var a in n)o(e,a,{get:n[a],enumerable:!0})},l=(e,n,a,r)=>{if(n&&typeof n=="object"||typeof n=="function")for(let i of p(n))!c.call(e,i)&&i!==a&&o(e,i,{get:()=>n[i],enumerable:!(r=f(n,i))||r.enumerable});return e};var P=(e,n,a)=>(a=e!=null?s(b(e)):{},l(n||!e||!e.__esModule?o(a,"default",{value:e,enumerable:!0}):a,e)),_=e=>l(o({},"__esModule",{value:!0}),e);var d=w((W,t)=>{t.exports=luna.modules["@luna/lib.native"];if(t.exports===void 0)throw new Error("Cannot find native module @luna/lib.native in luna.modules");luna.tidalWindow?.webContents?.send("__Luna.LunaPlugin.addDependant","@luna/lib.native","NoBuffer")});var x={};v(x,{voidTrack:()=>k});module.exports=_(x);var u=P(d()),m=require("stream"),y=new m.Writable({write:(e,n,a)=>a()}),k=async e=>{let n=await(0,u.fetchMediaItemStream)(e);return new Promise(a=>n.pipe(y).on("end",a))};0&&(module.exports={voidTrack});
 `;
 const n = await native("NoBuffer/voidTrack.native.ts", voidNative);
-R.kick = await n("voidTrack", { trackId: 5, audioQuality: "LOSSLESS" }).then((v) => "OK " + v, (e) => "ERR " + (e?.message ?? e));
+n("voidTrack", { trackId: 5, audioQuality: "LOSSLESS" }).then((v) => (R.kick = "OK " + v), (e) => (R.kick = "ERR " + (e?.message ?? e)));
 R.done = 1;
 "###;
     let (luna, dir) = start("NoBuffer", body, host.clone());
     let end = Instant::now() + Duration::from_secs(20);
-    while results(&dir)["done"] != json!(1) {
+    while results(&dir)["done"] != json!(1)
+        || host.opened.load(std::sync::atomic::Ordering::SeqCst) == 0
+    {
         assert!(
             luna.pending_permission().is_none(),
             "the save-audio question was asked: {:#?}",
@@ -333,14 +339,102 @@ R.done = 1;
         assert!(Instant::now() < end, "no result: {:#?}", logs(&luna));
         std::thread::sleep(Duration::from_millis(20));
     }
+    no_question(&luna);
     let r = results(&dir);
-    assert!(r["kick"].as_str().unwrap().starts_with("OK"), "{r}");
+    assert!(
+        !r["kick"].as_str().is_some_and(|k| k.starts_with("ERR")),
+        "{r}"
+    );
     assert_eq!(
         host.opened.load(std::sync::atomic::Ordering::SeqCst),
         1,
         "the stream was read once"
     );
     no_question(&luna);
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Any plugin's `fetchMediaItemStream`, consumed only by sinks that drop
+/// every chunk (a `write` option as an arrow or a method, a subclass's
+/// `_write`, two sinks at once, or `resume()` with nobody listening): the
+/// host reads each stream to its end once and nothing asks to save audio;
+/// the stream ends and the sinks finish as `pipe` finishes them. A sink
+/// that keeps the chunks is a reader: it is asked, and denied it gets an
+/// error and no stream is opened.
+#[test]
+fn streams_consumed_only_by_sinks_that_drop_every_chunk_ask_nothing() {
+    let host = Arc::new(PermitHost::default());
+    let body = r###"
+const code = `"use strict";
+const { fetchMediaItemStream } = require("@luna/lib.native");
+const { Writable } = require("stream");
+const track = { trackId: 7, audioQuality: "LOSSLESS" };
+const settle = (s, sinks) => new Promise((res, rej) => {
+	let waiting = sinks.length + 1;
+	const one = () => --waiting === 0 && res("ended");
+	s.on("end", one);
+	s.on("error", rej);
+	for (const k of sinks) k.on("finish", one);
+});
+const piped = async (...sinks) => {
+	const s = await fetchMediaItemStream(track);
+	for (const k of sinks) s.pipe(k);
+	return settle(s, sinks);
+};
+class Null extends Writable {
+	_write(c, e, done) {
+		setImmediate(done);
+	}
+}
+exports.arrow = () => piped(new Writable({ write: (_c, _e, cb) => cb() }));
+exports.method = () => piped(new Writable({ write(chunk, encoding, next) { next(null); } }));
+exports.subclass = () => piped(new Null());
+exports.two = () => piped(new Writable({ write: function (a, b, c) { return c(); } }), new Null());
+exports.resume = async () => {
+	const s = await fetchMediaItemStream(track);
+	s.resume();
+	return settle(s, []);
+};
+const kept = [];
+exports.keep = () => piped(new Writable({ write(c, e, cb) { kept.push(c); cb(); } }));
+`;
+const n = await native("Warmup/cdn.native.ts", code);
+for (const k of ["arrow", "method", "subclass", "two", "resume"]) R[k] = await n(k).catch((e) => "ERR " + (e?.message ?? e));
+R.keep = await n("keep").catch((e) => "ERR " + (e?.message ?? e));
+R.done = 1;
+"###;
+    let (luna, dir) = start("Warmup", body, host.clone());
+    // Every question is denied and counted: only the reader may be asked.
+    // (A discarding consumer that was asked would end in an error, not
+    // "ended", and the denial would hold for the reader too.)
+    let mut asked = Vec::new();
+    let end = Instant::now() + Duration::from_secs(30);
+    while results(&dir)["done"] != json!(1) {
+        if let Some(q) = luna.pending_permission()
+            && asked.last() != Some(&q.id)
+        {
+            assert_eq!(
+                (q.plugin.as_str(), &q.access),
+                ("Warmup", &Access::SaveAudio)
+            );
+            asked.push(q.id);
+            luna.answer_permission(q.id, ProgramChoice::Deny);
+        }
+        assert!(Instant::now() < end, "no result: {:#?}", logs(&luna));
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let r = results(&dir);
+    for k in ["arrow", "method", "subclass", "two", "resume"] {
+        assert_eq!(r[k], json!("ended"), "{k}: {r}");
+    }
+    assert!(r["keep"].as_str().unwrap().contains("did not allow"), "{r}");
+    assert_eq!(asked.len(), 1, "only the reader was asked: {r}");
+    assert_eq!(
+        host.opened.load(std::sync::atomic::Ordering::SeqCst),
+        5,
+        "each discarded stream was read once by the host, the denied reader's never"
+    );
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
