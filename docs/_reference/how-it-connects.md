@@ -94,7 +94,8 @@ position, showing as loading, with one notice: "No internet connection.
 Tidalfast will carry on when you're back online". It asks TIDAL again after
 2 s, then after pauses doubling to 15 s, and at once when the system reports
 the network back or you press Play or seek; then it carries on from where it
-stopped. A song loaded ahead for the next one, and autoplay's station at the
+stopped. A request still on its way when the network is back, which then
+fails, is asked again at once too. A song loaded ahead for the next one, and autoplay's station at the
 end of the songs, wait the same way. Downloaded songs need no network and
 play as usual; Next and Previous move to them. Offline mode works as before:
 its refusal of a request is the setting, not an outage, so nothing waits on

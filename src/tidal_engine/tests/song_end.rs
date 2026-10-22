@@ -1478,6 +1478,52 @@ fn offline_at_a_songs_start_it_waits_with_the_queue_unchanged_then_plays_on() {
     assert_eq!(player.seen.errors, [NETWORK_WAIT]);
 }
 
+/// The network comes back while a try to reach TIDAL is still on its way
+/// (a slow request, asked while the network was away): that try still
+/// fails, and the next one goes at once rather than after another pause.
+/// The engine overlooked the news then, as nothing was waiting to be tried
+/// at that moment, and the song stayed silent two seconds more.
+#[test]
+fn the_network_back_during_a_slow_try_tries_again_at_once_when_it_fails() {
+    let songs = Arc::new(mixed_album());
+    songs.streams_down.store(true, Ordering::SeqCst);
+    let mut player = Player::new(quiet_config(), Arc::clone(&songs), None);
+    player
+        .engine
+        .command(PlayerCommand::Load(LoadSpec {
+            context_uri: Some("tidal:album:1".into()),
+            offset_uri: Some("tidal:track:2".into()),
+            play: true,
+            ..LoadSpec::default()
+        }))
+        .unwrap();
+    player.until_state(waiting_for_the_network);
+    // The next try takes a while to find TIDAL unreachable.
+    *lock(&songs.slow_retry) = Duration::from_millis(800);
+    player.watch_until(|| songs.times_noted("stream 2") >= 2);
+    assert_eq!(
+        songs.times_noted("unreachable 2"),
+        1,
+        "the try is on its way"
+    );
+    player.engine.network_back();
+    player.watch_until(|| songs.times_noted("unreachable 2") >= 2);
+    let failed = Instant::now();
+    *lock(&songs.slow_retry) = Duration::ZERO;
+    player.watch_until(|| songs.times_noted("stream 2") >= 3);
+    let waited = failed.elapsed();
+    assert!(
+        waited < Duration::from_secs(1),
+        "the next try waited {waited:?}"
+    );
+    songs.streams_down.store(false, Ordering::SeqCst);
+    player.engine.network_back();
+    let back = player.until_state(|state| {
+        state.playback == Playback::Playing && !state.loading && state.track.is_some()
+    });
+    assert_eq!(back.track.unwrap().uri, "tidal:track:2");
+}
+
 /// The network goes part way through a song and stays away longer than a
 /// download rides out. What arrived plays; then the song waits for the
 /// network, and once it is back the same song carries on from where its

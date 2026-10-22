@@ -289,6 +289,7 @@ impl Engine {
                     retry_at: None,
                     autoplay_retry_at: None,
                     tries: 0,
+                    back_while_trying: false,
                     failures: 0,
                     last_report: Instant::now(),
                     waiting_since: None,
@@ -542,6 +543,9 @@ struct Core {
     /// Tries to reach TIDAL that failed in a row, for the wait before the
     /// next ([`retry_pause`]).
     tries: u32,
+    /// The system said the network is back while a try to reach TIDAL was
+    /// on its way: should that try fail, the next one goes at once.
+    back_while_trying: bool,
     failures: u32,
     last_report: Instant,
     /// When the playing song began waiting for its next sound.
@@ -813,6 +817,10 @@ impl Core {
                 if self.retry_at.is_some() {
                     log::info!("the network is back; trying TIDAL again");
                     self.retry_at = Some(now);
+                } else if self.tries > 0 {
+                    // A try is on its way, asked while the network was
+                    // still away: if it fails, the next goes at once.
+                    self.back_while_trying = true;
                 }
                 if self.autoplay_retry_at.is_some() {
                     self.autoplay_retry_at = Some(now);
@@ -1236,6 +1244,7 @@ impl Core {
         self.sounded = true;
         self.failures = 0;
         self.tries = 0;
+        self.back_while_trying = false;
         let Some(stream) = &self.current else {
             return;
         };
@@ -1849,7 +1858,11 @@ impl Core {
             return;
         };
         let position_ms = stream.held_position().unwrap_or(stream.position_ms());
-        let pause = retry_pause(self.tries);
+        let pause = if std::mem::take(&mut self.back_while_trying) {
+            Duration::ZERO
+        } else {
+            retry_pause(self.tries)
+        };
         self.tries = self.tries.saturating_add(1);
         log::warn!(
             "{} waits for the network at {position_ms} ms, trying again in {} s: {error}",
@@ -1874,6 +1887,7 @@ impl Core {
         self.retry_at = None;
         self.autoplay_retry_at = None;
         self.tries = 0;
+        self.back_while_trying = false;
     }
 
     /// The context has no more songs: autoplay continues it, if allowed.
