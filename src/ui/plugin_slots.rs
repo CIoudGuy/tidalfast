@@ -2147,6 +2147,68 @@ impl css_motion::Lerp for Xf {
     }
 }
 
+/// A `background-size` or `background-position` list (one entry per
+/// background layer) an animation moves: each length between the two ends
+/// as a `calc()` of both, worked out against the box when it is painted, so
+/// `0 100%` to `100% 100%` and `calc(.75em / -2) 0` to `calc(100% + .75em /
+/// 2) 0` blend as in a browser.
+#[derive(Clone, PartialEq)]
+struct BgList(String);
+
+impl css_motion::Lerp for BgList {
+    fn lerp(&self, to: &Self, t: f32) -> Self {
+        if t <= 0.0 || self == to {
+            return self.clone();
+        }
+        if t >= 1.0 {
+            return to.clone();
+        }
+        let near = |a: &str, b: &str| if t < 0.5 { a } else { b }.to_string();
+        // Keywords that are lengths along their axis.
+        fn length(w: &str) -> &str {
+            match w {
+                "left" | "top" => "0%",
+                "center" => "50%",
+                "right" | "bottom" => "100%",
+                w => w,
+            }
+        }
+        let from = css::split_top(&self.0, ',');
+        let to_list = css::split_top(&to.0, ',');
+        if from.len() != to_list.len() {
+            return BgList(near(&self.0, &to.0));
+        }
+        let layers: Vec<String> = from
+            .iter()
+            .zip(&to_list)
+            .map(|(a, b)| {
+                let (wa, wb) = (css::words(a), css::words(b));
+                if wa.len() != wb.len() {
+                    return near(a, b);
+                }
+                wa.iter()
+                    .zip(&wb)
+                    .map(|(x, y)| {
+                        let (x, y) = (length(x), length(y));
+                        if x == y {
+                            x.to_string()
+                        } else if [x, y]
+                            .iter()
+                            .any(|v| matches!(*v, "auto" | "cover" | "contain"))
+                        {
+                            near(x, y)
+                        } else {
+                            format!("calc(({x}) * {} + ({y}) * {t})", 1.0 - t)
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect();
+        BgList(layers.join(","))
+    }
+}
+
 /// What moves one plugin element: its transitions and its animations'
 /// clock, kept while it is drawn.
 #[derive(Default)]
@@ -2354,6 +2416,15 @@ fn moved(
                         .and_then(|v| BgPos::parse(v, font, cx.viewport))
                 }) {
                     s.background_position = Some(t.at(p, &own_pos, &a.timing).css());
+                } else if let Some(t) = track(frames, |f| f.background_position.clone().map(BgList))
+                {
+                    // One position per layer (a list): blended entry by entry.
+                    let own = BgList(base.background_position.clone().unwrap_or_default());
+                    s.background_position = Some(t.at(p, &own, &a.timing).0);
+                }
+                if let Some(t) = track(frames, |f| f.background_size.clone().map(BgList)) {
+                    let own = BgList(base.background_size.clone().unwrap_or_default());
+                    s.background_size = Some(t.at(p, &own, &a.timing).0);
                 }
             }
         }
@@ -3720,6 +3791,14 @@ fn draw_turned(
 ) -> bool {
     let holds = node.children.iter().any(|c| !c.tag.starts_with("::"))
         || node.text.as_deref().is_some_and(|t| !t.trim().is_empty());
+    if holds
+        && style
+            .background_clip
+            .as_deref()
+            .is_some_and(|c| c.trim() == "text")
+    {
+        return draw_clipped_to_text(ui, node, style, stretch, parent, cx);
+    }
     if rot == 0.0
         || !holds
         || matches!(
@@ -3743,6 +3822,228 @@ fn draw_turned(
         }
     });
     r.inner
+}
+
+/// [`draw_box`] for a box whose background shows only through its words
+/// (`background-clip: text`, usually with `color: transparent`): the box is
+/// drawn without its background, then each of its words is painted in
+/// narrow upright strips, each strip in the colour its background layers
+/// (`linear-gradient()`s, each with its own `background-size` and
+/// `background-position`, no repeat) have there. A wipe across a sung word
+/// (a gradient whose width an animation grows) moves through the letters.
+fn draw_clipped_to_text(
+    ui: &mut egui::Ui,
+    node: &VNode,
+    style: &Style,
+    stretch: Vec2,
+    parent: Inherit,
+    cx: &Cx,
+) -> bool {
+    let mut plain = style.clone();
+    plain.background_image = None;
+    plain.background_color = None;
+    plain.background_clip = None;
+    // The words are painted, whatever colour hides them otherwise.
+    plain.color = Some("#ffffff".into());
+    let layer = ui.layer_id();
+    let from = ui.ctx().graphics_mut(|g| g.entry(layer).next_idx().0);
+    let r = ui.scope(|ui| draw_box(ui, node, &plain, 0.0, stretch, parent, cx));
+    let to = ui.ctx().graphics_mut(|g| g.entry(layer).next_idx().0);
+    let rect = r.response.rect;
+    let layers = clip_layers(style, rect, parent.size, cx);
+    // The words' own colour lies over the background they show: only where
+    // it lets it through (`transparent`) is the background seen.
+    let own = cx.color(&style.color).unwrap_or(parent.color);
+    let mut words = Vec::new();
+    ui.ctx().graphics_mut(|g| {
+        let list = g.entry(layer);
+        for i in from..to {
+            list.mutate_shape(egui::layers::ShapeIdx(i), |c| {
+                if let egui::Shape::Text(t) = &c.shape {
+                    words.push((c.clip_rect, t.clone()));
+                    c.shape = egui::Shape::Noop;
+                }
+            });
+        }
+    });
+    if words.is_empty() || rect.width() <= 0.0 {
+        return r.inner;
+    }
+    // Strips of about two points, at most 128 across the box.
+    let strips = (rect.width() / 2.0).ceil().clamp(1.0, 128.0) as usize;
+    let step = rect.width() / strips as f32;
+    let paint = ui.painter().clone();
+    for (clip, text) in words {
+        for k in 0..strips {
+            let x0 = rect.left() + step * k as f32;
+            let colour =
+                over_premultiplied(own, clip_colour(&layers, x0 + step / 2.0 - rect.left()));
+            if colour.a() == 0 {
+                continue;
+            }
+            // A hair wider than the strip, so no seam shows between two.
+            let band = Rect::from_x_y_ranges(x0 - 0.25..=x0 + step + 0.25, clip.y_range());
+            let mut t = text.clone();
+            t.override_text_color = Some(colour);
+            paint
+                .with_clip_rect(band.intersect(clip))
+                .add(egui::Shape::Text(t));
+        }
+    }
+    r.inner
+}
+
+/// One background layer of a box painted through its words: where it lies
+/// across the box (`x`, `width`) and its colours from left to right.
+struct ClipLayer {
+    x: f32,
+    width: f32,
+    stops: Vec<(f32, Color32)>,
+}
+
+/// The background layers of `style` over `rect`, top layer first. Only
+/// `linear-gradient()`s are read; their colours run along the box's width.
+fn clip_layers(style: &Style, rect: Rect, font: f32, cx: &Cx) -> Vec<ClipLayer> {
+    let Some(images) = style.background_image.as_deref() else {
+        return Vec::new();
+    };
+    let images = css::resolve_vars(images, cx.vars);
+    let sizes = style.background_size.clone().unwrap_or_default();
+    let sizes = css::split_top(&sizes, ',');
+    let positions = style.background_position.clone().unwrap_or_default();
+    let positions = css::split_top(&positions, ',');
+    let pick = |list: &[&str], i: usize| -> String {
+        list.get(i)
+            .or(list.last())
+            .map(|s| s.trim().to_ascii_lowercase())
+            .unwrap_or_default()
+    };
+    let w = rect.width();
+    css::split_top(&images, ',')
+        .iter()
+        .enumerate()
+        .filter_map(|(i, image)| {
+            let stops = gradient_stops(image)?;
+            let size = pick(&sizes, i);
+            let width = css::words(&size)
+                .first()
+                .filter(|v| !matches!(**v, "auto" | "cover" | "contain"))
+                .and_then(|v| css::length(v, font, w, cx.viewport))
+                .unwrap_or(w)
+                .max(0.0);
+            let position = pick(&positions, i);
+            let free = w - width;
+            let x = match css::words(&position).first().copied().unwrap_or("0") {
+                "left" => 0.0,
+                "center" => free / 2.0,
+                "right" => free,
+                v => css::length(v, font, free, cx.viewport).unwrap_or(0.0),
+            };
+            Some(ClipLayer { x, width, stops })
+        })
+        .collect()
+}
+
+/// The colour stops of a `linear-gradient()`, at fractions of its length.
+/// Stops without a place share the room between their neighbours.
+fn gradient_stops(image: &str) -> Option<Vec<(f32, Color32)>> {
+    let lower = image.trim().to_ascii_lowercase();
+    let inner = css::func(&lower, "linear-gradient")?;
+    let mut parts = css::split_top(inner, ',');
+    if parts.first().is_some_and(|p| {
+        let p = p.trim();
+        p.starts_with("to ") || p.ends_with("deg") || p.ends_with("turn") || p.ends_with("rad")
+    }) {
+        parts.remove(0);
+    }
+    let mut stops: Vec<(Option<f32>, Color32)> = Vec::new();
+    for part in parts {
+        let words = css::words(part.trim());
+        let colour = css::color(words.first()?)?;
+        let at = words.get(1).and_then(|p| {
+            p.strip_suffix('%')
+                .and_then(|n| n.trim().parse::<f32>().ok())
+                .map(|n| n / 100.0)
+                .or_else(|| (p.trim() == "0").then_some(0.0))
+        });
+        stops.push((at, colour));
+    }
+    if stops.is_empty() {
+        return None;
+    }
+    let last = stops.len() - 1;
+    if stops[0].0.is_none() {
+        stops[0].0 = Some(0.0);
+    }
+    if stops[last].0.is_none() {
+        stops[last].0 = Some(1.0);
+    }
+    // Places left out are spread evenly between the stops that have one.
+    let mut i = 0;
+    while i < stops.len() {
+        if stops[i].0.is_some() {
+            i += 1;
+            continue;
+        }
+        let start = i - 1;
+        let end = (i..stops.len())
+            .find(|&j| stops[j].0.is_some())
+            .unwrap_or(last);
+        let (a, b) = (stops[start].0.unwrap_or(0.0), stops[end].0.unwrap_or(1.0));
+        for (j, stop) in stops.iter_mut().enumerate().take(end).skip(i) {
+            stop.0 = Some(a + (b - a) * (j - start) as f32 / (end - start) as f32);
+        }
+        i = end;
+    }
+    Some(
+        stops
+            .into_iter()
+            .map(|(at, c)| (at.unwrap_or(0.0), c))
+            .collect(),
+    )
+}
+
+/// The colour the layers paint at `x` points from the box's left edge, top
+/// layer over the ones under it.
+fn clip_colour(layers: &[ClipLayer], x: f32) -> Color32 {
+    let mut out = Color32::TRANSPARENT;
+    for layer in layers.iter().rev() {
+        if layer.width <= 0.0 || x < layer.x || x > layer.x + layer.width {
+            continue;
+        }
+        let t = (x - layer.x) / layer.width;
+        out = over_premultiplied(stop_colour(&layer.stops, t), out);
+    }
+    out
+}
+
+/// `top` over `under`, keeping what shows through (premultiplied colours).
+fn over_premultiplied(top: Color32, under: Color32) -> Color32 {
+    let keep = 1.0 - f32::from(top.a()) / 255.0;
+    let mix = |t: u8, u: u8| (f32::from(t) + f32::from(u) * keep).round().min(255.0) as u8;
+    Color32::from_rgba_premultiplied(
+        mix(top.r(), under.r()),
+        mix(top.g(), under.g()),
+        mix(top.b(), under.b()),
+        mix(top.a(), under.a()),
+    )
+}
+
+fn stop_colour(stops: &[(f32, Color32)], t: f32) -> Color32 {
+    let Some(first) = stops.first() else {
+        return Color32::TRANSPARENT;
+    };
+    if t <= first.0 {
+        return first.1;
+    }
+    for pair in stops.windows(2) {
+        let ((a, ca), (b, cb)) = (pair[0], pair[1]);
+        if t <= b {
+            let f = if b > a { (t - a) / (b - a) } else { 1.0 };
+            return css_motion::Lerp::lerp(&ca, &cb, f);
+        }
+    }
+    stops[stops.len() - 1].1
 }
 
 /// Turn a painted shape by `rot` radians clockwise about `centre`.
@@ -7478,6 +7779,146 @@ mod tests {
             )
             .expect("a dash");
         assert!(first_dash > gradient);
+    }
+
+    /// `background-clip: text` with `color: transparent`: the background
+    /// shows through the words only. A red layer half the word's width over
+    /// a blue one paints the word's left half red and its right half blue,
+    /// and no box is filled. It drew the gradients as a striped box over
+    /// words of no colour (radiant-lyrics' sung word, wiped by a gradient,
+    /// was a box of stripes).
+    #[test]
+    fn a_background_clipped_to_text_colours_the_words() {
+        let red = Color32::from_rgb(0xff, 0, 0);
+        let blue = Color32::from_rgb(0, 0, 0xff);
+        let word = VNode {
+            id: 1,
+            tag: "span".into(),
+            style: Style {
+                display: Some("inline-block".into()),
+                color: Some("transparent".into()),
+                font_size: Some("40px".into()),
+                background_clip: Some("text".into()),
+                background_image: Some(
+                    "linear-gradient(90deg,#ff0000 100%,transparent 100%),linear-gradient(90deg,#0000ff,#0000ff)"
+                        .into(),
+                ),
+                background_size: Some("50% 100%,100% 100%".into()),
+                background_position: Some("left,left".into()),
+                ..Style::default()
+            },
+            children: vec![text_node(2, "Wiped")],
+            ..VNode::default()
+        };
+        // The same background under words of their own colour: the colour.
+        let mut sung = word.clone();
+        sung.id = 4;
+        sung.style.color = Some("#00ff00".into());
+        sung.children = vec![text_node(5, "Sung")];
+        let holder = VNode {
+            id: 3,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                top: Some("10px".into()),
+                left: Some("10px".into()),
+                ..Style::default()
+            },
+            children: vec![word, sung],
+            ..VNode::default()
+        };
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: String::new(),
+                position: Position::Append,
+                nodes: vec![holder],
+            }],
+            ..DomOverlay::default()
+        }));
+        plugin_dom::test_viewport([800.0, 600.0]);
+        let ctx = app_fonts_ctx();
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
+                    ..egui::RawInput::default()
+                },
+                |ui| floating(ui),
+            );
+            out.textures_delta.clear();
+            shapes = out.shapes;
+        }
+        plugin_dom::test_overlay(None);
+        let words: Vec<(Rect, Option<Color32>, Rect)> = shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Text(t) if t.galley.text() == "Wiped" => Some((
+                    c.clip_rect,
+                    t.override_text_color,
+                    t.galley.rect.translate(t.pos.to_vec2()),
+                )),
+                _ => None,
+            })
+            .collect();
+        assert!(words.len() > 4, "painted in strips: {}", words.len());
+        let whole = words[0].2;
+        let mid = whole.center().x;
+        for (clip, colour, _) in &words {
+            let colour = colour.expect("each strip has its colour");
+            if clip.max.x < mid - 1.0 {
+                assert!(same_hue(colour, red), "left of the middle: {colour:?}");
+            } else if clip.min.x > mid + 1.0 {
+                assert!(same_hue(colour, blue), "right of the middle: {colour:?}");
+            }
+        }
+        let green = Color32::from_rgb(0, 0xff, 0);
+        let sung: Vec<Option<Color32>> = shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Text(t) if t.galley.text() == "Sung" => Some(t.override_text_color),
+                _ => None,
+            })
+            .collect();
+        assert!(!sung.is_empty());
+        assert!(
+            sung.iter().all(|c| c.is_some_and(|c| same_hue(c, green))),
+            "its own colour over the background: {sung:?}"
+        );
+        let filled = shapes.iter().any(|c| match &c.shape {
+            egui::Shape::Mesh(_) => true,
+            egui::Shape::Rect(r) => r.fill.a() > 0,
+            _ => false,
+        });
+        assert!(!filled, "no box is filled");
+    }
+
+    /// An animation moves each layer of a `background-size` or
+    /// `background-position` list (a wipe grows its middle layer from `0`
+    /// to `100%` and slides its soft edge from before the box to past it);
+    /// only a single position moved, so the wipe stood still.
+    #[test]
+    fn an_animation_moves_each_background_layer() {
+        use css_motion::Lerp as _;
+        let size = BgList(".75em 100%,0 100%,100% 100%".into())
+            .lerp(&BgList(".75em 100%,100% 100%,100% 100%".into()), 0.25);
+        let layers = css::split_top(&size.0, ',');
+        let width = |v: &str| {
+            let w = css::words(v)[0];
+            css::length(w, 20.0, 200.0, [800.0, 600.0]).expect(w)
+        };
+        assert!((width(layers[0]) - 15.0).abs() < 0.01, "{}", layers[0]);
+        assert!((width(layers[1]) - 50.0).abs() < 0.01, "{}", layers[1]);
+        assert!((width(layers[2]) - 200.0).abs() < 0.01, "{}", layers[2]);
+        let at = BgList("calc(.75em / -2) 0,left,left".into())
+            .lerp(&BgList("calc(100% + .75em / 2) 0,left,left".into()), 0.5);
+        let first = css::words(css::split_top(&at.0, ',')[0])[0];
+        // Half way from 7.5 points before the box to 7.5 past its 200.
+        assert!(
+            (css::length(first, 20.0, 200.0, [800.0, 600.0]).expect(first) - 100.0).abs() < 0.01,
+            "{first}"
+        );
     }
 
     /// An image keeps the corners its `border-radius` gives it: qr-share's

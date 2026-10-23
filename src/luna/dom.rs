@@ -184,6 +184,10 @@ pub struct Style {
     pub pointer_events: Option<String>,
     pub background_position: Option<String>,
     pub background_size: Option<String>,
+    /// `text`: the background shows only through the element's words
+    /// (`-webkit-background-clip: text` with `color: transparent`, a
+    /// gradient wiping across a sung word).
+    pub background_clip: Option<String>,
     /// `pixelated` / `crisp-edges` draw images with nearest filtering.
     pub image_rendering: Option<String>,
     pub text_shadow: Option<String>,
