@@ -641,8 +641,8 @@ pub struct Sidebar {
     /// The library rows themselves (`._contentItem_`, `_selected_` for the
     /// open page), in drawing order.
     pub rows: Vec<(Option<Rect>, bool)>,
-    /// The library row whose playlist is playing: its name is TIDAL's
-    /// accent, so it carries no `_textWhite_` class.
+    /// The library row whose playlist is playing: its name carries the
+    /// playing song's quality class, whose TIDAL rule makes it teal.
     pub playing: Option<usize>,
     /// The "All playlists" heading's box.
     pub heading: Option<Rect>,
@@ -1475,12 +1475,12 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
                 .class("_textContent_462c76e")
                 .at(*rect),
         );
+        // TIDAL 2.46.0's names carry no `_textWhite_` class (2.43's did):
+        // a theme's rule naming it leaves them alone there.
         let mut title = el(keys::lib_row_title(i), Some(&words), "span")
             .class("_marketText_1lyag_1")
             .class("_medium20_1lyag_192");
-        if side.playing != Some(i) {
-            title = title.class("_textWhite_1lyag_319");
-        } else {
+        if side.playing == Some(i) {
             // TIDAL 2.46.0 marks the playing playlist's name with the
             // playing song's quality (`_qualityHigh_39ef787` for a lossless
             // one), whose rule gives it TIDAL's teal over a theme's
@@ -1495,8 +1495,9 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
         out.push(
             el(keys::lib_row_subtitle(i), Some(&words), "span")
                 .class("_marketText_1lyag_1")
-                .class("_text20_1lyag_291")
                 .class("_paragraph10_1lyag_156")
+                .class("_text20_1lyag_291")
+                .class("_subtitle_c0fd197")
                 .at(*rect),
         );
     }

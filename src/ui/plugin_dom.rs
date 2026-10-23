@@ -2016,7 +2016,7 @@ pub fn library_row(r: Rect, selected: bool, playing: bool) -> Option<NavStyle> {
     let mut style = nav_style(&dom_anchors::keys::lib_row(index)).unwrap_or_default();
     // The theme's colours for the row's name and second line (the cotton
     // candy family's `#sidebar ._marketText_` rules, Sugarcoat's
-    // `._textWhite_` and `._text20_`) win over the row's.
+    // `._marketText_` and `._text20_`) win over the row's.
     style.title_color = nav_style(&dom_anchors::keys::lib_row_title(index)).and_then(|t| t.color);
     style.title_inherits = host(&dom_anchors::keys::lib_row_title(index), |h, _| {
         h.style
