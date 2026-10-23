@@ -147,7 +147,13 @@ elements use go out in `overlay.keyframes`, with a keyframe's own
 `animation-timing-function`. A keyframe's `var()` reads the animated
 element's variables: an element whose values differ from the root's gets
 frames of its own, named `name~hash` (radiant-lyrics slides each line from
-its own `--rl-scroll-delta`). `transition` and its longhands become
+its own `--rl-scroll-delta`). A finite animation or transition asks for
+every frame while it runs; an endless one (spinny-cover's turning cover) is
+an endless decoration and is drawn as the app's own are
+(`css_motion::moments_with`): 30 frames a second, 15 while the window is
+out of focus or saving energy, none while nobody sees it; its progress
+follows the clock, so it is where it should be whenever it is drawn.
+`transition` and its longhands become
 `Style::transition` (`transition-property: none` drops it). Timing
 functions keep their arguments (`cubic-bezier(.4,0,.2,1)`, `steps(4,
 jump-none)`, `linear(0,0.25_75%,1)`, spaces as `_`). A side's own border

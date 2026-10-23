@@ -79,7 +79,7 @@ in `src/luna/coverage_tests.rs`.
 | `PlayState`: state getters, `play`, `pause`, `next`, `previous`, `moveTo`, `seek`, `playNext`, `updatePlayQueue`, `setShuffle`, `setRepeatMode`, `nextMediaItem`, `previousMediaItem`, `onState`, `onScrobble`, `currentTime`, scrobble constants | | works | `plugin_dispatches_become_host_commands`; `queue_actions_translate_with_position_and_start_index` |
 | `Tidal.PlayState`, `Tidal.featureFlags` | | works | `luna_api_gaps_of_round_6` |
 | `TidalApi`: `track`, `album`, `albumItems`, `artist`, `playlist`, `playlistItems` (page object), `lyrics`, `isrc` (every track with the ISRC) | | works | `coverage_tests::content_classes_follow_lunas_source` |
-| `TidalApi.fetch`, `getAuthHeaders`, `queryArgs` | Authorised requests to TIDAL | works (requests to TIDAL's v1 API that carry these headers are answered with the app's own session; a read passes TIDAL's status and `ETag`; writes to playlists and favourites are asked per plugin (Deny, Allow for a minute, Always allow); the sign-in, token, session and profile endpoints stay refused and the token itself is never handed over) | `luna_host::tests::account_reads_go_through_the_app_and_writes_are_refused`; `action_tests::an_allowed_account_write_goes_through_and_can_be_revoked` |
+| `TidalApi.fetch`, `getAuthHeaders`, `queryArgs` | Authorised requests to TIDAL | works (requests to TIDAL's v1 API, and to its v2 playlist folders (`my-collection/playlists/folders`, star-ratings' Rated folder), that carry these headers are answered with the app's own session; a read passes TIDAL's status and `ETag`; writes to playlists, folders and favourites are asked per plugin (Deny, Allow for a minute, Always allow); the sign-in, token, session and profile endpoints stay refused and the token itself is never handed over) | `luna_host::tests::account_reads_go_through_the_app_and_writes_are_refused`; `luna_host::tests::playlist_folder_calls_go_through_the_app`; `action_tests::an_allowed_account_write_goes_through_and_can_be_revoked`; `action_tests::a_playlist_folder_write_asks_first` |
 | `getCredentials` | The signed-in session's token | works after the user allows the TIDAL sign-in (the current token in TidaLuna's shape; hidden from log lines) | `lib.js` `getCredentials`; `permits_flow_tests` |
 | `redux.actions` | Dispatch any TIDAL action | works (all 694 types of TIDAL's desktop app, `action-types.txt`: 57 act (playback, queue, favourites, add to playlist, search, navigation, fullscreen and minimize, play by id, messages) and the rest answer with a line in the plugin's log that names the reason (TIDAL's page loading, its request cache, analytics, TIDAL Connect, the account session, settings, playlist edits that go through `fetch`, web UI state); a name TIDAL does not have is told so; every dispatch first runs the plugins' interceptors) | `api3_tests::every_tidal_action_acts_or_says_why_it_does_not`; `api3_tests::a_dispatch_that_does_nothing_leaves_a_line_in_the_plugins_log`; `plugin_dispatches_become_host_commands` |
 | `redux.intercept`, `interceptPromise`, `store`, `RepeatMode`, `actionTypes` | | works | `cancel_and_redispatch_add_now`; `luna_api_gaps_of_round_6` |
@@ -154,6 +154,16 @@ row is either works or refused:
   bit rate its manifest names; the manifest and `bytes` are one refused row.
 - `TidalApi.fetch` writes (playlists and favourites, asked first) were
   already in since plugins round 10; the row said "read only".
+- `MediaItem.lyrics()` answers TIDAL's words, else the words the app shows
+  for the song (LRCLIB's where TIDAL has none, in TIDAL's shape with
+  `lyricsProvider` "Tidalfast"); for the playing song it has the app look
+  them up and waits up to 10 s (round 28,
+  `luna_host::tests::lyrics_a_song_has_in_the_app_reach_plugins`).
+- Where the song is (`playbackControls.latestCurrentTime`, the
+  `media.currenttime` player signal, the `<audio>`'s `currentTime`) is the
+  heard position, as the app's lyrics use: the engine's runs ahead of the
+  speakers by what the output has queued (round 28,
+  `app::plugins::tests::plugins_get_the_position_that_is_heard`).
 - `redux.actions`: all 694 action types act (57) or log why they do not
   (637); a test walks `action-types.txt`.
 - `lunaMuiTheme` is a full theme; the `@mui/material` module is an extra
