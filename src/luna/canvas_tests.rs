@@ -615,6 +615,73 @@ try {
     finish(luna, dir);
 }
 
+/// A song at 88.2 kHz reaches plugins as Chromium hands it to an
+/// `AudioContext`: resampled to the context's 48 kHz, so its spectrum
+/// spans 0 to 24 kHz and a 10 kHz tone sits at its 48 kHz bin. At the
+/// song's own rate half the bins were always empty, and audio-visualizer,
+/// which hides its panel under an average level, took quiet songs for
+/// silence and blinked.
+#[test]
+fn analysers_run_at_the_context_rate_whatever_the_songs() {
+    let _tap = TAP
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let feed = |n: u64| {
+        let s = (std::f64::consts::TAU * 10_000.0 * n as f64 / 88_200.0).sin() as f32;
+        crate::audio_tap::push(&[s * 0.5, s * 0.5], 88_200);
+    };
+    let filled = 2 * crate::audio_tap::FRAMES as u64;
+    (0..filled).for_each(feed);
+    let (luna, dir) = start(
+        "CanvasRate",
+        r##"
+try {
+	const ctx = new AudioContext();
+	const a = ctx.createAnalyser();
+	a.fftSize = 2048;
+	a.smoothingTimeConstant = 0;
+	ctx.createMediaStreamSource(document.querySelector("video, audio").captureStream()).connect(a);
+	const poll = setInterval(() => {
+		const f = new Float32Array(a.frequencyBinCount);
+		a.getFloatFrequencyData(f);
+		let peak = 0;
+		for (let k = 1; k < f.length; k++) if (f[k] > f[peak]) peak = k;
+		if (f[peak] > -40) {
+			R.result = { peak, rate: ctx.sampleRate };
+			clearInterval(poll);
+		}
+	}, 20);
+	unloads.add(() => clearInterval(poll));
+} catch (e) { fail("main", e); }
+"##,
+    );
+    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let feeder = {
+        let stop = stop.clone();
+        std::thread::spawn(move || {
+            let mut n = filled;
+            while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                for _ in 0..882 {
+                    feed(n);
+                    n += 1;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        })
+    };
+    let r = until(&luna, &dir, 30, |r| {
+        !r["result"].is_null() || !r["main"].is_null()
+    });
+    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    let _ = feeder.join();
+    assert_eq!(r["main"], Value::Null, "{r}");
+    assert_eq!(r["result"]["rate"], json!(48000), "{r}");
+    // 10 kHz at 48 kHz in 2048 points: bin 426.7 (at 88.2 kHz it was 232).
+    let peak = r["result"]["peak"].as_i64().unwrap();
+    assert!((425..=428).contains(&peak), "{r}");
+    finish(luna, dir);
+}
+
 /// A native module runs its own code whatever its file is called, and
 /// `MediaItem.download` asks for the permission to save TIDAL audio
 /// whatever the plugin registered: nothing is answered for one plugin by

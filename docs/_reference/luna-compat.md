@@ -1892,13 +1892,15 @@ Seen working and left as they are: up-next's card follows Next within a
 frame; the quality pill shows "Loading..." then the new format; the lyric
 line stays centred as its width changes; seeking moves it at once;
 quick-queue queues from its row button; CatJam's cat bobs over the bar's
-cover; CoverTheme and spinny-cover change with the song. Not changed:
-audio-visualizer's "Disabled & Hide" mode hides and shows its panel several
-times a second on quiet songs. The plugin hides it when the average of its
-1024 frequency bins falls under 5, and the output here runs at 88.2 kHz (a
-44.1 kHz song doubled for the device), so half the bins lie above anything
-in the music, as they would in a browser whose audio runs at that rate.
-total-play-time's figure shows the queue without the new song for about
+cover; CoverTheme and spinny-cover change with the song.
+audio-visualizer's "Disabled & Hide" mode hid and showed its panel several
+times a second on quiet songs: it hides it when the average of its 1024
+frequency bins falls under 5, and plugins were handed the output at its own
+rate (88.2 kHz here), so half the bins lay above anything in the music.
+Chromium runs an `AudioContext` at the device's mixing rate (48 kHz) and
+resamples the song to it; plugins' audio now does the same
+(`canvas_tests::analysers_run_at_the_context_rate_whatever_the_songs`).
+Not changed: total-play-time's figure shows the queue without the new song for about
 half a second after Next. Not tried: rating a song (it writes to the
 account), the volume slider's drag (the test profile stays silent).
 
