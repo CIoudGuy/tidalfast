@@ -837,7 +837,17 @@ reading one property at a time:
   borders, inset glow; with no look it paints the native fill as before.
   It returns the look, whose `text_or` / `icon_or` / `look_text` give the
   part's words and icons. `paint_anchor_box` is the same without a native
-  fill (a box the theme adds), and `paint_themed_box` is now that.
+  fill (a box the theme adds), and `paint_themed_box` is now that. A part
+  that works its fill out itself (a hover shade, a disabled fade) paints
+  it with `paint_look_with_fill`, which lays the theme's shadow, layers
+  and glow round that fill when `paints_beyond_fill` says the look is more
+  than one colour. A fill or border layer on a box the theme gives no
+  corners follows the part's own corners, as the element keeps TIDAL's
+  radius under a theme's border.
+- **Contrast words.** TIDAL draws a track row (its title and time where no
+  rule names them) and its menus' words in `--wave-color-solid-contrast-fill`,
+  not in the body's colour (`token_contrast_text`): a theme that sets the
+  two apart (Mocha Blue) shows it.
 - **Menus.** Every popup menu shares one egui frame, which takes a single
   colour. When the theme's menu box (`div._contextMenu_[role=menu]` and
   the popover round it, the `theme-roles` stand-ins) is more than a colour,
@@ -848,8 +858,9 @@ reading one property at a time:
 Parts on it: the sidebar's navigation rows and library rows (fill,
 corners, borders, shadow and the selected pill's inset glow, in their
 `:hover` and `_selected_` states), the queue panel, filter field, track
-list panel, feed card and every other `paint_themed_box` user, and the
-popup menus' box. A border on some sides of a box (`border-style: solid
+list panel, feed card and every other `paint_themed_box` user, the popup
+menus' box, the header's Play and Shuffle pills, and Explore's pills and
+icon links (their corners too). A border on some sides of a box (`border-style: solid
 none none none`, the runtime's `border-width` of four) is drawn on those
 sides for every box layer, not round the box.
 
