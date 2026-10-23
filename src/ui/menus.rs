@@ -159,19 +159,14 @@ fn head(
     );
     let left = cover.right() + 12.0;
     let text_width = (rect.right() - 12.0 - left).max(0.0);
-    let title = widgets::ellipsized(
-        ui,
-        title,
-        theme::semibold(14.0),
-        palette.text,
-        text_width,
-        1,
-    );
+    // TIDAL's title is in its contrast token as the menu has it.
+    let words = super::plugin_dom::menu_words(palette.menu_bg()).unwrap_or(palette.text);
+    let title = widgets::ellipsized(ui, title, theme::semibold(14.0), words, text_width, 1);
     let title_height = title.size().y;
     ui.painter().galley(
         pos2(left, cover.top() + (20.0 - title_height) / 2.0),
         title,
-        palette.text,
+        words,
     );
     let secondary = subtitle_color(&palette);
     let subtitle = widgets::ellipsized(
@@ -215,11 +210,13 @@ pub(crate) fn icon_row(ui: &mut Ui, palette: &Palette, icon: Icon, label: &str, 
         );
         theme::paint_icon(ui, icon, icon_rect, glyph * 0.75, palette.text);
         let x = icon_rect.right() + 8.0;
+        // The words of TIDAL's menu rows, as a theme colours them.
+        let words = super::plugin_dom::menu_row_words(palette.menu_bg()).unwrap_or(palette.text);
         let galley = crate::bidi::layout(
             ui.painter(),
             label,
             theme::semibold(12.0),
-            palette.text,
+            words,
             (rect.right() - 12.0 - x).max(0.0),
             1,
             Some(crate::bidi::ELLIPSIS),
@@ -228,11 +225,8 @@ pub(crate) fn icon_row(ui: &mut Ui, palette: &Palette, icon: Icon, label: &str, 
             pos2(x, rect.center().y - galley.size().y / 2.0),
             pos2(rect.right() - 12.0, rect.center().y + galley.size().y / 2.0),
         );
-        ui.painter().galley(
-            crate::bidi::galley_pos(text_rect, &galley),
-            galley,
-            palette.text,
-        );
+        ui.painter()
+            .galley(crate::bidi::galley_pos(text_rect, &galley), galley, words);
     }
     response.widget_info(|| {
         egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label)
@@ -313,16 +307,18 @@ fn share_heading(ui: &mut Ui, app: &App) {
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 62.0), Sense::hover());
     let x = rect.left() + 12.0;
     let width = (rect.width() - 24.0).max(0.0);
+    // In TIDAL's contrast token as the menu has it, as the menu's title.
+    let words = super::plugin_dom::menu_words(palette.menu_bg()).unwrap_or(palette.text);
     let title = widgets::ellipsized(
         ui,
         &gettext(app.locale, "Share with anyone"),
         theme::semibold(14.0),
-        palette.text,
+        words,
         width,
         1,
     );
     ui.painter()
-        .galley(pos2(x, rect.top() + 12.0), title, palette.text);
+        .galley(pos2(x, rect.top() + 12.0), title, words);
     let secondary = subtitle_color(&palette);
     let line = widgets::ellipsized(
         ui,
@@ -407,16 +403,17 @@ fn invite_row(ui: &mut Ui, app: &App) -> bool {
         theme::paint_icon(ui, Icon::Users, icon_rect, 12.0, palette.text);
         let x = icon_rect.right() + 8.0;
         let width = (rect.right() - 12.0 - x).max(0.0);
+        let words = super::plugin_dom::menu_row_words(palette.menu_bg()).unwrap_or(palette.text);
         let title = widgets::ellipsized(
             ui,
             &gettext(app.locale, "Invite as collaborator"),
             theme::semibold(12.0),
-            palette.text,
+            words,
             width,
             1,
         );
         ui.painter()
-            .galley(pos2(x, rect.top() + 10.0), title, palette.text);
+            .galley(pos2(x, rect.top() + 10.0), title, words);
         let secondary = subtitle_color(&palette);
         let line = widgets::ellipsized(
             ui,
