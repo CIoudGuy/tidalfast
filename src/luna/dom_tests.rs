@@ -658,6 +658,63 @@ lib.observe(unloads, "._moreContainer_f6162c8", (el) => {
     finish(luna, dir);
 }
 
+/// Keyframes read `var()` against the element they animate, as in a
+/// browser: each line of a list slides in from its own distance, which
+/// the plugin sets on the line (`--delta`). They were resolved against the
+/// root's variables only, where `--delta` is not defined, so the lines did
+/// not move (radiant-lyrics' lines snapped to their new place instead of
+/// sliding up when the sung line changed).
+#[test]
+fn keyframes_read_the_animated_elements_own_variables() {
+    let (luna, _host, dir) = start(
+        r##"
+new lib.StyleTag("dom-test", unloads, `
+.slide { animation: slide .4s ease both; }
+@keyframes slide { from { translate: 0 var(--delta); } to { translate: 0 0; } }
+`);
+const box = document.createElement("div");
+box.style.position = "fixed";
+for (const d of ["30px", "60px", "60px"]) {
+	const line = document.createElement("div");
+	line.className = "slide";
+	line.style.setProperty("--delta", d);
+	box.append(line);
+}
+document.body.append(box);
+"##,
+    );
+    luna.sync_dom(tree());
+    let o = overlay_until(&luna, 10, |o| o.at("", Position::Append).next().is_some());
+    let lines = &o.at("", Position::Append).next().unwrap().children;
+    let names: Vec<&str> = lines
+        .iter()
+        .map(|l| {
+            l.style
+                .animation
+                .as_deref()
+                .and_then(|a| a.split(' ').next())
+                .expect("animated")
+        })
+        .collect();
+    assert_eq!(names.len(), 3);
+    assert_ne!(
+        names[0], names[1],
+        "different distances, different keyframes"
+    );
+    assert_eq!(names[1], names[2], "the same distance shares them");
+    let from = |name: &str| {
+        o.keyframes[name][0]
+            .1
+            .transform
+            .clone()
+            .unwrap_or_default()
+            .replace(' ', "")
+    };
+    assert!(from(names[0]).contains("30px"), "{}", from(names[0]));
+    assert!(from(names[1]).contains("60px"), "{}", from(names[1]));
+    finish(luna, dir);
+}
+
 #[test]
 fn hover_rules_follow_the_pointer_and_animations_reach_the_ui() {
     let (luna, _host, dir) = start(
