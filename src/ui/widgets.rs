@@ -2978,7 +2978,7 @@ fn tidal_row_cells(
                 )
             })
         };
-        let link_key = cell_key("title-link");
+        let link_key = cell_key("title-text");
         let title = match &link_key {
             Some(key) => super::plugin_dom::text(key, app.row_title(row.item)),
             None => std::borrow::Cow::Borrowed(app.row_title(row.item)),
