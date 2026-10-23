@@ -567,24 +567,27 @@ fn now_playing_block(
     } else {
         region.left() + now_playing_text_inset()
     };
-    // Plugin elements after the "…" (up-next's pill): the words give way
-    // to them, down to a little.
-    let tail = {
+    // Plugin elements after the "…": the words give way to them, down to
+    // a little. Those on the heart's row (star ratings, a genre chip) need
+    // only clear the transport, as the seek row lies below them; a card at
+    // the track info's end (up-next's) is as tall as the bar and must end
+    // before the seek row's start time. A card that does not fit even then
+    // is left out whole and takes no room.
+    let words_cap = {
         let width = |key, position| plugin_slots::slot_width(ui.ctx(), key, position);
-        match (
-            width(keys::ACTIONS, Position::Append),
-            width(keys::TRACK_CONTENT, Position::Append),
-            width(keys::TRACK_INFO, Position::Append),
-        ) {
-            (None, None, None) => None,
-            (actions, content, info) => Some(
-                actions.map_or(0.0, |w| w + 8.0)
-                    + content.map_or(0.0, |w| w + 8.0)
-                    + info.unwrap_or(0.0),
-            ),
+        let actions = width(keys::ACTIONS, Position::Append);
+        let content = width(keys::TRACK_CONTENT, Position::Append);
+        let info = width(keys::TRACK_INFO, Position::Append);
+        let row = (actions.is_some() || content.is_some())
+            .then(|| actions.map_or(0.0, |w| w + 8.0) + content.map_or(0.0, |w| w + 8.0));
+        let row_cap = words_room(region.right() + slack, text_left, more_shift, row);
+        let card_cap =
+            info.and_then(|w| words_fit(tail_limit, text_left, more_shift, row.unwrap_or(0.0) + w));
+        match (row_cap, card_cap) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
         }
     };
-    let words_cap = words_room(tail_limit, text_left, more_shift, tail);
     let text_width = (region.right() - text_left - heart_width).max(40.0);
     let text_width = words_cap.map_or(text_width, |cap| text_width.min(cap));
     // TIDAL's third line: where the playing thing comes from.
@@ -959,6 +962,14 @@ fn seek_start(region: Rect) -> f32 {
 fn words_room(limit: f32, text_left: f32, more_shift: f32, tail: Option<f32>) -> Option<f32> {
     let tail = tail?;
     Some((limit - tail - text_left - 68.0 - more_shift).max(LEAST_WORDS))
+}
+
+/// [`words_room`] for a card at the track info's end that is left out
+/// whole when it does not fit: `None` (no room asked) when even the least
+/// words leave it no room.
+fn words_fit(limit: f32, text_left: f32, more_shift: f32, tail: f32) -> Option<f32> {
+    let room = limit - tail - text_left - 68.0 - more_shift;
+    (room >= LEAST_WORDS).then_some(room)
 }
 
 /// A horizontal span for [`plugin_slots::at_within`], any height.
@@ -2445,6 +2456,70 @@ mod narrow_tests {
             }
         }
         assert!(shown_narrowed, "somewhere the title made room for the card");
+        crate::ui::plugin_dom::test_overlay(None);
+    }
+
+    /// What plugins add after the heart on its own row (star ratings, a
+    /// genre chip) only has to clear the transport: the seek row's start
+    /// time lies below that row. Only a card as tall as the bar (up-next's)
+    /// has to end before that time, and one left out because it does not
+    /// fit takes no room. With star ratings and a genre chip the title was
+    /// cut to its first letters ("Bl…") in a wide window, with the room
+    /// beside them empty.
+    #[test]
+    fn items_after_the_heart_leave_the_title_whole_where_they_fit() {
+        let (ctx, mut app) = setup();
+        let title = app.now_playing().expect("the demo plays a song").title;
+        let title_width = |found: &[(String, Rect)]| {
+            found
+                .iter()
+                .find(|(text, rect)| text == &title && rect.top() > 700.0)
+                .map(|(_, rect)| rect.width())
+                .expect("the bar's title")
+        };
+        let at = |anchor: &str, id, text: &str| Injected {
+            anchor: anchor.into(),
+            position: Position::Append,
+            nodes: vec![chip(id, text)],
+        };
+        let wide_card = "UPNEXT-A-CARD-FAR-TOO-WIDE-FOR-ANY-BAR-".repeat(4);
+        let items = |card: bool| {
+            let mut injected = vec![
+                at(keys::ACTIONS, 2, MARKS[1]),
+                at(keys::TRACK_CONTENT, 6, MARKS[0]),
+            ];
+            if card {
+                injected.push(at(keys::TRACK_INFO, 3, &wide_card));
+            }
+            DomOverlay {
+                version: if card { 4 } else { 3 },
+                injected,
+                ..DomOverlay::default()
+            }
+        };
+        for width in [1600.0, 2000.0] {
+            crate::ui::plugin_dom::test_overlay(None);
+            let whole = title_width(&settled(&ctx, &mut app, width));
+            for card in [false, true] {
+                crate::ui::plugin_dom::test_overlay(Some(items(card)));
+                let found = settled(&ctx, &mut app, width);
+                assert!(
+                    !found.iter().any(|(text, _)| text.contains("UPNEXT-A-CARD")),
+                    "at {width}: the card does not fit and is left out"
+                );
+                for mark in [MARKS[0], MARKS[1]] {
+                    assert!(
+                        found.iter().any(|(text, _)| text.contains(mark)),
+                        "at {width}: {mark} is drawn"
+                    );
+                }
+                let shown = title_width(&found);
+                assert!(
+                    shown >= whole - 0.5,
+                    "at {width} (card {card}): the title is {shown} wide, {whole} whole"
+                );
+            }
+        }
         crate::ui::plugin_dom::test_overlay(None);
     }
 
