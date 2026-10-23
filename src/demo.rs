@@ -8358,6 +8358,61 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// The lyrics box (`[data-test=now-playing-lyrics]`) is a scroll
+    /// container: it reports its scroll position and height, and a plugin's
+    /// `scrollTo` on it scrolls the lyrics. Plugins that draw their own lines
+    /// and place the sung one themselves (radiant-lyrics) scroll it; it
+    /// reported no scroll, so their `scrollTo` went nowhere and the sung line
+    /// ran off the bottom of the view.
+    #[test]
+    fn a_plugin_scrolls_the_lyrics_box() {
+        use crate::luna::dom::DomOverlay;
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("np-lyrics-scroll");
+        apply_flags(&mut app, Some("home"), Some("now-playing-lyrics"));
+        // Lines a plugin draws stand in for TIDAL's: nothing follows the song
+        // but the plugin.
+        app.lyrics_following = false;
+        let overlay = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        let scroll = |ctx: &egui::Context, app: &mut App| {
+            plugin_dom::test_overlay_keep(overlay.clone());
+            // Scrolling alone sends the boxes at most every 100 ms.
+            for _ in 0..3 {
+                shown_frame(ctx, app);
+                plugin_dom::end_frame(ctx);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            shown_frame(ctx, app);
+            plugin_dom::end_frame(ctx);
+            let tree = plugin_dom::test_sent_tree().expect("a tree was sent");
+            let lyrics = tree
+                .nodes
+                .iter()
+                .find(|n| n.key == keys::LYRICS)
+                .expect("the lyrics box");
+            (lyrics.scroll, lyrics.rect)
+        };
+        plugin_dom::test_overlay(Some(overlay.clone()));
+        let (before, rect) = scroll(&ctx, &mut app);
+        let [top, height] = before.expect("the lyrics box reports its scroll");
+        let view = rect.expect("the lyrics box is on screen")[3];
+        assert!(height > view, "{height} is more than the view's {view}");
+        let wanted = (top + 150.0).min(height - view);
+        plugin_dom::test_scroll_top(keys::LYRICS, wanted);
+        let (after, _) = scroll(&ctx, &mut app);
+        plugin_dom::test_overlay(None);
+        let [moved, _] = after.expect("still reported");
+        assert!(
+            (moved - wanted).abs() < 1.0,
+            "scrolled to {moved}, asked for {wanted} (from {top})"
+        );
+        app.backend.shutdown();
+    }
+
     fn app_lyrics_len(app: &App) -> usize {
         match &app.lyrics {
             Loadable::Loaded(Some(l)) => l.lines.len(),

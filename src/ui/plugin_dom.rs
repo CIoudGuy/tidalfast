@@ -7059,6 +7059,12 @@ pub(crate) fn test_overlay_keep(o: DomOverlay) {
     });
 }
 
+/// A plugin's `scrollTo` on the container `key`, as an overlay brings it.
+#[cfg(test)]
+pub(crate) fn test_scroll_top(key: &str, top: f32) {
+    with(|s| s.scroll_top_pending = Some((key.to_string(), top)));
+}
+
 /// Starts a page in the frame being noted, as `begin_frame` does.
 #[cfg(test)]
 pub(crate) fn test_page_frame() {

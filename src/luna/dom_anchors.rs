@@ -882,6 +882,10 @@ pub struct NowPlaying {
     pub video: bool,
     /// Lyrics shown (`None`: another tab or none).
     pub lyrics_rect: Option<Rect>,
+    /// The lyrics' scroll position and content height: the lyrics box
+    /// (`[data-test=now-playing-lyrics]`) is the scroll container plugins
+    /// that place the sung line themselves scroll.
+    pub lyrics_scroll: Option<[f32; 2]>,
     pub lines: Vec<LyricLine>,
     pub sync_rect: Option<Rect>,
     /// The close chevron in the header (`[data-test=new-now-playing-close]`).
@@ -2603,12 +2607,12 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
             .modules(&["lyricsContainer"])
             .at(np.lyrics_rect),
     );
-    out.push(
-        el(LYRICS, Some(LYRICS_CONTAINER), "div")
-            .modules(&["lyricsText"])
-            .test("now-playing-lyrics")
-            .at(np.lyrics_rect),
-    );
+    let mut lyrics = el(LYRICS, Some(LYRICS_CONTAINER), "div")
+        .modules(&["lyricsText"])
+        .test("now-playing-lyrics")
+        .at(np.lyrics_rect);
+    lyrics.scroll = np.lyrics_scroll;
+    out.push(lyrics);
     out.push(el(LYRICS_LINES, Some(LYRICS), "div").at(np.lyrics_rect));
     for (i, line) in np.lines.iter().enumerate() {
         let mut node = el(keys::lyric(i), Some(LYRICS_LINES), "span")
