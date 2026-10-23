@@ -571,22 +571,32 @@ fn now_playing_block(
     // a little. Those on the heart's row (star ratings, a genre chip) need
     // only clear the transport, as the seek row lies below them; a card at
     // the track info's end (up-next's) is as tall as the bar and must end
-    // before the seek row's start time. A card that does not fit even then
-    // is left out whole and takes no room.
+    // before the seek row's start time. Each in turn takes room from the
+    // words down to a little; one that does not fit even then is left out
+    // whole and takes none.
     let words_cap = {
         let width = |key, position| plugin_slots::slot_width(ui.ctx(), key, position);
-        let actions = width(keys::ACTIONS, Position::Append);
-        let content = width(keys::TRACK_CONTENT, Position::Append);
-        let info = width(keys::TRACK_INFO, Position::Append);
-        let row = (actions.is_some() || content.is_some())
-            .then(|| actions.map_or(0.0, |w| w + 8.0) + content.map_or(0.0, |w| w + 8.0));
-        let row_cap = words_room(region.right() + slack, text_left, more_shift, row);
-        let card_cap =
-            info.and_then(|w| words_fit(tail_limit, text_left, more_shift, row.unwrap_or(0.0) + w));
-        match (row_cap, card_cap) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
+        let row_limit = region.right() + slack;
+        let mut taken = 0.0;
+        let mut cap: Option<f32> = None;
+        for (item, limit) in [
+            (
+                width(keys::ACTIONS, Position::Append).map(|w| w + 8.0),
+                row_limit,
+            ),
+            (
+                width(keys::TRACK_CONTENT, Position::Append).map(|w| w + 8.0),
+                row_limit,
+            ),
+            (width(keys::TRACK_INFO, Position::Append), tail_limit),
+        ] {
+            let Some(w) = item else { continue };
+            if let Some(room) = words_fit(limit, text_left, more_shift, taken + w) {
+                taken += w;
+                cap = Some(cap.map_or(room, |c: f32| c.min(room)));
+            }
         }
+        cap
     };
     let text_width = (region.right() - text_left - heart_width).max(40.0);
     let text_width = words_cap.map_or(text_width, |cap| text_width.min(cap));
@@ -958,15 +968,8 @@ fn seek_start(region: Rect) -> f32 {
 /// How wide the title's column may be beside the cover so that `tail`
 /// (plugin elements after the "…") still ends by `limit`: the actions
 /// after the words take 68 and `more_shift` (the heart's place, the
-/// "…" and their gaps). `None` when nothing is there to make room for.
-fn words_room(limit: f32, text_left: f32, more_shift: f32, tail: Option<f32>) -> Option<f32> {
-    let tail = tail?;
-    Some((limit - tail - text_left - 68.0 - more_shift).max(LEAST_WORDS))
-}
-
-/// [`words_room`] for a card at the track info's end that is left out
-/// whole when it does not fit: `None` (no room asked) when even the least
-/// words leave it no room.
+/// "…" and their gaps). `None` (no room asked: what is there is left out
+/// whole) when even the least words leave it no room.
 fn words_fit(limit: f32, text_left: f32, more_shift: f32, tail: f32) -> Option<f32> {
     let room = limit - tail - text_left - 68.0 - more_shift;
     (room >= LEAST_WORDS).then_some(room)
@@ -2519,6 +2522,35 @@ mod narrow_tests {
                     "at {width} (card {card}): the title is {shown} wide, {whole} whole"
                 );
             }
+        }
+        // A narrower bar: a chip that is left out takes no room either.
+        // The stars alone set what the title keeps.
+        let wide_chip = "GENRE-A-CHIP-TOO-WIDE-FOR-THIS-BAR-".repeat(3);
+        for width in [1100.0, 1200.0] {
+            crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+                version: 5,
+                injected: vec![at(keys::ACTIONS, 2, MARKS[1])],
+                ..DomOverlay::default()
+            }));
+            let stars_only = title_width(&settled(&ctx, &mut app, width));
+            crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+                version: 6,
+                injected: vec![
+                    at(keys::ACTIONS, 2, MARKS[1]),
+                    at(keys::TRACK_CONTENT, 6, &wide_chip),
+                ],
+                ..DomOverlay::default()
+            }));
+            let found = settled(&ctx, &mut app, width);
+            assert!(
+                !found.iter().any(|(text, _)| text.contains("GENRE-A-CHIP")),
+                "at {width}: the chip does not fit and is left out"
+            );
+            let shown = title_width(&found);
+            assert!(
+                shown >= stars_only - 0.5,
+                "at {width}: the title is {shown} wide, {stars_only} with the stars alone"
+            );
         }
         crate::ui::plugin_dom::test_overlay(None);
     }
