@@ -395,8 +395,12 @@ oneko), nearest filtering for `image-rendering: pixelated`; `img` rotates
 with its transform and rounds by its `border-radius` (any length, or a share
 of its shorter side: qr-share's 12-pixel card). `filter: blur(r)`
 on a background image draws a copy scaled to about one texel per radius and
-smoothed, made off the UI thread (spinny-cover); `filter: brightness(<1)`
-dims the box and what it holds. Other filters are not drawn.
+smoothed, made off the UI thread (spinny-cover); on an element, `filter:
+blur(r)` softens all the words inside it (its children's own `filter`
+included), drawn as thirteen see-through copies of the glyphs spread over a
+Gaussian of that deviation (radiant-lyrics' lines away from the sung one);
+`filter: brightness(<1)` dims the box and what it holds. Other filters are
+not drawn.
 `background-clip: text` paints a box's `linear-gradient()` layers (each
 with its own `background-size` and `background-position`, no repeat)
 through its words only, in narrow upright strips, under the words' own
