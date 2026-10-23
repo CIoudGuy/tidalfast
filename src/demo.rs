@@ -8294,6 +8294,77 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// A rule that hides TIDAL's lyric lines (`display: none` on the lines,
+    /// or on the lyrics box round them) must leave them in the document, as
+    /// in a browser. They were dropped from the tree while hidden, so the
+    /// rule stopped matching, the lines came back the frame after and were
+    /// dropped again: lyrics plugins that draw their own lines over hidden
+    /// ones (radiant-lyrics) flickered between theirs and TIDAL's, and their
+    /// own lines jumped before and after where TIDAL's had been.
+    #[test]
+    fn lyric_lines_a_plugin_hides_stay_in_the_document() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("np-lyrics-hidden");
+        apply_flags(&mut app, Some("home"), Some("now-playing-lyrics"));
+        let lines = app_lyrics_len(&app);
+        assert!(lines > 2, "the demo song has lyrics");
+        let described = |ctx: &egui::Context, app: &mut App, overlay: DomOverlay| {
+            plugin_dom::test_overlay(Some(overlay));
+            for _ in 0..3 {
+                shown_frame(ctx, app);
+                plugin_dom::end_frame(ctx);
+            }
+            let tree = plugin_dom::test_sent_tree().expect("a tree was sent");
+            plugin_dom::test_overlay(None);
+            (0..lines)
+                .filter(|i| tree.nodes.iter().any(|n| n.key == keys::lyric(*i)))
+                .count()
+        };
+        let plain = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        assert_eq!(described(&ctx, &mut app, plain.clone()), lines, "shown");
+        let hide = |key: &str| {
+            (
+                key.to_string(),
+                HostOverride {
+                    style: Style {
+                        display: Some("none".into()),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            )
+        };
+        let mut lines_hidden = plain.clone();
+        lines_hidden
+            .hosts
+            .extend((0..lines).map(|i| hide(&keys::lyric(i))));
+        assert_eq!(
+            described(&ctx, &mut app, lines_hidden),
+            lines,
+            "each line hidden"
+        );
+        let mut box_hidden = plain;
+        box_hidden.hosts.extend([hide(keys::LYRICS)]);
+        assert_eq!(
+            described(&ctx, &mut app, box_hidden),
+            lines,
+            "the lyrics box hidden"
+        );
+        app.backend.shutdown();
+    }
+
+    fn app_lyrics_len(app: &App) -> usize {
+        match &app.lyrics {
+            Loadable::Loaded(Some(l)) => l.lines.len(),
+            _ => 0,
+        }
+    }
+
     /// radiant-lyrics gives the Lyrics tab `padding-right: 38px` and puts its
     /// sparkle (`div.rl-lyrics-menu-trigger`, `position: absolute; right: 0;
     /// width: 38px`) in that room: TIDAL's pill grows to hold it after the

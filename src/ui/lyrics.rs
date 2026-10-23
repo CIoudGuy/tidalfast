@@ -483,14 +483,23 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
             super::plugin_slots::inline(ui, keys::LYRICS_LINES, Position::Prepend);
         }
         for (index, line) in lyrics.lines.iter().enumerate() {
-            if native_hidden {
-                break;
-            }
             let line_key = luna.then(|| keys::lyric(index));
-            if line_key.as_deref().is_some_and(super::plugin_dom::hidden) {
+            let is_active = active == Some(index);
+            // A line a plugin hides (or whose box it hides) is not drawn but
+            // stays in the document, as in a browser: dropped, the rule that
+            // hides it would stop matching and it would be back next frame.
+            if native_hidden || line_key.as_deref().is_some_and(super::plugin_dom::hidden) {
+                super::plugin_dom::note(|f| {
+                    if let Some(np) = f.now_playing.as_mut() {
+                        np.lines.push(crate::luna::dom_anchors::LyricLine {
+                            text: line.text.clone(),
+                            current: is_active,
+                            rect: None,
+                        });
+                    }
+                });
                 continue;
             }
-            let is_active = active == Some(index);
             let style = if lyrics.synced {
                 lyrics_follow::line_style(ui.ctx(), scope, index, is_active)
             } else {
