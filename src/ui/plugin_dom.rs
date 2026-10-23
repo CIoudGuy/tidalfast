@@ -5598,6 +5598,19 @@ pub fn paint_host_layers_rounded(
         _ => None,
     });
     let corners = corners.or(fallback);
+    // A box the theme gives no corners keeps the element's own (TIDAL's
+    // rounded menu under Catppuccin Mocha Blue's 1 px border): its fills
+    // and border follow the part's corners, not square ones.
+    let own_corners = with(|s| {
+        s.overlay
+            .hosts
+            .get(key)
+            .is_some_and(|h| h.style.border_radius.is_some())
+    });
+    let round = |r: egui::CornerRadius| match fallback {
+        Some(native) if !own_corners && r == egui::CornerRadius::ZERO => native,
+        _ => r,
+    };
     // Where an animation has the wide gradients' windows now.
     let drift = layers
         .iter()
@@ -5684,7 +5697,7 @@ pub fn paint_host_layers_rounded(
             }
             BoxLayer::Frost(radius) => frost(ui, rect, *radius),
             BoxLayer::Fill(c, r) => {
-                ui.painter().rect_filled(rect, *r, *c);
+                ui.painter().rect_filled(rect, round(*r), *c);
             }
             BoxLayer::Paint(l) => paint_layer(ui, rect, l),
             BoxLayer::Image(style) => super::plugin_slots::paint_style_image(ui, rect, style),
@@ -5692,7 +5705,7 @@ pub fn paint_host_layers_rounded(
             BoxLayer::Border(width, color, radius) => {
                 ui.painter().rect_stroke(
                     rect.shrink(width / 2.0),
-                    *radius,
+                    round(*radius),
                     egui::Stroke::new(*width, *color),
                     egui::StrokeKind::Middle,
                 );
@@ -9265,5 +9278,53 @@ mod tests {
         }
         test_overlay(None);
         assert_eq!(drawn, [crate::theme::regular(12.0).family]);
+    }
+
+    /// A theme's border on a box it gives no corners (Catppuccin Mocha
+    /// Blue's `[role=menu] { border: 1px solid }`) follows the part's own
+    /// corners, as TIDAL's rounded menu keeps its radius under the border;
+    /// it was drawn square over the rounded menu. Corners the theme sets
+    /// still win.
+    #[test]
+    fn a_border_without_corners_of_its_own_follows_the_parts() {
+        let key = dom_anchors::keys::THEME_MENU;
+        let border_corners = |radius: Option<&str>| {
+            let mut o = DomOverlay {
+                version: 9,
+                ..DomOverlay::default()
+            };
+            o.hosts.insert(
+                key.to_string(),
+                HostOverride {
+                    style: Style {
+                        border: Some("1px solid rgb(69, 71, 90)".into()),
+                        border_radius: radius.map(str::to_string),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            );
+            test_overlay(Some(o));
+            let ctx = egui::Context::default();
+            crate::theme::install(&ctx);
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                let r = Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(200.0, 300.0));
+                paint_host_layers_rounded(ui, key, r, Some(egui::CornerRadius::same(12)));
+            });
+            out.textures_delta.clear();
+            test_overlay(None);
+            out.shapes
+                .iter()
+                .find_map(|s| match &s.shape {
+                    egui::Shape::Rect(r) if r.stroke.color == Color32::from_rgb(69, 71, 90) => {
+                        Some(r.corner_radius)
+                    }
+                    _ => None,
+                })
+                .expect("the border")
+        };
+        assert_eq!(border_corners(None), egui::CornerRadius::same(12));
+        assert_eq!(border_corners(Some("4px")), egui::CornerRadius::same(4));
+        assert_eq!(border_corners(Some("0")), egui::CornerRadius::ZERO);
     }
 }
