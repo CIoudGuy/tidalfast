@@ -1071,13 +1071,19 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
         );
     }
     let hovered = ui.rect_contains_pointer(rect);
-    if current || hovered {
-        ui.painter().rect_filled(
-            rect,
-            egui::CornerRadius::same(6),
-            egui::Color32::from_white_alpha(if current { 22 } else { 12 }),
-        );
-    }
+    // TIDAL's row as a theme has it in this state, else the native fill.
+    super::plugin_dom::paint_queue_row(
+        ui,
+        rect,
+        current,
+        hovered,
+        egui::CornerRadius::same(6),
+        if current || hovered {
+            egui::Color32::from_white_alpha(if current { 22 } else { 12 })
+        } else {
+            egui::Color32::TRANSPARENT
+        },
+    );
     let cover = egui::Rect::from_min_size(
         egui::pos2(rect.left() + 2.0, rect.center().y - ROW_COVER / 2.0),
         egui::vec2(ROW_COVER, ROW_COVER),
