@@ -1695,14 +1695,16 @@ pub fn tidal_panel_text(palette: Palette, panel: SidePanel) -> Palette {
 }
 
 /// The colour TIDAL gives the play queue's playing song under a theme: a
-/// theme's rule for the queue's titles (TIDAL's market text there, the
-/// cotton candy family's white), else the theme's accent token, which the
-/// queue reads whatever the window (Rose Pine's foam, Tidalify's red,
-/// Minimalist Black's green, Lunallena's mint). `None` keeps the accent.
+/// theme's rule for its title that beats TIDAL's own for the playing one
+/// (TIDAL's market text there, the cotton candy family's white), else the
+/// theme's accent token, which the queue reads whatever the window (Rose
+/// Pine's foam, Tidalify's red, Minimalist Black's green, Lunallena's
+/// mint). A catch-all `* { color }` (Meteor Night's white) does not beat
+/// TIDAL's rule. `None` keeps the accent.
 fn queue_accent(o: &DomOverlay) -> Option<Color32> {
     let role = o
         .hosts
-        .get(dom_anchors::keys::QUEUE_ROLE_TEXT)
+        .get(dom_anchors::keys::QUEUE_ROLE_PLAYING)
         .and_then(|h| style_color(&h.style, |s| s.color.as_ref(), &o.vars).filter(|c| c.a() > 0));
     role.or_else(|| {
         o.vars

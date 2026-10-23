@@ -174,6 +174,13 @@ pub mod keys {
     pub const QUEUE_ROLES: &str = "queue-roles";
     pub const QUEUE_ROLE_TEXT: &str = "queue-roles:text";
     pub const QUEUE_ROLE_SECONDARY: &str = "queue-roles:secondary";
+    /// The playing song's row, its title link and its title
+    /// (`div[data-test=playqueue-item] > a._titleLink_712223c >
+    /// p._titleText_6563d98._textHigh_ee6a2ff`, TIDAL 2.46.0), after the
+    /// other stand-ins: the colour of the queue's playing song.
+    pub const QUEUE_ROLE_PLAYING_ROW: &str = "queue-roles:playing-row";
+    pub const QUEUE_ROLE_PLAYING_LINK: &str = "queue-roles:playing-link";
+    pub const QUEUE_ROLE_PLAYING: &str = "queue-roles:playing";
     pub const FULLSCREEN: &str = "fullscreen-button";
     pub const FULLSCREEN_SPAN: &str = "fullscreen-button:span";
 
@@ -1031,6 +1038,32 @@ pub fn build(frame: &Frame) -> HostTree {
             .class("_paragraph20_1lyag_138")
             .class("_marketText_1lyag_1"),
     );
+    out.push(
+        el(keys::QUEUE_ROLE_PLAYING_ROW, Some(keys::QUEUE_ROLES), "div")
+            .class("_container_aab70e3")
+            .test("playqueue-item")
+            .attr("role", "row"),
+    );
+    out.push(
+        el(
+            keys::QUEUE_ROLE_PLAYING_LINK,
+            Some(keys::QUEUE_ROLE_PLAYING_ROW),
+            "a",
+        )
+        .class("_titleLink_712223c")
+        .test("playqueue-item-title"),
+    );
+    out.push(
+        el(
+            keys::QUEUE_ROLE_PLAYING,
+            Some(keys::QUEUE_ROLE_PLAYING_LINK),
+            "p",
+        )
+        .class("_marketText_1lyag_1")
+        .class("_medium20_1lyag_192")
+        .class("_titleText_6563d98")
+        .class("_textHigh_ee6a2ff"),
+    );
     // The title is TIDAL's market heading text (the cotton candy family's
     // `._marketText_1lyag_1._heading20_1lyag_75 { color: white }` in the
     // queue, Lunallena's `[class*="heading"]` lime), not a section's
@@ -1421,6 +1454,12 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             .class("_medium20_1lyag_192");
         if side.playing != Some(i) {
             title = title.class("_textWhite_1lyag_319");
+        } else {
+            // TIDAL 2.46.0 marks the playing playlist's name with the
+            // playing song's quality (`_qualityHigh_39ef787` for a lossless
+            // one), whose rule gives it TIDAL's teal over a theme's
+            // catch-all `* { color }` (Meteor Night's white).
+            title = title.class("_qualityHigh_39ef787");
         }
         out.push(title.class("_title_8b245d1").at(*rect));
         // The second line is a paragraph of market text: TidalCustomTheme's

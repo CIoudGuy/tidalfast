@@ -397,6 +397,11 @@
 	// leaves TIDAL's inactive rows dim), while any rule naming them (one
 	// class, TidalCustomTheme's `[class^="_marketText_"]`; a tag,
 	// its `svg { fill }`) still wins: the rule adds no weight of its own.
+	// The playing playlist's name in the sidebar and the queue's playing
+	// title keep TIDAL's teal and accent through its own rules for their
+	// quality classes (TIDAL 2.46.0, captured under Meteor Night's `* {
+	// color }`), which a rule with more weight still beats (Blur's
+	// `[class*="_marketText_"] { color: ... !important }`).
 	let tidal = null;
 	const tidalSheet = () => {
 		if (!tidal) {
@@ -409,7 +414,9 @@
 					"._artistText_73966a1 { color: initial; }\n" +
 					"._navigationItem_4e9deae { color: initial; }\n" +
 					":where(._navigationItem_4e9deae) > ._marketText_1lyag_1 { color: initial; }\n" +
-					":where(._navigationItem_4e9deae) > svg { color: initial; }",
+					":where(._navigationItem_4e9deae) > svg { color: initial; }\n" +
+					"._qualityHigh_39ef787:is(._textContent_462c76e ._title_8b245d1, ._textContent_462c76e ._subtitle_c0fd197) { color: initial; }\n" +
+					"._textHigh_ee6a2ff, ._textHigh_ee6a2ff span { color: initial; }",
 			);
 		}
 		return tidal;
