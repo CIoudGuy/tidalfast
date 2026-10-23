@@ -92,3 +92,33 @@ body { background-color: rgb(14, 12, 24) !important; }
     );
     assert_eq!(plain, native.0, "a catch-all leaves TIDAL's grey");
 }
+
+/// TIDAL 2.46.0's playlist names in the sidebar carry no `_textWhite_`
+/// class (TIDAL 2.43.2's did), and their second lines carry
+/// `_subtitle_c0fd197` (captured under five themes): a rule naming the
+/// first leaves the names alone in TIDAL, one naming the second colours
+/// the lines. Tidalfast kept 2.43's classes.
+#[test]
+fn sidebar_playlist_rows_have_tidal_2_46s_classes() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Old white"} */
+._marketText_1lyag_1._textWhite_1lyag_319 { color: rgb(9, 0, 26); font-weight: 600; }
+._subtitle_c0fd197._text20_1lyag_291 { color: rgb(120, 40, 160); }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    let row = Some([8.0, 300.0, 224.0, 52.0]);
+    frame.sidebar.rows = vec![(row, false)];
+    let tree = dom_anchors::build(&frame);
+    let luna = themed_luna("old-white.css", css);
+    let line = dom_anchors::keys::lib_row_subtitle(0);
+    let o = wait(&luna, &tree, &|o| o.hosts.contains_key(&line));
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let r = egui::Rect::from_min_size(egui::pos2(8.0, 300.0), egui::vec2(224.0, 52.0));
+    let style = pd::library_row(r, false, false);
+    pd::test_overlay(None);
+    let style = style.expect("the line's colour");
+    assert_eq!(style.title_color, None, "no _textWhite_ on the name");
+    assert_eq!(style.title_weight, None);
+    assert_eq!(style.secondary, Some(egui::Color32::from_rgb(120, 40, 160)));
+}
