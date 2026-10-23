@@ -987,10 +987,20 @@ pub fn menu_frame(palette: &Palette) -> egui::Frame {
         });
     // A theme's box for TIDAL's menus: see-through, without the shadow,
     // its corners (Tidal TUI's rows floating over the page).
-    match super::plugin_dom::menu_look() {
+    let frame = match super::plugin_dom::menu_look() {
         Some(look) => themed_menu_frame(frame, look),
         None => frame,
+    };
+    // A theme's box beyond one colour (gradients, borders, a `::before`
+    // fill): the frame is marked, and the box laid into it at the frame's
+    // end, over the menu's colour.
+    if super::plugin_dom::menu_box_looks().is_some() {
+        super::plugin_dom::note_menu_fill(frame.fill);
+        return frame
+            .fill(super::plugin_dom::MENU_BOX_MARK)
+            .stroke(egui::Stroke::NONE);
     }
+    frame
 }
 
 fn themed_menu_frame(mut frame: egui::Frame, look: super::plugin_dom::MenuLook) -> egui::Frame {
