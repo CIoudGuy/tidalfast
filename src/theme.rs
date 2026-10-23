@@ -99,9 +99,16 @@ impl Palette {
     /// and the speaker over its cover): its green-teal, not the cyan accent
     /// of the seek bar and the queue's playing song. Where a Luna theme
     /// paints the window itself (a light one, whose teal would be unreadable)
-    /// the accent stands in, as TIDAL restyles it there.
+    /// the accent stands in, as TIDAL restyles it there. A dark window a
+    /// theme paints keeps TIDAL's teal while the accent is TIDAL's own
+    /// (Catppuccin Mocha Blue's navy, Tidalify's black and Synthwave '77's
+    /// purple in TIDAL's captures).
     pub fn playing_name(&self) -> Color32 {
-        if self.tidal_dark() { TEAL } else { self.accent }
+        if self.tidal_dark() || (self.dark && self.accent == Palette::dark().accent) {
+            TEAL
+        } else {
+            self.accent
+        }
     }
 
     /// TIDAL's frosted chip, rgba(40,40,40,.75): the back/forward pill, the
@@ -1438,6 +1445,28 @@ mod tests {
             Color32::from_rgb(0x16, 0xd8, 0xa7),
             "TIDAL keeps its own sidebar under a theme that only sets root tokens"
         );
+    }
+
+    /// A theme that paints a dark window of its own and leaves TIDAL's
+    /// accent (Catppuccin Mocha Blue's navy, Tidalify's black) keeps TIDAL's
+    /// green-teal on the sidebar's playing playlist, as TIDAL's captures of
+    /// them show; Tidalfast drew the cyan accent there.
+    #[test]
+    fn a_painted_dark_window_keeps_tidals_playing_teal() {
+        let dark = Palette::dark();
+        let painted = Palette {
+            themed: true,
+            own_surfaces: false,
+            window: Color32::from_rgb(30, 30, 46),
+            ..dark
+        };
+        assert_eq!(painted.playing_name(), TEAL);
+        let light = Palette {
+            themed: true,
+            own_surfaces: false,
+            ..Palette::light()
+        };
+        assert_eq!(light.playing_name(), light.accent, "a light window's accent");
     }
 
     /// A theme's page font leads every weight, not only the regular one:
