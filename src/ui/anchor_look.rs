@@ -345,6 +345,31 @@ pub fn paint_part(
     }
 }
 
+/// The look draws more than one colour: a shadow, gradients or pictures,
+/// `::before` / `::after` boxes, borders or an inset glow.
+pub fn paints_beyond_fill(look: &AnchorLook) -> bool {
+    look.layers || look.sides.is_some() || look.shadow.is_some() || look.glow.is_some()
+}
+
+/// [`paint_look`] for a part that works its fill out itself from the
+/// theme's (a hover shade, a disabled fade): the theme's shadow, then
+/// `fill`, then its gradients, pictures, borders and glow, in `corner`.
+pub fn paint_look_with_fill(
+    ui: &egui::Ui,
+    key: &str,
+    look: &AnchorLook,
+    r: Rect,
+    corner: CornerRadius,
+    fill: Color32,
+) {
+    let own = AnchorLook {
+        fill: None,
+        corners: None,
+        ..look.clone()
+    };
+    paint_with(ui, key, &own, r, corner, fill);
+}
+
 /// The colour of anchor `key`'s words: the look's, on its way there by the
 /// anchor's `transition` for `color`, else `native`.
 pub fn look_text(key: &str, look: Option<&AnchorLook>, native: Color32) -> Color32 {

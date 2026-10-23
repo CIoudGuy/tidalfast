@@ -36,7 +36,8 @@ use super::plugin_slots::css;
 mod anchor_look;
 pub use anchor_look::{
     AnchorLook, MENU_BOX_MARK, anchor_look, look_text, mark_opacity, menu_box_looks,
-    paint_anchor_box, paint_look, paint_part, paint_sides,
+    paint_anchor_box, paint_look, paint_look_with_fill, paint_part, paint_sides,
+    paints_beyond_fill,
 };
 
 /// A menu frame was marked for the theme's box this frame
@@ -2039,6 +2040,65 @@ pub fn page_link(hit: Rect, text: Rect) -> Option<NavStyle> {
         .and_then(|t| t.color)
         .or(style.color);
     (style != NavStyle::default()).then_some(style)
+}
+
+/// Paints a part in `r` with its own `fill` (worked out from the theme's
+/// rules: a hover shade) in `corner`, and round it the rest of the box the
+/// theme gives its anchor `key` (a shadow, gradients, borders, a glow).
+fn paint_with_look(
+    ui: &egui::Ui,
+    key: Option<String>,
+    r: Rect,
+    corner: egui::CornerRadius,
+    fill: Color32,
+) {
+    let look = key.and_then(|k| {
+        anchor_look(&k)
+            .filter(|l| paints_beyond_fill(l))
+            .map(|l| (k, l))
+    });
+    match look {
+        Some((key, look)) => paint_look_with_fill(ui, &key, &look, r, corner, fill),
+        None => {
+            if fill.a() > 0 {
+                ui.painter().rect_filled(r, corner, fill);
+            }
+        }
+    }
+}
+
+/// Paints the Explore link [`page_link`] noted last in `r`: `fill` in
+/// `corner`, with the theme's shadow, gradients, borders and glow for it.
+pub fn paint_page_link(ui: &egui::Ui, r: Rect, corner: egui::CornerRadius, fill: Color32) {
+    let key = on()
+        .then(|| {
+            with(|s| {
+                s.frame
+                    .page
+                    .as_ref()
+                    .and_then(|p| p.page_links.len().checked_sub(1))
+            })
+        })
+        .flatten()
+        .map(dom_anchors::keys::page_link);
+    paint_with_look(ui, key, r, corner, fill);
+}
+
+/// Paints the Explore pill [`cloud_pill`] noted last in `r`: `fill` in
+/// `corner`, with the theme's shadow, gradients, borders and glow for it.
+pub fn paint_cloud_pill(ui: &egui::Ui, r: Rect, corner: egui::CornerRadius, fill: Color32) {
+    let key = on()
+        .then(|| {
+            with(|s| {
+                s.frame
+                    .page
+                    .as_ref()
+                    .and_then(|p| p.cloud_pills.len().checked_sub(1))
+            })
+        })
+        .flatten()
+        .map(dom_anchors::keys::cloud_btn);
+    paint_with_look(ui, key, r, corner, fill);
 }
 
 /// A row of Explore's pills is drawn in `r`: its pills ([`cloud_pill`])
