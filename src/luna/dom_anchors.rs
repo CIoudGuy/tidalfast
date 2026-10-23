@@ -252,6 +252,16 @@ pub mod keys {
     /// which themes paint as the menu's surface (the cotton candy family's
     /// gradient glass).
     pub const THEME_MENU_BOX: &str = "theme-roles:menu-box";
+    /// A submenu's box inside a menu row, after the menu's words (TIDAL
+    /// 2.46.0: `ul._actionList_1cd4298 > li > div._actionItem_e0c1e65
+    /// [role=menuitem] > div._subMenuContainer_c2e42e7 >
+    /// div._subMenu_706d970`), which Cotton Candy Nights paints with its
+    /// gradient.
+    pub const THEME_SUBMENU_LIST: &str = "theme-roles:submenu-list";
+    pub const THEME_SUBMENU_ITEM: &str = "theme-roles:submenu-item";
+    pub const THEME_SUBMENU_ROW: &str = "theme-roles:submenu-row";
+    pub const THEME_SUBMENU_CONTAINER: &str = "theme-roles:submenu-container";
+    pub const THEME_SUBMENU: &str = "theme-roles:submenu";
     /// The same popover around the open context menu.
     pub const CONTEXT_MENU_BOX: &str = "contextmenu-box";
 
@@ -1138,6 +1148,18 @@ pub fn theme_roles(out: &mut Vec<HostNode>) {
             .attr("role", "menu"),
     );
     out.push(el(THEME_MENU_TEXT, Some(THEME_MENU), "span").modules(&["actionTextInner"]));
+    out.push(el(THEME_SUBMENU_LIST, Some(THEME_MENU), "ul").class("_actionList_1cd4298"));
+    out.push(el(THEME_SUBMENU_ITEM, Some(THEME_SUBMENU_LIST), "li"));
+    out.push(
+        el(THEME_SUBMENU_ROW, Some(THEME_SUBMENU_ITEM), "div")
+            .modules(&["actionItem"])
+            .attr("role", "menuitem"),
+    );
+    out.push(
+        el(THEME_SUBMENU_CONTAINER, Some(THEME_SUBMENU_ROW), "div")
+            .class("_subMenuContainer_c2e42e7"),
+    );
+    out.push(el(THEME_SUBMENU, Some(THEME_SUBMENU_CONTAINER), "div").class("_subMenu_706d970"));
 }
 
 /// `#wimp > div` with the top bar, main container, `#main`, header and search.
