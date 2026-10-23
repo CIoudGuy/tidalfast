@@ -749,16 +749,18 @@ pub(super) fn names(app: &mut App, ui: &mut egui::Ui, people: &[ArtistRef], font
 }
 
 /// The play queue's artist names in `palette` (the queue's own): the
-/// view's grey, and TIDAL's cyan for a followed artist. Under a theme that
-/// paints a light window the names take its words' grey and its accent
-/// (Tidal Light's 70 % black and dark teal), as TIDAL's restyled words do,
-/// where the pale grey and bright cyan would not read on it.
+/// view's grey for every name, a followed artist's too, and the playing
+/// song's (TIDAL 2.46.0's queue draws them all in its 55 % white, Eminem
+/// followed or not, captured with no theme). Under a theme that paints a
+/// light window the names take its words' grey (Tidal Light's 70 % black),
+/// as TIDAL's restyled words do, where the pale grey would not read on it.
 pub(crate) fn queue_name_colors(palette: &theme::Palette) -> (Color32, Color32) {
-    if palette.themed && !palette.dark {
-        (palette.secondary, palette.accent)
+    let plain = if palette.themed && !palette.dark {
+        palette.secondary
     } else {
-        (GREY, CYAN)
-    }
+        GREY
+    };
+    (plain, plain)
 }
 
 /// [`names`] in `colors`: the plain names' and the followed artists'.
