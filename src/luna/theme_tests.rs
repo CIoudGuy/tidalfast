@@ -1110,7 +1110,8 @@ fn theme_rules_on_the_home_tiles_and_shelves_reach_them() {
 }
 
 /// Round 15's anchors: the page's filter pill is TIDAL's
-/// `div._container_080b5dc._filter_8933b89`, its track list the panel
+/// `div._container_080b5dc._filter_f2e5a33` (`_filter_8933b89` before TIDAL
+/// 2.46.0), its track list the panel
 /// `div.is-intersecting._occlusion_de6b9d3._defaultStyles_a1b9da9.TRACK_LIST`,
 /// a track row's thumbnail `._rowContainer_ > ._imageColumn_ >
 /// ._imageContainer_`, and a shelf's row names its module
@@ -1121,9 +1122,9 @@ fn theme_rules_on_the_home_tiles_and_shelves_reach_them() {
 fn theme_rules_reach_the_filter_pill_list_panel_row_thumbnails_and_tall_artist_cards() {
     use crate::ui::plugin_dom::{card_cover_height, fill, radius, row_image, test_overlay};
     let css = r#"/* {"name": "Round 15"} */
-[class="_container_080b5dc _filter_8933b89"] { background-color: #ff00ff; border-radius: 20px; }
+[class="_container_080b5dc _filter_f2e5a33"] { background-color: #ff00ff; border-radius: 20px; }
 .is-intersecting._occlusion_de6b9d3._defaultStyles_a1b9da9.TRACK_LIST.tidal-ui__occlusion { background-color: #00ff00; border-radius: 1.1em; }
-[data-test-page-name="playlist"] { ._defaultStyles_a1b9da9 > div { background-color: #0000ff; border-radius: 9px; } }
+[data-test-page-name="mix"] { ._defaultStyles_a1b9da9 > div { background-color: #0000ff; border-radius: 9px; } }
 ._rowContainer_ebb4cfc > ._imageColumn_b092fce > ._imageContainer_c364a1f { border-radius: 8px; }
 [data-test="horizontal-list--YOUR_FAVORITE_ARTISTS-scroll"] [class*="_imageContainer_"] { height: 300px; }
 "#;
@@ -1145,7 +1146,7 @@ fn theme_rules_reach_the_filter_pill_list_panel_row_thumbnails_and_tall_artist_c
             value: String::new(),
         });
         page.list_panel = Some([240.0, 290.0, 1040.0, 400.0]);
-        page.page_id = Some("playlist".into());
+        page.page_id = Some("mix".into());
         page.shelves = vec![Some([240.0, 300.0, 1100.0, 240.0])];
         page.shelf_modules = vec!["YOUR_FAVORITE_ARTISTS".into()];
         page.cards = vec![dom_anchors::GridCard {
@@ -1180,7 +1181,7 @@ fn theme_rules_reach_the_filter_pill_list_panel_row_thumbnails_and_tall_artist_c
     assert_eq!(
         fill(LIST_PANEL_INNER),
         Some(egui::Color32::from_rgb(0, 0, 255)),
-        "the playlist page's `._defaultStyles_ > div` rule reaches the panel's child"
+        "a mix page's `._defaultStyles_ > div` rule reaches the panel's child"
     );
     assert_eq!(radius(LIST_PANEL_INNER), Some(9.0));
     let thumb = row_image(&list, 0, egui::Rect::NOTHING).expect("a themed row thumbnail");
