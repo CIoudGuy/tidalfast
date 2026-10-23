@@ -194,7 +194,19 @@ impl Palette {
         }
     }
 
-    /// Secondary text and chevrons inside a menu.
+    /// The chevron closing a menu row that opens a submenu: TIDAL's
+    /// `--wave-color-solid-contrast-darkest`, rgb(120, 120, 135) in Dark
+    /// (TIDAL 2.46.0's `span._subMenuIcon_` with no theme, captured), darker
+    /// than the menu's secondary words.
+    pub fn menu_chevron(&self) -> Color32 {
+        if self.tidal_dark() {
+            Color32::from_rgb(120, 120, 135)
+        } else {
+            self.secondary
+        }
+    }
+
+    /// Secondary text inside a menu.
     pub fn menu_secondary(&self) -> Color32 {
         if self.tidal_dark() {
             Color32::from_rgb(0xaf, 0xaf, 0xb6)

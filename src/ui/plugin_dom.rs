@@ -1677,6 +1677,48 @@ pub fn menu_row_words(under: Color32) -> Option<Color32> {
     .or_else(|| menu_words(under))
 }
 
+/// Paints the fill of a menu row under the pointer in `r` that has no
+/// anchor of its own (a row opening a submenu, a submenu's rows, Share's
+/// links): the look a theme gives TIDAL's hovered row (its `:hover` rules
+/// for `div._actionItem_` and its `button._actionText_`, Solo v2's 8 %
+/// white, Tidal Light's greys), read off the hovered row's stand-in put over
+/// `r`, else `native_fill` in TIDAL's 9-point corners.
+pub fn paint_menu_hover(ui: &egui::Ui, r: Rect, native_fill: Color32) {
+    use dom_anchors::keys::{THEME_MENU_HOVER_ROW, THEME_MENU_HOVER_TEXT};
+    float_host(THEME_MENU_HOVER_TEXT, r);
+    let corner = egui::CornerRadius::same(9);
+    paint_part(ui, THEME_MENU_HOVER_ROW, r, corner, native_fill);
+    if let Some(look) = anchor_look(THEME_MENU_HOVER_TEXT).filter(|l| l.paints_box()) {
+        paint_look(ui, THEME_MENU_HOVER_TEXT, &look, r, corner);
+    }
+}
+
+/// The colour a theme gives the icons of TIDAL's menu rows: the chevron
+/// closing a row that opens a submenu (`chevron`), else a row's leading
+/// icon (Share's links). Read off their `use` (Cotton Candy Nights'
+/// `._contextMenu_ ._icon_ > use { fill: black }`, Solo v2's 68 % white),
+/// else their `svg`. `None` while no theme fills them.
+pub fn menu_icon(chevron: bool) -> Option<Color32> {
+    use dom_anchors::keys::{
+        THEME_MENU_CHEVRON, THEME_MENU_CHEVRON_USE, THEME_MENU_ICON, THEME_MENU_ICON_USE,
+    };
+    if !on() {
+        return None;
+    }
+    let (glyph, svg) = if chevron {
+        (THEME_MENU_CHEVRON_USE, THEME_MENU_CHEVRON)
+    } else {
+        (THEME_MENU_ICON_USE, THEME_MENU_ICON)
+    };
+    let fill = |key: &str| {
+        host(key, |h, vars| {
+            style_color(&h.style, |s| s.fill.as_ref(), vars)
+        })
+        .filter(|c| c.a() > 0)
+    };
+    fill(glyph).or_else(|| fill(svg))
+}
+
 /// [`token_queue_fill`]'s mix.
 pub fn queue_fill_from(base: Color32) -> Color32 {
     let base = base.to_opaque();

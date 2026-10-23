@@ -14,7 +14,7 @@
 use egui::{Color32, Rect, Sense, Ui, pos2, vec2};
 
 use super::widgets::{
-    self, MENU_ITEM_HEIGHT, menu_hover, menu_item, menu_row, menu_submenu, menu_submenu_with_field,
+    self, MENU_ITEM_HEIGHT, menu_item, menu_row, menu_submenu, menu_submenu_with_field,
     paint_cover, playlist_picker,
 };
 use crate::api::models::*;
@@ -200,15 +200,16 @@ pub(crate) fn icon_row(ui: &mut Ui, palette: &Palette, icon: Icon, label: &str, 
     );
     if ui.is_rect_visible(rect) {
         if response.hovered() {
-            ui.painter()
-                .rect_filled(rect, egui::CornerRadius::same(9), menu_hover(palette));
+            super::plugin_dom::paint_menu_hover(ui, rect, widgets::action_hover(palette));
         }
         let glyph = if big { 24.0 } else { 16.0 };
         let icon_rect = Rect::from_min_size(
             pos2(rect.left() + 12.0, rect.center().y - glyph / 2.0),
             egui::Vec2::splat(glyph),
         );
-        theme::paint_icon(ui, icon, icon_rect, glyph * 0.75, palette.text);
+        // A theme's fill for TIDAL's menu icons, else the words' white.
+        let glyph_color = super::plugin_dom::menu_icon(false).unwrap_or(palette.text);
+        theme::paint_icon(ui, icon, icon_rect, glyph * 0.75, glyph_color);
         let x = icon_rect.right() + 8.0;
         // The words of TIDAL's menu rows, as a theme colours them.
         let words = super::plugin_dom::menu_row_words(palette.menu_bg()).unwrap_or(palette.text);
@@ -393,14 +394,14 @@ fn invite_row(ui: &mut Ui, app: &App) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 56.0), Sense::click());
     if ui.is_rect_visible(rect) {
         if response.hovered() {
-            ui.painter()
-                .rect_filled(rect, egui::CornerRadius::same(9), menu_hover(&palette));
+            super::plugin_dom::paint_menu_hover(ui, rect, widgets::action_hover(&palette));
         }
         let icon_rect = Rect::from_min_size(
             pos2(rect.left() + 12.0, rect.center().y - 8.0),
             egui::Vec2::splat(16.0),
         );
-        theme::paint_icon(ui, Icon::Users, icon_rect, 12.0, palette.text);
+        let glyph_color = super::plugin_dom::menu_icon(false).unwrap_or(palette.text);
+        theme::paint_icon(ui, Icon::Users, icon_rect, 12.0, glyph_color);
         let x = icon_rect.right() + 8.0;
         let width = (rect.right() - 12.0 - x).max(0.0);
         let words = super::plugin_dom::menu_row_words(palette.menu_bg()).unwrap_or(palette.text);
