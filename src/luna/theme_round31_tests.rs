@@ -129,3 +129,15 @@ fn a_heavier_rule_still_colours_the_playing_song() {
     pd::test_overlay(None);
     assert_eq!(queue.accent, egui::Color32::from_rgb(250, 200, 230));
 }
+
+/// The queue's artist names are the line's grey, a followed artist's too:
+/// TIDAL 2.46.0 draws Eminem (followed) in the same 55 % white as every
+/// other name in its queue, captured with no theme. Tidalfast drew a
+/// followed artist in the accent cyan.
+#[test]
+fn the_queue_draws_a_followed_artist_like_the_others() {
+    use crate::theme::Palette;
+    use crate::ui::now_playing::queue_name_colors;
+    let (plain, followed) = queue_name_colors(&Palette::dark());
+    assert_eq!(followed, plain);
+}
