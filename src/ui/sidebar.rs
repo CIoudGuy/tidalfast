@@ -3944,8 +3944,10 @@ mod nav_label_tests {
     fn a_navigation_rows_glow_and_shadow_are_drawn() {
         use crate::luna::dom::Style;
         let shapes = |shadow: Option<&str>| {
-            let mut overlay = DomOverlay::default();
-            overlay.version = 7;
+            let mut overlay = DomOverlay {
+                version: 7,
+                ..DomOverlay::default()
+            };
             overlay.hosts.insert(
                 crate::luna::dom_anchors::keys::sidebar_item("sidebar-music"),
                 HostOverride {
