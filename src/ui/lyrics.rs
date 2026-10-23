@@ -447,6 +447,14 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
     if let Some(offset) = lyrics_follow::offset(ui.ctx(), scope) {
         scroll_area = scroll_area.vertical_scroll_offset(offset);
     }
+    // A plugin scrolled the lyrics box (`scrollTo` on
+    // `[data-test=now-playing-lyrics]`, as lyrics plugins that place the sung
+    // line themselves do): the view goes there, and that is not the reader
+    // scrolling by hand.
+    let plugin_top = super::plugin_dom::take_scroll_top(keys::LYRICS);
+    if let Some(top) = plugin_top {
+        scroll_area = scroll_area.vertical_scroll_offset(top);
+    }
     let scroll = scroll_area.show(ui, |ui| {
         let origin = ui.cursor().top();
         // Room for the first line to sit where a sung line sits, and for
@@ -700,11 +708,19 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
     // Scrolling by hand means the reader wants to look elsewhere; the Sync
     // Lyrics button picks the song back up.
     let max = (scroll.content_size.y - scroll.inner_rect.height()).max(0.0);
+    super::plugin_dom::note(|f| {
+        if let Some(np) = f.now_playing.as_mut() {
+            np.lyrics_scroll = Some([
+                scroll.state.offset.y,
+                scroll.content_size.y.max(scroll.inner_rect.height()),
+            ]);
+        }
+    });
     let verdict = lyrics_follow::after(
         ui.ctx(),
         scope,
         scroll.id,
-        following,
+        following && plugin_top.is_none(),
         scroll.state.offset.y,
         target,
         max,
