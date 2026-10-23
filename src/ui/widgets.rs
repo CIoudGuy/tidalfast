@@ -3997,6 +3997,13 @@ pub fn virtual_collection_cards(
     let width = ((row_width - CARD_GAP * (columns as f32 - 1.0)) / columns as f32).max(1.0);
     set_card_width(ui, width);
     let row_count = count.div_ceil(columns);
+    // The whole grid, every row (TIDAL's `section` round the cells), for a
+    // theme's box under the cards.
+    let rows_height = row_count as f32 * (width + text_height + CARD_GAP) - CARD_GAP;
+    super::plugin_dom::collection_grid(
+        ui,
+        Rect::from_min_size(ui.cursor().min, vec2(row_width, rows_height.max(0.0))),
+    );
     let previous_spacing = ui.spacing().item_spacing;
     ui.spacing_mut().item_spacing.y = 0.0;
     let grid_id = ui.unique_id().with("collection-card");

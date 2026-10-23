@@ -1544,7 +1544,7 @@ fn paint_inset_glow(
 }
 
 /// The page's filter pill is drawn in `r`: paints a theme's box for it
-/// (`[class="_container_080b5dc _filter_8933b89"]`, the cotton candy
+/// (`._container_080b5dc._contentFilter_2d85a1d`, the cotton candy
 /// family's tinted pill) and says whether a theme styled it, so the native
 /// outline is left out.
 pub fn filter_box(ui: &egui::Ui, r: Rect) -> bool {
@@ -1768,6 +1768,28 @@ pub fn list_panel(ui: &egui::Ui, r: Rect) {
         r,
         egui::CornerRadius::ZERO,
     );
+}
+
+/// A collection page's grid of cards takes `r` (all its rows): gives it
+/// TIDAL's `section._grid_97562f5` anchor and paints the theme's box for it
+/// under the cards (the cotton candy family's glass panel), grown by the
+/// box's padding round the cards as TIDAL's section is. Nothing without a
+/// theme rule for it.
+pub fn collection_grid(ui: &egui::Ui, r: Rect) {
+    if !on() {
+        return;
+    }
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.grid = rect(r);
+        }
+    });
+    let key = dom_anchors::keys::CARD_GRID;
+    if let Some(look) = anchor_look(key) {
+        let [t, right, b, l] = look.padding.unwrap_or([0.0; 4]).map(|p| p.clamp(0.0, 32.0));
+        let outer = Rect::from_min_max(r.min - egui::vec2(l, t), r.max + egui::vec2(right, b));
+        paint_look(ui, key, &look, outer, egui::CornerRadius::ZERO);
+    }
 }
 
 /// The thumbnail of track row `index` of `list` is drawn in `r`: gives it

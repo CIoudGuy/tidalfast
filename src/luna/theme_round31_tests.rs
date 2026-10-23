@@ -141,3 +141,70 @@ fn the_queue_draws_a_followed_artist_like_the_others() {
     let (plain, followed) = queue_name_colors(&Palette::dark());
     assert_eq!(followed, plain);
 }
+
+/// A collection page's boxes are TIDAL 2.46.0's: its grid of cards is
+/// `section._grid_97562f5[data-test=grid]` and its filter
+/// `div._container_080b5dc._contentFilter_2d85a1d`, which the cotton candy
+/// family makes a glass panel and a tinted pill; an album's list sits in
+/// its `ALBUM_ITEMS` module and a playlist's in `div._items_8615603`.
+/// Tidalfast gave them the classes of earlier TIDAL builds, which those
+/// rules miss.
+#[test]
+fn collection_and_list_boxes_have_tidals_classes() {
+    use crate::ui::plugin_dom::{self as pd, fill};
+    use dom_anchors::keys::{CARD_GRID, LIST_PANEL, PAGE_FILTER_BOX};
+    let css = r#"/* {"name": "Glass boxes"} */
+._grid_97562f5 { border: 2px solid rgb(146, 190, 255); border-radius: 1.1em; background-color: rgb(20, 10, 60); }
+[class="_container_080b5dc _contentFilter_2d85a1d"] { background-color: rgb(70, 20, 90); }
+.is-intersecting._occlusion_de6b9d3._defaultStyles_a1b9da9.ALBUM_ITEMS.tidal-ui__occlusion { background-color: rgb(10, 80, 40); }
+._items_8615603 { background-color: rgb(90, 60, 10); }
+"#;
+    let luna = themed_luna("glass-boxes.css", css);
+    let collection = {
+        let mut frame = dom_anchors::sample_frame();
+        let page = frame.page.as_mut().unwrap();
+        page.page_id = Some("mycollection_albums".into());
+        page.filter = Some(dom_anchors::FilterInput {
+            rect: Some([240.0, 160.0, 1000.0, 42.0]),
+            value: String::new(),
+        });
+        page.grid = Some([240.0, 240.0, 1000.0, 600.0]);
+        page.cards = vec![dom_anchors::GridCard {
+            rect: Some([240.0, 240.0, 200.0, 280.0]),
+            ..dom_anchors::GridCard::default()
+        }];
+        dom_anchors::build(&frame)
+    };
+    let o = wait(&luna, &collection, &|o| {
+        o.hosts.contains_key(CARD_GRID) && o.hosts.contains_key(PAGE_FILTER_BOX)
+    });
+    pd::test_overlay(Some((*o).clone()));
+    let grid = pd::anchor_look(CARD_GRID).expect("the grid's look");
+    let filter = fill(PAGE_FILTER_BOX);
+    pd::test_overlay(None);
+    assert_eq!(grid.fill, Some(egui::Color32::from_rgb(20, 10, 60)));
+    assert_eq!(grid.corners, Some(egui::CornerRadius::same(15)));
+    assert!(grid.layers, "the border");
+    assert_eq!(filter, Some(egui::Color32::from_rgb(70, 20, 90)));
+    for (page_id, want) in [
+        ("album", egui::Color32::from_rgb(10, 80, 40)),
+        ("playlist", egui::Color32::from_rgb(90, 60, 10)),
+    ] {
+        let mut frame = dom_anchors::sample_frame();
+        let page = frame.page.as_mut().unwrap();
+        page.page_id = Some(page_id.into());
+        page.list_panel = Some([240.0, 290.0, 1040.0, 400.0]);
+        let tree = dom_anchors::build(&frame);
+        let o = wait(&luna, &tree, &|o| {
+            o.hosts
+                .get(LIST_PANEL)
+                .and_then(|h| h.style.background_color.as_deref())
+                .is_some_and(|c| c.contains(&want.r().to_string()))
+        });
+        pd::test_overlay(Some((*o).clone()));
+        let panel = fill(LIST_PANEL);
+        pd::test_overlay(None);
+        assert_eq!(panel, Some(want), "{page_id}");
+    }
+    luna.shutdown();
+}

@@ -45,7 +45,8 @@ pub mod keys {
     pub const PAGE_RELEASE: &str = "page-release-date";
     pub const PAGE_FILTER: &str = "page-filter-input";
     /// The pill round the page's filter field
-    /// (`div._container_080b5dc._filter_8933b89`).
+    /// (`div._container_080b5dc._filter_f2e5a33`, `_contentFilter_2d85a1d`
+    /// or `_myTracksFilter_bfc484b` by page).
     pub const PAGE_FILTER_BOX: &str = "page-filter-box";
     /// The panel behind a page's track list
     /// (`div.is-intersecting._occlusion_de6b9d3._defaultStyles_a1b9da9.TRACK_LIST`).
@@ -667,6 +668,9 @@ pub struct Page {
     /// The visible cards (albums, playlists, mixes, artists) of shelves
     /// and grids, in drawing order.
     pub cards: Vec<GridCard>,
+    /// A collection page's grid of cards, all its rows
+    /// (`section._grid_97562f5[data-test=grid]`).
+    pub grid: Option<Rect>,
     /// The home page (TIDAL's `div._feed_412931c`).
     pub feed: bool,
     /// The album, playlist or mix header's art.
@@ -1529,16 +1533,34 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     }
     out.push(node);
     if let Some(rect) = page.list_panel {
-        out.push(
+        // TIDAL 2.46.0 wraps an album's list in its `ALBUM_ITEMS` module and
+        // a playlist's in `div._items_8615603`, each round the list's
+        // `div._tableContainer_556e9aa[data-test=media-table]`; other
+        // lists keep the `TRACK_LIST` module of earlier captures.
+        let module = |name: &str| {
             el(LIST_PANEL, Some(PAGE), "div")
                 .class("is-intersecting")
                 .class("_occlusion_de6b9d3")
                 .class("_defaultStyles_a1b9da9")
-                .class("TRACK_LIST")
+                .class(name)
                 .class("tidal-ui__occlusion")
-                .at(Some(rect)),
-        );
-        out.push(el(LIST_PANEL_INNER, Some(LIST_PANEL), "div").at(Some(rect)));
+        };
+        let panel = match page.page_id.as_deref() {
+            Some("playlist") => el(LIST_PANEL, Some(PAGE), "div").class("_items_8615603"),
+            Some("album") => module("ALBUM_ITEMS")
+                .test("occluded-module")
+                .attr("data-test-module-type", "ALBUM_ITEMS"),
+            _ => module("TRACK_LIST"),
+        };
+        out.push(panel.at(Some(rect)));
+        let mut inner = el(LIST_PANEL_INNER, Some(LIST_PANEL), "div");
+        if matches!(page.page_id.as_deref(), Some("album" | "playlist")) {
+            inner = inner
+                .class("_tableContainer_556e9aa")
+                .test("media-table")
+                .attr("data-type", "media-table");
+        }
+        out.push(inner.at(Some(rect)));
     }
     if let Some(rect) = page.artist_header {
         out.push(
@@ -1570,19 +1592,29 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         }
         out.push(row);
     }
-    if page.cards.iter().any(|c| c.shelf.is_none()) {
-        out.push(
-            el(keys::CARD_GRID, Some(PAGE), "div")
-                .class(container(false))
-                .at(page.rect),
-        );
-    }
     // The collection's album, playlist and artist grids are TIDAL's
     // `_cellContainer_` cells (Solo's rounded, padded, hover-filled cells).
     let collection = page
         .page_id
         .as_deref()
         .is_some_and(|id| id.starts_with("mycollection_"));
+    if collection && page.grid.is_some() {
+        // TIDAL 2.46.0's collection grid is one `section`, the box the
+        // cotton candy family makes a glass panel (`._grid_97562f5`).
+        out.push(
+            el(keys::CARD_GRID, Some(PAGE), "section")
+                .class("_grid_97562f5")
+                .test("grid")
+                .attr("role", "grid")
+                .at(page.grid),
+        );
+    } else if page.cards.iter().any(|c| c.shelf.is_none()) {
+        out.push(
+            el(keys::CARD_GRID, Some(PAGE), "div")
+                .class(container(false))
+                .at(page.rect),
+        );
+    }
     for (i, card) in page.cards.iter().enumerate() {
         let modules: &[&str] = match (card.artist, collection) {
             (true, true) => &["card", "artistVariant", "cellContainer"],
@@ -1752,17 +1784,28 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         );
     }
     if let Some(filter) = &page.filter {
+        // TIDAL 2.46.0's filter boxes: the Tracks page's
+        // `_myTracksFilter_`, the other collection pages'
+        // `_contentFilter_`, a playlist's `_filter_f2e5a33` (the cotton
+        // candy family names the first two exactly), each round
+        // `input._searchField_d9ef617._searchFieldFilter_0f926aa`.
+        let kind = match page.page_id.as_deref() {
+            Some("mycollection_tracks") => "_myTracksFilter_bfc484b",
+            Some(id) if id.starts_with("mycollection_") => "_contentFilter_2d85a1d",
+            _ => "_filter_f2e5a33",
+        };
         out.push(
             el(PAGE_FILTER_BOX, Some(PAGE), "div")
                 .class("_container_080b5dc")
-                .class("_filter_8933b89")
+                .class(kind)
                 .at(filter.rect),
         );
         out.push(
             el(PAGE_FILTER, Some(PAGE_FILTER_BOX), "input")
-                .attr("type", "text")
+                .attr("type", "search")
                 .test("playlist-filter-input")
-                .modules(&["filterInput"])
+                .class("_searchField_d9ef617")
+                .class("_searchFieldFilter_0f926aa")
                 .value(filter.value.clone())
                 .at(filter.rect),
         );
