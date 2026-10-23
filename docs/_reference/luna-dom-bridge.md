@@ -46,7 +46,14 @@ sits, as in a browser (radiant-lyrics' `100vw` x `100vh` backdrop inside
 elements reaches the UI as one space; the UI keeps it only where their
 parent lays them out in a line (radiant-lyrics' word spans).
 `scrollHeight`/`scrollTop` come from `HostNode::scroll`; containers without
-it never look scrollable.
+it never look scrollable. `main` and the now-playing lyrics box
+(`[data-test=now-playing-lyrics]`) carry it, and a plugin's `scrollTo` on
+either scrolls it (radiant-lyrics places the sung line itself). A plugin
+element inside another plugin element gets its own box the first time a
+script reads it: the read lists it in `DomOverlay::measure` and waits, as a
+read after a change does, for the tree whose `node_rects` say where the UI
+drew it; from then on each tree brings its box. Before, it read the box of
+the outermost plugin element round it.
 
 **Boxes after a change.** A browser lays out when a script reads a box
 after changing a style; here the UI lays out, so the boxes come back with

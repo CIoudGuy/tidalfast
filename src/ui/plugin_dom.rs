@@ -274,6 +274,22 @@ pub fn rect(r: Rect) -> Option<crate::luna::dom::Rect> {
         .then(|| [r.left(), r.top(), r.width(), r.height()])
 }
 
+/// Plugin element `id` was drawn in `r`: when a script read its box, the
+/// tree tells it where.
+pub fn node_drawn(id: u64, r: Rect) {
+    if !on() {
+        return;
+    }
+    with(|s| {
+        if s.overlay.measure.binary_search(&id).is_ok()
+            && let Some(r) = rect(r)
+            && !s.frame.node_rects.iter().any(|(n, _)| *n == id)
+        {
+            s.frame.node_rects.push((id, r));
+        }
+    });
+}
+
 /// Start a frame: `luna` is the running runtime (None while Luna is off),
 /// `window` the window's rect, `page` what the main area shows.
 pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page: &Page) {
@@ -580,6 +596,7 @@ pub fn end_frame(ctx: &egui::Context) {
         next.context_menu = None;
         next.modal = None;
         next.main_scroll = None;
+        next.node_rects.clear();
         next.shell = Default::default();
         s.frame = next;
     });
@@ -1155,6 +1172,11 @@ fn same_but_rects(a: &HostTree, b: &HostTree) -> bool {
     a.viewport == b.viewport
         && a.path == b.path
         && a.laid_out == b.laid_out
+        && a.node_rects.len() == b.node_rects.len()
+        && a.node_rects
+            .iter()
+            .zip(&b.node_rects)
+            .all(|(x, y)| x.0 == y.0)
         && a.nodes.len() == b.nodes.len()
         && a.nodes.iter().zip(&b.nodes).all(|(x, y)| {
             x.key == y.key
@@ -7841,6 +7863,7 @@ mod tests {
             light: false,
             reduced_motion: false,
             laid_out: 0,
+            node_rects: Vec::new(),
         }
     }
 

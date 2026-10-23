@@ -5081,6 +5081,9 @@ fn draw_box(
             ui.ctx().request_repaint();
         }
     }
+    if node.id & MEASURE_ID == 0 {
+        plugin_dom::node_drawn(node.id, rect);
+    }
     // Absolutely positioned children sit in this element's box.
     for child in placed {
         if !child.style.hidden() {

@@ -963,6 +963,9 @@ pub struct Frame {
     pub modal: Option<ConfirmModal>,
     /// `main`'s scroll: [scrollTop, scrollHeight].
     pub main_scroll: Option<[f32; 2]>,
+    /// Where plugin elements whose box a script read were drawn
+    /// ([`HostTree::node_rects`]).
+    pub node_rects: Vec<(u64, [f32; 4])>,
 }
 
 /// The anchor tree for `frame`, parents before children.
@@ -1058,6 +1061,7 @@ pub fn build(frame: &Frame) -> HostTree {
         light: frame.light,
         reduced_motion: frame.reduced_motion,
         laid_out: 0,
+        node_rects: frame.node_rects.clone(),
     }
 }
 
@@ -2851,6 +2855,7 @@ pub fn sample_frame() -> Frame {
         }),
         modal: None,
         main_scroll: Some([0.0, 1600.0]),
+        node_rects: Vec::new(),
     }
 }
 

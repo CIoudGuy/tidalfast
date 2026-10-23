@@ -3072,6 +3072,74 @@ setTimeout(go, 300);
     finish(luna, dir);
 }
 
+/// A plugin element inside another plugin element has its own box: a read
+/// of it asks the UI where it drew the element (`DomOverlay::measure`) and
+/// waits for the tree that says (`HostTree::node_rects`), as a browser lays
+/// out on a read. It used to get the box of the nearest element the UI had
+/// told the runtime about (the outermost one, or the anchor round it), so a
+/// lyrics plugin that scrolls its sung line to a place in the view
+/// (radiant-lyrics) measured every line at its list's top and scrolled to
+/// the start of the song.
+#[test]
+fn a_nested_plugin_element_reads_its_own_box() {
+    let (luna, _host, dir) = start(
+        r#"
+const go = () => {
+	const el = document.querySelector('[data-test="footer-player"]');
+	if (!el) return setTimeout(go, 20);
+	const list = document.createElement("div");
+	for (let i = 0; i < 3; i++) {
+		const line = document.createElement("div");
+		line.className = "line";
+		line.textContent = "line " + i;
+		list.appendChild(line);
+	}
+	el.appendChild(list);
+	setTimeout(() => {
+		R.top = list.children[2].getBoundingClientRect().top;
+		R.again = list.children[2].getBoundingClientRect().top;
+	}, 100);
+};
+setTimeout(go, 300);
+"#,
+    );
+    let t0 = Instant::now();
+    luna.set_layout_clock(t0);
+    let mut t = tree();
+    node(&mut t, keys::FOOTER).rect = Some([0.0, 700.0, 800.0, 90.0]);
+    luna.sync_dom(t.clone());
+    // The UI draws each overlay as it comes, and the lines where the
+    // overlay asks.
+    // Read straight from the published overlay: a round trip to the runtime
+    // would queue behind the read's wait.
+    let end = Instant::now() + Duration::from_secs(10);
+    let mut drawn = 0;
+    let asked = loop {
+        let o = luna.dom_overlay();
+        if o.version > drawn {
+            drawn = o.version;
+            luna.drawing_boxes(drawn);
+            t.node_rects = o
+                .measure
+                .iter()
+                .map(|id| (*id, [10.0, 745.0, 300.0, 20.0]))
+                .collect();
+            t.laid_out = drawn;
+            luna.sync_dom(t.clone());
+            if !o.measure.is_empty() {
+                break o.measure.clone();
+            }
+        }
+        assert!(Instant::now() < end, "no box was asked for");
+        std::thread::sleep(Duration::from_millis(1));
+    };
+    let r = results_until(&luna, &dir, 10, |r| !r["again"].is_null());
+    assert_eq!(asked.len(), 1, "the line read is measured: {asked:?}");
+    assert_eq!(r["top"].as_f64(), Some(745.0));
+    assert_eq!(r["again"].as_f64(), Some(745.0));
+    finish(luna, dir);
+}
+
 /// Play the UI until the footer's `min-width` is `width`: draw each overlay
 /// after version `drawn` published before it at once, and send the tree
 /// laid out with it (`t`). Returns that overlay, not drawn. Read straight
