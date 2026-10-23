@@ -212,3 +212,33 @@ fn a_themes_menu_box_is_laid_into_the_menus_frame() {
     });
     assert!(gradient, "the popover's gradient is drawn");
 }
+
+/// TIDAL's track row is in a theme's `--wave-color-solid-contrast-fill`,
+/// which its title and time take where no rule names them; its artist
+/// link keeps its own colour (measured under Catppuccin Mocha Blue: blue
+/// rows, title and time, lavender body; Black Glow: 77 % white rows, white
+/// artist). The cells kept the body's colour.
+#[test]
+fn a_track_rows_title_and_time_take_the_contrast_token() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Sea rows"} */
+:root { --sea: #3c8cf0; --wave-color-solid-contrast-fill: var(--sea); --wave-color-text-main: #e6e6fa; }
+"#;
+    let luna = themed("sea-rows.css", css);
+    let frame = dom_anchors::sample_frame();
+    let list = frame.lists[0].id.clone();
+    let tree = dom_anchors::build(&frame);
+    let o = wait(&luna, &tree, &|o| {
+        o.vars.contains_key("--wave-color-solid-contrast-fill")
+    });
+    pd::test_overlay(Some((*o).clone()));
+    let window = egui::Color32::from_rgb(10, 10, 12);
+    let text = pd::row_text(&list, 0, window).expect("the row's colours");
+    pd::test_overlay(None);
+    luna.shutdown();
+    let sea = Some(egui::Color32::from_rgb(0x3c, 0x8c, 0xf0));
+    assert_eq!(text.title, sea);
+    assert_eq!(text.time, sea);
+    assert_eq!(text.artist, None, "the artist link keeps its own colour");
+    assert_eq!(text.album, None);
+}

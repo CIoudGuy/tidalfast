@@ -1617,6 +1617,25 @@ pub fn token_popup_fill() -> Option<Color32> {
     .map(Color32::to_opaque)
 }
 
+/// The words TIDAL colours with `--wave-color-solid-contrast-fill` itself,
+/// not with the body's colour: a track row's (its title and time, where no
+/// rule names them) and a menu's. Measured in TIDAL with themes that set
+/// the token apart from `--wave-color-text-main`: Mocha Blue's rows and
+/// menu words are its blue while its body is lavender, Black Glow's rows
+/// its 77 % white, Cotton Candy Nights' row its pink. `None` without a
+/// theme that sets the token, or where it would not read over `under`.
+pub fn token_contrast_text(under: Color32) -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    with(|s| {
+        let v = s.overlay.vars.get("--wave-color-solid-contrast-fill")?;
+        css::color(&css::resolve_vars(v, &s.overlay.vars))
+    })
+    .filter(|c| c.a() > 0)
+    .and_then(|c| readable_text(c, Color32::TRANSPARENT, under))
+}
+
 /// [`token_queue_fill`]'s mix.
 pub fn queue_fill_from(base: Color32) -> Color32 {
     let base = base.to_opaque();
@@ -1825,11 +1844,15 @@ pub fn row_text(list: &str, index: usize, window: Color32) -> Option<RowText> {
             .or(row)
             .and_then(|c| readable_text(c, Color32::TRANSPARENT, window))
     };
+    // TIDAL's row itself is in the theme's contrast token, which its title
+    // and time take where no rule names them (its artist and album links
+    // keep their own colour: Black Glow's stay white).
+    let row_token = || token_contrast_text(window);
     let made = RowText {
-        title: read(&["title-link", "title-text", "title"]),
+        title: read(&["title-link", "title-text", "title"]).or_else(row_token),
         artist: read(&["artist:0", "artist"]),
         album: read(&["album-link", "album"]),
-        time: read(&["duration"]),
+        time: read(&["duration"]).or_else(row_token),
         added_by: read(&["added-by"]),
         added: read(&["date-added"]),
     };

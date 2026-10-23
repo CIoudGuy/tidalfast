@@ -709,7 +709,10 @@ pub(crate) fn menu_row_tinted(
         let color = if !enabled {
             palette.dim
         } else {
+            // TIDAL's menu words are in the theme's contrast token, not the
+            // menu's colour (Mocha Blue's blue words in its lavender menu).
             tint.or(themed.and_then(|s| s.color))
+                .or_else(|| super::plugin_dom::token_contrast_text(palette.menu_bg()))
                 .unwrap_or(palette.text)
         };
         // TIDAL's menus are text only.

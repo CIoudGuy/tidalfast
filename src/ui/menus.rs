@@ -992,6 +992,61 @@ mod menu_dom_tests {
             "the divider 8 in from the menu's edge: {line:?} in {frame_rect:?}"
         );
     }
+
+    /// The colour of the words `menu_item` draws for "Play next" under `o`.
+    fn menu_words_color(o: Option<DomOverlay>) -> egui::Color32 {
+        crate::ui::plugin_dom::test_overlay(o);
+        let palette = Palette::dark();
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            widgets::menu_frame(&palette).show(ui, |ui| {
+                ui.set_width(widgets::MENU_MIN_CONTENT);
+                menu_item(ui, &palette, None, "Play next");
+            });
+        });
+        out.textures_delta.clear();
+        crate::ui::plugin_dom::test_overlay(None);
+        out.shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::Shape::Text(t) if t.galley.text() == "Play next" => {
+                    Some(t.galley.job.sections[0].format.color)
+                }
+                _ => None,
+            })
+            .expect("the row's words")
+    }
+
+    /// A theme that sets TIDAL's `--wave-color-solid-contrast-fill` apart
+    /// from its body text (`--wave-color-text-main`) colours TIDAL's menu
+    /// words with the contrast token (Catppuccin Mocha Blue's blue words
+    /// in its lavender menu). They took the body's colour.
+    #[test]
+    fn menu_words_take_the_themes_contrast_token() {
+        let rgb = egui::Color32::from_rgb;
+        let vars = [
+            ("--sea", "#3c8cf0"),
+            ("--wave-color-solid-contrast-fill", "var(--sea)"),
+            ("--wave-color-text-main", "#e6e6fa"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+        let themed = menu_words_color(Some(DomOverlay {
+            version: 1,
+            vars,
+            ..DomOverlay::default()
+        }));
+        assert_eq!(themed, rgb(0x3c, 0x8c, 0xf0));
+        // Without the token the words keep the palette's colour.
+        let plain = menu_words_color(Some(DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        }));
+        assert_eq!(plain, Palette::dark().text);
+        assert_eq!(menu_words_color(None), Palette::dark().text);
+    }
 }
 
 fn track_target(uri: &str) -> Option<ContextTarget> {
