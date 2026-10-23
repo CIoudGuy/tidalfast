@@ -283,7 +283,7 @@ fn data_page(app: &mut App, ui: &mut egui::Ui, path: &str, shelves: &[Shelf], ti
 }
 
 /// A row of Explore's pills, scrolled sideways; when it runs past the
-/// column a fade and a › button (‹ once scrolled) page it.
+/// column a fade and a â€º button (â€¹ once scrolled) page it.
 fn pill_row(app: &mut App, ui: &mut egui::Ui, links: &[PageLink]) {
     let palette = app.palette;
     let width = ui.available_width();
@@ -420,10 +420,8 @@ fn pill(ui: &mut egui::Ui, palette: &Palette, label: &str) -> egui::Response {
         let corner = themed
             .and_then(|s| s.radius)
             .map_or(12, |r| r.clamp(0.0, 255.0).round() as u8);
-        if fill.a() > 0 {
-            ui.painter()
-                .rect_filled(rect, CornerRadius::same(corner), fill);
-        }
+        // The theme's shadow, gradients, borders and glow round the fill.
+        super::plugin_dom::paint_cloud_pill(ui, rect, CornerRadius::same(corner), fill);
         let at = pos2(
             rect.left() + PILL_PADDING,
             rect.center().y - galley.size().y / 2.0,
@@ -517,9 +515,10 @@ fn link_grid(app: &mut App, ui: &mut egui::Ui, links: &[PageLink]) {
             fill = style.fill.unwrap_or(fill);
             ink = style.color.unwrap_or(ink);
         }
-        if fill.a() > 0 {
-            ui.painter().rect_filled(hit, CornerRadius::same(8), fill);
-        }
+        let corner = themed
+            .and_then(|s| s.radius)
+            .map_or(8, |r| r.clamp(0.0, 255.0).round() as u8);
+        super::plugin_dom::paint_page_link(ui, hit, CornerRadius::same(corner), fill);
         theme::paint_icon(ui, link_icon(link), icon, 20.0, ink);
         ui.painter()
             .galley_with_override_text_color(words.min, galley, ink);
@@ -616,5 +615,84 @@ mod tests {
         )));
         assert!(!is_explore(&Page::Shelf("v2/home/pages/x".into())));
         assert!(!is_explore(&Page::Home));
+    }
+
+    /// A theme's box for Explore's pills and icon links beyond their fill
+    /// (`[data-test^=page-link-] { box-shadow; border-radius }`, the same
+    /// on `._button_3357ce6`) is drawn round them, in the theme's corners:
+    /// only the fill was drawn, the links always 8 round.
+    #[test]
+    fn explore_pills_and_links_take_their_themes_whole_box() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::keys::{cloud_btn, page_link};
+        let root = std::env::temp_dir().join(format!(
+            "tidalfast-explore-look-{}",
+            std::process::id()
+        ));
+        let mut app = App::new(
+            &crate::backend::Waker::default(),
+            crate::paths::AppDirs {
+                config: root.join("config"),
+                state: root.join("state"),
+                cache: root.join("cache"),
+            },
+            crate::settings::Settings::default(),
+            crate::app::AppOptions {
+                media_controls: false,
+                restore_sign_in: false,
+                tray: false,
+            },
+        );
+        let red = Color32::from_rgb(200, 40, 60);
+        let mut draw = |shadow: Option<&str>| {
+            let mut overlay = DomOverlay {
+                version: 5,
+                ..DomOverlay::default()
+            };
+            for key in [cloud_btn(0), page_link(0)] {
+                overlay.hosts.insert(
+                    key,
+                    HostOverride {
+                        style: Style {
+                            background_color: Some("rgb(200, 40, 60)".into()),
+                            border_radius: Some("3px".into()),
+                            box_shadow: shadow.map(str::to_string),
+                            ..Style::default()
+                        },
+                        ..HostOverride::default()
+                    },
+                );
+            }
+            crate::ui::plugin_dom::test_overlay(Some(overlay));
+            crate::ui::plugin_dom::test_page_frame();
+            let ctx = egui::Context::default();
+            theme::install(&ctx);
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                crate::ui::plugin_dom::cloud_row(ui.max_rect());
+                pill(ui, &app.palette.clone(), "Pop");
+                link_grid(&mut app, ui, &[link("New", "pages/new", None)]);
+            });
+            out.textures_delta.clear();
+            crate::ui::plugin_dom::test_overlay(None);
+            let fills: Vec<egui::CornerRadius> = out
+                .shapes
+                .iter()
+                .filter_map(|c| match &c.shape {
+                    egui::Shape::Rect(r) if r.fill == red => Some(r.corner_radius),
+                    _ => None,
+                })
+                .collect();
+            (out.shapes.len(), fills)
+        };
+        let (flat, fills) = draw(None);
+        let (shadowed, shadowed_fills) = draw(Some("0 2px 10px rgba(0, 0, 0, .6)"));
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(
+            fills,
+            [egui::CornerRadius::same(3); 2],
+            "the pill's and the link's fill, in the theme's corners"
+        );
+        assert_eq!(shadowed_fills.len(), 2, "each fill once");
+        assert!(shadowed > flat + 8, "two shadows: {flat} -> {shadowed}");
     }
 }

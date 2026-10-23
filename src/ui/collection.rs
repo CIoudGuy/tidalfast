@@ -1443,8 +1443,24 @@ pub(super) fn header_pill_width(
         .map_or(egui::CornerRadius::same(24), |r| {
             egui::CornerRadius::same(r.clamp(0.0, 24.0).round() as u8)
         });
-    ui.painter().rect_filled(rect, corner, fill);
-    if let Some((width, color)) = themed.and_then(|t| t.border) {
+    // The theme's whole box when it is more than a fill and a border (a
+    // shadow, a gradient, an inset glow), round the pill's own fill.
+    let key = if primary {
+        crate::luna::dom_anchors::keys::PAGE_PLAY
+    } else {
+        crate::luna::dom_anchors::keys::PAGE_SHUFFLE
+    };
+    let look = themed
+        .and_then(|_| super::plugin_dom::anchor_look(key))
+        .filter(|l| super::plugin_dom::paints_beyond_fill(l));
+    if let Some(look) = &look {
+        super::plugin_dom::paint_look_with_fill(ui, key, look, rect, corner, fill);
+    } else {
+        ui.painter().rect_filled(rect, corner, fill);
+    }
+    if look.is_none()
+        && let Some((width, color)) = themed.and_then(|t| t.border)
+    {
         ui.painter().rect_stroke(
             rect.shrink(width / 2.0),
             corner,
@@ -7079,5 +7095,53 @@ mod tests {
         assert_eq!(lines[0], ["The", "Search"]);
         assert_eq!(lines[1], ["The Search"]);
         assert_eq!(lines[2], [""]);
+    }
+
+    /// A theme's Play pill with a shadow and an inset glow round its fill
+    /// (`[data-test=play-all] { box-shadow }`) is drawn with them, as
+    /// TIDAL's button shows them; only its fill, corners and border were
+    /// drawn.
+    #[test]
+    fn a_header_pills_shadow_and_glow_are_drawn() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        let shapes = |shadow: Option<&str>| {
+            let mut overlay = DomOverlay {
+                version: 3,
+                ..DomOverlay::default()
+            };
+            overlay.hosts.insert(
+                crate::luna::dom_anchors::keys::PAGE_PLAY.to_string(),
+                HostOverride {
+                    style: Style {
+                        background_color: Some("rgb(120, 200, 250)".into()),
+                        box_shadow: shadow.map(str::to_string),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            );
+            super::super::plugin_dom::test_overlay(Some(overlay));
+            let ctx = egui::Context::default();
+            theme::install(&ctx);
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                header_pill_width(ui, &Palette::dark(), Icon::Play, "Play", true, 160.0);
+            });
+            out.textures_delta.clear();
+            super::super::plugin_dom::test_overlay(None);
+            let blue = |c: egui::Color32| c == egui::Color32::from_rgb(120, 200, 250);
+            let fills = out
+                .shapes
+                .iter()
+                .filter(|c| matches!(&c.shape, egui::Shape::Rect(r) if blue(r.fill)))
+                .count();
+            (out.shapes.len(), fills)
+        };
+        let (flat, fills) = shapes(None);
+        assert_eq!(fills, 1, "the theme's fill");
+        let (shadowed, fills) = shapes(Some("0 4px 1em rgba(0, 0, 0, .5)"));
+        assert_eq!(fills, 1, "the theme's fill, once");
+        assert!(shadowed > flat + 4, "outer shadow: {flat} -> {shadowed}");
+        let (glowing, _) = shapes(Some("inset 0 0 8px rgb(255, 255, 255)"));
+        assert!(glowing > flat + 3, "inset glow: {flat} -> {glowing}");
     }
 }
