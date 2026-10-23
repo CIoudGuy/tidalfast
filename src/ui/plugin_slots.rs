@@ -883,6 +883,9 @@ struct Inherit {
     /// `text-shadow` layers (inherited, as in CSS), offset and colour; the
     /// first is painted on top.
     shadow: [Option<(Vec2, Color32)>; 2],
+    /// `filter: blur()` on the element or one round it, in points (the
+    /// standard deviation): its words are drawn soft. 0 is sharp.
+    blur: f32,
     /// The block round this text cuts it with "…" (`text-overflow:
     /// ellipsis`): its inline content, words in spans included.
     ellipsis: bool,
@@ -978,6 +981,7 @@ impl Inherit {
             fill: None,
             line_height: None,
             shadow: [None; 2],
+            blur: 0.0,
             ellipsis: false,
             marker: Marker::Disc,
         }
@@ -1099,6 +1103,9 @@ fn add_text(
     inherit: Inherit,
 ) -> egui::Response {
     let layers: Vec<(Vec2, Color32)> = inherit.shadow.iter().flatten().copied().collect();
+    if inherit.blur >= 0.5 {
+        return add_blurred(ui, text, wrap, inherit);
+    }
     if layers.is_empty() {
         return add_line(ui, text, wrap, inherit);
     }
@@ -1133,6 +1140,65 @@ fn add_text(
             if let Some(clip) = clip {
                 list.set(*slot, clip, egui::Shape::Vec(copies));
             }
+        }
+    });
+    response
+}
+
+/// Where the copies of blurred words sit, in standard deviations, and how
+/// much of the Gaussian each carries: the centre, then six points at 0.7
+/// and six at 1.4 between them.
+fn blur_taps() -> impl Iterator<Item = (Vec2, f32)> {
+    let ring = |r: f32, turn: f32| {
+        (0..6).map(move |i| {
+            let a = std::f32::consts::TAU * (i as f32 + turn) / 6.0;
+            (vec2(a.cos(), a.sin()) * r, (-r * r / 2.0).exp())
+        })
+    };
+    std::iter::once((Vec2::ZERO, 1.0))
+        .chain(ring(0.7, 0.0))
+        .chain(ring(1.4, 0.5))
+}
+
+/// Add a text label whose words are blurred (`filter: blur()`): the glyphs
+/// are drawn as see-through copies spread over the blur, which together
+/// cover as much as the sharp words did where they all overlap and fade
+/// at the edges. Its `text-shadow` is left out, as the blur would soften
+/// it into the words.
+fn add_blurred(
+    ui: &mut egui::Ui,
+    text: RichText,
+    wrap: Option<egui::TextWrapMode>,
+    inherit: Inherit,
+) -> egui::Response {
+    let layer = ui.layer_id();
+    let from = ui.ctx().graphics_mut(|g| g.entry(layer).next_idx().0);
+    let response = add_line(ui, text, wrap, inherit);
+    let total: f32 = blur_taps().map(|(_, w)| w).sum();
+    // Opaque words would stay opaque in every copy; a tenth short of it
+    // keeps the overlap solid and lets the edges fade.
+    let clear = 0.1_f32;
+    ui.ctx().graphics_mut(|g| {
+        let list = g.entry(layer);
+        let texts: Vec<(usize, Rect, egui::epaint::TextShape)> = list
+            .all_entries()
+            .enumerate()
+            .skip(from)
+            .filter_map(|(i, c)| match &c.shape {
+                egui::Shape::Text(t) => Some((i, c.clip_rect, t.clone())),
+                _ => None,
+            })
+            .collect();
+        for (i, clip, t) in texts {
+            let copies = blur_taps()
+                .map(|(at, w)| {
+                    let mut c = t.clone();
+                    c.pos += at * inherit.blur;
+                    c.opacity_factor *= 1.0 - clear.powf(w / total);
+                    egui::Shape::Text(c)
+                })
+                .collect();
+            list.set(egui::layers::ShapeIdx(i), clip, egui::Shape::Vec(copies));
         }
     });
     response
@@ -4322,6 +4388,17 @@ fn draw_box(
     }
     if let Some(t) = &style.text_shadow {
         inherit.shadow = text_shadows(&css::resolve_vars(t, cx.vars), inherit.size, inherit.color);
+    }
+    // A blur applies to everything inside the element, whatever their own
+    // `filter` says (radiant-lyrics blurs lines away from the sung one by
+    // `.035em` to `.07em`).
+    if let Some(r) = style
+        .filter
+        .as_deref()
+        .and_then(|f| blur_radius(&css::resolve_vars(f, cx.vars)))
+        .and_then(|r| css::length(&r, inherit.size, 0.0, cx.viewport))
+    {
+        inherit.blur = inherit.blur.max(r);
     }
     if node.tag == "#text" {
         let Some(text) = node.text.as_deref().filter(|t| !t.trim().is_empty()) else {
@@ -7704,6 +7781,71 @@ mod tests {
             .copied()
             .unwrap();
         assert!((tip.x - tri.center().x).abs() < 0.5, "{points:?}");
+    }
+
+    /// `filter: blur()` on a line softens the words inside it, its
+    /// children's own `filter: none` included (radiant-lyrics blurs the
+    /// lines away from the sung one by `.07em`): see-through copies spread
+    /// round the words, none of them as solid as the sharp words. A line
+    /// without one stays one sharp copy.
+    #[test]
+    fn a_blurred_line_draws_its_words_soft() {
+        let line = |id: u64, words: &str, filter: Option<&str>| VNode {
+            id,
+            tag: "div".into(),
+            style: Style {
+                font_size: Some("40px".into()),
+                filter: filter.map(Into::into),
+                ..Style::default()
+            },
+            children: vec![VNode {
+                id: id + 1,
+                tag: "span".into(),
+                style: Style {
+                    filter: Some("none".into()),
+                    ..Style::default()
+                },
+                children: vec![text_node(id + 2, words)],
+                ..VNode::default()
+            }],
+            ..VNode::default()
+        };
+        let holder = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                top: Some("10px".into()),
+                left: Some("10px".into()),
+                ..Style::default()
+            },
+            children: vec![
+                line(10, "Sung", None),
+                line(20, "Coming", Some("blur(.07em)")),
+            ],
+            ..VNode::default()
+        };
+        let shapes = floating_shapes(vec![holder]);
+        let copies = |words: &str| -> Vec<egui::epaint::TextShape> {
+            shapes
+                .iter()
+                .filter_map(|s| match s {
+                    egui::Shape::Text(t) if t.galley.text() == words => Some(t.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+        let sharp = copies("Sung");
+        assert_eq!(sharp.len(), 1, "{sharp:?}");
+        assert!((sharp[0].opacity_factor - 1.0).abs() < 1e-6);
+        let soft = copies("Coming");
+        assert!(soft.len() > 1, "one sharp copy: {soft:?}");
+        assert!(soft.iter().all(|t| t.opacity_factor < 0.9), "{soft:?}");
+        // Spread over the blur: 0.07em of 40 points is 2.8 points.
+        let xs: Vec<f32> = soft.iter().map(|t| t.pos.x).collect();
+        let spread = xs.iter().copied().fold(f32::MIN, f32::max)
+            - xs.iter().copied().fold(f32::MAX, f32::min);
+        assert!(spread > 4.0 && spread < 10.0, "{xs:?}");
     }
 
     /// custom-fonts' Comic Sans tag: `transform: rotate(-3deg)` turns the
