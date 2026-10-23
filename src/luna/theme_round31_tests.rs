@@ -68,3 +68,64 @@ a { color: rgb(200, 160, 250) !important; }
     // The artist is a link in TIDAL too.
     assert_eq!(text.artist, Some(egui::Color32::from_rgb(200, 160, 250)));
 }
+
+/// A theme that colours every element (`* { color }`, Meteor Night's
+/// white) leaves TIDAL's playing playlist name in its teal and the queue's
+/// playing song in its accent: TIDAL's own rules for their quality classes
+/// (`._qualityHigh_39ef787` on the name, `._textHigh_ee6a2ff` on the
+/// title, TIDAL 2.46.0) outweigh it, as TIDAL's captures under Meteor Night
+/// show. Tidalfast drew both white. Other names take the colour.
+#[test]
+fn a_catch_all_colour_leaves_the_playing_items_to_tidal() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom::{self as pd, SidePanel, themed, tidal_panel_text};
+    let css = r#"/* {"name": "Snowfall"} */
+:root { --snow: rgb(240, 240, 250); }
+body { background-color: rgb(12, 14, 30) !important; }
+* { color: var(--snow); }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    let row = Some([8.0, 300.0, 224.0, 52.0]);
+    frame.sidebar.rows = vec![(row, false), (row, false)];
+    frame.sidebar.playing = Some(1);
+    let tree = dom_anchors::build(&frame);
+    let luna = themed_luna("snowfall.css", css);
+    let idle = dom_anchors::keys::lib_row_title(0);
+    let playing = dom_anchors::keys::lib_row_title(1);
+    let o = wait(&luna, &tree, &|o| {
+        o.hosts.get(&idle).is_some_and(|h| h.style.color.is_some())
+            && o.hosts.contains_key(dom_anchors::keys::QUEUE_ROLE_TEXT)
+    });
+    luna.shutdown();
+    let playing_color = o.hosts.get(&playing).and_then(|h| h.style.color.clone());
+    assert_eq!(playing_color, None);
+    pd::test_overlay(Some((*o).clone()));
+    let base = Palette::dark();
+    let queue = tidal_panel_text(themed(&base, &o), SidePanel::Queue);
+    pd::test_overlay(None);
+    assert_eq!(queue.accent, base.accent);
+    assert_eq!(queue.text, egui::Color32::from_rgb(240, 240, 250));
+}
+
+/// A rule that names the queue's titles with more weight than TIDAL's own
+/// still colours the playing one (the cotton candy family's white).
+#[test]
+fn a_heavier_rule_still_colours_the_playing_song() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom::{self as pd, SidePanel, themed, tidal_panel_text};
+    let css = r#"/* {"name": "Pinned words"} */
+._playQueueItemsContainer_01c88fe ._marketText_1lyag_1._medium20_1lyag_192 { color: rgb(250, 200, 230); }
+"#;
+    let tree = dom_anchors::build(&dom_anchors::sample_frame());
+    let luna = themed_luna("pinned-words.css", css);
+    let o = wait(&luna, &tree, &|o| {
+        o.hosts
+            .get(dom_anchors::keys::QUEUE_ROLE_PLAYING)
+            .is_some_and(|h| h.style.color.is_some())
+    });
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let queue = tidal_panel_text(themed(&Palette::dark(), &o), SidePanel::Queue);
+    pd::test_overlay(None);
+    assert_eq!(queue.accent, egui::Color32::from_rgb(250, 200, 230));
+}
