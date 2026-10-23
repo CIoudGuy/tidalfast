@@ -1764,12 +1764,47 @@ fn synth(n: usize, channel: i32) -> Vec<f32> {
         .collect()
 }
 
+/// The rate plugins' audio runs at. Chromium runs an `AudioContext` at the
+/// output device's mixing rate, 48 kHz on Windows' shared-mode default,
+/// and resamples what it is given (TIDAL's playing song, through
+/// `captureStream()`) to it, whatever the song's own rate. Spectra keep
+/// their 0 to 24 kHz span: at an 88.2 kHz song's own rate half the bins
+/// would always be empty, and a plugin that averages them (audio-visualizer
+/// hides its panel under a level) takes a quiet song for silence.
+const CONTEXT_RATE: f64 = 48_000.0;
+
 fn samples(n: usize, channel: i32) -> Vec<f32> {
     crate::audio_tap::arm();
     if demo_audio() && !crate::audio_tap::live() {
         return synth(n, channel);
     }
-    crate::audio_tap::read(n, channel)
+    let src = f64::from(crate::audio_tap::rate());
+    if src <= 0.0 || (src - CONTEXT_RATE).abs() < 1.0 {
+        return crate::audio_tap::read(n, channel);
+    }
+    let need = ((n as f64 * src / CONTEXT_RATE).ceil() as usize + 2).min(crate::audio_tap::FRAMES);
+    to_context_rate(&crate::audio_tap::read(need, channel), src, n)
+}
+
+/// The last `n` samples at [`CONTEXT_RATE`] of `block`, the latest samples
+/// at `src` Hz, by linear interpolation back from its last sample; what
+/// the block does not reach is silence.
+fn to_context_rate(block: &[f32], src: f64, n: usize) -> Vec<f32> {
+    let step = src / CONTEXT_RATE;
+    let last = block.len() as f64 - 1.0;
+    (0..n)
+        .map(|k| {
+            let at = last - (n - 1 - k) as f64 * step;
+            if at < 0.0 {
+                return 0.0;
+            }
+            let i = at.floor() as usize;
+            let f = (at - i as f64) as f32;
+            let a = block[i];
+            let b = block.get(i + 1).copied().unwrap_or(a);
+            a + (b - a) * f
+        })
+        .collect()
 }
 
 /// The last `n` samples of a channel (0, 1, or -1 for mono).
@@ -1799,9 +1834,15 @@ fn audio_info() -> Vec<f64> {
             .unwrap_or(0.0);
         return vec![48_000.0, (t / 16.0).floor(), 1.0];
     }
+    let src = f64::from(crate::audio_tap::rate());
+    let position = crate::audio_tap::position() as f64;
     vec![
-        f64::from(crate::audio_tap::rate()),
-        crate::audio_tap::position() as f64,
+        CONTEXT_RATE,
+        if src > 0.0 {
+            (position * CONTEXT_RATE / src).floor()
+        } else {
+            position
+        },
         if crate::audio_tap::live() { 1.0 } else { 0.0 },
     ]
 }
