@@ -847,7 +847,20 @@ reading one property at a time:
 - **Contrast words.** TIDAL draws a track row (its title and time where no
   rule names them) and its menus' words in `--wave-color-solid-contrast-fill`,
   not in the body's colour (`token_contrast_text`): a theme that sets the
-  two apart (Mocha Blue) shows it.
+  two apart (Mocha Blue) shows it. A menu's title, a submenu's heading and
+  the rows without an anchor of their own (rows that open a submenu, a
+  submenu's rows) read the token as it stands in the menu (`menu_words`,
+  `menu_row_words`): the menu's title stand-in (`div._header_2f58a49 >
+  div._titleGroup_208d294 > div._title_2bc5e10`, under the menu stand-in)
+  takes TIDAL's rule `color: var(--wave-color-solid-contrast-fill)` from
+  the TIDAL sheet, so a theme that sets the token on `._contextMenu_` alone
+  (Cotton Candy Nights' black) reaches it, and a rule for
+  `._actionTextInner_` colours those rows as it does the others.
+- **Cards laid out later.** A box a theme puts round contents that are laid
+  out after it is read (the player bar's `._trackContent_` and
+  `._utilityButtons_`) keeps a paint slot under the contents
+  (`part_card`) and lays its whole look into it once they are placed
+  (`paint_card`), grown by its padding.
 - **Menus.** Every popup menu shares one egui frame, which takes a single
   colour. When the theme's menu box (`div._contextMenu_[role=menu]` and
   the popover round it, the `theme-roles` stand-ins) is more than a colour,
@@ -862,7 +875,13 @@ list panel, feed card and every other `paint_themed_box` user, the popup
 menus' box, submenus' own box (`div._subMenu_706d970`, laid into egui's
 submenu frames by a second mark), the Collection grid (`section._grid_97562f5`,
 grown by its padding round the cards), the header's Play and Shuffle pills,
-and Explore's pills and icon links (their corners too). A border on some sides of a box (`border-style: solid
+and Explore's pills and icon links (their corners too), the top bar's
+search pill (`div._searchField_b2eb7f7` and its popover wrapper; the other
+search fields keep the fill alone), the player bar's track-info and
+utility-button cards, and the play queue's rows (`div._container_aab70e3
+[data-test=playqueue-item]` stand-ins: the playing row, an idle row and the
+hovered row, which the queue floats over the row under the pointer so
+`:hover` rules reach it). A border on some sides of a box (`border-style: solid
 none none none`, the runtime's `border-width` of four) is drawn on those
 sides for every box layer, not round the box.
 
