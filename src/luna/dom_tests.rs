@@ -586,7 +586,7 @@ fn plugin_css_restyles_hosts_and_sets_variables() {
 new lib.StyleTag("dom-test", unloads, `
 /* comment { not: a rule } */
 :root { --wave-color-solid-accent-fill: #ff0000; --x: var(--missing, 4px); }
-[role="row"]:has(a[href*="/track/1235"]) { background: rgba(1, 2, 3, 0.5) !important; }
+[role="row"]:has([data-test="table-cell-title"][data-id="1235"]) { background: rgba(1, 2, 3, 0.5) !important; }
 [data-track-id="1235"] { background: blue; }
 div[class^="_bar"] { display: none; }
 #footerPlayer { background: 0 0; }
@@ -1038,7 +1038,7 @@ const go = () => {
 	if (!document.querySelector('[data-test="footer-player"]') || R.done) return;
 	const q = (s) => { try { return document.querySelectorAll(s).length; } catch (e) { return "ERR " + e.message; } };
 	R.counts = {
-		has: q('[role="row"]:has(> * a[href*="/track/"])'),
+		has: q('[role="row"]:has(> * [data-test="table-cell-title"])'),
 		scope: document.querySelector('[data-type="media-table"]').querySelectorAll(":scope > [role=row], :scope > div > div > div > [role=row]").length,
 		is: q(':is(#footerPlayer, #sidebar) a'),
 		where: q(':where([data-test="tracklist-row"]):not([data-index="0"])'),

@@ -215,10 +215,11 @@ fn theme_rules_reach_explores_icon_links() {
     let _ = std::fs::remove_dir_all(&data);
 }
 
-/// scroll-to-playing colours every `a`, `span`, `div` and `p` of the
-/// playing row (`[role="row"]:has(a[href*="/track/<id>"]) div`): in TIDAL
-/// that reaches a playlist's Added by and Date added cells too, which
-/// Tidalfast left white (it had no element for them).
+/// A rule for the playing row's `div`s (`[data-track-id="<id>"] div`)
+/// reaches a playlist's Added by and Date added cells too, which Tidalfast
+/// left white (it had no element for them). scroll-to-playing's rules
+/// for a row holding a `/track/` link reach nothing in a track list:
+/// TIDAL 2.46.0's rows hold no such link (round 31), its title is a span.
 #[test]
 fn the_playing_rows_colour_reaches_its_added_by_and_date_added_cells() {
     use crate::ui::plugin_dom::{row_text, test_overlay};
@@ -232,8 +233,8 @@ fn the_playing_rows_colour_reaches_its_added_by_and_date_added_cells() {
         r#"/* {{"name": "Playing row"}} */
 [role="row"]:has(a[href*="/track/{id}"]) a,
 [role="row"]:has(a[href*="/track/{id}"]) span,
-[role="row"]:has(a[href*="/track/{id}"]) div,
-[role="row"]:has(a[href*="/track/{id}"]) p {{ color: rgb(126, 251, 238) !important; }}
+[role="row"]:has(a[href*="/track/{id}"]) p {{ color: rgb(250, 20, 20) !important; }}
+[data-track-id="{id}"] div {{ color: rgb(126, 251, 238) !important; }}
 "#
     );
     let files: Files = Arc::default();

@@ -360,7 +360,7 @@ pub mod keys {
     pub fn row(list: &str, index: usize) -> String {
         format!("row:{list}:{index}")
     }
-    /// A cell of a row: `row:<list>:<index>:<cell>` (`title`, `title-link`,
+    /// A cell of a row: `row:<list>:<index>:<cell>` (`title`, `title-text`,
     /// `artist`, `duration`, `context`, `actions`).
     pub fn row_cell(list: &str, index: usize, cell: &str) -> String {
         format!("row:{list}:{index}:{cell}")
@@ -1977,19 +1977,22 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
             .attr("role", "gridcell")
             .at(row.title_rect),
     );
-    out.push(
-        el(cell("title-text"), Some(&title), "span")
-            .modules(&["titleText"])
-            .test("table-cell-title")
-            .at(row.title_rect),
-    );
-    out.push(
-        el(cell("title-link"), Some(&cell("title-text")), "a")
-            .attr("href", format!("/track/{}", row.track_id))
-            .modules(&["link"])
-            .text(row.title.clone())
-            .at(row.title_rect),
-    );
+    // The title's words sit in the span itself, not in a link (TIDAL
+    // 2.46.0: `span._titleText_51cccae.table--inactive-title[data-id]
+    // [title]`), so a theme's `a { color }` does not reach them and its
+    // `[class*="active"]` does (Catppuccin Mocha Blue's blue titles). A
+    // playing row's class is not captured, so it gets neither.
+    let mut title_text = el(cell("title-text"), Some(&title), "span")
+        .modules(&["titleText"])
+        .test("table-cell-title")
+        .attr("data-id", row.track_id.clone())
+        .attr("title", row.title.clone())
+        .text(row.title.clone())
+        .at(row.title_rect);
+    if !row.playing {
+        title_text = title_text.class("table--inactive-title");
+    }
+    out.push(title_text);
     let artist = cell("artist");
     out.push(
         el(artist.clone(), Some(&key), "div")

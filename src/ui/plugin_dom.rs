@@ -1850,7 +1850,7 @@ pub fn row_text(list: &str, index: usize, window: Color32) -> Option<RowText> {
     // keep their own colour: Black Glow's stay white).
     let row_token = || token_contrast_text(window);
     let made = RowText {
-        title: read(&["title-link", "title-text", "title"]).or_else(row_token),
+        title: read(&["title-text", "title"]).or_else(row_token),
         artist: read(&["artist:0", "artist"]),
         album: read(&["album-link", "album"]),
         time: read(&["duration"]).or_else(row_token),
@@ -7623,7 +7623,7 @@ mod tests {
             ..DomOverlay::default()
         };
         o.hosts.insert(
-            dom_anchors::keys::row_cell(list, 0, "title-link"),
+            dom_anchors::keys::row_cell(list, 0, "title-text"),
             HostOverride {
                 style: Style {
                     color: Some("rgb(126, 251, 238)".into()),
