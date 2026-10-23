@@ -47,7 +47,9 @@ impl LunaHost for ActionHost {
         match request {
             NetRequest::Fetch { method, url, .. }
                 if url.contains("ask-me")
-                    || (method != "GET" && url.starts_with("https://desktop.tidal.com/v1/")) =>
+                    || (method != "GET"
+                        && (url.starts_with("https://desktop.tidal.com/v1/")
+                            || url.starts_with("https://api.tidal.com/v2/my-collection/"))) =>
             {
                 NetVerdict::Ask("change a playlist".into())
             }
@@ -1514,6 +1516,44 @@ lib.redux.intercept("playQueue/MOVE_TO", unloads, async () => {
         "no second question"
     );
     assert!(!host.notes().iter().any(|n| n.starts_with("wrote")));
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A change to the account's playlist folders (TIDAL v2,
+/// `my-collection/playlists/folders/create-folder`: star-ratings making its
+/// Rated folder) asks the user as a v1 write does. The shim did not count
+/// it as a write, so it was refused without the question.
+#[test]
+fn a_playlist_folder_write_asks_first() {
+    let (luna, host, dir) = start(
+        r#"
+const headers = { Authorization: "Bearer tidalfast-account" };
+lib.redux.intercept("playQueue/MOVE_TO", unloads, async () => {
+	const url = "https://api.tidal.com/v2/my-collection/playlists/folders/create-folder?folderId=root&name=Rated";
+	try {
+		say({ status: (await fetch(url, { method: "PUT", headers })).status });
+	} catch (e) {
+		say({ status: String(e.message) });
+	}
+});
+"#,
+        PlaybackSnapshot::default(),
+    );
+    assert!(answer(&luna, "playQueue/MOVE_TO", json!(1)));
+    let b = wait_until(&luna, 10, |s| !s.message_boxes.is_empty()).message_boxes[0].clone();
+    assert_eq!(b.title, "Change your TIDAL account?");
+    luna.answer_message_box(b.id, Some(1));
+    host.wait(&luna, "the write", |h| {
+        h.notes().iter().any(|n| n.contains("\"status\""))
+    });
+    let notes = host.notes();
+    assert!(
+        notes
+            .iter()
+            .any(|n| n.starts_with("wrote Actions PUT https://api.tidal.com/v2/my-collection/")),
+        "{notes:?}"
+    );
     luna.shutdown();
     let _ = std::fs::remove_dir_all(dir);
 }

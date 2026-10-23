@@ -1073,7 +1073,8 @@
 		} catch {
 			return false;
 		}
-		if (u.protocol !== "https:" || !/^(desktop|api|listen)\.tidal\.com$/.test(u.hostname) || !u.pathname.startsWith("/v1/")) return false;
+		// v1, and v2's playlist folders (`/v2/my-collection/...`).
+		if (u.protocol !== "https:" || !/^(desktop|api|listen)\.tidal\.com$/.test(u.hostname) || !(u.pathname.startsWith("/v1/") || u.pathname.startsWith("/v2/my-collection/"))) return false;
 		return Object.entries(headers).some(([k, v]) => k.toLowerCase() === "authorization" && v === "Bearer tidalfast-account");
 	};
 	g.fetch = async (input, init = {}) => {
