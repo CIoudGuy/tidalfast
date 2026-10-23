@@ -694,6 +694,15 @@ pub fn moments_with(
     let elapsed = clock.elapsed(list, now, away);
     let mut wake_in: Option<f64> = None;
     let mut soonest = |s: f64| wake_in = Some(wake_in.map_or(s, |w: f64| w.min(s)));
+    // An endless animation (spinny-cover's turning cover, a twinkling sky)
+    // is an endless decoration: drawn as the app's own are, thirty times a
+    // second, fifteen out of focus and not at all while nobody sees the
+    // window, rather than at the display's every refresh.
+    let endless_frame = match crate::theme::budget(ctx) {
+        crate::power::Budget::Normal => Some(crate::theme::AMBIENT_FRAME.as_secs_f64()),
+        crate::power::Budget::Saver => Some(2.0 * crate::theme::AMBIENT_FRAME.as_secs_f64()),
+        crate::power::Budget::Background => None,
+    };
     let out = list
         .iter()
         .zip(elapsed)
@@ -710,9 +719,19 @@ pub fn moments_with(
                 soonest(-local);
             } else if m.is_some_and(|m| m.running) {
                 let into = (local / a.seconds.max(1e-9)).fract() as f32;
-                match a.timing.next_step(into) {
-                    Some(share) => soonest(f64::from(share) * a.seconds),
-                    None => soonest(0.0),
+                match (a.timing.next_step(into), a.count.is_infinite()) {
+                    (Some(share), true) => {
+                        if let Some(frame) = endless_frame {
+                            soonest((f64::from(share) * a.seconds).max(frame));
+                        }
+                    }
+                    (Some(share), false) => soonest(f64::from(share) * a.seconds),
+                    (None, true) => {
+                        if let Some(frame) = endless_frame {
+                            soonest(frame);
+                        }
+                    }
+                    (None, false) => soonest(0.0),
                 }
             } else if local < a.seconds * a.count {
                 soonest(0.0);
@@ -998,6 +1017,47 @@ mod tests {
         let spin = anim("spin 0.8 0 infinite normal linear running none");
         let rest = spin.at_rest().unwrap();
         assert_eq!((rest.progress, rest.running), (0.0, false));
+    }
+
+    /// An endless animation (spinny-cover turns its cover with `animation:
+    /// spin 24s linear infinite`) asked for every frame, so the window
+    /// redrew at the display's every refresh, out of focus as well (a
+    /// window that no display paces drew some 800 times a second). It is
+    /// drawn as the app's own endless decorations are: thirty times a
+    /// second, fifteen out of focus, not while nobody sees the window. A
+    /// finite one still gets every frame.
+    #[test]
+    fn endless_animations_ask_for_frames_as_the_apps_decorations_do() {
+        use crate::power::Budget;
+        let delay = |budget: Budget, list: &[Animation]| {
+            let ctx = egui::Context::default();
+            let mut out = None;
+            for _ in 0..3 {
+                let mut o = ctx.run_ui(egui::RawInput::default(), |ui| {
+                    crate::theme::set_budget(ui.ctx(), budget);
+                    let _ = moments(ui.ctx(), egui::Id::new("spinning"), list);
+                });
+                o.textures_delta.clear();
+                out = Some(o);
+            }
+            out.unwrap().viewport_output[&egui::ViewportId::ROOT].repaint_delay
+        };
+        let spin = [anim("spin 24 0 infinite normal linear running none")];
+        let frame = crate::theme::AMBIENT_FRAME;
+        let normal = delay(Budget::Normal, &spin);
+        // (egui counts the delay from the frame's start, a frame's time on.)
+        assert!(
+            normal > std::time::Duration::ZERO && normal <= frame,
+            "{normal:?}"
+        );
+        let saver = delay(Budget::Saver, &spin);
+        assert!(saver > frame && saver <= frame * 2, "{saver:?}");
+        assert!(
+            delay(Budget::Background, &spin) > std::time::Duration::from_secs(60),
+            "no frames while nobody sees the window"
+        );
+        let fade = [anim("fade 24 0 1 normal linear running none")];
+        assert_eq!(delay(Budget::Normal, &fade), std::time::Duration::ZERO);
     }
 
     #[test]

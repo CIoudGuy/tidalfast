@@ -1240,7 +1240,7 @@ pub fn repaint_after(ctx: &egui::Context, interval: std::time::Duration) {
 /// How often an endless decoration is drawn (the skeleton shimmer, a busy
 /// spinner): thirty times a second, which keeps a soft sweep smooth without
 /// redrawing the whole window at the display's rate.
-const AMBIENT_FRAME: std::time::Duration = std::time::Duration::from_millis(33);
+pub(crate) const AMBIENT_FRAME: std::time::Duration = std::time::Duration::from_millis(33);
 
 fn budget_id() -> egui::Id {
     egui::Id::new("tidalfast-power-budget")
