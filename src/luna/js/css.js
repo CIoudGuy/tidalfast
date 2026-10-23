@@ -766,6 +766,21 @@
 		return out + value.slice(i);
 	};
 	D.resolveVars = resolveVars;
+	// The variables a `@keyframes` body names (kept with the parsed frames).
+	const kfVars = new WeakMap();
+	const keyframeVars = (frames) => {
+		let names = kfVars.get(frames);
+		if (names) return names;
+		names = new Set();
+		for (const [, decls] of frames) for (const [, v] of decls) for (const m of String(v).matchAll(/var\(\s*(--[\w-]+)/g)) names.add(m[1]);
+		kfVars.set(frames, names);
+		return names;
+	};
+	const hashString = (s) => {
+		let h = 0x811c9dc5;
+		for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193) >>> 0;
+		return h.toString(36);
+	};
 	// A `var(--x)` left in a resolved value names a variable nothing defines:
 	// TIDAL's `--wave-*` tokens (resolved later to the app's palette) and a
 	// gradient's first argument (an angle `@property` registers, which an
@@ -1417,28 +1432,54 @@
 		const t4 = L.stat ? Date.now() : 0;
 		const keyframes = {};
 		const kfCache = rootMemo.keyframes;
+		const framesWith = (frames, vars) =>
+			frames.map(([off, decls]) => {
+				const frame = toStyle(decls, vars, null) ?? {};
+				// `--rotate: 360deg`: a custom property an animation moves.
+				for (const [k, v] of decls) if (k.startsWith("--")) (frame.custom ??= {})[k] = String(v).trim();
+				// A keyframe's own easing, for the interval after it.
+				if (decls.has("animation-timing-function")) (frame.custom ??= {})["animation-timing-function"] = timingWord(resolveVars(decls.get("animation-timing-function"), vars));
+				return [off, frame];
+			});
 		if (ix.keyframes.size)
-			for (const st of styles.values()) {
+			for (const [el, st] of styles) {
 				if (!st.animation) continue;
-				for (const a of st.animation.split(",")) {
-					const name = a.split(" ")[0];
+				const list = splitTop(st.animation);
+				let renamed = false;
+				for (let i = 0; i < list.length; i++) {
+					const words = list[i].trim().split(" ");
+					const name = words[0];
 					const frames = ix.keyframes.get(name);
-					if (!frames || keyframes[name]) continue;
+					if (!frames) continue;
+					// Keyframes read variables against the element they
+					// animate (`translate: 0 var(--delta)` with the delta set
+					// on each element): an element whose own values differ
+					// from the root's gets keyframes of its own.
+					const own = el._cc?.myVars;
+					let key = "";
+					if (own && own !== rootVars)
+						for (const v of keyframeVars(frames)) {
+							const x = own.get(v);
+							if (x !== rootVars.get(v)) key += `${v}=${x ?? ""};`;
+						}
+					if (key) {
+						const special = `${name}~${hashString(key)}`;
+						keyframes[special] ??= framesWith(frames, own);
+						words[0] = special;
+						list[i] = words.join(" ");
+						renamed = true;
+						continue;
+					}
+					if (keyframes[name]) continue;
 					const cached = kfCache.get(name);
 					if (cached && cached.frames === frames) {
 						keyframes[name] = cached.out;
 						continue;
 					}
-					keyframes[name] = frames.map(([off, decls]) => {
-						const frame = toStyle(decls, rootVars, null) ?? {};
-						// `--rotate: 360deg`: a custom property an animation moves.
-						for (const [k, v] of decls) if (k.startsWith("--")) (frame.custom ??= {})[k] = String(v).trim();
-						// A keyframe's own easing, for the interval after it.
-						if (decls.has("animation-timing-function")) (frame.custom ??= {})["animation-timing-function"] = timingWord(resolveVars(decls.get("animation-timing-function"), rootVars));
-						return [off, frame];
-					});
+					keyframes[name] = framesWith(frames, rootVars);
 					kfCache.set(name, { frames, out: keyframes[name] });
 				}
+				if (renamed) styles.set(el, { ...st, animation: list.join(",") });
 			}
 		if (L.stat) L.stat("css: keyframes", t4);
 		// The hosts whose text can be selected: the nearest `user-select`

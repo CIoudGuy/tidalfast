@@ -144,7 +144,10 @@ a `hover` event and the overlay is rebuilt (quick-queue's row buttons).
 normalised into `Style::animation` (name, duration, delay, count,
 direction, timing, play state, fill mode) and the frames the styled
 elements use go out in `overlay.keyframes`, with a keyframe's own
-`animation-timing-function`. `transition` and its longhands become
+`animation-timing-function`. A keyframe's `var()` reads the animated
+element's variables: an element whose values differ from the root's gets
+frames of its own, named `name~hash` (radiant-lyrics slides each line from
+its own `--rl-scroll-delta`). `transition` and its longhands become
 `Style::transition` (`transition-property: none` drops it). Timing
 functions keep their arguments (`cubic-bezier(.4,0,.2,1)`, `steps(4,
 jump-none)`, `linear(0,0.25_75%,1)`, spaces as `_`). A side's own border
