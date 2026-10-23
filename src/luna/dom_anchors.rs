@@ -182,6 +182,12 @@ pub mod keys {
     pub const QUEUE_ROLE_PLAYING_ROW: &str = "queue-roles:playing-row";
     pub const QUEUE_ROLE_PLAYING_LINK: &str = "queue-roles:playing-link";
     pub const QUEUE_ROLE_PLAYING: &str = "queue-roles:playing";
+    /// Another row (`div._container_aab70e3[data-test=playqueue-item]`),
+    /// and the same row under the pointer, which the queue puts over the
+    /// hovered row so its `:hover` rules apply (Solo v2's soft fill): the
+    /// look of the queue's other rows.
+    pub const QUEUE_ROLE_ROW: &str = "queue-roles:row";
+    pub const QUEUE_ROLE_HOVER_ROW: &str = "queue-roles:hover-row";
     pub const FULLSCREEN: &str = "fullscreen-button";
     pub const FULLSCREEN_SPAN: &str = "fullscreen-button:span";
 
@@ -1086,6 +1092,14 @@ pub fn build(frame: &Frame) -> HostTree {
         .class("_titleText_6563d98")
         .class("_textHigh_ee6a2ff"),
     );
+    for key in [keys::QUEUE_ROLE_ROW, keys::QUEUE_ROLE_HOVER_ROW] {
+        out.push(
+            el(key, Some(keys::QUEUE_ROLES), "div")
+                .class("_container_aab70e3")
+                .test("playqueue-item")
+                .attr("role", "row"),
+        );
+    }
     // The title is TIDAL's market heading text (the cotton candy family's
     // `._marketText_1lyag_1._heading20_1lyag_75 { color: white }` in the
     // queue, Lunallena's `[class*="heading"]` lime), not a section's

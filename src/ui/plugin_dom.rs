@@ -1783,6 +1783,34 @@ fn tidal_text_roles(o: &DomOverlay, panel: SidePanel) -> (Color32, Color32, Colo
     )
 }
 
+/// Paints a play queue row in `r` (`current` for the playing song's,
+/// `hovered` under the pointer): the whole look a theme gives TIDAL's
+/// `div._container_aab70e3[data-test=playqueue-item]` in that state (its
+/// fill, `:hover` fill, corners, borders, shadows), else the row's own
+/// `native_fill` in `native` corners. The hovered row's stand-in is put
+/// over it, so the pointer there is over it for `:hover`.
+pub fn paint_queue_row(
+    ui: &egui::Ui,
+    r: Rect,
+    current: bool,
+    hovered: bool,
+    native: egui::CornerRadius,
+    native_fill: Color32,
+) {
+    use dom_anchors::keys::{QUEUE_ROLE_HOVER_ROW, QUEUE_ROLE_PLAYING_ROW, QUEUE_ROLE_ROW};
+    let key = if current {
+        QUEUE_ROLE_PLAYING_ROW
+    } else if hovered {
+        QUEUE_ROLE_HOVER_ROW
+    } else {
+        QUEUE_ROLE_ROW
+    };
+    if hovered {
+        float_host(key, r);
+    }
+    paint_part(ui, key, r, native, native_fill);
+}
+
 /// The colour a theme's rules give TIDAL's queue artist line
 /// (`span._artistText_ ._text20_ ._marketText_`, read off its stand-in),
 /// whatever the window: Blur's `[class*="_marketText_"] { color: #ffffffee

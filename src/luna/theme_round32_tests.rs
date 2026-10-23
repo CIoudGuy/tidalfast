@@ -291,3 +291,66 @@ fn a_search_field_rule_fills_the_pill_and_its_input() {
     assert_eq!(layers.len(), 2, "the pill and its input: {layers:?}");
     assert!((layers[0].height() - layers[1].height() - 4.0).abs() < 0.01);
 }
+
+/// The play queue's rows take the look a theme gives TIDAL's
+/// `div._container_aab70e3[data-test=playqueue-item]`: the idle rows its
+/// plain rule, the row under the pointer its `:hover` rule (Solo v2's soft
+/// fill), through the hovered row's stand-in that the queue puts over it.
+/// The rows only had Tidalfast's white hover.
+#[test]
+fn queue_rows_take_their_states_look() {
+    use super::dom::{DomEvent, DomTarget};
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{QUEUE_ROLE_HOVER_ROW, QUEUE_ROLE_ROW};
+    let css = r#"/* {"name": "Soft rows"} */
+._container_aab70e3 { border-radius: 9px; }
+._container_aab70e3:hover { background: rgb(60, 70, 110) !important; }
+"#;
+    let tree = dom_anchors::build(&dom_anchors::sample_frame());
+    let luna = themed_luna("soft-rows.css", css);
+    let _ = wait(&luna, &tree, &|o| o.hosts.contains_key(QUEUE_ROLE_ROW));
+    luna.dom_event(DomEvent {
+        target: DomTarget::Host(QUEUE_ROLE_HOVER_ROW.into()),
+        kind: "hover".into(),
+        data: serde_json::Value::Null,
+    });
+    let o = wait(&luna, &tree, &|o| {
+        o.hosts
+            .get(QUEUE_ROLE_HOVER_ROW)
+            .is_some_and(|h| h.style.background_color.is_some())
+    });
+    luna.shutdown();
+    let fills = |hovered: bool| {
+        pd::test_overlay(Some((*o).clone()));
+        let ctx = egui::Context::default();
+        let r = egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(300.0, 56.0));
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            pd::paint_queue_row(
+                ui,
+                r,
+                false,
+                hovered,
+                egui::CornerRadius::same(6),
+                egui::Color32::from_white_alpha(if hovered { 12 } else { 0 }),
+            );
+        });
+        out.textures_delta.clear();
+        pd::test_overlay(None);
+        out.shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Rect(r) => Some((r.fill, r.corner_radius)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        fills(true),
+        vec![(
+            egui::Color32::from_rgb(60, 70, 110),
+            egui::CornerRadius::same(9)
+        )],
+        "the hovered row"
+    );
+    assert!(fills(false).is_empty(), "an idle row has no fill");
+}
