@@ -370,6 +370,61 @@ pub fn paint_look_with_fill(
     paint_with(ui, key, &own, r, corner, fill);
 }
 
+/// The look of a box a theme puts round a native part's contents, laid out
+/// after it is read (the player bar's `._trackContent_` round the title
+/// and artists, `._utilityButtons_` round the right-hand buttons: the
+/// cotton candy family's light rounded cards). `None` while no theme
+/// gives the anchor a box.
+pub fn part_card(key: &str) -> Option<Arc<AnchorLook>> {
+    anchor_look(key).filter(|l| l.paints_box())
+}
+
+/// Lays the card [`part_card`] read for anchor `key` round `content`
+/// (grown by the box's padding) into the paint slot `slot`, kept under the
+/// contents before they were drawn: its whole look (shadow, fill,
+/// gradients and pictures, borders, inset glow) in its corners.
+pub fn paint_card(
+    ui: &egui::Ui,
+    slot: egui::layers::ShapeIdx,
+    key: &str,
+    look: &AnchorLook,
+    content: Rect,
+) {
+    let [t, right, b, l] = look.padding.unwrap_or([0.0; 4]).map(|p| p.clamp(0.0, 64.0));
+    let r = Rect::from_min_max(
+        content.min - egui::vec2(l, t),
+        content.max + egui::vec2(right, b),
+    );
+    let ctx = ui.ctx();
+    let layer = ui.layer_id();
+    let scratch = egui::LayerId::new(
+        layer.order,
+        egui::Id::new("anchor-look-card").with(layer.id).with(key),
+    );
+    let scratch_ui = egui::Ui::new(
+        ctx.clone(),
+        scratch.id,
+        egui::UiBuilder::new().layer_id(scratch).max_rect(r),
+    );
+    paint_with(
+        &scratch_ui,
+        key,
+        look,
+        r,
+        CornerRadius::ZERO,
+        Color32::TRANSPARENT,
+    );
+    let shapes = ctx.graphics_mut(|g| {
+        let list = g.entry(scratch);
+        let shapes: Vec<egui::Shape> = list.all_entries().map(|c| c.shape.clone()).collect();
+        for i in 0..shapes.len() {
+            list.reset_shape(egui::layers::ShapeIdx(i));
+        }
+        shapes
+    });
+    ui.painter().set(slot, egui::Shape::Vec(shapes));
+}
+
 /// The colour of anchor `key`'s words: the look's, on its way there by the
 /// anchor's `transition` for `color`, else `native`.
 pub fn look_text(key: &str, look: Option<&AnchorLook>, native: Color32) -> Color32 {

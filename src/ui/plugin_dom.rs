@@ -36,8 +36,8 @@ use super::plugin_slots::css;
 mod anchor_look;
 pub use anchor_look::{
     AnchorLook, MENU_BOX_MARK, SUBMENU_BOX_MARK, anchor_look, look_text, mark_opacity,
-    menu_box_looks, paint_anchor_box, paint_look, paint_look_with_fill, paint_part, paint_sides,
-    paints_beyond_fill, submenu_box_look,
+    menu_box_looks, paint_anchor_box, paint_card, paint_look, paint_look_with_fill, paint_part,
+    paint_sides, paints_beyond_fill, part_card, submenu_box_look,
 };
 
 /// A menu frame was marked for the theme's box this frame
@@ -2473,7 +2473,6 @@ pub fn quality_badge() -> Option<ThemedBadge> {
 #[derive(Debug, Default)]
 struct ThemeBoxes {
     badge: Option<Option<ThemedBadge>>,
-    cards: std::collections::HashMap<String, Option<Card>>,
     grid: std::collections::HashMap<String, Option<GridCardStyle>>,
     covers: std::collections::HashMap<usize, Option<CoverStyle>>,
     /// What the theme makes of a track row's thumbnail (the same for every
@@ -2516,56 +2515,6 @@ fn quality_badge_uncached() -> Option<ThemedBadge> {
         radius: radius(QUALITY_GRADIENT).or_else(|| radius(QUALITY_BADGE)),
     };
     (badge.fill.is_some() || badge.layer.is_some()).then_some(badge)
-}
-
-/// A theme's card behind a box of the player bar whose contents Tidalfast
-/// lays out itself (`._trackContent_` round the title and artists,
-/// `._utilityButtons_` round the right-hand buttons: the cotton candy
-/// family's light rounded cards): its fill, corner radius and padding.
-/// `None` without Luna, a theme, or a visible fill.
-pub fn card(key: &str) -> Option<Card> {
-    if !on() {
-        return None;
-    }
-    if let Some(hit) = theme_boxes(|b| b.cards.get(key).copied()) {
-        return hit;
-    }
-    let made = card_uncached(key);
-    theme_boxes(|b| b.cards.insert(key.to_string(), made));
-    made
-}
-
-fn card_uncached(key: &str) -> Option<Card> {
-    host(key, |h, vars| {
-        if h.hidden() {
-            return None;
-        }
-        let fill =
-            style_color(&h.style, |s| s.background_color.as_ref(), vars).filter(|c| c.a() > 0)?;
-        let radius = h
-            .style
-            .border_radius
-            .as_deref()
-            .and_then(|v| css::length(&css::resolve_vars(v, vars), 14.0, 0.0, [0.0, 0.0]))
-            .unwrap_or(0.0);
-        let padding = h
-            .style
-            .padding
-            .as_deref()
-            .map_or([0.0; 4], |v| css::sides(&css::resolve_vars(v, vars), 14.0));
-        let border = h
-            .style
-            .border
-            .as_deref()
-            .and_then(|b| css::border(&css::resolve_vars(b, vars)))
-            .filter(|(w, c)| *w > 0.0 && c.a() > 0);
-        Some(Card {
-            fill,
-            radius,
-            padding,
-            border,
-        })
-    })
 }
 
 /// A card of a shelf or grid drawn at `r` (an artist's when `artist`):
@@ -3278,34 +3227,6 @@ pub struct GridCardStyle {
     pub radius: f32,
     /// [top, right, bottom, left] in points.
     pub padding: [f32; 4],
-}
-
-/// A theme's card behind a player-bar box (see [`card`]).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Card {
-    pub fill: Color32,
-    /// Corner radius in points.
-    pub radius: f32,
-    /// [top, right, bottom, left] in points, round the contents.
-    pub padding: [f32; 4],
-    pub border: Option<(f32, Color32)>,
-}
-
-impl Card {
-    /// The card round `content`, as shapes.
-    pub fn shape(&self, content: Rect) -> egui::Shape {
-        let [t, r, b, l] = self.padding;
-        let rect = Rect::from_min_max(
-            content.min - egui::vec2(l, t),
-            content.max + egui::vec2(r, b),
-        );
-        let radius = egui::CornerRadius::same(self.radius.clamp(0.0, 255.0).round() as u8);
-        let stroke = self.border.map_or(egui::Stroke::NONE, |(width, color)| {
-            egui::Stroke::new(width, color)
-        });
-        egui::epaint::RectShape::new(rect, radius, self.fill, stroke, egui::StrokeKind::Inside)
-            .into()
-    }
 }
 
 /// A theme's fills for the quality badge (see [`quality_badge`]).

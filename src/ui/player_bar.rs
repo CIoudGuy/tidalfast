@@ -623,7 +623,8 @@ fn now_playing_block(
     }
     // A theme's card behind the title and artists (`._trackContent_`):
     // its place is kept under the words and filled once they are laid out.
-    let card = plugin_dom::card(keys::TRACK_CONTENT).map(|c| (c, ui.painter().add(Shape::Noop)));
+    let card =
+        plugin_dom::part_card(keys::TRACK_CONTENT).map(|c| (c, ui.painter().add(Shape::Noop)));
     let mut text_ui = ui.new_child(
         UiBuilder::new()
             .max_rect(text_rect)
@@ -824,7 +825,7 @@ fn now_playing_block(
             pos2(words.left(), words.top()),
             pos2(actions.right().max(words.right()), words.bottom()),
         );
-        ui.painter().set(slot, card.shape(content));
+        plugin_dom::paint_card(ui, slot, keys::TRACK_CONTENT, &card, content);
     }
     let mut heart_ui = ui.new_child(
         UiBuilder::new()
@@ -1361,7 +1362,8 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     };
     // A theme's card behind the buttons (`._utilityButtons_`), filled once
     // they are laid out; the quality pill to their right stays outside it.
-    let card = plugin_dom::card(keys::UTILITY_BUTTONS).map(|c| (c, ui.painter().add(Shape::Noop)));
+    let card =
+        plugin_dom::part_card(keys::UTILITY_BUTTONS).map(|c| (c, ui.painter().add(Shape::Noop)));
     let mut pill_left = None;
     ui.spacing_mut().item_spacing.x = 10.0;
     // Right to left: Luna slots are added in reverse visual order.
@@ -1619,7 +1621,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         if let Some(x) = pill_left {
             buttons.max.x = buttons.max.x.min(x - 6.0);
         }
-        ui.painter().set(slot, card.shape(buttons));
+        plugin_dom::paint_card(ui, slot, keys::UTILITY_BUTTONS, &card, buttons);
     }
     let after = RightFit {
         natives: (start - ui.cursor().right() - run.drawn).max(0.0),
@@ -2876,5 +2878,70 @@ mod narrow_tests {
             "the progress fill takes #progressBar's colour"
         );
         crate::ui::plugin_dom::test_overlay(None);
+    }
+
+    /// The cards a theme puts round the track info (`._trackContent_`) and
+    /// the right-hand buttons (`._utilityButtons_`) are painted with their
+    /// anchor's whole look: an outer shadow round the fill, and a gradient
+    /// with no fill of its own. Only a plain fill was drawn, and a card
+    /// without a `background-color` not at all.
+    #[test]
+    fn the_bar_cards_take_their_anchors_whole_look() {
+        use crate::luna::dom::{HostOverride, Style};
+        fn count(shape: &egui::epaint::Shape) -> usize {
+            match shape {
+                egui::epaint::Shape::Vec(v) => v.iter().map(count).sum(),
+                egui::epaint::Shape::Noop => 0,
+                _ => 1,
+            }
+        }
+        let shapes = |style: Style| {
+            let (ctx, mut app) = setup();
+            let mut o = overlay();
+            for key in [keys::TRACK_CONTENT, keys::UTILITY_BUTTONS] {
+                o.hosts.insert(
+                    key.into(),
+                    HostOverride {
+                        style: style.clone(),
+                        ..HostOverride::default()
+                    },
+                );
+            }
+            crate::ui::plugin_dom::test_overlay(Some(o));
+            let mut n = 0;
+            for _ in 0..4 {
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(2000.0, 820.0))),
+                        ..Default::default()
+                    },
+                    |ui| crate::ui::show(&mut app, ui),
+                );
+                output.textures_delta.clear();
+                n = output.shapes.iter().map(|c| count(&c.shape)).sum();
+            }
+            crate::ui::plugin_dom::test_overlay(None);
+            n
+        };
+        let fill = || Style {
+            background_color: Some("rgb(250, 200, 240)".into()),
+            border_radius: Some("12px".into()),
+            ..Style::default()
+        };
+        let none = shapes(Style::default());
+        let flat = shapes(fill());
+        assert!(flat > none, "the cards' fills: {none} -> {flat}");
+        let shadowed = shapes(Style {
+            box_shadow: Some("0 0 1em rgba(0, 0, 0, .4)".into()),
+            ..fill()
+        });
+        assert!(shadowed > flat + 4, "outer shadows: {flat} -> {shadowed}");
+        let gradient = shapes(Style {
+            background_image: Some(
+                "linear-gradient(90deg, rgb(250, 200, 240), rgb(150, 200, 255))".into(),
+            ),
+            ..Style::default()
+        });
+        assert!(gradient > none, "gradient cards: {none} -> {gradient}");
     }
 }
