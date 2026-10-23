@@ -276,6 +276,28 @@ pub mod keys {
     pub const THEME_SUBMENU_ROW: &str = "theme-roles:submenu-row";
     pub const THEME_SUBMENU_CONTAINER: &str = "theme-roles:submenu-container";
     pub const THEME_SUBMENU: &str = "theme-roles:submenu";
+    /// The menu row under the pointer, in a list item of its own beside the
+    /// others (TIDAL 2.46.0 gives it `_actionItemHover_b281718` besides
+    /// `:hover`) and its `button._actionText_d77b98b`: floated over the row
+    /// the pointer is on, so a theme's `:hover` rules for TIDAL's rows reach
+    /// the rows that have no anchor of their own (a row opening a submenu, a
+    /// submenu's rows): Solo v2's 8 % white, Tidal Light's grey.
+    pub const THEME_MENU_HOVER_ITEM: &str = "theme-roles:menu-hover-item";
+    pub const THEME_MENU_HOVER_ROW: &str = "theme-roles:menu-hover-row";
+    pub const THEME_MENU_HOVER_TEXT: &str = "theme-roles:menu-hover-text";
+    /// A menu row's icons, in its `button._actionText_d77b98b`: the leading
+    /// one (Share's links, TIDAL 2.46.0's `span._extraLeftIconContainer_ >
+    /// svg._icon_._iconSize_._iconColor_ > use`) and the chevron closing a
+    /// row that opens a submenu (`span._subMenuIcon_fbc18e3 > svg._icon_ >
+    /// use`), which themes fill (Cotton Candy Nights' `._contextMenu_
+    /// ._icon_ > use { fill: black }`).
+    pub const THEME_MENU_ROW_TEXT: &str = "theme-roles:menu-row-text";
+    pub const THEME_MENU_ICON_WRAP: &str = "theme-roles:menu-icon-wrap";
+    pub const THEME_MENU_ICON: &str = "theme-roles:menu-icon";
+    pub const THEME_MENU_ICON_USE: &str = "theme-roles:menu-icon-use";
+    pub const THEME_MENU_CHEVRON_WRAP: &str = "theme-roles:menu-chevron-wrap";
+    pub const THEME_MENU_CHEVRON: &str = "theme-roles:menu-chevron";
+    pub const THEME_MENU_CHEVRON_USE: &str = "theme-roles:menu-chevron-use";
     /// The same popover around the open context menu.
     pub const CONTEXT_MENU_BOX: &str = "contextmenu-box";
 
@@ -1191,6 +1213,38 @@ pub fn theme_roles(out: &mut Vec<HostNode>) {
             .class("_subMenuContainer_c2e42e7"),
     );
     out.push(el(THEME_SUBMENU, Some(THEME_SUBMENU_CONTAINER), "div").class("_subMenu_706d970"));
+    out.push(
+        el(THEME_MENU_ROW_TEXT, Some(THEME_SUBMENU_ROW), "button").class("_actionText_d77b98b"),
+    );
+    out.push(
+        el(THEME_MENU_ICON_WRAP, Some(THEME_MENU_ROW_TEXT), "span")
+            .class("_extraLeftIconContainer_894e612")
+            .class("_extraIcon_56196ff"),
+    );
+    out.push(
+        el(THEME_MENU_ICON, Some(THEME_MENU_ICON_WRAP), "svg")
+            .class("_icon_77f3f89")
+            .class("_iconSize_1974b07")
+            .class("_iconColor_9d6052f"),
+    );
+    out.push(el(THEME_MENU_ICON_USE, Some(THEME_MENU_ICON), "use"));
+    out.push(
+        el(THEME_MENU_CHEVRON_WRAP, Some(THEME_MENU_ROW_TEXT), "span")
+            .class("_subMenuIcon_fbc18e3"),
+    );
+    out.push(el(THEME_MENU_CHEVRON, Some(THEME_MENU_CHEVRON_WRAP), "svg").class("_icon_77f3f89"));
+    out.push(el(THEME_MENU_CHEVRON_USE, Some(THEME_MENU_CHEVRON), "use"));
+    out.push(el(THEME_MENU_HOVER_ITEM, Some(THEME_SUBMENU_LIST), "li"));
+    out.push(
+        el(THEME_MENU_HOVER_ROW, Some(THEME_MENU_HOVER_ITEM), "div")
+            .modules(&["actionItem"])
+            .class("_actionItemHover_b281718")
+            .attr("role", "menuitem"),
+    );
+    out.push(
+        el(THEME_MENU_HOVER_TEXT, Some(THEME_MENU_HOVER_ROW), "button")
+            .class("_actionText_d77b98b"),
+    );
 }
 
 /// `#wimp > div` with the top bar, main container, `#main`, header and search.

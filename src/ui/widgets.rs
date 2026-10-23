@@ -704,7 +704,8 @@ pub(crate) fn menu_row_tinted(
                 ui.painter().rect_filled(rect, corner, fill);
             }
         } else if (response.hovered() || highlighted) && enabled {
-            ui.painter().rect_filled(rect, corner, menu_hover(palette));
+            ui.painter()
+                .rect_filled(rect, corner, action_hover(palette));
         }
         let color = if !enabled {
             palette.dim
@@ -892,15 +893,16 @@ fn submenu<R>(
 
     if ui.is_rect_visible(rect) {
         if response.hovered() || is_open {
-            ui.painter()
-                .rect_filled(rect, CornerRadius::same(9), menu_hover(palette));
+            super::plugin_dom::paint_menu_hover(ui, rect, action_hover(palette));
         }
         // As the menu's other words: a theme's rule for TIDAL's row words,
         // else its contrast token as it stands in the menu.
         let color = super::plugin_dom::menu_row_words(palette.menu_bg()).unwrap_or(palette.text);
         // TIDAL's menus are text only, a grey 16-point chevron 8 from the
-        // row's end closing a submenu.
+        // row's end closing a submenu (a theme's fill for it, else TIDAL's
+        // grey).
         let _ = icon;
+        let chevron_color = menu_chevron_color(palette);
         let x = rect.left() + 12.0;
         let arrow_width = 16.0;
         let chevron = if ui.layout().prefer_right_to_left() {
@@ -916,7 +918,7 @@ fn submenu<R>(
                 Vec2::splat(16.0),
             ),
             12.0,
-            palette.menu_secondary(),
+            chevron_color,
         );
 
         let max_text_width = (rect.right() - 12.0 - arrow_width - 6.0 - x).max(0.0);
@@ -1070,6 +1072,26 @@ pub const MENU_ITEM_HEIGHT: f32 = 42.0;
 /// A menu entry under the pointer: TIDAL's white 15 %.
 pub(crate) fn menu_hover(palette: &Palette) -> Color32 {
     palette.menu_hover()
+}
+
+/// The chevron closing a menu row that opens a submenu: a theme's fill for
+/// TIDAL's menu icons, else TIDAL's grey.
+pub(crate) fn menu_chevron_color(palette: &Palette) -> Color32 {
+    super::plugin_dom::menu_icon(true).unwrap_or_else(|| palette.menu_chevron())
+}
+
+/// A context menu row under the pointer (TIDAL's `div._actionItem_`): white
+/// at 15 % in Dark and under any theme, whatever its colours. TIDAL's own
+/// `._actionItem_:hover` rule is that white, not a token (TIDAL 2.46.0
+/// draws it over Cotton Candy Nights' pink gradient and over Cotton Candy
+/// (adaptive)'s light menu alike, captured), so only a theme's own `:hover`
+/// rule changes it. Without a theme, the palette's own.
+pub(crate) fn action_hover(palette: &Palette) -> Color32 {
+    if palette.themed {
+        Color32::from_white_alpha(38)
+    } else {
+        palette.menu_hover()
+    }
 }
 
 /// Shared by single-item and selection menus. Filtering is local and keeps
