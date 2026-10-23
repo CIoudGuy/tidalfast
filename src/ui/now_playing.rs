@@ -754,11 +754,13 @@ pub(super) fn names(app: &mut App, ui: &mut egui::Ui, people: &[ArtistRef], font
 /// followed or not, captured with no theme). Under a theme that paints a
 /// light window the names take its words' grey (Tidal Light's 70 % black),
 /// as TIDAL's restyled words do, where the pale grey would not read on it.
+/// Under a dark window a theme's own rule for TIDAL's artist line colours
+/// them (Blur's near white), else they keep the grey.
 pub(crate) fn queue_name_colors(palette: &theme::Palette) -> (Color32, Color32) {
     let plain = if palette.themed && !palette.dark {
         palette.secondary
     } else {
-        GREY
+        super::plugin_dom::queue_artist_rule().unwrap_or(GREY)
     };
     (plain, plain)
 }
