@@ -51,6 +51,36 @@ fn track_uri(id: &str) -> String {
     format!("tidal:track:{id}")
 }
 
+/// The words the app shows for song `id`, as TIDAL's lyrics JSON
+/// (`subtitles` in LRC when they are timed).
+fn luna_lyrics(id: &str, lyrics: &crate::lyrics::Lyrics) -> Value {
+    let plain: Vec<&str> = lyrics.lines.iter().map(|x| x.text.as_str()).collect();
+    let subtitles = lyrics.synced.then(|| {
+        lyrics
+            .lines
+            .iter()
+            .map(|x| {
+                let at = x.at_ms.unwrap_or(0);
+                format!(
+                    "[{:02}:{:02}.{:02}] {}",
+                    at / 60_000,
+                    at / 1000 % 60,
+                    at % 1000 / 10,
+                    x.text
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    });
+    json!({
+        "trackId": id,
+        "lyricsProvider": "Tidalfast",
+        "lyrics": plain.join("\n"),
+        "subtitles": subtitles,
+        "isRightToLeft": false,
+    })
+}
+
 /// A TIDAL v1-shaped track for plugins, from what the app already knows.
 fn track_json(track: &Track) -> Value {
     let id = track
@@ -740,7 +770,12 @@ impl App {
         let now_playing_view = self.now_playing_view;
         let lyrics_state = {
             let id = now.and_then(|n| n.id.clone());
+            // The words the app holds are the playing song's only when it
+            // looked them up for it (it does for its Lyrics tab, or when a
+            // plugin asks): after a song change they are the song before's.
+            let current = now.is_some_and(|n| self.lyrics_uri.as_deref() == Some(n.uri.as_str()));
             let status = match &self.lyrics {
+                _ if !current => 0u8,
                 Loadable::NotLoaded => 0u8,
                 Loadable::Loading => 1,
                 Loadable::Loaded(Some(l)) if !l.lines.is_empty() => 2,
@@ -750,36 +785,22 @@ impl App {
         };
         let lyrics_event = match (&lyrics_state, &self.plugins.seen.lyrics) {
             (Some((id, status)), prev) if prev.as_ref() != lyrics_state.as_ref() => {
+                // What `MediaItem.lyrics()` answers when TIDAL has no words
+                // for the song: the app's, once its lookup ends.
+                match (status, &self.lyrics) {
+                    (1, _) => self.plugins.host.set_app_lyrics(id, None),
+                    (2, Loadable::Loaded(Some(l))) => {
+                        self.plugins
+                            .host
+                            .set_app_lyrics(id, Some(Some(luna_lyrics(id, l))));
+                    }
+                    (3, _) => self.plugins.host.set_app_lyrics(id, Some(None)),
+                    _ => {}
+                }
                 match (status, &self.lyrics) {
                     (1, _) => Some(("content/LOAD_ITEM_LYRICS", json!({ "trackId": id }))),
                     (2, Loadable::Loaded(Some(l))) => {
-                        let plain: Vec<&str> = l.lines.iter().map(|x| x.text.as_str()).collect();
-                        let subtitles = l.synced.then(|| {
-                            l.lines
-                                .iter()
-                                .map(|x| {
-                                    let at = x.at_ms.unwrap_or(0);
-                                    format!(
-                                        "[{:02}:{:02}.{:02}] {}",
-                                        at / 60_000,
-                                        at / 1000 % 60,
-                                        at % 1000 / 10,
-                                        x.text
-                                    )
-                                })
-                                .collect::<Vec<_>>()
-                                .join("\n")
-                        });
-                        Some((
-                            "content/LOAD_ITEM_LYRICS_SUCCESS",
-                            json!({
-                                "trackId": id,
-                                "lyricsProvider": "Tidalfast",
-                                "lyrics": plain.join("\n"),
-                                "subtitles": subtitles,
-                                "isRightToLeft": false,
-                            }),
-                        ))
+                        Some(("content/LOAD_ITEM_LYRICS_SUCCESS", luna_lyrics(id, l)))
                     }
                     (3, _) => Some(("content/LOAD_ITEM_LYRICS_FAIL", json!({ "trackId": id }))),
                     _ => None,
@@ -1019,6 +1040,7 @@ impl App {
                 }
             }
             HostRequest::PlaylistChanged(id) => self.plugin_changed_playlist(id),
+            HostRequest::Lyrics => self.request_lyrics(),
         }
     }
 
@@ -1550,6 +1572,65 @@ mod tests {
         assert_eq!(
             (snap.sample_rate, snap.bit_depth, snap.bitrate),
             (Some(96_000), Some(24), Some(1_960_000))
+        );
+        app.backend.shutdown();
+    }
+    /// The words plugins get for the playing song are the ones the app
+    /// looked up for it. The app keeps a song's words after it ends (it
+    /// looks again only for its Lyrics tab or a plugin), and they were
+    /// handed on as the next song's.
+    #[test]
+    fn plugins_get_the_playing_songs_own_words() {
+        let mut app = app("plugin-own-words");
+        let song = |id: &str| NowPlaying {
+            local: true,
+            device_name: None,
+            device_kind: None,
+            uri: format!("tidal:track:{id}"),
+            id: Some(id.into()),
+            title: String::new(),
+            artists: Vec::new(),
+            subtitle: String::new(),
+            album_name: String::new(),
+            album_id: None,
+            art_url: None,
+            art_small: None,
+            duration_ms: 200_000,
+            position_ms: 1_000,
+            playing: true,
+            loading: false,
+            shuffle: false,
+            repeat: RepeatMode::Off,
+            volume_percent: 50,
+            can_control: true,
+            can_set_volume: true,
+            resuming: false,
+        };
+        app.lyrics_uri = Some("tidal:track:1".into());
+        app.lyrics = Loadable::Loaded(Some(crate::lyrics::Lyrics {
+            lines: vec![crate::lyrics::Line {
+                at_ms: Some(1_000),
+                text: "first song".into(),
+            }],
+            synced: true,
+            instrumental: false,
+        }));
+        let window = WindowState::default();
+        let first = song("1");
+        app.luna_sync(Some(&first), window);
+        let words = app
+            .plugins
+            .host
+            .app_lyrics("1", std::time::Duration::ZERO)
+            .expect("the playing song's words");
+        assert_eq!(words["subtitles"], "[00:01.00] first song");
+        // The next song: the words held are the song before's.
+        let second = song("2");
+        app.luna_sync(Some(&second), window);
+        assert_eq!(
+            app.plugins.host.app_lyrics("2", std::time::Duration::ZERO),
+            None,
+            "the song before's words are not this song's"
         );
         app.backend.shutdown();
     }

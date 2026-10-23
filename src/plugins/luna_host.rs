@@ -32,6 +32,9 @@ pub enum HostRequest {
     /// details; `None`: the list, a playlist was made): what the app shows
     /// of it is out of date.
     PlaylistChanged(Option<String>),
+    /// A plugin asked for the playing song's words, which TIDAL does not
+    /// have: the app looks them up as it does for its Lyrics tab.
+    Lyrics,
 }
 
 /// The longest a plugin's change waits for the window's next pass while
@@ -59,7 +62,20 @@ pub struct AppHost {
     hidden: std::sync::atomic::AtomicBool,
     /// Spaces out the TIDAL calls plugins make with the user's session.
     tidal_pace: Pace,
+    /// The words the app shows for a song (TIDAL's, or LRCLIB's where
+    /// TIDAL has none), as TIDAL's lyrics JSON: `(track id, None while the
+    /// app looks them up, then what it found)`.
+    app_lyrics: Mutex<Option<(String, AppLyrics)>>,
+    app_lyrics_ready: std::sync::Condvar,
 }
+
+/// The app's words for a song: `None` while it looks them up, then what it
+/// found (`Some(None)`: none).
+type AppLyrics = Option<Option<Value>>;
+
+/// How long `MediaItem.lyrics()` waits for the app's own lookup of the
+/// song's words when TIDAL has none.
+const APP_LYRICS_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// The least time between two TIDAL calls made for plugins (at most ten a
 /// second): a plugin looking up a few thousand tracks waits its turn
@@ -108,6 +124,55 @@ impl AppHost {
             next_pass: Mutex::new(None),
             hidden: std::sync::atomic::AtomicBool::new(false),
             tidal_pace: Pace::new(TIDAL_GAP),
+            app_lyrics: Mutex::new(None),
+            app_lyrics_ready: std::sync::Condvar::new(),
+        }
+    }
+
+    /// The words the app has for song `id`: `None` while it looks them up,
+    /// then TIDAL's lyrics JSON for what it found (`Some(None)`: none).
+    pub fn set_app_lyrics(&self, id: &str, found: Option<Option<Value>>) {
+        *self.app_lyrics.lock().unwrap_or_else(|l| l.into_inner()) = Some((id.to_string(), found));
+        self.app_lyrics_ready.notify_all();
+    }
+
+    /// The app's words for `id`, waiting up to `wait` while it still looks
+    /// them up; `None` when it has none for that song.
+    pub(crate) fn app_lyrics(&self, id: &str, wait: std::time::Duration) -> Option<Value> {
+        let deadline = std::time::Instant::now() + wait;
+        // The playing song's words are on their way even before the app
+        // says it looks them up (a plugin asks as it loads).
+        let playing = {
+            let snap = self.snapshot.lock().unwrap_or_else(|l| l.into_inner());
+            snap.current_index
+                .and_then(|i| snap.queue.get(i))
+                .is_some_and(|e| e.id == id)
+        };
+        let mut state = self.app_lyrics.lock().unwrap_or_else(|l| l.into_inner());
+        let asked = match &*state {
+            Some((song, _)) if song == id => false,
+            _ => playing,
+        };
+        if asked {
+            // The app looks the words up only for its Lyrics tab: have it
+            // look for this song now.
+            self.push(HostRequest::Lyrics);
+        }
+        loop {
+            let pending = match &*state {
+                Some((song, Some(found))) if song == id => return found.clone(),
+                Some((song, None)) if song == id => true,
+                _ => playing,
+            };
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            if !pending || left.is_zero() {
+                return None;
+            }
+            state = self
+                .app_lyrics_ready
+                .wait_timeout(state, left)
+                .unwrap_or_else(|l| l.into_inner())
+                .0;
         }
     }
 
@@ -437,7 +502,12 @@ impl LunaHost for AppHost {
         if luna_demo() {
             return Some(demo_lyrics(id));
         }
-        self.get(format!("tracks/{}/lyrics", numeric(id)?), Vec::new())
+        // TIDAL's words, else those the app shows for the song (LRCLIB's
+        // where TIDAL has none): a plugin's lyrics agree with the app's
+        // Lyrics tab, as in TIDAL, where both are TIDAL's.
+        numeric(id)
+            .and_then(|n| self.get(format!("tracks/{n}/lyrics"), Vec::new()))
+            .or_else(|| self.app_lyrics(id, APP_LYRICS_WAIT))
     }
 
     fn tracks_by_isrc(&self, isrc: &str) -> Vec<Value> {
@@ -1245,5 +1315,58 @@ mod tests {
         assert_eq!(host.change_delay(now, true), None);
         host.set_hidden(true);
         assert_eq!(host.change_delay(now, true), Some(BACKGROUND_PASS_IDLE));
+    }
+
+    /// TIDAL has no words for many songs the app shows lyrics for (from
+    /// LRCLIB). `MediaItem.lyrics()` answered nothing for them, so
+    /// lyrics plugins hid their line and OneClickLyrics greyed its button
+    /// while the app's Lyrics tab showed the words. It answers the app's
+    /// words, waiting for the app's lookup when it is still running.
+    #[test]
+    fn lyrics_a_song_has_in_the_app_reach_plugins() {
+        use std::sync::Arc;
+        use std::time::Duration;
+        let host = Arc::new(AppHost::new(None, None));
+        let words = json!({ "trackId": "125155092", "subtitles": "[00:13.46] Yeah" });
+        // Nothing known for the song: nothing, at once.
+        assert_eq!(host.lyrics("125155092"), None);
+        // The app is still looking: the answer waits for it.
+        host.set_app_lyrics("125155092", None);
+        let setter = {
+            let host = host.clone();
+            let words = words.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(200));
+                host.set_app_lyrics("125155092", Some(Some(words)));
+            })
+        };
+        assert_eq!(host.lyrics("125155092"), Some(words.clone()));
+        setter.join().unwrap();
+        // Another song's words are not this one's.
+        assert_eq!(host.lyrics("1"), None);
+        // The app found none: none.
+        host.set_app_lyrics("125155092", Some(None));
+        assert_eq!(host.lyrics("125155092"), None);
+        // A plugin asking for the playing song as it loads, before the app
+        // has said it looks: the answer waits for the app's words.
+        host.set_snapshot(crate::luna::PlaybackSnapshot {
+            queue: vec![crate::luna::QueueEntry {
+                id: "777".into(),
+                uid: "777:0".into(),
+                kind: "track".into(),
+            }],
+            current_index: Some(0),
+            ..Default::default()
+        });
+        let setter = {
+            let host = host.clone();
+            let words = words.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(200));
+                host.set_app_lyrics("777", Some(Some(words)));
+            })
+        };
+        assert_eq!(host.lyrics("777"), Some(words));
+        setter.join().unwrap();
     }
 }
