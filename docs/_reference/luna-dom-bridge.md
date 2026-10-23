@@ -806,6 +806,53 @@ shape for shape):
 - `::before`/`::after` fills and borders take all four corners
   (`border-radius: inherit` follows the box's).
 
+### Anchor look (one API for native parts)
+
+A native part with a TIDAL anchor takes its look from the theme through one
+API in `src/ui/anchor_look.rs` (re-exported by `plugin_dom`), instead of
+reading one property at a time:
+
+- **JS side.** Nothing new: the runtime already resolves each anchor's
+  cascade into its `HostOverride` (`style`, `::before`, `::after`), with
+  the anchor's state in it. States are TIDAL's own markers on the anchor
+  (`_selected_`, `_activeButton_`, `aria-pressed`, `[disabled]`), and
+  `:hover` reaches the anchor under the pointer through the bridge's
+  `hover` events, so the overlay always carries the look for the state the
+  part is in. A new overlay comes with every state change.
+- **Rust side.** `anchor_look(key) -> Option<Arc<AnchorLook>>` resolves the
+  override once per overlay version and anchor (cached with the other theme
+  boxes): fill (with a `backdrop-filter` veil folded in; `Some(transparent)`
+  when the theme clears the part's own fill), whether it has layers
+  (gradients, `url()` pictures, `::before`/`::after` boxes, frosted glass,
+  borders), corners (one to four, `em` of TIDAL's 14-point text), borders
+  on some sides only, the first outer shadow and inset glow, opacity, text
+  colour (and whether a rule leaves it `inherit`), icon colour (`fill`,
+  else the text colour), font size and weight, `text-transform`, padding,
+  and `transform` scale and translation. `None` with Luna off, the anchor
+  hidden, or no rule for it: the part keeps the app's own look, so with no
+  theme nothing changes.
+- **Painting.** `paint_part(ui, key, rect, native_corners, native_fill)`
+  paints the part's box in this order: outer shadow, fill (the theme's,
+  fading by the anchor's `transition`, else the part's own), layers and
+  borders, inset glow; with no look it paints the native fill as before.
+  It returns the look, whose `text_or` / `icon_or` / `look_text` give the
+  part's words and icons. `paint_anchor_box` is the same without a native
+  fill (a box the theme adds), and `paint_themed_box` is now that.
+- **Menus.** Every popup menu shares one egui frame, which takes a single
+  colour. When the theme's menu box (`div._contextMenu_[role=menu]` and
+  the popover round it, the `theme-roles` stand-ins) is more than a colour,
+  the frame is filled with a mark colour and, at the frame's end, the mark
+  is replaced by the menu's colour and the theme's box in the menu's own
+  rect (`paint_menu_boxes`), at the menu's fade-in opacity.
+
+Parts on it: the sidebar's navigation rows and library rows (fill,
+corners, borders, shadow and the selected pill's inset glow, in their
+`:hover` and `_selected_` states), the queue panel, filter field, track
+list panel, feed card and every other `paint_themed_box` user, and the
+popup menus' box. A border on some sides of a box (`border-style: solid
+none none none`, the runtime's `border-width` of four) is drawn on those
+sides for every box layer, not round the box.
+
 Themer's CSS editor (a BrowserWindow on a Monaco page) is shown as a window
 inside the app (`HostCommand::OpenEditor`): its text is the plugin's CSS and
 every edit goes back through the window's preload (`ipcRenderer.setCSS`), so
