@@ -993,8 +993,9 @@ mod menu_dom_tests {
         );
     }
 
-    /// The colour of the words `menu_item` draws for "Play next" under `o`.
-    fn menu_words_color(o: Option<DomOverlay>) -> egui::Color32 {
+    /// The colour of the words a menu row draws for "Play next" under `o`,
+    /// a plain row or (`submenu`) one opening a submenu.
+    fn menu_words_color_of(o: Option<DomOverlay>, submenu: bool) -> egui::Color32 {
         crate::ui::plugin_dom::test_overlay(o);
         let palette = Palette::dark();
         let ctx = egui::Context::default();
@@ -1002,7 +1003,11 @@ mod menu_dom_tests {
         let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
             widgets::menu_frame(&palette).show(ui, |ui| {
                 ui.set_width(widgets::MENU_MIN_CONTENT);
-                menu_item(ui, &palette, None, "Play next");
+                if submenu {
+                    widgets::menu_submenu(ui, &palette, None, "Play next", |_| {});
+                } else {
+                    menu_item(ui, &palette, None, "Play next");
+                }
             });
         });
         out.textures_delta.clear();
@@ -1016,6 +1021,31 @@ mod menu_dom_tests {
                 _ => None,
             })
             .expect("the row's words")
+    }
+
+    fn menu_words_color(o: Option<DomOverlay>) -> egui::Color32 {
+        menu_words_color_of(o, false)
+    }
+
+    /// A row that opens a submenu ("Add to playlist", "Share") takes the
+    /// theme's contrast token too, as TIDAL's do under Mocha Blue; it kept
+    /// the body's colour.
+    #[test]
+    fn submenu_rows_take_the_themes_contrast_token() {
+        let vars = [("--wave-color-solid-contrast-fill", "#3c8cf0")]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        let themed = menu_words_color_of(
+            Some(DomOverlay {
+                version: 1,
+                vars,
+                ..DomOverlay::default()
+            }),
+            true,
+        );
+        assert_eq!(themed, egui::Color32::from_rgb(0x3c, 0x8c, 0xf0));
+        assert_eq!(menu_words_color_of(None, true), Palette::dark().text);
     }
 
     /// A theme that sets TIDAL's `--wave-color-solid-contrast-fill` apart
