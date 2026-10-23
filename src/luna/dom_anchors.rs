@@ -29,6 +29,12 @@ pub mod keys {
     pub const SIDEBAR_CONTENT: &str = "sidebar-content";
     pub const MAIN: &str = "main";
     pub const HEADER: &str = "main-header";
+    /// The header's bar inside it, `div._container_cb5cbe4[data-test=header]`
+    /// (TIDAL 2.46.0), round the arrows, the search and the profile button:
+    /// themes reach the search pill through it (Cotton Candy Nights'
+    /// `:is(._container_cb5cbe4 ._searchFieldWithPopover_267e090)
+    /// .searchFieldWithinSearchFieldWithPopover`).
+    pub const HEADER_BAR: &str = "main-header-bar";
     pub const NAV_ARROWS: &str = "navigation-arrows";
     /// The back and forward buttons in [`NAV_ARROWS`].
     pub const NAV_BACK: &str = "navigation-arrows:back";
@@ -1320,7 +1326,13 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
             .at(s.header),
     );
     out.push(
-        el(NAV_ARROWS, Some(HEADER), "div")
+        el(HEADER_BAR, Some(HEADER), "div")
+            .class("_container_cb5cbe4")
+            .test("header")
+            .at(s.header),
+    );
+    out.push(
+        el(NAV_ARROWS, Some(HEADER_BAR), "div")
             .test("navigation-arrows")
             .modules(&["navigationArrows"])
             .at(s.nav_arrows),
@@ -1343,7 +1355,7 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
         out.push(button);
     }
     out.push(
-        el(SEARCH, Some(HEADER), "div")
+        el(SEARCH, Some(HEADER_BAR), "div")
             .test("search-popover-container")
             .modules(&["searchPopoverContainer", "searchFieldWithPopover"])
             .at(s.search),
@@ -1374,7 +1386,7 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
             })),
     );
     out.push(
-        el(PROFILE, Some(HEADER), "button")
+        el(PROFILE, Some(HEADER_BAR), "button")
             .modules(&["profilePicture"])
             .test("profile-picture")
             .attr("aria-label", "Profile")
@@ -3279,7 +3291,8 @@ mod tests {
             (keys::QUALITY_LABEL, keys::QUALITY_TEXT, "span"),
             (keys::TITLE_STACK, keys::TRACK_CONTENT, "div"),
             (keys::FIXED_NAV, keys::SIDEBAR_CONTENT, "div"),
-            (keys::PROFILE, keys::HEADER, "button"),
+            (keys::PROFILE, keys::HEADER_BAR, "button"),
+            (keys::HEADER_BAR, keys::HEADER, "div"),
             (keys::PROFILE_SVG, keys::PROFILE, "svg"),
             (keys::NP_CLOSE, keys::NP_HEADER, "button"),
             (keys::NP_FOOTER, keys::NOW_PLAYING, "div"),

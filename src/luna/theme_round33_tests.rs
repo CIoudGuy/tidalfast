@@ -205,3 +205,29 @@ fn without_a_theme_the_chevron_is_tidals_darkest_grey() {
         egui::Color32::from_rgb(120, 120, 135)
     );
 }
+
+/// TIDAL 2.46.0's header search pill sits in the header's bar,
+/// `div._container_cb5cbe4[data-test=header]`, which themes name to reach
+/// it: Cotton Candy Nights' `:is(._container_cb5cbe4
+/// ._searchFieldWithPopover_267e090) .searchFieldWithinSearchFieldWithPopover
+/// { background: ... !Important }` makes TIDAL's pill dark indigo over its
+/// plainer pink `._container_f1be359` rule (captured). Tidalfast's pill had
+/// no such bar round it and showed the pink, under which the typed words
+/// were faint.
+#[test]
+fn the_search_pill_sits_in_the_headers_bar() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Indigo search"} */
+._container_f1be359 { background-color: rgb(250, 190, 250); }
+:is(._container_cb5cbe4 ._searchFieldWithPopover_267e090) .searchFieldWithinSearchFieldWithPopover {
+    background: rgb(31, 17, 75) !Important;
+}
+"#;
+    let o = overlay_for("indigo-search.css", css, dom_anchors::keys::SEARCH_FIELD);
+    pd::test_overlay(Some((*o).clone()));
+    let style = pd::search_style(&Palette::dark());
+    pd::test_overlay(None);
+    let fill = style.and_then(|s| s.fill);
+    assert_eq!(fill, Some(egui::Color32::from_rgb(31, 17, 75)));
+}
