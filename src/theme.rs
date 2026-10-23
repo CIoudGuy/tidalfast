@@ -1466,7 +1466,11 @@ mod tests {
             own_surfaces: false,
             ..Palette::light()
         };
-        assert_eq!(light.playing_name(), light.accent, "a light window's accent");
+        assert_eq!(
+            light.playing_name(),
+            light.accent,
+            "a light window's accent"
+        );
     }
 
     /// A theme's page font leads every weight, not only the regular one:
