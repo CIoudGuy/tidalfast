@@ -21,6 +21,7 @@ Generated with `cargo tree --target all -e normal,build --prefix none --format "
 | [adler2](https://github.com/oyvindln/adler2) | 2.0.1 | 0BSD OR MIT OR Apache-2.0 |
 | [aes](https://github.com/RustCrypto/block-ciphers) | 0.9.3 | MIT OR Apache-2.0 |
 | [ahash](https://github.com/tkaitchuck/ahash) | 0.8.12 | MIT OR Apache-2.0 |
+| [alloc-no-stdlib](https://github.com/dropbox/rust-alloc-no-stdlib) | 2.0.4 | BSD-3-Clause |
 | [allocator-api2](https://github.com/zakarumych/allocator-api2) | 0.2.21 | MIT OR Apache-2.0 |
 | [alsa](https://github.com/diwic/alsa-rs) | 0.11.0 | Apache-2.0/MIT |
 | [alsa-sys](https://github.com/diwic/alsa-sys) | 0.4.0 | MIT |
@@ -63,6 +64,7 @@ Generated with `cargo tree --target all -e normal,build --prefix none --format "
 | [block2](https://github.com/madsmtm/objc2) | 0.5.1 | MIT |
 | [block2](https://github.com/madsmtm/objc2) | 0.6.2 | MIT |
 | [blocking](https://github.com/smol-rs/blocking) | 1.7.0 | Apache-2.0 OR MIT |
+| [brotli-decompressor](https://github.com/dropbox/rust-brotli-decompressor) | 5.0.3 | BSD-3-Clause/MIT |
 | [bumpalo](https://github.com/fitzgen/bumpalo) | 3.20.3 | MIT OR Apache-2.0 |
 | [bytemuck](https://github.com/Lokathor/bytemuck) | 1.25.2 | Zlib OR Apache-2.0 OR MIT |
 | [bytemuck_derive](https://github.com/Lokathor/bytemuck) | 1.12.0 | Zlib OR Apache-2.0 OR MIT |
@@ -612,6 +614,7 @@ Generated with `cargo tree --target all -e normal,build --prefix none --format "
 | [winresource](https://github.com/BenjaminRi/winresource) | 0.1.31 | MIT |
 | [wit-bindgen](https://github.com/bytecodealliance/wit-bindgen) | 0.57.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | [writeable](https://github.com/unicode-org/icu4x) | 0.6.4 | Unicode-3.0 |
+| [wuff](https://github.com/nicoburns/wuff) | 0.2.9 | MIT |
 | [x11-dl](https://github.com/AltF02/x11-rs.git) | 2.21.0 | MIT |
 | [x11rb](https://github.com/psychon/x11rb) | 0.13.2 | MIT OR Apache-2.0 |
 | [x11rb-protocol](https://github.com/psychon/x11rb) | 0.13.2 | MIT OR Apache-2.0 |

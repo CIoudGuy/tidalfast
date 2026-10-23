@@ -97,6 +97,10 @@ tiny-skia = "0.11"
 # Glyph outlines for Luna plugins' canvas text (src/luna/canvas.rs). Already
 # compiled for egui's text, so this adds no code to the build.
 skrifa = "0.44"
+# Unpacks the WOFF and WOFF2 fonts plugins and themes name in `@font-face`
+# (src/ui/plugin_dom.rs), the web's font formats, which egui cannot read.
+# Pure Rust; flate2 is already in the tree, brotli-decompressor is new.
+wuff = "0.2"
 # Maps the bold cut of an installed script font (src/fonts.rs), as
 # fastframe-fonts maps the regular one. Already in the tree at this version.
 memmap2 = "0.9"
