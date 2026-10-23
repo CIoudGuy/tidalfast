@@ -156,6 +156,12 @@ pub(crate) mod css {
         if let Some(hex) = v.strip_prefix('#') {
             return hex_color(hex);
         }
+        let relative = ["rgba", "rgb", "hsla", "hsl"]
+            .iter()
+            .any(|f| func(v, f).is_some_and(|args| args.trim_start().starts_with("from ")));
+        if relative {
+            return modern(v);
+        }
         if let Some(args) = func(v, "rgba").or_else(|| func(v, "rgb")) {
             let n = numbers(args);
             let ch = |i: usize| -> Option<f32> {
@@ -181,7 +187,31 @@ pub(crate) mod css {
         if let Some(args) = func(v, "color-mix") {
             return color_mix(args);
         }
-        named(v)
+        named(v).or_else(|| modern(v))
+    }
+
+    /// The rest of CSS Color 4 and 5 that Chromium draws, read by
+    /// `csscolorparser`: all 148 named colours, `hwb()`, `lab()`, `lch()`,
+    /// `oklab()`, `oklch()`, `color(srgb ...)` and the other predefined
+    /// spaces, and relative colours whose channels are names or plain
+    /// numbers (`rgb(from red r g b / 0.5)`; the crate does not read a
+    /// percentage there yet). A name is looked up in the crate's table and
+    /// only those functions are passed on: the crate also reads a bare hex
+    /// word (`fade`) and `hsv()`, which CSS does not.
+    fn modern(v: &str) -> Option<Color32> {
+        if v.bytes().all(|b| b.is_ascii_alphabetic()) {
+            let [r, g, b] = *csscolorparser::NAMED_COLORS.get(v.into())?;
+            return Some(Color32::from_rgb(r, g, b));
+        }
+        let function = ["hwb", "hwba", "lab", "lch", "oklab", "oklch", "color"]
+            .iter()
+            .chain(["rgb", "rgba", "hsl", "hsla"].iter())
+            .any(|f| func(v, f).is_some());
+        if !function {
+            return None;
+        }
+        let [r, g, b, a] = csscolorparser::parse(v).ok()?.clamp().to_rgba8();
+        Some(Color32::from_rgba_unmultiplied(r, g, b, a))
     }
 
     pub fn func<'a>(v: &'a str, name: &str) -> Option<&'a str> {
@@ -274,12 +304,24 @@ pub(crate) mod css {
         [channel(h + 1.0 / 3.0), channel(h), channel(h - 1.0 / 3.0)]
     }
 
-    /// `color-mix(in srgb, A [p], B [p])`, premultiplied as CSS mixes.
+    /// `color-mix(in <space> [<method> hue], A [p], B [p])`, premultiplied
+    /// as CSS mixes, in the space it names (see [`mix_in`]). Percentages
+    /// summing to under 100% scale the result's alpha by their sum, as CSS
+    /// Color 5 says (`color-mix(in srgb, red 20%, blue 20%)` is 40% opaque).
     fn color_mix(args: &str) -> Option<Color32> {
         let parts = split_top(args, ',');
         if parts.len() != 3 {
             return None;
         }
+        let method = words(parts[0].trim());
+        let space = match method.as_slice() {
+            ["in", space, ..] => *space,
+            _ => "srgb",
+        };
+        let hue = match method.as_slice() {
+            ["in", _, h, "hue"] => *h,
+            _ => "shorter",
+        };
         let side = |p: &str| -> Option<(Color32, Option<f32>)> {
             let w = words(p.trim());
             let (pct, colour): (Vec<&str>, Vec<&str>) = w.iter().partition(|x| x.ends_with('%'));
@@ -291,12 +333,22 @@ pub(crate) mod css {
         };
         let (a, pa) = side(parts[1])?;
         let (b, pb) = side(parts[2])?;
-        let (pa, pb) = match (pa, pb) {
-            (Some(pa), Some(pb)) => (pa / (pa + pb).max(1e-6), pb / (pa + pb).max(1e-6)),
-            (Some(pa), None) => (pa, 1.0 - pa),
-            (None, Some(pb)) => (1.0 - pb, pb),
-            (None, None) => (0.5, 0.5),
+        let (pa, pb, scale) = match (pa, pb) {
+            (Some(pa), Some(pb)) => (
+                pa / (pa + pb).max(1e-6),
+                pb / (pa + pb).max(1e-6),
+                (pa + pb).min(1.0),
+            ),
+            (Some(pa), None) => (pa, 1.0 - pa, 1.0),
+            (None, Some(pb)) => (1.0 - pb, pb, 1.0),
+            (None, None) => (0.5, 0.5, 1.0),
         };
+        if space != "srgb" {
+            let mixed = mix_in(space, hue, a, b, pa, pb)?;
+            let [r, g, b, alpha] = mixed.to_srgba_unmultiplied();
+            let alpha = (f32::from(alpha) * scale).round() as u8;
+            return Some(Color32::from_rgba_unmultiplied(r, g, b, alpha));
+        }
         let a = a.to_srgba_unmultiplied().map(f32::from);
         let b = b.to_srgba_unmultiplied().map(f32::from);
         let alpha = a[3] * pa + b[3] * pb;
@@ -308,8 +360,117 @@ pub(crate) mod css {
             ch(0),
             ch(1),
             ch(2),
-            alpha.round() as u8,
+            (alpha * scale).round() as u8,
         ))
+    }
+
+    /// Two colours mixed in a CSS interpolation space other than `srgb`:
+    /// `srgb-linear`, `lab`, `oklab`, `xyz`/`xyz-d65`, `xyz-d50`, or the
+    /// polar `hsl`, `hwb`, `lch`, `oklch`, whose hue goes the `shorter`
+    /// (default), `longer`, `increasing` or `decreasing` way round. Every
+    /// other component is premultiplied by alpha; a hue that is powerless
+    /// (a grey) takes the other colour's.
+    fn mix_in(space: &str, hue: &str, a: Color32, b: Color32, pa: f32, pb: f32) -> Option<Color32> {
+        use csscolorparser::Color;
+        type To = fn(&Color) -> [f32; 4];
+        type From = fn([f32; 4]) -> Color;
+        let (to, from, hue_at): (To, From, Option<usize>) = match space {
+            "srgb-linear" => (
+                |c| c.to_linear_rgba(),
+                |[r, g, b, a]| Color::from_linear_rgba(r, g, b, a),
+                None,
+            ),
+            "lab" => (
+                |c| c.to_laba(),
+                |[l, x, y, a]| Color::from_laba(l, x, y, a),
+                None,
+            ),
+            "oklab" => (
+                |c| c.to_oklaba(),
+                |[l, x, y, a]| Color::from_oklaba(l, x, y, a),
+                None,
+            ),
+            "xyz" | "xyz-d65" => (
+                |c| c.to_xyz_d65(),
+                |[x, y, z, a]| Color::from_xyz_d65(x, y, z, a),
+                None,
+            ),
+            "xyz-d50" => (
+                |c| c.to_xyz_d50(),
+                |[x, y, z, a]| Color::from_xyz_d50(x, y, z, a),
+                None,
+            ),
+            "hsl" => (
+                |c| c.to_hsla(),
+                |[h, s, l, a]| Color::from_hsla(h, s, l, a),
+                Some(0),
+            ),
+            "hwb" => (
+                |c| c.to_hwba(),
+                |[h, w, b, a]| Color::from_hwba(h, w, b, a),
+                Some(0),
+            ),
+            "lch" => (
+                |c| {
+                    let [l, c, h, a] = c.to_lcha();
+                    [l, c, h.to_degrees(), a]
+                },
+                |[l, c, h, a]| Color::from_lcha(l, c, h.to_radians(), a),
+                Some(2),
+            ),
+            "oklch" => (
+                |c| {
+                    let [l, c, h, a] = c.to_oklcha();
+                    [l, c, h.to_degrees(), a]
+                },
+                |[l, c, h, a]| Color::from_oklcha(l, c, h.to_radians(), a),
+                Some(2),
+            ),
+            _ => return None,
+        };
+        let parsed = |c: Color32| {
+            let [r, g, b, a] = c.to_srgba_unmultiplied();
+            to(&Color::from_rgba8(r, g, b, a))
+        };
+        let (mut x, mut y) = (parsed(a), parsed(b));
+        let alpha = x[3] * pa + y[3] * pb;
+        if alpha <= 0.0 {
+            return Some(Color32::TRANSPARENT);
+        }
+        let mut out = [0.0, 0.0, 0.0, alpha];
+        if let Some(h) = hue_at {
+            // A grey's hue is powerless: hsl with no saturation, hwb as
+            // white plus black reaches 1, lch and oklch with no chroma.
+            let powerless = |c: &[f32; 4]| match space {
+                "hsl" => c[1] < 1e-4,
+                "hwb" => c[1] + c[2] >= 1.0 - 1e-4,
+                "lch" => c[1] < 1e-2,
+                _ => c[1] < 1e-4,
+            };
+            match (powerless(&x), powerless(&y)) {
+                (true, false) => x[h] = y[h],
+                (false, true) => y[h] = x[h],
+                (true, true) => (x[h], y[h]) = (0.0, 0.0),
+                (false, false) => {}
+            }
+            let (mut h1, mut h2) = (x[h].rem_euclid(360.0), y[h].rem_euclid(360.0));
+            let d = h2 - h1;
+            match hue {
+                "longer" if d > 0.0 && d < 180.0 => h1 += 360.0,
+                "longer" if d > -180.0 && d <= 0.0 => h2 += 360.0,
+                "increasing" if h2 < h1 => h2 += 360.0,
+                "decreasing" if h1 < h2 => h1 += 360.0,
+                "shorter" if d > 180.0 => h1 += 360.0,
+                "shorter" if d < -180.0 => h2 += 360.0,
+                _ => {}
+            }
+            out[h] = h1 * pa + h2 * pb;
+        }
+        for i in (0..3).filter(|i| Some(*i) != hue_at) {
+            out[i] = (x[i] * x[3] * pa + y[i] * y[3] * pb) / alpha;
+        }
+        let [r, g, b, a] = from(out).clamp().to_rgba8();
+        Some(Color32::from_rgba_unmultiplied(r, g, b, a))
     }
 
     fn named(v: &str) -> Option<Color32> {
@@ -791,6 +952,78 @@ pub(crate) mod css {
             );
             assert_eq!(resolve_vars("var(--missing, red)", &vars), "red");
             assert_eq!(resolve_vars("var(--missing)", &vars), "");
+        }
+
+        /// Within one step per channel of `want` (float rounding).
+        #[track_caller]
+        fn near(got: Option<Color32>, want: [u8; 4]) {
+            let got = got.expect("a colour").to_srgba_unmultiplied();
+            assert!(
+                got.iter().zip(want).all(|(g, w)| g.abs_diff(w) <= 1),
+                "{got:?} is not {want:?}"
+            );
+        }
+
+        /// Every colour CSS names draws as Chromium draws it, not only the
+        /// few the parser listed (`deeppink` was dropped).
+        #[test]
+        fn all_named_colours_parse() {
+            near(color("deeppink"), [255, 20, 147, 255]);
+            near(color("DarkSlateGray"), [47, 79, 79, 255]);
+            near(color("lavender"), [230, 230, 250, 255]);
+            near(color("mediumseagreen"), [60, 179, 113, 255]);
+            // Words that only look like hex or other syntaxes stay unknown.
+            assert_eq!(color("fade"), None);
+            assert_eq!(color("solid"), None);
+            assert_eq!(color("hsv(0, 100%, 100%)"), None);
+        }
+
+        /// CSS Color 4's functions beyond rgb() and hsl(), with values
+        /// worked from the specification's conversions.
+        #[test]
+        fn css_colour_4_functions_parse() {
+            near(color("hwb(120 0% 50%)"), [0, 128, 0, 255]);
+            near(color("lab(54.29% 80.8 69.89)"), [255, 0, 0, 255]);
+            near(color("lab(50 40 -30)"), [165, 91, 171, 255]);
+            near(color("lch(60 50 300)"), [157, 131, 222, 255]);
+            near(color("oklab(0.6 0.1 -0.1)"), [159, 99, 186, 255]);
+            near(color("oklch(70% 0.15 200 / 50%)"), [0, 185, 195, 128]);
+            near(color("color(srgb 1 0.5 0)"), [255, 128, 0, 255]);
+            // Relative colours as far as the crate reads them: channel
+            // names and plain numbers (not yet a percentage literal).
+            near(color("rgb(from red r g b / 0.5)"), [255, 0, 0, 128]);
+            near(color("hsl(from #00f h s 25)"), [0, 0, 128, 255]);
+        }
+
+        /// `color-mix()` mixes in the space it names, and percentages that
+        /// add up to less than 100% make it see-through.
+        #[test]
+        fn color_mix_mixes_in_its_space() {
+            near(color("color-mix(in oklab, red, blue)"), [140, 83, 162, 255]);
+            near(
+                color("color-mix(in srgb-linear, red, blue)"),
+                [188, 0, 188, 255],
+            );
+            near(
+                color("color-mix(in oklch, oklch(0.7 0.1 350), oklch(0.7 0.1 30))"),
+                [212, 132, 144, 255],
+            );
+            near(
+                color("color-mix(in oklch longer hue, oklch(0.7 0.1 350), oklch(0.7 0.1 30))"),
+                [67, 178, 172, 255],
+            );
+            near(
+                color("color-mix(in hsl, hsl(350 80% 50%), hsl(30 80% 50%))"),
+                [230, 60, 26, 255],
+            );
+            near(
+                color("color-mix(in srgb, red 20%, blue 20%)"),
+                [128, 0, 128, 102],
+            );
+            near(
+                color("color-mix(in oklab, red 30%, blue 30%)"),
+                [140, 83, 162, 153],
+            );
         }
 
         /// A function ends its word at its `)`, as CSS tokenises it:

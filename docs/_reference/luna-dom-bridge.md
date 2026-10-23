@@ -341,8 +341,13 @@ the first family loaded, an installed family it names or a generic one in
 the system's face (`monospace` is Consolas on Windows: tidal-genres' pills);
 the family is inherited by the text inside. A `display: flex` box has no
 gap unless it sets one. Colours: hex,
-`rgb[a]()`, `hsl[a]()`, `color-mix(in srgb, ...)`, named, `transparent`;
-`var()` is resolved from `overlay.vars`. Events forwarded for nodes that
+`rgb[a]()`, `hsl[a]()`, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()`,
+`color()`, relative colours with channel names and plain numbers
+(`rgb(from red r g b / 0.5)`, not yet a percentage there), all 148 named
+colours, `transparent`, and `color-mix()` in any of CSS's interpolation
+spaces (`srgb`, `srgb-linear`, `lab`, `oklab`, `xyz`, `hsl`, `hwb`, `lch`,
+`oklch`, with a hue method), its alpha scaled when the percentages add up
+to less than 100%; `var()` is resolved from `overlay.vars`. Events forwarded for nodes that
 listen: `click`, `dblclick`, `contextmenu`, `mouseenter/leave/over/out`,
 `wheel`, and `input`/`change` on form controls (buttons and links always
 send `click`). `min/max-width`, `min-height` and `pointer-events:none` are

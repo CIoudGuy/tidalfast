@@ -146,6 +146,13 @@ urlencoding = "2"
 # Reads the MPEG-DASH manifests TIDAL sends for FLAC-in-MP4 streams
 # (`api/tidal/manifest.rs`). Small, no dependencies, already in the tree.
 roxmltree = "0.20"
+# CSS colours in plugin and theme CSS beyond hex, rgb() and hsl(): the 148
+# named colours, hwb(), lab(), lch(), oklab(), oklch(), color() and relative
+# colours, with the colour-space conversions color-mix() needs to mix in a
+# space other than sRGB (`ui/plugin_slots.rs` `css::color`). Tested against
+# Chromium's and Firefox's colour cases. About 80 KB; it brings only phf (its
+# name table) and uncased.
+csscolorparser = "0.9"
 jiff = "0.2"
 unicode-bidi = "0.3"
 hmac = "0.12"

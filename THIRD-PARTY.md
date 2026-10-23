@@ -114,6 +114,7 @@ Generated with `cargo tree --target all -e normal,build --prefix none --format "
 | [crunchy](https://github.com/eira-fransham/crunchy) | 0.2.4 | MIT |
 | [crypto-common](https://github.com/RustCrypto/traits) | 0.1.7 | MIT OR Apache-2.0 |
 | [crypto-common](https://github.com/RustCrypto/traits) | 0.2.2 | MIT OR Apache-2.0 |
+| [csscolorparser](https://github.com/mazznoer/csscolorparser-rs) | 0.9.0 | MIT OR Apache-2.0 |
 | [ctutils](https://github.com/RustCrypto/utils) | 0.4.2 | Apache-2.0 OR MIT |
 | [cursor-icon](https://github.com/rust-windowing/cursor-icon) | 1.2.0 | MIT OR Apache-2.0 OR Zlib |
 | [dasp_sample](https://github.com/rustaudio/sample.git) | 0.11.0 | MIT OR Apache-2.0 |
@@ -356,10 +357,14 @@ Generated with `cargo tree --target all -e normal,build --prefix none --format "
 | [percent-encoding](https://github.com/servo/rust-url/) | 2.3.2 | MIT OR Apache-2.0 |
 | [phf](https://github.com/rust-phf/rust-phf) | 0.11.3 | MIT |
 | [phf](https://github.com/rust-phf/rust-phf) | 0.13.1 | MIT |
+| [phf](https://github.com/rust-phf/rust-phf) | 0.14.0 | MIT |
 | [phf_generator](https://github.com/rust-phf/rust-phf) | 0.13.1 | MIT |
+| [phf_generator](https://github.com/rust-phf/rust-phf) | 0.14.0 | MIT |
 | [phf_macros](https://github.com/rust-phf/rust-phf) | 0.13.1 | MIT |
+| [phf_macros](https://github.com/rust-phf/rust-phf) | 0.14.0 | MIT |
 | [phf_shared](https://github.com/rust-phf/rust-phf) | 0.11.3 | MIT |
 | [phf_shared](https://github.com/rust-phf/rust-phf) | 0.13.1 | MIT |
+| [phf_shared](https://github.com/rust-phf/rust-phf) | 0.14.0 | MIT |
 | [pico-args](https://github.com/RazrFalcon/pico-args) | 0.5.0 | MIT |
 | [pin-project](https://github.com/taiki-e/pin-project) | 1.1.13 | Apache-2.0 OR MIT |
 | [pin-project-internal](https://github.com/taiki-e/pin-project) | 1.1.13 | Apache-2.0 OR MIT |
@@ -511,6 +516,7 @@ Generated with `cargo tree --target all -e normal,build --prefix none --format "
 | [typeid](https://github.com/dtolnay/typeid) | 1.0.3 | MIT OR Apache-2.0 |
 | [typenum](https://github.com/paholg/typenum) | 1.20.1 | MIT OR Apache-2.0 |
 | [uds_windows](https://github.com/haraldh/rust_uds_windows) | 1.2.1 | MIT |
+| [uncased](https://github.com/SergioBenitez/uncased) | 0.9.10 | MIT OR Apache-2.0 |
 | [unicase](https://github.com/seanmonstar/unicase) | 2.9.0 | MIT OR Apache-2.0 |
 | [unicode-bidi](https://github.com/servo/unicode-bidi) | 0.3.18 | MIT OR Apache-2.0 |
 | [unicode-general-category](https://github.com/yeslogic/unicode-general-category) | 1.1.0 | Apache-2.0 |
