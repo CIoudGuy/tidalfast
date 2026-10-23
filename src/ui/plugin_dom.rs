@@ -1743,6 +1743,22 @@ fn tidal_text_roles(o: &DomOverlay, panel: SidePanel) -> (Color32, Color32, Colo
     )
 }
 
+/// The colour a theme's rules give TIDAL's queue artist line
+/// (`span._artistText_ ._text20_ ._marketText_`, read off its stand-in),
+/// whatever the window: Blur's `[class*="_marketText_"] { color: #ffffffee
+/// !important }` makes TIDAL 2.46.0's artist names near white on its dark
+/// queue. A catch-all `* { color }` does not reach it (TIDAL's own rule
+/// for the line). `None` while no theme rule colours the line.
+pub fn queue_artist_rule() -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    host(dom_anchors::keys::QUEUE_ROLE_SECONDARY, |h, vars| {
+        style_color(&h.style, |s| s.color.as_ref(), vars)
+    })
+    .filter(|c| c.a() > 0)
+}
+
 /// The page's track list is drawn in `r` (all its rows, scrolled or not):
 /// paints a theme's panel behind them (the cotton candy family's
 /// translucent, bordered `TRACK_LIST` box).
