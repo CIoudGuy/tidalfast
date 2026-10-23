@@ -366,7 +366,7 @@ fn bar_contents(
             .and_then(|state| state.cursor.char_range())
             .is_some_and(|range| !range.is_empty());
         super::search::navigate(app, ui.ctx(), ui.memory(|memory| memory.has_focus(id)));
-        let response = super::widgets::search_field(
+        let response = super::widgets::header_search_field(
             ui,
             &palette,
             app.locale,

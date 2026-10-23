@@ -5138,6 +5138,36 @@ pub fn search_field(
     hint: &str,
     width: f32,
 ) -> egui::Response {
+    search_field_in(ui, palette, locale, id, text, hint, width, false)
+}
+
+/// The top bar's search: [`search_field`] painted with the whole look a
+/// theme gives TIDAL's header search pill (`div._searchField_b2eb7f7` in
+/// its popover wrapper): its shadow, gradients, borders and glow round
+/// the fill, which the other search fields do not take.
+pub fn header_search_field(
+    ui: &mut Ui,
+    palette: &Palette,
+    locale: Locale,
+    id: egui::Id,
+    text: &mut String,
+    hint: &str,
+    width: f32,
+) -> egui::Response {
+    search_field_in(ui, palette, locale, id, text, hint, width, true)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn search_field_in(
+    ui: &mut Ui,
+    palette: &Palette,
+    locale: Locale,
+    id: egui::Id,
+    text: &mut String,
+    hint: &str,
+    width: f32,
+    header: bool,
+) -> egui::Response {
     // TIDAL's search: a 36-point frosted pill, the glyph centred 18 in,
     // text from 44, a .55 white placeholder.
     let height = 36.0;
@@ -5156,7 +5186,11 @@ pub fn search_field(
         .and_then(|s| s.fill)
         .filter(|f| f.a() > 0)
         .unwrap_or_else(|| palette.chip());
-    ui.painter().rect_filled(rect, corner, fill);
+    if header {
+        super::plugin_dom::paint_search_pill(ui, rect, corner, fill);
+    } else {
+        ui.painter().rect_filled(rect, corner, fill);
+    }
     // TIDAL desktop rings the field in solid white while it has focus.
     if has_focus {
         ui.painter().rect_stroke(

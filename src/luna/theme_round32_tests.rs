@@ -180,3 +180,114 @@ fn without_a_theme_the_menus_words_are_the_apps() {
     assert_eq!(pd::menu_words(palette.menu_bg()), None);
     assert_eq!(pd::menu_row_words(palette.menu_bg()), None);
 }
+
+/// The leaf shapes of `shape`.
+fn leaves(shape: &egui::Shape) -> usize {
+    match shape {
+        egui::Shape::Vec(v) => v.iter().map(leaves).sum(),
+        egui::Shape::Noop => 0,
+        _ => 1,
+    }
+}
+
+/// The top bar's search pill is painted with its anchor's whole look: a
+/// theme's outer shadow on TIDAL's `div._searchField_b2eb7f7` is drawn
+/// round its fill. Only the fill and corners were drawn.
+#[test]
+fn the_header_search_pill_takes_its_anchors_whole_look() {
+    use super::dom::{HostOverride, Style};
+    use crate::theme::Palette;
+    use crate::ui::{plugin_dom as pd, widgets};
+    let pink = egui::Color32::from_rgb(250, 200, 240);
+    let shapes = |shadow: Option<&str>| {
+        let mut o = DomOverlay {
+            version: 3,
+            ..DomOverlay::default()
+        };
+        o.hosts.insert(
+            dom_anchors::keys::SEARCH_FIELD.into(),
+            HostOverride {
+                style: Style {
+                    background_color: Some("rgb(250, 200, 240)".into()),
+                    box_shadow: shadow.map(str::to_string),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        pd::test_overlay(Some(o));
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut text = String::new();
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            widgets::header_search_field(
+                ui,
+                &Palette::dark(),
+                crate::i18n::Locale::English,
+                egui::Id::new("search"),
+                &mut text,
+                "Search",
+                300.0,
+            );
+        });
+        out.textures_delta.clear();
+        pd::test_overlay(None);
+        let filled = out
+            .shapes
+            .iter()
+            .any(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.fill == pink));
+        let n: usize = out.shapes.iter().map(|c| leaves(&c.shape)).sum();
+        (n, filled)
+    };
+    let (flat, filled) = shapes(None);
+    assert!(filled, "the theme's fill");
+    let (shadowed, _) = shapes(Some("0 0 1em rgba(0, 0, 0, .4)"));
+    assert!(shadowed > flat + 4, "outer shadow: {flat} -> {shadowed}");
+}
+
+/// TIDAL 2.46.0's search pill is `div._container_f1be359
+/// .searchFieldWithinSearchFieldWithPopover._searchField_b2eb7f7` round
+/// `input._searchField_4b7fbda` (2 points in top and bottom): a theme's
+/// `[class*="_header_"] [class*="_searchField_"]` white lies on both, which
+/// makes Blur's pill lighter in TIDAL (about 77 against Tidalfast's 47).
+/// Tidalfast's input had no such class and its fill was not drawn.
+#[test]
+fn a_search_field_rule_fills_the_pill_and_its_input() {
+    use crate::theme::Palette;
+    use crate::ui::{plugin_dom as pd, widgets};
+    let css = r#"/* {"name": "Frosted search"} */
+[class*="_header_"] [class*="_searchField_"] { background-color: rgba(255, 255, 255, .15) !important; border-radius: 24px !important; }
+"#;
+    let o = overlay_for("frosted-search.css", css, dom_anchors::keys::SEARCH_INPUT);
+    pd::test_overlay(Some((*o).clone()));
+    let ctx = egui::Context::default();
+    crate::theme::install(&ctx);
+    let mut text = String::new();
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        widgets::header_search_field(
+            ui,
+            &Palette::dark(),
+            crate::i18n::Locale::English,
+            egui::Id::new("search"),
+            &mut text,
+            "Search",
+            300.0,
+        );
+    });
+    out.textures_delta.clear();
+    pd::test_overlay(None);
+    let white = |c: egui::Color32| {
+        let [r, g, b, a] = c.to_srgba_unmultiplied();
+        r > 250 && g > 250 && b > 250 && (35..=42).contains(&a)
+    };
+    let layers: Vec<egui::Rect> = out
+        .shapes
+        .iter()
+        .filter_map(|c| match &c.shape {
+            egui::Shape::Rect(r) if white(r.fill) => Some(r.rect),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(layers.len(), 2, "the pill and its input: {layers:?}");
+    assert!((layers[0].height() - layers[1].height() - 4.0).abs() < 0.01);
+}

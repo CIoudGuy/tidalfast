@@ -1283,18 +1283,27 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     out.push(
         el(SEARCH_FIELD, Some(SEARCH), "div")
             .attr("data-type", "search-field")
+            .class("_container_f1be359")
+            .class("searchFieldWithinSearchFieldWithPopover")
             .modules(&["searchField"])
             .at(s.search),
     );
+    // TIDAL 2.46.0's input is `input._searchField_4b7fbda`, 2 points inside
+    // the pill top and bottom (its `padding: 2px 0`): a theme's
+    // `[class*="_searchField_"]` fill lies on both (Blur's pill is two
+    // layers of its white there).
     out.push(
         el(SEARCH_INPUT, Some(SEARCH_FIELD), "input")
             .attr("type", "search")
             .test("search-popover-search-field")
             .attr("data-type", "search-field__input")
             .attr("placeholder", "Search")
-            .modules(&["input"])
+            .class("_searchField_4b7fbda")
             .value(s.search_text.clone())
-            .at(s.search),
+            .at(s.search.map(|[x, y, w, h]| {
+                let inset = (h / 2.0).min(2.0);
+                [x, y + inset, w, h - 2.0 * inset]
+            })),
     );
     out.push(
         el(PROFILE, Some(HEADER), "button")
