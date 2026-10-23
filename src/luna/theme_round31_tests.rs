@@ -208,3 +208,85 @@ fn collection_and_list_boxes_have_tidals_classes() {
     }
     luna.shutdown();
 }
+/// TIDAL 2.46.0's submenu is its own box inside the menu row
+/// (`div._subMenuContainer_c2e42e7 > div._subMenu_706d970`), which Cotton
+/// Candy Nights paints with a pink-to-blue gradient and 14 corners while
+/// the menu itself stays clear. Tidalfast drew every submenu in the
+/// palette's flat menu colour. A frame marked for the submenu's box gets
+/// the theme's box laid in at the frame's end.
+#[test]
+fn a_themes_submenu_box_is_laid_into_submenu_frames() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Candy submenus"} */
+:root { --rose: rgb(250, 150, 240); --sky: rgb(150, 200, 255); }
+._subMenu_706d970 { background-color: #0000; background-image: linear-gradient(200deg, var(--rose), var(--sky)); border-radius: 14px; }
+"#;
+    let luna = themed_luna("candy-submenus.css", css);
+    let tree = dom_anchors::build(&dom_anchors::sample_frame());
+    let o = wait(&luna, &tree, &|o| {
+        o.hosts.contains_key(dom_anchors::keys::THEME_SUBMENU)
+    });
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let look = pd::submenu_box_look().expect("the submenu's box");
+    assert!(look.layers, "its gradient");
+    assert_eq!(look.corners, Some(egui::CornerRadius::same(14)));
+    let palette = crate::theme::Palette::dark();
+    let ctx = egui::Context::default();
+    crate::theme::install(&ctx);
+    let mut out = egui::FullOutput::default();
+    for _ in 0..2 {
+        out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let ctx = ui.ctx().clone();
+            egui::Area::new(egui::Id::new("submenu"))
+                .fixed_pos(egui::pos2(100.0, 100.0))
+                .show(&ctx, |ui| {
+                    pd::note_menu_fill(palette.menu_bg());
+                    egui::Frame::new()
+                        .fill(pd::SUBMENU_BOX_MARK)
+                        .show(ui, |ui| {
+                            ui.allocate_exact_size(egui::vec2(200.0, 120.0), egui::Sense::hover());
+                        });
+                });
+            pd::end_frame(&ctx);
+        });
+        out.textures_delta.clear();
+    }
+    pd::test_overlay(None);
+    let mut flat = Vec::new();
+    fn walk(s: &egui::Shape, out: &mut Vec<egui::Shape>) {
+        match s {
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            other => out.push(other.clone()),
+        }
+    }
+    for c in &out.shapes {
+        walk(&c.shape, &mut flat);
+    }
+    assert!(
+        !flat
+            .iter()
+            .any(|s| matches!(s, egui::Shape::Rect(r) if r.fill == pd::SUBMENU_BOX_MARK)),
+        "the mark is replaced"
+    );
+    let gradient = flat.iter().any(|s| match s {
+        egui::Shape::Mesh(m) => {
+            m.vertices
+                .iter()
+                .any(|v| u32::from(v.color.r()) * 10 > u32::from(v.color.g()) * 13)
+                && m.vertices.iter().any(|v| v.color.b() > v.color.r())
+        }
+        _ => false,
+    });
+    assert!(
+        gradient,
+        "the submenu's gradient is drawn: {:?}",
+        flat.iter()
+            .map(|s| match s {
+                egui::Shape::Rect(r) => format!("rect {:?}", r.fill),
+                egui::Shape::Mesh(m) => format!("mesh {:?}", m.vertices.first().map(|v| v.color)),
+                _ => "other".to_string(),
+            })
+            .collect::<Vec<_>>()
+    );
+}

@@ -948,9 +948,22 @@ fn submenu<R>(
         config = config.close_behavior(close_behavior);
     }
     if is_in_menu {
-        egui::menu::SubMenu::new()
+        // egui draws the submenu's frame from `window_fill`: marked while a
+        // theme gives TIDAL's submenu box a look, which is laid into it at
+        // the frame's end (Cotton Candy Nights' gradient).
+        let native = ui.style().visuals.window_fill;
+        let themed = super::plugin_dom::submenu_box_look().is_some();
+        if themed {
+            super::plugin_dom::note_menu_fill(native);
+            ui.style_mut().visuals.window_fill = super::plugin_dom::SUBMENU_BOX_MARK;
+        }
+        let shown = egui::menu::SubMenu::new()
             .config(config)
-            .show(ui, &response, add_contents)
+            .show(ui, &response, add_contents);
+        if themed {
+            ui.style_mut().visuals.window_fill = native;
+        }
+        shown
     } else {
         egui::Popup::menu(&response)
             .close_behavior(config.close_behavior)

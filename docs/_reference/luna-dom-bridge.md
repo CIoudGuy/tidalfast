@@ -859,8 +859,10 @@ Parts on it: the sidebar's navigation rows and library rows (fill,
 corners, borders, shadow and the selected pill's inset glow, in their
 `:hover` and `_selected_` states), the queue panel, filter field, track
 list panel, feed card and every other `paint_themed_box` user, the popup
-menus' box, the header's Play and Shuffle pills, and Explore's pills and
-icon links (their corners too). A border on some sides of a box (`border-style: solid
+menus' box, submenus' own box (`div._subMenu_706d970`, laid into egui's
+submenu frames by a second mark), the Collection grid (`section._grid_97562f5`,
+grown by its padding round the cards), the header's Play and Shuffle pills,
+and Explore's pills and icon links (their corners too). A border on some sides of a box (`border-style: solid
 none none none`, the runtime's `border-width` of four) is drawn on those
 sides for every box layer, not round the box.
 

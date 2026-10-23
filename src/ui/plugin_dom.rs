@@ -35,9 +35,9 @@ use super::plugin_slots::css;
 #[path = "anchor_look.rs"]
 mod anchor_look;
 pub use anchor_look::{
-    AnchorLook, MENU_BOX_MARK, anchor_look, look_text, mark_opacity, menu_box_looks,
-    paint_anchor_box, paint_look, paint_look_with_fill, paint_part, paint_sides,
-    paints_beyond_fill,
+    AnchorLook, MENU_BOX_MARK, SUBMENU_BOX_MARK, anchor_look, look_text, mark_opacity,
+    menu_box_looks, paint_anchor_box, paint_look, paint_look_with_fill, paint_part, paint_sides,
+    paints_beyond_fill, submenu_box_look,
 };
 
 /// A menu frame was marked for the theme's box this frame

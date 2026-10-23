@@ -445,15 +445,43 @@ pub fn paint_sides(painter: &egui::Painter, r: Rect, sides: [f32; 4], color: Col
 /// so the box is laid in where the frame put it.
 pub const MENU_BOX_MARK: Color32 = Color32::from_rgba_premultiplied(60, 20, 80, 100);
 
+/// The fill egui's submenu frames get (`window_fill`) while a theme gives
+/// TIDAL's submenu box (`div._subMenu_706d970`) a look: replaced at the
+/// frame's end like [`MENU_BOX_MARK`], with the submenu's box.
+pub const SUBMENU_BOX_MARK: Color32 = Color32::from_rgba_premultiplied(20, 60, 80, 100);
+
 /// How opaque a fill marked with [`MENU_BOX_MARK`] is (a menu fading in
 /// multiplies the mark like every colour in it), `None` for other fills.
 pub fn mark_opacity(fill: Color32) -> Option<f32> {
+    mark_of(fill, [0.6, 0.2, 0.8])
+}
+
+fn mark_of(fill: Color32, shares: [f32; 3]) -> Option<f32> {
     let a = f32::from(fill.a());
     if a < 4.0 {
         return None;
     }
     let near = |c: u8, share: f32| (f32::from(c) - a * share).abs() <= 1.0;
-    (near(fill.r(), 0.6) && near(fill.g(), 0.2) && near(fill.b(), 0.8)).then_some(a / 100.0)
+    (near(fill.r(), shares[0]) && near(fill.g(), shares[1]) && near(fill.b(), shares[2]))
+        .then_some(a / 100.0)
+}
+
+/// Which box a marked fill stands for: `Some((false, opacity))` for a
+/// menu's ([`MENU_BOX_MARK`]), `Some((true, opacity))` for a submenu's
+/// ([`SUBMENU_BOX_MARK`]).
+fn mark_kind(fill: Color32) -> Option<(bool, f32)> {
+    mark_opacity(fill)
+        .map(|o| (false, o))
+        .or_else(|| mark_of(fill, [0.2, 0.6, 0.8]).map(|o| (true, o)))
+}
+
+/// The look a theme gives TIDAL's submenu box (`div._subMenu_706d970`,
+/// inside a menu row: Cotton Candy Nights' gradient), when it paints one.
+pub fn submenu_box_look() -> Option<Arc<AnchorLook>> {
+    if !on() {
+        return None;
+    }
+    anchor_look(crate::luna::dom_anchors::keys::THEME_SUBMENU).filter(|l| l.paints_box())
 }
 
 /// The looks of TIDAL's menu box under a theme, when they are more than a
@@ -478,11 +506,14 @@ pub fn menu_box_looks() -> Option<[Option<Arc<AnchorLook>>; 2]> {
 /// painted with [`MENU_BOX_MARK`] this frame: the menu's colour
 /// (`native_fill`, the palette's), then the popover's and the menu's boxes.
 pub fn paint_menu_boxes(ctx: &egui::Context, native_fill: Color32) {
-    use crate::luna::dom_anchors::keys::{THEME_MENU, THEME_MENU_BOX};
-    let Some([outer, menu]) = menu_box_looks() else {
+    use crate::luna::dom_anchors::keys::{THEME_MENU, THEME_MENU_BOX, THEME_SUBMENU};
+    let menus = menu_box_looks();
+    let submenu = submenu_box_look();
+    if menus.is_none() && submenu.is_none() {
         return;
-    };
-    // The marked frames: layer, shape index, rect, clip and corners.
+    }
+    // The marked frames: layer, shape index, rect, clip, corners, opacity
+    // and whether it is a submenu's.
     let layers: Vec<egui::LayerId> = ctx.memory(|m| m.layer_ids().collect());
     let mut marked = Vec::new();
     ctx.graphics(|g| {
@@ -491,13 +522,13 @@ pub fn paint_menu_boxes(ctx: &egui::Context, native_fill: Color32) {
                 continue;
             };
             for (i, c) in list.all_entries().enumerate() {
-                if let Some((rect, corner, opacity)) = marked_rect(&c.shape) {
-                    marked.push((*layer, i, rect, c.clip_rect, corner, opacity));
+                if let Some((rect, corner, (sub, opacity))) = marked_rect(&c.shape) {
+                    marked.push((*layer, i, rect, c.clip_rect, corner, opacity, sub));
                 }
             }
         }
     });
-    for (layer, index, rect, clip, corner, opacity) in marked {
+    for (layer, index, rect, clip, corner, opacity, sub) in marked {
         let scratch = egui::LayerId::new(
             layer.order,
             egui::Id::new("anchor-look-menu").with(layer.id).with(index),
@@ -508,19 +539,30 @@ pub fn paint_menu_boxes(ctx: &egui::Context, native_fill: Color32) {
             egui::UiBuilder::new().layer_id(scratch).max_rect(rect),
         );
         ui.multiply_opacity(opacity);
-        ui.painter().rect_filled(rect, corner, native_fill);
-        for (key, look) in [(THEME_MENU_BOX, &outer), (THEME_MENU, &menu)] {
-            if let Some(look) = look {
-                // The menu's own fill is the palette's, laid already.
-                let boxed = AnchorLook {
-                    fill: if key == THEME_MENU_BOX {
-                        look.fill
-                    } else {
-                        None
-                    },
-                    ..AnchorLook::clone(look)
-                };
-                paint_with(&ui, key, &boxed, rect, corner, Color32::TRANSPARENT);
+        if sub {
+            // The submenu's box: its fill (or the menu's colour where it
+            // gives none), gradients, borders and glow.
+            if let Some(look) = &submenu {
+                paint_with(&ui, THEME_SUBMENU, look, rect, corner, native_fill);
+            } else {
+                ui.painter().rect_filled(rect, corner, native_fill);
+            }
+        } else {
+            ui.painter().rect_filled(rect, corner, native_fill);
+            let [outer, menu] = menus.clone().unwrap_or_default();
+            for (key, look) in [(THEME_MENU_BOX, &outer), (THEME_MENU, &menu)] {
+                if let Some(look) = look {
+                    // The menu's own fill is the palette's, laid already.
+                    let boxed = AnchorLook {
+                        fill: if key == THEME_MENU_BOX {
+                            look.fill
+                        } else {
+                            None
+                        },
+                        ..AnchorLook::clone(look)
+                    };
+                    paint_with(&ui, key, &boxed, rect, corner, Color32::TRANSPARENT);
+                }
             }
         }
         let shapes = ctx.graphics_mut(|g| {
@@ -542,13 +584,11 @@ pub fn paint_menu_boxes(ctx: &egui::Context, native_fill: Color32) {
     }
 }
 
-/// The rect and corners of a frame painted with [`MENU_BOX_MARK`] (alone,
-/// or beside its shadow).
-fn marked_rect(shape: &egui::Shape) -> Option<(Rect, CornerRadius, f32)> {
+/// The rect and corners of a frame painted with [`MENU_BOX_MARK`] or
+/// [`SUBMENU_BOX_MARK`] (alone, or beside its shadow), and which.
+fn marked_rect(shape: &egui::Shape) -> Option<(Rect, CornerRadius, (bool, f32))> {
     match shape {
-        egui::Shape::Rect(r) => {
-            mark_opacity(r.fill).map(|opacity| (r.rect, r.corner_radius, opacity))
-        }
+        egui::Shape::Rect(r) => mark_kind(r.fill).map(|kind| (r.rect, r.corner_radius, kind)),
         egui::Shape::Vec(v) => v.iter().find_map(marked_rect),
         _ => None,
     }
@@ -557,7 +597,7 @@ fn marked_rect(shape: &egui::Shape) -> Option<(Rect, CornerRadius, f32)> {
 /// `shape` with its marked rect replaced by `boxed`.
 fn replace_mark(shape: egui::Shape, boxed: &[egui::Shape]) -> egui::Shape {
     match shape {
-        egui::Shape::Rect(r) if mark_opacity(r.fill).is_some() => egui::Shape::Vec(boxed.to_vec()),
+        egui::Shape::Rect(r) if mark_kind(r.fill).is_some() => egui::Shape::Vec(boxed.to_vec()),
         egui::Shape::Vec(v) => {
             egui::Shape::Vec(v.into_iter().map(|s| replace_mark(s, boxed)).collect())
         }
