@@ -1031,6 +1031,7 @@
 				set("bottom", b);
 				set("left", l);
 			} else if (name === "text-decoration-line") set("text-decoration", v);
+			else if (name === "background-clip" || name === "-webkit-background-clip") set("background-clip", v.trim().toLowerCase());
 			else if (name === "-webkit-filter") set("filter", v);
 			else if (name === "backdrop-filter" || name === "-webkit-backdrop-filter") {
 				if (!/^none$/i.test(v.trim())) set("backdrop-filter", v);

@@ -396,7 +396,12 @@ with its transform and rounds by its `border-radius` (any length, or a share
 of its shorter side: qr-share's 12-pixel card). `filter: blur(r)`
 on a background image draws a copy scaled to about one texel per radius and
 smoothed, made off the UI thread (spinny-cover); `filter: brightness(<1)`
-dims the box and what it holds. Other filters are not drawn. `var()` in
+dims the box and what it holds. Other filters are not drawn.
+`background-clip: text` paints a box's `linear-gradient()` layers (each
+with its own `background-size` and `background-position`, no repeat)
+through its words only, in narrow upright strips, under the words' own
+colour, which hides them unless it is `transparent`: radiant-lyrics' sung
+word, wiped by a gradient an animation widens. `var()` in
 SVG markup is resolved before drawing (star-ratings' star colours). On a light backdrop (Light) an SVG `fill`
 or `stroke` that would not read takes dark ink with its own opacity, as
 plugin text does (star-ratings' 28 % white empty stars, OneClickLyrics'
@@ -416,8 +421,9 @@ its `transition` when the overlay changes them, from wherever they are at
 that moment, so a hover fade cut short turns back from where it got to
 and takes only as long as the way there took (the reversing shortening
 factor); a delay holds the start value. `@keyframes` animations move
-`opacity`, `transform`, `color`, `background-color` and
-`background-position` (sprite sheets, `steps()` included), each property
+`opacity`, `transform`, `color`, `background-color`,
+`background-position` (sprite sheets, `steps()` included) and
+`background-size`, each layer of a list on its own, each property
 between the keyframes that set it, eased per interval (a keyframe's own
 easing first), with the iteration count, direction, a negative delay,
 `animation-play-state: paused` holding the time it reached, and fill
