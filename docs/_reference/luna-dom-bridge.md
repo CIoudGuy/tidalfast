@@ -867,6 +867,19 @@ reading one property at a time:
   the frame is filled with a mark colour and, at the frame's end, the mark
   is replaced by the menu's colour and the theme's box in the menu's own
   rect (`paint_menu_boxes`), at the menu's fade-in opacity.
+- **Menu rows and icons.** A hovered row with an anchor of its own reads
+  its `:hover` look off it; one without (a row opening a submenu, a
+  submenu's rows, Share's links) floats a hovered-row stand-in over itself
+  (`div._actionItem_._actionItemHover_ > button._actionText_`, in its own
+  list item under the menu stand-in) and paints that look
+  (`paint_menu_hover`), else TIDAL's own white at 15 %, which is not a
+  token and holds under any theme (`widgets::action_hover`). The icons
+  read a theme's fill off stand-ins for a row's leading icon
+  (`span._extraLeftIconContainer_ > svg._icon_ > use`) and its chevron
+  (`span._subMenuIcon_ > svg._icon_ > use`) (`menu_icon`).
+- **The header bar.** The arrows, the search popover and the profile
+  button sit in `div._container_cb5cbe4[data-test=header]` inside the
+  header, as in TIDAL 2.46.0; themes reach the search pill through it.
 
 Parts on it: the sidebar's navigation rows and library rows (fill,
 corners, borders, shadow and the selected pill's inset glow, in their
