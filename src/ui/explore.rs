@@ -625,10 +625,8 @@ mod tests {
     fn explore_pills_and_links_take_their_themes_whole_box() {
         use crate::luna::dom::{DomOverlay, HostOverride, Style};
         use crate::luna::dom_anchors::keys::{cloud_btn, page_link};
-        let root = std::env::temp_dir().join(format!(
-            "tidalfast-explore-look-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("tidalfast-explore-look-{}", std::process::id()));
         let mut app = App::new(
             &crate::backend::Waker::default(),
             crate::paths::AppDirs {
