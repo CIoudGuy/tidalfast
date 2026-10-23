@@ -1469,28 +1469,18 @@ fn nav_row(
             active,
             crate::motion::tidal::HOVER,
         );
-        let mut fill = crate::motion::blend(
+        let fill = crate::motion::blend(
             palette.nav_hover().gamma_multiply(hover),
             palette.nav_selected(),
             selected,
         );
-        let mut color =
-            crate::motion::blend(idle_nav_ink(palette), palette.text, hover.max(selected));
-        let mut corner = CornerRadius::same(12);
-        // A theme's rules for the row (`._navigationItem_ { background;
-        // border-radius; color }`, its `:hover` and `_selected_` states).
-        if let Some(style) =
-            super::plugin_dom::nav_style(&crate::luna::dom_anchors::keys::sidebar_item(test))
-        {
-            fill = style.fill.unwrap_or(fill);
-            color = style.color.unwrap_or(color);
-            if let Some(radius) = style.radius {
-                corner = CornerRadius::same(radius.clamp(0.0, 255.0).round() as u8);
-            }
-        }
-        if fill.a() > 0 {
-            ui.painter().rect_filled(rect, corner, fill);
-        }
+        let color = crate::motion::blend(idle_nav_ink(palette), palette.text, hover.max(selected));
+        // The theme's whole box for the row (`._navigationItem_`: fill,
+        // gradients, corners, borders, shadows and the inset glow, in its
+        // `:hover` and `_selected_` states), else TIDAL's pill.
+        let key = crate::luna::dom_anchors::keys::sidebar_item(test);
+        let look = super::plugin_dom::paint_part(ui, &key, rect, CornerRadius::same(12), fill);
+        let color = super::plugin_dom::look_text(&key, look.as_deref(), color);
         let icon_rect =
             Rect::from_center_size(pos2(rect.left() + 20.0, rect.center().y), Vec2::splat(18.0));
         // A theme's colour for the row's `svg` (TidalCustomTheme's dark
@@ -1501,10 +1491,12 @@ fn nav_row(
         .unwrap_or(color);
         icon.image(ink, 18.0).paint_at(ui, icon_rect);
         // A theme's colour for the row's words themselves.
-        let words =
-            super::plugin_dom::nav_style(&crate::luna::dom_anchors::keys::sidebar_item_label(test))
-                .and_then(|s| s.color)
-                .unwrap_or(color);
+        let label_key = crate::luna::dom_anchors::keys::sidebar_item_label(test);
+        let words = super::plugin_dom::look_text(
+            &label_key,
+            super::plugin_dom::anchor_look(&label_key).as_deref(),
+            color,
+        );
         ui.painter().text(
             pos2(rect.left() + 40.0, rect.center().y),
             egui::Align2::LEFT_CENTER,
@@ -2395,26 +2387,18 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                     // A theme's rules for the row (`._contentItem_ { background;
                     // border-radius; color }`, its `:hover` and `_selected_`).
                     let themed = super::plugin_dom::library_row(rect, active, playing);
-                    let mut corner = CornerRadius::same(12);
                     let fill = if active {
                         palette.nav_selected()
                     } else {
                         palette.nav_hover().gamma_multiply(hover)
                     };
-                    let mut fill = if active || hover > 0.0 {
+                    let fill = if active || hover > 0.0 {
                         fill
                     } else {
                         egui::Color32::TRANSPARENT
                     };
-                    if let Some(style) = &themed {
-                        fill = style.fill.unwrap_or(fill);
-                        if let Some(radius) = style.radius {
-                            corner = CornerRadius::same(radius.clamp(0.0, 255.0).round() as u8);
-                        }
-                    }
-                    if fill.a() > 0 {
-                        ui.painter().rect_filled(rect, corner, fill);
-                    }
+                    // The theme's whole box for the row, else TIDAL's.
+                    super::plugin_dom::paint_library_row(ui, rect, CornerRadius::same(12), fill);
                     if drop_hover {
                         ui.painter().rect_filled(
                             rect,
@@ -3950,5 +3934,58 @@ mod nav_label_tests {
             "Shuffle"
         );
         super::super::plugin_dom::test_overlay(None);
+    }
+
+    /// The selected navigation row is painted with its anchor's whole look:
+    /// a theme's inset glow and outer shadow on `._navigationItem_._selected_`
+    /// (the cotton candy family's glowing pill) are drawn round its fill.
+    /// Only the fill, corners and words were read, so the pill was flat.
+    #[test]
+    fn a_navigation_rows_glow_and_shadow_are_drawn() {
+        use crate::luna::dom::Style;
+        let shapes = |shadow: Option<&str>| {
+            let mut overlay = DomOverlay::default();
+            overlay.version = 7;
+            overlay.hosts.insert(
+                crate::luna::dom_anchors::keys::sidebar_item("sidebar-music"),
+                HostOverride {
+                    style: Style {
+                        background_color: Some("rgb(250, 200, 240)".into()),
+                        box_shadow: shadow.map(str::to_string),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            );
+            super::super::plugin_dom::test_overlay(Some(overlay));
+            let ctx = egui::Context::default();
+            crate::theme::install(&ctx);
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                nav_row(
+                    ui,
+                    &Palette::dark(),
+                    "sidebar-music",
+                    Icon::Music,
+                    "Music",
+                    true,
+                    false,
+                );
+            });
+            out.textures_delta.clear();
+            super::super::plugin_dom::test_overlay(None);
+            let pink = |c: egui::Color32| c.r() > 200 && c.g() < 230 && c.b() > 200;
+            let fills = out
+                .shapes
+                .iter()
+                .filter(|c| matches!(&c.shape, egui::Shape::Rect(r) if pink(r.fill)))
+                .count();
+            (out.shapes.len(), fills)
+        };
+        let (flat, fills) = shapes(None);
+        assert_eq!(fills, 1, "the theme's fill");
+        let (glowing, _) = shapes(Some("inset 0px 0px .9em rgb(255, 120, 220)"));
+        assert!(glowing > flat + 4, "inset glow: {flat} -> {glowing}");
+        let (shadowed, _) = shapes(Some("0 0 1em rgba(0, 0, 0, .4)"));
+        assert!(shadowed > flat + 4, "outer shadow: {flat} -> {shadowed}");
     }
 }

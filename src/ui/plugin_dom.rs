@@ -32,6 +32,21 @@ use crate::theme::Palette;
 
 use super::plugin_slots::css;
 
+#[path = "anchor_look.rs"]
+mod anchor_look;
+pub use anchor_look::{
+    AnchorLook, MENU_BOX_MARK, anchor_look, look_text, mark_opacity, menu_box_looks,
+    paint_anchor_box, paint_look, paint_part, paint_sides,
+};
+
+/// A menu frame was marked for the theme's box this frame
+/// ([`MENU_BOX_MARK`]): the menu's own colour, laid under that box.
+pub fn note_menu_fill(fill: Color32) {
+    if on() {
+        with(|s| s.menu_fill = Some(fill));
+    }
+}
+
 /// Rect-only changes go out at most this often, unless boxes are settling.
 const RECT_THROTTLE: Duration = Duration::from_millis(100);
 /// How long after an overlay that can move boxes they count as settling:
@@ -163,6 +178,9 @@ struct State {
     host_motion: HostMotion,
     /// Transition and animation events waiting for their time.
     motion_events: super::motion_events::Pending,
+    /// A menu frame was marked for the theme's box this frame, over this
+    /// colour ([`note_menu_fill`]).
+    menu_fill: Option<Color32>,
     #[cfg(test)]
     test_overlay: bool,
 }
@@ -479,6 +497,9 @@ pub fn end_frame(ctx: &egui::Context) {
         return;
     }
     super::luna_video::end_pass();
+    if let Some(fill) = with(|s| s.menu_fill.take()) {
+        anchor_look::paint_menu_boxes(ctx, fill);
+    }
     with(|s| {
         super::css_motion::wake(ctx, s.host_motion.wake.take());
         s.hovered = std::mem::take(&mut s.hovered_now);
@@ -1421,31 +1442,8 @@ pub fn paint_themed_box(ui: &egui::Ui, key: &str, r: Rect, native: egui::CornerR
     if host(key, |h, _| styled(h).then_some(())).is_none() {
         return false;
     }
-    let corner = radius(key).map_or(native, |r| {
-        egui::CornerRadius::same(r.clamp(0.0, 255.0).round() as u8)
-    });
-    // The box's `box-shadow`: its first outer layer under it, its first
-    // inset layer as a glow inside its edges (the cotton candy family's
-    // soft panels).
-    let viewport = viewport();
-    let (outer, inset) = host(key, |h, vars| {
-        let v = h.style.box_shadow.as_deref();
-        Some((
-            super::theme_layout::shadow(v, vars, viewport),
-            super::theme_layout::inset_shadow(v, vars, viewport),
-        ))
-    })
-    .unwrap_or((None, None));
-    if let Some(shadow) = outer {
-        paint_outer_shadow(ui.painter(), r, corner, shadow);
-    }
-    let fill = host(key, own_fill).filter(|c| c.a() > 0);
-    if let Some(fill) = fill {
-        ui.painter().rect_filled(r, corner, fill);
-    }
-    paint_host_layers_rounded(ui, key, r, Some(corner));
-    if let Some((color, blur, spread)) = inset {
-        paint_inset_glow(ui.painter(), r, corner, color, blur, spread);
+    if let Some(look) = anchor_look(key) {
+        paint_look(ui, key, &look, r, native);
     }
     true
 }
@@ -1893,37 +1891,15 @@ fn nav_style_now(key: &str) -> Option<NavStyle> {
     if !on() {
         return None;
     }
-    if let Some(hit) = theme_boxes(|b| b.nav.get(key).copied()) {
-        return hit;
-    }
-    let made = host(key, |h, vars| {
-        if h.hidden() {
-            return None;
-        }
-        let fill = style_color(&h.style, |s| s.background_color.as_ref(), vars).or_else(|| {
-            // `background-image: none` beside a fill-less shorthand clears it.
-            h.style
-                .background_image
-                .as_deref()
-                .is_some_and(|v| v.trim().eq_ignore_ascii_case("none"))
-                .then_some(Color32::TRANSPARENT)
-        });
-        let radius = h
-            .style
-            .border_radius
-            .as_deref()
-            .and_then(|v| css::length(&css::resolve_vars(v, vars), 14.0, 0.0, [0.0, 0.0]));
-        let color = style_color(&h.style, |s| s.color.as_ref(), vars).filter(|c| c.a() > 0);
-        let style = NavStyle {
-            fill,
-            radius,
-            color,
-            ..NavStyle::default()
-        };
-        (style != NavStyle::default()).then_some(style)
-    });
-    theme_boxes(|b| b.nav.insert(key.to_string(), made));
-    made
+    // The row's whole look, of which the sidebar's parts read these.
+    let look = anchor_look(key)?;
+    let style = NavStyle {
+        fill: look.fill,
+        radius: look.corners.map(|c| f32::from(c.nw)),
+        color: look.text,
+        ..NavStyle::default()
+    };
+    (style != NavStyle::default()).then_some(style)
 }
 
 /// The "All playlists" heading is drawn in `r`: gives it TIDAL's anchors
@@ -1993,6 +1969,30 @@ pub fn library_row(r: Rect, selected: bool, playing: bool) -> Option<NavStyle> {
     style.title_size = font_size(&title);
     style.title_weight = font_weight(&title);
     (style != NavStyle::default()).then_some(style)
+}
+
+/// Paints the library row [`library_row`] noted last in `r`: the theme's
+/// whole box for its anchor (fill, gradients, corners, borders, shadows,
+/// in its `:hover` and `_selected_` states), else the row's `native_fill`
+/// in `native` corners.
+pub fn paint_library_row(
+    ui: &egui::Ui,
+    r: Rect,
+    native: egui::CornerRadius,
+    native_fill: Color32,
+) -> Option<Arc<AnchorLook>> {
+    let index = on()
+        .then(|| with(|s| s.frame.sidebar.rows.len().checked_sub(1)))
+        .flatten();
+    match index {
+        Some(i) => paint_part(ui, &dom_anchors::keys::lib_row(i), r, native, native_fill),
+        None => {
+            if native_fill.a() > 0 {
+                ui.painter().rect_filled(r, native, native_fill);
+            }
+            None
+        }
+    }
 }
 
 /// One of Explore's icon links is drawn in `hit`, its words in `text`: gives
@@ -2287,11 +2287,11 @@ struct ThemeBoxes {
     /// a theme colours every row alike, but a plugin may colour one
     /// (scroll-to-playing's playing row).
     row_text: std::collections::HashMap<String, std::collections::HashMap<usize, Option<RowText>>>,
-    /// What a theme made of the sidebar's navigation rows and library rows.
-    nav: std::collections::HashMap<String, Option<NavStyle>>,
     /// The text, secondary and dim colours TIDAL's sidebar and play queue
     /// take ([`tidal_panel_text`]).
     panel_text: [Option<(Color32, Color32, Color32)>; 2],
+    /// Every anchor's whole look ([`anchor_look`]).
+    looks: std::collections::HashMap<String, Option<Arc<AnchorLook>>>,
 }
 
 fn theme_boxes<R>(f: impl FnOnce(&mut ThemeBoxes) -> R) -> R {
@@ -5436,6 +5436,8 @@ pub enum BoxLayer {
     Image(Box<Style>),
     /// A `border` drawn round the box: width, colour, corner radii.
     Border(f32, Color32, egui::CornerRadius),
+    /// A border on some sides only, top right bottom left, and its colour.
+    Sides([f32; 4], Color32),
     /// The box's own corners, rounding its linear gradients (put last, and
     /// only when the box has both).
     Corners(egui::CornerRadius),
@@ -5603,6 +5605,7 @@ pub fn paint_host_layers_rounded(
             }
             BoxLayer::Paint(l) => paint_layer(ui, rect, l),
             BoxLayer::Image(style) => super::plugin_slots::paint_style_image(ui, rect, style),
+            BoxLayer::Sides(sides, color) => paint_sides(ui.painter(), rect, *sides, *color),
             BoxLayer::Border(width, color, radius) => {
                 ui.painter().rect_stroke(
                     rect.shrink(width / 2.0),
@@ -5673,6 +5676,11 @@ pub fn box_layers(
             .flatten()
             .filter(|p| !p.hidden()),
     ) {
+        // A border on some sides only (`border-top`) is drawn on those.
+        if let Some((sides, color)) = anchor_look::some_sides(s, vars, viewport) {
+            out.push(BoxLayer::Sides(sides, color));
+            continue;
+        }
         if let Some((width, color)) = s
             .border
             .as_deref()
