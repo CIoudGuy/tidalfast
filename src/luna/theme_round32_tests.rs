@@ -122,3 +122,61 @@ fn sidebar_playlist_rows_have_tidal_2_46s_classes() {
     assert_eq!(style.title_weight, None);
     assert_eq!(style.secondary, Some(egui::Color32::from_rgb(120, 40, 160)));
 }
+
+/// A theme that sets TIDAL's contrast token on the context menu alone
+/// (Cotton Candy Nights: `._contextMenu_ { --wave-color-solid-contrast-fill:
+/// #000 }` with its root's white, and `._actionTextInner_ { color: black }`
+/// nested in it) has TIDAL 2.46.0 draw the menu's title, a submenu's
+/// heading and the rows that open submenus in those dark colours (captured).
+/// Tidalfast drew the title and those rows in the page's pale words, faint
+/// on the theme's pink menu.
+#[test]
+fn a_menus_own_contrast_token_colours_its_title_and_submenu_rows() {
+    use crate::theme::Palette;
+    use crate::ui::{plugin_dom as pd, widgets};
+    let css = r#"/* {"name": "Candy menu"} */
+:root { --wave-color-solid-contrast-fill: rgb(250, 250, 250); }
+._contextMenu_8606b2d {
+  background-color: rgb(240, 170, 230);
+  --wave-color-solid-contrast-fill: rgb(10, 0, 30) !important;
+  ._actionTextInner_a14f37c { color: rgb(20, 0, 40) !important; }
+}
+"#;
+    let o = overlay_for("candy-menu.css", css, dom_anchors::keys::THEME_MENU_TITLE);
+    pd::test_overlay(Some((*o).clone()));
+    let palette = Palette::dark();
+    let title = pd::menu_words(palette.menu_bg());
+    let ctx = egui::Context::default();
+    crate::theme::install(&ctx);
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        widgets::menu_frame(&palette).show(ui, |ui| {
+            ui.set_width(widgets::MENU_MIN_CONTENT);
+            widgets::menu_submenu(ui, &palette, None, "Add to playlist", |_| {});
+        });
+    });
+    out.textures_delta.clear();
+    pd::test_overlay(None);
+    assert_eq!(title, Some(egui::Color32::from_rgb(10, 0, 30)));
+    let row = out
+        .shapes
+        .iter()
+        .find_map(|s| match &s.shape {
+            egui::Shape::Text(t) if t.galley.text() == "Add to playlist" => {
+                Some(t.galley.job.sections[0].format.color)
+            }
+            _ => None,
+        })
+        .expect("the row's words");
+    assert_eq!(row, egui::Color32::from_rgb(20, 0, 40));
+}
+
+/// With no theme the menu's words keep the app's own colours.
+#[test]
+fn without_a_theme_the_menus_words_are_the_apps() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom as pd;
+    pd::test_overlay(None);
+    let palette = Palette::dark();
+    assert_eq!(pd::menu_words(palette.menu_bg()), None);
+    assert_eq!(pd::menu_row_words(palette.menu_bg()), None);
+}

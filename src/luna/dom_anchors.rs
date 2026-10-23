@@ -248,6 +248,14 @@ pub mod keys {
     /// `span._actionTextInner_` in it: a menu row's words, whose size and
     /// weight themes set there (Tidal TUI's 14px).
     pub const THEME_MENU_TEXT: &str = "theme-roles:menu-text";
+    /// The menu's heading, its first child (TIDAL 2.46.0:
+    /// `div._header_2f58a49 > div._titleGroup_208d294 >
+    /// div._title_2bc5e10[data-test=contextmenu-title]`): the title's words
+    /// take TIDAL's contrast token as it stands in the menu, which a theme
+    /// may set on the menu alone (Cotton Candy Nights' black).
+    pub const THEME_MENU_HEADER: &str = "theme-roles:menu-header";
+    pub const THEME_MENU_TITLE_GROUP: &str = "theme-roles:menu-title-group";
+    pub const THEME_MENU_TITLE: &str = "theme-roles:menu-title";
     /// TIDAL's popover around a menu, `div._container_d3060bb._visible_4bed23e`,
     /// which themes paint as the menu's surface (the cotton candy family's
     /// gradient glass).
@@ -1146,6 +1154,15 @@ pub fn theme_roles(out: &mut Vec<HostNode>) {
         el(THEME_MENU, Some(THEME_MENU_BOX), "div")
             .modules(&["contextMenu"])
             .attr("role", "menu"),
+    );
+    out.push(el(THEME_MENU_HEADER, Some(THEME_MENU), "div").class("_header_2f58a49"));
+    out.push(
+        el(THEME_MENU_TITLE_GROUP, Some(THEME_MENU_HEADER), "div").class("_titleGroup_208d294"),
+    );
+    out.push(
+        el(THEME_MENU_TITLE, Some(THEME_MENU_TITLE_GROUP), "div")
+            .class("_title_2bc5e10")
+            .test("contextmenu-title"),
     );
     out.push(el(THEME_MENU_TEXT, Some(THEME_MENU), "span").modules(&["actionTextInner"]));
     out.push(el(THEME_SUBMENU_LIST, Some(THEME_MENU), "ul").class("_actionList_1cd4298"));

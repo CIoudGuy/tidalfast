@@ -895,9 +895,9 @@ fn submenu<R>(
             ui.painter()
                 .rect_filled(rect, CornerRadius::same(9), menu_hover(palette));
         }
-        // In the theme's contrast token, as the menu's other words.
-        let color =
-            super::plugin_dom::token_contrast_text(palette.menu_bg()).unwrap_or(palette.text);
+        // As the menu's other words: a theme's rule for TIDAL's row words,
+        // else its contrast token as it stands in the menu.
+        let color = super::plugin_dom::menu_row_words(palette.menu_bg()).unwrap_or(palette.text);
         // TIDAL's menus are text only, a grey 16-point chevron 8 from the
         // row's end closing a submenu.
         let _ = icon;

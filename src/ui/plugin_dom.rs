@@ -1637,6 +1637,46 @@ pub fn token_contrast_text(under: Color32) -> Option<Color32> {
     .and_then(|c| readable_text(c, Color32::TRANSPARENT, under))
 }
 
+/// The colour of a context menu's words that TIDAL draws in its contrast
+/// token (the heading's title, a submenu's heading), as the token stands
+/// in the menu: a theme may set it on `._contextMenu_` alone (Cotton Candy
+/// Nights' black over its pink gradient, where its root keeps white), or
+/// name the title in a rule. Read off the menu title's stand-in; where
+/// that is just the root's token, [`token_contrast_text`] over `under`.
+pub fn menu_words(under: Color32) -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    let scoped = host(dom_anchors::keys::THEME_MENU_TITLE, |h, vars| {
+        style_color(&h.style, |s| s.color.as_ref(), vars)
+    })
+    .filter(|c| c.a() > 0);
+    let root = with(|s| {
+        let v = s.overlay.vars.get("--wave-color-solid-contrast-fill")?;
+        css::color(&css::resolve_vars(v, &s.overlay.vars))
+    });
+    match scoped {
+        Some(c) if Some(c) != root => Some(c),
+        _ => token_contrast_text(under),
+    }
+}
+
+/// The colour of a menu row's words where the row has no anchor of its
+/// own (a row opening a submenu, a submenu's rows): a theme's rule for
+/// TIDAL's `span._actionTextInner_` (Cotton Candy Nights'
+/// `color: black !important`, as its other rows take), else
+/// [`menu_words`].
+pub fn menu_row_words(under: Color32) -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    host(dom_anchors::keys::THEME_MENU_TEXT, |h, vars| {
+        style_color(&h.style, |s| s.color.as_ref(), vars)
+    })
+    .filter(|c| c.a() > 0)
+    .or_else(|| menu_words(under))
+}
+
 /// [`token_queue_fill`]'s mix.
 pub fn queue_fill_from(base: Color32) -> Color32 {
     let base = base.to_opaque();
