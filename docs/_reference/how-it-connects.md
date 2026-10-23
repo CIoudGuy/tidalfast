@@ -153,6 +153,13 @@ the same shared client and artwork cache as covers, off the UI thread, at 80
 pixels, and no cookie or account detail is sent. Without the picture (loading,
 offline, no GitHub account known) the card keeps its letter avatar.
 
+A plugin or theme you installed can name a font on the web in its
+`@font-face` (radiant-lyrics loads its lyric face from its author's site).
+Tidalfast fetches each such font once per run over HTTPS, as TIDAL with
+TidaLuna would, with no cookie or account detail, and draws the plugin's text
+in it. Fonts at other kinds of address (a file on this computer or a network
+share) are never opened.
+
 ## Limits Tidalfast works within
 
 - TIDAL's API for these clients is not a documented public contract; endpoints

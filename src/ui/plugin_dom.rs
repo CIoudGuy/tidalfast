@@ -6841,7 +6841,7 @@ fn fonts_tick(ctx: &egui::Context) {
                     let Some(bytes) = font_bytes(&f.src) else {
                         // Once per change of the fonts plugins declare.
                         log::warn!(
-                            "Luna: left out font {:?}: not a font in a data: URL",
+                            "Luna: left out font {:?}: no source loaded as a font",
                             f.family
                         );
                         continue;
@@ -7003,24 +7003,86 @@ fn faces_at_weights(
 /// A font egui could not parse would panic the UI thread on every start
 /// (saved themes apply again), so a broken one is left out.
 pub(crate) fn font_bytes(src: &str) -> Option<Vec<u8>> {
-    let mut s = src.trim();
-    if let Some(i) = s.find("url(") {
-        s = &s[i + 4..];
-        s = s.split(')').next().unwrap_or("");
+    // A `src` lists sources in order (`url(a.woff2) format("woff2"),
+    // url(a.ttf)`); the first that loads is used, as in a browser.
+    let mut rest = src.trim();
+    let mut urls = Vec::new();
+    while let Some(i) = rest.find("url(") {
+        let after = &rest[i + 4..];
+        let end = after.find(')').unwrap_or(after.len());
+        urls.push(after[..end].trim().trim_matches(|c| c == '"' || c == '\''));
+        rest = &after[end..];
     }
-    let s = s.trim().trim_matches(|c| c == '"' || c == '\'');
-    if let Some(data) = s.strip_prefix("data:") {
-        let (meta, payload) = data.split_once(',')?;
-        if !meta.ends_with(";base64") {
-            return None;
-        }
-        use base64::Engine;
-        return base64::engine::general_purpose::STANDARD
-            .decode(payload.trim())
-            .ok()
-            .filter(|bytes| font_parses(bytes, 0));
+    if urls.is_empty() {
+        urls.push(src.trim().trim_matches(|c| c == '"' || c == '\''));
     }
-    None
+    urls.into_iter().find_map(|u| {
+        let raw = if let Some(data) = u.strip_prefix("data:") {
+            let (meta, payload) = data.split_once(',')?;
+            if !meta.ends_with(";base64") {
+                return None;
+            }
+            use base64::Engine;
+            base64::engine::general_purpose::STANDARD
+                .decode(payload.trim())
+                .ok()?
+        } else {
+            web_font(u)?
+        };
+        sfnt(raw).filter(|bytes| font_parses(bytes, 0))
+    })
+}
+
+/// The TrueType or OpenType data in a font file: WOFF and WOFF2 unpacked
+/// (the web's formats; radiant-lyrics' faces are WOFF2), anything else as
+/// it is.
+fn sfnt(bytes: Vec<u8>) -> Option<Vec<u8>> {
+    match bytes.get(..4) {
+        Some(b"wOF2") => wuff::decompress_woff2(&bytes).ok(),
+        Some(b"wOFF") => wuff::decompress_woff1(&bytes).ok(),
+        _ => Some(bytes),
+    }
+}
+
+/// A font a plugin's `@font-face` names on the web, fetched once per run.
+/// HTTPS only (plain HTTP only from this computer), every redirect held to
+/// it, and never a local or network path: opening a UNC path makes Windows
+/// sign in to that server. Called off the UI thread.
+fn web_font(url: &str) -> Option<Vec<u8>> {
+    type Fetched = std::sync::Mutex<HashMap<String, Option<Vec<u8>>>>;
+    static FETCHED: std::sync::LazyLock<Fetched> = std::sync::LazyLock::new(Default::default);
+    if !crate::luna::is_secure_source(url) {
+        return None;
+    }
+    if let Some(hit) = FETCHED.lock().ok()?.get(url) {
+        return hit.clone();
+    }
+    let fetched = (|| {
+        let client = reqwest::blocking::Client::builder()
+            .user_agent(concat!("Tidalfast-Luna/", env!("CARGO_PKG_VERSION")))
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                if attempt.previous().len() >= 10 {
+                    attempt.error("too many redirects")
+                } else if crate::luna::is_secure_source(attempt.url().as_str()) {
+                    attempt.follow()
+                } else {
+                    attempt.error("not https")
+                }
+            }))
+            .build()
+            .ok()?;
+        let response = client.get(url).send().ok()?.error_for_status().ok()?;
+        crate::luna::read_capped(response, 40 * 1024 * 1024, "font").ok()
+    })();
+    if fetched.is_none() {
+        log::warn!("Luna: could not fetch the font at {url}");
+    }
+    if let Ok(mut cache) = FETCHED.lock() {
+        cache.insert(url.to_string(), fetched.clone());
+    }
+    fetched
 }
 
 /// Whether egui can load `bytes` as a font (face `index` of a collection).
@@ -8163,9 +8225,101 @@ mod tests {
         test_overlay(None);
     }
 
-    /// A theme's `@font-face` is only ever a whole font in a `data:` URL: a
-    /// truncated one (which egui would panic on, on every start, as saved
-    /// themes apply again) and any local or network path are refused.
+    /// A plugin's `@font-face` on the web loads as in a browser: fetched
+    /// (HTTPS, or plain HTTP only from this computer) and unpacked from the
+    /// web's WOFF format, the first of its `src` list that loads winning.
+    /// radiant-lyrics' faces are WOFF2 files on its author's site; they were
+    /// refused, so its lyrics were drawn in the app's face.
+    #[test]
+    fn a_web_font_is_fetched_and_unpacked() {
+        use std::io::{Read, Write};
+        let ttf: &[u8] = include_bytes!("../../assets/fonts/NotoEmoji.ttf");
+        let woff = woff1(ttf);
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let served = woff.clone();
+        let server = std::thread::spawn(move || {
+            // One request for the missing file, one for the font.
+            for _ in 0..2 {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut head = [0u8; 2048];
+                let n = stream.read(&mut head).unwrap();
+                let head = String::from_utf8_lossy(&head[..n]);
+                if head.starts_with("GET /missing.woff2") {
+                    let _ = stream.write_all(
+                        b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                    );
+                } else {
+                    let _ = stream.write_all(
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: font/woff\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            served.len()
+                        )
+                        .as_bytes(),
+                    );
+                    let _ = stream.write_all(&served);
+                }
+            }
+        });
+        let src = format!(
+            "url(\"http://127.0.0.1:{port}/missing.woff2\") format(\"woff2\"), url(http://127.0.0.1:{port}/face.woff) format(\"woff\")"
+        );
+        let got = font_bytes(&src).expect("the WOFF face loads");
+        server.join().unwrap();
+        assert!(font_parses(&got, 0));
+        assert_eq!(&got[..4], &ttf[..4], "unpacked to the font inside");
+    }
+
+    /// `ttf` as an uncompressed WOFF 1 file (tables stored as they are).
+    fn woff1(ttf: &[u8]) -> Vec<u8> {
+        let u16_at = |i: usize| u16::from_be_bytes([ttf[i], ttf[i + 1]]);
+        let u32_at = |i: usize| u32::from_be_bytes([ttf[i], ttf[i + 1], ttf[i + 2], ttf[i + 3]]);
+        let n = usize::from(u16_at(4));
+        let tables: Vec<([u8; 4], u32, usize, usize)> = (0..n)
+            .map(|k| {
+                let e = 12 + 16 * k;
+                let tag = [ttf[e], ttf[e + 1], ttf[e + 2], ttf[e + 3]];
+                (
+                    tag,
+                    u32_at(e + 4),
+                    u32_at(e + 8) as usize,
+                    u32_at(e + 12) as usize,
+                )
+            })
+            .collect();
+        let pad = |len: usize| (len + 3) & !3;
+        let sfnt_size = 12 + 16 * n + tables.iter().map(|t| pad(t.3)).sum::<usize>();
+        let mut offset = 44 + 20 * n;
+        let mut dir = Vec::new();
+        let mut data = Vec::new();
+        for (tag, checksum, at, len) in &tables {
+            dir.extend_from_slice(tag);
+            dir.extend_from_slice(&(offset as u32).to_be_bytes());
+            dir.extend_from_slice(&(*len as u32).to_be_bytes());
+            dir.extend_from_slice(&(*len as u32).to_be_bytes());
+            dir.extend_from_slice(&checksum.to_be_bytes());
+            data.extend_from_slice(&ttf[*at..at + len]);
+            data.resize(data.len() + pad(*len) - len, 0);
+            offset += pad(*len);
+        }
+        let mut out = Vec::new();
+        out.extend_from_slice(b"wOFF");
+        out.extend_from_slice(&ttf[..4]);
+        out.extend_from_slice(&(offset as u32).to_be_bytes());
+        out.extend_from_slice(&(n as u16).to_be_bytes());
+        out.extend_from_slice(&0u16.to_be_bytes());
+        out.extend_from_slice(&(sfnt_size as u32).to_be_bytes());
+        out.extend_from_slice(&[0, 1, 0, 0]);
+        out.extend_from_slice(&[0; 20]);
+        out.extend_from_slice(&dir);
+        out.extend_from_slice(&data);
+        out
+    }
+
+    /// A theme's `@font-face` is only ever a whole font: a truncated one
+    /// (which egui would panic on, on every start, as saved themes apply
+    /// again) and any local or network path, or a web address that is not
+    /// HTTPS, are refused.
     #[test]
     fn theme_fonts_must_parse_and_never_name_a_path() {
         use base64::Engine;
@@ -8183,7 +8337,7 @@ mod tests {
             "url(file:///C:/Windows/Fonts/arial.ttf)",
             r"C:\Windows\Fonts\arial.ttf",
             "local(Arial)",
-            "url(https://example.com/a.ttf)",
+            "url(http://example.com/a.ttf)",
         ] {
             assert_eq!(font_bytes(src), None, "{src}");
         }

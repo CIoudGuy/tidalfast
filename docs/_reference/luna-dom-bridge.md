@@ -746,10 +746,12 @@ theme's `background-color` there (or, when that is see-through, the mean
 colour of the gradient that paints the pill), its label colour, size and
 weight, its icon's fill (`svg._icon_77f3f89 > use` in the button) and its
 border and corner radius replace the native white and grey pills; with no theme they are
-drawn as before. Fonts plugins declare (`@font-face` with a `data:` URL; never a local or
-network path, since opening a UNC path makes Windows sign in to that server,
-and only a font that parses whole, since egui panics on a broken one)
-load off the UI thread; a page `font-family` that names an installed font
+drawn as before. Fonts plugins declare (`@font-face` with a `data:` URL or a web address,
+HTTPS only, plain HTTP only from this computer, fetched once a run; the
+first of a `src` list that loads wins; WOFF and WOFF2 are unpacked, as in a
+browser; never a local or network path, since opening a UNC path makes
+Windows sign in to that server, and only a font that parses whole, since
+egui panics on a broken one) load off the UI thread; a page `font-family` that names an installed font
 (`"Comic Sans MS"`) loads that font from the system, and the first family
 found becomes the first face of every weight; a list that reaches a generic
 family (`monospace`, `serif`, `cursive`, `fantasy`) before any named one is

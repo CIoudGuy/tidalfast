@@ -85,7 +85,7 @@ pub use settings::{
     SETTINGS_RETRY, SelectOption, SettingValue, SettingsLink, SettingsMeta, SettingsNode,
 };
 
-pub(crate) use runtime::read_capped;
+pub(crate) use runtime::{is_secure_source, read_capped};
 
 /// The store list TidaLuna ships with (`@luna/ui` PluginStoreTab), in its
 /// order and with its release channels: Inrixia's store and wont-stream's are
