@@ -2270,6 +2270,39 @@ pub fn search_style(palette: &Palette) -> Option<NavStyle> {
     (style != NavStyle::default()).then_some(style)
 }
 
+/// Paints the top bar's search pill in `r`: `fill` (the pill's colour as
+/// [`search_style`] has it, else the native one) in `corner`, inside the
+/// rest of the look a theme gives TIDAL's popover wrapper and its
+/// `div._searchField_b2eb7f7` (outer shadow, gradients and pictures,
+/// borders, inset glow), and the box it gives the input inside
+/// (`input._searchField_4b7fbda`, 2 points in top and bottom, no corners of
+/// its own): Blur's `[class*="_searchField_"]` white lies on both in TIDAL.
+/// Only the pill's fill and corners were drawn.
+pub fn paint_search_pill(ui: &egui::Ui, r: Rect, corner: f32, fill: Color32) {
+    use dom_anchors::keys::{SEARCH, SEARCH_FIELD, SEARCH_INPUT};
+    let corner = egui::CornerRadius::same(corner.clamp(0.0, 255.0).round() as u8);
+    let more = |key: &str| anchor_look(key).filter(|l| paints_beyond_fill(l));
+    let (wrap, field) = (more(SEARCH), more(SEARCH_FIELD));
+    if let Some(look) = &wrap {
+        paint_look_with_fill(ui, SEARCH, look, r, corner, Color32::TRANSPARENT);
+    }
+    match &field {
+        Some(look) => paint_look_with_fill(ui, SEARCH_FIELD, look, r, corner, fill),
+        None => {
+            ui.painter().rect_filled(r, corner, fill);
+        }
+    }
+    if anchor_look(SEARCH_INPUT).is_some_and(|l| l.paints_box()) {
+        let inset = (r.height() / 2.0).min(2.0);
+        paint_anchor_box(
+            ui,
+            SEARCH_INPUT,
+            r.shrink2(egui::vec2(0.0, inset)),
+            egui::CornerRadius::ZERO,
+        );
+    }
+}
+
 /// A header pill: Play (`primary`) or Shuffle, with the label it shows.
 pub fn page_button(primary: bool, r: Rect, label: &str) {
     note(|f| {
