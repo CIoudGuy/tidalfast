@@ -741,7 +741,8 @@ impl LunaHost for AppHost {
             return NetVerdict::Deny("plugins cannot change the account here".into());
         };
         // The same check as the one that asked: only playlists and favourites.
-        let allowed = tidal_v1(url).is_some_and(|(path, _)| write_kind(method, &path).is_some());
+        let allowed =
+            account_api(url).is_some_and(|(_, path, _)| write_kind(method, &path).is_some());
         if !allowed {
             return NetVerdict::Deny("plugins cannot change the account here".into());
         }
@@ -777,8 +778,10 @@ impl LunaHost for AppHost {
                 url,
                 headers,
                 ..
-            } if account_request(headers) && tidal_v1(url).is_some() => {
-                let (path, _) = tidal_v1(url).unwrap_or_default();
+            } if account_request(headers) && account_api(url).is_some() => {
+                let path = account_api(url)
+                    .map(|(_, path, _)| path)
+                    .unwrap_or_default();
                 if !method.eq_ignore_ascii_case("GET") {
                     // Playlists and favourites, after the user said yes to
                     // this plugin (the runtime asks; see luna/writes.rs).
@@ -823,7 +826,7 @@ impl AppHost {
         else {
             return NetVerdict::Deny("not a request".into());
         };
-        let (path, query) = tidal_v1(url).unwrap_or_default();
+        let (api, path, query) = account_api(url).unwrap_or((Api::V1, String::new(), Vec::new()));
         // The off-screen Luna demo has no TIDAL: a search finds its songs.
         #[cfg(feature = "demo")]
         if luna_demo() && path == "search" && method.eq_ignore_ascii_case("GET") {
@@ -854,14 +857,24 @@ impl AppHost {
             tidal.block_on(move |client| async move {
                 let query: Vec<(&str, String)> =
                     query.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
-                client
-                    .v1_call(&verb, &path, &query, &form, if_none_match)
-                    .await
+                match api {
+                    Api::V1 => {
+                        client
+                            .v1_call(&verb, &path, &query, &form, if_none_match)
+                            .await
+                    }
+                    Api::V2 => {
+                        client
+                            .v2_call(&verb, &path, &query, &form, if_none_match)
+                            .await
+                    }
+                }
             })
         });
         log::info!(
-            "Luna plugin {} {did} {method} v1/{shown} through the app: {}",
+            "Luna plugin {} {did} {method} {}/{shown} through the app: {}",
             plugin.unwrap_or("?"),
+            if api == Api::V1 { "v1" } else { "v2" },
             match &answer {
                 Some((status, ..)) => status.to_string(),
                 None => "no answer".into(),
@@ -869,9 +882,14 @@ impl AppHost {
         );
         match answer {
             Some((status, body, etag)) => {
+                // A change to the folders changes the account's list.
+                let changed = match api {
+                    Api::V1 => playlist_changed(&shown),
+                    Api::V2 => Some(None),
+                };
                 if method != "GET"
                     && (200..300).contains(&status)
-                    && let Some(changed) = playlist_changed(&shown)
+                    && let Some(changed) = changed
                 {
                     self.push(HostRequest::PlaylistChanged(changed));
                 }
@@ -922,6 +940,14 @@ fn write_kind(method: &str, path: &str) -> Option<&'static str> {
         ["playlists", id, ..] if !id.is_empty() => Some("change a playlist"),
         ["users", id, "playlists", ..] if !id.is_empty() => Some("create or change a playlist"),
         ["users", id, "favorites", ..] if !id.is_empty() => Some("change your favourites"),
+        // The account's playlist folders (v2): make, rename, move or
+        // remove a folder or playlist in them.
+        [
+            "my-collection",
+            "playlists",
+            "folders",
+            "create-folder" | "create-playlist" | "add-favorites" | "rename" | "move" | "remove",
+        ] => Some("change your playlists and folders"),
         _ => None,
     }
 }
@@ -938,6 +964,33 @@ fn account_request(headers: &serde_json::Map<String, Value>) -> bool {
 /// (`https://desktop.tidal.com/v1/users/1/favorites/tracks?limit=1`); the
 /// country code comes from the account.
 fn tidal_v1(url: &str) -> Option<(String, Vec<(String, String)>)> {
+    tidal_path(url, "/v1/")
+}
+
+/// The path (under `my-collection/`) and query of a call to the account's
+/// playlist folders (`https://api.tidal.com/v2/my-collection/playlists/folders?folderId=root`),
+/// which TIDAL's own app makes in v2 (star-ratings' Rated folder).
+fn tidal_v2_collection(url: &str) -> Option<(String, Vec<(String, String)>)> {
+    tidal_path(url, "/v2/").filter(|(path, _)| path.starts_with("my-collection/"))
+}
+
+/// Which API a plugin's call to the account goes to, its path and query.
+fn account_api(url: &str) -> Option<(Api, String, Query)> {
+    tidal_v1(url)
+        .map(|(path, query)| (Api::V1, path, query))
+        .or_else(|| tidal_v2_collection(url).map(|(path, query)| (Api::V2, path, query)))
+}
+
+/// A call's query, `(name, value)` in order.
+type Query = Vec<(String, String)>;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Api {
+    V1,
+    V2,
+}
+
+fn tidal_path(url: &str, version: &str) -> Option<(String, Vec<(String, String)>)> {
     let parsed = url::Url::parse(url).ok()?;
     if parsed.scheme() != "https"
         || !matches!(
@@ -947,7 +1000,7 @@ fn tidal_v1(url: &str) -> Option<(String, Vec<(String, String)>)> {
     {
         return None;
     }
-    let path = parsed.path().strip_prefix("/v1/")?.to_string();
+    let path = parsed.path().strip_prefix(version)?.to_string();
     if path.is_empty() || path.contains("..") {
         return None;
     }
@@ -1184,6 +1237,91 @@ mod tests {
             host.outbound(Some("P"), &request("GET")),
             NetVerdict::Respond { status: 404, .. }
         ));
+    }
+
+    /// The account's playlist folders are TIDAL v2 calls
+    /// (`api.tidal.com/v2/my-collection/playlists/folders`): star-ratings
+    /// lists the root to find its Rated folder. They went out as they were,
+    /// with the stand-in `Bearer tidalfast-account`, TIDAL refused them and
+    /// the plugin's Rated sync gave up ("folder not ready yet"). They are
+    /// made by the app with its session, as v1 calls are; their writes ask
+    /// first, and nothing else of v2 is opened.
+    #[test]
+    fn playlist_folder_calls_go_through_the_app() {
+        let mut headers = serde_json::Map::new();
+        headers.insert(
+            "authorization".into(),
+            Value::from("Bearer tidalfast-account"),
+        );
+        let host = AppHost::new(None, None);
+        let call = |method: &str, url: &str| NetRequest::Fetch {
+            method: method.into(),
+            url: url.into(),
+            headers: headers.clone(),
+            body: None,
+        };
+        let folders = "https://api.tidal.com/v2/my-collection/playlists/folders";
+        // A read: made by the app (signed out here, so no answer), not sent
+        // to TIDAL with the stand-in token.
+        assert!(matches!(
+            host.outbound(
+                Some("P"),
+                &call("GET", &format!("{folders}?folderId=root&countryCode=US"))
+            ),
+            NetVerdict::Respond { status: 404, .. }
+        ));
+        assert_eq!(
+            tidal_v2_collection(&format!("{folders}?folderId=root&countryCode=US")),
+            Some((
+                "my-collection/playlists/folders".into(),
+                vec![("folderId".into(), "root".into())]
+            )),
+            "the account's own country code is used"
+        );
+        for op in [
+            "create-folder",
+            "create-playlist",
+            "rename",
+            "move",
+            "remove",
+        ] {
+            let url = format!("{folders}/{op}?folderId=root&name=Rated");
+            assert!(
+                matches!(
+                    host.outbound(Some("P"), &call("PUT", &url)),
+                    NetVerdict::Ask(_)
+                ),
+                "{op}"
+            );
+            assert!(
+                matches!(
+                    host.account_write(Some("P"), &call("PUT", &url)),
+                    NetVerdict::Respond { status: 404, .. }
+                ),
+                "{op}"
+            );
+        }
+        for url in [
+            "https://api.tidal.com/v2/my-collection/playlists/folders/delete-everything",
+            "https://api.tidal.com/v2/my-collection/tracks",
+        ] {
+            assert!(
+                matches!(
+                    host.outbound(Some("P"), &call("PUT", url)),
+                    NetVerdict::Deny(_)
+                ),
+                "{url}"
+            );
+        }
+        // Other v2 addresses are not the account's to open.
+        assert_eq!(
+            tidal_v2_collection("https://api.tidal.com/v2/feed/activities"),
+            None
+        );
+        assert_eq!(
+            tidal_v2_collection("https://evil.example/v2/my-collection/playlists/folders"),
+            None
+        );
     }
 
     /// A 253-song playlist comes whole, as TidaLuna's `limit=-1` read

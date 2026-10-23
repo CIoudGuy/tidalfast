@@ -2185,6 +2185,39 @@ impl TidalClient {
         }
     }
 
+    /// A call a Luna plugin made itself to the account's playlist folders
+    /// (`api.tidal.com/v2/my-collection/...`), answered as TIDAL answers
+    /// it, as [`Self::v1_call`] does for v1.
+    pub async fn v2_call(
+        &self,
+        method: &str,
+        path: &str,
+        query: &[(&str, String)],
+        form: &[(String, String)],
+        if_none_match: Option<String>,
+    ) -> Result<(u16, String, Option<String>)> {
+        let method = Method::from_bytes(method.as_bytes())
+            .map_err(|_| ApiError::Decode("the request method".into()))?;
+        let mut call = Call::new(method, self.v2(path));
+        for (key, value) in query {
+            call = call.query(key, value);
+        }
+        for (key, value) in form {
+            call = call.form(key, value);
+        }
+        if let Some(etag) = if_none_match {
+            call = call.etag(etag);
+        }
+        match self.send_keeping(call, true).await {
+            Ok(reply) => Ok((reply.status, reply.body, reply.etag)),
+            Err(ApiError::Status { status, message }) => {
+                let body = serde_json::json!({ "status": status, "userMessage": message });
+                Ok((status, body.to_string(), None))
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     /// A v2 answer as TIDAL sends it, GET only (demo builds' API probe).
     /// `path` may also be a whole `https://` address on a TIDAL API host
     /// (`openapi.tidal.com/v2/...`).
