@@ -82,6 +82,10 @@ pub struct HostTree {
     /// with: a plugin measuring after its change waits for it.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub laid_out: u64,
+    /// Where the plugin elements in [`DomOverlay::measure`] were drawn:
+    /// element id and `[x, y, width, height]`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub node_rects: Vec<(u64, [f32; 4])>,
 }
 
 fn is_zero(n: &u64) -> bool {
@@ -409,6 +413,11 @@ pub struct DomOverlay {
     /// pointer (`hover` events) so those rules can apply.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub hover: bool,
+    /// Plugin elements whose own box a script read (`getBoundingClientRect`
+    /// and the like on an element inside another one): the UI reports where
+    /// it drew them ([`HostTree::node_rects`]).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub measure: Vec<u64>,
 }
 
 impl Style {
@@ -502,7 +511,10 @@ impl DomOverlay {
                     || a.before != b.before
                     || a.after != b.after
             });
+        // A script waits for the boxes of elements it newly reads.
+        let measured = new.measure.iter().any(|id| !self.measure.contains(id));
         hosts
+            || measured
             || self.injected.len() != new.injected.len()
             || self.injected.iter().zip(&new.injected).any(|(a, b)| {
                 a.anchor != b.anchor || a.position != b.position || !same_shape(&a.nodes, &b.nodes)

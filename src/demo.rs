@@ -8413,6 +8413,79 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// A plugin element inside another one whose box a script read
+    /// (`DomOverlay::measure`) is reported where it was drawn: here the third
+    /// of three lines a plugin lists in the lyrics, under the first two.
+    #[test]
+    fn a_nested_plugin_element_is_reported_where_it_is_drawn() {
+        use crate::luna::dom::{DomOverlay, Injected, Position, Style, VNode};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("np-lyrics-measure");
+        apply_flags(&mut app, Some("home"), Some("now-playing-lyrics"));
+        let line = |id: u64| VNode {
+            id,
+            tag: "div".into(),
+            style: Style {
+                display: Some("block".into()),
+                height: Some("30px".into()),
+                ..Style::default()
+            },
+            children: vec![VNode {
+                id: id + 100,
+                tag: "#text".into(),
+                text: Some(format!("line {id}")),
+                ..VNode::default()
+            }],
+            ..VNode::default()
+        };
+        let overlay = DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: keys::LYRICS_LINES.into(),
+                position: Position::Prepend,
+                nodes: vec![VNode {
+                    id: 1,
+                    tag: "div".into(),
+                    style: Style {
+                        display: Some("block".into()),
+                        ..Style::default()
+                    },
+                    children: vec![line(2), line(3), line(4)],
+                    ..VNode::default()
+                }],
+            }],
+            measure: vec![2, 4],
+            ..DomOverlay::default()
+        };
+        plugin_dom::test_overlay(Some(overlay));
+        for _ in 0..3 {
+            shown_frame(&ctx, &mut app);
+            plugin_dom::end_frame(&ctx);
+        }
+        let tree = plugin_dom::test_sent_tree().expect("a tree was sent");
+        plugin_dom::test_overlay(None);
+        let at = |id: u64| {
+            tree.node_rects
+                .iter()
+                .find(|(n, _)| *n == id)
+                .map(|(_, r)| *r)
+                .unwrap_or_else(|| panic!("{id} reported: {:?}", tree.node_rects))
+        };
+        assert!(
+            tree.node_rects.iter().all(|(n, _)| [2, 4].contains(n)),
+            "only what was asked for: {:?}",
+            tree.node_rects
+        );
+        let (first, third) = (at(2), at(4));
+        assert!(
+            third[1] - first[1] >= 59.0 && third[1] - first[1] < 70.0,
+            "two 30-point lines apart: {first:?} {third:?}"
+        );
+        assert!((third[3] - 30.0).abs() < 1.0, "its own height: {third:?}");
+        app.backend.shutdown();
+    }
+
     fn app_lyrics_len(app: &App) -> usize {
         match &app.lyrics {
             Loadable::Loaded(Some(l)) => l.lines.len(),

@@ -84,6 +84,15 @@
 	const noteLayout = (el) => {
 		if (el && (el._hostKey !== undefined || el.localName === "html" || el.localName === "body" || el.id === "wimp")) layoutDirty = true;
 	};
+	// Plugin elements whose own box a script read: the overlay lists them
+	// (`measure`) and the UI's tree says where it drew them (`node_rects`).
+	const wantRects = new Set();
+	D.wantRect = (el) => {
+		if (wantRects.has(el)) return;
+		wantRects.add(el);
+		layoutDirty = true;
+		contentDirty();
+	};
 	// ---------------------------------------------------------------- style passes
 	// A browser works out the style of an element it was given at its next
 	// frame (or when `getComputedStyle` asks), and a change after that is
@@ -1365,6 +1374,10 @@
 		// ------------------------------------------------ geometry
 		getBoundingClientRect() {
 			touch();
+			// A plugin element inside another one has no box of its own yet:
+			// the UI is asked where it draws it, and this read waits for that.
+			const up = this.parentNode;
+			if (this._hostKey === undefined && !this._rect && this.isConnected && !this._pluginRemoved && up instanceof Element && up._hostKey === undefined && up !== html && up !== body && up !== wimp) D.wantRect(this);
 			forceLayout();
 			const r = rectOf(this);
 			if (!r || this._pluginRemoved || !this.isConnected) return rectObj(null);
@@ -3168,6 +3181,11 @@
 		} finally {
 			reconciling = false;
 		}
+		// Where the UI drew the plugin elements scripts read the boxes of.
+		for (const [id, r] of tree.node_rects ?? []) {
+			const el = vnodes.get(Number(id));
+			if (el && Array.isArray(r) && r.length === 4) el._rect = r.map(Number);
+		}
 		const after = () => {
 			if (resized) dispatch(winTarget, new g.Event("resize"));
 			checkGeometry();
@@ -3533,6 +3551,12 @@
 		if (hostClicks.length) ov.clicks = hostClicks.slice();
 		if (css.keyframes && Object.keys(css.keyframes).length) ov.keyframes = css.keyframes;
 		if (css.hover) ov.hover = true;
+		const measure = [];
+		for (const el of wantRects) {
+			if (!el.isConnected || el._pluginRemoved) wantRects.delete(el);
+			else if (el._vid !== undefined && vnodes.get(el._vid) === el) measure.push(el._vid);
+		}
+		if (measure.length) ov.measure = measure.sort((a, b) => a - b);
 		if (overBudget && !warnedBudget) L.callOp("log", { plugin: null, level: "warn", msg: `Plugins added more than ${MAX_OVERLAY_NODES} elements to the page; the rest are not shown` });
 		warnedBudget = overBudget;
 		return ov;
