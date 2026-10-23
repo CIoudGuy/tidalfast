@@ -660,7 +660,10 @@ impl App {
         } else {
             LunaState::Paused
         };
-        snap.position = f64::from(now.position_ms) / 1000.0;
+        // What is heard, as TIDAL's player reports it and the app's own
+        // lyrics follow: the engine's position runs ahead of the speakers
+        // by the sound the output has queued.
+        snap.position = f64::from(self.lyrics_position_ms(now)) / 1000.0;
         snap.duration = Some(f64::from(now.duration_ms) / 1000.0);
         snap.volume = f64::from(now.volume_percent);
         snap.muted = now.volume_percent == 0;
@@ -830,7 +833,7 @@ impl App {
                 }
                 seen.seek_sequence = Some(seek_sequence);
             }
-            let second = now.position_ms / 1000;
+            let second = snap.position as u32;
             if seen.position_s != Some(second) {
                 seen.position_s = Some(second);
                 events.push(LunaEvent::Position(snap.position));
@@ -1575,6 +1578,56 @@ mod tests {
         );
         app.backend.shutdown();
     }
+
+    /// Plugins read where the song is from `playbackControls` and TIDAL's
+    /// player signal, which in TIDAL follow what is heard. The engine's
+    /// position runs ahead of the speakers by the sound the output has
+    /// queued; plugins were given it, so lyric plugins (lyrics-everywhere's
+    /// line above the bar) showed each line before it was sung, a line ahead
+    /// of the app's own lyrics. They get the heard position, as the app's
+    /// lyrics use.
+    #[test]
+    fn plugins_get_the_position_that_is_heard() {
+        let mut app = app("plugin-heard-position");
+        app.local.output_delay_ms = 1_800;
+        let now = NowPlaying {
+            local: true,
+            device_name: None,
+            device_kind: None,
+            uri: "tidal:track:2".into(),
+            id: Some("2".into()),
+            title: String::new(),
+            artists: Vec::new(),
+            subtitle: String::new(),
+            album_name: String::new(),
+            album_id: None,
+            art_url: None,
+            art_small: None,
+            duration_ms: 200_000,
+            position_ms: 116_500,
+            playing: true,
+            loading: false,
+            shuffle: false,
+            repeat: RepeatMode::Off,
+            volume_percent: 50,
+            can_control: true,
+            can_set_volume: true,
+            resuming: false,
+        };
+        let snap = app.luna_playback(Some(&now));
+        assert!(
+            (snap.position - 114.7).abs() < 1e-6,
+            "the heard position, not the engine's: {}",
+            snap.position
+        );
+        assert_eq!(
+            f64::from(app.lyrics_position_ms(&now)) / 1000.0,
+            snap.position,
+            "the same position the app's own lyrics follow"
+        );
+        app.backend.shutdown();
+    }
+
     /// The words plugins get for the playing song are the ones the app
     /// looked up for it. The app keeps a song's words after it ends (it
     /// looks again only for its Lyrics tab or a plugin), and they were
