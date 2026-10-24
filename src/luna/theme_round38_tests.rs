@@ -497,13 +497,16 @@ fn the_title_bar_is_in_tidals_main_container() {
 /// a theme that sets only its style and colour (the cotton candy family's
 /// `border-style: solid; border-color: ...`) recolours that line. The
 /// cascade had no width for it, so the theme's colour went nowhere; with
-/// no theme TIDAL's own line stays the native one.
+/// no theme TIDAL's own line stays the native one. The panel is an
+/// `aside`, which the family's `div:nth-child(1) > div > div { border-style:
+/// none }` does not reach.
 #[test]
 fn a_theme_recolours_the_queue_panels_own_border() {
     use crate::ui::plugin_dom as pd;
     use dom_anchors::keys::QUEUE_PANEL;
     let css = r#"/* {"name": "Queue line"} */
-#playQueueSidebar { border-style: solid; border-color: rgb(9, 99, 199); }
+._container_b3e8f28 { border-style: solid; border-color: rgb(9, 99, 199); }
+div:nth-child(1) > div > div { border-style: none; }
 "#;
     let o = overlay("queue-line.css", css, &queue_frame(), QUEUE_PANEL);
     let layers = pd::box_layers(&o.hosts[QUEUE_PANEL], &o.vars, [2137.0, 1183.0]);

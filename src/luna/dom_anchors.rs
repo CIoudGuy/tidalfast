@@ -1316,9 +1316,13 @@ pub fn build(frame: &Frame) -> HostTree {
     }
     let mut title_parent = keys::SHELL;
     if let Some((rect, over_now_playing)) = &frame.queue_panel {
-        let mut panel = el(keys::QUEUE_PANEL, Some(keys::MAIN_CONTAINER), "div")
+        // TIDAL 2.46.0's `aside#playQueueSidebar[data-type=module]` (a
+        // theme's `div`-chain rule, the cotton candy family's `div:nth-child(1)
+        // > div > div { border-style: none }`, leaves it alone).
+        let mut panel = el(keys::QUEUE_PANEL, Some(keys::MAIN_CONTAINER), "aside")
             .modules(&["container", "isOpen"])
             .id("playQueueSidebar")
+            .attr("data-type", "module")
             .at(*rect);
         if *over_now_playing {
             panel = panel.modules(&["nowPlayingVisible"]);
