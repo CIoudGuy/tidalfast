@@ -137,8 +137,12 @@ A class written as TIDAL's full hashed module class (`._dataContainer_5bb6028`,
 anchor of that module whatever its hash, because TIDAL's hashes change
 between builds and modules; names too generic to identify a module
 (`container`, `wrapper`, `header`, `title`, `button`, ...) and modules whose
-anchors carry TIDAL's exact hash (`LITERAL_CLASSES`) still need the exact
-class.
+anchors carry TIDAL's exact hash (`LITERAL_CLASSES`, and the album's and
+playlist's own `_dataContainer_` of TIDAL 2.46.0) still need the exact
+class: a hash from an older TIDAL build names nothing there, as in TIDAL.
+Where TIDAL's element has exactly two classes the anchor carries those two
+(`_navigationItem_4e9deae _selected_29027d1`, `_contentItem_ _selected_ae83ba5`),
+since themes match the class list whole (`[class="..."]`).
 A built-in sheet before the plugins' carries what TIDAL's own CSS does to
 containers plugins take over by copying their class:
 `[class^="_fullscreen_"]` covers the view. `background` without an image
@@ -295,11 +299,12 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | `player-controls` > `shuffle`, `previous`, `play-pause-wrap` > `play-pause`, `next`, `repeat` | `button[data-test=shuffle\|previous\|play\|pause\|next\|repeat]`; the play/pause button sits in `div._playButtonWrapper_`, its `parentElement` | transport; `button.click()` on previous, play/pause and next is a click; the wrapper's Append elements are drawn over the button | `play-pause-wrap` Append (AltPlay's round element, `inset: 0`) |
 | `progress` > `current-time-wrap` > `current-time`, `progress-bar` (`#progressBar[data-test=progress-bar]`) > `progress-range`, `progress-knob`, `duration-wrap` > `duration` | progress row; the times are `p._scrubberTime_ > time._scrubberTimeText_` | seek bar and times; the times' colour from a theme | |
 | `utility-container` | `div._utilityContainer_` | right cluster | Prepend, Append |
-| `utility-buttons` | `div._utilityButtons_` | right cluster; a theme's card behind the buttons, as for `track-content` (the quality pill stays outside it); a theme's colour for its buttons colours the queue and sound output buttons too, which sit in it in TIDAL 2.43.2 | Prepend, Append |
+| `utility-buttons` | `div._utilityButtons_` | right cluster; a theme's card behind the buttons, as for `track-content` (the quality pill stays outside it); a theme's colour for its buttons colours the queue and sound output buttons too, which sit in it in TIDAL 2.43.2 and 2.46.0 | Prepend, Append |
+| `queue-button` | the utility buttons' first: `button.withBackground[data-test=play-queue-button][aria-pressed][data-status]`, `._activeButton_122ab25` while the queue is open (TIDAL 2.46.0) | queue button; TIDAL's own disc stays unless a theme fills it | |
 | `toggle-lyrics` | `button[data-test=toggle-lyrics][aria-pressed]` | lyrics button; hidden; clicks forwarded | Before, After |
 | `slider-container` > `mute`, `volume-range` | `div._sliderContainer_ > button[data-test=volume] + input[type=range]._nativeRange_7e12413` (value 0-100) | volume; wheel goes to plugins when they listen (VolumeScroll) and the native wheel step is off; `_nativeRange_` hidden hides the native slider (HorizontalVolumeSlider) | Before (OneClickLyrics, MusicVideoButton), After (HorizontalVolumeSlider, between the speaker and the mini player button) |
 | `mini-player-button` | `button._miniPlayerButton_` after the slider container, TIDAL's last utility button | compact mode button | |
-| `more-container` > `queue-button`, `fullscreen-button` | `div._moreContainer_f6162c8 > button[data-test=play-queue-button]`, `button[data-test=request-fullscreen]` | queue button | Prepend (total-play-time), Append |
+| `more-container` > `fullscreen-button` | `div._moreContainer_f6162c8 > button[data-test=request-fullscreen]` (TIDAL 2.43.2's container, kept for the plugins that add their buttons to it) | | Prepend (total-play-time), Append |
 
 ### Track lists (`widgets.rs` track rows: albums, playlists, collection, queue)
 
@@ -540,8 +545,11 @@ exact `Range` (`selectBetween`). The selected words keep their colour.
 - Pages: `h1[data-test=title]` on collection grids, Tracks and album/
   playlist heroes (Append/After; what follows the title starts right at it,
   its own margins make the gap, and the collection's "..." moves along by
-  its width, as in TIDAL's flex row); `div._dataContainer_` with `_metaLine_ >
-  span[data-test=meta-release-date]`; `input[data-test=playlist-filter-input]`
+  its width, as in TIDAL's flex row); `div._dataContainer_` (TIDAL 2.46.0's
+  `_dataContainer_66f4f40` on an album, `_dataContainer_9f47346` on a
+  playlist) with `_metaLine_ > span.wave-text-capital-demi._metaItem_ed501cd
+  [data-test=meta-release-date][data-wave-color=textSecondary]`, whose look
+  (colour, weight) the header's meta words take; `input[data-test=playlist-filter-input]`
   with the native filter text. On the Plugins page (TidaLuna's settings
   page) the `h1` text override and colour are drawn and what plugins append
   follows it; `._title_a453dad` is the title bar's name (`bar-title`), as in TIDAL.
