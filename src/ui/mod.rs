@@ -463,7 +463,7 @@ where
 }
 
 /// The cover TIDAL lays behind an album, playlist, mix or radio header.
-struct CoverBackdrop {
+pub(crate) struct CoverBackdrop {
     /// A small copy of the cover; blurred, stretched across the header.
     url: String,
     /// An album's: TIDAL's desktop app lays the album's cover itself (a
@@ -471,8 +471,11 @@ struct CoverBackdrop {
     sharp: Option<String>,
 }
 
-fn cover_backdrop(app: &mut App) -> Option<CoverBackdrop> {
-    if !app.palette.dark {
+pub(crate) fn cover_backdrop(app: &mut App) -> Option<CoverBackdrop> {
+    // TIDAL draws the art in its dark scheme whatever colours a theme
+    // gives the page: TidalCustomTheme's pink page keeps the album's art
+    // under its header.
+    if !(app.palette.dark || app.scheme_dark()) {
         return None;
     }
     let album = matches!(app.page(), Page::Album(_) | Page::AlbumCredits(_));

@@ -1423,6 +1423,13 @@ impl App {
         &self.history[self.history_index]
     }
 
+    /// The window is in its dark scheme, as TIDAL's own is (a Luna theme's
+    /// colours may turn the palette light; they do not change the scheme
+    /// TIDAL draws its own parts in).
+    pub fn scheme_dark(&self) -> bool {
+        self.applied_dark.unwrap_or(self.palette.dark)
+    }
+
     pub fn is_connected(&self) -> bool {
         matches!(self.auth, AuthStatus::Connected { .. })
     }
@@ -25826,6 +25833,38 @@ mod tests {
         });
         assert_eq!(app.album_pages["album"].tracks.items.len(), 50);
         assert_eq!(app.album_pages["album"].tracks.next_offset, Some(50));
+    }
+
+    /// TIDAL draws an album's art under its header in its dark scheme,
+    /// whatever colours a Luna theme gives the page: TidalCustomTheme's
+    /// pink page keeps the art (TIDAL 2.46.0). Tidalfast drew it only while
+    /// the themed palette stayed dark, so a light theme's header had none.
+    #[test]
+    fn an_albums_header_art_stays_under_a_light_themed_page() {
+        let mut app = headless_app();
+        app.backend.set_offline(true);
+        let page = AlbumPage {
+            album: crate::model::Loadable::Loaded(Album {
+                id: "art".into(),
+                images: vec![crate::api::models::Image {
+                    url: "https://resources.tidal.com/images/art/1280x1280.jpg".into(),
+                    width: Some(1280),
+                    height: Some(1280),
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        app.album_pages.insert("art".into(), page);
+        app.open(Page::Album("art".into()));
+        // A theme's pink window turned the palette light; the scheme is dark.
+        app.applied_dark = Some(true);
+        app.palette = Palette::light();
+        assert!(crate::ui::cover_backdrop(&mut app).is_some());
+        // Tidalfast's own light scheme has no art there.
+        app.applied_dark = Some(false);
+        assert!(crate::ui::cover_backdrop(&mut app).is_none());
+        app.backend.shutdown();
     }
 
     #[test]
