@@ -4387,9 +4387,14 @@ pub fn collection_card(
                 );
             }
         }
-        // Text lines: 20 high, the title's 14 under the cover.
+        // Text lines: 20 high, the title's 14 under the cover. The words
+        // drawn are the app's, what a plugin wrote over them, or none where
+        // a plugin hid them; the app's own are noted where they sit.
+        let shown = super::plugin_dom::card_text(card_key.as_deref(), title, subtitle);
         let mut top = image_rect.bottom() + 14.0;
-        let line = |ui: &Ui, galley: std::sync::Arc<egui::Galley>, top: f32, color: Color32| {
+        // Where a line's galley goes: centred under a portrait, else at the
+        // start of the card (its end for right-to-left words).
+        let place = |galley: &egui::Galley, top: f32| -> Rect {
             let x = if circular {
                 rect.center().x - galley.size().x / 2.0
             } else if galley.job.halign == Align::RIGHT {
@@ -4397,51 +4402,53 @@ pub fn collection_card(
             } else {
                 rect.left()
             };
-            ui.painter().galley(pos2(x, top), galley, color);
+            Rect::from_min_size(pos2(x, top), galley.size())
         };
         let title_galley = ellipsized(
             ui,
-            title,
+            shown.title.as_deref().unwrap_or(title),
             theme::semibold(14.0),
             palette.text,
             (width - card_marks_width(mark)).max(1.0),
             1,
         );
         let title_height = title_galley.size().y;
-        let title_top = top + (20.0 - title_height) / 2.0;
-        let title_rect = Rect::from_min_size(
-            pos2(
-                if circular {
-                    rect.center().x - title_galley.size().x / 2.0
-                } else if title_galley.job.halign == Align::RIGHT {
-                    rect.right()
-                } else {
-                    rect.left()
-                },
-                title_top,
-            ),
-            title_galley.size(),
-        );
-        line(ui, title_galley, title_top, palette.text);
-        paint_card_marks(ui, &palette, mark, title_rect);
+        let title_rect = place(&title_galley, top + (20.0 - title_height) / 2.0);
+        if shown.title.is_some() {
+            ui.painter()
+                .galley(title_rect.min, title_galley, palette.text);
+            paint_card_marks(ui, &palette, mark, title_rect);
+        }
         top += 21.0;
+        let mut subtitle_rect = Rect::NOTHING;
         if !subtitle.is_empty() {
             let galley = ellipsized(
                 ui,
-                subtitle,
+                shown.subtitle.as_deref().unwrap_or(subtitle),
                 theme::semibold(14.0),
                 secondary,
                 width,
                 subtitle_lines.max(1),
             );
             let lines = (galley.size().y / 17.0).round().max(1.0);
-            line(ui, galley, top + 1.0, secondary);
+            subtitle_rect = place(&galley, top + 1.0);
+            if shown.subtitle.as_deref().is_some_and(|s| !s.is_empty()) {
+                ui.painter().galley(subtitle_rect.min, galley, secondary);
+            }
             top += 20.0 * lines + 3.0;
         }
+        super::plugin_dom::card_words(
+            card_key.as_deref(),
+            title,
+            title_rect,
+            subtitle,
+            subtitle_rect,
+        );
         if !meta.is_empty() {
+            let words = super::plugin_dom::card_meta_text(card_key.as_deref(), meta);
             let mut job = egui::text::LayoutJob::default();
             job.append(
-                &meta.to_uppercase(),
+                &words.as_deref().unwrap_or(meta).to_uppercase(),
                 0.0,
                 egui::TextFormat {
                     font_id: theme::semibold(10.0),
@@ -4452,7 +4459,11 @@ pub fn collection_card(
             );
             let galley = ui.painter().layout_job(job);
             let height = galley.size().y;
-            line(ui, galley, top + (16.0 - height) / 2.0, secondary);
+            let meta_rect = place(&galley, top + (16.0 - height) / 2.0);
+            super::plugin_dom::card_meta(card_key.as_deref(), meta, meta_rect);
+            if words.is_some() {
+                ui.painter().galley(meta_rect.min, galley, secondary);
+            }
         }
         let center = if circular {
             image_rect.center()

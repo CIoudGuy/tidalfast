@@ -3224,9 +3224,41 @@ pub fn card_words(
                 subtitle_rect: (!subtitle.is_empty())
                     .then(|| rect(subtitle_rect))
                     .flatten(),
+                meta: String::new(),
+                meta_rect: None,
             });
         }
     });
+}
+
+/// The card whose anchor is `key` drew the meta line `meta` (a collection
+/// cell's year or track count) in `r`, after its words ([`card_words`]).
+pub fn card_meta(key: Option<&str>, meta: &str, r: Rect) {
+    let Some(i) = key.and_then(|k| k.strip_prefix("card:")?.parse::<usize>().ok()) else {
+        return;
+    };
+    note(|f| {
+        if let Some(words) = f
+            .page
+            .as_mut()
+            .and_then(|p| p.cards.get_mut(i))
+            .and_then(|c| c.words.as_mut())
+        {
+            words.meta = meta.to_string();
+            words.meta_rect = rect(r);
+        }
+    });
+}
+
+/// The meta line to draw for the card whose anchor is `key`: `meta` as the
+/// app has it, what a plugin wrote over it, or nothing where a plugin hid
+/// it.
+pub fn card_meta_text<'a>(key: Option<&str>, meta: &'a str) -> Option<Cow<'a, str>> {
+    let Some(i) = key.and_then(|k| k.strip_prefix("card:")?.parse::<usize>().ok()) else {
+        return Some(Cow::Borrowed(meta));
+    };
+    let words = dom_anchors::keys::card_meta_text(i);
+    (!hidden(&dom_anchors::keys::card_meta(i)) && !hidden(&words)).then(|| text(&words, meta))
 }
 
 /// The index the shelf about to be registered by [`shelf_row`] will have,

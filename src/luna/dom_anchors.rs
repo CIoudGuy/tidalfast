@@ -566,6 +566,23 @@ pub mod keys {
     pub fn card_subtitle_part(index: usize, part: usize) -> String {
         format!("card-subtitle-part:{index}:{part}")
     }
+    /// A collection cell's words have one more level: the description's
+    /// inner `span` (`card-subtitle-inner:<index>`) and each artist's
+    /// `span.artist-link` round its link (`card-subtitle-link:<index>:<n>`),
+    /// then its meta line (`card-meta:<index>`, `div._metaContainer_`) with
+    /// its words (`card-meta-text:<index>`, `span.meta-title`).
+    pub fn card_subtitle_inner(index: usize) -> String {
+        format!("card-subtitle-inner:{index}")
+    }
+    pub fn card_subtitle_link(index: usize, part: usize) -> String {
+        format!("card-subtitle-link:{index}:{part}")
+    }
+    pub fn card_meta(index: usize) -> String {
+        format!("card-meta:{index}")
+    }
+    pub fn card_meta_text(index: usize) -> String {
+        format!("card-meta-text:{index}")
+    }
     /// A shelf's header (`shelf-header:<index>`,
     /// `div._headerContainer_[data-test=horizontal-list--<MODULE>-header]`)
     /// with its title (`shelf-title:<index>`, `h2._headerText_`), its
@@ -985,6 +1002,103 @@ fn card_buttons(out: &mut Vec<HostNode>, i: usize, card: &GridCard, collection: 
                 )
                 .attr("type", "button"),
         );
+    }
+}
+
+/// A collection cell's words as TIDAL 2.46.0 has them (captured): the
+/// title link (`a[data-test=grid-item-detail-text-title-link]._header_c7b694c
+/// ._link_6a45a19 > div._titleContainer_7908df3 > span._title_e58df15` with
+/// the title), the description (`span._descriptionText_f6de630 > span`, then
+/// for each artist `span.artist-link > a[data-test=grid-item-detail-text-
+/// title-artist]`, or a `span` with a playlist's creator or a mix's line) and
+/// the meta line (`div._metaContainer_3980a6e.meta > span.meta-title`, an
+/// album's year `[data-test=meta-release-date]`). The words are where
+/// [`card_word_nodes`] keeps them, so plugins' words reach the cell the same
+/// way.
+fn cell_word_nodes(out: &mut Vec<HostNode>, i: usize, card: &GridCard, words: &CardWords) {
+    let item = card.item.as_ref();
+    let href = item.and_then(|item| Some(format!("/{}/{}", item.kind.word()?, item.id)));
+    let mut link = el(keys::card_title(i), Some(&keys::card(i)), "a")
+        .class("_header_c7b694c _link_6a45a19")
+        .test("grid-item-detail-text-title-link")
+        .attr("aria-label", words.title.clone())
+        .attr("title", words.title.clone())
+        .at(words.title_rect);
+    if let Some(href) = href {
+        link = link.attr("href", href);
+    }
+    out.push(link);
+    out.push(
+        el(keys::card_title_text(i), Some(&keys::card_title(i)), "div")
+            .class("_titleContainer_7908df3")
+            .at(words.title_rect),
+    );
+    out.push(
+        el(
+            keys::card_title_link(i),
+            Some(&keys::card_title_text(i)),
+            "span",
+        )
+        .class("wave-text-description-demi _title_e58df15")
+        .attr("data-wave-color", "textDefault")
+        .attr("data-wave-number-of-lines", "1")
+        .text(words.title.clone())
+        .at(words.title_rect),
+    );
+    if !words.subtitle.is_empty() {
+        let subtitle = keys::card_subtitle(i);
+        out.push(
+            el(subtitle.clone(), Some(&keys::card(i)), "span")
+                .class("wave-text-description-demi _descriptionText_f6de630")
+                .attr("data-wave-color", "textSecondary")
+                .attr("data-wave-number-of-lines", "1")
+                .at(words.subtitle_rect),
+        );
+        let inner = keys::card_subtitle_inner(i);
+        out.push(el(inner.clone(), Some(&subtitle), "span").at(words.subtitle_rect));
+        match item {
+            Some(item) if !item.artists.is_empty() => {
+                for (n, (id, name)) in item.artists.iter().enumerate() {
+                    let wrap = keys::card_subtitle_link(i, n);
+                    out.push(
+                        el(wrap.clone(), Some(&inner), "span")
+                            .class("artist-link")
+                            .at(words.subtitle_rect),
+                    );
+                    out.push(
+                        el(keys::card_subtitle_part(i, n), Some(&wrap), "a")
+                            .class("_item_39605ae _link_6a45a19")
+                            .test("grid-item-detail-text-title-artist")
+                            .attr("aria-label", name.clone())
+                            .attr("href", format!("/artist/{id}"))
+                            .attr("title", name.clone())
+                            .text(name.clone())
+                            .at(words.subtitle_rect),
+                    );
+                }
+            }
+            _ => out.push(
+                el(keys::card_subtitle_part(i, 0), Some(&inner), "span")
+                    .text(words.subtitle.clone())
+                    .at(words.subtitle_rect),
+            ),
+        }
+    }
+    if !words.meta.is_empty() {
+        out.push(
+            el(keys::card_meta(i), Some(&keys::card(i)), "div")
+                .class("_metaContainer_3980a6e meta")
+                .at(words.meta_rect),
+        );
+        let mut meta = el(keys::card_meta_text(i), Some(&keys::card_meta(i)), "span")
+            .class("wave-text-capital-demi meta-title")
+            .attr("data-wave-color", "textSecondary")
+            .text(words.meta.clone())
+            .at(words.meta_rect);
+        if item.is_some_and(|item| item.kind == CardKind::Album) {
+            meta = meta.test("meta-release-date");
+        }
+        out.push(meta);
     }
 }
 
@@ -1450,6 +1564,9 @@ pub struct CardWords {
     pub title_rect: Option<Rect>,
     pub subtitle: String,
     pub subtitle_rect: Option<Rect>,
+    /// A collection cell's meta line (an album's year), when it has one.
+    pub meta: String,
+    pub meta_rect: Option<Rect>,
 }
 
 /// A shelf's header as drawn: its title, the Previous and Next buttons
@@ -2849,19 +2966,29 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
             .filter(|s| *s < page.shelves.len())
             .map_or_else(|| keys::CARD_GRID.to_string(), keys::shelf);
         // A shelf card whose item is known is TIDAL 2.46.0's
-        // `<kind>-card-<id>` (`album-card-1234`, `playlist-card-<uuid>`).
-        let id = card
-            .item
-            .as_ref()
-            .filter(|_| card.shelf.is_some())
-            .and_then(|item| Some(format!("{}-card-{}", item.kind.word()?, item.id)));
-        out.push(
-            el(keys::card(i), Some(&parent), "div")
-                .test(id.as_deref().unwrap_or("grid-item"))
-                .modules(modules)
-                .attr("role", "presentation")
-                .at(card.rect),
-        );
+        // `<kind>-card-<id>` (`album-card-1234`, `playlist-card-<uuid>`), a
+        // collection cell `grid-item-<kind>` with the item's id in
+        // `data-test-element-id`.
+        let cell = collection && card.shelf.is_none();
+        let item = card.item.as_ref();
+        let id = item.and_then(|item| {
+            let word = item.kind.word()?;
+            Some(if cell {
+                format!("grid-item-{word}")
+            } else if card.shelf.is_some() {
+                format!("{word}-card-{}", item.id)
+            } else {
+                return None;
+            })
+        });
+        let mut node = el(keys::card(i), Some(&parent), "div")
+            .test(id.as_deref().unwrap_or("grid-item"))
+            .modules(modules)
+            .attr("role", "presentation");
+        if cell && let Some(item) = item.filter(|_| id.is_some()) {
+            node = node.attr("data-test-element-id", item.id.clone());
+        }
+        out.push(node.at(card.rect));
         if let Some(cover) = card.cover {
             out.push(
                 el(keys::card_cover(i), Some(&keys::card(i)), "div")
@@ -2896,7 +3023,11 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
             card_buttons(out, i, card, collection, cover);
         }
         if let Some(words) = &card.words {
-            card_word_nodes(out, i, card, words);
+            if collection && card.shelf.is_none() {
+                cell_word_nodes(out, i, card, words);
+            } else {
+                card_word_nodes(out, i, card, words);
+            }
         }
     }
     // The home page's shortcut tiles: `._feed_412931c > ._list_eaac7af >

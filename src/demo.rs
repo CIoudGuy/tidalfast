@@ -8901,12 +8901,13 @@ mod tests {
         plugin_dom::test_sent_tree().expect("a tree was sent")
     }
 
-    /// The words drawn while a plugin changes the anchors in `hosts`.
+    /// The words drawn, and where, while a plugin changes the anchors in
+    /// `hosts`.
     fn words_under_plugin(
         ctx: &egui::Context,
         app: &mut App,
         hosts: Vec<(String, crate::luna::dom::HostOverride)>,
-    ) -> Vec<String> {
+    ) -> Vec<(String, egui::Rect)> {
         use crate::ui::plugin_dom;
         plugin_dom::test_overlay(Some(crate::luna::dom::DomOverlay {
             version: 2,
@@ -8921,7 +8922,10 @@ mod tests {
         shapes
             .iter()
             .filter_map(|s| match &s.shape {
-                egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+                egui::Shape::Text(t) => Some((
+                    t.galley.text().to_string(),
+                    t.galley.rect.translate(t.pos.to_vec2()),
+                )),
                 _ => None,
             })
             .collect()
@@ -9017,13 +9021,14 @@ mod tests {
                 ),
             ],
         );
+        let drew = |word: &str| drawn.iter().any(|(w, _)| w == word);
         checks.push((
             "a tab draws the words a plugin wrote".into(),
-            drawn.iter().any(|w| w == "스태프 픽") && !drawn.iter().any(|w| w == "Staff Picks"),
+            drew("스태프 픽") && !drew("Staff Picks"),
         ));
         checks.push((
             "a tab a plugin took away is not drawn".into(),
-            !drawn.iter().any(|w| w == "Uploads") && drawn.iter().any(|w| w == "For you"),
+            !drew("Uploads") && drew("For you"),
         ));
         app.backend.shutdown();
         let failed: Vec<_> = checks
@@ -9147,6 +9152,153 @@ mod tests {
             ));
             plugin_dom::test_overlay(None);
         }
+        app.backend.shutdown();
+        let failed: Vec<_> = checks
+            .iter()
+            .filter(|(_, ok)| !ok)
+            .map(|(c, _)| c.as_str())
+            .collect();
+        assert!(
+            failed.is_empty(),
+            "{}",
+            failed.join(
+                "
+"
+            )
+        );
+    }
+
+    /// My Collection's cells carry their words as TIDAL 2.46.0's do
+    /// (captured): the cell is `grid-item-album` with the album's id, its
+    /// title is in `a[data-test=grid-item-detail-text-title-link] >
+    /// div._titleContainer_ > span._title_`, each artist a
+    /// `span.artist-link > a[data-test=grid-item-detail-text-title-artist]`,
+    /// the year `span.meta-title[data-test=meta-release-date]`, and the
+    /// cover holds `play-button`, `context-menu-button` and `favorite-button`.
+    /// A plugin's words over the title and the year are the words drawn, and
+    /// an artist line a plugin hides is not drawn (the cells had no words, so
+    /// uwu-ifier and the translators found nothing to change).
+    #[test]
+    fn collection_cells_carry_tidals_words() {
+        use crate::luna::dom::{HostOverride, Style};
+        use crate::luna::dom_anchors::{attr, keys};
+        let (ctx, mut app) = accessible_app("plugin-collection-words");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.open(Page::Albums);
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let node = |key: &str| tree.nodes.iter().find(|n| n.key == key).cloned();
+        let mut checks: Vec<(String, bool)> = Vec::new();
+        let cell = tree.nodes.iter().find_map(|n| {
+            let i = n.key.strip_prefix("card:")?.parse::<usize>().ok()?;
+            (attr(n, "data-test") == Some("grid-item-album"))
+                .then(|| (i, attr(n, "data-test-element-id").map(str::to_string)))
+        });
+        checks.push((
+            "a cell is grid-item-album with its album's id".into(),
+            cell.as_ref().is_some_and(|(_, id)| id.is_some()),
+        ));
+        let (i, id) = cell.unwrap_or((0, None));
+        let id = id.unwrap_or_default();
+        let album = app
+            .library
+            .albums
+            .items
+            .iter()
+            .map(|saved| saved.album.clone())
+            .find(|a| a.id == id);
+        let (name, artist, year) = album.as_ref().map_or_else(Default::default, |a| {
+            (
+                a.name.clone(),
+                a.artists
+                    .first()
+                    .map(|x| x.name.clone())
+                    .unwrap_or_default(),
+                a.year().unwrap_or_default().to_string(),
+            )
+        });
+        checks.push((
+            "its title link holds the title's words".into(),
+            node(&keys::card_title(i)).is_some_and(|n| {
+                n.tag == "a"
+                    && attr(&n, "data-test") == Some("grid-item-detail-text-title-link")
+                    && attr(&n, "href") == Some(format!("/album/{id}").as_str())
+            }) && node(&keys::card_title_link(i)).is_some_and(|n| {
+                n.tag == "span" && n.text.as_deref() == Some(name.as_str()) && !name.is_empty()
+            }),
+        ));
+        checks.push((
+            "its artist is a link in span.artist-link".into(),
+            node(&keys::card_subtitle_part(i, 0)).is_some_and(|n| {
+                attr(&n, "data-test") == Some("grid-item-detail-text-title-artist")
+                    && n.text.as_deref() == Some(artist.as_str())
+                    && n.parent == Some(keys::card_subtitle_link(i, 0))
+            }),
+        ));
+        checks.push((
+            "its year is meta-release-date".into(),
+            node(&keys::card_meta_text(i)).is_some_and(|n| {
+                attr(&n, "data-test") == Some("meta-release-date")
+                    && n.text.as_deref() == Some(year.as_str())
+                    && !year.is_empty()
+            }),
+        ));
+        for (key, test) in [
+            (keys::card_play(i), "play-button"),
+            (keys::card_menu(i), "context-menu-button"),
+            (keys::card_favorite(i), "favorite-button"),
+        ] {
+            checks.push((
+                format!("its cover holds {test}"),
+                node(&key).is_some_and(|n| attr(&n, "data-test") == Some(test)),
+            ));
+        }
+        let drawn = words_under_plugin(
+            &ctx,
+            &mut app,
+            vec![
+                (
+                    keys::card_title_link(i),
+                    HostOverride {
+                        text: Some("Wewcome uwu".into()),
+                        ..HostOverride::default()
+                    },
+                ),
+                (
+                    keys::card_meta_text(i),
+                    HostOverride {
+                        text: Some("2O11".into()),
+                        ..HostOverride::default()
+                    },
+                ),
+                (
+                    keys::card_subtitle(i),
+                    HostOverride {
+                        style: Style {
+                            visibility: Some("hidden".into()),
+                            ..Style::default()
+                        },
+                        ..HostOverride::default()
+                    },
+                ),
+            ],
+        );
+        checks.push((
+            "the cell draws the plugin's title and year".into(),
+            drawn.iter().any(|(w, _)| w == "Wewcome uwu") && drawn.iter().any(|(w, _)| w == "2O11"),
+        ));
+        // Nothing drawn in the cell's artist line, which was there before.
+        let line = node(&keys::card_subtitle(i))
+            .and_then(|n| n.rect)
+            .map(|[x, y, w, h]| egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h)));
+        checks.push((
+            "an artist line a plugin hid is not drawn".into(),
+            line.is_some_and(|line| {
+                !drawn
+                    .iter()
+                    .any(|(w, r)| *w == artist && r.intersect(line).area() > 1.0)
+            }),
+        ));
         app.backend.shutdown();
         let failed: Vec<_> = checks
             .iter()
