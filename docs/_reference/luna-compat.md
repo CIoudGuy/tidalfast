@@ -2290,6 +2290,76 @@ TIDAL's rules for the anchors' elements as `revert` markers in the
 cascade kept a universal colour off the bar's time in a test, but 14
 earlier tests failed with them; not kept, to be reviewed test by test.
 
+### Round 37 (TIDAL 2.46.0's markup and root, 2026-10-24)
+
+Worked from the parity checker's report (Round 36), largest groups first.
+Fixed in the generic layer, each with a made-up theme in
+`src/luna/theme_round37_tests.rs` that fails without the change:
+
+- **TIDAL's root layout variables are defined** (TIDAL 2.46.0's `:root`:
+  `--miniPlayerHeight: 88px`, `--headerHeight: 56px`, `--footerHeight:
+  96px`, `--pageHorizontalMargin: 28px` and the rest, their narrow-window
+  values under 577 points, `.is-desktop-app`'s 12-point floating panel
+  corners). Rules that read them were dropped: the cotton candy family's
+  `.mainContent { padding-bottom: var(--miniPlayerHeight) }`.
+- **TIDAL's own dark palette gives TIDAL's base tokens**: `--wave-color-
+  solid-base-bright`, `-brighter`, `-brightest` are #18181b, #242429 and
+  #303036 as in TIDAL 2.46.0 (they were the panel and surface shades a step
+  below), so Blur's and the cotton candy family's `color-mix(...
+  var(--wave-color-solid-base-brighter) ...)` queue is TIDAL's grey.
+- **Class lists themes match whole are TIDAL's**: the open navigation row
+  is `_navigationItem_4e9deae _selected_29027d1` and the open playlist's
+  row `_contentItem_ _selected_ae83ba5`, two classes each (the anchors
+  carried a third). The cotton candy family's `[class="_navigationItem_4e9deae
+  _selected_29027d1"] { ._icon_77f3f89 { fill } }` now colours the open
+  Collection row's icons, as in TIDAL.
+- **An older TIDAL build's hash names nothing**: an album's header is
+  TIDAL 2.46.0's `_dataContainer_66f4f40`, a playlist's
+  `_dataContainer_9f47346`, the bar's title box `_titleContainer_2da23c0`
+  (2.46.0 has nine `_titleContainer_` modules). The cotton candy family's
+  `[class="_dataContainer_108ce86"] { transform: translateY(-6em) }` and
+  `[class="_titleContainer_9fba00e"] { transform: translateX(-.38em) }`
+  name modules TIDAL 2.46.0 no longer has; they no longer reach the header
+  or the bar's title.
+- **A header's meta words are TIDAL's meta items**: the release date is
+  `span.wave-text-capital-demi._metaItem_ed501cd[data-wave-color=
+  textSecondary]`, and the header paints its meta words in that look (the
+  cotton candy family's bold dark-tinted line, as in TIDAL).
+- **The queue button is the first of the bar's utility buttons**
+  (`._utilityButtons_4d7aaf9 > button.withBackground[data-test=
+  play-queue-button]`, TIDAL 2.46.0): the family's `._utilityButtons_4d7aaf9
+  button { border-radius: .7em; color }` rounds and colours it as the
+  others; with no theme it keeps TIDAL's disc. `_moreContainer_` stays for
+  the plugins that add buttons to it.
+
+The checker's own false differences were removed first: the demo's bar had
+no quality while TIDAL's capture shows a CD-quality song (the demo runs now
+pause that song on this computer with TIDAL's badge, which also brings the
+badge's own elements into the comparison); the menu page's right-clicked
+row was hovered (TIDAL's capture opened the menu with a script); a
+`color-mix()` in a border shorthand was read by its first colour; and
+TIDAL's queue glass, drawn natively, counted as present when a theme's
+`background` had removed it (the look dump now says whether it is drawn).
+
+Totals (differences over anchor elements compared, the dark-compared
+themes and no theme): 1655 over 48750 (96.61 %) at the start; 1496 over
+49270 (96.96 %) for the same code with the checker's false differences
+gone; 1189 over 49270 (97.59 %) after these fixes. No theme has more
+differences than before, and no theme shows none.
+
+Open (the checker's largest groups now, about 27 to 29 items each, nearly
+all the cotton candy family): the queue's stand-in words (`queue-roles`)
+miss rules nested under TIDAL's `[class="_playQueueItems_84488b2"]`, a box
+the queue's tree has no anchor for; transforms a theme gives the header's
+navigation arrows and the sidebar's list; `backdrop-filter` (the bar's
+`blur(3px)`) and `border-image` (the row lines), which Tidalfast does not
+draw; TIDAL's own rules that outrank a theme's (the search field keeps
+TIDAL's `box-shadow: none` and blur under the family's `._container_f1be359`
+rule, the playlist thumbnails' `filter: none`); the queue panel's border
+colour over TIDAL's own 1-point border; the page title's per-page `h2`
+markup (album `_titleText_7494646`, playlist `_title_c9bc1b1`), which the
+header paints from a stand-in.
+
 ### Round 28 (plugins in use, 2026-10-23)
 
 Sixteen popular plugins (Tidal Tags, tidal-genres, total-play-time,
