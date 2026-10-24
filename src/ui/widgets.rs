@@ -4043,6 +4043,10 @@ pub fn card(
                 &gettext(app.locale, if playing { "Pause" } else { "Play" }),
             );
         }
+    } else {
+        // Not on screen: a shelf's card is still in TIDAL's page.
+        let image_rect = Rect::from_min_size(rect.min, vec2(width, cover_height.unwrap_or(width)));
+        super::plugin_dom::unseen_card(rect, image_rect, circular, title, subtitle);
     }
     crate::autoscroll::row(ui, &response);
     theme::focus_ring(ui, &response);

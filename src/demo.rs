@@ -1165,24 +1165,28 @@ pub fn populate(app: &mut App) {
             module_id: "YOUR_FAVORITE_ARTISTS".into(),
             ..Default::default()
         },
+        // Each with the module id TIDAL's own shelf of that kind has.
         Shelf {
             title: "User playlists you’ll love".into(),
             items: (0..PLAYLISTS.len())
                 .map(|i| ShelfItem::Playlist(playlist(i)))
                 .collect(),
             more: None,
+            module_id: "RECOMMENDED_USERS_PLAYLISTS".into(),
             ..Default::default()
         },
         Shelf {
             title: "Essentials to explore".into(),
             items: essentials,
             more: None,
+            module_id: "SUGGESTED_ESSENTIAL_PLAYLISTS".into(),
             ..Default::default()
         },
         Shelf {
             title: "My mixes".into(),
             items: (0..8).map(|i| ShelfItem::Mix(mix(i))).collect(),
             more: None,
+            module_id: "DAILY_MIXES".into(),
             ..Default::default()
         },
         Shelf {
@@ -1191,6 +1195,7 @@ pub fn populate(app: &mut App) {
                 .map(|i| ShelfItem::Album(album(i)))
                 .collect(),
             more: None,
+            module_id: "NEW_ALBUM_SUGGESTIONS".into(),
             ..Default::default()
         },
     ]));
@@ -9138,6 +9143,93 @@ mod tests {
             ));
             plugin_dom::test_overlay(None);
         }
+        app.backend.shutdown();
+        let failed: Vec<_> = checks
+            .iter()
+            .filter(|(_, ok)| !ok)
+            .map(|(c, _)| c.as_str())
+            .collect();
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
+    }
+
+    /// TIDAL's Home holds every card of every shelf, on screen or not: in a
+    /// window that shows the first shelves, a plugin finds each shelf's
+    /// header and every one of its cards (TIDAL's id, the title, the play
+    /// button), those below the fold and those past a shelf's right edge
+    /// too, with the boxes the layout gave them. Only the cards on screen
+    /// were in the page (the translators and uwu-ifier found the mixes and
+    /// albums further down only after a scroll, and a long shelf's last
+    /// cards never).
+    #[test]
+    fn home_holds_every_card_of_every_shelf_on_screen_or_not() {
+        use crate::luna::dom_anchors::{attr, keys};
+        let (ctx, mut app) = accessible_app("plugin-unseen-cards");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.open(Page::Home);
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let tested = |prefix: &str| -> Vec<usize> {
+            tree.nodes
+                .iter()
+                .filter_map(|n| {
+                    let i = n.key.strip_prefix("card:")?.parse::<usize>().ok()?;
+                    attr(n, "data-test")?.starts_with(prefix).then_some(i)
+                })
+                .collect()
+        };
+        let node = |key: &str| tree.nodes.iter().find(|n| n.key == key);
+        let mut checks: Vec<(String, bool)> = Vec::new();
+        for module in [
+            "YOUR_FAVORITE_ARTISTS",
+            "RECOMMENDED_USERS_PLAYLISTS",
+            "SUGGESTED_ESSENTIAL_PLAYLISTS",
+            "DAILY_MIXES",
+            "NEW_ALBUM_SUGGESTIONS",
+        ] {
+            let header = format!("horizontal-list--{module}-header");
+            checks.push((
+                format!("{header} is in the page"),
+                tree.nodes
+                    .iter()
+                    .any(|n| attr(n, "data-test") == Some(header.as_str())),
+            ));
+        }
+        let below = 800.0;
+        for (prefix, count) in [
+            ("artist-card-", ARTISTS.len()),
+            ("playlist-card-", PLAYLISTS.len() + ARTISTS.len()),
+            ("mix-card-", 8),
+            ("album-card-", ALBUMS.len()),
+        ] {
+            let cards = tested(prefix);
+            checks.push((
+                format!(
+                    "every {prefix}<id> is in the page: {} of {count}",
+                    cards.len()
+                ),
+                cards.len() == count,
+            ));
+            for i in cards {
+                let title = node(&keys::card_title_link(i)).and_then(|n| n.text.clone());
+                checks.push((
+                    format!("card {i} ({prefix}) has its title"),
+                    title.is_some_and(|t| !t.is_empty()),
+                ));
+                checks.push((
+                    format!("card {i} ({prefix}) has its play button"),
+                    node(&keys::card_play(i)).is_some_and(|n| n.tag == "button"),
+                ));
+            }
+        }
+        // The albums' shelf is the last: its cards lie below the window.
+        checks.push((
+            "a card below the fold keeps the box the layout gave it".into(),
+            tested("album-card-").iter().any(|i| {
+                node(&keys::card(*i))
+                    .and_then(|n| n.rect)
+                    .is_some_and(|[_, y, _, _]| y > below)
+            }),
+        ));
         app.backend.shutdown();
         let failed: Vec<_> = checks
             .iter()
