@@ -7537,11 +7537,13 @@ fn radial(layer: &str) -> Option<PageLayer> {
         let Some(color) = css::colors_in(stop).first().copied() else {
             continue;
         };
-        // The position is the last word unless that is the colour itself.
-        let position = stop
-            .rsplit_once(' ')
-            .map(|(_, last)| last)
-            .filter(|last| !last.ends_with(')'))
+        // The position is the last word unless that is the colour itself,
+        // and a function's word ends at its `)` (`rgb(85, 50, 103, .02)70%`
+        // is a colour at 70 %, as CSS tokenises it).
+        let words = super::plugin_slots::css::words(stop);
+        let position = words
+            .last()
+            .filter(|_| words.len() > 1)
             .and_then(|last| last.strip_suffix('%'))
             .and_then(|p| p.trim().parse::<f32>().ok())
             .map(|p| p / 100.0);
@@ -10503,6 +10505,18 @@ mod tests {
     /// top left is clear from 1980 points right of its corner (and 990
     /// below), not a circle as wide as the diagonal fading to its end,
     /// which lit the whole window.
+    /// A stop's position written against its colour's `)` is still its
+    /// position (the cotton candy family's `rgb(var(--DMitty),0.02)70%`):
+    /// TIDAL's ring ends at 70 %, Tidalfast's ran on to the edge.
+    #[test]
+    fn a_radial_stop_position_glued_to_its_colour_counts() {
+        let layer = "radial-gradient(circle at center, rgb(10, 20, 30), rgb(200, 100, 50, 0.5)40%, transparent 90%)";
+        let Some(PageLayer::Radial { at, .. }) = page_layer(layer) else {
+            panic!("not a radial gradient");
+        };
+        assert_eq!(at, vec![0.0, 0.4, 0.9]);
+    }
+
     #[test]
     fn a_radial_gradient_is_an_ellipse_with_its_stop_positions() {
         let layer = "radial-gradient(ellipse at top left, rgb(10, 20, 30, 0.5), transparent 70%)";
