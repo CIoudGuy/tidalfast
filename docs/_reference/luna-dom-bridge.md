@@ -1388,3 +1388,64 @@ once the taskbar is clicked).
   Album and Date added ones have none here either, while Title, Artist and
   Time keep the `headerColumn-*` ids of an earlier TIDAL that themes colour.
   `aria-label="Tracklist"` is on the table, not on its header row.
+
+### Plugin round 10 (2026-10-25)
+
+- What the process keeps for plugins belongs to a plugin of one runtime
+  (`luna::RuntimeId` with the plugin's name): TIDAL streams, saves and
+  drains (`audio.rs`, each stopped by its own flag), the folders a user
+  chose for a download, file dialog picks and the paths of files saved for
+  a plugin (`fsops.rs`), loaded depth models (`depth.rs`) and, since round
+  9, spooled bodies (`downloads.rs`). One runtime stopping or removing a
+  plugin never reaches another runtime's plugin of the same name, and a
+  runtime's shutdown drops what is left of its own.
+- Track rows (`track_row`), as TIDAL 2.46.0 marks them up (captured):
+  `row:<l>:<i>:index-col` (`div._indexColumn_3ac64ab[role=cell]`, the row's
+  first child) > `:index` (`span[data-test=mt-index-col]`) > `:index-number`
+  (`span._indexNumber_de640b9`, the number) and `:index-overlay`
+  (`div._overlayIconWrapper_6331eb1`) > `:play` (`button._playButton_4942431
+  [data-test=play-button]`, titled Play); `:explicit`
+  (`i._badge_57d1ccb._explicitBadge_b93510b[data-test=explicit-badge]`,
+  "Explicit") after the title; in the context column `:menu`
+  (`button._contextMenuButton_4c9ff38[data-test=context-menu-button]`, Show
+  options), `:add` (`button._addToPlaylistButton_066d0f8[data-test=
+  add-to-playlist-button]`, Add to playlist) and `:favorite`
+  (`button._favoriteButton_499c518[data-test=add-to-favorites-button]`, a
+  switch, Add to or Remove from My Collection), each with the box the row
+  draws it in (`plugin_dom::row_controls`). An album's rows carry
+  `data-test-track-number`; every row `data-test-is-playing`, `tabindex` and
+  `data-type=media-table__row`. The index column, Play, "...", add and
+  heart follow a plugin's `display` and `visibility`, and a theme's corners
+  on a row's first cell are read from the index column.
+- The player bar: the heart (`footer-favorite-button`) is a switch
+  (`role=switch`, `aria-checked`) saying Add to or Remove from My
+  Collection, with TIDAL 2.46.0's `_favoriteButton_27f1fac` besides the
+  earlier classes themes colour; the "..." is a menu opener
+  (`data-type=contextmenu-open`, `aria-haspopup`); shuffle and repeat are
+  switches; the tab bar holds its links (Home, Upload, Search). The
+  header's arrows read Back and Next, the search field has `aria-label=
+  Search`, `autocomplete=off` and `data-trigger-search`.
+- Home: every card of every shelf is in the page whether it is drawn or
+  not (`plugin_dom::unseen_card`): a card scrolled out of its shelf or
+  below the fold has its anchors (cover, title and subtitle, play button,
+  TIDAL's id) with the boxes the layout gave it, and nothing is painted for
+  it. Outside a shelf (long grids) only drawn cards are noted, as before.
+- Home's shortcut tiles: `tile-text:<i>` is an artist's name
+  (`div._marketText_1lyag_1._medium10_1lyag_210`) or, on another tile,
+  `div._textWrapper_da25926` > `tile-text:<i>:title` (the name, same
+  classes) and `tile-text:<i>:subtitle` (`div._marketText_1lyag_1.
+  _paragraph10_1lyag_156._text20_1lyag_291`, "Created by me");
+  `tile-play:<i>` is `button[data-test=shortcut-play-button]` titled Play,
+  with its box under the pointer. The tile draws the words a plugin leaves
+  there and leaves out a part it hides; a theme's colour for the words is
+  read from the name.
+- Plugin layout: `align-self` (`Style::align_self`) places an item over its
+  container's `align-items`: across a flex row by the room it leaves under
+  it, in a flex column in a run of its own placed at the start, middle or
+  end (`self_part`).
+- `getComputedStyle` in TIDAL's page starts from TIDAL 2.46.0's `html` and
+  `body` (14 px, weight 500, its Square Sans family) instead of a browser's
+  16 px and 400; a font size is reported in pixels (rem against 14, em and
+  % against the parent's, keywords as Chromium's), a weight keyword as its
+  number, a z-index within 32 bits and an image address quoted. A plugin
+  window's page keeps a browser's defaults.
