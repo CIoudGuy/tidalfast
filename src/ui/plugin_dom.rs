@@ -1872,6 +1872,36 @@ pub fn token_queue_fill() -> Option<Color32> {
     Some(queue_fill_from(base))
 }
 
+/// The document's own fill under a theme: TIDAL 2.46.0's `body {
+/// background: var(--wave-color-solid-base-fill) }`, as the theme sets
+/// the token (Catppuccin Mocha's `#1e1e2e`). It shows where no box of the
+/// app paints over the window: round the play queue, whose column `main`
+/// (TIDAL's black page) does not reach. `None` without a theme or the
+/// token, and while the main container paints a background of its own over
+/// the body (the cotton candy family's).
+pub fn body_fill() -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    with(|s| {
+        let o = &s.overlay;
+        let container = o
+            .hosts
+            .get(dom_anchors::keys::MAIN_CONTAINER)
+            .is_some_and(|h| {
+                h.style.background_image.is_some()
+                    || style_color(&h.style, |s| s.background_color.as_ref(), &s.vars)
+                        .is_some_and(|c| c.a() > 0)
+            });
+        if container || o.page.background_color.is_some() || o.page.background_image.is_some() {
+            return None;
+        }
+        let v = o.vars.get("--wave-color-solid-base-fill")?;
+        css::color(&css::resolve_vars(v, &o.vars))
+    })
+    .filter(|c| c.a() > 0)
+}
+
 /// The volume popup's fill under a theme: TIDAL fills it with
 /// `--wave-color-solid-base-brighter` (Rose Pine's `#26233a`, Black Glow's
 /// black, Tidal Light's `#eaebeb`). `None` without a theme or the token.

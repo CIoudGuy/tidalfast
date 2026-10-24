@@ -3234,6 +3234,45 @@ mod narrow_tests {
         assert_eq!(plain, shadowed, "inside the sidebar card and the bar");
     }
 
+    /// TIDAL 2.46.0 fills the document with the theme's base colour (`body
+    /// { background: var(--wave-color-solid-base-fill) }`), and its black
+    /// page (`main`) stops at the open queue's column: round the queue
+    /// panel Catppuccin Mocha's navy `#1e1e2e` shows in TIDAL (rgb(30, 29,
+    /// 43) beside the panel). Tidalfast filled that column with the page's
+    /// black.
+    #[test]
+    fn the_documents_base_colour_shows_round_the_open_queue() {
+        let (ctx, mut app) = setup();
+        app.show_queue_panel = true;
+        let mut o = overlay();
+        o.vars
+            .insert("--wave-color-solid-base-fill".into(), "#1e1e2e".into());
+        crate::ui::plugin_dom::test_overlay(Some(o));
+        let mut colours = Vec::new();
+        for _ in 0..4 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(2000.0, 820.0))),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(&mut app, ui),
+            );
+            output.textures_delta.clear();
+            colours = [[1996.5, 400.5], [1653.5, 400.5]]
+                .map(|[x, y]| {
+                    crate::ui::plugin_dom::test_colour_at(
+                        &output.shapes,
+                        pos2(x, y),
+                        Color32::BLACK,
+                    )
+                })
+                .to_vec();
+        }
+        crate::ui::plugin_dom::test_overlay(None);
+        let navy = Color32::from_rgb(0x1e, 0x1e, 0x2e);
+        assert_eq!(colours, vec![navy, navy]);
+    }
+
     /// With no look of a theme's own for the bar, TIDAL's glass lies over
     /// the page a theme colours: Tidalify's grey 18 page shows a grey 34
     /// bar in TIDAL 2.46.0. Tidalfast filled the bar with the themed

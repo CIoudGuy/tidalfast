@@ -617,13 +617,21 @@ fn page_panel(app: &mut App, ui: &mut egui::Ui, under: f32) {
             // TIDAL lays the backdrop under its main column only: beside an
             // open play queue it stops at the panel (the portraits centre on
             // the column, and the top bar over the panel stays black).
-            let backdrop_rect = Rect::from_min_max(
-                rect.min,
-                pos2(
-                    rect.right() - queue::reserve_for(app, ui.ctx(), rect),
-                    rect.bottom(),
-                ),
-            );
+            let reserve = queue::reserve_for(app, ui.ctx(), rect);
+            let backdrop_rect =
+                Rect::from_min_max(rect.min, pos2(rect.right() - reserve, rect.bottom()));
+            // TIDAL's `main` (its black page) stops at the open queue's
+            // column too: round the panel the document's own fill shows,
+            // which a theme's base colour token sets (Catppuccin's navy).
+            if reserve > 0.0
+                && let Some(body) = plugin_dom::body_fill()
+            {
+                ui.painter().rect_filled(
+                    Rect::from_min_max(pos2(backdrop_rect.right(), rect.top()), rect.max),
+                    0.0,
+                    body,
+                );
+            }
             if let Some(backdrop) = cover_backdrop(app) {
                 paint_cover_backdrop(app, ui, backdrop_rect, &backdrop);
             }
