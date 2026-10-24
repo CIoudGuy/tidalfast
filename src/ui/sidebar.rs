@@ -1380,6 +1380,10 @@ fn feed_row(app: &mut App, ui: &mut egui::Ui, palette: &Palette, page: &Page, ra
     if let Loadable::Loaded(feed) = &app.feed
         && feed.unseen > 0
         && *page != Page::Feed
+        && (rail
+            || super::plugin_dom::shown(&crate::luna::dom_anchors::keys::sidebar_item(
+                "sidebar-feed",
+            )) == super::plugin_dom::Shown::Drawn)
     {
         // TIDAL's unread dot on the bell's shoulder.
         let bell = if rail {
@@ -1442,11 +1446,32 @@ fn nav_row(
     active: bool,
     chevron: bool,
 ) -> egui::Response {
-    let (row, response) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::click());
+    // A row a plugin hid is left out (`display: none`) or keeps its room
+    // with nothing drawn and no clicks (`visibility: hidden`), as in TIDAL.
+    let key = crate::luna::dom_anchors::keys::sidebar_item(test);
+    let shown = super::plugin_dom::shown(&key);
+    if shown == super::plugin_dom::Shown::Gone {
+        super::plugin_dom::nav_row_drawn(test, None);
+        return ui
+            .allocate_exact_size(vec2(ui.available_width(), 0.0), Sense::hover())
+            .1;
+    }
+    let size = vec2(ui.available_width(), 40.0);
+    let (row, response) = if shown == super::plugin_dom::Shown::Drawn {
+        ui.allocate_exact_size(size, Sense::click())
+    } else {
+        // Hidden elements take no pointer: no hover, no click.
+        ui.add_enabled_ui(false, |ui| ui.allocate_exact_size(size, Sense::hover()))
+            .inner
+    };
     let rect = Rect::from_min_max(
         pos2(row.left() + 16.0, row.top()),
         pos2(row.right() - 16.0, row.bottom()),
     );
+    super::plugin_dom::nav_row_drawn(test, Some(rect));
+    if shown != super::plugin_dom::Shown::Drawn {
+        return response;
+    }
     // A plugin that took the row's `_selected_` class (AltPlay showing its
     // own page over this one) unselects it.
     let active = active
@@ -1478,7 +1503,6 @@ fn nav_row(
         // The theme's whole box for the row (`._navigationItem_`: fill,
         // gradients, corners, borders, shadows and the inset glow, in its
         // `:hover` and `_selected_` states), else TIDAL's pill.
-        let key = crate::luna::dom_anchors::keys::sidebar_item(test);
         let look = super::plugin_dom::paint_part(ui, &key, rect, CornerRadius::same(12), fill);
         let color = super::plugin_dom::look_text(&key, look.as_deref(), color);
         let icon_rect =
@@ -1489,7 +1513,10 @@ fn nav_row(
             &crate::luna::dom_anchors::keys::sidebar_item_icon(test),
         )
         .unwrap_or(color);
-        icon.image(ink, 18.0).paint_at(ui, icon_rect);
+        let shows = |key: &str| super::plugin_dom::shown(key) == super::plugin_dom::Shown::Drawn;
+        if shows(&crate::luna::dom_anchors::keys::sidebar_item_icon(test)) {
+            icon.image(ink, 18.0).paint_at(ui, icon_rect);
+        }
         // A theme's colour for the row's words themselves.
         let label_key = crate::luna::dom_anchors::keys::sidebar_item_label(test);
         let words = super::plugin_dom::look_text(
@@ -1497,14 +1524,16 @@ fn nav_row(
             super::plugin_dom::anchor_look(&label_key).as_deref(),
             color,
         );
-        ui.painter().text(
-            pos2(rect.left() + 40.0, rect.center().y),
-            egui::Align2::LEFT_CENTER,
-            label,
-            theme::semibold(14.0),
-            words,
-        );
-        if chevron {
+        if shows(&label_key) {
+            ui.painter().text(
+                pos2(rect.left() + 40.0, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                label,
+                theme::semibold(14.0),
+                words,
+            );
+        }
+        if chevron && shows(&crate::luna::dom_anchors::keys::sidebar_item_arrow(test)) {
             // A theme's colour for TIDAL's `svg._arrowRight_` (Tidal
             // Light's black): its `fill`, else its `color`, as for the
             // row's icon.
@@ -1876,19 +1905,31 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
         // The rows just drawn, top to bottom, end at the collection row.
         let row = collection;
         let last = items.len() - 1;
+        let drawn: Vec<_> = items
+            .iter()
+            .map(|(test, ..)| super::plugin_dom::nav_row_rect(test))
+            .collect();
         super::plugin_dom::note(|f| {
-            for (i, (test, label, href, selected)) in items.into_iter().enumerate() {
+            for (i, ((test, label, href, selected), drawn)) in
+                items.into_iter().zip(drawn).enumerate()
+            {
                 // The row's pill, 16 in from the sidebar's edges, as
                 // TIDAL's `_navigationItem_` box (208 x 40 at 16).
-                let r = row
-                    .translate(vec2(0.0, -row.height() * (last - i) as f32))
-                    .shrink2(vec2(16.0, 0.0));
+                // Where the row drew itself; a row a plugin left out has
+                // no box.
+                let r = match drawn {
+                    Some(drawn) => drawn,
+                    None => Some(
+                        row.translate(vec2(0.0, -row.height() * (last - i) as f32))
+                            .shrink2(vec2(16.0, 0.0)),
+                    ),
+                };
                 f.sidebar.items.push(crate::luna::dom_anchors::SidebarItem {
                     test: test.into(),
                     label: label.into_owned(),
                     href: Some(href.into()),
                     selected,
-                    rect: super::plugin_dom::rect(r),
+                    rect: r.and_then(super::plugin_dom::rect),
                 });
             }
         });
@@ -1950,13 +1991,19 @@ fn list_header(app: &mut App, ui: &mut egui::Ui, filter: Filter, sort: LibrarySo
         palette.text,
     )
     .unwrap_or(palette.tertiary());
-    ui.painter().text(
-        pos2(header.left() + 18.0, header.top() + 24.0 + 11.0),
-        egui::Align2::LEFT_CENTER,
-        gettext(locale, "All playlists"),
-        theme::medium(14.0),
-        color,
-    );
+    // TIDAL's heading is DOM text: a plugin's words for it (uwu-ifier,
+    // translators), none when it hid it.
+    let title_key = crate::luna::dom_anchors::keys::LIB_HEADING_TITLE;
+    if super::plugin_dom::shown(title_key) == super::plugin_dom::Shown::Drawn {
+        let native = gettext(locale, "All playlists");
+        ui.painter().text(
+            pos2(header.left() + 18.0, header.top() + 24.0 + 11.0),
+            egui::Align2::LEFT_CENTER,
+            super::plugin_dom::text(title_key, &native),
+            theme::medium(14.0),
+            color,
+        );
+    }
     let create = Rect::from_center_size(
         pos2(header.left() + 192.0, header.top() + 35.0),
         Vec2::splat(24.0),
@@ -2346,7 +2393,17 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                     entry.liked,
                     entry.folder.as_ref().map(|(id, _, _)| id),
                 ));
-                let response = ui.interact(rect, id, Sense::click_and_drag());
+                // A row a plugin hid keeps its place in the list with
+                // nothing drawn and takes no pointer.
+                let veiled = ui.is_rect_visible(rect)
+                    && super::plugin_dom::next_library_row_shown()
+                        != super::plugin_dom::Shown::Drawn;
+                let response = if veiled {
+                    ui.add_enabled_ui(false, |ui| ui.interact(rect, id, Sense::hover()))
+                        .inner
+                } else {
+                    ui.interact(rect, id, Sense::click_and_drag())
+                };
                 response.widget_info(|| {
                     egui::WidgetInfo::selected(
                         egui::WidgetType::Button,
@@ -2388,6 +2445,16 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                     // A theme's rules for the row (`._contentItem_ { background;
                     // border-radius; color }`, its `:hover` and `_selected_`).
                     let themed = super::plugin_dom::library_row(rect, active, playing);
+                    let (name, subtitle) =
+                        super::plugin_dom::library_row_words(&entry.name, &entry.subtitle);
+                    let mut veil;
+                    let ui: &mut egui::Ui = if veiled {
+                        veil = ui.new_child(egui::UiBuilder::new().max_rect(ui.max_rect()));
+                        veil.set_invisible();
+                        &mut veil
+                    } else {
+                        ui
+                    };
                     let fill = if active {
                         palette.nav_selected()
                     } else {
@@ -2474,7 +2541,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             text_left,
                             text_right,
                             rect.center().y - 9.0,
-                            &entry.name,
+                            &name,
                             name_font(theme::medium(14.0), 500),
                             name_color,
                         );
@@ -2483,7 +2550,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             text_left,
                             text_right,
                             rect.center().y + 10.0,
-                            &entry.subtitle,
+                            &subtitle,
                             theme::regular(12.5),
                             subtitle_color,
                         );
@@ -2526,7 +2593,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             text_left,
                             text_right,
                             rect.center().y - 8.0,
-                            &entry.name,
+                            &name,
                             name_font(theme::semibold(14.0), 600),
                             name_color,
                         );
@@ -2535,7 +2602,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                             text_left,
                             text_right,
                             rect.center().y + 10.0,
-                            &entry.subtitle,
+                            &subtitle,
                             theme::regular(12.0),
                             subtitle_color,
                         );

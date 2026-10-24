@@ -3026,6 +3026,14 @@ fn tidal_row_cells(
                 )
             })
         };
+        // A plugin that hid the title cell or its wrapper hides the title
+        // and its badges with it.
+        if ["title", "title-wrap"].into_iter().any(|cell| {
+            cell_key(cell)
+                .is_some_and(|k| super::plugin_dom::shown(&k) != super::plugin_dom::Shown::Drawn)
+        }) {
+            child.set_invisible();
+        }
         let link_key = cell_key("title-text");
         let title = match &link_key {
             Some(key) => super::plugin_dom::text(key, app.row_title(row.item)),
@@ -5384,6 +5392,16 @@ fn search_field_in(
             .max_rect(field_rect)
             .layout(Layout::left_to_right(Align::Center)),
     );
+    // The text box is TIDAL's `input`: one a plugin hid shows no words and
+    // takes no typing, the pill round it stays.
+    let input = match look {
+        SearchLook::Header => Some(crate::luna::dom_anchors::keys::SEARCH_INPUT),
+        SearchLook::Own(_, input) => Some(input),
+        SearchLook::Pill => None,
+    };
+    if input.is_some_and(|key| super::plugin_dom::shown(key) != super::plugin_dom::Shown::Drawn) {
+        child.set_invisible();
+    }
     // A right-to-left query is shown in reading order. The glyphs stay in
     // the buffer's order, flagged by direction, so the caret follows them.
     let text_color = palette.text;

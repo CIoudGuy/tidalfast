@@ -270,14 +270,19 @@ fn bar_contents(
     ui.add_space(HEADER_LEFT);
     ui.spacing_mut().item_spacing.x = ITEM_SPACING;
     let arrows_left = ui.cursor().left();
-    let (back, forward) = nav_arrows(
-        ui,
-        &palette,
-        app.can_go_back(),
-        app.can_go_forward(),
-        &gettext(locale, "Back"),
-        &gettext(locale, "Forward"),
-    );
+    // Arrows a plugin hid are left out or keep their room empty, as in
+    // TIDAL.
+    let (back, forward) = super::plugin_dom::anchored(ui, keys::NAV_ARROWS, |ui| {
+        nav_arrows(
+            ui,
+            &palette,
+            app.can_go_back(),
+            app.can_go_forward(),
+            &gettext(locale, "Back"),
+            &gettext(locale, "Forward"),
+        )
+    })
+    .unwrap_or_default();
     if back {
         app.actions.push(Action::Back);
     }
@@ -358,7 +363,9 @@ fn bar_contents(
     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
         ui.add_space(window_controls.topbar_width);
         ui.add_space(HEADER_RIGHT);
-        account_button(app, ui);
+        // The account button a plugin hid is left out or keeps its room
+        // empty, as in TIDAL.
+        super::plugin_dom::anchored(ui, keys::PROFILE, |ui| account_button(app, ui));
         super::plugin_slots::inline(ui, keys::HEADER, Position::Append);
         ui.add_space(HEADER_GAP - ITEM_SPACING);
         let before = app.search.query.clone();
@@ -366,17 +373,35 @@ fn bar_contents(
             .and_then(|state| state.cursor.char_range())
             .is_some_and(|range| !range.is_empty());
         super::search::navigate(app, ui.ctx(), ui.memory(|memory| memory.has_focus(id)));
-        let response = super::widgets::header_search_field(
-            ui,
-            &palette,
-            app.locale,
-            id,
-            &mut app.search.query,
-            &gettext(locale, "Search"),
-            search_width,
-        );
+        // A search field a plugin hid is left out or keeps its room empty,
+        // as in TIDAL.
+        let search_shown = super::plugin_dom::shown(keys::SEARCH_FIELD);
+        let mut field = |ui: &mut egui::Ui| {
+            super::widgets::header_search_field(
+                ui,
+                &palette,
+                app.locale,
+                id,
+                &mut app.search.query,
+                &gettext(locale, "Search"),
+                search_width,
+            )
+        };
+        let response = match search_shown {
+            super::plugin_dom::Shown::Drawn => field(ui),
+            super::plugin_dom::Shown::Invisible => {
+                ui.scope(|ui| {
+                    ui.set_invisible();
+                    field(ui)
+                })
+                .inner
+            }
+            super::plugin_dom::Shown::Gone => ui.allocate_exact_size(Vec2::ZERO, Sense::hover()).1,
+        };
         super::plugin_dom::note(|f| {
-            f.shell.search = super::plugin_dom::rect(response.rect);
+            f.shell.search = (search_shown != super::plugin_dom::Shown::Gone)
+                .then_some(response.rect)
+                .and_then(super::plugin_dom::rect);
             f.shell.search_text.clone_from(&app.search.query);
         });
         if app.search.focus_requested {
@@ -591,11 +616,22 @@ fn nav_arrows(
     back_label: &str,
     forward_label: &str,
 ) -> (bool, bool) {
-    let (rect, _) = ui.allocate_exact_size(vec2(70.0, 36.0), Sense::hover());
-    ui.painter()
-        .rect_filled(rect, CornerRadius::same(18), palette.chip());
+    // TIDAL's chip: 2 points round and between its 32-point buttons; a
+    // button a plugin left out (`display: none`) takes no room in it, one
+    // it hid (`visibility: hidden`) keeps its room empty.
+    let shown = [keys::NAV_BACK, keys::NAV_FORWARD].map(super::plugin_dom::shown);
+    let room = shown
+        .iter()
+        .filter(|s| **s != super::plugin_dom::Shown::Gone)
+        .count();
+    let (rect, _) = ui.allocate_exact_size(vec2(2.0 + 34.0 * room as f32, 36.0), Sense::hover());
+    if room > 0 {
+        ui.painter()
+            .rect_filled(rect, CornerRadius::same(18), palette.chip());
+    }
     super::plugin_dom::note(|f| f.shell.nav_disabled = [!can_back, !can_forward]);
     let mut clicked = [false; 2];
+    let mut slot = 0;
     for (index, (icon, enabled, label, key)) in [
         (Icon::ChevronLeft, can_back, back_label, keys::NAV_BACK),
         (
@@ -608,10 +644,17 @@ fn nav_arrows(
     .into_iter()
     .enumerate()
     {
+        if shown[index] == super::plugin_dom::Shown::Gone {
+            continue;
+        }
         let button = egui::Rect::from_min_size(
-            pos2(rect.left() + 2.0 + index as f32 * 34.0, rect.top() + 2.0),
+            pos2(rect.left() + 2.0 + slot as f32 * 34.0, rect.top() + 2.0),
             Vec2::splat(32.0),
         );
+        slot += 1;
+        if shown[index] == super::plugin_dom::Shown::Invisible {
+            continue;
+        }
         let response = ui.interact(
             button,
             ui.id().with(("nav-arrow", index)),
@@ -676,8 +719,14 @@ fn account_button(app: &mut App, ui: &mut egui::Ui) {
     // picture drawn (Avatar).
     super::plugin_dom::profile(rect);
     super::plugin_dom::host_clicks(ui, keys::PROFILE, &response);
-    let avatar = super::plugin_dom::background_url(keys::PROFILE).or(avatar);
-    if ui.is_rect_visible(rect) {
+    // The picture inside the button is TIDAL's `svg`: a plugin that hides
+    // it (Avatar, which paints the button's background instead) leaves
+    // only what the button's own background shows.
+    let inner = super::plugin_dom::shown(keys::PROFILE_SVG) == super::plugin_dom::Shown::Drawn;
+    let background = super::plugin_dom::background_url(keys::PROFILE);
+    let painted = inner || background.is_some();
+    let avatar = background.or(if inner { avatar } else { None });
+    if ui.is_rect_visible(rect) && painted {
         match avatar.as_deref() {
             Some(url) => super::widgets::paint_cover(
                 ui,

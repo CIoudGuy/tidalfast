@@ -167,7 +167,21 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             // title, as TIDAL's flex row does, and is left out whole when
             // it still does not fit.
             let tail_limit = seek_start(center) - TAIL_GAP;
-            let left_reach = now_playing_block(app, ui, left, slack, tail_limit, now.as_ref());
+            // A part of the bar a plugin hid draws nothing and takes no
+            // input; the others keep their places, as TIDAL's grid does.
+            let left_reach = match plugin_dom::shown(keys::TRACK_INFO) {
+                plugin_dom::Shown::Drawn => {
+                    now_playing_block(app, ui, left, slack, tail_limit, now.as_ref())
+                }
+                plugin_dom::Shown::Invisible => {
+                    ui.scope(|ui| {
+                        ui.set_invisible();
+                        now_playing_block(app, ui, left, slack, tail_limit, now.as_ref())
+                    })
+                    .inner
+                }
+                plugin_dom::Shown::Gone => left.left(),
+            };
 
             transport(app, ui, now.as_ref(), center);
 
@@ -178,7 +192,15 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     .max_rect(right_band)
                     .layout(Layout::right_to_left(Align::Center)),
             );
-            let right_width = extras(app, &mut right_ui, now.as_ref(), side + slack);
+            let right_width = match plugin_dom::shown(keys::UTILITY) {
+                plugin_dom::Shown::Gone => 0.0,
+                shown => {
+                    if shown == plugin_dom::Shown::Invisible {
+                        right_ui.set_invisible();
+                    }
+                    extras(app, &mut right_ui, now.as_ref(), side + slack)
+                }
+            };
             if plugin_dom::on() {
                 // What the sides would take with nothing left out, so that
                 // what does not fit never shrinks the room asked for.
@@ -651,7 +673,10 @@ fn now_playing_block(
             plugin_dom::readable_text(c, bar, palette.window)
         })
         .unwrap_or(palette.text);
-    let title_response = if plugin_dom::hidden(keys::TITLE) {
+    let title_hidden = [keys::TITLE, keys::TITLE_LINK, keys::TITLE_SPAN]
+        .into_iter()
+        .any(plugin_dom::hidden);
+    let title_response = if title_hidden {
         text_ui.allocate_response(vec2(0.0, 17.0), Sense::hover())
     } else {
         theme::link(
@@ -665,7 +690,7 @@ fn now_playing_block(
     // An uploaded song carries TIDAL's upload badge after its title.
     let mut after_title = title_response.rect.right_center() + vec2(6.0, 0.0);
     if matches!(&song, Some(crate::api::models::PlayableItem::Track(track)) if track.upload)
-        && !plugin_dom::hidden(keys::TITLE)
+        && !title_hidden
     {
         let badge = Rect::from_min_size(after_title - vec2(0.0, 8.0), vec2(16.0, 16.0));
         if badge.right() <= text_rect.right() {
@@ -706,7 +731,13 @@ fn now_playing_block(
             palette.secondary
         });
     let artist_row = text_ui.horizontal_top(|ui| {
-        if plugin_dom::hidden(keys::ARTIST) {
+        // A line a plugin left out takes no room; one it hid keeps it.
+        let shown = [keys::ARTIST_ROW, keys::ARTIST].map(plugin_dom::shown);
+        if shown.contains(&plugin_dom::Shown::Gone) {
+            return;
+        }
+        if shown.contains(&plugin_dom::Shown::Invisible) {
+            ui.allocate_space(vec2(0.0, 15.0));
             return;
         }
         if artists_hidden(&now.artists) {
@@ -1032,19 +1063,45 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     // TIDAL: shuffle and repeat 32, previous, play and next 40, 8 apart.
     let widths = [32.0, 40.0, 40.0, 40.0, 32.0];
     let gap = 8.0;
-    let total: f32 = widths.iter().sum::<f32>() + gap * 4.0;
+    // A button a plugin left out (`display: none`) takes no room and the
+    // others close up round the centre, as in TIDAL's flex row; one it hid
+    // (`visibility: hidden`) keeps its room with nothing drawn.
+    let parts = [
+        keys::SHUFFLE,
+        keys::PREVIOUS,
+        keys::PLAY,
+        keys::NEXT,
+        keys::REPEAT,
+    ]
+    .map(plugin_dom::shown);
+    let gone = |i: usize| parts[i] == plugin_dom::Shown::Gone;
+    let drawn = |i: usize| parts[i] == plugin_dom::Shown::Drawn;
+    let kept = (0..widths.len()).filter(|i| !gone(*i)).count();
+    let total: f32 = (0..widths.len())
+        .filter(|i| !gone(*i))
+        .map(|i| widths[i])
+        .sum::<f32>()
+        + gap * kept.saturating_sub(1) as f32;
     let mut x = region.center().x - total / 2.0;
-    let mut slot = |width: f32| {
+    let mut slot = |i: usize| {
+        if gone(i) {
+            return Rect::from_center_size(pos2(x, cy), vec2(0.0, 40.0));
+        }
+        let width = widths[i];
         let rect = Rect::from_center_size(pos2(x + width / 2.0, cy), vec2(width, 40.0));
         x += width + gap;
         rect
     };
-    let centered = |ui: &mut egui::Ui, rect: Rect| {
-        ui.new_child(
+    let centered = |ui: &mut egui::Ui, rect: Rect, i: usize| {
+        let mut cell = ui.new_child(
             UiBuilder::new()
                 .max_rect(rect)
                 .layout(Layout::centered_and_justified(egui::Direction::LeftToRight)),
-        )
+        );
+        if !drawn(i) {
+            cell.set_invisible();
+        }
+        cell
     };
 
     // An active shuffle or repeat: the white glyph on a round grey fill.
@@ -1057,13 +1114,13 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     };
     let shuffle_color =
         themed_glyph(keys::SHUFFLE).unwrap_or(if shuffle { palette.text } else { dim });
-    let shuffle_slot = slot(widths[0]);
-    if shuffle {
+    let shuffle_slot = slot(0);
+    if shuffle && drawn(0) {
         ui.painter()
             .circle_filled(shuffle_slot.center(), 16.0, Color32::from_white_alpha(26));
     }
     plugin_dom::player_part(PlayerPart::Shuffle, shuffle_slot);
-    let mut cell = centered(ui, shuffle_slot);
+    let mut cell = centered(ui, shuffle_slot, 0);
     let shuffle_button = theme::player_icon_button(
         &mut cell,
         Icon::Shuffle,
@@ -1087,9 +1144,9 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     // A theme's colour for the skip glyphs (Tidal TUI's `[data-test=next]
     // { color: transparent }` leaves only Play and the clock in TIDAL).
     let skip_glyph = |key: &str| plugin_dom::on().then(|| plugin_dom::color(key)).flatten();
-    let previous_slot = slot(widths[1]);
+    let previous_slot = slot(1);
     plugin_dom::player_part(PlayerPart::Previous, previous_slot);
-    let mut cell = centered(ui, previous_slot);
+    let mut cell = centered(ui, previous_slot, 1);
     let previous_color = skip_glyph(keys::PREVIOUS);
     if theme::player_icon_button(
         &mut cell,
@@ -1106,10 +1163,10 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         app.actions.push(Action::Previous);
     }
 
-    let disc = slot(widths[2]);
+    let disc = slot(2);
     plugin_dom::player_part(PlayerPart::Play, disc);
     if loading || app.any_play_pending() {
-        let mut cell = centered(ui, disc);
+        let mut cell = centered(ui, disc, 2);
         theme::spinner(&mut cell, 22.0, palette.text);
     } else {
         let icon = if playing {
@@ -1117,7 +1174,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         } else {
             Icon::PlayFilled
         };
-        let mut cell = centered(ui, disc);
+        let mut cell = centered(ui, disc, 2);
         // A theme's fill for the button (Mocha Blue's
         // `button[aria-label="Play"] { background-color }`): a rounded box
         // behind the glyph, which takes the theme's colour on it. Nothing
@@ -1164,9 +1221,9 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         plugin_slots::positioned_in(&mut over, keys::PLAY_WRAP);
     }
 
-    let next_slot = slot(widths[3]);
+    let next_slot = slot(3);
     plugin_dom::player_part(PlayerPart::Next, next_slot);
-    let mut cell = centered(ui, next_slot);
+    let mut cell = centered(ui, next_slot, 3);
     let next_color = skip_glyph(keys::NEXT);
     if theme::player_icon_button(
         &mut cell,
@@ -1196,13 +1253,13 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         ),
     };
     let repeat_color = themed_glyph(keys::REPEAT).unwrap_or(repeat_color);
-    let repeat_slot = slot(widths[4]);
-    if repeat != RepeatMode::Off {
+    let repeat_slot = slot(4);
+    if repeat != RepeatMode::Off && drawn(4) {
         ui.painter()
             .circle_filled(repeat_slot.center(), 16.0, Color32::from_white_alpha(26));
     }
     plugin_dom::player_part(PlayerPart::Repeat, repeat_slot);
-    let mut cell = centered(ui, repeat_slot);
+    let mut cell = centered(ui, repeat_slot, 4);
     if theme::player_icon_button(
         &mut cell,
         repeat_icon,
@@ -1246,16 +1303,21 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         .flatten()
         .unwrap_or(time_color);
     let slider_left = region.center().x - slider_width / 2.0;
-    ui.painter().text(
-        pos2(seek_start(region), row_cy),
-        egui::Align2::LEFT_CENTER,
-        plugin_dom::text(
-            keys::CURRENT_TIME,
-            &util::format_duration_ms(shown_position),
-        ),
-        theme::regular(12.0),
-        time_color,
-    );
+    // A time a plugin hid is not drawn (radiant-lyrics' integrated seek
+    // bar hides TIDAL's).
+    let time_shown = |key: &str| plugin_dom::shown(key) == plugin_dom::Shown::Drawn;
+    if time_shown(keys::CURRENT_TIME) {
+        ui.painter().text(
+            pos2(seek_start(region), row_cy),
+            egui::Align2::LEFT_CENTER,
+            plugin_dom::text(
+                keys::CURRENT_TIME,
+                &util::format_duration_ms(shown_position),
+            ),
+            theme::regular(12.0),
+            time_color,
+        );
+    }
     let slider_rect =
         Rect::from_center_size(pos2(region.center().x, row_cy), vec2(slider_width, 16.0));
     if plugin_dom::on() {
@@ -1333,13 +1395,15 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         }
         SliderEvent::None => {}
     }
-    ui.painter().text(
-        pos2(slider_left + slider_width + 16.0, row_cy),
-        egui::Align2::LEFT_CENTER,
-        plugin_dom::text(keys::DURATION, &util::format_duration_ms(duration)),
-        theme::regular(12.0),
-        time_color,
-    );
+    if time_shown(keys::DURATION) {
+        ui.painter().text(
+            pos2(slider_left + slider_width + 16.0, row_cy),
+            egui::Align2::LEFT_CENTER,
+            plugin_dom::text(keys::DURATION, &util::format_duration_ms(duration)),
+            theme::regular(12.0),
+            time_color,
+        );
+    }
 }
 
 /// The bar's right side, TIDAL's order from left to right: play queue,
@@ -1450,22 +1514,27 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     run.slot(ui, 4, keys::UTILITY_BUTTONS, Position::Append);
     // TIDAL's compact mode: the small player window.
     let compact_color = utility_glyph(keys::MINI_PLAYER);
-    let compact = theme::player_icon_button(
-        ui,
-        Icon::PictureInPicture,
-        18.0,
-        compact_color.unwrap_or(if app.compact_mode {
-            palette.text
-        } else {
-            palette.secondary
-        }),
-        compact_color.unwrap_or(palette.text),
-        &gettext(app.locale, "Compact mode"),
-    );
-    if compact.clicked() {
+    // Each button a plugin hid is left out or keeps its room empty.
+    let compact = plugin_dom::anchored(ui, keys::MINI_PLAYER, |ui| {
+        theme::player_icon_button(
+            ui,
+            Icon::PictureInPicture,
+            18.0,
+            compact_color.unwrap_or(if app.compact_mode {
+                palette.text
+            } else {
+                palette.secondary
+            }),
+            compact_color.unwrap_or(palette.text),
+            &gettext(app.locale, "Compact mode"),
+        )
+    });
+    if compact.as_ref().is_some_and(egui::Response::clicked) {
         app.actions.push(Action::ToggleCompactMode);
     }
-    plugin_dom::player_part(PlayerPart::MiniPlayer, compact.rect);
+    if let Some(compact) = &compact {
+        plugin_dom::player_part(PlayerPart::MiniPlayer, compact.rect);
+    }
     run.slot(ui, 5, keys::SLIDER, Position::After);
     // VolumeScroll takes the wheel over the slider when it listens.
     let plugin_wheel = plugin_dom::listens(keys::SLIDER, "wheel");
@@ -1485,50 +1554,53 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     let adjustable = now.is_none_or(|now| now.can_set_volume) && !locked;
     // TIDAL: the speaker alone; its slider pops up above it under the
     // pointer.
-    let controls =
-        super::player_utility::volume(app, ui, shown, adjustable, native_range, !plugin_wheel);
-    if controls.button.clicked() {
-        app.actions.push(Action::ToggleMute);
-    }
-    match controls.event {
-        SliderEvent::Dragging(value) => {
-            app.volume_preview = Some(value);
-            // Local volume is cheap to apply continuously; remote goes on release.
-            if now.is_none_or(|now| now.local) {
-                app.actions
-                    .push(Action::PreviewVolume((value * 100.0).round() as u8));
-            }
-        }
-        SliderEvent::Committed(value) => {
-            app.volume_preview = None;
-            app.actions
-                .push(Action::SetVolume((value * 100.0).round() as u8));
-        }
-        SliderEvent::None => {}
-    }
-    if !adjustable {
-        ui.interact(
-            controls.button.rect,
-            egui::Id::new("volume-fixed"),
-            egui::Sense::hover(),
-        )
-        .on_hover_text(if locked {
-            gettext(
-                app.locale,
-                "Bit-perfect playback: the volume stays at 100%. Turn the volume down on your device.",
-            )
-        } else {
-            gettext(
-                app.locale,
-                "This device's volume can't be changed from Tidalfast",
-            )
-        });
-    }
-    let slider_rect = controls.popup.map_or(controls.button.rect, |popup| {
-        popup.union(controls.button.rect)
+    let controls = plugin_dom::anchored(ui, keys::MUTE, |ui| {
+        super::player_utility::volume(app, ui, shown, adjustable, native_range, !plugin_wheel)
     });
-    plugin_dom::player_part(PlayerPart::Slider, slider_rect);
-    plugin_dom::wheel(ui, keys::SLIDER, controls.button.rect);
+    if let Some(controls) = controls {
+        if controls.button.clicked() {
+            app.actions.push(Action::ToggleMute);
+        }
+        match controls.event {
+            SliderEvent::Dragging(value) => {
+                app.volume_preview = Some(value);
+                // Local volume is cheap to apply continuously; remote goes on release.
+                if now.is_none_or(|now| now.local) {
+                    app.actions
+                        .push(Action::PreviewVolume((value * 100.0).round() as u8));
+                }
+            }
+            SliderEvent::Committed(value) => {
+                app.volume_preview = None;
+                app.actions
+                    .push(Action::SetVolume((value * 100.0).round() as u8));
+            }
+            SliderEvent::None => {}
+        }
+        if !adjustable {
+            ui.interact(
+                controls.button.rect,
+                egui::Id::new("volume-fixed"),
+                egui::Sense::hover(),
+            )
+            .on_hover_text(if locked {
+                gettext(
+                    app.locale,
+                    "Bit-perfect playback: the volume stays at 100%. Turn the volume down on your device.",
+                )
+            } else {
+                gettext(
+                    app.locale,
+                    "This device's volume can't be changed from Tidalfast",
+                )
+            });
+        }
+        let slider_rect = controls.popup.map_or(controls.button.rect, |popup| {
+            popup.union(controls.button.rect)
+        });
+        plugin_dom::player_part(PlayerPart::Slider, slider_rect);
+        plugin_dom::wheel(ui, keys::SLIDER, controls.button.rect);
+    }
     run.slot(ui, 6, keys::SLIDER, Position::Before);
     // Tidalfast draws no lyrics button in the bar, so what follows
     // `toggle-lyrics` in the document sits where TIDAL draws what precedes
@@ -1542,75 +1614,80 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     // the queue is open. The disc goes under the button, drawn first.
     let disc = ui.painter().add(egui::Shape::Noop);
     let queue_color = utility_glyph(keys::QUEUE);
-    let queue_button = theme::player_icon_button(
-        ui,
-        Icon::QueueLines,
-        18.0,
-        queue_color.unwrap_or(if queue_open {
-            palette.text
-        } else {
-            palette.secondary
-        }),
-        queue_color.unwrap_or(palette.text),
-        &gettext(app.locale, "Queue"),
-    );
-    // A theme's background for the button (Tidal TUI's `[data-test=
-    // play-queue-button] { background: transparent }`) replaces the disc.
-    let disc_fill = plugin_dom::on()
-        .then(|| plugin_dom::fill(keys::QUEUE))
-        .flatten();
-    if queue_open && plugin_dom::on() && plugin_dom::paints_box(keys::QUEUE) {
-        // A theme's box for TIDAL's pressed button (`._activeButton_122ab25`:
-        // the cotton candy family's rounded gradient) in TIDAL's 32-point
-        // button, the glyph drawn again over it.
-        let r = egui::Rect::from_center_size(queue_button.rect.center(), egui::Vec2::splat(32.0));
-        plugin_dom::paint_themed_box(ui, keys::QUEUE, r, egui::CornerRadius::same(16));
-        Icon::QueueLines
-            .image(queue_color.unwrap_or(palette.text), 18.0)
-            .paint_at(
-                ui,
-                egui::Rect::from_center_size(r.center(), egui::Vec2::splat(18.0)),
+    let queue_button = plugin_dom::anchored(ui, keys::QUEUE, |ui| {
+        theme::player_icon_button(
+            ui,
+            Icon::QueueLines,
+            18.0,
+            queue_color.unwrap_or(if queue_open {
+                palette.text
+            } else {
+                palette.secondary
+            }),
+            queue_color.unwrap_or(palette.text),
+            &gettext(app.locale, "Queue"),
+        )
+    });
+    if let Some(queue_button) = queue_button {
+        // A theme's background for the button (Tidal TUI's `[data-test=
+        // play-queue-button] { background: transparent }`) replaces the disc.
+        let disc_fill = plugin_dom::on()
+            .then(|| plugin_dom::fill(keys::QUEUE))
+            .flatten();
+        if queue_open && plugin_dom::on() && plugin_dom::paints_box(keys::QUEUE) {
+            // A theme's box for TIDAL's pressed button (`._activeButton_122ab25`:
+            // the cotton candy family's rounded gradient) in TIDAL's 32-point
+            // button, the glyph drawn again over it.
+            let r =
+                egui::Rect::from_center_size(queue_button.rect.center(), egui::Vec2::splat(32.0));
+            plugin_dom::paint_themed_box(ui, keys::QUEUE, r, egui::CornerRadius::same(16));
+            Icon::QueueLines
+                .image(queue_color.unwrap_or(palette.text), 18.0)
+                .paint_at(
+                    ui,
+                    egui::Rect::from_center_size(r.center(), egui::Vec2::splat(18.0)),
+                );
+        } else if queue_open && disc_fill.is_none_or(|c| c.a() > 0) {
+            ui.painter().set(
+                disc,
+                egui::Shape::circle_filled(
+                    queue_button.rect.center(),
+                    16.0,
+                    disc_fill.unwrap_or(if palette.dark {
+                        egui::Color32::from_white_alpha(20)
+                    } else {
+                        egui::Color32::from_black_alpha(16)
+                    }),
+                ),
             );
-    } else if queue_open && disc_fill.is_none_or(|c| c.a() > 0) {
-        ui.painter().set(
-            disc,
-            egui::Shape::circle_filled(
-                queue_button.rect.center(),
-                16.0,
-                disc_fill.unwrap_or(if palette.dark {
-                    egui::Color32::from_white_alpha(20)
-                } else {
-                    egui::Color32::from_black_alpha(16)
-                }),
-            ),
-        );
-    }
-    if queue_button.clicked() {
-        app.actions.push(Action::ToggleQueuePanel);
-    }
-    plugin_dom::player_part(PlayerPart::Queue, queue_button.rect);
-    plugin_dom::player_part(PlayerPart::More, queue_button.rect);
-    run.slot(ui, 8, keys::MORE, Position::Prepend);
-    // A dragged song dropped on the queue button queues it, same as the
-    // "Add to queue" menu item.
-    // Taking a payload of the wrong type would discard the dragged song.
-    if egui::DragAndDrop::has_payload_of_type::<crate::model::DragContext>(ui.ctx())
-        && let Some(context) = queue_button.dnd_release_payload::<crate::model::DragContext>()
-        && crate::util::uri_kind(&context.uri) != Some("artist")
-    {
-        app.actions.push(Action::PlayNextContext {
-            uri: context.uri.clone(),
-            label: context.title.clone(),
-        });
-    }
-    if let Some(track) = queue_button.dnd_release_payload::<DragTrack>() {
-        app.actions.push(Action::QueueMany {
-            songs: track
-                .items
-                .iter()
-                .map(|item| (item.uri().to_string(), item.name().to_string()))
-                .collect(),
-        });
+        }
+        if queue_button.clicked() {
+            app.actions.push(Action::ToggleQueuePanel);
+        }
+        plugin_dom::player_part(PlayerPart::Queue, queue_button.rect);
+        plugin_dom::player_part(PlayerPart::More, queue_button.rect);
+        run.slot(ui, 8, keys::MORE, Position::Prepend);
+        // A dragged song dropped on the queue button queues it, same as the
+        // "Add to queue" menu item.
+        // Taking a payload of the wrong type would discard the dragged song.
+        if egui::DragAndDrop::has_payload_of_type::<crate::model::DragContext>(ui.ctx())
+            && let Some(context) = queue_button.dnd_release_payload::<crate::model::DragContext>()
+            && crate::util::uri_kind(&context.uri) != Some("artist")
+        {
+            app.actions.push(Action::PlayNextContext {
+                uri: context.uri.clone(),
+                label: context.title.clone(),
+            });
+        }
+        if let Some(track) = queue_button.dnd_release_payload::<DragTrack>() {
+            app.actions.push(Action::QueueMany {
+                songs: track
+                    .items
+                    .iter()
+                    .map(|item| (item.uri().to_string(), item.name().to_string()))
+                    .collect(),
+            });
+        }
     }
     run.slot(ui, 10, keys::TOGGLE_LYRICS, Position::Before);
     run.slot(ui, 11, keys::UTILITY_BUTTONS, Position::Prepend);

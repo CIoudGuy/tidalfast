@@ -8242,6 +8242,337 @@ mod tests {
         out.platform_output.accesskit_update
     }
 
+    /// One pass of the app with the overlay the test set, and what it
+    /// painted.
+    fn painted_frame(ctx: &egui::Context, app: &mut App) -> Vec<egui::epaint::ClippedShape> {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1280.0, 800.0),
+            )),
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            // The page's anchors, as `begin_frame` starts them.
+            crate::ui::plugin_dom::test_page_frame();
+            crate::ui::show(app, ui);
+        });
+        out.textures_delta.clear();
+        crate::ui::plugin_dom::end_frame(ctx);
+        out.shapes
+    }
+
+    /// The shapes painted wholly inside `r` (a part's own words, icons and
+    /// fills; not the panels round it), named for a failure message.
+    fn painted_inside(shapes: &[egui::epaint::ClippedShape], r: egui::Rect) -> Vec<String> {
+        let r = r.expand(0.5);
+        shapes
+            .iter()
+            .filter(|s| !matches!(s.shape, egui::Shape::Noop))
+            // An empty galley paints nothing.
+            .filter(|s| !matches!(&s.shape, egui::Shape::Text(t) if t.galley.text().is_empty()))
+            .filter(|s| {
+                let b = s.shape.visual_bounding_rect().intersect(s.clip_rect);
+                b.is_positive() && r.contains_rect(b)
+            })
+            .map(|s| match &s.shape {
+                egui::Shape::Text(t) => format!("text {:?}", t.galley.text()),
+                egui::Shape::Mesh(_) => "mesh".to_string(),
+                egui::Shape::Rect(r) => format!("rect {:?} {:?}", r.rect, r.fill),
+                egui::Shape::Circle(_) => "circle".to_string(),
+                other => format!("{:?}", std::mem::discriminant(other)),
+            })
+            .collect()
+    }
+
+    /// Native parts that still draw while hidden: the album header's meta
+    /// line (its year and quality are painted as one run of galleys).
+    const STILL_DRAWN: &[&str] = &["page-meta-line", "page-release-date"];
+
+    /// Element-hider's "Hide This Element" (`display: none` on the element
+    /// under the pointer) and a theme's `visibility: hidden` work on every
+    /// native part that is one of TIDAL's elements: with the anchor hidden,
+    /// nothing is painted in its box, and the anchor stays described so the
+    /// rule keeps matching it. Sidebar rows, the header's arrows and
+    /// account button, the page's Play and Shuffle and the player bar's
+    /// buttons went on drawing.
+    #[test]
+    fn every_native_part_a_plugin_hides_paints_nothing() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("hidden-parts");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        let plain = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        let mut failed = Vec::new();
+        for page in [Page::Home, Page::Album("alb0".into())] {
+            app.open(page.clone());
+            plugin_dom::test_overlay(Some(plain.clone()));
+            for _ in 0..3 {
+                painted_frame(&ctx, &mut app);
+            }
+            let tree = plugin_dom::test_sent_tree().expect("a tree was sent");
+            plugin_dom::test_overlay(None);
+            let parts: Vec<(String, egui::Rect)> = tree
+                .nodes
+                .iter()
+                .filter_map(|n| {
+                    let [x, y, w, h] = n.rect?;
+                    let r = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h));
+                    // Not a part the player bar's top edge cuts (a library
+                    // row half under the bar).
+                    let cut = y < 712.0 && y + h > 712.0;
+                    (w >= 4.0 && h >= 4.0 && w <= 700.0 && h <= 120.0 && !cut)
+                        .then(|| (n.key.clone(), r))
+                })
+                .collect();
+            for (key, r) in parts {
+                // What the anchor's own subtree holds: its box may also hold
+                // another element's paint (a row's label shares the row's
+                // box with its icon), and then only less may be painted.
+                let mut own = vec![key.clone()];
+                let mut j = 0;
+                while j < own.len() {
+                    let parent = own[j].clone();
+                    own.extend(
+                        tree.nodes
+                            .iter()
+                            .filter(|n| n.parent.as_deref() == Some(parent.as_str()))
+                            .map(|n| n.key.clone()),
+                    );
+                    j += 1;
+                }
+                let mut up = Vec::new();
+                let mut at = tree
+                    .nodes
+                    .iter()
+                    .find(|n| n.key == key)
+                    .and_then(|n| n.parent.clone());
+                while let Some(k) = at {
+                    at = tree
+                        .nodes
+                        .iter()
+                        .find(|n| n.key == k)
+                        .and_then(|n| n.parent.clone());
+                    up.push(k);
+                }
+                // A box the anchor shares with its parent is the parent's
+                // (the UI knows no box of its own for it).
+                let same_as_parent = up.first().is_some_and(|p| {
+                    tree.nodes.iter().any(|n| {
+                        n.key == *p
+                            && n.rect.is_some_and(|[x, y, w, h]| {
+                                egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h)) == r
+                            })
+                    })
+                });
+                let shared = same_as_parent
+                    || tree.nodes.iter().any(|n| {
+                        !own.contains(&n.key)
+                            && !up.contains(&n.key)
+                            && n.rect.is_some_and(|[x, y, w, h]| {
+                                let o =
+                                    egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h));
+                                o.intersect(r).area() > 1.0
+                            })
+                    });
+                let own_words: Vec<String> = tree
+                    .nodes
+                    .iter()
+                    .filter(|n| own.contains(&n.key))
+                    .filter_map(|n| n.text.clone().filter(|t| !t.trim().is_empty()))
+                    .collect();
+                plugin_dom::test_overlay(Some(plain.clone()));
+                let mut shapes = Vec::new();
+                for _ in 0..2 {
+                    shapes = painted_frame(&ctx, &mut app);
+                }
+                plugin_dom::test_overlay(None);
+                let before = painted_inside(&shapes, r).len();
+                for hide in ["display", "visibility"] {
+                    // The runtime hides the anchor's descendants with it,
+                    // as CSS does.
+                    let mut under = vec![key.clone()];
+                    let mut i = 0;
+                    while i < under.len() {
+                        let parent = under[i].clone();
+                        under.extend(
+                            tree.nodes
+                                .iter()
+                                .filter(|n| n.parent.as_deref() == Some(parent.as_str()))
+                                .map(|n| n.key.clone()),
+                        );
+                        i += 1;
+                    }
+                    let mut overlay = plain.clone();
+                    let style = if hide == "display" {
+                        Style {
+                            display: Some("none".into()),
+                            ..Style::default()
+                        }
+                    } else {
+                        Style {
+                            visibility: Some("hidden".into()),
+                            ..Style::default()
+                        }
+                    };
+                    for k in under {
+                        overlay.hosts.insert(
+                            k,
+                            HostOverride {
+                                style: style.clone(),
+                                ..HostOverride::default()
+                            },
+                        );
+                    }
+                    plugin_dom::test_overlay(Some(overlay));
+                    let mut shapes = Vec::new();
+                    for _ in 0..3 {
+                        shapes = painted_frame(&ctx, &mut app);
+                    }
+                    let described = plugin_dom::test_sent_tree()
+                        .is_some_and(|t| t.nodes.iter().any(|n| n.key == key));
+                    plugin_dom::test_overlay(None);
+                    // `display: none` lets what follows move up into the
+                    // room; only `visibility: hidden` keeps it empty.
+                    let inside = if hide == "visibility" {
+                        painted_inside(&shapes, r)
+                    } else {
+                        Vec::new()
+                    };
+                    // In a shared box only the anchor's own words are
+                    // known to be its paint.
+                    let kept = if shared {
+                        inside
+                            .iter()
+                            .any(|shape| own_words.iter().any(|w| *shape == format!("text {w:?}")))
+                    } else {
+                        !inside.is_empty()
+                    };
+                    if (kept && !STILL_DRAWN.contains(&key.as_str())) || !described {
+                        failed.push(format!(
+                            "{page:?} {key} {hide}: still {inside:?} of {before}, shared {shared}, described {described}"
+                        ));
+                    }
+                }
+            }
+        }
+        app.backend.shutdown();
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
+    }
+
+    /// Words TIDAL keeps as DOM text reach plugins and come back drawn:
+    /// uwu-ifier and the translators rewrite every text node, and the album
+    /// header's Added, Credits, Share and More captions, the library rows'
+    /// names and second lines, the "All playlists" heading and the now-
+    /// playing tabs were drawn by Tidalfast from its own strings, so the
+    /// rewrite never showed (the captions and row names were not even in
+    /// the document).
+    #[test]
+    fn text_a_plugin_rewrites_reaches_the_native_labels() {
+        use crate::luna::dom::{DomOverlay, HostOverride};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("plugin-words");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        let words = |shapes: &[egui::epaint::ClippedShape]| -> Vec<String> {
+            shapes
+                .iter()
+                .filter_map(|s| match &s.shape {
+                    egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+                    _ => None,
+                })
+                .collect()
+        };
+        let rewritten = |key: &str, text: &str| {
+            (
+                key.to_string(),
+                HostOverride {
+                    text: Some(text.to_string()),
+                    ..HostOverride::default()
+                },
+            )
+        };
+        let mut checks = Vec::new();
+        for (page, now_playing, keys_words) in [
+            (
+                Page::Album("alb0".into()),
+                false,
+                vec![
+                    (keys::page_action_label("credits-button"), "Cwedits uwu"),
+                    (keys::page_action_label("share-button"), "Shawe uwu"),
+                    (
+                        keys::page_action_label("show-context-menu-button"),
+                        "Mowe uwu",
+                    ),
+                    (keys::lib_row_title(0), "Wow a pwaywist"),
+                    (keys::lib_row_subtitle(0), "Wif items uwu"),
+                    (keys::LIB_HEADING_TITLE.to_string(), "Aww pwaywists"),
+                ],
+            ),
+            (
+                Page::Home,
+                true,
+                vec![(
+                    format!("{}:span", keys::now_playing_tab("credits")),
+                    "Cwedits tab",
+                )],
+            ),
+        ] {
+            app.open(page);
+            app.now_playing_view = now_playing;
+            plugin_dom::test_overlay(Some(DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            }));
+            for _ in 0..3 {
+                painted_frame(&ctx, &mut app);
+            }
+            let tree = plugin_dom::test_sent_tree().expect("a tree was sent");
+            for (key, _) in &keys_words {
+                let text = tree
+                    .nodes
+                    .iter()
+                    .find(|n| n.key == *key)
+                    .and_then(|n| n.text.clone())
+                    .unwrap_or_default();
+                checks.push((format!("{key} holds its words"), !text.is_empty()));
+            }
+            plugin_dom::test_overlay(Some(DomOverlay {
+                version: 2,
+                hosts: keys_words.iter().map(|(k, w)| rewritten(k, w)).collect(),
+                ..DomOverlay::default()
+            }));
+            let mut shapes = Vec::new();
+            for _ in 0..3 {
+                shapes = painted_frame(&ctx, &mut app);
+            }
+            plugin_dom::test_overlay(None);
+            let drawn = words(&shapes);
+            for (key, w) in &keys_words {
+                checks.push((format!("{key} draws {w:?}"), drawn.iter().any(|d| d == w)));
+            }
+        }
+        app.backend.shutdown();
+        let failed: Vec<_> = checks
+            .iter()
+            .filter(|(_, ok)| !ok)
+            .map(|(c, _)| c.as_str())
+            .collect();
+        assert!(
+            failed.is_empty(),
+            "{}",
+            failed.join(
+                "
+"
+            )
+        );
+    }
+
     /// radiant-lyrics hides TIDAL's full screen button in the now-playing
     /// header (`[data-test=new-now-playing-expand]{display:none}`), and puts
     /// its own buttons there: the header is Similar tracks, Credits, Lyrics,
