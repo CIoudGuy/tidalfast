@@ -221,6 +221,56 @@ self.onmessage = async ({ data }) => {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A plugin's name is unique only within one runtime: removing another
+/// runtime's plugin of the same name leaves this one's loaded model alone
+/// (the models were kept by name for the whole process, so the removal
+/// dropped it and the next estimate loaded the model file again).
+#[test]
+fn a_loaded_model_outlives_another_runtimes_plugin_of_the_same_name() {
+    let (luna, dir, files) = start(
+        r##"
+try {
+	const fake = "// huggingface/transformers.js: transformers.js_config\nconst x = 1;\nexport { x as pipeline };\n" + " ".repeat(100001);
+	const tf = await import(URL.createObjectURL(new Blob([fake], { type: "text/javascript" })));
+	tf.env.remoteHost = "__BASE__/";
+	let loads = 0;
+	tf.env.fetch = (url, o) => {
+		if (String(url).endsWith(".onnx")) loads++;
+		return fetch(url, o);
+	};
+	const pipe = await tf.pipeline("depth-estimation", "m/tiny", { device: "wasm", dtype: "q8" });
+	pipe.processor.image_processor.size = { width: 4, height: 4 };
+	const image = new tf.RawImage(new Uint8Array(4 * 4 * 4).fill(128), 4, 4, 4);
+	await pipe(image);
+	R.first = loads;
+	R.ready = true;
+	while ((await fetch("__BASE__/go")).status !== 200) await new Promise((res) => setTimeout(res, 20));
+	await pipe(image);
+	R.second = loads;
+} catch (e) { fail("main", e); }
+"##,
+    );
+    let r = until(&luna, &dir, 60, |r| {
+        r["ready"] == json!(true) || !r["main"].is_null()
+    });
+    assert_eq!(r["first"], json!(1), "{r}");
+    // Another runtime installs a plugin of the same name and removes it.
+    let (other, other_dir, _other_files) = start("R.done = true;");
+    until(&other, &other_dir, 30, |r| r["done"] == json!(true));
+    other.uninstall("Depth");
+    wait_until(&other, 30, |s| plugin(s, "Depth").is_none());
+    other.shutdown();
+    let _ = std::fs::remove_dir_all(&other_dir);
+    files.lock().unwrap().insert("/go".into(), b"go".to_vec());
+    let r = until(&luna, &dir, 60, |r| {
+        !r["second"].is_null() || !r["main"].is_null()
+    });
+    assert_eq!(r["main"], Value::Null, "{r}");
+    assert_eq!(r["second"], json!(1), "the model was not loaded again: {r}");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn dom_matrix_reads_a_css_tilt() {
     let (luna, dir, _files) = start(

@@ -11,13 +11,19 @@
 //!   file is written beside its place as `.part` and renamed when whole.
 //! * Everything runs on the runtime's worker threads, never the UI or the
 //!   plugin thread, and stops when the plugin stops or the permission is
-//!   revoked ([`close_plugin`]).
+//!   revoked ([`close_plugin`]), or its runtime stops ([`stop_runtime`]).
+//! * Everything belongs to a plugin of one runtime ([`RuntimeId`]): a
+//!   plugin's name is unique only within its runtime, and when Luna
+//!   restarts the old runtime stops its plugins while the new one already
+//!   runs them.
 
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 
+use super::RuntimeId;
 use super::host::{AudioParts, AudioSource};
 
 /// The most bytes one `read` hands the plugin.
@@ -25,35 +31,57 @@ pub const CHUNK: usize = 512 * 1024;
 /// Streams one plugin may have open at once.
 const MAX_PER_PLUGIN: usize = 8;
 
+/// Whose a stream, a download or a chosen folder is: a plugin of one
+/// runtime.
+type Owner = (RuntimeId, String);
+
+fn owner(runtime: RuntimeId, plugin: &str) -> Owner {
+    (runtime, plugin.to_string())
+}
+
 enum Part {
     Url(String),
     Bytes(Vec<u8>),
 }
 
 struct Session {
-    plugin: String,
-    epoch: u64,
+    owner: Owner,
     parts: VecDeque<Part>,
     current: Option<Box<dyn Read + Send>>,
 }
 
+/// An open stream: the stream, and the flag that ends it (outside the
+/// stream's lock, which a read holds while it waits for the network).
+struct Open {
+    owner: Owner,
+    stop: Arc<AtomicBool>,
+    session: Arc<Mutex<Session>>,
+}
+
 struct Hub {
     next: u32,
-    /// Open streams and the plugin each is for (kept outside the stream's
-    /// own lock: the hub is never held while a stream is read).
-    sessions: HashMap<u32, (String, Arc<Mutex<Session>>)>,
-    /// Bumped when a plugin stops: its downloads and streams end.
-    epochs: HashMap<String, u64>,
-    /// (plugin, track) -> (bytes so far, total when known).
-    progress: HashMap<(String, String), (u64, Option<u64>)>,
+    next_job: u64,
+    /// Open streams by handle (the hub is never held while a stream is
+    /// read).
+    sessions: HashMap<u32, Open>,
+    /// Songs being saved or drained, each with the flag that stops it.
+    jobs: HashMap<u64, (Owner, Arc<AtomicBool>)>,
+    /// (owner, track) -> (bytes so far, total when known).
+    progress: HashMap<(Owner, String), (u64, Option<u64>)>,
+    /// Folders the user chose instead of the one a plugin named:
+    /// (owner, named folder) -> chosen folder, so the next song for the
+    /// same folder goes there without asking again.
+    redirects: HashMap<(Owner, PathBuf), PathBuf>,
 }
 
 static HUB: LazyLock<Mutex<Hub>> = LazyLock::new(|| {
     Mutex::new(Hub {
         next: 0,
+        next_job: 0,
         sessions: HashMap::new(),
-        epochs: HashMap::new(),
+        jobs: HashMap::new(),
         progress: HashMap::new(),
+        redirects: HashMap::new(),
     })
 });
 
@@ -61,12 +89,32 @@ fn hub() -> std::sync::MutexGuard<'static, Hub> {
     HUB.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn epoch(plugin: &str) -> u64 {
-    hub().epochs.get(plugin).copied().unwrap_or_default()
+/// A save or drain under way: its stop flag; dropping it takes it off the
+/// list.
+struct Job {
+    id: u64,
+    stop: Arc<AtomicBool>,
 }
 
-fn stopped(plugin: &str, at: u64) -> bool {
-    epoch(plugin) != at
+impl Job {
+    fn start(owner: &Owner) -> Job {
+        let mut h = hub();
+        h.next_job += 1;
+        let id = h.next_job;
+        let stop = Arc::new(AtomicBool::new(false));
+        h.jobs.insert(id, (owner.clone(), stop.clone()));
+        Job { id, stop }
+    }
+
+    fn stopped(&self) -> bool {
+        self.stop.load(Ordering::Acquire)
+    }
+}
+
+impl Drop for Job {
+    fn drop(&mut self) {
+        hub().jobs.remove(&self.id);
+    }
 }
 
 /// The stream client: no limit on the whole download (a hi-res album
@@ -115,52 +163,55 @@ fn open(part: Part) -> Result<(Box<dyn Read + Send>, Option<u64>), String> {
     }
 }
 
-/// A stream for `fetchMediaItemStream`; read it with [`read`].
-pub fn open_stream(plugin: &str, source: AudioSource) -> Result<u32, String> {
+/// A stream for `fetchMediaItemStream` of `runtime`'s `plugin`; read it
+/// with [`read`].
+pub fn open_stream(runtime: RuntimeId, plugin: &str, source: AudioSource) -> Result<u32, String> {
+    let owner = owner(runtime, plugin);
     let mut h = hub();
-    if h.sessions.values().filter(|(p, _)| p == plugin).count() >= MAX_PER_PLUGIN {
+    if h.sessions.values().filter(|o| o.owner == owner).count() >= MAX_PER_PLUGIN {
         return Err("EMFILE: too many open TIDAL streams for this plugin".into());
     }
     h.next += 1;
     let handle = h.next;
-    let epoch = h.epochs.get(plugin).copied().unwrap_or_default();
+    let session = Arc::new(Mutex::new(Session {
+        owner: owner.clone(),
+        parts: parts_of(source),
+        current: None,
+    }));
     h.sessions.insert(
         handle,
-        (
-            plugin.to_string(),
-            Arc::new(Mutex::new(Session {
-                plugin: plugin.to_string(),
-                epoch,
-                parts: parts_of(source),
-                current: None,
-            })),
-        ),
+        Open {
+            owner,
+            stop: Arc::new(AtomicBool::new(false)),
+            session,
+        },
     );
     Ok(handle)
 }
 
 /// The next bytes of stream `handle` (at most [`CHUNK`]); `None` at the end.
 /// Blocks on the network: worker threads only.
-pub fn read(plugin: &str, handle: u32) -> Result<Option<Vec<u8>>, String> {
-    let session = hub()
+pub fn read(runtime: RuntimeId, plugin: &str, handle: u32) -> Result<Option<Vec<u8>>, String> {
+    let owner = owner(runtime, plugin);
+    let (session, stop) = hub()
         .sessions
         .get(&handle)
-        .filter(|(p, _)| p == plugin)
-        .map(|(_, s)| s.clone())
+        .filter(|o| o.owner == owner)
+        .map(|o| (o.session.clone(), o.stop.clone()))
         .ok_or("EBADF: no such TIDAL stream")?;
     let mut s = session.lock().unwrap_or_else(|e| e.into_inner());
-    if s.plugin != plugin {
+    if s.owner != owner {
         return Err("EBADF: no such TIDAL stream".into());
     }
     let mut buf = vec![0u8; CHUNK];
     loop {
-        if stopped(&s.plugin, s.epoch) {
+        if stop.load(Ordering::Acquire) {
             return Err("ECANCELED: the plugin stopped or its permission was taken back".into());
         }
         if s.current.is_none() {
             let Some(part) = s.parts.pop_front() else {
                 drop(s);
-                close(plugin, handle);
+                close(runtime, plugin, handle);
                 return Ok(None);
             };
             s.current = Some(open(part)?.0);
@@ -181,56 +232,72 @@ pub fn read(plugin: &str, handle: u32) -> Result<Option<Vec<u8>>, String> {
     }
 }
 
-pub fn close(plugin: &str, handle: u32) {
+pub fn close(runtime: RuntimeId, plugin: &str, handle: u32) {
+    let owner = owner(runtime, plugin);
     let mut h = hub();
-    if h.sessions.get(&handle).is_some_and(|(p, _)| p == plugin) {
+    if h.sessions.get(&handle).is_some_and(|o| o.owner == owner) {
         h.sessions.remove(&handle);
     }
 }
 
-/// The plugin stopped, or its permission was taken back: its streams and
-/// downloads end.
-pub fn close_plugin(plugin: &str) {
+/// Stops what `stops` picks: its streams end, its saves and drains stop,
+/// and what was kept for it goes.
+fn stop_where(stops: impl Fn(&Owner) -> bool) {
     let mut h = hub();
-    *h.epochs.entry(plugin.to_string()).or_default() += 1;
-    h.sessions.retain(|_, (p, _)| p != plugin);
-    h.progress.retain(|(p, _), _| p != plugin);
-    drop(h);
-    REDIRECTS
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .retain(|(p, _), _| p != plugin);
+    h.sessions.retain(|_, o| {
+        let keep = !stops(&o.owner);
+        if !keep {
+            o.stop.store(true, Ordering::Release);
+        }
+        keep
+    });
+    for (o, stop) in h.jobs.values() {
+        if stops(o) {
+            stop.store(true, Ordering::Release);
+        }
+    }
+    h.progress.retain(|(o, _), _| !stops(o));
+    h.redirects.retain(|(o, _), _| !stops(o));
 }
 
-/// How far the download of `track` by `plugin` is: (bytes, total).
-pub fn progress(plugin: &str, track: &str) -> Option<(u64, Option<u64>)> {
+/// `runtime`'s `plugin` stopped, or its permission was taken back: its
+/// streams and downloads end.
+pub fn close_plugin(runtime: RuntimeId, plugin: &str) {
+    let owner = owner(runtime, plugin);
+    stop_where(|o| *o == owner);
+}
+
+/// `runtime` stopped: what is left of its plugins' streams and downloads
+/// ends.
+pub fn stop_runtime(runtime: RuntimeId) {
+    stop_where(|(r, _)| *r == runtime);
+}
+
+/// How far the download of `track` by `runtime`'s `plugin` is: (bytes,
+/// total).
+pub fn progress(runtime: RuntimeId, plugin: &str, track: &str) -> Option<(u64, Option<u64>)> {
     hub()
         .progress
-        .get(&(plugin.to_string(), track.to_string()))
+        .get(&(owner(runtime, plugin), track.to_string()))
         .copied()
 }
 
-/// Folders the user chose instead of the one a plugin named:
-/// (plugin, named folder) -> chosen folder, so the next song for the same
-/// folder goes there without asking again.
-static REDIRECTS: LazyLock<Mutex<HashMap<(String, PathBuf), PathBuf>>> =
-    LazyLock::new(Default::default);
-
-pub fn redirect(plugin: &str, asked: &Path) -> Option<PathBuf> {
-    REDIRECTS
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .get(&(plugin.to_string(), asked.to_path_buf()))
+/// The folder the user chose for `runtime`'s `plugin` when it named
+/// `asked`.
+pub fn redirect(runtime: RuntimeId, plugin: &str, asked: &Path) -> Option<PathBuf> {
+    hub()
+        .redirects
+        .get(&(owner(runtime, plugin), asked.to_path_buf()))
         .cloned()
 }
 
-pub fn remember_redirect(plugin: &str, asked: &Path, chosen: &Path) {
-    let mut r = REDIRECTS.lock().unwrap_or_else(|e| e.into_inner());
-    if r.len() > 64 {
-        r.clear();
+pub fn remember_redirect(runtime: RuntimeId, plugin: &str, asked: &Path, chosen: &Path) {
+    let mut h = hub();
+    if h.redirects.len() > 64 {
+        h.redirects.clear();
     }
-    r.insert(
-        (plugin.to_string(), asked.to_path_buf()),
+    h.redirects.insert(
+        (owner(runtime, plugin), asked.to_path_buf()),
         chosen.to_path_buf(),
     );
 }
@@ -276,14 +343,14 @@ pub fn with_extension(path: &Path, source: &AudioSource) -> PathBuf {
 /// stream that only sinks dropping every chunk consume, such as a kick of
 /// TIDAL's CDN after a stall); how many bytes came. Nothing is kept.
 /// Blocks: worker threads only.
-pub fn drain(plugin: &str, source: AudioSource) -> Result<u64, String> {
-    let at = epoch(plugin);
+pub fn drain(runtime: RuntimeId, plugin: &str, source: AudioSource) -> Result<u64, String> {
+    let job = Job::start(&owner(runtime, plugin));
     let mut done = 0u64;
     let mut buf = vec![0u8; 256 * 1024];
     for part in parts_of(source) {
         let (mut reader, _) = open(part)?;
         loop {
-            if stopped(plugin, at) {
+            if job.stopped() {
                 return Err("ECANCELED: the plugin stopped".into());
             }
             let n = reader.read(&mut buf).map_err(|e| format!("EIO: {e}"))?;
@@ -296,11 +363,19 @@ pub fn drain(plugin: &str, source: AudioSource) -> Result<u64, String> {
     Ok(done)
 }
 
-/// Write track `track` to `target` (already checked to be where the user
-/// let this plugin write). Blocks: worker threads only.
-pub fn save(plugin: &str, track: &str, source: AudioSource, target: &Path) -> Result<(), String> {
-    let at = epoch(plugin);
-    let key = (plugin.to_string(), track.to_string());
+/// Write track `track` for `runtime`'s `plugin` to `target` (already
+/// checked to be where the user let this plugin write). Blocks: worker
+/// threads only.
+pub fn save(
+    runtime: RuntimeId,
+    plugin: &str,
+    track: &str,
+    source: AudioSource,
+    target: &Path,
+) -> Result<(), String> {
+    let owner = owner(runtime, plugin);
+    let job = Job::start(&owner);
+    let key = (owner, track.to_string());
     let part = {
         let mut name = target.as_os_str().to_os_string();
         name.push(".part");
@@ -317,7 +392,7 @@ pub fn save(plugin: &str, track: &str, source: AudioSource, target: &Path) -> Re
             let (mut reader, len) = open(next)?;
             let total = if single { len } else { None };
             loop {
-                if stopped(plugin, at) {
+                if job.stopped() {
                     return Err(
                         "ECANCELED: the plugin stopped or its permission was taken back".into(),
                     );
@@ -358,31 +433,65 @@ mod tests {
 
     #[test]
     fn a_stream_is_read_to_its_end_by_its_plugin_only() {
-        let h = open_stream("audio-a", bytes(b"made-up audio")).unwrap();
-        assert!(read("audio-b", h).is_err(), "another plugin cannot read it");
-        assert_eq!(read("audio-a", h).unwrap().unwrap(), b"made-up audio");
-        assert_eq!(read("audio-a", h).unwrap(), None);
-        assert!(read("audio-a", h).is_err(), "closed at its end");
+        let rt = RuntimeId::unique();
+        let h = open_stream(rt, "audio-a", bytes(b"made-up audio")).unwrap();
+        assert!(
+            read(rt, "audio-b", h).is_err(),
+            "another plugin cannot read it"
+        );
+        assert!(
+            read(RuntimeId::unique(), "audio-a", h).is_err(),
+            "nor another runtime's plugin of the same name"
+        );
+        assert_eq!(read(rt, "audio-a", h).unwrap().unwrap(), b"made-up audio");
+        assert_eq!(read(rt, "audio-a", h).unwrap(), None);
+        assert!(read(rt, "audio-a", h).is_err(), "closed at its end");
     }
 
     #[test]
     fn stopping_the_plugin_ends_its_streams() {
-        let h = open_stream("audio-c", bytes(b"x")).unwrap();
-        close_plugin("audio-c");
-        assert!(read("audio-c", h).is_err());
+        let rt = RuntimeId::unique();
+        let h = open_stream(rt, "audio-c", bytes(b"x")).unwrap();
+        close_plugin(rt, "audio-c");
+        assert!(read(rt, "audio-c", h).is_err());
+    }
+
+    /// One runtime stopping its plugin, or stopping altogether, leaves
+    /// another runtime's plugin of the same name alone.
+    #[test]
+    fn a_runtime_stops_only_its_own_plugins_streams() {
+        let (old, new) = (RuntimeId::unique(), RuntimeId::unique());
+        let h = open_stream(new, "audio-same", bytes(b"still here")).unwrap();
+        remember_redirect(new, "audio-same", Path::new("/named"), Path::new("/chosen"));
+        let gone = open_stream(old, "audio-same", bytes(b"x")).unwrap();
+        close_plugin(old, "audio-same");
+        stop_runtime(old);
+        assert!(read(old, "audio-same", gone).is_err());
+        assert_eq!(
+            redirect(new, "audio-same", Path::new("/named")),
+            Some(PathBuf::from("/chosen"))
+        );
+        assert_eq!(read(new, "audio-same", h).unwrap().unwrap(), b"still here");
+        stop_runtime(new);
+        assert_eq!(redirect(new, "audio-same", Path::new("/named")), None);
     }
 
     #[test]
     fn a_saved_file_appears_whole_with_the_real_extension() {
         let dir = std::env::temp_dir().join(format!("tf-audio-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
+        let rt = RuntimeId::unique();
         let source = bytes(b"RIFF made-up");
         let target = with_extension(&dir.join("Song.flac"), &source);
         assert_eq!(target, dir.join("Song.wav"));
-        save("audio-d", "1", source, &target).unwrap();
+        save(rt, "audio-d", "1", source, &target).unwrap();
         assert_eq!(std::fs::read(&target).unwrap(), b"RIFF made-up");
         assert!(!dir.join("Song.wav.part").exists());
-        assert!(progress("audio-d", "1").is_none());
+        assert!(progress(rt, "audio-d", "1").is_none());
+        assert!(
+            hub().jobs.values().all(|(o, _)| o.0 != rt),
+            "the save is off the list"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -19,6 +19,9 @@ struct PermitHost {
     dialog: Mutex<Option<PathBuf>>,
     /// Streams handed out.
     opened: std::sync::atomic::AtomicUsize,
+    /// When set, a song's stream is these addresses, part after part (as
+    /// TIDAL's DASH segments), instead of made-up bytes.
+    parts: Mutex<Option<Vec<String>>>,
 }
 
 impl LunaHost for PermitHost {
@@ -55,11 +58,15 @@ impl LunaHost for PermitHost {
     ) -> Result<AudioSource, String> {
         self.opened
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let parts = match self.parts.lock().unwrap().clone() {
+            Some(urls) => AudioParts::Urls(urls),
+            None => AudioParts::Bytes(made_up_audio()),
+        };
         Ok(AudioSource {
             mime: "audio/wav".into(),
             codec: "pcm".into(),
             extension: "wav".into(),
-            parts: AudioParts::Bytes(made_up_audio()),
+            parts,
         })
     }
     fn file_dialog(&self, _: Option<&str>, _: &FileDialogRequest) -> Option<Vec<PathBuf>> {
@@ -305,6 +312,105 @@ R.done = run;
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
     let _ = std::fs::remove_dir_all(&dir_out);
+}
+
+/// Serves a song in two parts: `/a1` at once, `/a2` (noted in `asked`) only
+/// once `go` is set.
+fn serve_held_parts(
+    asked: Arc<std::sync::atomic::AtomicBool>,
+    go: Arc<std::sync::atomic::AtomicBool>,
+) -> String {
+    use std::io::{Read, Write};
+    use std::sync::atomic::Ordering::SeqCst;
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", l.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for s in l.incoming() {
+            let Ok(mut s) = s else { continue };
+            let (asked, go) = (asked.clone(), go.clone());
+            std::thread::spawn(move || {
+                let mut buf = [0u8; 4096];
+                let n = s.read(&mut buf).unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]).into_owned();
+                let body = match req.split_whitespace().nth(1).unwrap_or("/") {
+                    "/a1" => vec![1u8; 1000],
+                    "/a2" => {
+                        asked.store(true, SeqCst);
+                        let end = Instant::now() + Duration::from_secs(60);
+                        while !go.load(SeqCst) && Instant::now() < end {
+                            std::thread::sleep(Duration::from_millis(10));
+                        }
+                        vec![2u8; 2000]
+                    }
+                    _ => {
+                        let _ = s.write_all(
+                            b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                        );
+                        return;
+                    }
+                };
+                let head = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = s.write_all(&[head.into_bytes(), body].concat());
+            });
+        }
+    });
+    base
+}
+
+/// A plugin's name is unique only within one runtime. When Luna restarts
+/// (the master switch, going offline and back), the old runtime stops its
+/// plugins on a thread of its own while the new one already runs them: a
+/// TIDAL stream the new run is reading goes on to its end whatever the old
+/// run of the same plugin does (stopping it ended every stream of that
+/// name, and the next read failed with ECANCELED).
+#[test]
+fn a_tidal_stream_outlives_another_runtimes_plugin_of_the_same_name() {
+    use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
+    let (asked, go) = (
+        Arc::new(AtomicBool::new(false)),
+        Arc::new(AtomicBool::new(false)),
+    );
+    let base = serve_held_parts(asked.clone(), go.clone());
+    let host = Arc::new(PermitHost::default());
+    *host.parts.lock().unwrap() = Some(vec![format!("{base}/a1"), format!("{base}/a2")]);
+    let body = r#"
+const n = await native("Compat/audio.native.ts", `"use strict";
+const { fetchMediaItemStream } = require("@luna/lib.native");
+exports.read = async () => {
+	const s = await fetchMediaItemStream({ trackId: 5, audioQuality: "LOSSLESS" });
+	return await new Promise((res, rej) => { let n = 0; s.on("data", (c) => (n += c.length)); s.on("end", () => res(n)); s.on("error", rej); });
+};`);
+R.stream = await n("read").catch((e) => "ERR " + (e?.message ?? e));
+R.done = 1;
+"#;
+    let (luna, dir) = start("Saver", body, host);
+    let q = question(&luna);
+    assert_eq!(q.access, Access::SaveAudio);
+    luna.answer_permission(q.id, ProgramChoice::Once);
+    // The first part was read; the second is on its way.
+    let end = Instant::now() + Duration::from_secs(30);
+    while !asked.load(SeqCst) {
+        assert!(
+            Instant::now() < end,
+            "the stream was never read: {:#?}",
+            logs(&luna)
+        );
+        luna.sync(Duration::from_secs(1));
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // Another runtime starts a plugin of the same name and stops.
+    let (other, other_dir) = start("Saver", "R.done = 1;", Arc::new(PermitHost::default()));
+    run_done(&other, &other_dir, 1);
+    other.shutdown();
+    let _ = std::fs::remove_dir_all(&other_dir);
+    go.store(true, SeqCst);
+    let r = run_done(&luna, &dir, 1);
+    assert_eq!(r["stream"], json!(3000), "{r}");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// NoBuffer's `voidTrack` (its native module, as published) pipes the

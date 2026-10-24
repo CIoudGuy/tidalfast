@@ -1325,7 +1325,7 @@ once the taskbar is clicked).
 ### Plugin round 9 (2026-10-24)
 
 - Spooled bodies (`downloads.rs`) belong to a plugin of one runtime
-  (`downloads::Runtime`): a runtime stopping a plugin, or itself, touches
+  (`luna::RuntimeId` since round 10): a runtime stopping a plugin, or itself, touches
   only its own downloads and bodies (a Luna restart overlaps the old
   runtime's shutdown with the new one's plugins). A body waits for its
   reader as long as it takes; it goes when read, when its `Response` is

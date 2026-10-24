@@ -91,6 +91,24 @@ pub use settings::{
 
 pub(crate) use runtime::{is_secure_source, read_capped};
 
+/// One Luna runtime, unique in the process. A plugin's name is unique only
+/// within its runtime: when Luna restarts (the master switch, going offline
+/// and back) the old runtime stops its plugins on a thread of its own while
+/// the new one already runs them, and tests run runtimes side by side. So
+/// what the process keeps for plugins (downloads and their bodies, TIDAL
+/// streams, file dialog picks, depth models) belongs to a plugin of one
+/// runtime, and what one runtime stops never reaches another's.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct RuntimeId(u64);
+
+impl RuntimeId {
+    /// A runtime's own id (never the default, which stands for none).
+    pub fn unique() -> RuntimeId {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        RuntimeId(NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
+
 /// The store list TidaLuna ships with (`@luna/ui` PluginStoreTab), in its
 /// order and with its release channels: Inrixia's store and wont-stream's are
 /// the `dev` build, the rest `latest`. Read from the `to(...)` calls in the

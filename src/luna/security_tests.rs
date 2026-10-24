@@ -215,7 +215,16 @@ fn alternate_data_streams_cannot_get_past_the_data_folder_quota() {
     let chunk = vec![0u8; 150 << 20];
     let mut stored = 0u64;
     for (i, name) in ["big.bin:s1", "big.bin:s2"].iter().enumerate() {
-        if write_bytes("Ads", &home, name, &chunk, true).is_ok() {
+        if write_bytes(
+            crate::luna::RuntimeId::unique(),
+            "Ads",
+            &home,
+            name,
+            &chunk,
+            true,
+        )
+        .is_ok()
+        {
             stored += chunk.len() as u64;
         }
         // A removal makes the folder be measured again.
