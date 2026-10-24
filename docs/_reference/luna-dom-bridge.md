@@ -844,6 +844,11 @@ reading one property at a time:
   than one colour. A fill or border layer on a box the theme gives no
   corners follows the part's own corners, as the element keeps TIDAL's
   radius under a theme's border.
+- **Checking against TIDAL.** A demo build writes every anchor's resolved
+  look and cascade style with `--demo-dump-looks <PATH>`
+  (`src/ui/look_dump.rs`), so a theme's looks can be compared with the
+  computed style of the same elements in TIDAL's page under that theme,
+  property by property, instead of by screenshot.
 - **Contrast words.** TIDAL draws a track row (its title and time where no
   rule names them) and its menus' words in `--wave-color-solid-contrast-fill`,
   not in the body's colour (`token_contrast_text`): a theme that sets the

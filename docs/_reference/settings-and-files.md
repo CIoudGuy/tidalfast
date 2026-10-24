@@ -273,6 +273,11 @@ size in logical pixels for a shot (for example `760x800` or `1240x800`).
 `--demo-drag X,Y:X,Y` shows a drag in progress: the pointer presses at the
 first point, in logical pixels, and is still held down at the second when the
 shot is taken.
+`--demo-dump-looks <PATH>` (with `--demo-shot`) also writes, when the shot is
+taken, every Luna anchor of the window as JSON: its key, tag and attributes,
+the theme cascade's style for it, and its resolved anchor look (colours as
+`[r, g, b, a]`, lengths in points). It is for comparing a theme in Tidalfast
+with the same theme on TIDAL's page in a browser, element by element.
 Since 0.8.0, demo windows ignore saved window geometry and do not
 read or save the normal window's framework state. Existing built-in appearance
 settings still apply. `--demo-data <DIRECTORY>` keeps demo caches and logs under

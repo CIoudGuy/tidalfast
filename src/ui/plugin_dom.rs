@@ -39,6 +39,11 @@ pub use anchor_look::{
     menu_box_looks, paint_anchor_box, paint_card, paint_look, paint_look_with_fill, paint_part,
     paint_sides, paints_beyond_fill, part_card, submenu_box_look,
 };
+#[cfg(any(test, feature = "demo"))]
+#[path = "look_dump.rs"]
+mod look_dump;
+#[cfg(any(test, feature = "demo"))]
+pub use look_dump::{dump_looks, looks_report};
 
 /// A menu frame was marked for the theme's box this frame
 /// ([`MENU_BOX_MARK`]): the menu's own colour, laid under that box.
