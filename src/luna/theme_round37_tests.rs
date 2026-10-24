@@ -215,6 +215,50 @@ fn a_headers_meta_words_take_the_rules_for_tidals_meta_items() {
     assert_eq!(style, (egui::Color32::from_rgb(10, 20, 30), 700));
 }
 
+/// TIDAL 2.46.0's queue button is the first of the bar's utility buttons
+/// (`._utilityButtons_4d7aaf9 > button.withBackground[data-test=
+/// play-queue-button]`, no `_moreContainer_`), so the cotton candy
+/// family's `._utilityButtons_4d7aaf9 button { border-radius: .7em; color }`
+/// rounds and colours it as the others; under a container TIDAL dropped,
+/// the anchor kept TIDAL's grey.
+#[test]
+fn the_queue_button_is_one_of_the_bars_utility_buttons() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::QUEUE;
+    let css = r#"/* {"name": "Utility buttons"} */
+[data-test="play-queue-button"] { opacity: 0.99; }
+._utilityButtons_4d7aaf9 button { border-radius: .7em; color: rgb(10, 20, 30); }
+"#;
+    let o = overlay(
+        "utility-buttons.css",
+        css,
+        &dom_anchors::sample_frame(),
+        QUEUE,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let look = pd::anchor_look(QUEUE);
+    pd::test_overlay(None);
+    let look = look.expect("the queue button's look");
+    assert_eq!(look.text, Some(egui::Color32::from_rgb(10, 20, 30)));
+    assert_eq!(look.corners, Some(egui::CornerRadius::same(10)));
+    // Under a theme that leaves it alone it keeps TIDAL's own disc: the
+    // see-through look of a bare utility button (for plugin buttons that
+    // copy its class) is not the queue button's.
+    let css = "/* {\"name\": \"Bar only\"} */
+._utilityButtons_4d7aaf9 { opacity: 0.99; }
+";
+    let o = overlay(
+        "bar-only.css",
+        css,
+        &dom_anchors::sample_frame(),
+        dom_anchors::keys::UTILITY_BUTTONS,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let fill = pd::fill(QUEUE);
+    pd::test_overlay(None);
+    assert_eq!(fill, None);
+}
+
 /// The open playlist's row in the sidebar is TIDAL 2.46.0's
 /// `_contentItem_684cbbe _selected_ae83ba5`, two classes, which the cotton
 /// candy family names whole (`[class="_contentItem_684cbbe

@@ -2897,6 +2897,23 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .modules(&["utilityButtons"])
             .at(p.rect(P::UtilityButtons)),
     );
+    // The queue button is the utility buttons' first, as in TIDAL 2.46.0
+    // (`button.withBackground[data-test=play-queue-button]`, with
+    // `_activeButton_122ab25` while the queue is open, which the cotton
+    // candy family fills with its gradient): the family's
+    // `._utilityButtons_4d7aaf9 button { border-radius: .7em; color }`
+    // rounds and colours it as the others.
+    let mut queue = el(QUEUE, Some(UTILITY_BUTTONS), "button")
+        .class("withBackground")
+        .test("play-queue-button")
+        .attr("aria-label", "Play queue")
+        .attr("aria-pressed", p.queue_open.to_string())
+        .attr("data-status", "closed")
+        .at(p.rect(P::Queue));
+    if p.queue_open {
+        queue = queue.class("_activeButton_122ab25");
+    }
+    out.push(queue);
     out.push(
         el(TOGGLE_LYRICS, Some(UTILITY_BUTTONS), "button")
             .test("toggle-lyrics")
@@ -2948,17 +2965,6 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .modules(&["moreContainer"])
             .at(p.rect(P::More)),
     );
-    // TIDAL marks the pressed utility button `_activeButton_122ab25`,
-    // which the cotton candy family fills with its gradient.
-    let mut queue = el(QUEUE, Some(MORE), "button")
-        .test("play-queue-button")
-        .attr("aria-label", "Play queue")
-        .attr("aria-pressed", p.queue_open.to_string())
-        .at(p.rect(P::Queue));
-    if p.queue_open {
-        queue = queue.class("_activeButton_122ab25");
-    }
-    out.push(queue);
     out.push(
         el(FULLSCREEN, Some(MORE), "button")
             .test("request-fullscreen")

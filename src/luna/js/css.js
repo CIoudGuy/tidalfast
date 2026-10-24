@@ -432,7 +432,10 @@
 			tidal.replaceSync(
 				TIDAL_ROOT +
 					'[class^="_fullscreen_"] { position: absolute; inset: 0; z-index: 10; }\n' +
-					'[class^="_utilityButtons_"] > button { display: flex; width: 32px; height: 32px; padding: 1px 6px; border: 0; background-color: transparent; align-items: center; justify-content: center; cursor: pointer; }\n' +
+					// TIDAL's own `withBackground` buttons (the queue button) keep
+					// their disc: the bare button's look is for plugin buttons
+					// that copy its class.
+					'[class^="_utilityButtons_"] > button:where(:not(.withBackground)) { display: flex; width: 32px; height: 32px; padding: 1px 6px; border: 0; background-color: transparent; align-items: center; justify-content: center; cursor: pointer; }\n' +
 					'[class^="_utilityButtons_"] > button svg { width: 16px; height: 16px; }\n' +
 					"._artistVariant_63c8c96 ._round_5776dee { border-radius: 50%; }\n" +
 					"._artistText_73966a1 { color: initial; }\n" +
