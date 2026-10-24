@@ -150,16 +150,16 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
         app.actions.push(Action::Forward);
     }
     if ctx.input(|input| input.key_pressed(Key::Escape)) {
-        // Chromium leaves the fullscreen a page asked for on Escape, before
-        // the page hears the key: the fullscreen emulated for a plugin in a
-        // window that keeps its mode ends so too, and plugins see it end.
-        if super::plugin_dom::fullscreen_emulated() {
-            super::plugin_dom::emulate_fullscreen(false);
-            ctx.request_repaint();
-        } else if app.dialog.is_some() {
+        if app.dialog.is_some() {
             app.actions.push(Action::CloseDialog);
         } else if app.lyrics_fullscreen.is_some() {
             app.actions.push(Action::SetLyricsFullscreen(false));
+        } else if super::plugin_dom::fullscreen_emulated() {
+            // Chromium leaves the fullscreen a page asked for on Escape: the
+            // fullscreen emulated for a plugin in a window that keeps its
+            // mode ends so too, and plugins see it end.
+            super::plugin_dom::emulate_fullscreen(false);
+            ctx.request_repaint();
         } else if app.now_playing_view {
             app.actions.push(Action::CloseNowPlaying);
         }

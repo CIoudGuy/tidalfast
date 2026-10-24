@@ -10674,6 +10674,9 @@ impl App {
 
     fn leave_lyrics_fullscreen(&mut self, ctx: &egui::Context) {
         if let Some(was_fullscreen) = self.lyrics_fullscreen.take() {
+            if self.window_held {
+                crate::ui::plugin_dom::emulate_fullscreen(false);
+            }
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(was_fullscreen));
             if self.lyrics_restore_maximized {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
@@ -11722,8 +11725,12 @@ impl App {
                     self.request_lyrics();
                     // An off-screen test window never fills a real display,
                     // whatever a scripted click lands on; the view still
-                    // opens in the window.
-                    if !self.window_held {
+                    // opens in the window, and plugins see the fullscreen a
+                    // real window would have (TIDAL's `.is-fullscreen`,
+                    // where betterFullscreen puts its player).
+                    if self.window_held {
+                        crate::ui::plugin_dom::emulate_fullscreen(true);
+                    } else {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
                     }
                 } else if !fullscreen {
