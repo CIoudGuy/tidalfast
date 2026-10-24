@@ -1369,14 +1369,18 @@ pub fn artist_names<'a>(
             Cow::Borrowed(_) => None,
         })
         .collect();
-    if written.iter().all(Option::is_none) {
+    // An artist link a plugin hid (`display: none`) is not listed.
+    let gone: Vec<bool> = (0..artists.len()).map(|i| hidden(&key(i))).collect();
+    if written.iter().all(Option::is_none) && !gone.contains(&true) {
         return Cow::Borrowed(artists);
     }
     Cow::Owned(
         artists
             .iter()
             .zip(written)
-            .map(|(a, name)| {
+            .zip(gone)
+            .filter(|(_, gone)| !gone)
+            .map(|((a, name), _)| {
                 let mut a = a.clone();
                 if let Some(name) = name {
                     a.name = name;
