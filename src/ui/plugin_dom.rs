@@ -4624,12 +4624,52 @@ pub(crate) fn host_fill(h: &HostOverride, vars: &BTreeMap<String, String>) -> Op
 
 /// The box's own `background-color`, with what its `backdrop-filter:
 /// brightness()` does to the page under it folded in (see [`fold_veil`]).
+/// A part that draws the filter itself ([`super::backdrop`], an anchor
+/// look's) takes the theme's colour as it is ([`unveiled_fill`]).
 fn own_fill(h: &HostOverride, vars: &BTreeMap<String, String>) -> Option<Color32> {
     let c = style_color(&h.style, |s| s.background_color.as_ref(), vars)?;
     Some(match backdrop_veil(h, vars) {
         Some(veil) if c.a() > 0 => fold_veil(c, veil),
         _ => c,
     })
+}
+
+/// The box's own `background-color` as the theme gives it, for a part that
+/// draws its backdrop filter under it.
+fn unveiled_fill(h: &HostOverride, vars: &BTreeMap<String, String>) -> Option<Color32> {
+    style_color(&h.style, |s| s.background_color.as_ref(), vars)
+}
+
+/// A part's backdrop filter where it is drawn, and its own fill for over
+/// it (the theme's colour, no veil folded in): the player bar lays its
+/// fill so. `None` while Luna is off or the box has no such filter.
+pub fn backdrop_fill(key: &str) -> Option<(Arc<super::backdrop::Backdrop>, Option<Color32>)> {
+    let look = anchor_look(key)?;
+    let backdrop = look.backdrop.clone()?;
+    Some((backdrop, look.fill))
+}
+
+/// The `backdrop-filter` of a box (or of its `::before` / `::after`, a
+/// glass laid over the whole box), resolved, where backdrop filters are
+/// drawn; `None` elsewhere and for a filter that changes nothing.
+pub(crate) fn backdrop_of(
+    h: &HostOverride,
+    vars: &BTreeMap<String, String>,
+) -> Option<super::backdrop::Backdrop> {
+    if !super::backdrop::available() || h.hidden() {
+        return None;
+    }
+    std::iter::once(&h.style)
+        .chain(
+            [h.before.as_ref(), h.after.as_ref()]
+                .into_iter()
+                .flatten()
+                .filter(|p| !p.hidden()),
+        )
+        .find_map(|s| {
+            let f = css::resolve_vars(s.backdrop_filter.as_deref()?, vars);
+            super::backdrop::Backdrop::parse(&f)
+        })
 }
 
 /// The veil a box's `backdrop-filter` lays over what shows through it.
@@ -6308,6 +6348,15 @@ type BoxLayerCache = BTreeMap<String, Arc<Vec<BoxLayer>>>;
 pub enum BoxLayer {
     /// `backdrop-filter: blur()`: the page's picture, blurred, behind.
     Frost(f32),
+    /// What the box's `backdrop-filter: brightness()` does to the window
+    /// under it, as a colour laid over (a box with no fill of its own).
+    /// Left out, as [`BoxLayer::Frost`] is, where the filter is drawn
+    /// ([`super::backdrop`]).
+    Veil(Color32, egui::CornerRadius),
+    /// The backdrop filter of a see-through box, drawn on the GPU
+    /// ([`super::backdrop`]) in place of [`BoxLayer::Frost`] and
+    /// [`BoxLayer::Veil`].
+    Backdrop(Arc<super::backdrop::Backdrop>),
     /// A `::before`/`::after` fill (the box's own fill is [`surface`]'s).
     Fill(Color32, egui::CornerRadius),
     /// A gradient or colour layer of a `background-image`.
@@ -6367,6 +6416,28 @@ pub fn paint_host_layers_rounded(
     key: &str,
     rect: Rect,
     fallback: Option<egui::CornerRadius>,
+) {
+    paint_layers(ui, key, rect, fallback, false);
+}
+
+/// [`paint_host_layers_rounded`] for a box whose backdrop filter was drawn
+/// already, before its fill (an anchor look's): its stand-ins for the
+/// filter ([`BoxLayer::Frost`], [`BoxLayer::Veil`]) are left out.
+pub fn paint_layers_over_backdrop(
+    ui: &egui::Ui,
+    key: &str,
+    rect: Rect,
+    fallback: Option<egui::CornerRadius>,
+) {
+    paint_layers(ui, key, rect, fallback, true);
+}
+
+fn paint_layers(
+    ui: &egui::Ui,
+    key: &str,
+    rect: Rect,
+    fallback: Option<egui::CornerRadius>,
+    over_backdrop: bool,
 ) {
     if !on() {
         return;
@@ -6492,7 +6563,22 @@ pub fn paint_host_layers_rounded(
                 let radii = radial_radii(rect, middle, *ellipse, *size);
                 paint_radial_in(ui.painter(), rect, middle, radii, stops, at, corners);
             }
-            BoxLayer::Frost(radius) => frost(ui, rect, *radius),
+            BoxLayer::Frost(radius) => {
+                if !over_backdrop {
+                    frost(ui, rect, *radius);
+                }
+            }
+            BoxLayer::Veil(c, r) => {
+                if !over_backdrop {
+                    ui.painter().rect_filled(rect, round(*r), *c);
+                }
+            }
+            BoxLayer::Backdrop(b) => {
+                if !over_backdrop {
+                    let r = corners.map_or(egui::CornerRadius::ZERO, round);
+                    super::backdrop::paint(ui.painter(), rect, r, b);
+                }
+            }
             BoxLayer::Fill(c, r) => {
                 ui.painter().rect_filled(rect, round(*r), *c);
             }
@@ -6527,7 +6613,15 @@ pub fn box_layers(
         .flatten()
         .filter(|p| !p.hidden())
         .collect();
-    if let Some(r) = std::iter::once(&h.style)
+    // A see-through box (no fill of its own, or a clear one) whose backdrop
+    // filter is drawn ([`super::backdrop`]) shows the filtered window
+    // through it: the first of its layers, in place of the stand-ins below.
+    let see_through =
+        style_color(&h.style, |s| s.background_color.as_ref(), vars).is_none_or(|c| c.a() == 0);
+    let drawn = see_through.then(|| backdrop_of(h, vars)).flatten();
+    if let Some(backdrop) = drawn.as_ref() {
+        out.push(BoxLayer::Backdrop(Arc::new(backdrop.clone())));
+    } else if let Some(r) = std::iter::once(&h.style)
         .chain(pseudo.iter().copied())
         .find_map(|s| {
             let f = css::resolve_vars(s.backdrop_filter.as_deref()?, vars);
@@ -6541,10 +6635,11 @@ pub fn box_layers(
     // `backdrop-filter: brightness()` changes what shows through the box
     // before its own background is laid on: with a fill of its own the veil
     // is folded into that fill ([`own_fill`]), else it is laid over here.
-    if let Some(tint) = backdrop_veil(h, vars)
-        && style_color(&h.style, |s| s.background_color.as_ref(), vars).is_none_or(|c| c.a() == 0)
+    if drawn.is_none()
+        && see_through
+        && let Some(tint) = backdrop_veil(h, vars)
     {
-        out.push(BoxLayer::Fill(tint, radius));
+        out.push(BoxLayer::Veil(tint, radius));
     }
     image_layers(&h.style, vars, &mut out);
     for p in pseudo {

@@ -197,7 +197,7 @@ fn the_play_queue_is_tidals_side_panel_and_themes_reach_it() {
     assert!(
         !layers.iter().any(|l| matches!(
             l,
-            BoxLayer::Fill(c, _) if *c == egui::Color32::from_black_alpha(64)
+            BoxLayer::Veil(c, _) if *c == egui::Color32::from_black_alpha(64)
         )),
         "{layers:?}"
     );

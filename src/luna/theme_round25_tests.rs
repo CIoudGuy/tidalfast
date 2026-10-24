@@ -300,7 +300,7 @@ fn a_brighter_backdrop_makes_the_windows_filtered_colour() {
         pd::test_overlay(None);
         luna.shutdown();
         layers.iter().find_map(|l| match l {
-            pd::BoxLayer::Fill(c, _) => Some(*c),
+            pd::BoxLayer::Veil(c, _) => Some(*c),
             _ => None,
         })
     };

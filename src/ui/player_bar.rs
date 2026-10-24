@@ -62,7 +62,19 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     // blur is not drawn, so a glass bar over the page is the glass laid over
     // the window's colour, which the page's words do not show through.
     let floating = floating(ui.ctx());
-    let fill = if floating.is_some() && over_view < 1.0 {
+    // Where the theme's backdrop filter is drawn (see `ui::backdrop`), the
+    // bar is the filtered page under it with the theme's own fill over it,
+    // laid in the bar before its contents; else the stand-in above.
+    let backdrop = (over_view <= 0.0)
+        .then(|| plugin_dom::backdrop_fill(keys::FOOTER))
+        .flatten()
+        .and_then(|(backdrop, own)| {
+            let own = plugin_dom::footer_under_glass(own?, palette.window);
+            (own.a() < 255).then_some((backdrop, own))
+        });
+    let fill = if backdrop.is_some() {
+        Color32::TRANSPARENT
+    } else if floating.is_some() && over_view < 1.0 {
         plugin_dom::frosted(keys::FOOTER, fill, palette.window)
     } else {
         fill
@@ -88,6 +100,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             let now = app.now_playing();
             // The whole bar, margins included, behind everything else.
             let behind = rect.expand2(vec2(18.0, 0.0));
+            if let Some((backdrop, own)) = &backdrop {
+                let corners = floating
+                    .as_ref()
+                    .map_or(egui::CornerRadius::ZERO, |f| f.radius);
+                super::backdrop::paint(ui.painter(), behind, corners, backdrop);
+                ui.painter().rect_filled(behind, corners, *own);
+            }
             // The bar itself, away from its buttons, links and sliders,
             // slides the now-playing view up and closes it again, as TIDAL's
             // does. The controls drawn after it take their own clicks.
@@ -99,7 +118,9 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 app.actions.push(Action::ToggleNowPlaying);
             }
             if plugin_dom::on() {
-                if over_view < 1.0 {
+                if backdrop.is_some() {
+                    plugin_dom::paint_layers_over_backdrop(ui, keys::FOOTER, behind, None);
+                } else if over_view < 1.0 {
                     plugin_dom::paint_host_layers(ui, keys::FOOTER, behind);
                 }
                 note_player_bar(app, behind, now.as_ref(), over_view > 0.0);

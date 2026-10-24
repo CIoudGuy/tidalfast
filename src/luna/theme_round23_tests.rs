@@ -277,7 +277,7 @@ fn a_backdrop_brightness_darkens_only_what_shows_through() {
     assert!(
         !layers
             .iter()
-            .any(|l| matches!(l, pd::BoxLayer::Fill(c, _) if c.r() == 0 && c.a() > 0)),
+            .any(|l| matches!(l, pd::BoxLayer::Veil(c, _) if c.r() == 0 && c.a() > 0)),
         "no veil over the fill: {layers:?}"
     );
     pd::test_overlay(None);

@@ -123,6 +123,31 @@ impl ColorFilter {
         self.0.iter().any(|s| matches!(s, Step::Blur(_)))
     }
 
+    /// The standard deviation of the filter's blur (the sum of their
+    /// variances when it has several), in its units; `None` without one.
+    pub fn blur_sigma(&self) -> Option<f32> {
+        let variance: f32 = self
+            .0
+            .iter()
+            .filter_map(|s| match *s {
+                Step::Blur(r) => Some(r * r),
+                _ => None,
+            })
+            .sum();
+        (variance > 0.0).then(|| variance.sqrt())
+    }
+
+    /// The colour functions in order, each as three rows of `[r, g, b,
+    /// offset]` on colours from 0 to 1, clamped after each (the blur left
+    /// out).
+    pub fn color_rows(&self) -> Vec<[f32; 12]> {
+        self.0
+            .iter()
+            .filter(|s| !matches!(s, Step::Blur(_)))
+            .map(Step::matrix)
+            .collect()
+    }
+
     /// Filters straight (not premultiplied) RGBA pixels of a `width` by
     /// `height` picture, function by function.
     pub fn apply(&self, rgba: &mut [u8], width: usize, height: usize) {

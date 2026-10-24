@@ -27,9 +27,13 @@ use crate::luna::dom::{HostOverride, Style};
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AnchorLook {
     /// The box's `background-color` (with its backdrop filter's veil folded
-    /// in). `Some(TRANSPARENT)` when the theme clears the part's own fill
+    /// in where the filter is not drawn, see [`super::super::backdrop`]).
+    /// `Some(TRANSPARENT)` when the theme clears the part's own fill
     /// (`background: none`, `background-color: transparent`).
     pub fill: Option<Color32>,
+    /// The box's `backdrop-filter`, drawn under its fill (only where
+    /// backdrop filters are drawn).
+    pub backdrop: Option<Arc<super::super::backdrop::Backdrop>>,
     /// The box has layers beyond its fill: `background-image` gradients and
     /// pictures, `::before` / `::after` boxes, frosted glass or a uniform
     /// border (painted by [`super::paint_host_layers_rounded`]).
@@ -71,6 +75,7 @@ impl AnchorLook {
     /// The look paints a box: a fill, layers, a border or a shadow.
     pub fn paints_box(&self) -> bool {
         self.fill.is_some()
+            || self.backdrop.is_some()
             || self.layers
             || self.sides.is_some()
             || self.shadow.is_some()
@@ -138,7 +143,14 @@ pub(super) fn look_of(
             })
             .then_some(Color32::TRANSPARENT)
     };
-    let fill = own_fill(h, vars).or_else(cleared);
+    let backdrop = super::backdrop_of(h, vars).map(Arc::new);
+    // Over a backdrop filter it draws, the box's fill is the theme's.
+    let fill = if backdrop.is_some() {
+        super::unveiled_fill(h, vars)
+    } else {
+        own_fill(h, vars)
+    }
+    .or_else(cleared);
     let layers = !super::box_layers(h, vars, viewport).is_empty();
     let corners = s
         .border_radius
@@ -180,6 +192,7 @@ pub(super) fn look_of(
         .map_or(egui::Vec2::ZERO, super::translation);
     let look = AnchorLook {
         fill,
+        backdrop,
         layers,
         corners,
         sides,
@@ -445,6 +458,10 @@ fn paint_with(
 ) {
     let corner = look.corners_or(native);
     let painter = ui.painter();
+    // What lies behind the box, filtered, before anything of the box.
+    if let Some(backdrop) = &look.backdrop {
+        super::super::backdrop::paint(painter, r, corner, backdrop);
+    }
     if let Some(shadow) = look.shadow {
         super::paint_outer_shadow(painter, r, corner, shadow);
     }
@@ -457,7 +474,11 @@ fn paint_with(
     // Gradients, pictures, `::before` / `::after` boxes and borders (on
     // every side or some).
     if look.layers {
-        super::paint_host_layers_rounded(ui, key, r, Some(corner));
+        if look.backdrop.is_some() {
+            super::paint_layers_over_backdrop(ui, key, r, Some(corner));
+        } else {
+            super::paint_host_layers_rounded(ui, key, r, Some(corner));
+        }
     }
     if let Some((color, blur, spread)) = look.glow {
         super::paint_inset_glow(painter, r, corner, color, blur, spread);
