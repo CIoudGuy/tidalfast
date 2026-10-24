@@ -30,7 +30,14 @@ fn read(dir: &Path) -> Value {
 }
 
 fn start(name: &str, body: &str) -> (Luna, PathBuf) {
-    let files: Files = Arc::default();
+    start_with(name, body, Arc::default())
+}
+
+/// [`start`] with `files` served beside the plugin; `{base}` in the body
+/// is their address.
+fn start_with(name: &str, body: &str, files: Files) -> (Luna, PathBuf) {
+    let base = serve(files.clone());
+    let body = body.replace("{base}", &base);
     files.lock().unwrap().insert(
         format!("/{name}.json"),
         json!({ "name": name, "version": "1.0.0", "hash": "c1" })
@@ -41,7 +48,6 @@ fn start(name: &str, body: &str) -> (Luna, PathBuf) {
         format!("/{name}.mjs"),
         format!("{HEADER}{body}").into_bytes(),
     );
-    let base = serve(files);
     let dir = temp_dir("canvas");
     let host = Arc::new(MockHost::default());
     let luna = Luna::start(config(&dir), host).unwrap();
@@ -986,4 +992,79 @@ fn canvas_text_takes_the_generic_familys_face_at_its_weight() {
         let thin = canvas::measure(text, 32.0, 400.0, "system-ui");
         assert!(named[0] > thin[0], "bold {named:?} regular {thin:?}");
     }
+}
+
+/// A plugin that loads many large pictures before it goes on (uwu-ifier
+/// preloads a hundred and installs its page observer only once every one
+/// has loaded): as in Chromium, each load succeeds whatever the picture's
+/// size and however many are loaded, as only a drawn picture takes memory.
+/// Forty 2048 x 2048 pictures held more than the canvas budget and a 4100 x
+/// 4100 one more pixels than a canvas may have, so loads failed and the
+/// plugin never went on.
+#[test]
+fn images_load_whatever_their_size_and_number() {
+    use image::ImageEncoder as _;
+    let png = |w: u32, h: u32, v: u8| {
+        let mut out = Vec::new();
+        image::codecs::png::PngEncoder::new(&mut out)
+            .write_image(
+                &vec![v; (w * h) as usize],
+                w,
+                h,
+                image::ExtendedColorType::L8,
+            )
+            .unwrap();
+        out
+    };
+    let files: Files = Arc::default();
+    let picture = png(2048, 2048, 200);
+    for i in 0..40 {
+        files
+            .lock()
+            .unwrap()
+            .insert(format!("/img/{i}.png"), picture.clone());
+    }
+    files
+        .lock()
+        .unwrap()
+        .insert("/huge.png".into(), png(4100, 4100, 0));
+    let (luna, dir) = start_with(
+        "ManyImages",
+        r##"
+const urls = [...Array(40).keys()].map((i) => `{base}/img/${i}.png`);
+urls.push("{base}/huge.png");
+const load = (u) =>
+	new Promise((ok, bad) => {
+		const img = new Image();
+		img.onload = () => ok(img);
+		img.onerror = () => bad(new Error(u));
+		img.src = u;
+	});
+Promise.all(urls.map(load)).then(
+	(imgs) => {
+		try {
+			R.sizes = [imgs[0].naturalWidth, imgs.at(-1).naturalWidth, imgs.length];
+			const c = document.createElement("canvas");
+			c.width = c.height = 4;
+			const x = c.getContext("2d");
+			x.drawImage(imgs[39], 0, 0, 4, 4);
+			R.drawn = Array.from(x.getImageData(1, 1, 1, 1).data);
+		} catch (e) {
+			fail("drawn", e);
+		}
+		R.done = true;
+	},
+	(e) => {
+		R.failed = String(e?.message ?? e);
+		R.done = true;
+	},
+);
+"##,
+        files,
+    );
+    let r = until(&luna, &dir, 60, |r| r["done"] == json!(true));
+    finish(luna, dir);
+    assert_eq!(r["failed"], Value::Null, "{r}");
+    assert_eq!(r["sizes"], json!([2048, 4100, 41]), "{r}");
+    assert_eq!(r["drawn"], json!([200, 200, 200, 255]), "{r}");
 }

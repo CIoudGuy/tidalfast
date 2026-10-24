@@ -464,7 +464,8 @@ struct Surface {
     version: u64,
     published: u64,
     /// A loaded image's file, decoded into `pix` on first use: pages load
-    /// many images they never draw (uwu-ifier preloads a hundred).
+    /// many images they never draw (uwu-ifier preloads a hundred). Until
+    /// then it holds no pixels and counts nothing against the budget.
     encoded: Option<Vec<u8>>,
 }
 
@@ -483,8 +484,29 @@ impl Surface {
         }
     }
 
-    /// Decodes a lazily loaded image (premultiplied, as tiny-skia wants).
-    fn realize(&mut self) {
+    /// A loaded image of wxh whose pixels are decoded from `data` when it
+    /// is first drawn or read.
+    fn image(w: u32, h: u32, data: Vec<u8>) -> Self {
+        Self {
+            pix: None,
+            w,
+            h,
+            clip: None,
+            saved: Vec::new(),
+            version: 1,
+            published: 0,
+            encoded: Some(data),
+        }
+    }
+
+    /// Decodes a lazily loaded image (premultiplied, as tiny-skia wants),
+    /// when its pixels fit (`room`: the budget has them). One that does not
+    /// stays undrawn and keeps its file for a later try.
+    fn realize(&mut self, room: bool) {
+        let ok = self.w > 0 && self.h > 0 && u64::from(self.w) * u64::from(self.h) <= MAX_PIXELS;
+        if self.encoded.is_none() || !room || !ok {
+            return;
+        }
         let Some(data) = self.encoded.take() else {
             return;
         };
@@ -495,22 +517,29 @@ impl Surface {
         if rgba.dimensions() != (self.w, self.h) {
             return;
         }
-        if let Some(pix) = &mut self.pix {
-            let (dst_px, _) = pix.data_mut().as_chunks_mut::<4>();
-            let (src_px, _) = rgba.as_chunks::<4>();
-            for (dst, src) in dst_px.iter_mut().zip(src_px) {
-                let a = u16::from(src[3]);
-                let pm = |c: u8| ((u16::from(c) * a + 127) / 255) as u8;
-                dst.copy_from_slice(&[pm(src[0]), pm(src[1]), pm(src[2]), src[3]]);
-            }
+        let Some(mut pix) = Pixmap::new(self.w, self.h) else {
+            return;
+        };
+        let (dst_px, _) = pix.data_mut().as_chunks_mut::<4>();
+        let (src_px, _) = rgba.as_chunks::<4>();
+        for (dst, src) in dst_px.iter_mut().zip(src_px) {
+            let a = u16::from(src[3]);
+            let pm = |c: u8| ((u16::from(c) * a + 127) / 255) as u8;
+            dst.copy_from_slice(&[pm(src[0]), pm(src[1]), pm(src[2]), src[3]]);
         }
+        self.pix = Some(pix);
     }
 }
 
 /// Surface `id`, decoded first if it is a lazily loaded image.
 fn realized(s: &mut State, id: u64) -> Option<&mut Surface> {
+    let (w, h, lazy) = s
+        .surfaces
+        .get(&id)
+        .map(|x| (x.w, x.h, x.encoded.is_some()))?;
+    let room = lazy && s.fits(w, h, Some(id));
     let sur = s.surfaces.get_mut(&id)?;
-    sur.realize();
+    sur.realize(room);
     Some(sur)
 }
 
@@ -959,7 +988,10 @@ fn free(id: f64) {
     set_frame(id as u64, None);
 }
 
-/// Reads an image's size; its pixels are decoded when first used.
+/// Reads an image's size; its pixels are decoded when first used. As in
+/// Chromium, loading an image never fails for its size or for how many
+/// are loaded: only its pixels take memory, once it is drawn or read (and
+/// one too large for the budget then draws nothing).
 fn decode<'js>(ctx: Ctx<'js>, buf: ArrayBuffer<'js>) -> rquickjs::Result<Vec<f64>> {
     let data = bytes(&buf);
     let (w, h) = image::ImageReader::new(std::io::Cursor::new(&data))
@@ -967,14 +999,7 @@ fn decode<'js>(ctx: Ctx<'js>, buf: ArrayBuffer<'js>) -> rquickjs::Result<Vec<f64
         .map_err(|e| throw(&ctx, e))?
         .into_dimensions()
         .map_err(|e| throw(&ctx, e))?;
-    if u64::from(w) * u64::from(h) > MAX_PIXELS {
-        return Err(throw(&ctx, "image too large"));
-    }
-    if !with(|s| s.fits(w, h, None)) {
-        return Err(throw(&ctx, "out of canvas memory"));
-    }
-    let mut sur = Surface::new(w, h);
-    sur.encoded = Some(data);
+    let sur = Surface::image(w, h, data);
     let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
     with(|s| s.surfaces.insert(id, sur));
     Ok(vec![id as f64, f64::from(w), f64::from(h)])
