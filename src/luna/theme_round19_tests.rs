@@ -47,6 +47,7 @@ div._searchField_b2eb7f7 input { color: #222222; }
             artist: false,
             cover: Some([240.0, 300.0, 173.0, 173.0]),
             shelf: None,
+            ..dom_anchors::GridCard::default()
         }];
     }
     let tree = dom_anchors::build(&frame);

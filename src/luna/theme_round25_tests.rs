@@ -549,6 +549,7 @@ fn a_theme_beating_tidals_circle_squares_an_artists_picture() {
             artist: true,
             cover: Some([300.0, 300.0, 160.0, 160.0]),
             shelf: None,
+            ..dom_anchors::GridCard::default()
         }];
         let (luna, o) = overlay_with(
             name,

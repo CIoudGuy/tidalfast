@@ -2633,6 +2633,8 @@ pub fn table_header(
     // "Titwe"); drawn in TIDAL's capitals.
     let list_key = list.map(crate::luna::dom_anchors::keys::list);
     let mut time_rect = None;
+    let mut album_rect = None;
+    let mut added_rect = None;
     let font = theme::semibold(12.0);
     let color = palette.text.gamma_multiply(0.6);
     let cols = tidal_columns(
@@ -2678,8 +2680,11 @@ pub fn table_header(
                 egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label.clone())
             });
             theme::focus_ring(ui, &response);
-            if cell == Some("time-col") {
-                time_rect = Some(head);
+            match cell {
+                Some("time-col") => time_rect = Some(head),
+                Some("album-col") => album_rect = Some(head),
+                Some("added-col") => added_rect = Some(head),
+                _ => {}
             }
             let color = if active.is_some() {
                 palette.accent
@@ -2767,7 +2772,14 @@ pub fn table_header(
     }
     if cols.album > 0.0 {
         let album = pgettext(locale, "column heading", "ALBUM");
-        heading(ui, x, &album, SortColumn::Album, sort_by(&album), None);
+        heading(
+            ui,
+            x,
+            &album,
+            SortColumn::Album,
+            sort_by(&album),
+            Some("album-col"),
+        );
         x += cols.album;
     }
     if cols.added_by > 0.0 {
@@ -2784,7 +2796,14 @@ pub fn table_header(
     }
     if cols.added > 0.0 {
         let added = pgettext(locale, "column heading", "DATE ADDED");
-        heading(ui, x, &added, SortColumn::Added, sort_by(&added), None);
+        heading(
+            ui,
+            x,
+            &added,
+            SortColumn::Added,
+            sort_by(&added),
+            Some("added-col"),
+        );
         x += cols.added;
     }
     if cols.extra > 0.0 {
@@ -2830,7 +2849,7 @@ pub fn table_header(
         }
     }
     if let Some(list) = list {
-        super::plugin_dom::list_header(list, rect, time_rect);
+        super::plugin_dom::list_header(list, rect, time_rect, album_rect, added_rect);
     }
     clicked
 }
@@ -3878,15 +3897,19 @@ pub fn card(
             egui::Align2::LEFT_TOP
         };
         let badge_room = card_marks_width(mark);
+        // The words as a plugin left them in the card's anchors (TIDAL's
+        // title link and subtitle), which hold the app's own.
+        let words = super::plugin_dom::card_text(card_key.as_deref(), title, subtitle);
+        let title_top = image_rect.bottom() + 11.0;
+        // A hidden title is laid out all the same: its box stays described.
         let title_galley = ellipsized(
             ui,
-            title,
+            words.title.as_deref().unwrap_or(title),
             title_font,
             palette.text,
             (width - badge_room).max(1.0),
             1,
         );
-        let title_top = image_rect.bottom() + 11.0;
         let title_pos = if circular {
             pos2(rect.center().x - title_galley.size().x / 2.0, title_top)
         } else {
@@ -3896,14 +3919,16 @@ pub fn card(
             }
         };
         let title_rect = Rect::from_min_size(title_pos, title_galley.size());
-        ui.painter().galley(title_pos, title_galley, palette.text);
+        if words.title.is_some() {
+            ui.painter().galley(title_pos, title_galley, palette.text);
+        }
         paint_card_marks(ui, &palette, mark, title_rect);
         // TIDAL underlines the title link under the pointer, fading the
         // line in (`text-decoration-color .2s ease-in-out`).
         let underline = crate::motion::progress(
             ui.ctx(),
             response.id.with("underline"),
-            hovered && !circular,
+            hovered && !circular && words.title.is_some(),
             crate::motion::Transition::new(0.2, crate::motion::ease::EASE_IN_OUT),
         );
         if underline > 0.0 {
@@ -3913,9 +3938,17 @@ pub fn card(
                 Stroke::new(1.0, palette.text.gamma_multiply(underline)),
             );
         }
+        let mut subtitle_rect = Rect::NOTHING;
         if !subtitle.is_empty() {
-            let subtitle_galley =
-                ellipsized(ui, subtitle, subtitle_font, palette.secondary, width, 1);
+            let shown = words.subtitle.as_deref();
+            let subtitle_galley = ellipsized(
+                ui,
+                shown.unwrap_or(subtitle),
+                subtitle_font,
+                palette.secondary,
+                width,
+                1,
+            );
             let top = image_rect.bottom() + 33.0;
             let pos = match (align, subtitle_galley.job.halign) {
                 (egui::Align2::CENTER_TOP, _) => {
@@ -3924,8 +3957,19 @@ pub fn card(
                 (_, Align::RIGHT) => pos2(rect.right(), top),
                 _ => pos2(rect.left(), top),
             };
-            ui.painter().galley(pos, subtitle_galley, palette.secondary);
+            subtitle_rect = Rect::from_min_size(pos, subtitle_galley.size());
+            if shown.is_some_and(|s| !s.is_empty()) {
+                ui.painter().galley(pos, subtitle_galley, palette.secondary);
+            }
         }
+        // The card's words as the app has them, where they were laid out.
+        super::plugin_dom::card_words(
+            card_key.as_deref(),
+            title,
+            title_rect,
+            subtitle,
+            subtitle_rect,
+        );
 
         if playable && overlay > 0.0 {
             let center = if round {
@@ -4465,7 +4509,7 @@ pub fn section_header_more(
     arrows: (bool, bool),
     more: Option<&str>,
 ) -> (i8, bool) {
-    section_header_parts(ui, palette, title, Some(arrows), more)
+    section_header_parts(ui, palette, title, Some(arrows), more, None)
 }
 
 /// A section header with only "View all" at the right, no paging arrows
@@ -4477,102 +4521,145 @@ pub fn section_header_link(
     title: &str,
     more: Option<&str>,
 ) -> bool {
-    section_header_parts(ui, palette, title, None, more).1
+    section_header_parts(ui, palette, title, None, more, None).1
 }
 
+/// A section header; `shelf`, the index of the shelf it heads: its title,
+/// arrows and View all are that shelf's header anchors (TIDAL's horizontal
+/// list header), drawn with the words a plugin gave them and not at all
+/// where a plugin hid them.
 fn section_header_parts(
     ui: &mut Ui,
     palette: &Palette,
     title: &str,
     arrows: Option<(bool, bool)>,
     more: Option<&str>,
+    shelf: Option<usize>,
 ) -> (i8, bool) {
+    use crate::luna::dom_anchors::keys;
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
+    let full = rect;
+    let hidden = |key: Option<String>| key.is_some_and(|k| super::plugin_dom::hidden(&k));
+    let worded = |key: Option<String>, native: &str| -> String {
+        key.map_or_else(
+            || native.to_string(),
+            |k| super::plugin_dom::text(&k, native).into_owned(),
+        )
+    };
     let mut more_clicked = false;
+    let mut view_all = None;
+    // A View all a plugin hid keeps its anchor and its place, unpainted.
+    let more_hidden = hidden(shelf.map(keys::shelf_view_all));
     let rect = if let Some(label) = more {
+        let words = worded(shelf.map(keys::shelf_view_all_label), label);
         // Laid out without a colour, so the tint below applies.
-        let galley = ui.painter().layout_no_wrap(
-            label.to_string(),
-            theme::semibold(14.0),
-            Color32::PLACEHOLDER,
-        );
+        let galley =
+            ui.painter()
+                .layout_no_wrap(words.clone(), theme::semibold(14.0), Color32::PLACEHOLDER);
         let link = Rect::from_min_size(
             pos2(rect.right() - galley.size().x, rect.center().y - 11.0),
             vec2(galley.size().x, 22.0),
         );
-        let response = ui.interact(link, ui.id().with(("section-more", title)), Sense::click());
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Link, true, label));
-        // TIDAL's View all: grey (white at 55 %), white under the pointer,
-        // `color .3s`.
-        let color = crate::motion::color(
-            ui.ctx(),
-            response.id.with("tint"),
-            response.hovered(),
-            palette.secondary,
-            palette.text,
-            crate::motion::Transition::new(0.3, crate::motion::ease::EASE),
-        );
-        ui.painter().galley(
-            pos2(link.left(), rect.center().y - galley.size().y / 2.0),
-            galley,
-            color,
-        );
-        more_clicked = response.clicked();
+        view_all = Some((label.to_string(), link));
+        if !more_hidden {
+            let response = ui.interact(link, ui.id().with(("section-more", title)), Sense::click());
+            response
+                .widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Link, true, &words));
+            // TIDAL's View all: grey (white at 55 %), white under the pointer,
+            // `color .3s`.
+            let color = crate::motion::color(
+                ui.ctx(),
+                response.id.with("tint"),
+                response.hovered(),
+                palette.secondary,
+                palette.text,
+                crate::motion::Transition::new(0.3, crate::motion::ease::EASE),
+            );
+            ui.painter().galley(
+                pos2(link.left(), rect.center().y - galley.size().y / 2.0),
+                galley,
+                color,
+            );
+            more_clicked = response.clicked();
+        }
         Rect::from_min_max(rect.min, pos2(link.left() - 16.0, rect.bottom()))
     } else {
         rect
     };
-    ui.painter().text(
-        pos2(rect.left(), rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        super::plugin_dom::subheadline_case(title),
-        super::plugin_dom::subheadline_font(19.0),
-        super::plugin_dom::subheadline_color(palette.text),
-    );
+    let title_rect = Rect::from_min_size(rect.min, vec2(rect.width(), 26.0));
+    if !hidden(shelf.map(keys::shelf_title)) {
+        let words = worded(shelf.map(keys::shelf_title), title);
+        ui.painter().text(
+            pos2(rect.left(), rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            super::plugin_dom::subheadline_case(&words),
+            super::plugin_dom::subheadline_font(19.0),
+            super::plugin_dom::subheadline_color(palette.text),
+        );
+    }
     let mut pressed = 0;
-    let Some(arrows) = arrows else {
-        return (0, more_clicked);
-    };
-    for (index, (icon, enabled)) in [
-        (Icon::ChevronLeft, arrows.0),
-        (Icon::ChevronRight, arrows.1),
-    ]
-    .into_iter()
-    .enumerate()
-    {
-        let center = pos2(
-            rect.right() - 12.0 - (1 - index) as f32 * 34.0,
-            rect.center().y,
-        );
-        let button = Rect::from_center_size(center, Vec2::splat(24.0));
-        let response = ui.interact(
-            button,
-            ui.id().with(("section-arrow", title, index)),
-            if enabled {
-                Sense::click()
+    let mut buttons = [None, None];
+    if let Some(arrows) = arrows {
+        for (index, (icon, enabled)) in [
+            (Icon::ChevronLeft, arrows.0),
+            (Icon::ChevronRight, arrows.1),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let center = pos2(
+                rect.right() - 12.0 - (1 - index) as f32 * 34.0,
+                rect.center().y,
+            );
+            let button = Rect::from_center_size(center, Vec2::splat(24.0));
+            buttons[index] = Some((button, enabled));
+            if hidden(shelf.map(if index == 0 {
+                keys::shelf_previous
             } else {
-                Sense::hover()
-            },
-        );
-        // TIDAL's paging arrows: `background-color .1s` on the enter curve.
-        let fill = crate::motion::color(
-            ui.ctx(),
-            response.id.with("fill"),
-            enabled && response.hovered(),
-            Color32::from_white_alpha(26),
-            Color32::from_white_alpha(51),
-            crate::motion::Transition::new(0.1, crate::motion::ease::ENTER),
-        );
-        ui.painter().circle_filled(center, 12.0, fill);
-        let color = if enabled {
-            Color32::from_rgb(0xaf, 0xaf, 0xb6)
-        } else {
-            Color32::from_white_alpha(38)
-        };
-        theme::paint_icon(ui, icon, button, 16.0, color);
-        if enabled && response.clicked() {
-            pressed = if index == 0 { -1 } else { 1 };
+                keys::shelf_next
+            })) {
+                continue;
+            }
+            let response = ui.interact(
+                button,
+                ui.id().with(("section-arrow", title, index)),
+                if enabled {
+                    Sense::click()
+                } else {
+                    Sense::hover()
+                },
+            );
+            // TIDAL's paging arrows: `background-color .1s` on the enter curve.
+            let fill = crate::motion::color(
+                ui.ctx(),
+                response.id.with("fill"),
+                enabled && response.hovered(),
+                Color32::from_white_alpha(26),
+                Color32::from_white_alpha(51),
+                crate::motion::Transition::new(0.1, crate::motion::ease::ENTER),
+            );
+            ui.painter().circle_filled(center, 12.0, fill);
+            let color = if enabled {
+                Color32::from_rgb(0xaf, 0xaf, 0xb6)
+            } else {
+                Color32::from_white_alpha(38)
+            };
+            theme::paint_icon(ui, icon, button, 16.0, color);
+            if enabled && response.clicked() {
+                pressed = if index == 0 { -1 } else { 1 };
+            }
         }
+    }
+    if shelf.is_some() {
+        let r = super::plugin_dom::rect;
+        super::plugin_dom::shelf_header(crate::luna::dom_anchors::ShelfHeader {
+            rect: r(full),
+            title: title.to_string(),
+            title_rect: r(title_rect),
+            previous: buttons[0].map(|(b, e)| (r(b), e)),
+            next: buttons[1].map(|(b, e)| (r(b), e)),
+            view_all: view_all.map(|(label, link)| (label, r(link))),
+        });
     }
     (pressed, more_clicked)
 }
@@ -4654,12 +4741,13 @@ pub fn shelf_sized(
         (from + (to - from) * SHELF_SLIDE.ease.at(t), to, t < 1.0)
     });
     let resting = sliding.map_or(offset, |(_, to, _)| to);
-    let (pressed, more_clicked) = section_header_more(
+    let (pressed, more_clicked) = section_header_parts(
         ui,
         palette,
         title,
-        (resting > 0.5, resting < max_offset - 0.5),
+        Some((resting > 0.5, resting < max_offset - 0.5)),
         more,
+        super::plugin_dom::next_shelf_index(),
     );
     ui.add_space(16.0 + above);
     set_card_width(ui, card);

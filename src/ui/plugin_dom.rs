@@ -1626,13 +1626,14 @@ pub fn page_title_text(native: &str) -> Cow<'_, str> {
 }
 
 /// An album or playlist header: its `_dataContainer_` and, when it has one,
-/// the meta line with the release date.
-pub fn page_header(data: Rect, meta: Option<(Rect, &str)>) {
+/// the meta line (its box and its words') with the release date.
+pub fn page_header(data: Rect, meta: Option<(Rect, Rect, &str)>) {
     note(|f| {
         if let Some(p) = f.page.as_mut() {
             p.data = rect(data);
-            p.meta = meta.map(|(r, date)| dom_anchors::MetaLine {
+            p.meta = meta.map(|(r, words, date)| dom_anchors::MetaLine {
                 rect: rect(r),
+                words: rect(words),
                 release_date: date.to_string(),
             });
         }
@@ -3044,15 +3045,150 @@ pub fn grid_card(r: Rect, artist: bool) -> Option<String> {
     note(|f| {
         if let Some(p) = f.page.as_mut() {
             key = Some(dom_anchors::keys::card(p.cards.len()));
+            let item = p.next_card.take();
             p.cards.push(dom_anchors::GridCard {
                 rect: rect(r),
                 artist,
                 cover: None,
                 shelf: p.open_shelf,
+                item,
+                words: None,
             });
         }
     });
     key
+}
+
+/// What the card about to be drawn shows (its kind and id, the artists its
+/// subtitle names): its anchor then carries TIDAL's card id and links.
+pub fn next_card(item: dom_anchors::CardItem) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.next_card = Some(item);
+        }
+    });
+}
+
+/// Forgets what [`next_card`] said when no card took it (one scrolled out
+/// of its shelf is not drawn).
+pub fn drop_next_card() {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.next_card = None;
+        }
+    });
+}
+
+/// A card's words as a plugin left them: the title and subtitle to draw
+/// (`None`: hidden), from the card's text anchors.
+pub struct CardText<'a> {
+    pub title: Option<Cow<'a, str>>,
+    pub subtitle: Option<Cow<'a, str>>,
+}
+
+/// The words to draw for the card whose anchor is `key` (from
+/// [`grid_card`]): `title` and `subtitle` as the app has them, or what a
+/// plugin wrote over them (each artist's link of a subtitle naming
+/// artists, joined as the app joins them), or nothing where a plugin hid
+/// them.
+pub fn card_text<'a>(key: Option<&str>, title: &'a str, subtitle: &'a str) -> CardText<'a> {
+    let Some(i) = key.and_then(|k| k.strip_prefix("card:")?.parse::<usize>().ok()) else {
+        return CardText {
+            title: Some(Cow::Borrowed(title)),
+            subtitle: Some(Cow::Borrowed(subtitle)),
+        };
+    };
+    use dom_anchors::keys;
+    let title =
+        (!hidden(&keys::card_title_link(i))).then(|| text(&keys::card_title_link(i), title));
+    if hidden(&keys::card_subtitle(i)) {
+        return CardText {
+            title,
+            subtitle: None,
+        };
+    }
+    let artists = with(|s| {
+        s.frame
+            .page
+            .as_ref()
+            .and_then(|p| p.cards.get(i))
+            .and_then(|c| c.item.as_ref())
+            .map_or(0, |item| item.artists.len())
+    });
+    let subtitle = if artists > 1 {
+        let parts: Vec<(String, bool)> = (0..artists)
+            .map(|n| {
+                let key = keys::card_subtitle_part(i, n);
+                (
+                    host(&key, |h, _| h.text.clone()).unwrap_or_default(),
+                    hidden(&key),
+                )
+            })
+            .collect();
+        if parts.iter().all(|(t, h)| t.is_empty() && !h) {
+            Some(Cow::Borrowed(subtitle))
+        } else {
+            let natives: Vec<&str> = subtitle.split(", ").collect();
+            let words = parts
+                .iter()
+                .enumerate()
+                .filter(|(_, (_, h))| !h)
+                .map(|(n, (t, _))| {
+                    if t.is_empty() {
+                        natives.get(n).copied().unwrap_or_default()
+                    } else {
+                        t.as_str()
+                    }
+                });
+            Some(Cow::Owned(crate::api::models::join_names(words)))
+        }
+    } else {
+        let part = keys::card_subtitle_part(i, 0);
+        (!hidden(&part)).then(|| text(&part, subtitle))
+    };
+    CardText { title, subtitle }
+}
+
+/// The card whose anchor is `key` drew `title` in `title_rect` and
+/// `subtitle` in `subtitle_rect` (the app's own words).
+pub fn card_words(
+    key: Option<&str>,
+    title: &str,
+    title_rect: Rect,
+    subtitle: &str,
+    subtitle_rect: Rect,
+) {
+    let Some(i) = key.and_then(|k| k.strip_prefix("card:")?.parse::<usize>().ok()) else {
+        return;
+    };
+    note(|f| {
+        if let Some(card) = f.page.as_mut().and_then(|p| p.cards.get_mut(i)) {
+            card.words = Some(dom_anchors::CardWords {
+                title: title.to_string(),
+                title_rect: rect(title_rect),
+                subtitle: subtitle.to_string(),
+                subtitle_rect: (!subtitle.is_empty())
+                    .then(|| rect(subtitle_rect))
+                    .flatten(),
+            });
+        }
+    });
+}
+
+/// The index the shelf about to be registered by [`shelf_row`] will have,
+/// while Luna is on: its header's anchors are keyed by it.
+pub fn next_shelf_index() -> Option<usize> {
+    on().then(|| with(|s| s.frame.page.as_ref().map_or(0, |p| p.shelves.len())))
+}
+
+/// The header of the shelf about to be registered by [`shelf_row`], as
+/// drawn (the app's own words).
+pub fn shelf_header(header: dom_anchors::ShelfHeader) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.next_shelf_header = Some(header);
+        }
+    });
 }
 
 /// A shortcut tile of the home page drawn at `r` with its picture at
@@ -3267,6 +3403,8 @@ pub fn shelf_row(r: Rect) {
             p.shelves.push(rect(r));
             let module = p.next_shelf_module.take().unwrap_or_default();
             p.shelf_modules.push(module);
+            let header = p.next_shelf_header.take();
+            p.shelf_headers.push(header);
             p.open_shelf = None;
         }
     });
@@ -3979,10 +4117,16 @@ pub fn extra_cells(
     }
 }
 
-/// The column headings above `list`'s rows (`list:<l>:header`), and its
-/// time heading (`:time-col`, which Tidal Tags clones), where the table
-/// drew them.
-pub fn list_header(list: &str, header: Rect, time: Option<Rect>) {
+/// The column headings above `list`'s rows (`list:<l>:header`), its time
+/// heading (`:time-col`, which Tidal Tags clones) and its album and
+/// date-added headings when it has them, where the table drew them.
+pub fn list_header(
+    list: &str,
+    header: Rect,
+    time: Option<Rect>,
+    album: Option<Rect>,
+    added: Option<Rect>,
+) {
     if !on() {
         return;
     }
@@ -4000,6 +4144,8 @@ pub fn list_header(list: &str, header: Rect, time: Option<Rect>) {
         let l = &mut s.frame.lists[pos];
         l.header_rect = rect(header);
         l.time_header_rect = time.and_then(rect);
+        l.album_header_rect = album.and_then(rect);
+        l.added_header_rect = added.and_then(rect);
     });
 }
 
