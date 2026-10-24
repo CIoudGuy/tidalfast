@@ -9315,6 +9315,119 @@ mod tests {
         );
     }
 
+    /// The track lists' headings are TIDAL 2.46.0's (captured, a playlist's
+    /// and an album's): the Album and Date added headings carry no id, as in
+    /// TIDAL (the Title, Artist and Time ones keep the `headerColumn-*` ids
+    /// of an earlier TIDAL that themes colour), each is
+    /// `span._<name>Column_[role=columnheader] >
+    /// span._headerColumn_fed0322._trackcells-sort_ecf19dd._overline_70ce5b5 >
+    /// span` with its words, a playlist's sort (`tabindex=0`,
+    /// `_headerColumnSortable_8d4c2d3`) and an album's do not, Date added is
+    /// `_ellipsisText_9e99400` too, and the table is `[aria-label=Tracklist]`,
+    /// not its header row. A plugin's words over a heading are drawn.
+    #[test]
+    fn track_list_headings_are_tidals() {
+        use crate::luna::dom::HostOverride;
+        use crate::luna::dom_anchors::attr;
+        let (ctx, mut app) = accessible_app("plugin-headings");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        let mut checks: Vec<(String, bool)> = Vec::new();
+        for (page, kind, sortable) in [
+            (Page::Playlist("pl0".into()), "playlist:", true),
+            (Page::Album("alb0".into()), "album:", false),
+        ] {
+            app.open(page);
+            let tree = sent_plugin_tree(&ctx, &mut app);
+            let node = |key: &str| tree.nodes.iter().find(|n| n.key == key).cloned();
+            let Some(table) = tree
+                .nodes
+                .iter()
+                .find(|n| {
+                    n.key.starts_with(&format!("list:{kind}")) && n.key.matches(':').count() == 2
+                })
+                .map(|n| n.key.clone())
+            else {
+                checks.push((format!("a {kind} list is in the page"), false));
+                continue;
+            };
+            checks.push((
+                format!("the {kind} table is [aria-label=Tracklist], its header row is not"),
+                node(&table).is_some_and(|n| attr(&n, "aria-label") == Some("Tracklist"))
+                    && node(&format!("{table}:header"))
+                        .is_some_and(|n| attr(&n, "aria-label").is_none()),
+            ));
+            let mut cols = vec!["title-col", "artist-col", "time-col"];
+            if sortable {
+                cols.extend(["album-col", "added-col"]);
+            }
+            for col in cols {
+                let key = format!("{table}:{col}");
+                let heading = node(&key);
+                let inner = node(&format!("{key}:sort"));
+                let label = node(&format!("{key}:label"));
+                let classes = inner
+                    .as_ref()
+                    .and_then(|n| attr(n, "class").map(str::to_string))
+                    .unwrap_or_default();
+                checks.push((
+                    format!("{kind} {col} is TIDAL's heading"),
+                    heading.as_ref().is_some_and(|n| {
+                        n.tag == "span"
+                            && attr(n, "role") == Some("columnheader")
+                            && (attr(n, "id").is_none() == matches!(col, "album-col" | "added-col"))
+                            && (attr(n, "tabindex") == Some("0")) == sortable
+                    }) && inner.as_ref().is_some_and(|n| {
+                        n.tag == "span" && n.parent.as_deref() == Some(key.as_str())
+                    }) && classes.contains("_headerColumn_fed0322 _trackcells-sort_ecf19dd")
+                        && classes.contains("_headerColumnSortable_8d4c2d3") == sortable
+                        && label.as_ref().is_some_and(|n| {
+                            n.tag == "span"
+                                && n.parent == Some(format!("{key}:sort"))
+                                && n.text.is_some()
+                        }),
+                ));
+            }
+            if sortable {
+                checks.push((
+                    "Date added is _ellipsisText_9e99400".into(),
+                    node(&format!("{table}:added-col")).is_some_and(|n| {
+                        attr(&n, "class").is_some_and(|c| c.contains("_ellipsisText_9e99400"))
+                    }),
+                ));
+                let drawn = words_under_plugin(
+                    &ctx,
+                    &mut app,
+                    vec![(
+                        format!("{table}:added-col:label"),
+                        HostOverride {
+                            text: Some("Added uwu".into()),
+                            ..HostOverride::default()
+                        },
+                    )],
+                );
+                checks.push((
+                    "the Date added heading draws ADDED UWU".into(),
+                    drawn.iter().any(|(w, _)| w == "ADDED UWU"),
+                ));
+            }
+        }
+        app.backend.shutdown();
+        let failed: Vec<_> = checks
+            .iter()
+            .filter(|(_, ok)| !ok)
+            .map(|(c, _)| c.as_str())
+            .collect();
+        assert!(
+            failed.is_empty(),
+            "{}",
+            failed.join(
+                "
+"
+            )
+        );
+    }
+
     /// A right-click a plugin cancels (`preventDefault()` on `contextmenu`,
     /// downloadmanager's own menus) opens none of the app's menus, as TIDAL
     /// opens none of its own; one the plugins let through opens the row's
