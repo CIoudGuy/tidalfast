@@ -118,3 +118,22 @@ fn rules_for_tidals_icons_reach_the_navigation_rows_icons() {
     pd::test_overlay(None);
     assert_eq!(inks, [Some(egui::Color32::from_rgb(10, 200, 100)); 2]);
 }
+
+/// A relative font size is of the parent's, so nested ones compound: the
+/// cotton candy family's `font-size: 91%` on the bar's time and on its
+/// wrapper makes TIDAL 2.46.0's time 91 % of 91 % of 14 (11.6 px).
+/// Tidalfast took each against 14, so the time stayed 12.7.
+#[test]
+fn nested_relative_font_sizes_compound() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{CURRENT_TIME, CURRENT_TIME_WRAP};
+    let css = r#"/* {"name": "Small times"} */
+[class*="_scrubberTime"] { font-size: 50%; }
+"#;
+    let o = overlay_for("small-times.css", css, CURRENT_TIME);
+    pd::test_overlay(Some((*o).clone()));
+    let sizes =
+        [CURRENT_TIME_WRAP, CURRENT_TIME].map(|k| pd::anchor_look(k).and_then(|l| l.font_size));
+    pd::test_overlay(None);
+    assert_eq!(sizes, [Some(7.0), Some(3.5)]);
+}

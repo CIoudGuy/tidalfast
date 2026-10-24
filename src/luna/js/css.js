@@ -1227,7 +1227,25 @@
 			const a = animation(m);
 			if (a) st.animation = a;
 		}
+		// A relative font size (`91%`, `.9em`) is of the parent's, so nested
+		// ones compound, as in a browser: the cotton candy family's `font-
+		// size: 91%` on the bar's time and on its wrapper makes the time 91 %
+		// of 91 % (11.6 px in TIDAL 2.46.0). Resolved to points against the
+		// size the element inherits, TIDAL's 14-point root where none is set.
+		if (st["font-size"] !== undefined) {
+			const m = /^(\d*\.?\d+)(%|em)\s*(!important)?$/i.exec(String(st["font-size"]).trim());
+			if (m) st["font-size"] = `${+(parseFloat(m[1]) * (m[2] === "%" ? 0.01 : 1) * fontPx(parentStyle?.["font-size"])).toFixed(4)}px`;
+		}
 		return Object.keys(st).length ? st : null;
+	};
+	// An inherited font size in points: TIDAL's 14-point root for none (or
+	// a word), `rem` of that root.
+	const fontPx = (v) => {
+		const m = /^(\d*\.?\d+)(px|rem|em|%)?\s*(!important)?$/i.exec(String(v ?? "").trim());
+		if (!m) return 14;
+		const n = parseFloat(m[1]);
+		const unit = (m[2] ?? "px").toLowerCase();
+		return unit === "px" ? n : unit === "%" ? (n / 100) * 14 : n * 14;
 	};
 	const hasContent = (decls) => {
 		const c = (decls.get("content") ?? "").trim();
