@@ -3906,6 +3906,30 @@ pub fn extra_cells(
     }
 }
 
+/// The column headings above `list`'s rows (`list:<l>:header`), and its
+/// time heading (`:time-col`, which Tidal Tags clones), where the table
+/// drew them.
+pub fn list_header(list: &str, header: Rect, time: Option<Rect>) {
+    if !on() {
+        return;
+    }
+    with(|s| {
+        let pos = match s.frame.lists.iter().position(|l| l.id == list) {
+            Some(pos) => pos,
+            None => {
+                s.frame.lists.push(dom_anchors::TrackList {
+                    id: list.to_string(),
+                    ..Default::default()
+                });
+                s.frame.lists.len() - 1
+            }
+        };
+        let l = &mut s.frame.lists[pos];
+        l.header_rect = rect(header);
+        l.time_header_rect = time.and_then(rect);
+    });
+}
+
 /// A visible track row of `list`. `fill` adds the row's facts; rows
 /// outside the clip rect are skipped. Also scrolls the row into view when
 /// a plugin asked for it.

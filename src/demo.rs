@@ -8513,6 +8513,15 @@ mod tests {
                     (keys::lib_row_subtitle(0), "Wif items uwu"),
                     (keys::LIB_HEADING_TITLE.to_string(), "Aww pwaywists"),
                     (keys::sidebar_item_label("sidebar-feed"), "Feed uwu"),
+                    // The column headings, in TIDAL's capitals.
+                    (
+                        format!("{}:title-col:label", keys::list("album:alb0")),
+                        "TITWE UWU",
+                    ),
+                    (
+                        format!("{}:time-col:label", keys::list("album:alb0")),
+                        "TIME UWU",
+                    ),
                 ],
             ),
             (
