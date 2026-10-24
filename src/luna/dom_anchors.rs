@@ -206,6 +206,12 @@ pub mod keys {
     /// in TIDAL's `div._playQueueItemsContainer_01c88fe`. The play queue
     /// takes its words' colours from them.
     pub const QUEUE_ROLES: &str = "queue-roles";
+    /// TIDAL 2.46.0's scrolling list in it (`div._playQueueItems_84488b2`),
+    /// round the stand-ins below: the cotton candy family nests its rules
+    /// for the queue's words under it. TIDAL's `data-test=playqueue-scroll`
+    /// stays on the list round the drawn rows ([`QUEUE_LIST`]), so plugins
+    /// that look for the queue's rows under it find only those.
+    pub const QUEUE_ROLE_ITEMS: &str = "queue-roles:items";
     pub const QUEUE_ROLE_TEXT: &str = "queue-roles:text";
     pub const QUEUE_ROLE_SECONDARY: &str = "queue-roles:secondary";
     /// The playing song's row, its title link and its title
@@ -1306,25 +1312,37 @@ pub fn build(frame: &Frame) -> HostTree {
     out.push(
         el(keys::QUEUE_ROLES, Some(roles_parent), "div")
             .class("_playQueueItemsContainer_01c88fe")
+            .test("playqueue")
             .attr("aria-hidden", "true"),
     );
     out.push(
-        el(keys::QUEUE_ROLE_TEXT, Some(keys::QUEUE_ROLES), "span")
+        el(keys::QUEUE_ROLE_ITEMS, Some(keys::QUEUE_ROLES), "div").class("_playQueueItems_84488b2"),
+    );
+    out.push(
+        el(keys::QUEUE_ROLE_TEXT, Some(keys::QUEUE_ROLE_ITEMS), "span")
             .class("_marketText_1lyag_1")
             .class("_medium20_1lyag_192"),
     );
     out.push(
-        el(keys::QUEUE_ROLE_SECONDARY, Some(keys::QUEUE_ROLES), "span")
-            .class("_artistText_73966a1")
-            .class("_text20_1lyag_291")
-            .class("_paragraph20_1lyag_138")
-            .class("_marketText_1lyag_1"),
+        el(
+            keys::QUEUE_ROLE_SECONDARY,
+            Some(keys::QUEUE_ROLE_ITEMS),
+            "span",
+        )
+        .class("_artistText_73966a1")
+        .class("_text20_1lyag_291")
+        .class("_paragraph20_1lyag_138")
+        .class("_marketText_1lyag_1"),
     );
     out.push(
-        el(keys::QUEUE_ROLE_PLAYING_ROW, Some(keys::QUEUE_ROLES), "div")
-            .class("_container_aab70e3")
-            .test("playqueue-item")
-            .attr("role", "row"),
+        el(
+            keys::QUEUE_ROLE_PLAYING_ROW,
+            Some(keys::QUEUE_ROLE_ITEMS),
+            "div",
+        )
+        .class("_container_aab70e3")
+        .test("playqueue-item")
+        .attr("role", "row"),
     );
     out.push(
         el(
@@ -1348,7 +1366,7 @@ pub fn build(frame: &Frame) -> HostTree {
     );
     for key in [keys::QUEUE_ROLE_ROW, keys::QUEUE_ROLE_HOVER_ROW] {
         out.push(
-            el(key, Some(keys::QUEUE_ROLES), "div")
+            el(key, Some(keys::QUEUE_ROLE_ITEMS), "div")
                 .class("_container_aab70e3")
                 .test("playqueue-item")
                 .attr("role", "row"),
