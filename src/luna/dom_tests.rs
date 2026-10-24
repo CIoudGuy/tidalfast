@@ -726,7 +726,9 @@ div[role="row"]:hover .t-btn { opacity: 1; }
 @keyframes t-rot { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 `);
 lib.observe(unloads, '[data-test="tracklist-row"]', (row) => {
-	const flex = row.querySelector('div[class*="_flexWrapper_"]');
+	// The actions' wrapper, as quick-queue finds it: the title has a
+	// `_flexWrapper_` of its own before it (TIDAL 2.46.0).
+	const flex = row.querySelector('div[class*="_contextColumn_"] > div[class*="_flexWrapper_"]');
 	if (!flex || flex.querySelector(".t-btn")) return;
 	const b = document.createElement("button");
 	b.className = "t-btn";
