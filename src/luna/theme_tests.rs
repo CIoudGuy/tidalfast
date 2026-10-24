@@ -361,6 +361,10 @@ div._dataContainer_66f4f40::before { --img: none !important; background-color: r
     let data = temp_dir("theme-boxes");
     let luna = Luna::start(config(&data), Arc::new(MockHost::default())).unwrap();
     let mut frame = dom_anchors::sample_frame();
+    // With a player TIDAL 2.46.0's row also carries `_hasPlayer_57557c6`,
+    // which an exact `[class=...]` rule does not match; without one the
+    // module class is its only one.
+    frame.player = None;
     if let Some(page) = frame.page.as_mut() {
         // An album's header: TIDAL 2.46.0's `_dataContainer_66f4f40`, a
         // module whose hash the anchor carries exactly.

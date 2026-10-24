@@ -2192,16 +2192,29 @@ pub fn positioned_over_on(
     }
 }
 
-/// Plugin elements appended to `body` (anchor `""`): positioned ones (`fixed`/
-/// `absolute`, scroll-to-playing's jump button, modals) float over the window
-/// at their `top`/`right`/`bottom`/`left`, above it for `z-index` > 0.
-/// Elements behind the page (negative `z-index`) are drawn by [`backdrop`];
-/// unpositioned ones are not drawn.
+/// Whether plugin elements at `anchor`/`position` sit in `body`, or
+/// directly in TIDAL's root beside its own children
+/// ([`crate::luna::dom_anchors::in_root`]): their box is the window's.
+fn window_level(anchor: &str, position: Position) -> bool {
+    anchor.is_empty() || crate::luna::dom_anchors::in_root(anchor, position)
+}
+
+/// Plugin elements appended to `body` (anchor `""`) or placed directly in
+/// TIDAL's root: positioned ones (`fixed`/`absolute`, scroll-to-playing's
+/// jump button, modals, betterFullscreen's player in the place of
+/// `section._fullscreen_`) float over the window at their `top`/`right`/
+/// `bottom`/`left`, above it for `z-index` > 0. Elements behind the page
+/// (negative `z-index`) are drawn by [`backdrop`]; unpositioned ones are
+/// not drawn.
 pub fn floating(ui: &egui::Ui) {
     let Some(overlay) = plugin_dom::overlay() else {
         return;
     };
-    if !overlay.injected.iter().any(|i| i.anchor.is_empty()) {
+    if !overlay
+        .injected
+        .iter()
+        .any(|i| window_level(&i.anchor, i.position))
+    {
         return;
     }
     let vars = plugin_dom::vars();
@@ -2215,7 +2228,7 @@ pub fn floating(ui: &egui::Ui) {
     let nodes = overlay
         .injected
         .iter()
-        .filter(|i| i.anchor.is_empty())
+        .filter(|i| window_level(&i.anchor, i.position))
         .flat_map(|i| i.nodes.iter());
     for node in nodes {
         let style = &node.style;
@@ -3519,7 +3532,10 @@ fn behind(overlay: &crate::luna::dom::DomOverlay) -> impl Iterator<Item = &VNode
     overlay
         .injected
         .iter()
-        .flat_map(|i| i.nodes.iter().map(move |n| (i.anchor.is_empty(), n)))
+        .flat_map(|i| {
+            let body = window_level(&i.anchor, i.position);
+            i.nodes.iter().map(move |n| (body, n))
+        })
         .filter(|(body, n)| {
             let placed = if *body {
                 positioned_kind(&n.style).is_some()

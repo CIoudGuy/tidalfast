@@ -1449,9 +1449,6 @@ lib.observe(unloads, ".is-fullscreen.is-now-playing", swap);
     );
     let mut frame = dom_anchors::sample_frame();
     frame.shell.fullscreen = true;
-    if let Some(np) = frame.now_playing.as_mut() {
-        np.fullscreen_rect = np.rect;
-    }
     // The fullscreen view's first render: the shell arrives with both
     // classes, and the plugin finds it inside the mutated `#wimp`.
     luna.sync_dom(dom_anchors::build(&frame));
@@ -1465,6 +1462,191 @@ lib.observe(unloads, ".is-fullscreen.is-now-playing", swap);
     assert!(
         o.hidden(keys::NP_FULLSCREEN),
         "TIDAL's container is replaced"
+    );
+    // In its place in TIDAL's root, the plugin's box covers the window as
+    // TIDAL's section does there (fixed, shown under `.is-fullscreen`).
+    let swapped = o
+        .injected
+        .iter()
+        .find(|i| {
+            serde_json::to_string(&i.nodes)
+                .unwrap()
+                .contains("Lyrics here")
+        })
+        .unwrap();
+    assert!(
+        dom_anchors::in_root(&swapped.anchor, swapped.position),
+        "{} {:?}",
+        swapped.anchor,
+        swapped.position
+    );
+    let style = &swapped.nodes[0].style;
+    assert_eq!(style.position.as_deref(), Some("fixed"));
+    assert_eq!(style.opacity.as_deref(), Some("1"));
+    finish(luna, dir);
+}
+
+/// TIDAL 2.46.0 keeps its docked now-playing view (`section#nowPlaying.
+/// _nowPlayingContainer_`) as a child of its root, hidden while closed,
+/// and takes it out while the view is fullscreen, where `section.
+/// _fullscreen_ > section#nowPlaying` holds the view. That removal is a
+/// change to the root's own children, which Luna's `observe` reports with
+/// the root, so an observer waiting for the root's classes (betterFullscreen's
+/// `.is-fullscreen.is-now-playing`) runs as the view goes fullscreen,
+/// whichever of the two came first.
+#[test]
+fn an_observer_waiting_for_the_roots_fullscreen_classes_runs_when_they_come() {
+    let (luna, _host, dir) = start(
+        r##"
+R.calls = 0;
+lib.observe(unloads, ".is-fullscreen.is-now-playing", (el) => {
+	R.calls++;
+	R.root = el.parentElement?.id === "wimp";
+	R.inside = !!el.querySelector('[class^="_fullscreen_"] > section[data-test="new-now-playing"] #nowPlayingHeader');
+	R.docked = !!el.querySelector(':scope > [class*="_nowPlayingContainer_"]');
+});
+"##,
+    );
+    let calls = |luna: &Luna, dir: &Path, n: u64| {
+        results_until(luna, dir, 10, |r| r["calls"].as_u64() >= Some(n))
+    };
+    let settle = |luna: &Luna| {
+        for _ in 0..5 {
+            luna.sync(Duration::from_secs(10));
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    };
+    let fullscreen = |frame: &mut dom_anchors::Frame, on: bool| frame.shell.fullscreen = on;
+    // The view open, then fullscreen.
+    let mut frame = dom_anchors::sample_frame();
+    let view = frame.now_playing.clone();
+    luna.sync_dom(dom_anchors::build(&frame));
+    settle(&luna);
+    assert_eq!(dom_results(&dir)["calls"], json!(0));
+    fullscreen(&mut frame, true);
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = calls(&luna, &dir, 1);
+    assert_eq!(r["root"], json!(true));
+    assert_eq!(r["inside"], json!(true), "the view is in `_fullscreen_`");
+    assert_eq!(r["docked"], json!(false), "the docked view is out");
+    // Back out, the view closed, then fullscreen first and the view after.
+    fullscreen(&mut frame, false);
+    luna.sync_dom(dom_anchors::build(&frame));
+    frame.now_playing = None;
+    luna.sync_dom(dom_anchors::build(&frame));
+    fullscreen(&mut frame, true);
+    luna.sync_dom(dom_anchors::build(&frame));
+    settle(&luna);
+    assert_eq!(dom_results(&dir)["calls"], json!(1));
+    frame.now_playing = view;
+    fullscreen(&mut frame, true);
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = calls(&luna, &dir, 2);
+    assert_eq!(r["inside"], json!(true));
+    finish(luna, dir);
+}
+
+/// TIDAL 2.46.0 marks its layout with the view's state, and plugins wait
+/// for those classes with an attribute observer or match them exactly as
+/// themes do: the player bar is `_player_8c80ae6 nowPlayingVisible
+/// _notFullscreen_60c5a14` over the docked view and carries the playback
+/// state, the docked view drops `_nowPlayingHidden_`, the sidebar wrapper,
+/// the header and the page box take their `_nowPlayingVisible_`, and the
+/// main container its `_isFullscreen_`.
+#[test]
+fn observers_waiting_for_tidals_state_classes_see_them_change() {
+    let (luna, _host, dir) = start(
+        r##"
+R.seen = {};
+const watch = (name, sel) => {
+	const el = document.querySelector(sel);
+	if (!el) return void (R.missing = (R.missing ?? []).concat(name));
+	new MutationObserver(() => {
+		R.seen[name] = (R.seen[name] ?? []).concat(el.className + (el.dataset.testPlaybackState ? "|" + el.dataset.testPlaybackState : ""));
+	}).observe(el, { attributes: true, attributeFilter: ["class", "data-test-playback-state"] });
+};
+const ready = () => {
+	if (R.ready) return;
+	R.ready = true;
+	watch("footer", "#footerPlayer");
+	watch("docked", '[class*="_nowPlayingContainer_"]');
+	watch("sidebar", '[data-test="main-layout-sidebar-wrapper"]');
+	watch("header", "#mainHeader");
+	watch("main", "#main");
+	watch("container", '[class*="_mainContainer_"]');
+};
+lib.observe(unloads, "#footerPlayer", ready);
+"##,
+    );
+    let mut frame = dom_anchors::sample_frame();
+    let view = frame.now_playing.take();
+    if let Some(p) = frame.player.as_mut() {
+        p.now_playing_visible = false;
+        p.playing = false;
+    }
+    luna.sync_dom(dom_anchors::build(&frame));
+    results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
+    // The view opens and the song plays.
+    frame.now_playing = view;
+    if let Some(p) = frame.player.as_mut() {
+        p.now_playing_visible = true;
+        p.playing = true;
+    }
+    luna.sync_dom(dom_anchors::build(&frame));
+    // Each state is seen before the next comes (an observer reads the
+    // element when it runs, after every change queued by then).
+    results_until(&luna, &dir, 10, |r| {
+        r["seen"]["footer"].as_array().is_some_and(|a| {
+            a.iter()
+                .any(|c| c.as_str().is_some_and(|c| c.ends_with("|PLAYING")))
+        })
+    });
+    // Fullscreen.
+    frame.shell.fullscreen = true;
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = results_until(&luna, &dir, 10, |r| {
+        r["seen"]["container"].as_array().is_some_and(|a| {
+            a.iter().any(|c| {
+                c.as_str()
+                    .is_some_and(|c| c.contains("_isFullscreen_75c1ba4"))
+            })
+        })
+    });
+    assert_eq!(r["missing"], Value::Null, "{r}");
+    let saw = |name: &str, want: &str| {
+        assert!(
+            r["seen"][name]
+                .as_array()
+                .is_some_and(|a| a.iter().any(|c| c.as_str() == Some(want))),
+            "{name} never became {want:?}: {}",
+            r["seen"][name]
+        );
+    };
+    saw(
+        "footer",
+        "_player_8c80ae6 nowPlayingVisible _notFullscreen_60c5a14|PLAYING",
+    );
+    let has = |name: &str, class: &str| {
+        assert!(
+            r["seen"][name].as_array().is_some_and(|a| a
+                .iter()
+                .any(|c| c.as_str().is_some_and(|c| c.split(' ').any(|w| w == class)))),
+            "{name} never had {class}: {}",
+            r["seen"][name]
+        );
+    };
+    has("sidebar", "_nowPlayingVisible_03bf437");
+    has("header", "_nowPlayingVisible_03bf437");
+    has("main", "_nowPlayingVisible_b1bf3e8");
+    // The docked view was shown (no `_nowPlayingHidden_`) before it left.
+    assert!(
+        r["seen"]["docked"]
+            .as_array()
+            .is_some_and(|a| a.iter().any(|c| c
+                .as_str()
+                .is_some_and(|c| !c.contains("_nowPlayingHidden_")))),
+        "{}",
+        r["seen"]["docked"]
     );
     finish(luna, dir);
 }
