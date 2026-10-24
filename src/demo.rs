@@ -2122,6 +2122,29 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                     }
                 }
             }
+            // 2,000 liked songs as the play queue: what plugins read of a long
+            // queue and a large library at once, for `--demo-bench` and idle
+            // runs (`--demo-show big-playlist,long-queue`). The speaker is
+            // paused: the app asks a playing one for its queue again every ten
+            // seconds, and the demo's answers with none.
+            "long-queue" => {
+                let mut songs = (0..2000).map(|index| {
+                    let mut track = track(index);
+                    track.name = format!("{} {}", track.name, index + 1);
+                    app.saved.insert(track.uri.clone(), true);
+                    PlayableItem::Track(track)
+                });
+                let playing = songs.next();
+                let queue = songs.collect();
+                if let Some(remote) = &mut app.remote {
+                    remote.state.is_playing = false;
+                    remote.state.item = playing.clone();
+                }
+                app.queue = Loadable::Loaded(Queue {
+                    currently_playing: playing,
+                    queue,
+                });
+            }
             "focus" => app.settings.sidebar_visible = false,
             // A cold start: no device is playing anything, and all the app
             // has is the song the last session ended on.
