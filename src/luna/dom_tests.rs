@@ -4130,3 +4130,72 @@ R.done = true;
     assert_eq!(r["fresh"], json!("rgb(4, 5, 6)"), "{r}");
     finish(luna, dir);
 }
+
+/// A new part of the page arrives as React commits it: put together
+/// while detached and inserted as one node, so an observer on the page
+/// gets one record with the new subtree's root, the subtree inside it
+/// (TIDAL's new page is one record; Tidalfast's was one per element, and
+/// a plugin scanning the page for every added node scanned it hundreds of
+/// times).
+#[test]
+fn a_new_part_of_the_page_arrives_as_one_record() {
+    let (luna, _host, dir) = start(
+        r##"
+let on = false;
+const recs = [];
+new MutationObserver((list) => {
+	if (!on) return;
+	for (const r of list) {
+		if (r.type !== "childList" || !r.addedNodes.length) continue;
+		for (const n of r.addedNodes) recs.push([n.getAttribute?.("data-test") ?? n.nodeName, n.querySelectorAll?.('[data-test="x-cell"]').length ?? 0]);
+	}
+	R.recs = recs;
+}).observe(document.body, { childList: true, subtree: true });
+const wait = setInterval(() => {
+	if (!document.querySelector('[data-test="footer-track-title"]')) return;
+	clearInterval(wait);
+	on = true;
+	R.ready = true;
+}, 20);
+"##,
+    );
+    luna.sync_dom(tree());
+    results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
+    let mut t = tree();
+    let el = |key: &str, parent: &str, tag: &str, test: &str| super::dom::HostNode {
+        key: key.into(),
+        parent: Some(parent.into()),
+        tag: tag.into(),
+        attrs: vec![("data-test".into(), test.into())],
+        text: None,
+        rect: None,
+        value: None,
+        scroll: None,
+    };
+    t.nodes
+        .push(el("x-panel", keys::PAGE, "section", "x-panel"));
+    for i in 0..3 {
+        t.nodes
+            .push(el(&format!("x-row{i}"), "x-panel", "div", "x-row"));
+    }
+    for i in 0..3 {
+        let mut cell = el(
+            &format!("x-cell{i}"),
+            &format!("x-row{i}"),
+            "span",
+            "x-cell",
+        );
+        cell.text = Some(format!("Cell {i}"));
+        t.nodes.push(cell);
+    }
+    luna.sync_dom(t);
+    let r = results_until(&luna, &dir, 10, |r| r["recs"].is_array());
+    std::thread::sleep(Duration::from_millis(100));
+    luna.sync(Duration::from_secs(5));
+    let r = dom_results(&dir)
+        .get("recs")
+        .cloned()
+        .unwrap_or(r["recs"].clone());
+    assert_eq!(r, json!([["x-panel", 3]]));
+    finish(luna, dir);
+}
