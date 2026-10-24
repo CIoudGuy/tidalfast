@@ -17,8 +17,6 @@
 //! start; the runtime also answers `prefers-reduced-motion: reduce` then, so
 //! stylesheets that ask get what they wrote for it.
 
-use std::time::Duration;
-
 use egui::Color32;
 
 use crate::luna::dom::Style;
@@ -433,12 +431,12 @@ impl<V: Lerp> Eased<V> {
     }
 }
 
-/// Asks `ctx` for a frame `wake` seconds from now (the next one for zero).
+/// Asks `ctx` for a frame `wake` seconds from now (the next one for zero);
+/// a plugin window's page takes it at the window's frame cap
+/// ([`super::plugin_dom::request_frame_in`]).
 pub fn wake(ctx: &egui::Context, wake: Option<f64>) {
-    match wake {
-        Some(s) if s <= 0.0 => ctx.request_repaint(),
-        Some(s) => ctx.request_repaint_after(Duration::from_secs_f64(s.min(60.0))),
-        None => {}
+    if let Some(s) = wake {
+        super::plugin_dom::request_frame_in(ctx, s);
     }
 }
 

@@ -1808,7 +1808,7 @@ fn inline_with(
             tallest = tallest.max(used.y);
             if (used - last).length() > 0.5 {
                 ui.data_mut(|d| d.insert_temp(id, used));
-                ui.ctx().request_repaint();
+                plugin_dom::request_frame(ui.ctx());
             }
         }
     });
@@ -1819,7 +1819,7 @@ fn inline_with(
     };
     if (height - last_height).abs() > 0.5 {
         ui.data_mut(|d| d.insert_temp(run_id, height));
-        ui.ctx().request_repaint();
+        plugin_dom::request_frame(ui.ctx());
     }
     drawn
 }
@@ -1950,7 +1950,7 @@ fn place_layer(ctx: &egui::Context, key: (&'static str, u64), used: Rect) {
         return;
     }
     ctx.data_mut(|d| d.insert_temp(id, at));
-    ctx.request_repaint();
+    plugin_dom::request_frame(ctx);
 }
 
 /// Elements injected at `key`/`position`, drawn as a row placed by `align`
@@ -2071,7 +2071,7 @@ fn slot(
     let used = child.min_rect().size();
     if (used - last).length() > 0.5 {
         ui.ctx().data_mut(|d| d.insert_temp(id, used));
-        ui.ctx().request_repaint();
+        plugin_dom::request_frame(ui.ctx());
     }
     Some(Rect::from_min_size(rect.min, used))
 }
@@ -2273,7 +2273,7 @@ pub fn floating(ui: &egui::Ui) {
                 let now = (!inert && used.area() > screen.area() * 0.5).then_some(used);
                 if now != big {
                     ui.data_mut(|d| d.insert_temp(big_id, now));
-                    ui.ctx().request_repaint();
+                    plugin_dom::request_frame(ui.ctx());
                 }
                 ui.expand_to_include_rect(used);
                 place_layer(ui.ctx(), ("luna-float", node.id), used);
@@ -3442,7 +3442,7 @@ fn positioned(ui: &mut egui::Ui, node: &VNode, container: Rect, inherit: Inherit
     let used = child.min_rect();
     if (used.size() - last).length() > 0.5 {
         ui.ctx().data_mut(|d| d.insert_temp(id, used.size()));
-        ui.ctx().request_repaint();
+        plugin_dom::request_frame(ui.ctx());
     }
     used
 }
@@ -3839,7 +3839,7 @@ fn draw_inline_flow(
                         let w = r.response.rect.width().max(0.0);
                         if !too_wide && widths[i].is_none_or(|l| (l - w).abs() > 0.5) {
                             ui.data_mut(|d| d.insert_temp(key(i), w));
-                            ui.ctx().request_repaint();
+                            plugin_dom::request_frame(ui.ctx());
                         }
                     }
                 },
@@ -4052,7 +4052,7 @@ fn draw_wrapped(
                             let last: Option<f32> = ui.data(|d| d.get_temp(width_id(child)));
                             if last.is_none_or(|l| (l - used).abs() > 0.5) {
                                 ui.data_mut(|d| d.insert_temp(width_id(child), used));
-                                ui.ctx().request_repaint();
+                                plugin_dom::request_frame(ui.ctx());
                             }
                         }
                     },
@@ -5636,7 +5636,7 @@ fn draw_box(
                                             let last: Option<f32> = ui.data(|d| d.get_temp(hid));
                                             if last.is_none_or(|l| (l - own_h).abs() > 0.5) {
                                                 ui.data_mut(|d| d.insert_temp(hid, own_h));
-                                                ui.ctx().request_repaint();
+                                                plugin_dom::request_frame(ui.ctx());
                                             }
                                         }
                                         let used = r.response.rect.width();
@@ -5644,7 +5644,7 @@ fn draw_box(
                                             ui.data(|d| d.get_temp(width_id(child)));
                                         if last.is_none_or(|l| (l - used).abs() > 0.5) {
                                             ui.data_mut(|d| d.insert_temp(width_id(child), used));
-                                            ui.ctx().request_repaint();
+                                            plugin_dom::request_frame(ui.ctx());
                                         }
                                     }
                                 }
@@ -5713,7 +5713,7 @@ fn draw_box(
                                         drawn |= shown;
                                         if last.is_none_or(|l| (l - used).abs() > 0.5) {
                                             ui.data_mut(|d| d.insert_temp(hid, used));
-                                            ui.ctx().request_repaint();
+                                            plugin_dom::request_frame(ui.ctx());
                                         }
                                         continue;
                                     }
@@ -5748,7 +5748,7 @@ fn draw_box(
                                                 ui.data_mut(|d| {
                                                     d.insert_temp(height_id(child), used)
                                                 });
-                                                ui.ctx().request_repaint();
+                                                plugin_dom::request_frame(ui.ctx());
                                             }
                                         }
                                         None => {
@@ -5771,14 +5771,14 @@ fn draw_box(
                             let used = ui.min_rect().width();
                             if wrapped.is_none_or(|w| (w - used).abs() > 0.5) {
                                 ui.data_mut(|d| d.insert_temp(shrink_id, used));
-                                ui.ctx().request_repaint();
+                                plugin_dom::request_frame(ui.ctx());
                             }
                         }
                         if free_height {
                             let h = ui.min_rect().height();
                             if held.is_none_or(|l| (l - h).abs() > 0.5) {
                                 ui.data_mut(|d| d.insert_temp(row_height_id, h));
-                                ui.ctx().request_repaint();
+                                plugin_dom::request_frame(ui.ctx());
                             }
                         }
                         if !justify.is_empty() {
@@ -5794,7 +5794,7 @@ fn draw_box(
                             let used = vec2(used.x.max(0.0), used.y.max(0.0));
                             if last.is_none_or(|l| (l - used).length() > 0.5) {
                                 ui.data_mut(|d| d.insert_temp(content_id, used));
-                                ui.ctx().request_repaint();
+                                plugin_dom::request_frame(ui.ctx());
                             }
                         }
                     })
@@ -5926,7 +5926,7 @@ fn draw_box(
             (l.min - rect.min).length() > 0.5 || (l.size() - rect.size()).length() > 0.5
         }) {
             ui.data_mut(|d| d.insert_temp(box_id, rect));
-            ui.ctx().request_repaint();
+            plugin_dom::request_frame(ui.ctx());
         }
     }
     if node.id & MEASURE_ID == 0 {

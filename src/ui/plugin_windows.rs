@@ -8,13 +8,16 @@
 //! a frameless window; closing it asks the plugin, as Electron does.
 //!
 //! A window repaints only when its page changed or the user acts on it,
-//! without the app's window. With no plugin window open, a frame here is
-//! one atomic load.
+//! without the app's window. While its page animates (a transition, an
+//! animation, a layout settling) it draws at most 60 frames a second with
+//! the keyboard focus and 30 without, and none while minimised or covered
+//! ([`pace`]). With no plugin window open, a frame here is one atomic load.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use egui::{Color32, Rect, ViewportBuilder, ViewportCommand, ViewportId, WindowLevel};
 
@@ -221,6 +224,38 @@ fn prepare(overlay: &DomOverlay) -> Option<(Arc<VNode>, Arc<Style>)> {
     Some((Arc::new(root), Arc::new(canvas)))
 }
 
+/// The shortest time between two frames of an animating page: 60 frames a
+/// second while its window has the keyboard focus, 30 while it has not (as
+/// the app's own endless decorations are drawn).
+const FRAME_FOCUSED: Duration = Duration::from_nanos(1_000_000_000 / 60);
+const FRAME_UNFOCUSED: Duration = Duration::from_nanos(1_000_000_000 / 30);
+
+/// Asks for the page's next frame (`frame_in` seconds from now, what the
+/// pass's drawing wanted) no sooner than the window's frame cap allows;
+/// none while the window is minimised or covered (its next pass draws the
+/// page as it is then: transitions and animations follow the clock).
+fn pace(ctx: &egui::Context, frame_in: Option<f64>) {
+    let Some(seconds) = frame_in else {
+        return;
+    };
+    let (focused, unseen) = ctx.input(|i| {
+        let v = i.viewport();
+        (
+            v.focused.unwrap_or(false),
+            v.minimized.unwrap_or(false) || v.occluded.unwrap_or(false),
+        )
+    });
+    if unseen {
+        return;
+    }
+    let cap = if focused {
+        FRAME_FOCUSED
+    } else {
+        FRAME_UNFOCUSED
+    };
+    crate::theme::repaint_after(ctx, Duration::from_secs_f64(seconds.max(0.0)).max(cap));
+}
+
 /// Whether a press at `p` moves the window: the innermost box with a
 /// `-webkit-app-region` there decides (`regions` lists inner boxes first),
 /// as Electron's drag and no-drag regions nest.
@@ -322,6 +357,7 @@ fn draw_pass(ui: &mut egui::Ui, w: &PageWindow) {
             plugin_slots::page(ui, root, canvas, rect);
         }
     });
+    pace(&ctx, scope.frame_in);
     let pointer = ctx.input(|i| i.pointer.hover_pos());
     if ctx.input(|i| i.pointer.primary_pressed())
         && pointer.is_some_and(|p| drags(&scope.regions, p))
@@ -571,5 +607,78 @@ mod tests {
             !drags(&regions, Pos2::new(299.0, 150.0)),
             "outside the body"
         );
+    }
+
+    /// The frame delay egui reports after `passes` passes of the page in
+    /// `o`, the window focused or not.
+    fn frame_delay(o: &Arc<DomOverlay>, focused: bool, passes: usize) -> (Duration, Option<f64>) {
+        let (root, canvas) = prepare(o).unwrap();
+        let ctx = egui::Context::default();
+        let size = vec2(300.0, 160.0);
+        let mut last = (Duration::MAX, None);
+        for _ in 0..passes {
+            let mut input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, size)),
+                ..egui::RawInput::default()
+            };
+            input.viewports.insert(
+                ViewportId::ROOT,
+                egui::ViewportInfo {
+                    focused: Some(focused),
+                    ..egui::ViewportInfo::default()
+                },
+            );
+            let mut frame_in = None;
+            let mut out = ctx.run_ui(input, |ui| {
+                let scope = PageScope {
+                    overlay: o.clone(),
+                    viewport: [size.x, size.y],
+                    ..PageScope::default()
+                };
+                let rect = ui.max_rect();
+                let ((), scope) = plugin_dom::with_page(scope, || {
+                    plugin_slots::page(ui, &root, &canvas, rect);
+                });
+                frame_in = scope.frame_in;
+                pace(ui.ctx(), scope.frame_in);
+            });
+            out.textures_delta.clear();
+            last = (
+                out.viewport_output[&ViewportId::ROOT].repaint_delay,
+                frame_in,
+            );
+        }
+        last
+    }
+
+    /// A page that animates (its button fading in over five seconds) asks
+    /// for its next frame no sooner than the window's frame cap: a
+    /// sixtieth of a second with the focus, a thirtieth without, not at
+    /// every refresh the display (or, off-screen, the GPU) allows. A page
+    /// at rest asks for none.
+    #[test]
+    fn an_animating_page_draws_at_the_windows_frame_cap() {
+        let mut o = page_overlay();
+        o.injected[0].nodes[0].children[0].children[0]
+            .style
+            .animation = Some("fade 5 0 1 normal linear running none".into());
+        let opacity = |v: &str| Style {
+            opacity: Some(v.into()),
+            ..Style::default()
+        };
+        o.keyframes.insert(
+            "fade".into(),
+            vec![(0.0, opacity("0")), (1.0, opacity("1"))],
+        );
+        let o = Arc::new(o);
+        let ms = |d: Duration| d.as_secs_f64() * 1000.0;
+        let (focused, wanted) = frame_delay(&o, true, 4);
+        assert_eq!(wanted, Some(0.0), "the fade wants every frame");
+        assert!((16.0..17.5).contains(&ms(focused)), "{focused:?}");
+        let (unfocused, _) = frame_delay(&o, false, 4);
+        assert!((33.0..34.5).contains(&ms(unfocused)), "{unfocused:?}");
+        let (rest, wanted) = frame_delay(&Arc::new(page_overlay()), true, 4);
+        assert_eq!(wanted, None);
+        assert!(rest > Duration::from_secs(1), "{rest:?}");
     }
 }

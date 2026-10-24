@@ -332,6 +332,9 @@ pub struct PageScope {
     /// Boxes with a `-webkit-app-region` (`true`: drag), innermost first
     /// (an element is done after what it holds).
     pub regions: Vec<(Rect, bool)>,
+    /// The page wants its next frame in this many seconds (a transition, an
+    /// animation, a layout settling); the window paces it.
+    pub frame_in: Option<f64>,
 }
 
 /// Runs `f` with `scope` as the document being drawn, and gives the scope
@@ -356,6 +359,26 @@ pub fn with_page<R>(scope: PageScope, f: impl FnOnce() -> R) -> (R, PageScope) {
 /// plugin window, pressing there moves the window.
 pub fn app_region(r: Rect, drag: bool) {
     in_page(|p| p.regions.push((r, drag)));
+}
+
+/// Asks for the next frame of what is being drawn. A plugin window's page
+/// notes it for its window, which draws it at its frame cap
+/// (`plugin_windows.rs`); elsewhere egui draws it at once.
+pub fn request_frame(ctx: &egui::Context) {
+    request_frame_in(ctx, 0.0);
+}
+
+/// [`request_frame`], `seconds` from now.
+pub fn request_frame_in(ctx: &egui::Context, seconds: f64) {
+    let seconds = seconds.clamp(0.0, 60.0);
+    if in_page(|p| p.frame_in = Some(p.frame_in.map_or(seconds, |f| f.min(seconds)))).is_some() {
+        return;
+    }
+    if seconds <= 0.0 {
+        ctx.request_repaint();
+    } else {
+        ctx.request_repaint_after(Duration::from_secs_f64(seconds));
+    }
 }
 
 /// Whether a plugin window's page is being drawn ([`with_page`]).
