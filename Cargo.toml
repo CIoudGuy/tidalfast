@@ -306,30 +306,36 @@ panic = "abort"
 opt-level = 2
 
 [patch.crates-io]
-# crmne/egui apps-0.36, shared with ZapFast, RekordFlash and TonePush: egui
-# 0.36.1 with right-to-left runs shaped in their bidi direction and digits
-# shaped left to right in text without right-to-left letters
-# (emilk/egui#8577), egui's busy-loop fix (emilk/egui#8398), and eframe pacing
-# Wayland frames by the compositor's frame callbacks so a window the
-# compositor stops showing never blocks in a vsync swap (emilk/egui#8631,
-# #266), each emoji cluster laid out one emoji wide, and egui's clipboard
-# sharing its Wayland data device with winit's file drops (#614), accesskit
-# focus on a widget drawn a frame later (emilk/egui#8621), a compatibility
-# profile when a core GL context fails (emilk/egui#8655), and the zoom factor
-# saved with the window size so a zoomed window keeps its size
-# (emilk/egui#8656). Every egui
-# crate comes from the same revision so they share one emath and epaint.
-# Drop this once egui releases these changes.
-ecolor = { git = "https://github.com/crmne/egui", rev = "ba6790fe7cf46e58e8d27ce1524cbfdee745e938" }
-eframe = { git = "https://github.com/crmne/egui", rev = "ba6790fe7cf46e58e8d27ce1524cbfdee745e938" }
-egui = { git = "https://github.com/crmne/egui", rev = "ba6790fe7cf46e58e8d27ce1524cbfdee745e938" }
-egui-wgpu = { git = "https://github.com/crmne/egui", rev = "ba6790fe7cf46e58e8d27ce1524cbfdee745e938" }
-egui-winit = { git = "https://github.com/crmne/egui", rev = "ba6790fe7cf46e58e8d27ce1524cbfdee745e938" }
-egui_extras = { git = "https://github.com/crmne/egui", rev = "ba6790fe7cf46e58e8d27ce1524cbfdee745e938" }
-egui_glow = { git = "https://github.com/crmne/egui", rev = "ba6790fe7cf46e58e8d27ce1524cbfdee745e938" }
-emath = { git = "https://github.com/crmne/egui", rev = "ba6790fe7cf46e58e8d27ce1524cbfdee745e938" }
-epaint = { git = "https://github.com/crmne/egui", rev = "ba6790fe7cf46e58e8d27ce1524cbfdee745e938" }
-epaint_default_fonts = { git = "https://github.com/crmne/egui", rev = "ba6790fe7cf46e58e8d27ce1524cbfdee745e938" }
+# CIoudGuy/egui, branch tidalfast: the owner's fork of crmne/egui apps-0.36.2
+# (6ce633ba), the branch ZapFast, RekordFlash and TonePush share. That branch
+# is egui 0.36.2 (among its fixes: egui's busy-loop fix, emilk/egui#8398,
+# Sense::drag and DragValue fixes, and transparent child viewports on Windows
+# with glow, emilk/egui#8423) with right-to-left runs shaped in their bidi
+# direction and digits shaped left to right in text without right-to-left
+# letters (emilk/egui#8577), eframe pacing Wayland frames by the compositor's
+# frame callbacks so a window the compositor stops showing never blocks in a
+# vsync swap (emilk/egui#8631, #266), each emoji cluster laid out one emoji
+# wide, egui's clipboard sharing its Wayland data device with winit's file
+# drops (#614), accesskit focus on a widget drawn a frame later
+# (emilk/egui#8621), a compatibility profile when a core GL context fails
+# (emilk/egui#8655), and the zoom factor saved with the window size so a
+# zoomed window keeps its size (emilk/egui#8656). The fork adds what
+# see-through plugin windows need: ViewportBuilder options that leave out
+# the border, rounded corners and shadow Windows 11 draws around a frameless
+# window, and eframe's NativeOptions::transparent_viewports, a GL config with
+# alpha so that see-through child windows also work on X11 and macOS. Every
+# egui crate comes from the same revision so they share one emath and
+# epaint. Move to crmne/egui again once it carries these changes.
+ecolor = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
+eframe = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
+egui = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
+egui-wgpu = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
+egui-winit = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
+egui_extras = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
+egui_glow = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
+emath = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
+epaint = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
+epaint_default_fonts = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
 # crmne/winit apps-0.30, shared with the same apps: winit 0.30.13 plus Wayland
 # `Occluded` for the xdg-shell suspended state with commits on the app's behalf
 # while it isn't presenting (rust-windowing/winit#4709, #4710), macOS Quit
