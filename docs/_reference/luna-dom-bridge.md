@@ -219,6 +219,20 @@ child`, `:empty`, `:root`, `:checked`, `:disabled`, combinators, escapes.
 - `scroll_to`: `scrollIntoView` on a host (or a node inside one).
   `scrollTo`/`scrollTop =` on a host container set `scroll_top` and name the
   row nearest the middle of the new view in `scroll_to`.
+- `theme_version`: changes only when what a theme's look is made of
+  changes (the anchors' overrides, `vars`, `page`, the keyframes). An
+  overlay that changes only plugin elements (a counter, a sprite, the sung
+  line) keeps it, and the UI keeps the palette, looks, layers and shell
+  geometry it resolved from the theme while the window keeps its size.
+
+A build keeps an app element's entry while what it is made of is the same:
+its resolved style and pseudo boxes, whether CSS hides it or the element
+round it, its classes, the listeners and where it sits in the tree. A host's
+inline custom property that no rule, pseudo-element rule or keyframe reads
+(TIDAL's progress bar sets `--progress` every second) builds no overlay: the
+element's cascade is redone, so a script reads the new value, and nothing
+else. A rule that reads it, or one added later, gets every value at once,
+as does a theme whose selectors read the `style` attribute.
 
 **Frames and observers.** `requestAnimationFrame` callbacks run together on
 ~16 ms frame boundaries, only while some are queued. `ResizeObserver` and
