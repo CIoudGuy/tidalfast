@@ -3031,7 +3031,10 @@ fn tidal_row_cells(
             Some(key) => super::plugin_dom::text(key, app.row_title(row.item)),
             None => std::borrow::Cow::Borrowed(app.row_title(row.item)),
         };
-        theme::text(&mut child, title.as_ref(), text_font.clone(), color);
+        // A plugin hid the title's text (`display: none`): the badges stay.
+        if !link_key.as_deref().is_some_and(super::plugin_dom::hidden) {
+            theme::text(&mut child, title.as_ref(), text_font.clone(), color);
+        }
         let PlayableItem::Track(track) = row.item;
         if track.explicit {
             explicit_badge(&mut child, &palette);
@@ -3102,7 +3105,14 @@ fn tidal_row_cells(
             } else {
                 album.name.clone()
             };
-            if theme::link(&mut child, name, text_font.clone(), album_color).clicked()
+            let hidden = super::plugin_dom::on()
+                && super::plugin_dom::hidden(&crate::luna::dom_anchors::keys::row_cell(
+                    &super::plugin_dom::list_id(row.context),
+                    row.index,
+                    "album-link",
+                ));
+            if !hidden
+                && theme::link(&mut child, name, text_font.clone(), album_color).clicked()
                 && !album.id.is_empty()
             {
                 app.actions
@@ -3178,13 +3188,21 @@ fn tidal_row_cells(
         x += cols.extra;
     }
     if cols.time > 0.0 {
-        painter.text(
-            pos2(x, rect.center().y),
-            egui::Align2::LEFT_CENTER,
-            util::format_duration_ms(row.item.duration_ms()),
-            text_font,
-            time_color,
-        );
+        let hidden = super::plugin_dom::on()
+            && super::plugin_dom::hidden(&crate::luna::dom_anchors::keys::row_cell(
+                &super::plugin_dom::list_id(row.context),
+                row.index,
+                "duration",
+            ));
+        if !hidden {
+            painter.text(
+                pos2(x, rect.center().y),
+                egui::Align2::LEFT_CENTER,
+                util::format_duration_ms(row.item.duration_ms()),
+                text_font,
+                time_color,
+            );
+        }
         x += cols.time;
     }
     if cols.bpm > 0.0 {
@@ -6882,6 +6900,126 @@ mod tests {
             uri: uri.to_string(),
             ..Default::default()
         })
+    }
+
+    /// element-hider's "Hide This Element" sets `display: none` on the cell
+    /// it was used on. The overlay held it, but the row went on drawing the
+    /// title, artist, album and duration; each hidden cell is now left out
+    /// and the others stay.
+    #[test]
+    fn a_row_cell_a_plugin_hid_is_not_drawn() {
+        use crate::api::models::{Album, ArtistRef};
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::keys::row_cell;
+        let item = PlayableItem::Track(Track {
+            uri: "tidal:track:1".into(),
+            name: "Quiet Title".into(),
+            duration_ms: 185_000,
+            artists: vec![ArtistRef {
+                id: Some("a".into()),
+                name: "Quiet Artist".into(),
+                ..Default::default()
+            }],
+            album: Some(Album {
+                id: "al".into(),
+                name: "Quiet Album".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        let context = RowContext::Queue;
+        let drawn = |hide: &[&str]| {
+            let hosts = hide
+                .iter()
+                .map(|cell| {
+                    (
+                        row_cell("queue", 0, cell),
+                        HostOverride {
+                            style: Style {
+                                display: Some("none".into()),
+                                ..Style::default()
+                            },
+                            ..HostOverride::default()
+                        },
+                    )
+                })
+                .collect();
+            crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+                version: 1,
+                hosts,
+                ..DomOverlay::default()
+            }));
+            let mut app = test_app();
+            app.backend.shutdown();
+            let ctx = egui::Context::default();
+            theme::install(&ctx);
+            theme::apply(&ctx, &app.palette);
+            let mut words = Vec::new();
+            for _ in 0..2 {
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            vec2(1500.0, 520.0),
+                        )),
+                        ..Default::default()
+                    },
+                    |ui| {
+                        track_row(
+                            ui,
+                            &mut app,
+                            TrackRow {
+                                index: 0,
+                                number: Some(1),
+                                item: &item,
+                                context: &context,
+                                show_cover: false,
+                                numbered: true,
+                                show_album: true,
+                                added_at: None,
+                                show_added: false,
+                                added_by: None,
+                                show_added_by: false,
+                                compact: false,
+                                shift: 0.0,
+                                picked: false,
+                                picked_songs: &[],
+                            },
+                        );
+                    },
+                );
+                output.textures_delta.clear();
+                words = output
+                    .shapes
+                    .iter()
+                    .filter_map(|shape| match &shape.shape {
+                        egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+            }
+            crate::ui::plugin_dom::test_overlay(None);
+            words
+        };
+        let all = drawn(&[]);
+        for word in ["Quiet Title", "Quiet Artist", "Quiet Album", "3:05"] {
+            assert!(all.iter().any(|w| w == word), "{word} in {all:?}");
+        }
+        for (cell, word) in [
+            ("title-text", "Quiet Title"),
+            ("artist:0", "Quiet Artist"),
+            ("album-link", "Quiet Album"),
+            ("duration", "3:05"),
+        ] {
+            let shown = drawn(&[cell]);
+            assert!(!shown.iter().any(|w| w == word), "{cell}: {shown:?}");
+            for other in ["Quiet Title", "Quiet Artist", "Quiet Album", "3:05"] {
+                assert!(
+                    other == word || shown.iter().any(|w| w == other),
+                    "{cell} hid {other}: {shown:?}"
+                );
+            }
+        }
     }
 
     #[test]
