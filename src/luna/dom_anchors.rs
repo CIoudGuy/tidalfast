@@ -1585,22 +1585,30 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             node = node.attr("href", href.clone());
         }
         out.push(node);
-        // The row's icon, before its words as in TIDAL's markup.
-        out.push(el(
-            keys::sidebar_item_icon(&item.test),
-            Some(&keys::sidebar_item(&item.test)),
-            "svg",
-        ));
+        // The row's icon, before its words, as TIDAL 2.46.0 marks them up
+        // (captured: `svg._icon_77f3f89._icon_b8b52c1` and `span.
+        // _marketText_1lyag_1._semibold20_1lyag_246._title_f46b277`): rules
+        // for TIDAL's icons (the cotton candy family's nested
+        // `._navigationItem_ { ._icon_77f3f89 { fill } }`) reach them.
+        out.push(
+            el(
+                keys::sidebar_item_icon(&item.test),
+                Some(&keys::sidebar_item(&item.test)),
+                "svg",
+            )
+            .class("_icon_77f3f89 _icon_b8b52c1"),
+        );
         out.push(
             el(
                 keys::sidebar_item_label(&item.test),
                 Some(&keys::sidebar_item(&item.test)),
                 "span",
             )
-            .class("_marketText_1lyag_1")
+            .class("_marketText_1lyag_1 _semibold20_1lyag_246 _title_f46b277")
             .at(item.rect),
         );
-        // Collection opens its menu: TIDAL's `svg._arrowRight_f57b400`.
+        // Collection opens its menu: TIDAL's `svg._icon_77f3f89._icon_b8b52c1
+        // ._arrowRight_f57b400`, an icon like the row's.
         if item.test == "sidebar-collection-menu" {
             out.push(
                 el(
@@ -1608,7 +1616,7 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
                     Some(&keys::sidebar_item(&item.test)),
                     "svg",
                 )
-                .class("_arrowRight_f57b400"),
+                .class("_icon_77f3f89 _icon_b8b52c1 _arrowRight_f57b400"),
             );
         }
     }

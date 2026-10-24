@@ -1506,11 +1506,12 @@ fn nav_row(
         );
         if chevron {
             // A theme's colour for TIDAL's `svg._arrowRight_` (Tidal
-            // Light's black).
-            let ink =
-                super::plugin_dom::color(&crate::luna::dom_anchors::keys::sidebar_item_arrow(test))
-                    .filter(|c| c.a() > 0)
-                    .unwrap_or(palette.tertiary());
+            // Light's black): its `fill`, else its `color`, as for the
+            // row's icon.
+            let ink = super::plugin_dom::sidebar_icon(
+                &crate::luna::dom_anchors::keys::sidebar_item_arrow(test),
+            )
+            .unwrap_or(palette.tertiary());
             Icon::ChevronRight.image(ink, 16.0).paint_at(
                 ui,
                 Rect::from_center_size(
@@ -3989,5 +3990,52 @@ mod nav_label_tests {
         assert!(glowing > flat + 4, "inset glow: {flat} -> {glowing}");
         let (shadowed, _) = shapes(Some("0 0 1em rgba(0, 0, 0, .4)"));
         assert!(shadowed > flat + 4, "outer shadow: {flat} -> {shadowed}");
+    }
+
+    /// Collection's chevron is an icon: TIDAL paints it in its `fill` (the
+    /// cotton candy family's `._navigationItem_ { ._icon_77f3f89 { fill:
+    /// rgba(255, 255, 255, .831) } }`), which outweighs its `color`. The
+    /// chevron took only a `color`, so a fill left it grey.
+    #[test]
+    fn collections_chevron_is_drawn_in_its_fill() {
+        use crate::luna::dom::Style;
+        let green = egui::Color32::from_rgb(10, 200, 100);
+        let mut overlay = DomOverlay {
+            version: 7,
+            ..DomOverlay::default()
+        };
+        overlay.hosts.insert(
+            crate::luna::dom_anchors::keys::sidebar_item_arrow("sidebar-collection-menu"),
+            HostOverride {
+                style: Style {
+                    fill: Some("rgb(10, 200, 100)".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        super::super::plugin_dom::test_overlay(Some(overlay));
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            nav_row(
+                ui,
+                &Palette::dark(),
+                "sidebar-collection-menu",
+                Icon::Collection,
+                "Collection",
+                false,
+                true,
+            );
+        });
+        out.textures_delta.clear();
+        super::super::plugin_dom::test_overlay(None);
+        // The icons are textured rects tinted with their ink.
+        let tinted = out.shapes.iter().any(|c| match &c.shape {
+            egui::Shape::Rect(r) => r.fill == green,
+            egui::Shape::Mesh(m) => m.vertices.iter().any(|v| v.color == green),
+            _ => false,
+        });
+        assert!(tinted, "the chevron in the theme's fill");
     }
 }
