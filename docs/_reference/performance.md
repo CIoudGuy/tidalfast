@@ -961,6 +961,37 @@ The cost of an open window (the change, miniplayer's 700x380 window):
   A release build and a frame cap for plugin windows (as the app's endless
   decorations have) are for round 2.
 
+## Plugin windows: frame cap and release numbers (2026-10-24, round 3)
+
+An animating page (a transition, an animation, a layout settling) no longer
+asks egui for every frame: what its drawing asks for is noted for its
+window (`plugin_dom::request_frame`), and the window asks for its next frame
+no sooner than a sixtieth of a second with the keyboard focus, a thirtieth
+without, and not at all while minimised or covered (`plugin_windows::pace`).
+Off-screen, where no display paces a window, the debug build had drawn 107
+passes a second while miniplayer's transitions ran (round 1; a release build
+without the cap was not measured).
+
+Release build with the `demo` feature (`lto = "thin"`, one codegen unit),
+Windows 11, NVIDIA (OpenGL), the app's window and plugin windows off-screen,
+BelowNormal priority, the demo paused, CPU over 30 s as a share of one core
+for the whole process:
+
+| Scenario | CPU | Private memory | Plugin window passes |
+| --- | --- | --- | --- |
+| lyrics-everywhere installed, no window open (Plugins page, after 60 s; 2 samples) | 0.31 %, 0.26 % | 188, 189 MB | none |
+| Its lyrics window open and idle (20 s after opening; 2 samples) | 0.05 %, 0.21 % | 213 MB | none after the first second |
+| miniplayer's mini player with its lyrics button clicked twice a second (0.3 to 0.4 s of transitions each time), focused; its taskbar widget open too | 20.9 % | 210 MB | 55 to 58 a second, 0.63 to 0.74 ms each (mean), 1.4 to 3.6 ms at most |
+
+An idle plugin window costs no passes and no CPU beyond noise; its page's
+runtime, document and second GL surface take about 24 MB. While a page
+animates its window stays under its 60-frame cap; the process's 21 % is the
+window's passes, the page thread's script and style work for each frame of
+the transitions, and its overlay going to the UI. Not measured: an animating
+window without the focus (the unit test
+`plugin_windows::tests::an_animating_page_draws_at_the_windows_frame_cap`
+checks its 30-frame cap) and a window on screen, where vsync also paces it.
+
 ## Findings and decisions
 
 - **Long lists are already virtualised.** Track tables, card grids and the

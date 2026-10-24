@@ -1090,16 +1090,52 @@ copies what it exposes; functions stay callable.
 `show`/`showInactive`/`hide`, `focus`, `setAlwaysOnTop`, `setTitle`,
 `setResizable`, `setMinimumSize`/`setMaximumSize`, `setSkipTaskbar`.
 Only what changes goes out (a plugin re-asserting always-on-top every 200 ms
-costs nothing). `move`/`resize`, `focus`/`blur` and `getBounds` follow the
+costs nothing). The window takes its page's `<title>` unless a
+`page-title-updated` listener prevents it, as Electron's does.
+`move`/`resize`, `focus`/`blur` and `getBounds` follow the
 real window. Closing it (its close button, `window.close()` in the page,
 or `close()`) emits `close`, which a listener may cancel, then `closed`.
 A plugin's windows close when it stops, and all of them when Luna stops.
+
+**Input.** Clicks, the pointer (`:hover`) and the wheel go to the page's
+elements; keys pressed in the window go to the page as `keydown` and
+`keyup` (the DOM's `key`, `code` and modifiers) on its focused element, else
+its body, bubbling to the document, as Chromium sends them
+(lyrics-everywhere's window closes on Escape). A press in a `drag` region
+moves the window with the system's own move (seen with a real mouse drag on
+Windows, 2026-10-24: the window followed the pointer exactly).
+
+**Screen and browser identity.** Plugins and pages see the real displays:
+Electron's `screen` (`getPrimaryDisplay`, `getAllDisplays`,
+`getDisplayNearestPoint`, `getDisplayMatching`, `screenToDipPoint` and
+`dipToScreenPoint`; `display-added`, `display-removed` and
+`display-metrics-changed`) and the web's `window.screen` (`width`,
+`height`, `availWidth`, `availHeight`, `availLeft`, `availTop`,
+`isExtended`, `orientation`) and `devicePixelRatio` (`src/luna/screen.rs`).
+The UI reads the monitors from winit at the app window's first pass and then,
+once a plugin has read them, every two seconds; each monitor's work area
+comes from the system on Windows (the taskbar left out) and is the whole
+display elsewhere for now. Lengths are DIPs, each monitor's size over its
+own scale, monitors of different scales placed side by side as Chromium
+places them. The app's page sees the display its window is on and the
+window's scale (zoom included); a plugin window's page sees its own.
+`navigator.userAgent` is Electron's default on the same system
+(`Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
+like Gecko) Tidalfast/0.0.0 Chrome/126.0.0 Electron/31.0.0 Safari/537.36`
+on Windows, from `versions.rs`), with `appVersion`, `vendor` and the
+user-agent client hints (`navigator.userAgentData`). Plugins that branch on
+the system now see it: on Windows miniplayer opens its taskbar widget at
+load, placed from the real work area.
 
 **Cost.** Nothing runs while no plugin window is open: the app's pass
 reads one counter. An open window is an egui deferred viewport: it
 repaints only when its page publishes a new overlay or the user acts on
 it, without a pass of the app's window; its page's thread sleeps until a
-timer or message is due.
+timer or message is due. While its page animates (a transition, an
+animation, a layout settling) the window draws at most 60 frames a second
+with the keyboard focus and 30 without, and none while it is minimised or
+covered (`plugin_windows::pace`; what the page's drawing asks for is noted
+for its window instead of egui's next frame).
 
 **What the windowing layer can do** (winit through the crmne eframe fork,
 glow renderer):
@@ -1134,17 +1170,27 @@ its container; a flex row's items are as wide as what they hold unless
 they grow (`flex: 1` takes the rest); a column that centres its items is
 as wide as its widest one; `justify-content: space-between`, `-around` and
 `-evenly` share the free room out round the items; a row that centres its
-items puts a shorter one in its middle by last frame's heights.
+items puts a shorter one in its middle by last frame's heights. A box of a
+definite height lays out what it holds in that height (a child's
+`height: 100%` is the box's, as a progress bar's fill), and what scripts read
+of an element (`getBoundingClientRect`) and a drag region are its border
+box, without its margins.
 
 **Not yet** (see the plan in `.internal/PLUGIN-WINDOWS-PROGRESS.md`):
 pages from `http(s)` URLs, `<script src>`, `@import` in a linked sheet,
-`scrollIntoView` inside a page's scroll box, keyboard input and text
-fields in a page, `webContents.executeJavaScript`/`insertCSS` on a plugin
-window, `ipcRenderer.sendSync`, a separate isolated world for the preload
-(it shares the page's realm, as with `contextIsolation: false`), real
-`screen` displays (work area, scale), `center()`, `setOpacity`,
+`scrollIntoView` inside a page's scroll box, text fields in a page, a flex
+column held to a `max-height` shrinking an item with `min-height: 0` so
+that its `overflow-y: auto` child scrolls (lyrics-everywhere's full lyrics
+run past its window), CSS grid tracks such as `auto 1fr auto`
+(miniplayer's taskbar progress row) and a grid of absolutely placed names
+(lyrics-everywhere's colour presets), `webContents.executeJavaScript`/
+`insertCSS` on a plugin window, `ipcRenderer.sendSync`, a separate isolated
+world for the preload (it shares the page's realm, as with
+`contextIsolation: false`), the work area outside Windows, `@media`
+`resolution` from `devicePixelRatio`, `center()`, `setOpacity`,
 `setIgnoreMouseEvents`, and moving a window to the top without focusing
-it (`moveTop` does nothing).
+it (`moveTop` does nothing; a widget over the taskbar can end up under it
+once the taskbar is clicked).
 
 ### Plugin round 7 (2026-10-24)
 
