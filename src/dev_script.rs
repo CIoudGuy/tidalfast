@@ -132,6 +132,13 @@ impl DevScript {
 
     /// Write a screenshot asked for by `shot` once it arrives (from `logic`).
     pub fn frame(&mut self, ctx: &egui::Context) {
+        // A `wait` asks for the frame that ends it from here: egui drops a
+        // delayed repaint asked for in the input hook (the pass about to
+        // run counts as serving it), and the script then stalled until
+        // something else repainted the window.
+        if let Some(at) = self.resume_at {
+            ctx.request_repaint_after(at.saturating_duration_since(Instant::now()));
+        }
         if self.shot.is_none() {
             return;
         }
@@ -367,5 +374,36 @@ drop x.wav",
         );
         // The pointer is at the given position, and stays there for a drop without one.
         assert_eq!(moves, [egui::pos2(40.0, 50.0), egui::pos2(40.0, 50.0)]);
+    }
+
+    /// A `wait` keeps the window drawing until it ends. egui drops a
+    /// delayed repaint asked for from the input hook, so a script's `wait`
+    /// stalled (for seconds, live) until something else repainted.
+    #[test]
+    fn a_wait_asks_for_the_frame_that_ends_it() {
+        let ctx = egui::Context::default();
+        // A new context repaints its first passes for itself.
+        for _ in 0..5 {
+            let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
+            out.textures_delta.clear();
+        }
+        let mut script = DevScript {
+            path: Some(PathBuf::from("no-such-dev-script")),
+            started: true,
+            ..DevScript::default()
+        };
+        script.parse(
+            "wait 200
+move 1 1",
+        );
+        let mut delay = Duration::MAX;
+        for _ in 0..2 {
+            let mut raw = egui::RawInput::default();
+            script.input(&ctx, &mut raw);
+            let mut out = ctx.run_ui(raw, |ui| script.frame(ui.ctx()));
+            out.textures_delta.clear();
+            delay = out.viewport_output[&egui::ViewportId::ROOT].repaint_delay;
+        }
+        assert!(delay <= Duration::from_millis(200), "{delay:?}");
     }
 }
