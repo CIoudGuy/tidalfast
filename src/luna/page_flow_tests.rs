@@ -102,6 +102,7 @@ await check("closedSeen", () => until(async () => ((await n("closed")) ? n("seen
         assert_eq!(windows.len(), 1, "one window is open");
         let spec = windows[0].spec();
         assert_eq!((spec.width, spec.height), (240.0, 120.0));
+        assert_eq!(spec.title, "Probe", "the window takes its page's title");
         assert!(spec.transparent && !spec.frame && spec.always_on_top && !spec.resizable);
         assert!(spec.visible);
         let root = root_until(luna, |r| {
