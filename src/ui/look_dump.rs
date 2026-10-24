@@ -63,6 +63,11 @@ pub fn looks_report(tree: &HostTree) -> Value {
                     if h.hidden() {
                         o.insert("hidden".into(), json!(true));
                     }
+                    // TIDAL's queue glass is drawn natively, and only while
+                    // the theme's rules left it in place.
+                    if n.key == crate::luna::dom_anchors::keys::QUEUE_PANEL {
+                        o.insert("glass".into(), json!(h.glass));
+                    }
                     if let Some(look) = look_of(h, &s.vars, s.frame.viewport) {
                         o.insert("look".into(), look_json(&look));
                     }
