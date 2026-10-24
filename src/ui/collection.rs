@@ -210,16 +210,16 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
                 2,
             )
         });
-    let meta_color = palette.text.gamma_multiply(0.8);
+    let (meta_color, meta_weight) = meta_style(&palette);
     let lines = hero.meta.len().max(usize::from(hero.badge.is_some()));
     // A narrow page wraps the meta lines (TIDAL: "20 / TRACKS (1:16:10)").
     let metas: Vec<_> = (0..lines)
         .map(|index| {
             let text = hero.meta.get(index).map(String::as_str).unwrap_or("");
             if narrow {
-                caps_galley_wrapped(ui, text, meta_color, width)
+                caps_galley_wrapped(ui, text, meta_color, meta_weight, width)
             } else {
-                caps_galley(ui, text, meta_color, width)
+                caps_galley(ui, text, meta_color, meta_weight, width)
             }
         })
         .collect();
@@ -555,11 +555,11 @@ fn stacked_hero(
         .map(|description| {
             widgets::ellipsized(ui, description, theme::medium(14.0), DESCRIPTION, width, 2)
         });
-    let meta_color = palette.text.gamma_multiply(0.8);
+    let (meta_color, meta_weight) = meta_style(&palette);
     let metas: Vec<_> = hero
         .meta
         .iter()
-        .map(|text| caps_galley(ui, text, meta_color, width))
+        .map(|text| caps_galley(ui, text, meta_color, meta_weight, width))
         .collect();
     // The heights, top down: the cover, 20, the title's 40-point line (and
     // its further rows), 10, the byline's 44, the description and 12, the
@@ -647,10 +647,34 @@ const DESCRIPTION: egui::Color32 = egui::Color32::from_rgb(0xaf, 0xaf, 0xb6);
 ///
 /// A line wider than `max_width` ends in an ellipsis; a playlist's tracks,
 /// saves and contributors are one line and ran off a narrow window.
+/// The header's meta words: TIDAL's 80 % white semibold, or what a theme's
+/// rules give TIDAL's meta items (`span.wave-text-capital-demi._metaItem_
+/// [data-wave-color=textSecondary]`, the release date's anchor; all of a
+/// header's meta items carry those classes in TIDAL 2.46.0).
+pub(crate) fn meta_style(palette: &theme::Palette) -> (egui::Color32, u16) {
+    let look = super::plugin_dom::anchor_look(crate::luna::dom_anchors::keys::PAGE_RELEASE);
+    let look = look.as_deref();
+    (
+        look.and_then(|l| l.text)
+            .unwrap_or_else(|| palette.text.gamma_multiply(0.8)),
+        look.and_then(|l| l.font_weight).unwrap_or(600),
+    )
+}
+
+/// TIDAL's semibold, or its bold from 700 up.
+fn caps_font(weight: u16) -> egui::FontId {
+    if weight >= 700 {
+        theme::bold(10.0)
+    } else {
+        theme::semibold(10.0)
+    }
+}
+
 fn caps_galley(
     ui: &egui::Ui,
     text: &str,
     color: egui::Color32,
+    weight: u16,
     max_width: f32,
 ) -> Arc<egui::Galley> {
     let mut job = egui::text::LayoutJob::default();
@@ -662,7 +686,7 @@ fn caps_galley(
         &text.to_uppercase(),
         0.0,
         egui::TextFormat {
-            font_id: theme::semibold(10.0),
+            font_id: caps_font(weight),
             color,
             extra_letter_spacing: 1.2,
             ..Default::default()
@@ -677,6 +701,7 @@ fn caps_galley_wrapped(
     ui: &egui::Ui,
     text: &str,
     color: egui::Color32,
+    weight: u16,
     max_width: f32,
 ) -> Arc<egui::Galley> {
     let mut job = egui::text::LayoutJob::default();
@@ -685,7 +710,7 @@ fn caps_galley_wrapped(
         &text.to_uppercase(),
         0.0,
         egui::TextFormat {
-            font_id: theme::semibold(10.0),
+            font_id: caps_font(weight),
             color,
             extra_letter_spacing: 1.2,
             ..Default::default()
@@ -4498,8 +4523,8 @@ mod tests {
             let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
                 let text =
                     "40 tracks (3:13:00) \u{2022} 12,346 saves \u{2022} with Kasia and 3 others";
-                let full = caps_galley(ui, text, egui::Color32::WHITE, f32::INFINITY);
-                let cut = caps_galley(ui, text, egui::Color32::WHITE, 200.0);
+                let full = caps_galley(ui, text, egui::Color32::WHITE, 600, f32::INFINITY);
+                let cut = caps_galley(ui, text, egui::Color32::WHITE, 600, 200.0);
                 widths = (full.size().x, cut.size().x);
                 last = cut.rows[0].glyphs.iter().map(|glyph| glyph.chr).collect();
             });

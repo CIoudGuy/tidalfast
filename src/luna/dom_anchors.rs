@@ -559,6 +559,9 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     // { transform: translateX(-.38em) }` names an older album title's,
     // which is none of them, and moved the bar's title here.
     ("titleContainer", "_titleContainer_2da23c0"),
+    // A header's meta words (`span.wave-text-capital-demi._metaItem_ed501cd
+    // [data-wave-color=textSecondary]`, TIDAL 2.46.0's only `_metaItem_`).
+    ("metaItem", "_metaItem_ed501cd"),
 ];
 
 /// Module names whose anchors carry TIDAL's exact hash, which differs by
@@ -2209,8 +2212,13 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 .at(meta.rect),
         );
         out.push(
+            // TIDAL 2.46.0's markup: the cotton candy family colours it by
+            // `[data-wave-color=textSecondary]` inside the album's header.
             el(PAGE_RELEASE, Some(PAGE_META), "span")
+                .class("wave-text-capital-demi")
+                .modules(&["metaItem"])
                 .test("meta-release-date")
+                .attr("data-wave-color", "textSecondary")
                 .text(meta.release_date.clone())
                 .at(meta.rect),
         );

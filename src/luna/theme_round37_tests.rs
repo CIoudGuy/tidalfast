@@ -182,6 +182,39 @@ fn an_older_tidal_builds_hash_names_neither_the_header_nor_the_bars_title() {
     }
 }
 
+/// A header's meta words are TIDAL 2.46.0's `span.wave-text-capital-demi
+/// ._metaItem_ed501cd[data-wave-color=textSecondary]` (the release date's
+/// anchor stands for them): the cotton candy family's `[class=
+/// "_dataContainer_66f4f40"] { [data-wave-color=textSecondary] { color;
+/// font-weight: 700 } }` makes the album's meta line dark and bold in
+/// TIDAL, and the header paints its meta words in that look.
+#[test]
+fn a_headers_meta_words_take_the_rules_for_tidals_meta_items() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::PAGE_RELEASE;
+    let css = r#"/* {"name": "Meta words"} */
+[data-test="meta-release-date"] { opacity: 0.99; }
+[class="_dataContainer_66f4f40"] { [data-wave-color=textSecondary] { color: rgb(10, 20, 30); font-weight: 700; } }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(page) = frame.page.as_mut() {
+        page.page_id = Some("album".into());
+        page.data = Some([240.0, 92.0, 1040.0, 300.0]);
+        page.meta = Some(dom_anchors::MetaLine {
+            rect: Some([240.0, 300.0, 400.0, 16.0]),
+            release_date: "2019".into(),
+        });
+    }
+    let tree = dom_anchors::build(&frame);
+    let luna = themed_luna("meta-words.css", css);
+    let o = wait(&luna, &tree, &|o| o.hosts.contains_key(PAGE_RELEASE));
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let style = crate::ui::collection::meta_style(&crate::theme::Palette::dark());
+    pd::test_overlay(None);
+    assert_eq!(style, (egui::Color32::from_rgb(10, 20, 30), 700));
+}
+
 /// The open playlist's row in the sidebar is TIDAL 2.46.0's
 /// `_contentItem_684cbbe _selected_ae83ba5`, two classes, which the cotton
 /// candy family names whole (`[class="_contentItem_684cbbe
