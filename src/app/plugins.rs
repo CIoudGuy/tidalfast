@@ -97,8 +97,16 @@ fn luna_lyrics(id: &str, lyrics: &crate::lyrics::Lyrics) -> Value {
     })
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Tracks made into TIDAL JSON on this thread ([`track_json`]).
+    static TRACK_JSONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// A TIDAL v1-shaped track for plugins, from what the app already knows.
 fn track_json(track: &Track) -> Value {
+    #[cfg(test)]
+    TRACK_JSONS.with(|n| n.set(n.get() + 1));
     let id = track
         .id
         .clone()
@@ -286,15 +294,13 @@ impl App {
         env
     }
 
-    /// The tracks of a context that are loaded in the app, as ids and
-    /// TIDAL-shaped JSON.
-    #[allow(clippy::type_complexity)]
-    pub(super) fn context_list(&self, uri: &str) -> Option<(Vec<String>, Vec<(String, Value)>)> {
+    /// The tracks of a context that are loaded in the app.
+    fn context_tracks(&self, uri: &str) -> Option<Vec<&Track>> {
         let mut parts = uri.split(':');
         let _ = parts.next();
         let kind = parts.next()?;
         let id = parts.next()?;
-        let tracks: Vec<&Track> = match kind {
+        Some(match kind {
             "album" => self.album_pages.get(id)?.tracks.items.iter().collect(),
             "mix" => self.mix_pages.get(id)?.tracks.items.iter().collect(),
             "toptracks" => self.artist_top_pages.get(id)?.tracks.items.iter().collect(),
@@ -311,10 +317,16 @@ impl App {
                 })
                 .collect(),
             _ => return None,
-        };
+        })
+    }
+
+    /// The tracks of a context that are loaded in the app, as ids and
+    /// TIDAL-shaped JSON.
+    #[allow(clippy::type_complexity)]
+    pub(super) fn context_list(&self, uri: &str) -> Option<(Vec<String>, Vec<(String, Value)>)> {
         let mut ids = Vec::new();
         let mut items = Vec::new();
-        for t in tracks {
+        for t in self.context_tracks(uri)? {
             let Some(id) = t.id.clone().or_else(|| tidal_id(&t.uri, "track")) else {
                 continue;
             };
@@ -324,10 +336,23 @@ impl App {
         (!ids.is_empty()).then_some((ids, items))
     }
 
+    /// How many tracks [`Self::context_list`] lists for `uri`, counted
+    /// without making their JSON.
+    fn context_list_len(&self, uri: &str) -> usize {
+        self.context_tracks(uri).map_or(0, |tracks| {
+            tracks
+                .iter()
+                .filter(|t| t.id.is_some() || tidal_id(&t.uri, "track").is_some())
+                .count()
+        })
+    }
+
     /// TIDAL keeps the open album's, playlist's or mix's track list in
     /// `content.trackLists` while its page shows: scroll-to-playing finds
     /// the playing row's place in it to scroll to a row the list has not
-    /// laid out. Given again when the page or its length changes.
+    /// laid out. Given again when the page or its length changes; on every
+    /// other pass only the length is counted (making every song's JSON to
+    /// compare its length cost a 2,000-song playlist 15 ms a pass).
     fn luna_page_list(&mut self) {
         let uri = match self.page() {
             Page::Album(id) => format!("tidal:album:{id}"),
@@ -338,13 +363,17 @@ impl App {
                 return;
             }
         };
-        let Some((ids, items)) = self.context_list(&uri) else {
+        let len = self.context_list_len(&uri);
+        if len == 0 {
             return;
-        };
-        let key = (uri, ids.len());
+        }
+        let key = (uri, len);
         if self.plugins.seen.page_list.as_ref() == Some(&key) {
             return;
         }
+        let Some((ids, items)) = self.context_list(&key.0) else {
+            return;
+        };
         self.plugins
             .host
             .set_track_list(&gate::track_list_name(&key.0), ids, items);
@@ -1500,6 +1529,64 @@ mod tests {
             j["mediaMetadata"]["tags"],
             json!(["LOSSLESS", "HIRES_LOSSLESS"])
         );
+    }
+
+    /// The open page's list (`content.trackLists`) is made again when the
+    /// page or its length changes, and only then: every pass made each
+    /// song's JSON to compare the length, 15 ms of every frame on a
+    /// 2,000-song playlist while it scrolled.
+    #[test]
+    fn the_page_list_is_made_again_only_when_the_page_or_its_length_changes() {
+        use crate::luna::LunaHost as _;
+        let mut app = app("page-list-changes");
+        crate::demo::populate(&mut app);
+        app.open(Page::Playlist("pl1".into()));
+        let window = WindowState::default();
+        let made = || TRACK_JSONS.with(std::cell::Cell::get);
+        let listed = |app: &App, name: &str| {
+            app.plugins
+                .host
+                .playback()
+                .track_lists
+                .get(name)
+                .map(Vec::len)
+        };
+        app.luna_sync(None, window);
+        let len = listed(&app, "playlist/pl1").expect("the open playlist's list");
+        assert!(len > 5, "{len}");
+        let before = made();
+        app.luna_sync(None, window);
+        app.luna_sync(None, window);
+        assert_eq!(made(), before, "passes with nothing changed made song JSON");
+
+        // More rows loaded: the longer list is given at once.
+        let row = PlaylistItem {
+            item: Some(PlayableItem::Track(Track {
+                id: Some("987654".into()),
+                uri: "tidal:track:987654".into(),
+                name: "One more".into(),
+                ..Track::default()
+            })),
+            ..PlaylistItem::default()
+        };
+        app.playlist_pages
+            .get_mut("pl1")
+            .expect("loaded")
+            .items
+            .items
+            .push(row);
+        app.luna_sync(None, window);
+        assert_eq!(listed(&app, "playlist/pl1"), Some(len + 1));
+        assert!(made() > before);
+
+        // Another page with a list: its own, at once.
+        app.open(Page::Album("alb0".into()));
+        app.luna_sync(None, window);
+        assert!(
+            listed(&app, "album/alb0").is_some_and(|n| n > 0),
+            "the album's list"
+        );
+        app.backend.shutdown();
     }
 
     fn app(name: &str) -> App {
