@@ -3649,6 +3649,15 @@ fn scroll_box<R>(
             let mut area = egui::ScrollArea::vertical()
                 .id_salt(("luna-scroll", id))
                 .max_height(height.max(1.0))
+                // egui's 64-point least height for a scroll area: a box of a
+                // definite height is that tall (lyrics-everywhere's lyrics
+                // got 64 points of a 14-point share and ran past the window),
+                // and one held to a smaller `max-height` is at most that.
+                .min_scrolled_height(if fixed {
+                    height.max(0.0)
+                } else {
+                    height.clamp(0.0, 64.0)
+                })
                 .auto_shrink([false, !fixed]);
             // `scrollbar-width: none` scrolls with no bar
             // (lyrics-everywhere's lyrics).
