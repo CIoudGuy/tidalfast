@@ -81,3 +81,39 @@ fn rules_on_tidals_title_path_reach_the_title() {
     assert_eq!(playing, Some(egui::Color32::from_rgb(240, 200, 30)));
     assert_eq!(idle, Some(egui::Color32::from_rgb(90, 160, 230)));
 }
+
+/// TIDAL's header art is `._dataContainer_::before`, absolutely placed in
+/// `main`, the scroll container: a theme's `height: 100%` on it is `main`'s
+/// own height, not the page's content (TIDAL 2.46.0 under Sunken Tidal,
+/// Giorgeous and Lunallena: 1153 points in a 1183-point window, with 20
+/// songs below the header). Tidalfast took the content's height, so the
+/// cover's fade to black stretched down every row and the rows near the
+/// top lay on a much brighter cover than TIDAL's.
+#[test]
+fn a_full_height_header_art_box_is_as_tall_as_the_page_box() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::PAGE_DATA;
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(page) = frame.page.as_mut() {
+        page.data = Some([240.0, 92.0, 1040.0, 300.0]);
+    }
+    let css = r#"/* {"name": "Tall art"} */
+[class*="dataContainer"]:before { height: 100% !important; }
+"#;
+    let tree = dom_anchors::build(&frame);
+    let luna = themed_luna("tall-art.css", css);
+    let o = wait(&luna, &tree, &|o| o.hosts.contains_key(PAGE_DATA));
+    luna.shutdown();
+    let page = egui::Rect::from_min_size(egui::pos2(240.0, 30.0), egui::vec2(1600.0, 1000.0));
+    pd::test_overlay(Some((*o).clone()));
+    // The page's content runs 2400 points down.
+    let ctx = egui::Context::default();
+    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        pd::main_scroll(ui, 0.0, 2400.0, page);
+    });
+    output.textures_delta.clear();
+    let rect = crate::ui::cover_backdrop_rect(page);
+    pd::test_overlay(None);
+    assert_eq!(rect.min, page.min);
+    assert_eq!(rect.height(), page.height());
+}
