@@ -349,7 +349,14 @@ pub(super) fn sound_output(app: &mut App, ui: &mut egui::Ui) -> egui::Response {
     let open = ui
         .data(|data| data.get_temp::<bool>(open_id))
         .unwrap_or_else(|| demo_popup("sound-output"));
-    let glyph = super::player_bar::utility_glyph("");
+    // Luna: TIDAL's `button[data-test=select-device]` is pressed while its
+    // list is open.
+    super::plugin_dom::note(|f| {
+        if let Some(bar) = f.player.as_mut() {
+            bar.sound_output_open = open;
+        }
+    });
+    let glyph = super::player_bar::utility_glyph(crate::luna::dom_anchors::keys::SOUND_OUTPUT);
     let button = theme::player_icon_button(
         ui,
         Icon::Speaker,

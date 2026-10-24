@@ -1509,9 +1509,12 @@ pub fn page_title(ui: &mut egui::Ui, title: &str, r: Rect, alone: bool) -> f32 {
     // margins make it): in TIDAL "..." moves right by exactly the width of
     // what LuckyLP inserts.
     let mut x = r.right();
+    // A collection page's title is its header's only element: what
+    // follows it is the header's.
     let mut anchors = vec![
         (dom_anchors::keys::PAGE_TITLE, Position::Append),
         (dom_anchors::keys::PAGE_TITLE, Position::After),
+        (dom_anchors::keys::PAGE_TITLE_HEADER, Position::Append),
     ];
     if alone {
         anchors.push((dom_anchors::keys::PAGE, Position::Append));

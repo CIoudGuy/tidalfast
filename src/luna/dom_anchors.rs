@@ -45,6 +45,8 @@ pub mod keys {
     pub const MAIN_CONTENT: &str = "main-content";
     pub const PAGE: &str = "page";
     pub const PAGE_TITLE: &str = "page-title";
+    /// A collection page's `div._header_d2e600f` round its title.
+    pub const PAGE_TITLE_HEADER: &str = "page-title-header";
     pub const PAGE_DATA: &str = "page-data";
     pub const PAGE_SMALL_HEADER: &str = "page-small-header";
     pub const PAGE_META: &str = "page-meta-line";
@@ -172,15 +174,16 @@ pub mod keys {
     pub const DURATION: &str = "duration";
     pub const UTILITY: &str = "utility-container";
     pub const UTILITY_BUTTONS: &str = "utility-buttons";
-    pub const TOGGLE_LYRICS: &str = "toggle-lyrics";
-    pub const TOGGLE_LYRICS_SPAN: &str = "toggle-lyrics:span";
     pub const SLIDER: &str = "slider-container";
-    /// The mini player button after the volume (TIDAL's last utility button).
+    /// The compact mode button after the volume (TIDAL 2.46.0's last
+    /// utility button, `button[data-test=enter-compact-mode]`).
     pub const MINI_PLAYER: &str = "mini-player-button";
     pub const VOLUME_RANGE: &str = "volume-range";
     pub const MUTE: &str = "mute";
-    pub const MORE: &str = "more-container";
     pub const QUEUE: &str = "queue-button";
+    /// The sound output button after the queue's
+    /// (`button._soundOutputButton_a6d011c.withBackground[data-test=select-device]`).
+    pub const SOUND_OUTPUT: &str = "sound-output";
     /// The play queue panel's title (`[data-test=playqueue-title]`), where
     /// total-play-time's fork puts its pill.
     pub const QUEUE_TITLE: &str = "playqueue-title";
@@ -215,8 +218,6 @@ pub mod keys {
     /// look of the queue's other rows.
     pub const QUEUE_ROLE_ROW: &str = "queue-roles:row";
     pub const QUEUE_ROLE_HOVER_ROW: &str = "queue-roles:hover-row";
-    pub const FULLSCREEN: &str = "fullscreen-button";
-    pub const FULLSCREEN_SPAN: &str = "fullscreen-button:span";
 
     pub const NOW_PLAYING: &str = "now-playing";
     pub const NP_HEADER: &str = "now-playing-header";
@@ -231,9 +232,11 @@ pub mod keys {
     pub const NP_CLOSE: &str = "now-playing-close";
     /// The header's full screen button (`[data-test=new-now-playing-expand]`).
     pub const NP_EXPAND: &str = "now-playing-expand";
-    /// The header's `div._buttons_ > div._contentButtons_` around its tabs.
+    /// The header's `div._buttons_ > div._contentButtons_` around its tabs,
+    /// then `div._actionButtons_` around full screen and close.
     pub const NP_BUTTONS: &str = "now-playing-buttons";
     pub const NP_CONTENT_BUTTONS: &str = "now-playing-content-buttons";
+    pub const NP_ACTION_BUTTONS: &str = "now-playing-action-buttons";
     pub const NP_FOOTER: &str = "now-playing-footer";
     /// TIDAL's `section._fullscreen_236d61b`, a child of the root, always
     /// there; it holds the view while that is fullscreen.
@@ -538,7 +541,6 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("titleText", "_titleText_51cccae"),
     ("trackContent", "_trackContent_7b758a9"),
     ("utilityButtons", "_utilityButtons_4d7aaf9"),
-    ("moreContainer", "_moreContainer_f6162c8"),
     ("nativeRange", "_nativeRange_7e12413"),
     ("title", "_title_a453dad"),
     ("icon", "_icon_77f3f89"),
@@ -998,13 +1000,12 @@ pub enum PlayerPart {
     Duration,
     Utility,
     UtilityButtons,
-    ToggleLyrics,
     Slider,
     Mute,
-    More,
     Queue,
-    Fullscreen,
-    /// The mini player button, after the volume.
+    /// The sound output button, after the queue's.
+    SoundOutput,
+    /// The compact mode button, after the volume.
     MiniPlayer,
     /// Where the quality pill's label is drawn (its own width, not the
     /// pill's): plugins size the badge from `offsetWidth` of the label span.
@@ -1037,9 +1038,10 @@ pub struct PlayerBar {
     /// 0..=1
     pub volume: f32,
     pub muted: bool,
-    pub lyrics_open: bool,
     /// The play queue panel is open (its button is pressed).
     pub queue_open: bool,
+    /// The sound output list is open (its button is pressed).
+    pub sound_output_open: bool,
     pub rects: [Option<Rect>; PlayerPart::COUNT],
 }
 
@@ -1933,9 +1935,24 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
 
 pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     use keys::*;
-    let mut node = el(PAGE, Some(MAIN_CONTENT), "div")
-        .modules(&["page"])
-        .at(page.rect);
+    // TIDAL 2.46.0's collection pages (captured): the page is
+    // `div._defaultStyles_a1b9da9._container_d43f21d[data-type=page]
+    // [data-test=page-title-container]`, its first child `div._header_ >
+    // h1.wave-text-headline-bold._title_d3f5c62` (LuckyLP puts its shuffle
+    // after that `h1`, in the header).
+    let collection = page
+        .page_id
+        .as_deref()
+        .is_some_and(|id| id.starts_with("mycollection_"));
+    let mut node = if collection {
+        el(PAGE, Some(MAIN_CONTENT), "div")
+            .class("_defaultStyles_a1b9da9")
+            .class("_container_d43f21d")
+            .attr("data-type", "page")
+    } else {
+        el(PAGE, Some(MAIN_CONTENT), "div").modules(&["page"])
+    }
+    .at(page.rect);
     if page.feed {
         node = node.class("_feed_412931c");
     }
@@ -1960,8 +1977,21 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     }
     if let Some(test) = &page.test {
         node = node.test(test);
+    } else if collection {
+        node = node.test("page-title-container");
     }
     out.push(node);
+    if collection && let Some(title) = &page.title {
+        out.push(el(PAGE_TITLE_HEADER, Some(PAGE), "div").class("_header_d2e600f"));
+        out.push(
+            el(PAGE_TITLE, Some(PAGE_TITLE_HEADER), "h1")
+                .class("wave-text-headline-bold")
+                .class("_title_d3f5c62")
+                .attr("data-wave-color", "textDefault")
+                .text(title.clone())
+                .at(page.title_rect),
+        );
+    }
     if let Some(rect) = page.list_panel {
         // TIDAL 2.46.0 wraps an album's list in its `ALBUM_ITEMS` module and
         // a playlist's in `div._items_8615603`, each round the list's
@@ -2204,7 +2234,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
             );
         }
     }
-    if let Some(title) = &page.title {
+    if let Some(title) = page.title.as_ref().filter(|_| !collection) {
         out.push(
             el(PAGE_TITLE, Some(PAGE), "h1")
                 .modules(&["pageTitle"])
@@ -2823,53 +2853,6 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
                 .text(a.name.clone()),
         );
     }
-    // A song whose stream has not started yet still has TIDAL's badge, with
-    // no quality: plugins look the indicator up as the song changes (Tidal
-    // Tags) and give up after a second.
-    let pending = p.quality.is_none() && p.track_id.is_some();
-    if let Some(q) = p.quality.as_deref().or(pending.then_some("")) {
-        let (tier, gradient, classes, text) = if q.is_empty() {
-            ("low", "gradientLow", &["badge"][..], "")
-        } else {
-            badge(q)
-        };
-        out.push(
-            el(QUALITY, Some(TRACK_CONTENT), "div")
-                .modules(&["qualityBadgeContainer"])
-                .at(p.rect(P::Quality)),
-        );
-        // TIDAL's badge: exactly `_badge_ _max_` (themes match the class
-        // list whole, `[class="_badge_7b2911e _max_894bc7c"] span`), the
-        // tier's gradient and the glow as layers inside it.
-        out.push(
-            el(QUALITY_BADGE, Some(QUALITY), "a")
-                .modules(classes)
-                .test(&format!("quality-badge-{tier}"))
-                .attr("data-test-media-state-indicator-streaming-quality", q)
-                .attr("data-test-quality-badge-streaming-quality", q)
-                .at(p.rect(P::Quality)),
-        );
-        out.push(
-            el(QUALITY_TEXT, Some(QUALITY_BADGE), "span")
-                .modules(&["badgeText"])
-                .at(p.rect(P::QualityLabel)),
-        );
-        out.push(
-            el(QUALITY_LABEL, Some(QUALITY_TEXT), "span")
-                .text(text)
-                .at(p.rect(P::QualityLabel)),
-        );
-        out.push(
-            el(QUALITY_GRADIENT, Some(QUALITY_BADGE), "div")
-                .modules(&[gradient])
-                .at(p.rect(P::Quality)),
-        );
-        out.push(
-            el(QUALITY_GLOW, Some(QUALITY_BADGE), "div")
-                .modules(&["glowEffect"])
-                .at(p.rect(P::Quality)),
-        );
-    }
     // The heart and the "..." sit inside `._trackContent_` in TIDAL 2.43.2:
     // Cotton Candy Twilight colours them by `[class="_trackContent_7b758a9"]
     // { ._contextMenuButton_9741d3a, ._button_c372e89 svg }`, which TIDAL
@@ -2902,10 +2885,15 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     );
     out.push(el(FAVORITE_ICON, Some(FAVORITE), "svg").modules(&["icon"]));
     out.push(el(FAVORITE_ICON_USE, Some(FAVORITE_ICON), "use"));
+    // TIDAL 2.46.0: `button._button_a3412d0._contextMenuButton_9741d3a
+    // [data-test=footer-context-menu]`, "Show options".
     out.push(
         el(TRACK_MORE, Some(ACTIONS), "button")
+            .class("_button_a3412d0")
             .class("_contextMenuButton_9741d3a")
-            .attr("aria-label", "More"),
+            .test("footer-context-menu")
+            .attr("aria-label", "Show options")
+            .attr("title", "Show options"),
     );
 
     // Centre: transport and progress.
@@ -3022,7 +3010,12 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .at(p.rect(P::Duration)),
     );
 
-    // Right: utility buttons, volume, more.
+    // Right: TIDAL 2.46.0's utility container (captured): `div.
+    // _utilityButtons_ > button[play-queue-button], button[select-device],
+    // div._sliderContainer_ > button[volume], button[enter-compact-mode]`,
+    // then the quality badge's container. It has no lyrics, full screen or
+    // "more" box there (the view's Lyrics tab and full screen button are
+    // the ones in its header).
     out.push(
         el(UTILITY, Some(PLAYER_CONTENT), "div")
             .modules(&["utilityContainer"])
@@ -3050,34 +3043,27 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
         queue = queue.class("_activeButton_122ab25");
     }
     out.push(queue);
-    out.push(
-        el(TOGGLE_LYRICS, Some(UTILITY_BUTTONS), "button")
-            .test("toggle-lyrics")
-            .attr("aria-label", "Lyrics")
-            .attr("aria-pressed", p.lyrics_open.to_string())
-            .modules(&["button"])
-            .at(p.rect(P::ToggleLyrics)),
-    );
-    out.push(
-        el(TOGGLE_LYRICS_SPAN, Some(TOGGLE_LYRICS), "span")
-            .modules(&["buttonIcon"])
-            .at(p.rect(P::ToggleLyrics)),
-    );
+    let mut output = el(SOUND_OUTPUT, Some(UTILITY_BUTTONS), "button")
+        .class("_soundOutputButton_a6d011c")
+        .class("withBackground")
+        .test("select-device")
+        .attr("aria-label", "Sound output")
+        .at(p.rect(P::SoundOutput));
+    if p.sound_output_open {
+        output = output.class("_activeButton_122ab25");
+    }
+    out.push(output);
     out.push(
         el(SLIDER, Some(UTILITY_BUTTONS), "div")
             .modules(&["sliderContainer"])
             .at(p.rect(P::Slider)),
     );
-    out.push(
-        el(MUTE, Some(SLIDER), "button")
-            .test("volume")
-            .attr("aria-label", if p.muted { "Unmute" } else { "Mute" })
-            .attr("aria-pressed", p.muted.to_string())
-            .at(p.rect(P::Mute)),
-    );
+    // TIDAL 2.46.0: `input.native-range._nativeRange_` (shown under the
+    // pointer) before `button[data-test=volume][role=switch]`, "Volume".
     let volume = (p.volume.clamp(0.0, 1.0) * 100.0).round() as u32;
     out.push(
         el(VOLUME_RANGE, Some(SLIDER), "input")
+            .class("native-range")
             .modules(&["nativeRange"])
             .attr("type", "range")
             .attr("min", "0")
@@ -3088,30 +3074,74 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .value(volume.to_string())
             .at(p.rect(P::Slider)),
     );
-    // TIDAL's mini player button follows the volume, so what a plugin puts
-    // after the volume (HorizontalVolumeSlider's bar) sits before it.
+    out.push(
+        el(MUTE, Some(SLIDER), "button")
+            .test("volume")
+            .attr("role", "switch")
+            .attr("aria-checked", (!p.muted && volume > 0).to_string())
+            .attr("aria-label", "Volume")
+            .attr("title", "Volume")
+            .at(p.rect(P::Mute)),
+    );
+    // TIDAL's compact mode button follows the volume, so what a plugin
+    // puts after the volume (HorizontalVolumeSlider's bar) sits before it.
     out.push(
         el(MINI_PLAYER, Some(UTILITY_BUTTONS), "button")
-            .modules(&["miniPlayerButton"])
-            .attr("aria-label", "Mini player")
+            .test("enter-compact-mode")
+            .attr("aria-label", "Compact mode")
+            .attr("title", "Compact mode")
             .at(p.rect(P::MiniPlayer)),
     );
-    out.push(
-        el(MORE, Some(UTILITY), "div")
-            .modules(&["moreContainer"])
-            .at(p.rect(P::More)),
-    );
-    out.push(
-        el(FULLSCREEN, Some(MORE), "button")
-            .test("request-fullscreen")
-            .attr("aria-label", "Fullscreen")
-            .at(p.rect(P::Fullscreen)),
-    );
-    out.push(
-        el(FULLSCREEN_SPAN, Some(FULLSCREEN), "span")
-            .modules(&["buttonIcon"])
-            .at(p.rect(P::Fullscreen)),
-    );
+    // TIDAL 2.46.0's quality badge, the utility container's second child
+    // (`div._qualityBadgeContainer_b9ec6fa > a[data-test=quality-badge-*]`,
+    // captured; Tidal Tags colours the container). A song whose stream has
+    // not started yet still has TIDAL's badge, with
+    // no quality: plugins look the indicator up as the song changes (Tidal
+    // Tags) and give up after a second.
+    let pending = p.quality.is_none() && p.track_id.is_some();
+    if let Some(q) = p.quality.as_deref().or(pending.then_some("")) {
+        let (tier, gradient, classes, text) = if q.is_empty() {
+            ("low", "gradientLow", &["badge"][..], "")
+        } else {
+            badge(q)
+        };
+        out.push(
+            el(QUALITY, Some(UTILITY), "div")
+                .modules(&["qualityBadgeContainer"])
+                .at(p.rect(P::Quality)),
+        );
+        // TIDAL's badge: exactly `_badge_ _max_` (themes match the class
+        // list whole, `[class="_badge_7b2911e _max_894bc7c"] span`), the
+        // tier's gradient and the glow as layers inside it.
+        out.push(
+            el(QUALITY_BADGE, Some(QUALITY), "a")
+                .modules(classes)
+                .test(&format!("quality-badge-{tier}"))
+                .attr("data-test-media-state-indicator-streaming-quality", q)
+                .attr("data-test-quality-badge-streaming-quality", q)
+                .at(p.rect(P::Quality)),
+        );
+        out.push(
+            el(QUALITY_TEXT, Some(QUALITY_BADGE), "span")
+                .modules(&["badgeText"])
+                .at(p.rect(P::QualityLabel)),
+        );
+        out.push(
+            el(QUALITY_LABEL, Some(QUALITY_TEXT), "span")
+                .text(text)
+                .at(p.rect(P::QualityLabel)),
+        );
+        out.push(
+            el(QUALITY_GRADIENT, Some(QUALITY_BADGE), "div")
+                .modules(&[gradient])
+                .at(p.rect(P::Quality)),
+        );
+        out.push(
+            el(QUALITY_GLOW, Some(QUALITY_BADGE), "div")
+                .modules(&["glowEffect"])
+                .at(p.rect(P::Quality)),
+        );
+    }
 }
 
 /// The section holding the now-playing view's parts: the docked
@@ -3173,48 +3203,66 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying, fullscreen: bool) {
             .id("nowPlayingHeader")
             .test("header-container"),
     );
-    // TIDAL's tabs: `div._buttons_ > div._contentButtons_ > button[data-test=
-    // toggle-similar-tracks|toggle-credits|toggle-lyrics] > span`, before the
-    // close button. LangRomanizer puts its Romanize Lyrics button after the
-    // first `[data-test^=toggle-lyrics]` in the document, which in TIDAL is
-    // this one (the view comes before the player bar), and copies its
-    // classes to look like it.
-    if !np.tabs.is_empty() {
-        out.push(el(NP_BUTTONS, Some(NP_HEADER), "div").modules(&["buttons"]));
-        out.push(el(NP_CONTENT_BUTTONS, Some(NP_BUTTONS), "div").modules(&["contentButtons"]));
-        for tab in &np.tabs {
-            let key = keys::now_playing_tab(tab.name);
-            out.push(
-                el(key.clone(), Some(NP_CONTENT_BUTTONS), "button")
-                    .modules(&["tabButton"])
-                    .test(&format!("toggle-{}", tab.name))
-                    .attr("aria-pressed", tab.pressed.to_string())
-                    .at(tab.rect),
-            );
-            out.push(
-                el(format!("{key}:span"), Some(&key), "span")
-                    .modules(&["tabLabel"])
-                    .text(tab.label.clone())
-                    .at(tab.rect),
-            );
+    // TIDAL 2.46.0's header (its bundle): `div._buttons_ > div.
+    // _contentButtons_ > button[data-test=toggle-similar-tracks|toggle-
+    // credits|toggle-lyrics] > span._label_`, then `div._actionButtons_ >
+    // button[data-test=new-now-playing-expand], button[data-test=new-now-
+    // playing-close]`, each one of its market buttons (tertiary, small).
+    // LangRomanizer puts its Romanize Lyrics button after the first
+    // `[data-test^=toggle-lyrics]` in the document, which is this one (the
+    // bar has none), and copies its classes to look like it; radiant-lyrics
+    // clones the close button into its box.
+    const MARKET: [&str; 3] = [
+        "_marketButton_1d16h_1",
+        "_tertiary_1d16h_8",
+        "_small_1d16h_3",
+    ];
+    let market = |node: HostNode, icon: bool| {
+        let node = MARKET.iter().fold(node, |n, c| n.class(c));
+        if icon {
+            node.class("_iconOnly_1d16h_1")
+        } else {
+            node
         }
+    };
+    out.push(el(NP_BUTTONS, Some(NP_HEADER), "div").modules(&["buttons"]));
+    out.push(el(NP_CONTENT_BUTTONS, Some(NP_BUTTONS), "div").modules(&["contentButtons"]));
+    for tab in &np.tabs {
+        let key = keys::now_playing_tab(tab.name);
+        let mut button = market(el(key.clone(), Some(NP_CONTENT_BUTTONS), "button"), false)
+            .class("_toggleButton_934359e")
+            .test(&format!("toggle-{}", tab.name))
+            .attr("aria-pressed", tab.pressed.to_string())
+            .at(tab.rect);
+        if tab.pressed {
+            button = button.class("_toggleButtonActive_b595428");
+        }
+        out.push(button);
+        out.push(
+            el(format!("{key}:span"), Some(&key), "span")
+                .class("_label_1d16h_1")
+                .text(tab.label.clone())
+                .at(tab.rect),
+        );
     }
-    // TIDAL's full screen button, after the tabs and before the close
-    // chevron; radiant-lyrics hides it by its `data-test`.
+    out.push(el(NP_ACTION_BUTTONS, Some(NP_BUTTONS), "div").modules(&["actionButtons"]));
+    // The full screen button, before the close chevron; radiant-lyrics
+    // hides it by its `data-test`.
     if np.expand_rect.is_some() {
         out.push(
-            el(NP_EXPAND, Some(NP_HEADER), "button")
+            market(el(NP_EXPAND, Some(NP_ACTION_BUTTONS), "button"), true)
+                .class("_iconButton_fe68160")
+                .class("_fullscreenButton_109e50d")
                 .test("new-now-playing-expand")
                 .attr("aria-label", "Full screen")
-                .modules(&["iconButton"])
                 .at(np.expand_rect),
         );
     }
     out.push(
-        el(NP_CLOSE, Some(NP_HEADER), "button")
+        market(el(NP_CLOSE, Some(NP_ACTION_BUTTONS), "button"), true)
+            .class("_iconButton_fe68160")
             .test("new-now-playing-close")
             .attr("aria-label", "Close")
-            .modules(&["closeButton"])
             .at(np.close_rect),
     );
     out.push(
@@ -3440,7 +3488,7 @@ pub fn sample_frame() -> Frame {
     player.rects[PlayerPart::Utility as usize] = r(980.0, 720.0, 284.0, 56.0);
     player.rects[PlayerPart::UtilityButtons as usize] = r(980.0, 730.0, 200.0, 36.0);
     player.rects[PlayerPart::Slider as usize] = r(1060.0, 738.0, 110.0, 20.0);
-    player.rects[PlayerPart::More as usize] = r(1190.0, 730.0, 74.0, 36.0);
+    player.rects[PlayerPart::Queue as usize] = r(1190.0, 730.0, 36.0, 36.0);
     let row = |i: usize, id: &str, title: &str| TrackRow {
         index: i,
         track_id: id.into(),
@@ -3565,7 +3613,6 @@ mod tests {
 
     #[test]
     fn module_classes_are_stable_and_literal_where_hard_coded() {
-        assert_eq!(module_class("moreContainer"), "_moreContainer_f6162c8");
         assert_eq!(module_class("nativeRange"), "_nativeRange_7e12413");
         let bar = module_class("bar");
         assert!(bar.starts_with("_bar_"));
@@ -3644,10 +3691,52 @@ mod tests {
         );
         assert_eq!(slider.parent.as_deref(), Some(keys::UTILITY_BUTTONS));
         let range = find(&tree, keys::VOLUME_RANGE);
-        assert_eq!(attr(range, "class"), Some("_nativeRange_7e12413"));
+        assert_eq!(
+            attr(range, "class"),
+            Some("native-range _nativeRange_7e12413")
+        );
         assert_eq!(range.value.as_deref(), Some("50"));
-        let more = find(&tree, keys::MORE);
-        assert_eq!(attr(more, "class"), Some("_moreContainer_f6162c8"));
+        // TIDAL 2.46.0's utility container: the buttons, then the badge's
+        // box; no `_moreContainer_`, full screen or lyrics button there.
+        let children = |parent: &str| -> Vec<&str> {
+            tree.nodes
+                .iter()
+                .filter(|n| n.parent.as_deref() == Some(parent))
+                .map(|n| n.key.as_str())
+                .collect()
+        };
+        assert_eq!(
+            children(keys::UTILITY),
+            [keys::UTILITY_BUTTONS, keys::QUALITY]
+        );
+        assert_eq!(
+            children(keys::UTILITY_BUTTONS),
+            [
+                keys::QUEUE,
+                keys::SOUND_OUTPUT,
+                keys::SLIDER,
+                keys::MINI_PLAYER
+            ]
+        );
+        for n in &tree.nodes {
+            let class = attr(n, "class").unwrap_or_default();
+            let test = attr(n, "data-test").unwrap_or_default();
+            assert!(!class.contains("_moreContainer_"), "{}", n.key);
+            assert!(test != "request-fullscreen", "{}", n.key);
+            assert!(
+                test != "toggle-lyrics" || n.parent.as_deref() == Some(keys::NP_CONTENT_BUTTONS),
+                "{}",
+                n.key
+            );
+        }
+        assert_eq!(
+            attr(find(&tree, keys::MINI_PLAYER), "data-test"),
+            Some("enter-compact-mode")
+        );
+        assert_eq!(
+            attr(find(&tree, keys::SOUND_OUTPUT), "data-test"),
+            Some("select-device")
+        );
         let link = find(&tree, keys::TITLE_LINK);
         assert_eq!(attr(link, "href"), Some("/track/1234"));
         let row = find(&tree, &keys::row("album:55", 1));
@@ -3758,8 +3847,6 @@ mod tests {
     fn inner_spans_and_wrappers_exist() {
         let tree = sample_tree();
         for (key, parent, tag) in [
-            (keys::TOGGLE_LYRICS_SPAN, keys::TOGGLE_LYRICS, "span"),
-            (keys::FULLSCREEN_SPAN, keys::FULLSCREEN, "span"),
             (keys::TITLE_SPAN, keys::TITLE_LINK, "span"),
             (keys::QUALITY_LABEL, keys::QUALITY_TEXT, "span"),
             (keys::TITLE_STACK, keys::TRACK_CONTENT, "div"),
@@ -3768,7 +3855,10 @@ mod tests {
             (keys::PROFILE, keys::PROFILE_CONTAINER, "button"),
             (keys::HEADER_BAR, keys::HEADER, "div"),
             (keys::PROFILE_IMG, keys::PROFILE, "img"),
-            (keys::NP_CLOSE, keys::NP_HEADER, "button"),
+            (keys::NP_BUTTONS, keys::NP_HEADER, "div"),
+            (keys::NP_CONTENT_BUTTONS, keys::NP_BUTTONS, "div"),
+            (keys::NP_ACTION_BUTTONS, keys::NP_BUTTONS, "div"),
+            (keys::NP_CLOSE, keys::NP_ACTION_BUTTONS, "button"),
             (keys::NP_FOOTER, keys::NOW_PLAYING, "div"),
         ] {
             let node = find(&tree, key);
@@ -3885,7 +3975,7 @@ mod tests {
         // The full screen button, which radiant-lyrics hides by this name.
         let expand = find(&tree, keys::NP_EXPAND);
         assert_eq!(attr(expand, "data-test"), Some("new-now-playing-expand"));
-        assert_eq!(expand.parent.as_deref(), Some(keys::NP_HEADER));
+        assert_eq!(expand.parent.as_deref(), Some(keys::NP_ACTION_BUTTONS));
         // Absent unless the UI reported them.
         let tree = sample_tree();
         assert!(tree.nodes.iter().all(|n| n.key != keys::PAGE_DATA));
