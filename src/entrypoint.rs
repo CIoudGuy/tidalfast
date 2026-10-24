@@ -728,6 +728,8 @@ pub(crate) fn run() -> eframe::Result<()> {
             None => options,
         };
         let options = profile_options(options);
+        let options =
+            plugin_window_options(options, lease.peek(|app| app.settings.plugins.luna_enabled));
         #[cfg(feature = "demo")]
         let options = match dev_window_position() {
             Some(position) => dev_window_options(options, position),
@@ -991,6 +993,19 @@ fn compact_options(
     options
 }
 
+/// With Luna on, a plugin's window may be see-through (Electron's
+/// `transparent`). On X11 and macOS that takes a GL config with alpha, which
+/// eframe's glow renderer shares with every window, so the app's window gets
+/// it only while Luna is on, from the window's next opening (it paints all
+/// of its pixels opaque either way). Windows and Wayland need nothing.
+fn plugin_window_options(
+    mut options: eframe::NativeOptions,
+    luna_enabled: bool,
+) -> eframe::NativeOptions {
+    options.transparent_viewports = luna_enabled;
+    options
+}
+
 fn profile_options(mut options: eframe::NativeOptions) -> eframe::NativeOptions {
     if options.persist_window {
         options.persistence_path = eframe::storage_dir("tidalfast").map(|dir| dir.join("app.ron"));
@@ -1057,6 +1072,17 @@ mod native_window_tests {
         let mut buffer = Vec::new();
         assert_eq!(write_reply(&mut buffer, "playing\n"), 0);
         assert_eq!(buffer, b"playing\n");
+    }
+
+    /// Plugin windows can be see-through while Luna is on; the app's own
+    /// window stays opaque either way.
+    #[test]
+    fn luna_lets_plugin_windows_be_see_through() {
+        let on = plugin_window_options(native_options(false, None, Geometry::default()), true);
+        assert!(on.transparent_viewports);
+        assert_ne!(on.viewport.transparent, Some(true));
+        let off = plugin_window_options(native_options(false, None, Geometry::default()), false);
+        assert!(!off.transparent_viewports);
     }
 
     #[test]
