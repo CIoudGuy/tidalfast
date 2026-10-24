@@ -520,3 +520,35 @@ fn a_theme_recolours_the_queue_panels_own_border() {
         "TIDAL's own line is native"
     );
 }
+
+/// A track menu's entries are TIDAL 2.46.0's `button._actionText_d77b98b`,
+/// track radio's a link (`a._actionTextLink_faf5191._actionText_d77b98b`):
+/// a theme's rule for menu buttons (Black Glow's `button` grey) reached
+/// none of them while every entry was a link.
+#[test]
+fn a_menus_entries_are_tidals_buttons() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Menu buttons"} */
+[data-type="contextmenu-item"] button._actionText_d77b98b { color: rgb(4, 5, 6); }
+[data-type="contextmenu-item"] a._actionTextLink_faf5191 { color: rgb(6, 5, 4); }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    let menu = frame.context_menu.as_mut().expect("the sample's menu");
+    let mut play_next = menu.items[0].clone();
+    play_next.action = "play-next".into();
+    play_next.playlist = None;
+    menu.items.push(play_next);
+    let last = menu.items.len() - 1;
+    let o = overlay(
+        "menu-buttons.css",
+        css,
+        &frame,
+        &format!("contextmenu:{last}:a"),
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let button = pd::anchor_look(&format!("contextmenu:{last}:a")).and_then(|l| l.text);
+    let radio = pd::anchor_look("contextmenu:0:a").and_then(|l| l.text);
+    pd::test_overlay(None);
+    assert_eq!(button, Some(egui::Color32::from_rgb(4, 5, 6)));
+    assert_eq!(radio, Some(egui::Color32::from_rgb(6, 5, 4)));
+}
