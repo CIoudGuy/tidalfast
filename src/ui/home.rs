@@ -122,7 +122,11 @@ fn tabs(app: &mut App, ui: &mut egui::Ui) {
         .iter()
         .position(|tab| app.home_tab == *tab)
         .unwrap_or(usize::MAX);
-    if let Some(index) = super::widgets::underline_tabs(ui, &palette, "home-tab", &labels, active) {
+    // TIDAL's names for the tabs (`div[data-test=vibe-tab-<name>]`).
+    let names: Vec<&str> = feeds.iter().map(|tab| tab.unwrap_or("static")).collect();
+    if let Some(index) =
+        super::widgets::underline_tabs_named(ui, &palette, "home-tab", &labels, active, &names)
+    {
         app.home_tab = feeds[index];
     }
 }

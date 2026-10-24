@@ -8867,6 +8867,180 @@ mod tests {
         assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 
+    /// One frame of `app` in a tall window (every shelf of Home in view),
+    /// with the anchor tree sent at its end.
+    fn tall_plugin_frame(ctx: &egui::Context, app: &mut App) -> Vec<egui::epaint::ClippedShape> {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1280.0, 4000.0),
+            )),
+            ..Default::default()
+        };
+        let page = app.page().clone();
+        let mut out = ctx.run_ui(input, |ui| {
+            crate::ui::plugin_dom::test_page_frame_for(&page);
+            crate::ui::show(app, ui);
+        });
+        out.textures_delta.clear();
+        crate::ui::plugin_dom::end_frame(ctx);
+        out.shapes
+    }
+
+    /// The anchor tree `app` sends for what it shows, with no plugin's
+    /// changes.
+    fn sent_plugin_tree(ctx: &egui::Context, app: &mut App) -> crate::luna::dom::HostTree {
+        use crate::ui::plugin_dom;
+        plugin_dom::test_overlay(Some(crate::luna::dom::DomOverlay {
+            version: 1,
+            ..crate::luna::dom::DomOverlay::default()
+        }));
+        for _ in 0..3 {
+            tall_plugin_frame(ctx, app);
+        }
+        plugin_dom::test_sent_tree().expect("a tree was sent")
+    }
+
+    /// The words drawn while a plugin changes the anchors in `hosts`.
+    fn words_under_plugin(
+        ctx: &egui::Context,
+        app: &mut App,
+        hosts: Vec<(String, crate::luna::dom::HostOverride)>,
+    ) -> Vec<String> {
+        use crate::ui::plugin_dom;
+        plugin_dom::test_overlay(Some(crate::luna::dom::DomOverlay {
+            version: 2,
+            hosts: hosts.into_iter().collect(),
+            ..crate::luna::dom::DomOverlay::default()
+        }));
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            shapes = tall_plugin_frame(ctx, app);
+        }
+        plugin_dom::test_overlay(None);
+        shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Home's own title (`div._pageHeader_1d2b3ad > h1._title_2d8da11`,
+    /// "Home", which TIDAL's CSS shows only in a narrow window, so it has no
+    /// box) and its vibe tabs (`div[data-test=vibe-tab-static|editorial|
+    /// uploads]._marketPagingTab_wl3o7_1._small_wl3o7_73 >
+    /// button._button_wl3o7_17`, the shown one `._selected_wl3o7_125`, in
+    /// `div._vibeSwitcher_2728673 > div._marketPagingTabList_mibfb_1`) are in
+    /// the page as in TIDAL 2.46.0. A plugin's words over a tab are the
+    /// words drawn and a tab a plugin takes away is not drawn
+    /// (korean-translation translates the title and the tabs in TIDAL;
+    /// Tidalfast had neither).
+    #[test]
+    fn homes_title_and_vibe_tabs_are_tidals() {
+        use crate::luna::dom::{HostOverride, Style};
+        use crate::luna::dom_anchors::{attr, keys};
+        let (ctx, mut app) = accessible_app("plugin-home-tabs");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.open(Page::Home);
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let node = |key: &str| tree.nodes.iter().find(|n| n.key == key).cloned();
+        let classes = |key: &str| {
+            node(key)
+                .and_then(|n| attr(&n, "class").map(str::to_string))
+                .unwrap_or_default()
+        };
+        let mut checks: Vec<(String, bool)> = Vec::new();
+        let title = node(keys::HOME_TITLE);
+        checks.push((
+            "Home's h1 holds Home in the page header".into(),
+            title.as_ref().is_some_and(|n| {
+                n.tag == "h1"
+                    && n.text.as_deref() == Some("Home")
+                    && n.parent.as_deref() == Some(keys::HOME_HEADER)
+                    && n.rect.is_none()
+            }) && classes(keys::HOME_TITLE).contains("_title_2d8da11"),
+        ));
+        checks.push((
+            "the page header is in the main content".into(),
+            node(keys::HOME_HEADER)
+                .is_some_and(|n| n.parent.as_deref() == Some(keys::MAIN_CONTENT))
+                && classes(keys::HOME_HEADER) == "_pageHeader_1d2b3ad",
+        ));
+        checks.push((
+            "the tabs are in the switcher's tab list".into(),
+            node(keys::VIBE_TABS).is_some_and(|n| n.parent.as_deref() == Some(keys::VIBE_SWITCHER))
+                && classes(keys::VIBE_SWITCHER) == "_vibeSwitcher_2728673",
+        ));
+        for (name, label, selected) in [
+            ("static", "For you", true),
+            ("editorial", "Staff Picks", false),
+            ("uploads", "Uploads", false),
+        ] {
+            let tab = node(&keys::vibe_tab(name));
+            checks.push((
+                format!("vibe-tab-{name} is TIDAL's tab"),
+                tab.as_ref().is_some_and(|n| {
+                    attr(n, "data-test") == Some(format!("vibe-tab-{name}").as_str())
+                        && n.rect.is_some()
+                }) && classes(&keys::vibe_tab(name)).contains("_marketPagingTab_wl3o7_1")
+                    && classes(&keys::vibe_tab(name)).contains("_selected_wl3o7_125") == selected,
+            ));
+            checks.push((
+                format!("its button reads {label}"),
+                node(&keys::vibe_tab_button(name))
+                    .is_some_and(|n| n.tag == "button" && n.text.as_deref() == Some(label)),
+            ));
+        }
+        let drawn = words_under_plugin(
+            &ctx,
+            &mut app,
+            vec![
+                (
+                    keys::vibe_tab_button("editorial"),
+                    HostOverride {
+                        text: Some("스태프 픽".into()),
+                        ..HostOverride::default()
+                    },
+                ),
+                (
+                    keys::vibe_tab("uploads"),
+                    HostOverride {
+                        style: Style {
+                            display: Some("none".into()),
+                            ..Style::default()
+                        },
+                        ..HostOverride::default()
+                    },
+                ),
+            ],
+        );
+        checks.push((
+            "a tab draws the words a plugin wrote".into(),
+            drawn.iter().any(|w| w == "스태프 픽") && !drawn.iter().any(|w| w == "Staff Picks"),
+        ));
+        checks.push((
+            "a tab a plugin took away is not drawn".into(),
+            !drawn.iter().any(|w| w == "Uploads") && drawn.iter().any(|w| w == "For you"),
+        ));
+        app.backend.shutdown();
+        let failed: Vec<_> = checks
+            .iter()
+            .filter(|(_, ok)| !ok)
+            .map(|(c, _)| c.as_str())
+            .collect();
+        assert!(
+            failed.is_empty(),
+            "{}",
+            failed.join(
+                "
+"
+            )
+        );
+    }
+
     /// A right-click a plugin cancels (`preventDefault()` on `contextmenu`,
     /// downloadmanager's own menus) opens none of the app's menus, as TIDAL
     /// opens none of its own; one the plugins let through opens the row's
