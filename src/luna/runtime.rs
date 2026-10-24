@@ -3090,7 +3090,7 @@ const GESTURE_WINDOW: Duration = Duration::from_secs(5);
 /// Input that is the user acting (browsers' "transient activation").
 fn is_user_gesture(msg: &Msg) -> bool {
     match msg {
-        Msg::DomEvent(ev) => matches!(
+        Msg::DomEvent(ev, _) => matches!(
             ev.kind.as_str(),
             "click"
                 | "dblclick"
@@ -3723,6 +3723,15 @@ impl Engine {
             self.on_failure(f);
         }
         self.pump();
+    }
+
+    /// Whether the tree waiting to be reconciled was sent after the
+    /// `seen`th.
+    fn tree_after(&self, seen: u64) -> bool {
+        let cell = self.inner.borrow().trees.clone();
+        cell.0
+            .lock()
+            .is_ok_and(|slot| slot.tree.is_some() && slot.sent > seen)
     }
 
     /// Reconcile the newest host tree into the plugins' document.
@@ -4580,7 +4589,17 @@ impl Engine {
         if let Msg::DomSync = msg {
             return true;
         }
-        self.apply_dom_sync();
+        // Input goes to the document the user acted on. A tree the UI sent
+        // after it is the app's answer (TIDAL's context menu opening on a
+        // right-click), which in Chromium comes after the listeners ran:
+        // element-hider ties the menu that appears to its `contextmenu`.
+        let answer = match &msg {
+            Msg::DomEvent(_, seen) => self.tree_after(*seen),
+            _ => false,
+        };
+        if !answer {
+            self.apply_dom_sync();
+        }
         if is_user_gesture(&msg) {
             self.inner.borrow_mut().gesture_at = Some(Instant::now());
         }
@@ -5015,7 +5034,12 @@ impl Engine {
                 self.pump();
                 let _ = reply.send(go);
             }
-            Msg::DomEvent(ev) => self.dom_event(ev),
+            Msg::DomEvent(ev, _) => {
+                self.dom_event(ev);
+                if answer {
+                    self.apply_dom_sync();
+                }
+            }
             Msg::Hidden(hidden) => self.host_call("visibility", json!({ "hidden": hidden })),
             Msg::Focused(focused) => self.host_call("focus", json!({ "focused": focused })),
             Msg::Editor { window, text } => self.host_call(
@@ -5959,7 +5983,7 @@ impl LoopStats {
             Msg::Event(LunaEvent::Action { .. }) => "event:action",
             Msg::Event(_) => "event:other",
             Msg::DomSync => "dom-sync",
-            Msg::DomEvent(_) => "dom-event",
+            Msg::DomEvent(..) => "dom-event",
             Msg::Hidden(_) => "visibility",
             Msg::Net(_) => "net",
             Msg::Child(_) => "child",
