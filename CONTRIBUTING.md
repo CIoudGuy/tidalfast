@@ -109,8 +109,8 @@ User-visible behaviour, settings, files, or network access must be documented
 in the same pull request.
 
 Dependencies come from crates.io or from repositories the maintainer owns
-under `github.com/crmne/`. A `git` dependency or `[patch]` entry may point only
-at such a repository, and adding or changing one needs the maintainer's
+under `github.com/crmne/` or under this repository's own owner. A `git`
+dependency or `[patch]` entry may point only at such a repository, and adding or changing one needs the maintainer's
 explicit approval. Never point a dependency at your own fork or any other
 source. If a dependency needs a fix, send it upstream and link it from the pull
 request; the maintainer can carry it in a `crmne` fork until a release
