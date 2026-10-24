@@ -715,17 +715,22 @@ fn account_button(app: &mut App, ui: &mut egui::Ui) {
         .as_ref()
         .and_then(|user| pick_image(&user.images, app.art_px(AVATAR_SIZE)).map(str::to_string));
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(AVATAR_SIZE), Sense::click());
-    // Luna: `button._profilePicture_`; a plugin's `background-image` is the
-    // picture drawn (Avatar).
-    super::plugin_dom::profile(rect);
+    // Luna: TIDAL's `button[data-test=header-profile-menu-button] > img`.
+    super::plugin_dom::profile(rect, avatar.as_deref());
     super::plugin_dom::host_clicks(ui, keys::PROFILE, &response);
-    // The picture inside the button is TIDAL's `svg`: a plugin that hides
-    // it (Avatar, which paints the button's background instead) leaves
-    // only what the button's own background shows.
-    let inner = super::plugin_dom::shown(keys::PROFILE_SVG) == super::plugin_dom::Shown::Drawn;
+    // The picture is the button's `img`, over the button's own background:
+    // a picture a plugin puts in it is the one shown, and one it hides
+    // leaves only what the button's background shows.
+    let inner = super::plugin_dom::shown(keys::PROFILE_IMG) == super::plugin_dom::Shown::Drawn;
     let background = super::plugin_dom::background_url(keys::PROFILE);
     let painted = inner || background.is_some();
-    let avatar = background.or(if inner { avatar } else { None });
+    let avatar = if inner {
+        super::plugin_dom::picture(|| keys::PROFILE_IMG)
+            .or(avatar)
+            .or(background)
+    } else {
+        background
+    };
     if ui.is_rect_visible(rect) && painted {
         match avatar.as_deref() {
             Some(url) => super::widgets::paint_cover(
