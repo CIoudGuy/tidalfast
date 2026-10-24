@@ -416,12 +416,22 @@
 	// `background-image` replaces it (the cotton candy family, Solo v2).
 	// Tidalfast draws that glass natively; the host only says it survived.
 	const PANEL_GLASS = "linear-gradient(rgba(60, 60, 60, 0.35) 0%, rgba(70, 70, 70, 0.35) 100%)";
+	// TIDAL's layout variables on its root (TIDAL 2.46.0's own sheet, the
+	// narrow window's values under 577 points): themes size and shift their
+	// boxes by them (the cotton candy family's `.mainContent {
+	// padding-bottom: var(--miniPlayerHeight) }`). The container row's own
+	// `--sidebarWidth` and `--playQueueWidth` are the app's real widths.
+	const TIDAL_ROOT =
+		":root { --pageWidth: 1500px; --resonancePageMaxWidth: 92vw; --pageHorizontalMargin: 28px; --pageHorizontalMarginWide: 48px; --pageBottomMargin: 48px; --pageMaxWidth: calc(var(--pageWidth) - var(--pageHorizontalMargin)); --headerHeight: 56px; --footerHeight: 96px; --tabbarHeight: 56px; --sidebarWidth: 240px; --responsiveSidebarWidth: 20vw; --collapsedSidebarWidth: 78px; --windowsTitleBarHeight: 30px; --miniPlayerHeight: 88px; --miniPlayerClearance: calc(var(--miniPlayerHeight) + 24px); --floating-panel-border-radius: 16px; }\n" +
+		"@media (max-width: 576px) { :root { --pageHorizontalMargin: 16px; --pageHorizontalMarginWide: 20px; --pageBottomMargin: 20px; --miniPlayerHeight: 72px; --floating-panel-border-radius: 32px; } }\n" +
+		".is-desktop-app { --floating-panel-border-radius: 12px; }\n";
 	let tidal = null;
 	const tidalSheet = () => {
 		if (!tidal) {
 			tidal = new CSSStyleSheet();
 			tidal.replaceSync(
-				'[class^="_fullscreen_"] { position: absolute; inset: 0; z-index: 10; }\n' +
+				TIDAL_ROOT +
+					'[class^="_fullscreen_"] { position: absolute; inset: 0; z-index: 10; }\n' +
 					'[class^="_utilityButtons_"] > button { display: flex; width: 32px; height: 32px; padding: 1px 6px; border: 0; background-color: transparent; align-items: center; justify-content: center; cursor: pointer; }\n' +
 					'[class^="_utilityButtons_"] > button svg { width: 16px; height: 16px; }\n' +
 					"._artistVariant_63c8c96 ._round_5776dee { border-radius: 50%; }\n" +
