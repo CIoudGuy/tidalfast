@@ -157,6 +157,8 @@ pub struct Style {
     /// `auto` or `scroll` makes a box of a definite height scroll what it
     /// holds (DownloadManager's About window body).
     pub overflow_y: Option<String>,
+    /// `none` hides a scroll box's bar (it still scrolls).
+    pub scrollbar_width: Option<String>,
     /// The marker list items draw (`disc` unless set; `none` draws none),
     /// inherited from their list.
     pub list_style_type: Option<String>,
@@ -376,6 +378,23 @@ pub struct FontSource {
     pub weight: Option<String>,
 }
 
+/// A scroll a plugin asked of one of its own elements.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NodeScroll {
+    /// The element: a scroll box for `top`, any element for `block`.
+    pub id: u64,
+    /// The scroll box's new `scrollTop`.
+    pub top: Option<f32>,
+    /// `scrollIntoView`: where the element goes in the scroll boxes round
+    /// it (`start`, `center`, `end`, `nearest`).
+    pub block: Option<String>,
+    /// `behavior: "smooth"`.
+    pub smooth: bool,
+    /// Grows with each request, so the same one can be asked again.
+    pub seq: u64,
+}
+
 /// Everything plugins changed, for the UI to render. Rebuilt by the runtime
 /// after plugin code runs; [`DomOverlay::version`] changes with it.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -410,6 +429,11 @@ pub struct DomOverlay {
     /// call, names the row nearest the middle of the new view).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scroll_top: Option<(String, f32, u64)>,
+    /// Scrolls plugins asked of their own elements (`scrollTop =`,
+    /// `scrollTo`, `scrollBy` on a scroll box, `scrollIntoView` on what it
+    /// holds): the newest per element, ordered by element id.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub node_scrolls: Vec<NodeScroll>,
     /// The native widgets plugins clicked with `element.click()` (the "..."
     /// button of a row, the lyrics sync button), oldest first: host key and
     /// a sequence number, so the same widget can be clicked twice and two

@@ -454,6 +454,24 @@ pub fn rect(r: Rect) -> Option<crate::luna::dom::Rect> {
 
 /// Plugin element `id` was drawn in `r`: when a script read its box, the
 /// tree tells it where.
+/// The newest scroll the drawn document's plugins asked of element `id`
+/// (`DomOverlay::node_scrolls`).
+pub fn node_scroll(id: u64) -> Option<crate::luna::dom::NodeScroll> {
+    let find = |o: &DomOverlay| {
+        o.node_scrolls
+            .binary_search_by_key(&id, |s| s.id)
+            .ok()
+            .map(|i| o.node_scrolls[i].clone())
+    };
+    if let Some(found) = in_page(|p| find(&p.overlay)) {
+        return found;
+    }
+    if !on() {
+        return None;
+    }
+    with(|s| find(&s.overlay))
+}
+
 pub fn node_drawn(id: u64, r: Rect) {
     if in_page(|p| {
         if p.overlay.measure.binary_search(&id).is_ok()

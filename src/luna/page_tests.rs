@@ -498,3 +498,56 @@ fn a_key_in_the_window_reaches_the_pages_listeners() {
         json!([["Escape", "Escape", false, "BODY", true]])
     );
 }
+
+/// A scroll box's reports set what scripts read: `scrollTop` and the
+/// `scrollHeight` of what it holds now (the first height was kept for
+/// good), and only a report that moved the box fires `scroll`.
+#[test]
+fn a_scroll_box_reports_where_it_is_and_fires_scroll_when_it_moves() {
+    let page = open(
+        r#"<body><div id="b" style="height:50px;overflow-y:auto"></div><script>
+const b = document.getElementById("b");
+b.addEventListener("scroll", () => probe.send("probe.scroll", [b.scrollTop, b.scrollHeight]));
+document.addEventListener("keydown", () => probe.send("probe.read", [b.scrollTop, b.scrollHeight]));
+</script></body>"#,
+        "data:text/html,x",
+        Some(PRELOAD),
+    );
+    page.next(|m| matches!(m, FromPage::Loaded { .. }).then_some(()));
+    let root = page.overlay_until(|r| find(r, &id_is("b")).is_some());
+    let id = find(&root, &id_is("b")).unwrap().id;
+    let report = |data: Value| {
+        page.window().dom_event(DomEvent {
+            target: DomTarget::Node(id),
+            kind: "scroll".into(),
+            data,
+        });
+    };
+    report(json!({ "scrollTop": 0, "scrollHeight": 1000, "quiet": true }));
+    report(json!({ "scrollTop": 0, "scrollHeight": 3000, "quiet": true }));
+    page.window().dom_event(DomEvent {
+        target: DomTarget::Host(String::new()),
+        kind: "keydown".into(),
+        data: json!({ "key": "a", "code": "KeyA" }),
+    });
+    let first = page.next(|m| match m {
+        FromPage::Ipc { channel, args, .. } if channel.starts_with("probe.") => {
+            Some((channel, args))
+        }
+        _ => None,
+    });
+    assert_eq!(first.0, "probe.read", "no scroll before a move: {first:?}");
+    assert_eq!(
+        serde_json::from_str::<Value>(&first.1).unwrap(),
+        json!([[0, 3000]])
+    );
+    report(json!({ "scrollTop": 40, "scrollHeight": 3000 }));
+    let moved = page.next(|m| match m {
+        FromPage::Ipc { channel, args, .. } if channel == "probe.scroll" => Some(args),
+        _ => None,
+    });
+    assert_eq!(
+        serde_json::from_str::<Value>(&moved).unwrap(),
+        json!([[40, 3000]])
+    );
+}
