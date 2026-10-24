@@ -3463,6 +3463,45 @@
 		if (L.stat) L.stat("overlay css", t0);
 		const comp = css.styles;
 		curBoxes = css.boxes ?? null;
+		// What CSS hides with an element, as a browser does: `display: none`
+		// takes the element and everything in it out of the page (element-
+		// hider's "Hide This Element" on a sidebar or a header), and
+		// `visibility` is inherited, so the nearest element that sets it
+		// decides (`visible` on a child shows it again).
+		const goneMemo = new Map();
+		const goneAt = (el) => {
+			if (!(el instanceof Element)) return false;
+			let v = goneMemo.get(el);
+			if (v === undefined) {
+				v = /^none$/i.test(String(comp.get(el)?.display ?? "").trim()) || goneAt(el.parentElement);
+				goneMemo.set(el, v);
+			}
+			return v;
+		};
+		const ownVisibility = (el) => {
+			const v = String(comp.get(el)?.visibility ?? "")
+				.trim()
+				.toLowerCase();
+			if (v === "" || v === "inherit" || v === "unset") return undefined;
+			return v === "hidden" || v === "collapse";
+		};
+		const invisMemo = new Map();
+		const invisibleAt = (el) => {
+			if (!(el instanceof Element)) return false;
+			let v = invisMemo.get(el);
+			if (v === undefined) {
+				v = ownVisibility(el) ?? invisibleAt(el.parentElement);
+				invisMemo.set(el, v);
+			}
+			return v;
+		};
+		// The style an element in `parent` is drawn with when CSS hides it
+		// through `parent`, else its own.
+		const hiddenBy = (parent, el, style) => {
+			if (goneAt(parent)) return { ...(style ?? {}), display: "none" };
+			if (invisibleAt(parent) && (!(el instanceof Element) || ownVisibility(el) === undefined)) return { ...(style ?? {}), visibility: "hidden" };
+			return style;
+		};
 		const hostsOut = {};
 		const injected = [];
 		const push = (anchor, position, node) => {
@@ -3508,7 +3547,12 @@
 				}
 				if (anchor === undefined || anchor === null) return;
 				const v = buildVNode(k, comp, isHost(parent) ? parent : null);
-				if (v) push(anchor, pos, v);
+				if (!v) return;
+				// Inside an app element CSS hides, a plugin's element is
+				// hidden with it.
+				const style = hiddenBy(parent, k, v.style);
+				if (style !== v.style) v.style = style;
+				push(anchor, pos, v);
 			});
 		};
 		scan(html, "");
@@ -3530,6 +3574,11 @@
 			if (ps?.selection) o.selection = ps.selection;
 			if (css.selectable?.has(el)) o.selectable = true;
 			if (el._pluginRemoved || (!el.isConnected && !el._pluginMoved)) o.style = { ...(o.style ?? {}), display: "none" };
+			else {
+				// An app element inside one CSS hides is hidden with it.
+				const style = hiddenBy(el.parentElement, el, o.style);
+				if (style !== o.style) o.style = style;
+			}
 			const hostCls = (el._hostAttrs.get("class") ?? "").split(/\s+/);
 			const curCls = (el._attrs.get("class") ?? "").split(/\s+/);
 			const added = curCls.filter((c) => c && !hostCls.includes(c));

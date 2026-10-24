@@ -579,6 +579,57 @@ lib.observe(unloads, "._moreContainer_f6162c8", (el) => {
     finish(luna, dir);
 }
 
+/// CSS hides what is inside a hidden element: `display: none` on the
+/// sidebar (element-hider's "Hide This Element" on a box round the rows)
+/// takes its rows and what a plugin put in it out of the page, and an
+/// inherited `visibility: hidden` hides the player bar's buttons except one
+/// that sets `visible` again. The overlay said only the element the rule
+/// named was hidden, so every native part inside it went on drawing.
+#[test]
+fn what_is_inside_a_hidden_element_is_hidden() {
+    let (luna, _host, dir) = start(
+        r##"
+new lib.StyleTag("dom-test", unloads, `
+[data-test="main-layout-sidebar-wrapper"] { display: none; }
+[data-test="footer-player"] { visibility: hidden; }
+[data-test="next"] { visibility: visible; }
+`);
+lib.observe(unloads, "#sidebar-content", (el) => {
+	const p = document.createElement("span");
+	p.className = "t-inside";
+	p.textContent = "inside";
+	el.append(p);
+});
+"##,
+    );
+    luna.sync_dom(tree());
+    let o = overlay_until(&luna, 10, |o| {
+        !o.injected.is_empty() && o.hidden(&keys::sidebar_item("sidebar-music"))
+    });
+    for key in [
+        keys::SIDEBAR_NAV.to_string(),
+        keys::sidebar_item("sidebar-music"),
+        keys::sidebar_item_label("sidebar-music"),
+    ] {
+        let h = o
+            .host(&key)
+            .unwrap_or_else(|| panic!("{key} is in the overlay"));
+        assert_eq!(h.style.display.as_deref(), Some("none"), "{key}");
+    }
+    let inside = o
+        .injected
+        .iter()
+        .flat_map(|i| &i.nodes)
+        .find(|n| n.attrs.iter().any(|(k, v)| k == "class" && v == "t-inside"))
+        .expect("the plugin's element");
+    assert!(inside.style.hidden(), "the plugin's element goes with it");
+    assert!(o.hidden(keys::PLAY), "visibility is inherited");
+    assert!(o.hidden(keys::SHUFFLE));
+    assert!(!o.hidden(keys::NEXT), "a child that sets visible shows");
+    assert!(o.host(keys::NEXT).is_none_or(|h| h.style.display.is_none()));
+    finish(luna, dir);
+}
+
 #[test]
 fn plugin_css_restyles_hosts_and_sets_variables() {
     let (luna, _host, dir) = start(
