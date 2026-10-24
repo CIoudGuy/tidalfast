@@ -150,7 +150,13 @@ pub fn handle(app: &mut App, ctx: &egui::Context) {
         app.actions.push(Action::Forward);
     }
     if ctx.input(|input| input.key_pressed(Key::Escape)) {
-        if app.dialog.is_some() {
+        // Chromium leaves the fullscreen a page asked for on Escape, before
+        // the page hears the key: the fullscreen emulated for a plugin in a
+        // window that keeps its mode ends so too, and plugins see it end.
+        if super::plugin_dom::fullscreen_emulated() {
+            super::plugin_dom::emulate_fullscreen(false);
+            ctx.request_repaint();
+        } else if app.dialog.is_some() {
             app.actions.push(Action::CloseDialog);
         } else if app.lyrics_fullscreen.is_some() {
             app.actions.push(Action::SetLyricsFullscreen(false));
@@ -470,6 +476,66 @@ mod tests {
         } else {
             assert_eq!(label("Home"), "Ctrl+H");
         }
+    }
+
+    /// Chromium leaves an element's fullscreen on Escape (betterFullscreen
+    /// asks for it): the fullscreen emulated in a test window that keeps
+    /// its mode did not end.
+    #[test]
+    fn escape_leaves_the_fullscreen_emulated_for_a_plugin() {
+        let root = std::env::temp_dir().join(format!(
+            "tidalfast-escape-fullscreen-test-{}",
+            std::process::id()
+        ));
+        let dirs = AppDirs {
+            config: root.join("config"),
+            state: root.join("state"),
+            cache: root.join("cache"),
+        };
+        let mut app = App::new(
+            &crate::backend::Waker::default(),
+            dirs,
+            Settings::default(),
+            AppOptions {
+                media_controls: false,
+                restore_sign_in: false,
+                tray: false,
+            },
+        );
+        crate::demo::populate(&mut app);
+        app.now_playing_view = true;
+        crate::ui::plugin_dom::emulate_fullscreen(true);
+        let ctx = egui::Context::default();
+        let escape = || egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Modifiers::NONE,
+            }],
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(escape(), |_ui| handle(&mut app, &ctx));
+        output.textures_delta.clear();
+        assert!(!crate::ui::plugin_dom::fullscreen_emulated());
+        // The key ends the fullscreen only: the view stays open.
+        assert!(
+            !app.actions
+                .iter()
+                .any(|a| matches!(a, Action::CloseNowPlaying)),
+            "{:?}",
+            app.actions
+        );
+        let mut output = ctx.run_ui(escape(), |_ui| handle(&mut app, &ctx));
+        output.textures_delta.clear();
+        assert!(
+            app.actions
+                .iter()
+                .any(|a| matches!(a, Action::CloseNowPlaying))
+        );
+        app.backend.shutdown();
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
