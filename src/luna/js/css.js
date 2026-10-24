@@ -573,6 +573,13 @@
 		let styleSiblings = false;
 		const hasIn = (c) => c.pseudos.some((p) => p.name === "has" || (p.list ?? []).some((x) => x.steps.some((st) => hasIn(st.c))));
 		const attrNames = new Set();
+		// The custom properties some declaration reads (`var(--x)`, in a rule,
+		// a pseudo-element's rule or a keyframe): setting one no rule reads
+		// changes no element's style.
+		const varNames = new Set();
+		const readsVars = (v) => {
+			if (v.includes("var(")) for (const m of v.matchAll(/var\(\s*(--[\w-]+)/g)) varNames.add(m[1]);
+		};
 		let order = 0;
 		let bytes = 0;
 		// Rules of `looksSheet`: plugin elements only.
@@ -595,6 +602,7 @@
 					for (const m of r._sel.matchAll(/\[\s*([\w-]+)/g)) attrNames.add(m[1].toLowerCase());
 					const decls = [...r._decl._m].filter(([name, d]) => !invalidDecl(name, d.value)).map(([name, d]) => ({ name, value: d.value, important: d.important }));
 					if (!decls.length) continue;
+					for (const d of decls) readsVars(String(d.value));
 					if (!userSelect && decls.some((d) => /^(-webkit-)?user-select$/.test(d.name))) userSelect = true;
 					if (r._sel.includes(":has("))
 						for (const sel of list)
@@ -636,6 +644,7 @@
 				} else if (r instanceof CSSOtherRule && r.type === 7 && r._body) {
 					const frames = parseKeyframes(r._body);
 					if (frames.length) keyframes.set(r._prelude.replace(/^["']|["']$/g, ""), frames);
+					for (const [, decls] of frames) for (const [, v] of decls) readsVars(String(v));
 					// A variable an animation sets is defined while it runs.
 					for (const [, decls] of frames) for (const k of decls.keys()) if (k.startsWith("--")) registered.add(k);
 				} else if (r instanceof CSSOtherRule && r.name === "property" && r._prelude.startsWith("--")) {
@@ -660,7 +669,7 @@
 		}
 		if (skipped && !warnedCss) L.callOp("log", { plugin: null, level: "warn", msg: `${skipped} style sheet(s) left out: plugin and theme CSS is capped at ${MAX_CSS_BYTES >> 20} MB` });
 		warnedCss = skipped > 0;
-		index = { byId, byClass, byTag, byAttr, any, fonts, keyframes, hover, styleAttr, structural, hasSteps, hasStyleSteps, styleSiblings, attrNames, bytes, size: order, pseudo, userSelect };
+		index = { byId, byClass, byTag, byAttr, any, fonts, keyframes, hover, styleAttr, structural, hasSteps, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
 		return index;
 	};
 	// `@keyframes` body -> [[offset 0..1, Map name -> value]], sorted.
@@ -1843,8 +1852,12 @@
 	// Whether any selector names attribute `k` (from the last index; a sheet
 	// change since then resets every cascade anyway). No index yet: yes.
 	const attrMatters = (k) => !index || index.attrNames.has(String(k).toLowerCase());
+	// The custom properties the rules read, as of the last index (`null`
+	// before there is one). A sheet that changes since marks the overlay for
+	// a build of its own, which reads every inline style afresh.
+	const varsRead = () => index?.varNames ?? null;
 	// Whether a rule looks at siblings, children or position: then a changed
 	// class can change what matches outside the element's own subtree.
 	const structural = () => !!buildIndex().structural;
-	L.css = { setUserAgentSheet, panelGlass: PANEL_GLASS, panelBorder: PANEL_BORDER, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, structural, rangeParts };
+	L.css = { setUserAgentSheet, panelGlass: PANEL_GLASS, panelBorder: PANEL_BORDER, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, varsRead, structural, rangeParts };
 })();
