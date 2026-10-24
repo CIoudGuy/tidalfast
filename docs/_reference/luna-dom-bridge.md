@@ -269,7 +269,7 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | `shell` | `div.has-footer-player.is-desktop-app` in it (+ `is-fullscreen`, `is-now-playing`; exactly TIDAL's class list, which themes match with `[class="has-footer-player is-desktop-app"]`) | the window | |
 | `bar` | `div._bar_5b9ac59._smallText_a636ed6` in the main container (`div._mainContainer_6519c30._hasPlayer_57557c6`), as TIDAL 2.46.0 | title bar (`titlebar.rs`); hidden by `display:none` (NativeFullscreen) | Append |
 | `bar-title` | `div._title_a453dad` (the app's name, TIDAL's window title) | the name in the title bar; text override and colour drawn, what plugins append runs on from it (custom-fonts' "TIDALuna" and Comic Sans tag) | Append |
-| `main-container` | `div._mainContainer_.enable-scrollbar-styles` | everything above the player bar | |
+| `main-container` | `div._mainContainer_.enable-scrollbar-styles` (+ `_hasPlayer_57557c6` with a player, `_isFullscreen_75c1ba4` while fullscreen, as TIDAL 2.46.0), holding the title bar | everything above the player bar | |
 | `container-row` | `div._containerRow_` | same | |
 | `sidebar` | `div._sidebarWrapper_[data-test=main-layout-sidebar-wrapper][style="width: 240px;"]` (TIDAL's inline width: always 240 expanded, whatever width the user dragged Tidalfast's sidebar to; the icon rail carries its own, `72px`; the real width is `--sidebarWidth` on `container-row`, with `--collapsedSidebarWidth`) | sidebar panel; background restyled; a theme's `top` and `border-radius` float it as a card, a negative `left` slides it out to the left with its contents faded as the theme says, back in under the pointer through its `:hover` rule (Lunallena; see Theme) | |
 | `sidebar-nav` | `aside#sidebar._sidebar_[aria-label="Navigation sidebar"]`, the wrapper's child | sidebar | |
@@ -893,10 +893,8 @@ reading one property at a time:
   without it (and in tests) the parts keep the stand-in: the brightness
   folded into the fill or laid over as a veil, a blurred box made opaque over
   the window's colour, and the page's `url()` picture blurred under the box.
-  Measured on this computer (release build, 2137 x 1183): 0.02 to 0.03 ms of
-  GPU time a box per frame (a 12-point blur over the whole player bar), no
-  change in the frame's CPU time while scrolling (p50 22 to 24 ms with the
-  cotton candy theme either way), nothing while the window is idle.
+  Each pass draws into its own framebuffer, attached once. Measured on this
+  computer (release build, 2137 x 1183): 0.04 ms of GPU time and 0.07 ms of the frame's CPU time a box per frame (a 12-point blur over the whole player bar; the queue's 11.2-point one alike), no change to be measured in the frame's CPU time while a playlist scrolls (p50 24 to 26 ms with the cotton candy theme with and without it), nothing while a window with no such theme is idle, and about 0.3 % of one core more while an animated theme (the cotton candy family's drifting gradients) keeps the window drawing.
 - **Checking against TIDAL.** A demo build writes every anchor's resolved
   look and cascade style with `--demo-dump-looks <PATH>`
   (`src/ui/look_dump.rs`), so a theme's looks can be compared with the

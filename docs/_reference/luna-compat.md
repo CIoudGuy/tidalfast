@@ -260,7 +260,7 @@ were not compared.
 | Tidal Light (InterstellarOne/Tidal-Light, `userstyle.css`, and its `no-header.css`) | ✅ in Light | Its `@media (prefers-color-scheme: light)` palette when the app is in Light (as in TIDAL, nothing in Dark) | `@-moz-document` wrapper is accepted |
 | Tidal Light, unconditioned copy (youwen5/liminalOS, `tidal-light.css`) | ✅ | The light palette in either app theme (the copy has no `prefers-color-scheme` guard) | |
 | Catppuccin Frappé (jiboli/Catppuccin-Dotfiles) | ✅ | `#main` and the player bar in Frappé base, pink text and accent, surfaces, "MapleMono NF" when installed | The sidebar and title bar stay TIDAL black, as in TIDAL: its `[class^="mainContainer"]` rules name TIDAL's old class names, which match nothing there either |
-| blur (Inrixia/luna-plugins `themes/blur.css`, also Kisakay's copy) | ✅ | Transparent title bar and header, glass band behind the header (`#mainHeader::before`), header art replaced by a tint (`_dataContainer_::before`), tinted player bar, round search field colour; `backdrop-filter: blur()` blurs a picture painted behind (a theme or plugin `url()` page background) | Made for CoverTheme, whose gradients look the same blurred; context menus keep the themed menu colour (their glass is a `::before` on a menu Tidalfast draws natively) |
+| blur (Inrixia/luna-plugins `themes/blur.css`, also Kisakay's copy) | ✅ | Transparent title bar and header, glass band behind the header (`#mainHeader::before`), header art replaced by a tint (`_dataContainer_::before`), tinted player bar, round search field colour; `backdrop-filter: blur()` blurs what lies behind the box, as in TIDAL (round 38; where OpenGL 3 is missing, only a picture painted behind) | Made for CoverTheme, whose gradients look the same blurred; context menus keep the themed menu colour (their glass is a `::before` on a menu Tidalfast draws natively) |
 | example (Inrixia `themes/example.css`) | ✅ | Page font (Comic Sans MS, installed font); the background image under a dark gradient on `#main` and `#mainHeader` (`[id^="main"]`) | Its gold text on `[id^="titleCell"]`, `[id^="albumText"]`, `[id^="timeColumn"]`, `[id^="contributionText"]` and red bold on `[id^="headerColumn"]`: since r18 the track table's cells carry those ids (`titleCell-0`, ...) so the rules reach them in the DOM, but the native rows paint their text in the palette's text colour (TIDAL's own classes colour the cells there too), so the colours are not drawn; `[id^="item"]` and `releasedDateColumn` stay unmatched (no evidence which TIDAL element carries `item`, and Tidalfast has no release-date column) |
 | cotton candy colourways (aya-zzz-zzz/cotton-candy-colorways: `base-windows.css` + each of cottoncandy, horchata, the 3 basics, 2 Halloween and 8 pride colourways; the 2 addons; the adaptive base + 2 adaptive colourways) | ✅ (adaptive: ✅ in Light) | The floating rounded player bar (98.3vw, 7 px up, 1em corners, white glow) and the sidebar card (2.25em off top and bottom, 19 px corners); the light glass window from the main container (white, gradients), see-through sidebar, title bar and page, the player bar's colour and gradient, header art removed, black text on the light window; dark colourways (calavera) dark | Most of its 154 KB names TIDAL views and shapes Tidalfast does not have (card hovers, the light cards behind the bar's title and buttons); fairyfloss keeps its own light text on a lavender window |
 | NoPlaylistBackgroundImage (SuperslowJelly/TIDAL-Clear-Coat) | ✅ | Hides the album/playlist header art (`[class^="_dataContainer_"]::before`) | (failed before: no `::before` support) |
@@ -2437,6 +2437,77 @@ rule, the playlist thumbnails' `filter: none`); the queue panel's border
 colour over TIDAL's own 1-point border; the page title's per-page `h2`
 markup (album `_titleText_7494646`, playlist `_title_c9bc1b1`), which the
 header paints from a stand-in.
+
+### Round 38 (frosted glass and TIDAL 2.46.0's markup, 2026-10-24)
+
+Worked from the parity checker's report (Round 36), largest groups first.
+Fixed in the generic layer, each with a made-up theme in
+`src/luna/theme_round38_tests.rs` (or the module's own tests) that fails
+without the change:
+
+- **`backdrop-filter` is drawn.** What lies behind a box is blurred and
+  run through the filter's colour functions on the GPU, under the theme's
+  own fill, as TIDAL draws it (`ui::backdrop`, an egui paint callback in
+  the box's paint order: the window's pixels under the box are copied,
+  halved while the blur is wide, blurred with a Gaussian of the filter's
+  radius, recoloured and laid back in the box's corners, mirrored at its
+  edges as Chromium does). The cotton candy family's play queue
+  (`blur(.8em) brightness(.75) saturate(1.1)`) is its own pink over the
+  darkened page, not a darker folded colour; its track list panel's
+  `saturate(1.35)` saturates the page under it; a floating player bar's
+  glass blurs the page that runs under it. Only a box whose theme asks for
+  a backdrop filter adds a callback: a window with no such theme draws
+  exactly as before (checked pixel for pixel on the album, menu, playlist
+  and collection pages). Without OpenGL 3 the earlier stand-in stays.
+  Measured (release build, this computer, 2137 x 1183): 0.04 ms of GPU time and 0.07 ms of the frame's CPU time a box per frame (a 12-point blur over the whole player bar; the queue's 11.2-point one alike), no change to be measured in the frame's CPU time while a playlist scrolls (p50 24 to 26 ms with the cotton candy theme with and without it), nothing while a window with no such theme is idle, and about 0.3 % of one core more while an animated theme (the cotton candy family's drifting gradients) keeps the window drawing.
+- **TIDAL 2.46.0's markup for parts themes name exactly**: the back and
+  forward pill (`div._container_bb78f1d`, `button._button_6808704`; the
+  cotton candy family's `translateY(-7em)` lifts it out of the window, and
+  the pill is now drawn where its `translate` puts it); the header's
+  controls per page (an album's `_actionContainer_5bb1c14 > _container_
+  84abbc3` and `_smallButtons_5c1ea50`, a playlist's `_actionContainer_
+  334aa3b > _container_5a08754` and `_smallButtons_1da13ba
+  _actionSmallButtons_6ce346a`: the family's dark captions are an album's
+  only); an album's and a playlist's title (`h2.wave-text-title-bold.
+  _titleText_7494646` in `div._detailContainer_5b36b6c`, a playlist's
+  `_title_c9bc1b1` in `_detailContainer_105eeff` in `[data-test=header-
+  background]`), painted from its own look (the family's dark title lifted
+  12.8 points, a playlist's at 30 points); the sidebar's navigation block
+  (`div#sidebar-content._fixedNavigation_00842ee` round the links, the
+  playlists in `div._listSection_26d6dae ... nav[data-test=sidebar-
+  scrollable-nav]`; the family's `translateY(-.5em)` lifts the rows 7
+  points); a library row's art as the row's first child (the open
+  playlist's art untinted); the queue's word stand-ins in `div.
+  _playQueueItems_84488b2`; the title bar in the main container
+  (`#wimp > div[data-market-theme] > div > div._mainContainer_6519c30.
+  _hasPlayer_57557c6 > div._bar_5b9ac59._smallText_a636ed6`); the play
+  queue panel as `aside#playQueueSidebar`; a track menu's entries as
+  `button._actionText_d77b98b` (track radio a link).
+- **`em` in a box's own lengths is its own text size**: the header's Play
+  and Shuffle are TIDAL's 16-point market buttons, so the family's `.9em`
+  corners are 14.4; a title's `translateY(-.4em)` is of its 32 points.
+- **A track row's `border-image` paints its line** in the theme's gradient
+  (the family's row lines fade in and out).
+- **The play queue panel keeps TIDAL's own half-point border** in the
+  cascade, so a theme's `border-style` and `border-color` recolour it; with
+  no theme the native line stays.
+
+The checker's own false differences were removed first or along the way:
+stand-ins for parts TIDAL's page does not have open (the closed queue's
+word stand-ins) were matched to unrelated elements; Tidalfast holds colours
+premultiplied in 8 bits, so a faint shadow's own channels are only known
+to a few levels (now equal when painted alike); a pair where TIDAL's
+element is in a state the anchor is not (the captured account's open
+playlist row against another row of the demo's library) and what lies in
+it are set apart; a see-through shadow is no shadow; `calc()` inside a
+colour and a mix share written straight after a colour function
+(`color-mix(...)72%`) are read; an icon whose fill is its words' colour
+(`currentcolor`) is counted with the inherited words.
+
+Totals (differences over anchor elements compared, the dark-compared
+themes and no theme): 1375 over 51714 (97.34 %) at the start (round 37's checker; the anchors for the header's captioned buttons, added since round 37, account for the rise from its 1189); 407 over 55770 (99.27 %) after these fixes. The checker's own false differences removed this round, as measured on the builds where each was found: 84 (closed queue stand-ins), 122 (faint colours), 68 (pairs in different states), 69 (see-through shadows and `calc()` colours), 26 (glued mix shares), 59 (icons in their words' colour); the rest of the drop is these fixes. No theme with no theme applied differs: none 0.
+
+Open (the checker's largest groups now): TIDAL's own rule that outranks a theme's for the header search field (`blur(20px) saturate(1.8)` and `box-shadow: none`; adding it to the cascade would give every window with Luna on a GPU pass under the search pill, so not done); a playlist's track list markup (TIDAL 2.46.0 wraps the list in `div[role=table]` and the first rows' slots differ from an album's `_nativeRowWrapper_`: the family's `._items_ ._tableContainer_ { translateY(-1.6em) }` and its first row's line); lines one side only on the sidebar, bar and header under Mocha Blue; Giorgeous' queue button corners. Light-scheme themes and `:hover` are still compared in the dark scheme and at rest only.
 
 ### Round 28 (plugins in use, 2026-10-23)
 
