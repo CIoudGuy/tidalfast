@@ -107,6 +107,13 @@ struct Cli {
     #[cfg(feature = "demo")]
     #[arg(long, value_name = "X,Y:X,Y", value_parser = parse_demo_drag)]
     demo_drag: Option<[egui::Pos2; 2]>,
+
+    /// With `--demo-shot`: when the shot is taken, also write each anchor's
+    /// resolved theme look (and the cascade's style for it) to this path as
+    /// JSON, for comparing a theme with TIDAL's page in a browser.
+    #[cfg(feature = "demo")]
+    #[arg(long, value_name = "PATH", requires = "demo_shot")]
+    demo_dump_looks: Option<std::path::PathBuf>,
 }
 
 /// Remote control of the running instance, for Raycast scripts, launchers,
@@ -666,6 +673,7 @@ pub(crate) fn run() -> eframe::Result<()> {
         path,
         due: std::time::Instant::now() + std::time::Duration::from_millis(cli.demo_shot_delay),
         asked: false,
+        looks: cli.demo_dump_looks.clone(),
     });
     #[cfg(feature = "demo")]
     let demo_drag = cli
@@ -1316,6 +1324,22 @@ struct Shot {
     path: std::path::PathBuf,
     due: std::time::Instant,
     asked: bool,
+    /// Where to write the anchors' looks when the shot is asked for.
+    looks: Option<std::path::PathBuf>,
+}
+
+/// Writes the anchors' looks for `--demo-dump-looks`.
+#[cfg(feature = "demo")]
+fn write_looks(path: &std::path::Path) {
+    let Some(report) = tidalfast::ui::plugin_dom::dump_looks() else {
+        log::error!("no anchor tree yet, {} not written", path.display());
+        return;
+    };
+    let text = serde_json::to_string_pretty(&report).unwrap_or_default();
+    match std::fs::write(path, text) {
+        Ok(()) => log::info!("wrote the anchors' looks to {}", path.display()),
+        Err(error) => log::error!("could not write {}: {error}", path.display()),
+    }
 }
 
 #[cfg(feature = "demo")]
@@ -1330,6 +1354,9 @@ impl Shell {
         ctx.request_repaint();
 
         if !shot.asked && std::time::Instant::now() >= shot.due {
+            if let Some(path) = &shot.looks {
+                write_looks(path);
+            }
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
             shot.asked = true;
         }
