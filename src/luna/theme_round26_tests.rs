@@ -59,6 +59,7 @@ fn shortcut_tiles_carry_their_kinds_link_class_and_id() {
         image: Some([x + 8.0, 108.0, 44.0, 44.0]),
         owned,
         kind,
+        ..Default::default()
     };
     let mut frame = dom_anchors::sample_frame();
     if let Some(page) = frame.page.as_mut() {
