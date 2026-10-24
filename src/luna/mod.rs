@@ -657,7 +657,7 @@ const COMPAT: &[CompatRow] = &[
         name: "@jxnxsdev/lyrics-everywhere",
         note: CompatNote {
             level: Compat::PartlySupported,
-            reason: "The lyrics bubble and the lyrics window work, but the window's edges are not see-through yet and its lyrics do not scroll.",
+            reason: "The lyrics bubble and the lyrics window work, but the window's edges are not see-through yet.",
         },
     },
     CompatRow {

@@ -1174,16 +1174,31 @@ items puts a shorter one in its middle by last frame's heights. A box of a
 definite height lays out what it holds in that height (a child's
 `height: 100%` is the box's, as a progress bar's fill), and what scripts read
 of an element (`getBoundingClientRect`) and a drag region are its border
-box, without its margins.
+box, without its margins. A flex column held to its `max-height` is that
+tall once what it holds would run past it (measured as if nothing held
+it), and its growing items share it; a scroll box is its own height even
+under egui's 64-point least scroll area. Grid tracks: lengths, `fr`,
+`minmax()`, `repeat()`, and `auto` as wide as its items beside `fr`
+tracks (sharing the free room without them); items in other tracks fill
+their cells; `gap` gives the rows and columns their gaps and
+`align-items` places items in their row. Absolutely placed children take
+no room in their parent's flow.
+
+**Scrolling.** The wheel scrolls a page's scroll boxes (`overflow-y:
+auto|scroll`). Scripts scroll them too: `scrollIntoView` (with `block`
+and `behavior`) on anything inside, `scrollTop =`, `scrollTo` and
+`scrollBy` on the box (`DomOverlay::node_scrolls`, the newest per
+element, the same for plugin elements in the app). A scroll box reports
+its `scrollTop` and `scrollHeight` back; only a move fires `scroll`.
+`scrollbar-width: none` scrolls with no bar.
 
 **Not yet** (see the plan in `.internal/PLUGIN-WINDOWS-PROGRESS.md`):
 pages from `http(s)` URLs, `<script src>`, `@import` in a linked sheet,
-`scrollIntoView` inside a page's scroll box, text fields in a page, a flex
-column held to a `max-height` shrinking an item with `min-height: 0` so
-that its `overflow-y: auto` child scrolls (lyrics-everywhere's full lyrics
-run past its window), CSS grid tracks such as `auto 1fr auto`
-(miniplayer's taskbar progress row) and a grid of absolutely placed names
-(lyrics-everywhere's colour presets), `webContents.executeJavaScript`/
+focus and blur of a page's text fields (typing in them works through
+egui's text field; `focus()` from a script does not focus it yet), a scroll
+box's padding scrolling with its content, a page's own viewport
+scrolling (`window.scrollTo`), grid rows and placement (`grid-row`,
+spans), `webContents.executeJavaScript`/
 `insertCSS` on a plugin window, `ipcRenderer.sendSync`, a separate isolated
 world for the preload (it shares the page's realm, as with
 `contextIsolation: false`), the work area outside Windows, `@media`
