@@ -294,3 +294,37 @@ fn em_corners_follow_the_boxs_own_text_size() {
     );
     assert_eq!(radius, Some(8.0));
 }
+
+/// A library row's art is the row's first child in TIDAL 2.46.0 (`a.
+/// _contentItem_ > div._thumbnail_f82abfa > img._artworkImage_5bde5a4`): a
+/// theme's rule for the open row's art reaches it (the cotton candy
+/// family's `._contentItem_684cbbe._selected_ae83ba5 { ._thumbnail_f82abfa
+/// img { filter: none } }` leaves the open playlist's art untinted while
+/// the others are sepia). The art sat beside the rows, so it reached none.
+#[test]
+fn a_library_rows_art_is_in_the_row() {
+    use dom_anchors::keys::{thumb, thumb_img};
+    let css = r#"/* {"name": "Row art"} */
+[id="sidebar"] ._thumbnail_f82abfa img { filter: grayscale(1); }
+._contentItem_684cbbe._selected_ae83ba5 ._thumbnail_f82abfa img { filter: none; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.rows = vec![
+        (Some([16.0, 400.0, 208.0, 56.0]), false),
+        (Some([16.0, 456.0, 208.0, 56.0]), true),
+    ];
+    frame.sidebar.thumbs = vec![
+        Some([24.0, 404.0, 48.0, 48.0]),
+        Some([24.0, 460.0, 48.0, 48.0]),
+    ];
+    let o = overlay("row-art.css", css, &frame, &thumb_img(1));
+    let filter = |key: &str| {
+        o.hosts
+            .get(key)
+            .and_then(|h| h.style.filter.clone())
+            .unwrap_or_default()
+    };
+    assert_eq!(filter(&thumb_img(0)), "grayscale(1)");
+    assert_eq!(filter(&thumb_img(1)), "none");
+    assert!(o.hosts.contains_key(&thumb_img(0)) && !thumb(0).is_empty());
+}

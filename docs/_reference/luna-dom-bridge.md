@@ -590,7 +590,9 @@ exact `Range` (`selectBetween`). The selected words keep their colour.
 
 ### Theme anchors (round 25)
 
-- Library rows carry their words: `lib-row:<i>:words`
+- Library rows carry their art first, as TIDAL 2.46.0's (`thumb:<i>`,
+  `div._thumbnail_f82abfa > img._artworkImage_5bde5a4`, in the row it is
+  drawn in), then their words: `lib-row:<i>:words`
   (`div._textContent_462c76e`) > `:title`
   (`span._marketText_1lyag_1._medium20_1lyag_192._textWhite_1lyag_319._title_8b245d1`,
   without `_textWhite_` on the playing playlist's row, whose name is the
