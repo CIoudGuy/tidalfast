@@ -88,7 +88,12 @@ pub(crate) fn backdrop_layers(
         .into_iter()
         .any(super::plugin_dom::hidden)
     {
-        let fill = super::plugin_dom::fill(crate::luna::dom_anchors::keys::NOW_PLAYING)
+        // The section the view is in: the docked one, or the one in
+        // `_fullscreen_` while fullscreen.
+        let host = crate::luna::dom_anchors::now_playing_host(
+            super::plugin_dom::window_fullscreen(ui.ctx()),
+        );
+        let fill = super::plugin_dom::fill(host)
             .or((!super::plugin_slots::has_backdrop()).then_some(Color32::BLACK));
         if let Some(fill) = fill {
             ui.painter()
@@ -99,11 +104,7 @@ pub(crate) fn backdrop_layers(
         // top to its blue at the foot, where the fill alone is the black).
         let mut layer = ui.new_child(egui::UiBuilder::new().max_rect(rect));
         layer.set_clip_rect(clip);
-        super::plugin_dom::paint_host_layers(
-            &layer,
-            crate::luna::dom_anchors::keys::NOW_PLAYING,
-            rect,
-        );
+        super::plugin_dom::paint_host_layers(&layer, host, rect);
         return;
     }
     // The theme's own layers on `#nowPlaying` lie under the cover, which
@@ -282,9 +283,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                         tilt,
                         video,
                         footer_rect: super::plugin_dom::rect(footer),
-                        fullscreen_rect: fullscreen
-                            .then(|| super::plugin_dom::rect(rect))
-                            .flatten(),
                         ..Default::default()
                     });
                 });
@@ -306,7 +304,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 }
                 super::plugin_slots::at(
                     ui,
-                    crate::luna::dom_anchors::keys::NOW_PLAYING,
+                    crate::luna::dom_anchors::now_playing_host(fullscreen),
                     crate::luna::dom::Position::Append,
                     placement.cover.center_bottom() + vec2(0.0, 12.0),
                     egui::Align2::CENTER_TOP,

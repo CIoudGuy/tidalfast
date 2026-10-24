@@ -235,7 +235,13 @@ pub mod keys {
     pub const NP_BUTTONS: &str = "now-playing-buttons";
     pub const NP_CONTENT_BUTTONS: &str = "now-playing-content-buttons";
     pub const NP_FOOTER: &str = "now-playing-footer";
+    /// TIDAL's `section._fullscreen_236d61b`, a child of the root, always
+    /// there; it holds the view while that is fullscreen.
     pub const NP_FULLSCREEN: &str = "now-playing-fullscreen";
+    /// The `section#nowPlaying[data-test=new-now-playing]._nowPlaying_` in
+    /// [`NP_FULLSCREEN`]: the view's parts are in it while fullscreen, in
+    /// the docked [`NOW_PLAYING`] otherwise.
+    pub const NP_FULLSCREEN_VIEW: &str = "now-playing-fullscreen-view";
     pub const NP_ARTWORK: &str = "now-playing-artwork";
     pub const NP_ARTWORK_TILT: &str = "now-playing-artwork-tilt";
     pub const NP_ARTWORK_IMG: &str = "now-playing-artwork-img";
@@ -1060,8 +1066,6 @@ pub struct NowPlaying {
     pub expand_rect: Option<Rect>,
     /// The bottom strip of the view (`[class*=_footer_]`).
     pub footer_rect: Option<Rect>,
-    /// The `_fullscreen_` container, present while the window is fullscreen.
-    pub fullscreen_rect: Option<Rect>,
     /// The header's tabs in TIDAL's order, as shown.
     pub tabs: Vec<NowPlayingTab>,
 }
@@ -1158,7 +1162,7 @@ pub fn build(frame: &Frame) -> HostTree {
         track_list(&mut out, list_parent, list);
     }
     if let Some(np) = &frame.now_playing {
-        now_playing(&mut out, np);
+        now_playing(&mut out, np, frame.shell.fullscreen);
     }
     let mut title_parent = keys::SHELL;
     if let Some((rect, over_now_playing)) = &frame.queue_panel {
@@ -1412,6 +1416,10 @@ pub fn theme_roles(out: &mut Vec<HostNode>) {
 pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     use keys::*;
     let s = &frame.shell;
+    // TIDAL 2.46.0 marks its layout with the view's state: the docked view
+    // open (`showNowPlaying && !isFullscreen`), fullscreen, a player.
+    let docked_view = frame.now_playing.is_some() && !s.fullscreen;
+    let has_player = frame.player.is_some();
     let mut root = el(SHELL, None, "div")
         .class("has-footer-player is-desktop-app")
         .at(s.rect);
@@ -1430,15 +1438,56 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
             .text("Tidalfast")
             .at(s.bar_title),
     );
+    let mut container = el(MAIN_CONTAINER, Some(SHELL), "div")
+        .modules(&["mainContainer"])
+        .class("enable-scrollbar-styles")
+        .at(s.main);
+    if has_player {
+        container = container.class("_hasPlayer_57557c6");
+    }
+    if s.fullscreen {
+        container = container.class("_isFullscreen_75c1ba4");
+    }
+    out.push(container);
+    // TIDAL 2.46.0's fullscreen view, after the main container: always
+    // there, covering the window (`position: fixed; inset: 0`) while the
+    // view is fullscreen, its `section#nowPlaying` then holding the view's
+    // parts ([`now_playing`]).
+    let fullscreen_view = s.fullscreen && frame.now_playing.is_some();
     out.push(
-        el(MAIN_CONTAINER, Some(SHELL), "div")
-            .modules(&["mainContainer"])
-            .class("enable-scrollbar-styles")
-            .at(s.main),
+        el(NP_FULLSCREEN, Some(SHELL), "section")
+            .modules(&["fullscreen"])
+            .at(if fullscreen_view { s.rect } else { None }),
     );
+    out.push(
+        el(NP_FULLSCREEN_VIEW, Some(NP_FULLSCREEN), "section")
+            .class("_container_ad3e54e")
+            .class("_nowPlaying_5cd5533")
+            .id("nowPlaying")
+            .test("new-now-playing")
+            .at(if fullscreen_view {
+                frame.now_playing.as_ref().and_then(|np| np.rect)
+            } else {
+                None
+            }),
+    );
+    // The docked view: a child of the root, there while closed (hidden)
+    // and taken out while the view is fullscreen, as TIDAL 2.46.0 does. That
+    // is a change to the root's own children, which Luna's `observe`
+    // reports with the root: betterFullscreen waits for
+    // `.is-fullscreen.is-now-playing` so. TIDAL puts it after the player
+    // bar, which has no lyrics button there; this one stays before the
+    // bar, so the first `[data-test^=toggle-lyrics]` is still the view's
+    // tab (LangRomanizer).
+    if frame.now_playing.is_none() {
+        out.push(docked_now_playing(None).class("_nowPlayingHidden_7e74506"));
+    }
     let mut row = el(CONTAINER_ROW, Some(MAIN_CONTAINER), "div")
         .modules(&["containerRow"])
         .at(s.main);
+    if has_player {
+        row = row.class("_hasPlayer_57557c6");
+    }
     if frame.sidebar.width > 0.0 {
         // TIDAL's variables for the sidebar's width, read by the sidebar
         // and by `#main` (a theme that lays the page under the sidebar sets
@@ -1455,7 +1504,7 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
         );
     }
     out.push(row);
-    sidebar(out, &frame.sidebar);
+    sidebar(out, &frame.sidebar, docked_view);
     // TIDAL's page box beside the sidebar, under the title bar, is
     // `_hasDockedPlayer_` (`_nowPlayingVisible_` over the now-playing
     // view): Tidal TUI labels it `Main` in its `::before`.
@@ -1465,18 +1514,23 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
         .modules(&["main"])
         .class("_hasDockedPlayer_b3ed021")
         .at(main_rect(frame));
-    if frame.now_playing.is_some() {
-        main = main.modules(&["nowPlayingVisible"]);
+    if docked_view {
+        main = main.class("_nowPlayingVisible_b1bf3e8");
     }
     main.scroll = frame.main_scroll;
     out.push(main);
-    out.push(
-        el(HEADER, Some(MAIN), "div")
-            .id("mainHeader")
-            .test("main-layout-header")
-            .modules(&["header", "solidHeader"])
-            .at(s.header),
-    );
+    let mut header = el(HEADER, Some(MAIN), "div")
+        .id("mainHeader")
+        .test("main-layout-header")
+        .modules(&["header", "solidHeader"])
+        .at(s.header);
+    if !s.fullscreen {
+        header = header.class("_newPlayerEnabled_9fcbb36");
+    }
+    if docked_view {
+        header = header.class("_nowPlayingVisible_03bf437");
+    }
+    out.push(header);
     out.push(
         el(HEADER_BAR, Some(HEADER), "div")
             .class("_container_cb5cbe4")
@@ -1591,7 +1645,9 @@ const TIDAL_SIDEBAR_WIDTH: f32 = 240.0;
 /// `--playQueueWidth`.
 const PLAY_QUEUE_WIDTH: f32 = 350.0;
 
-pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
+/// The sidebar; `docked_view`: the docked now-playing view is open, which
+/// TIDAL 2.46.0 marks on the wrapper (`_nowPlayingVisible_03bf437`).
+pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
     use keys::*;
     // TIDAL's wrapper and the navigation `aside` in it are two elements:
     // themes style them apart (`[class*=_sidebarWrapper_]` glass,
@@ -1610,6 +1666,12 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             TIDAL_SIDEBAR_WIDTH
         };
         node = node.attr("style", format!("width: {width}px;"));
+    }
+    if side.collapsed {
+        node = node.class("_isCollapsed_4fb92c6");
+    }
+    if docked_view {
+        node = node.class("_nowPlayingVisible_03bf437");
     }
     out.push(node);
     out.push(
@@ -2634,11 +2696,16 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
         .modules(&["player"])
         .id("footerPlayer")
         .test("footer-player")
+        .attr(
+            "data-test-playback-state",
+            if p.playing { "PLAYING" } else { "NOT_PLAYING" },
+        )
         .at(p.rect);
+    // TIDAL 2.46.0's own class names its state: `nowPlayingVisible`,
+    // plain, over the view (the themes' `[class="_player_8c80ae6
+    // nowPlayingVisible _notFullscreen_60c5a14"]`), and the playback state.
     if p.now_playing_visible {
-        footer = footer
-            .class("nowPlayingVisible")
-            .modules(&["nowPlayingVisible"]);
+        footer = footer.class("nowPlayingVisible");
     }
     // `[class="_player_8c80ae6 _notFullscreen_60c5a14"]`: the cotton candy
     // themes style the bar's insides under it.
@@ -3008,18 +3075,59 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     );
 }
 
-/// `[data-test=new-now-playing]` (also `#nowPlaying`) with artwork and lyrics.
-pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
+/// The section holding the now-playing view's parts: the docked
+/// [`keys::NOW_PLAYING`], or [`keys::NP_FULLSCREEN_VIEW`] while the view is
+/// fullscreen.
+pub fn now_playing_host(fullscreen: bool) -> &'static str {
+    if fullscreen {
+        keys::NP_FULLSCREEN_VIEW
+    } else {
+        keys::NOW_PLAYING
+    }
+}
+
+/// TIDAL 2.46.0's docked now-playing view, a child of the root:
+/// `section#nowPlaying[data-test=new-now-playing]._container_ad3e54e.
+/// _nowPlayingContainer_` (`._nowPlayingHidden_` while closed).
+fn docked_now_playing(rect: Option<Rect>) -> HostNode {
+    el(keys::NOW_PLAYING, Some(keys::SHELL), "section")
+        .class("_container_ad3e54e")
+        .modules(&["nowPlayingContainer"])
+        .id("nowPlaying")
+        .test("new-now-playing")
+        .at(rect)
+}
+
+/// Where plugin elements sit directly in TIDAL's root (`#wimp > div`) or
+/// beside it: `anchor` at `position` is the root itself, or a sibling
+/// place next to one of the root's own children. Positioned elements
+/// there are placed against the window (betterFullscreen's player, which
+/// takes the place of `section._fullscreen_`).
+pub fn in_root(anchor: &str, position: super::dom::Position) -> bool {
+    use super::dom::Position::{After, Before};
+    anchor == keys::SHELL
+        || (matches!(position, Before | After)
+            && [
+                keys::BAR,
+                keys::MAIN_CONTAINER,
+                keys::NP_FULLSCREEN,
+                keys::NOW_PLAYING,
+                keys::FOOTER,
+            ]
+            .contains(&anchor))
+}
+
+/// `[data-test=new-now-playing]` (also `#nowPlaying`) with artwork and
+/// lyrics: the docked view's section, or while `fullscreen` the one in
+/// `section._fullscreen_` ([`shell`] adds that one).
+pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying, fullscreen: bool) {
     use keys::*;
+    let host = now_playing_host(fullscreen);
+    if !fullscreen {
+        out.push(docked_now_playing(np.rect));
+    }
     out.push(
-        el(NOW_PLAYING, Some(MAIN_CONTAINER), "div")
-            .modules(&["nowPlayingContainer"])
-            .id("nowPlaying")
-            .test("new-now-playing")
-            .at(np.rect),
-    );
-    out.push(
-        el(NP_HEADER, Some(NOW_PLAYING), "header")
+        el(NP_HEADER, Some(host), "header")
             .modules(&["header"])
             // TIDAL's `#nowPlayingHeader` and `[data-test=header-container]`
             // (Catppuccin, Cotton Candy).
@@ -3071,7 +3179,7 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
             .at(np.close_rect),
     );
     out.push(
-        el(NP_BACKGROUND, Some(NOW_PLAYING), "div")
+        el(NP_BACKGROUND, Some(host), "div")
             .modules(&["background"])
             .at(np.rect),
     );
@@ -3089,14 +3197,14 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
         // its own whose words (`now-playing`, `layer`) no theme rule
         // reaches that the plain class does not already meet.
         out.push(
-            el(key, Some(NOW_PLAYING), "div")
+            el(key, Some(host), "div")
                 .class(class)
                 .class("now-playing-layer")
                 .at(np.rect),
         );
     }
     out.push(
-        el(NP_CONTENT, Some(NOW_PLAYING), "div")
+        el(NP_CONTENT, Some(host), "div")
             .modules(&["innerContainer", "content"])
             .at(np.rect),
     );
@@ -3136,17 +3244,10 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying) {
             .at(np.artwork_rect),
     );
     out.push(
-        el(NP_FOOTER, Some(NOW_PLAYING), "div")
+        el(NP_FOOTER, Some(host), "div")
             .modules(&["footer"])
             .at(np.footer_rect),
     );
-    if np.fullscreen_rect.is_some() {
-        out.push(
-            el(NP_FULLSCREEN, Some(NOW_PLAYING), "div")
-                .modules(&["fullscreen"])
-                .at(np.fullscreen_rect),
-        );
-    }
     if np.lyrics_rect.is_none() && np.lines.is_empty() {
         return;
     }
@@ -3710,7 +3811,6 @@ mod tests {
         });
         frame.lists[0].time_header_rect = Some([900.0, 280.0, 60.0, 20.0]);
         let np = frame.now_playing.as_mut().unwrap();
-        np.fullscreen_rect = np.rect;
         np.expand_rect = Some([900.0, 10.0, 30.0, 30.0]);
         let tree = build(&frame);
         let data = find(&tree, keys::PAGE_DATA);
@@ -3745,18 +3845,92 @@ mod tests {
         let expand = find(&tree, keys::NP_EXPAND);
         assert_eq!(attr(expand, "data-test"), Some("new-now-playing-expand"));
         assert_eq!(expand.parent.as_deref(), Some(keys::NP_HEADER));
-        assert!(
-            attr(find(&tree, keys::NP_FULLSCREEN), "class")
-                .unwrap()
-                .starts_with("_fullscreen_")
-        );
         // Absent unless the UI reported them.
         let tree = sample_tree();
-        assert!(
-            tree.nodes
-                .iter()
-                .all(|n| n.key != keys::PAGE_DATA && n.key != keys::NP_FULLSCREEN)
+        assert!(tree.nodes.iter().all(|n| n.key != keys::PAGE_DATA));
+    }
+
+    /// TIDAL 2.46.0's root holds `section._fullscreen_ > section#nowPlaying.
+    /// _nowPlaying_` always and the docked `section#nowPlaying.
+    /// _nowPlayingContainer_` unless the view is fullscreen; the view's
+    /// parts are in the docked one, or in the fullscreen one while that
+    /// shows, and the docked one is `_nowPlayingHidden_` while closed.
+    #[test]
+    fn the_now_playing_view_moves_into_the_fullscreen_section_as_in_tidal() {
+        let classes =
+            |tree: &HostTree, key: &str| attr(find(tree, key), "class").unwrap().to_string();
+        let mut frame = sample_frame();
+        let tree = build(&frame);
+        let fs = find(&tree, keys::NP_FULLSCREEN);
+        assert_eq!(
+            (fs.tag.as_str(), fs.parent.as_deref()),
+            ("section", Some(keys::SHELL))
         );
+        assert_eq!(classes(&tree, keys::NP_FULLSCREEN), "_fullscreen_236d61b");
+        assert_eq!(fs.rect, None);
+        let view = find(&tree, keys::NP_FULLSCREEN_VIEW);
+        assert_eq!(view.parent.as_deref(), Some(keys::NP_FULLSCREEN));
+        assert_eq!(
+            classes(&tree, keys::NP_FULLSCREEN_VIEW),
+            "_container_ad3e54e _nowPlaying_5cd5533"
+        );
+        assert_eq!(attr(view, "data-test"), Some("new-now-playing"));
+        let docked = find(&tree, keys::NOW_PLAYING);
+        assert_eq!(
+            (docked.tag.as_str(), docked.parent.as_deref()),
+            ("section", Some(keys::SHELL))
+        );
+        assert_eq!(attr(docked, "id"), Some("nowPlaying"));
+        assert!(
+            classes(&tree, keys::NOW_PLAYING)
+                .starts_with("_container_ad3e54e _nowPlayingContainer_")
+        );
+        assert!(!classes(&tree, keys::NOW_PLAYING).contains("_nowPlayingHidden_"));
+        assert_eq!(
+            find(&tree, keys::NP_HEADER).parent.as_deref(),
+            Some(keys::NOW_PLAYING)
+        );
+        // The root's children in order: the fullscreen view and the docked
+        // one after the main container, the player bar last.
+        let order: Vec<&str> = tree
+            .nodes
+            .iter()
+            .filter(|n| n.parent.as_deref() == Some(keys::SHELL))
+            .map(|n| n.key.as_str())
+            .collect();
+        assert_eq!(
+            order,
+            [
+                keys::BAR,
+                keys::MAIN_CONTAINER,
+                keys::NP_FULLSCREEN,
+                keys::NOW_PLAYING,
+                keys::FOOTER
+            ]
+        );
+        // Fullscreen: the docked view is out, its parts in the fullscreen one.
+        frame.shell.fullscreen = true;
+        let tree = build(&frame);
+        assert!(tree.nodes.iter().all(|n| n.key != keys::NOW_PLAYING));
+        assert_eq!(find(&tree, keys::NP_FULLSCREEN).rect, frame.shell.rect);
+        assert_eq!(
+            find(&tree, keys::NP_HEADER).parent.as_deref(),
+            Some(keys::NP_FULLSCREEN_VIEW)
+        );
+        // Closed: the docked view stays, hidden and empty, fullscreen or not.
+        frame.now_playing = None;
+        for fullscreen in [true, false] {
+            frame.shell.fullscreen = fullscreen;
+            let tree = build(&frame);
+            assert!(classes(&tree, keys::NOW_PLAYING).ends_with(" _nowPlayingHidden_7e74506"));
+            assert_eq!(find(&tree, keys::NOW_PLAYING).rect, None);
+            assert!(
+                tree.nodes
+                    .iter()
+                    .all(|n| n.parent.as_deref() != Some(keys::NOW_PLAYING))
+            );
+            assert_eq!(find(&tree, keys::NP_FULLSCREEN).rect, None);
+        }
     }
 
     #[test]

@@ -440,7 +440,12 @@
 			tidal = new CSSStyleSheet();
 			tidal.replaceSync(
 				TIDAL_ROOT +
-					'[class^="_fullscreen_"] { position: absolute; inset: 0; z-index: 10; }\n' +
+					// TIDAL 2.46.0's fullscreen now-playing section, in the root:
+					// it covers the window, black, and shows only while the root
+					// is `.is-fullscreen` (betterFullscreen takes its place with
+					// its own player, copying its class).
+					'[class^="_fullscreen_"] { background-color: #000; opacity: 0; pointer-events: none; z-index: 80; position: fixed; inset: 0; }\n' +
+					'.is-fullscreen [class^="_fullscreen_"], .is-compact-mode [class^="_fullscreen_"] { opacity: 1; pointer-events: auto; }\n' +
 					// TIDAL's own `withBackground` buttons (the queue button) keep
 					// their disc: the bare button's look is for plugin buttons
 					// that copy its class.
