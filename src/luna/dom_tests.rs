@@ -140,7 +140,7 @@ new MutationObserver((list) => {
 	R.order = [...document.querySelector('[data-test="track-info"]')?.parentElement?.children ?? []].map((e) => e.getAttribute("data-test") ?? e.id ?? "");
 }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"], characterData: true });
 lib.redux.intercept("page/SET_PAGE_ID", unloads, (p) => (R.page = [p?.pageId ?? null, document.querySelectorAll('div[class^="_sliderContainer"]').length]));
-lib.observe(unloads, "._moreContainer_f6162c8", (el) => {
+lib.observe(unloads, "._utilityButtons_4d7aaf9", (el) => {
 	// Called again when TIDAL's markup around it changes, as in Luna.
 	if (el.querySelector("#mine")) return;
 	const d = document.createElement("div");
@@ -191,10 +191,13 @@ lib.observe(unloads, "._moreContainer_f6162c8", (el) => {
     );
     // The plugin's node survived the resync, at its anchor.
     let o = overlay_until(&luna, 10, |o| {
-        o.at(keys::MORE, Position::Prepend).count() == 1
+        o.at(keys::UTILITY_BUTTONS, Position::Prepend).count() == 1
     });
     assert_eq!(
-        o.at(keys::MORE, Position::Prepend).next().unwrap().attrs,
+        o.at(keys::UTILITY_BUTTONS, Position::Prepend)
+            .next()
+            .unwrap()
+            .attrs,
         vec![("id".to_string(), "mine".to_string())]
     );
     // Re-sending the same tree records nothing new.
@@ -213,7 +216,7 @@ fn injected_elements_report_their_anchor_and_position() {
         r##"
 const go = () => {
 	const slider = document.querySelector('div[class*="sliderContainer"]');
-	const more = document.querySelector("._moreContainer_f6162c8");
+	const more = document.querySelector('div[class*="utilityContainer"]');
 	const util = document.querySelector('div[class*="utilityButtons"]');
 	if (!slider || !more || !util || document.querySelector(".t-before")) return;
 	const mk = (cls, text) => { const d = document.createElement("button"); d.className = cls; d.textContent = text; return d; };
@@ -268,7 +271,7 @@ new MutationObserver(go).observe(document.body, { childList: true, subtree: true
             || class_at(keys::UTILITY_BUTTONS, Position::Append).first() == Some(&"t-after".into())
     );
     assert_eq!(
-        class_at(keys::MORE, Position::Prepend),
+        class_at(keys::UTILITY, Position::Prepend),
         vec!["t-prepend".to_string()]
     );
     assert!(class_at(keys::UTILITY_BUTTONS, Position::Append).contains(&"t-append".into()));
@@ -354,7 +357,7 @@ unloads.add(() => el?.removeEventListener("wheel", wheel));
     );
     // Input on a host the plugin does not listen to does nothing.
     luna.dom_event(DomEvent {
-        target: DomTarget::Host(keys::MORE.into()),
+        target: DomTarget::Host(keys::UTILITY_BUTTONS.into()),
         kind: "wheel".into(),
         data: json!({ "deltaY": -100.0 }),
     });
@@ -541,7 +544,7 @@ document.addEventListener("contextmenu", (e) => {
 fn white_space_between_words_reaches_the_ui() {
     let (luna, _host, dir) = start(
         r##"
-lib.observe(unloads, "._moreContainer_f6162c8", (el) => {
+lib.observe(unloads, "._utilityButtons_4d7aaf9", (el) => {
 	const line = document.createElement("div");
 	line.className = "t-line";
 	line.appendChild(document.createTextNode("  "));
@@ -646,12 +649,12 @@ main#main { background: center / cover no-repeat rgb(1, 2, 3); }
 @media (prefers-color-scheme: dark) { .t-pill { color: var(--wave-color-solid-accent-fill); } }
 @keyframes spin { from { color: red } }
 .t-pill:hover { color: green; }
-._moreContainer_f6162c8 > :nth-child(1 of .t-pill) { border-radius: 9px; }
+._utilityButtons_4d7aaf9 > :nth-child(1 of .t-pill) { border-radius: 9px; }
 `);
 const sheet = new CSSStyleSheet();
 sheet.replaceSync('[data-test="footer-favorite-button"] { opacity: .5 }');
 document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
-lib.observe(unloads, "._moreContainer_f6162c8", (el) => {
+lib.observe(unloads, "._utilityButtons_4d7aaf9", (el) => {
 	const p = document.createElement("div");
 	p.className = "t-pill";
 	p.style.padding = "3px 6px";
@@ -697,7 +700,10 @@ lib.observe(unloads, "._moreContainer_f6162c8", (el) => {
             .as_deref(),
         Some("rgb(1, 2, 3)")
     );
-    let pill = o.at(keys::MORE, Position::Prepend).next().unwrap();
+    let pill = o
+        .at(keys::UTILITY_BUTTONS, Position::Prepend)
+        .next()
+        .unwrap();
     assert_eq!(pill.style.color.as_deref(), Some("#ff0000"));
     assert_eq!(pill.style.padding.as_deref(), Some("3px 6px"));
     assert_eq!(pill.style.border_radius.as_deref(), Some("9px"));
@@ -941,16 +947,16 @@ setInterval(() => { R.now = R.clicks; R.tick++; }, 30);
     finish(luna, dir);
 }
 
-/// OneClickLyrics clicks `#footerPlayer` (opening now playing) and then the
-/// Lyrics toggle in the same turn: both clicks reach their widgets, in that
-/// order. Only the newer one used to.
+/// OneClickLyrics clicks `#footerPlayer` (opening now playing) and then
+/// another of TIDAL's buttons in the same turn: both clicks reach their
+/// widgets, in that order. Only the newer one used to.
 #[test]
 fn two_clicks_on_native_widgets_in_one_turn_both_arrive() {
     let (luna, _host, dir) = start(
         r##"
 const go = () => {
 	const bar = document.querySelector("#footerPlayer");
-	const lyrics = document.querySelector('[data-test="toggle-lyrics"]');
+	const lyrics = document.querySelector('[data-test="play-queue-button"]');
 	if (!bar || !lyrics || R.done) return;
 	R.done = true;
 	bar.click();
@@ -964,7 +970,7 @@ go();
     results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
     let o = overlay_until(&luna, 10, |o| o.clicks.len() >= 2);
     let clicked: Vec<&str> = o.clicks.iter().map(|(k, _)| k.as_str()).collect();
-    assert_eq!(clicked, [keys::FOOTER, keys::TOGGLE_LYRICS]);
+    assert_eq!(clicked, [keys::FOOTER, keys::QUEUE]);
     assert!(o.clicks[0].1 < o.clicks[1].1);
     finish(luna, dir);
 }
@@ -1240,7 +1246,7 @@ fn real_dom_plugins_work_end_to_end() {
     eprintln!("VolumeScroll: SetVolume(60) on wheel up");
     // total-play-time: its pill in the more container, with a time.
     let o = overlay_until(&luna, 20, |o| {
-        o.at(keys::MORE, Position::Prepend).any(|v| {
+        o.at(keys::UTILITY_BUTTONS, Position::Prepend).any(|v| {
             v.attrs
                 .iter()
                 .any(|(k, val)| k == "id" && val == "totalPlayTimeParent")
@@ -1252,7 +1258,10 @@ fn real_dom_plugins_work_end_to_end() {
                 })
         })
     });
-    let pill = o.at(keys::MORE, Position::Prepend).next().unwrap();
+    let pill = o
+        .at(keys::UTILITY_BUTTONS, Position::Prepend)
+        .next()
+        .unwrap();
     eprintln!(
         "total-play-time pill: {}",
         serde_json::to_string(pill).unwrap()
@@ -1845,10 +1854,10 @@ fn observing_after_the_ui_is_there_reports_existing_matches_once() {
     let (luna, _host, dir) = start(
         r##"
 const t = setInterval(() => {
-	if (!document.querySelector('[class*="_moreContainer_"]')) return;
+	if (!document.querySelector('[class*="_utilityButtons_"]')) return;
 	clearInterval(t);
 	R.calls = 0;
-	lib.observe(unloads, '[class*="_moreContainer_"]', (e) => {
+	lib.observe(unloads, '[class*="_utilityButtons_"]', (e) => {
 		R.calls += 1;
 		if (e.querySelector(".qem")) return;
 		const b = document.createElement("button");
@@ -1861,9 +1870,11 @@ const t = setInterval(() => {
     );
     luna.sync_dom(tree());
     let o = overlay_until(&luna, 10, |o| {
-        o.at(keys::MORE, Position::Append).next().is_some()
+        o.at(keys::UTILITY_BUTTONS, Position::Append)
+            .next()
+            .is_some()
     });
-    assert_eq!(o.at(keys::MORE, Position::Append).count(), 1);
+    assert_eq!(o.at(keys::UTILITY_BUTTONS, Position::Append).count(), 1);
     let r = results_until(&luna, &dir, 10, |r| {
         r["calls"].as_u64().is_some_and(|n| n >= 1)
     });
@@ -3753,6 +3764,67 @@ new lib.StyleTag("dom-test", unloads, `
     finish(luna, dir);
 }
 
+/// TIDAL 2.46.0's player bar has no `._moreContainer_`, no full screen and
+/// no lyrics button: a plugin that waits for the first (total-play-time)
+/// finds nothing and adds nothing, as in TIDAL, and one that puts its
+/// button beside the first of `toggle-lyrics`, `new-now-playing-expand`
+/// and `request-fullscreen` (TidalLyricsTranslate) reaches the now-playing
+/// header's buttons. The bar's utility buttons are TIDAL's: the queue, the
+/// sound output, the volume and compact mode, then the quality badge's box.
+#[test]
+fn the_player_bar_holds_only_what_tidal_2_46_has() {
+    let (luna, _host, dir) = start(
+        r##"
+const go = () => {
+	if (!document.querySelector("#footerPlayer") || R.done) return;
+	R.more = !!document.querySelector('[class*="_moreContainer_"]');
+	R.fullscreen = !!document.querySelector('[data-test="request-fullscreen"]');
+	R.barLyrics = !!document.querySelector('#footerPlayer [data-test="toggle-lyrics"]');
+	const f = document.querySelector('[data-test="toggle-lyrics"], [data-test="new-now-playing-expand"], [data-test="request-fullscreen"]');
+	R.translate = f ? String(f.parentElement.className) : null;
+	R.buttons = [...document.querySelector('[class*="_utilityButtons_"]').children].map((e) => e.getAttribute("data-test") ?? e.className);
+	R.badgeBox = String(document.querySelector('[class*="_qualityBadgeContainer_"]')?.parentElement?.className);
+	R.done = true;
+};
+new MutationObserver(go).observe(document.body, { childList: true, subtree: true });
+go();
+"##,
+    );
+    // The view's header as Tidalfast draws it: full screen and close.
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(np) = frame.now_playing.as_mut() {
+        np.expand_rect = Some([1100.0, 20.0, 30.0, 30.0]);
+    }
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["more"], json!(false), "{r}");
+    assert_eq!(r["fullscreen"], json!(false), "{r}");
+    assert_eq!(r["barLyrics"], json!(false), "{r}");
+    assert!(
+        r["translate"]
+            .as_str()
+            .is_some_and(|c| c.starts_with("_actionButtons_")),
+        "{r}"
+    );
+    let buttons: Vec<&str> = r["buttons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap_or(""))
+        .collect();
+    assert_eq!(buttons[0], "play-queue-button", "{r}");
+    assert_eq!(buttons[1], "select-device", "{r}");
+    assert!(buttons[2].starts_with("_sliderContainer_"), "{r}");
+    assert_eq!(buttons[3], "enter-compact-mode", "{r}");
+    assert!(
+        r["badgeBox"]
+            .as_str()
+            .is_some_and(|c| c.starts_with("_utilityContainer_")),
+        "{r}"
+    );
+    finish(luna, dir);
+}
+
 /// element-hider ties TIDAL's context menu to the right-click before it:
 /// its capture `contextmenu` listener sets a flag, and its observer adds
 /// its rows when `[data-test="contextmenu"]` appears with the flag set. In
@@ -3809,5 +3881,45 @@ R.ready = true;
     assert_eq!(r["busy"], json!(true), "{r}");
     assert_eq!(r["heard"], json!(1), "{r}");
     assert_eq!(r["menuSeen"], json!("after the event"), "{r}");
+    finish(luna, dir);
+}
+
+/// LuckyLP observes `div[data-track--page-id='mycollection_albums']` and
+/// puts its shuffle after the `h1` in it. In TIDAL 2.46.0 that page is
+/// `[data-test=page-title-container]` and the `h1` sits in its `._header_`
+/// (beside the "..."), so the shuffle joins the header; here it went into
+/// the page itself.
+#[test]
+fn a_button_after_the_albums_title_joins_its_header() {
+    let (luna, _host, dir) = start(
+        r##"
+lib.observe(unloads, "div[data-track--page-id='mycollection_albums']", (e) => {
+	if (document.querySelector(".lucky")) return;
+	const h = e.querySelector("h1");
+	if (!h) return;
+	const d = document.createElement("div");
+	d.className = "lucky";
+	h.insertAdjacentElement("afterend", d);
+	R.page = e.getAttribute("data-test");
+	R.parent = String(d.parentElement.className);
+	R.title = h.textContent;
+});
+"##,
+    );
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(page) = frame.page.as_mut() {
+        page.page_id = Some("mycollection_albums".into());
+        page.title = Some("Albums".into());
+    }
+    frame.lists.clear();
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = results_until(&luna, &dir, 10, |r| r["parent"].is_string());
+    assert_eq!(r["page"], json!("page-title-container"), "{r}");
+    assert_eq!(r["parent"], json!("_header_d2e600f"), "{r}");
+    assert_eq!(r["title"], json!("Albums"), "{r}");
+    let o = overlay_until(&luna, 10, |o| {
+        o.at(keys::PAGE_TITLE_HEADER, Position::Append).count() == 1
+    });
+    assert!(o.at(keys::PAGE, Position::Append).next().is_none());
     finish(luna, dir);
 }

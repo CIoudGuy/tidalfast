@@ -98,15 +98,6 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             if (bar.clicked() || plugin_dom::take_click(keys::FOOTER)) && now.is_some() {
                 app.actions.push(Action::ToggleNowPlaying);
             }
-            // TIDAL's Lyrics toggle is the now-playing view's Lyrics tab: a
-            // plugin's click on it opens that tab, or leaves it when it is
-            // the one shown.
-            if plugin_dom::take_click(keys::TOGGLE_LYRICS) {
-                let lyrics = crate::model::NowPlayingTab::Lyrics;
-                let shown = super::now_playing::open(app) && app.now_playing_tab == Some(lyrics);
-                app.actions
-                    .push(Action::SetNowPlayingTab((!shown).then_some(lyrics)));
-            }
             if plugin_dom::on() {
                 if over_view < 1.0 {
                     plugin_dom::paint_host_layers(ui, keys::FOOTER, behind);
@@ -300,11 +291,10 @@ fn slack(center_width: f32) -> f32 {
 /// fit, in the order they stay (a lower rank stays longer): the quality
 /// pill, TIDAL's own element, outlasts everything a plugin adds; then
 /// plugin buttons; then the tags by the pill; the plugins' text (`UTILITY`'s
-/// and what is put before the queue button, such as a total play time) goes
-/// first.
+/// and what is put before the queue button) goes first.
 const RIGHT_ITEMS: usize = 13;
 const PILL: usize = 1;
-const RIGHT_RANK: [u8; RIGHT_ITEMS] = [3, 0, 2, 2, 1, 1, 1, 1, 3, 1, 1, 1, 3];
+const RIGHT_RANK: [u8; RIGHT_ITEMS] = [3, 0, 2, 2, 1, 1, 1, 1, 1, 1, 1, 3, 3];
 
 /// What the right side measured last frame: the room its native buttons
 /// take and each optional item's width (-1: not seen yet, 0: nothing).
@@ -382,13 +372,10 @@ impl RightRun {
 
 /// What the player bar shows, for Luna's `#footerPlayer`.
 fn note_player_bar(app: &App, rect: Rect, now: Option<&NowPlaying>, view_open: bool) {
-    let lyrics_open = super::now_playing::open(app)
-        && app.now_playing_tab == Some(crate::model::NowPlayingTab::Lyrics);
     plugin_dom::note(|f| {
         let mut bar = dom_anchors::PlayerBar {
             rect: plugin_dom::rect(rect),
             now_playing_visible: view_open,
-            lyrics_open,
             queue_open: app.show_queue_panel || matches!(app.page(), Page::Queue),
             repeat: "off".into(),
             volume: f32::from(crate::app::volume_to_percent(app.local.volume)) / 100.0,
@@ -1496,6 +1483,8 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         }
         // Tidal Tags and the like put their tags in front of the pill.
         run.slot(ui, 3, keys::QUALITY, Position::Prepend);
+        // Between the buttons' box and the badge's.
+        run.slot(ui, 8, keys::UTILITY_BUTTONS, Position::After);
         plugin_dom::note(|f| {
             if let Some(bar) = f.player.as_mut() {
                 bar.quality = Some(
@@ -1535,6 +1524,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         plugin_dom::player_part(PlayerPart::MiniPlayer, compact.rect);
     }
     run.slot(ui, 5, keys::SLIDER, Position::After);
+    run.slot(ui, 9, keys::SLIDER, Position::Append);
     // VolumeScroll takes the wheel over the slider when it listens.
     let plugin_wheel = plugin_dom::listens(keys::SLIDER, "wheel");
     let native_range = !plugin_dom::hidden(keys::VOLUME_RANGE);
@@ -1600,14 +1590,16 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         plugin_dom::player_part(PlayerPart::Slider, slider_rect);
         plugin_dom::wheel(ui, keys::SLIDER, controls.button.rect);
     }
-    run.slot(ui, 6, keys::SLIDER, Position::Before);
-    // Tidalfast draws no lyrics button in the bar, so what follows
-    // `toggle-lyrics` in the document sits where TIDAL draws what precedes
-    // the speaker: between the sound output and the speaker
+    run.slot(ui, 10, keys::SLIDER, Position::Prepend);
+    // What follows the sound output in the document precedes the speaker
     // (OneClickLyrics' `sliderContainer.before(button)`).
-    run.slot(ui, 9, keys::TOGGLE_LYRICS, Position::After);
-    super::player_utility::sound_output(app, ui);
-    run.slot(ui, 7, keys::MORE, Position::Append);
+    run.slot(ui, 6, keys::SOUND_OUTPUT, Position::After);
+    if let Some(output) = plugin_dom::anchored(ui, keys::SOUND_OUTPUT, |ui| {
+        super::player_utility::sound_output(app, ui)
+    }) {
+        plugin_dom::player_part(PlayerPart::SoundOutput, output.rect);
+    }
+    run.slot(ui, 7, keys::QUEUE, Position::After);
     let queue_open = app.show_queue_panel || matches!(app.page(), Page::Queue);
     // TIDAL desktop: three lines, on a 32-point disc of white at 8 % while
     // the queue is open. The disc goes under the button, drawn first.
@@ -1664,8 +1656,6 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
             app.actions.push(Action::ToggleQueuePanel);
         }
         plugin_dom::player_part(PlayerPart::Queue, queue_button.rect);
-        plugin_dom::player_part(PlayerPart::More, queue_button.rect);
-        run.slot(ui, 8, keys::MORE, Position::Prepend);
         // A dragged song dropped on the queue button queues it, same as the
         // "Add to queue" menu item.
         // Taking a payload of the wrong type would discard the dragged song.
@@ -1688,7 +1678,6 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
             });
         }
     }
-    run.slot(ui, 10, keys::TOGGLE_LYRICS, Position::Before);
     run.slot(ui, 11, keys::UTILITY_BUTTONS, Position::Prepend);
     run.slot(ui, 12, keys::UTILITY, Position::Prepend);
     plugin_dom::player_part(PlayerPart::UtilityButtons, ui.min_rect());
@@ -2634,10 +2623,11 @@ mod narrow_tests {
     }
 
     /// OneClickLyrics puts its button before `_sliderContainer_`, which in
-    /// the document follows `toggle-lyrics`. TIDAL draws it between the
-    /// sound output and the speaker; it was drawn left of the queue button.
+    /// TIDAL 2.46.0's document follows the sound output: TIDAL draws it
+    /// between the sound output and the speaker, and what follows the queue
+    /// button between it and the sound output.
     #[test]
-    fn an_item_after_the_lyrics_toggle_sits_before_the_speaker() {
+    fn an_item_before_the_speaker_sits_after_the_sound_output() {
         let (ctx, mut app) = setup();
         let at = |anchor: &str, position, id, text: &str| Injected {
             anchor: anchor.into(),
@@ -2647,9 +2637,9 @@ mod narrow_tests {
         crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
             version: 2,
             injected: vec![
-                at(keys::MORE, Position::Append, 11, "AFTER-QUEUE"),
-                at(keys::TOGGLE_LYRICS, Position::After, 12, "AFTER-LYRICS"),
-                at(keys::SLIDER, Position::Before, 13, "BEFORE-SLIDER"),
+                at(keys::QUEUE, Position::After, 11, "AFTER-QUEUE"),
+                at(keys::SOUND_OUTPUT, Position::After, 12, "AFTER-OUTPUT"),
+                at(keys::SLIDER, Position::After, 13, "AFTER-SLIDER"),
             ],
             ..DomOverlay::default()
         }));
@@ -2662,19 +2652,19 @@ mod narrow_tests {
                 .unwrap_or_else(|| panic!("{mark} is not drawn"))
         };
         assert!(
-            x("AFTER-QUEUE") < x("AFTER-LYRICS") && x("AFTER-LYRICS") < x("BEFORE-SLIDER"),
-            "after the queue {}, after the lyrics toggle {}, before the slider {}",
+            x("AFTER-QUEUE") < x("AFTER-OUTPUT") && x("AFTER-OUTPUT") < x("AFTER-SLIDER"),
+            "after the queue {}, after the sound output {}, after the slider {}",
             x("AFTER-QUEUE"),
-            x("AFTER-LYRICS"),
-            x("BEFORE-SLIDER")
+            x("AFTER-OUTPUT"),
+            x("AFTER-SLIDER")
         );
         crate::ui::plugin_dom::test_overlay(None);
     }
 
     /// OneClickLyrics opens now playing on its Lyrics tab with
-    /// `#footerPlayer.click()` and a click on the Lyrics toggle; with the
-    /// tab shown, a click on the bar closes the view. Those clicks reached
-    /// nothing before.
+    /// `#footerPlayer.click()` and a click on the Lyrics toggle, which in
+    /// TIDAL 2.46.0 is the view's Lyrics tab (the bar has none); with the
+    /// tab shown, a click on the bar closes the view.
     #[test]
     fn plugin_clicks_on_the_bar_and_the_lyrics_toggle_open_the_lyrics() {
         let (ctx, mut app) = setup();
@@ -2691,7 +2681,6 @@ mod narrow_tests {
         frame(&ctx, &mut app);
         app.actions.clear();
         crate::ui::plugin_dom::test_click(keys::FOOTER);
-        crate::ui::plugin_dom::test_click(keys::TOGGLE_LYRICS);
         frame(&ctx, &mut app);
         let lyrics = crate::model::NowPlayingTab::Lyrics;
         assert!(
@@ -2700,6 +2689,14 @@ mod narrow_tests {
                 .any(|a| matches!(a, Action::ToggleNowPlaying)),
             "the bar's click opens now playing"
         );
+        app.actions.clear();
+        app.now_playing_view = true;
+        app.now_playing_tab = None;
+        // Words on their way: the view has its Lyrics tab.
+        app.lyrics = crate::model::Loadable::Loading;
+        frame(&ctx, &mut app);
+        crate::ui::plugin_dom::test_click(&keys::now_playing_tab("lyrics"));
+        frame(&ctx, &mut app);
         assert!(
             app.actions
                 .iter()
@@ -2710,7 +2707,8 @@ mod narrow_tests {
         app.actions.clear();
         app.now_playing_view = true;
         app.now_playing_tab = Some(lyrics);
-        crate::ui::plugin_dom::test_click(keys::TOGGLE_LYRICS);
+        frame(&ctx, &mut app);
+        crate::ui::plugin_dom::test_click(&keys::now_playing_tab("lyrics"));
         frame(&ctx, &mut app);
         assert!(
             app.actions
@@ -2801,16 +2799,16 @@ mod narrow_tests {
         crate::ui::plugin_dom::test_overlay(None);
     }
 
-    /// A plugin's text before the queue button (total-play-time) goes
-    /// before the quality pill, which is TIDAL's own: in a bar with room for
-    /// one of them, the pill stays.
+    /// A plugin's text before the queue button goes before the quality
+    /// pill, which is TIDAL's own: in a bar with room for one of them, the
+    /// pill stays.
     #[test]
     fn plugin_text_leaves_a_narrowing_bar_before_the_quality_pill() {
         let (ctx, mut app) = setup();
         crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
             version: 1,
             injected: vec![Injected {
-                anchor: keys::MORE.into(),
+                anchor: keys::UTILITY_BUTTONS.into(),
                 position: Position::Prepend,
                 nodes: vec![chip(9, "TOTAL-00:09:34")],
             }],

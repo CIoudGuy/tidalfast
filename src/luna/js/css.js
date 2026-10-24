@@ -475,8 +475,8 @@
 	// with the padding), 16 in
 	// from the sidebar's edges, 8 padding and gap, 12 corners, 14-point
 	// semibold at 55 % white; white on a 10 % white fill when selected.
-	// The now-playing header's tabs (`_tabButton_`, LangRomanizer's button
-	// copies the Lyrics tab's classes) look like the pills Tidalfast draws
+	// The now-playing header's tabs (TIDAL 2.46.0's `_toggleButton_934359e`,
+	// LangRomanizer's button copies the Lyrics tab's classes) look like the pills Tidalfast draws
 	// beside them: 30 high, 11 in, 14-point semibold in their grey, a white
 	// pill with near-black words when pressed (TIDAL's own tabs all look
 	// alike too).
@@ -488,8 +488,8 @@
 			looks.replaceSync(
 				'[class*="_navigationItem_"] { display: flex; align-items: center; gap: 8px; padding: 8px; margin: 0 16px; width: 192px; height: 24px; border-radius: 12px; font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, 0.55); }' +
 					'[class*="_navigationItem_"][class*="_selected_"] { color: rgb(255, 255, 255); background-color: rgba(255, 255, 255, 0.1); }' +
-					'[class*="_tabButton_"] { display: flex; align-items: center; height: 30px; padding: 0 11px; border-radius: 15px; font-size: 14px; font-weight: 600; color: #b4b4b8; }' +
-					'[class*="_tabButton_"][aria-pressed="true"] { color: #101010; background-color: #fff; }',
+					'[class*="_toggleButton_934359e"] { display: flex; align-items: center; height: 30px; padding: 0 11px; border-radius: 15px; font-size: 14px; font-weight: 600; color: #b4b4b8; }' +
+					'[class*="_toggleButton_934359e"][aria-pressed="true"] { color: #101010; background-color: #fff; }',
 			);
 		}
 		return looks;
