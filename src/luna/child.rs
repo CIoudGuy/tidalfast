@@ -108,9 +108,10 @@ pub struct ProgramRequest {
 /// What a plugin asked to run, as it passed it.
 #[derive(Clone, Debug, Default)]
 pub struct Request {
-    /// The plugin asking: a file the app saved for it elsewhere than the
-    /// path it named is passed to the program by its real path
+    /// The runtime and plugin asking: a file the app saved for it elsewhere
+    /// than the path it named is passed to the program by its real path
     /// ([`super::fsops::unalias`]).
+    pub runtime: super::RuntimeId,
     pub plugin: String,
     /// A program name or path (`spawn`, `execFile`); empty for a command line.
     pub file: String,
@@ -212,10 +213,12 @@ pub fn prepare(req: &Request, data_dir: &Path) -> Result<Prepared, String> {
     // the user put in a folder of their choosing) is the one it named.
     let args: Vec<String> = args
         .into_iter()
-        .map(|a| match super::fsops::unalias(&req.plugin, &a) {
-            Some(real) => real.to_string_lossy().into_owned(),
-            None => a,
-        })
+        .map(
+            |a| match super::fsops::unalias(req.runtime, &req.plugin, &a) {
+                Some(real) => real.to_string_lossy().into_owned(),
+                None => a,
+            },
+        )
         .collect();
     let (exe, spec_args, raw_tail, shell, command) = match line {
         Some(line) => {

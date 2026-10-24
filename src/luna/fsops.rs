@@ -19,6 +19,8 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD as B64;
 use serde_json::{Value, json};
 
+use super::RuntimeId;
+
 fn code_of(e: &std::io::Error) -> &'static str {
     use std::io::ErrorKind::*;
     match e.kind() {
@@ -154,9 +156,17 @@ fn list_discord(dir: &Path) -> Vec<Value> {
         .collect()
 }
 
+/// Whose a pick or an alias is: a plugin of one runtime (a plugin's name
+/// is unique only within its runtime, see [`RuntimeId`]).
+type Owner = (RuntimeId, String);
+
+fn owner(runtime: RuntimeId, plugin: &str) -> Owner {
+    (runtime, plugin.to_string())
+}
+
 /// Files and folders users picked for each plugin in a file dialog, and
 /// whether the pick is a folder (everything under it counts).
-static GRANTS: std::sync::Mutex<Option<std::collections::HashMap<String, Vec<Pick>>>> =
+static GRANTS: std::sync::Mutex<Option<std::collections::HashMap<Owner, Vec<Pick>>>> =
     std::sync::Mutex::new(None);
 
 /// A path the user picked and whether it is a folder.
@@ -177,14 +187,15 @@ pub struct Picked {
     pub folder: bool,
 }
 
-/// The user picked `path` for `plugin` in a file dialog: from now on its
-/// `fs` can reach exactly that (and, for a folder, what is in it).
-pub fn grant(plugin: &str, path: &Path, folder: bool) {
+/// The user picked `path` for `runtime`'s `plugin` in a file dialog: from
+/// now on its `fs` can reach exactly that (and, for a folder, what is in
+/// it).
+pub fn grant(runtime: RuntimeId, plugin: &str, path: &Path, folder: bool) {
     let path = normalize(path);
     let mut all = GRANTS.lock().unwrap_or_else(|e| e.into_inner());
     let list = all
         .get_or_insert_with(Default::default)
-        .entry(plugin.to_string())
+        .entry(owner(runtime, plugin))
         .or_default();
     list.retain(|(known, _)| *known != path);
     list.push((path, folder));
@@ -200,17 +211,17 @@ pub fn picks_version() -> u64 {
     GRANTS_VERSION.load(std::sync::atomic::Ordering::Acquire)
 }
 
-/// What the user picked for `plugin`, oldest first.
-pub fn picks_of(plugin: &str) -> Vec<Picked> {
-    granted_to(plugin)
+/// What the user picked for `runtime`'s `plugin`, oldest first.
+pub fn picks_of(runtime: RuntimeId, plugin: &str) -> Vec<Picked> {
+    granted_to(runtime, plugin)
         .into_iter()
         .map(|(path, folder)| Picked { path, folder })
         .collect()
 }
 
-/// The picks saved for `plugin` by an earlier run: they replace what is
-/// known for it.
-pub fn restore_picks(plugin: &str, picks: &[Picked]) {
+/// The picks saved for `plugin` by an earlier run, for `runtime`: they
+/// replace what is known for it.
+pub fn restore_picks(runtime: RuntimeId, plugin: &str, picks: &[Picked]) {
     let skip = picks.len().saturating_sub(GRANTS_PER_PLUGIN);
     let list: Vec<Pick> = picks[skip..]
         .iter()
@@ -220,34 +231,34 @@ pub fn restore_picks(plugin: &str, picks: &[Picked]) {
     let mut all = GRANTS.lock().unwrap_or_else(|e| e.into_inner());
     let all = all.get_or_insert_with(Default::default);
     if list.is_empty() {
-        all.remove(plugin);
+        all.remove(&owner(runtime, plugin));
     } else {
-        all.insert(plugin.to_string(), list);
+        all.insert(owner(runtime, plugin), list);
     }
 }
 
-/// The plugin was reset to its defaults: nothing the user picked for it in
-/// a file dialog opens to it any more.
-pub fn forget_picks(plugin: &str) {
+/// `runtime`'s plugin was reset to its defaults: nothing the user picked
+/// for it in a file dialog opens to it any more.
+pub fn forget_picks(runtime: RuntimeId, plugin: &str) {
     if let Some(all) = GRANTS.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
-        all.remove(plugin);
+        all.remove(&owner(runtime, plugin));
     }
 }
 
-fn granted_to(plugin: &str) -> Vec<Pick> {
+fn granted_to(runtime: RuntimeId, plugin: &str) -> Vec<Pick> {
     GRANTS
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .as_ref()
-        .and_then(|all| all.get(plugin))
+        .and_then(|all| all.get(&owner(runtime, plugin)))
         .cloned()
         .unwrap_or_default()
 }
 
-/// `p` as the plugin may write it, when a file dialog pick for `plugin`
-/// covers it (where a TIDAL download may go, see `audio.rs`).
-pub fn granted_for(plugin: &str, p: &str) -> Option<PathBuf> {
-    granted_path(&granted_to(plugin), p)
+/// `p` as the plugin may write it, when a file dialog pick for `runtime`'s
+/// `plugin` covers it (where a TIDAL download may go, see `audio.rs`).
+pub fn granted_for(runtime: RuntimeId, plugin: &str, p: &str) -> Option<PathBuf> {
+    granted_path(&granted_to(runtime, plugin), p)
 }
 
 /// Files the app saved for a plugin under another path than the one it
@@ -255,7 +266,7 @@ pub fn granted_for(plugin: &str, p: &str) -> Option<PathBuf> {
 /// user chose, with the stream's real extension), by the named path: the
 /// plugin's `fs` and the programs it runs reach the file by either name, as
 /// they would in TidaLuna, where the file is where the plugin said.
-static ALIASES: std::sync::Mutex<Option<std::collections::HashMap<String, Aliases>>> =
+static ALIASES: std::sync::Mutex<Option<std::collections::HashMap<Owner, Aliases>>> =
     std::sync::Mutex::new(None);
 
 /// One plugin's aliases: (named path as matched, real path), oldest first.
@@ -271,8 +282,8 @@ fn alias_key(p: &str) -> String {
     if cfg!(windows) { k.to_lowercase() } else { k }
 }
 
-/// The app saved `real` for `plugin`, which named it `asked`.
-pub fn alias(plugin: &str, asked: &str, real: &Path) {
+/// The app saved `real` for `runtime`'s `plugin`, which named it `asked`.
+pub fn alias(runtime: RuntimeId, plugin: &str, asked: &str, real: &Path) {
     let key = alias_key(asked);
     if key.is_empty() || key == alias_key(&real.to_string_lossy()) {
         return;
@@ -280,7 +291,7 @@ pub fn alias(plugin: &str, asked: &str, real: &Path) {
     let mut all = ALIASES.lock().unwrap_or_else(|e| e.into_inner());
     let list = all
         .get_or_insert_with(Default::default)
-        .entry(plugin.to_string())
+        .entry(owner(runtime, plugin))
         .or_default();
     list.retain(|(k, _)| *k != key);
     list.push((key, real.to_path_buf()));
@@ -289,9 +300,9 @@ pub fn alias(plugin: &str, asked: &str, real: &Path) {
     }
 }
 
-/// The real path of a file the app saved for `plugin` under the path `p`
-/// it named, if it did.
-pub fn unalias(plugin: &str, p: &str) -> Option<PathBuf> {
+/// The real path of a file the app saved for `runtime`'s `plugin` under the
+/// path `p` it named, if it did.
+pub fn unalias(runtime: RuntimeId, plugin: &str, p: &str) -> Option<PathBuf> {
     if plugin.is_empty() || p.is_empty() {
         return None;
     }
@@ -300,7 +311,7 @@ pub fn unalias(plugin: &str, p: &str) -> Option<PathBuf> {
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .as_ref()?
-        .get(plugin)?
+        .get(&owner(runtime, plugin))?
         .iter()
         .rev()
         .find(|(k, _)| *k == key)
@@ -308,8 +319,8 @@ pub fn unalias(plugin: &str, p: &str) -> Option<PathBuf> {
 }
 
 /// `p`, or the real path of the file the app saved under it.
-fn real_path(plugin: &str, p: &str) -> String {
-    unalias(plugin, p).map_or_else(|| p.to_string(), |r| r.to_string_lossy().into_owned())
+fn real_path(runtime: RuntimeId, plugin: &str, p: &str) -> String {
+    unalias(runtime, plugin, p).map_or_else(|| p.to_string(), |r| r.to_string_lossy().into_owned())
 }
 
 /// The path a plugin named when a dialog pick covers it.
@@ -461,11 +472,16 @@ fn write_within(
     Ok(())
 }
 
-/// `fs.readFile` for `plugin` with the bytes as they are (no base64), from
-/// its data folder `home` or a path the user picked for it.
-pub fn read_bytes(plugin: &str, home: &Path, p: &str) -> Result<Vec<u8>, String> {
-    let real = real_path(plugin, p);
-    let path = match granted_path(&granted_to(plugin), &real) {
+/// `fs.readFile` for `runtime`'s `plugin` with the bytes as they are (no
+/// base64), from its data folder `home` or a path the user picked for it.
+pub fn read_bytes(
+    runtime: RuntimeId,
+    plugin: &str,
+    home: &Path,
+    p: &str,
+) -> Result<Vec<u8>, String> {
+    let real = real_path(runtime, plugin, p);
+    let path = match granted_path(&granted_to(runtime, plugin), &real) {
         Some(path) => path,
         None => {
             std::fs::create_dir_all(home)
@@ -476,17 +492,19 @@ pub fn read_bytes(plugin: &str, home: &Path, p: &str) -> Result<Vec<u8>, String>
     std::fs::read(&path).map_err(|e| io_err(e, "open", p))
 }
 
-/// `fs.writeFile`/`appendFile` for `plugin` with the bytes as they are (no
-/// base64: a 100 MB model as base64 would not fit the plugins' memory).
+/// `fs.writeFile`/`appendFile` for `runtime`'s `plugin` with the bytes as
+/// they are (no base64: a 100 MB model as base64 would not fit the
+/// plugins' memory).
 pub fn write_bytes(
+    runtime: RuntimeId,
     plugin: &str,
     home: &Path,
     p: &str,
     data: &[u8],
     append: bool,
 ) -> Result<(), String> {
-    let real = real_path(plugin, p);
-    if let Some(path) = granted_path(&granted_to(plugin), &real) {
+    let real = real_path(runtime, plugin, p);
+    if let Some(path) = granted_path(&granted_to(runtime, plugin), &real) {
         return write_granted(&path, p, data, append);
     }
     std::fs::create_dir_all(home).map_err(|e| io_err(e, "mkdir", &home.to_string_lossy()))?;
@@ -555,15 +573,29 @@ fn forget_usage(home: &Path) {
     }
 }
 
-/// A plugin was removed along with its data folder `home`: the size kept
-/// for the folder and the file dialog picks kept for the plugin go too.
-pub fn forget_plugin(plugin: &str, home: &Path) {
+/// `runtime`'s plugin was removed along with its data folder `home`: the
+/// size kept for the folder and the file dialog picks kept for the plugin
+/// go too.
+pub fn forget_plugin(runtime: RuntimeId, plugin: &str, home: &Path) {
     forget_usage(home);
+    let owner = owner(runtime, plugin);
     if let Some(all) = GRANTS.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
-        all.remove(plugin);
+        all.remove(&owner);
     }
     if let Some(all) = ALIASES.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
-        all.remove(plugin);
+        all.remove(&owner);
+    }
+}
+
+/// `runtime` stopped: what it kept of its plugins' picks and aliases goes
+/// (the picks are saved with the plugins' records, and the next runtime
+/// restores them from there).
+pub fn stop_runtime(runtime: RuntimeId) {
+    if let Some(all) = GRANTS.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+        all.retain(|(r, _), _| *r != runtime);
+    }
+    if let Some(all) = ALIASES.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+        all.retain(|(r, _), _| *r != runtime);
     }
 }
 
@@ -573,16 +605,21 @@ pub fn fs_op(home: &Path, arg: &Value) -> Result<Value, String> {
     fs_op_within(home, arg, PLUGIN_QUOTA, &[])
 }
 
-/// [`fs_op`] for a plugin: its data folder, and what the user picked for it
-/// in a file dialog.
-pub fn fs_op_for(plugin: &str, home: &Path, arg: &Value) -> Result<Value, String> {
+/// [`fs_op`] for `runtime`'s plugin: its data folder, and what the user
+/// picked for it in a file dialog.
+pub fn fs_op_for(
+    runtime: RuntimeId,
+    plugin: &str,
+    home: &Path,
+    arg: &Value,
+) -> Result<Value, String> {
     let mut arg = arg.clone();
     for k in ["path", "to"] {
-        if let Some(real) = arg[k].as_str().and_then(|p| unalias(plugin, p)) {
+        if let Some(real) = arg[k].as_str().and_then(|p| unalias(runtime, plugin, p)) {
             arg[k] = json!(real.to_string_lossy());
         }
     }
-    fs_op_within(home, &arg, PLUGIN_QUOTA, &granted_to(plugin))
+    fs_op_within(home, &arg, PLUGIN_QUOTA, &granted_to(runtime, plugin))
 }
 
 fn fs_op_within(home: &Path, arg: &Value, quota: u64, granted: &[Pick]) -> Result<Value, String> {
@@ -844,14 +881,19 @@ mod tests {
         let real = chosen.join("7.wav");
         std::fs::write(&real, b"song").unwrap();
         let (plugin, asked) = ("aliased", "/Plugin/Cache/7.flac");
-        grant(plugin, &chosen, true);
-        alias(plugin, asked, &real);
-        assert_eq!(read_bytes(plugin, &home, asked).unwrap(), b"song");
+        let rt = RuntimeId::unique();
+        grant(rt, plugin, &chosen, true);
+        alias(rt, plugin, asked, &real);
+        assert_eq!(read_bytes(rt, plugin, &home, asked).unwrap(), b"song");
         let other_spelling = r"\Plugin\Cache\7.flac";
-        let exists =
-            |p: &str, who: &str| fs_op_for(who, &home, &json!({ "op": "exists", "path": p }));
-        assert_eq!(exists(other_spelling, plugin), Ok(json!(true)));
-        assert!(exists(asked, "another").is_err() || exists(asked, "another") == Ok(json!(false)));
+        let exists = |p: &str, rt: RuntimeId, who: &str| {
+            fs_op_for(rt, who, &home, &json!({ "op": "exists", "path": p }))
+        };
+        assert_eq!(exists(other_spelling, rt, plugin), Ok(json!(true)));
+        for (rt, who) in [(rt, "another"), (RuntimeId::unique(), plugin)] {
+            let r = exists(asked, rt, who);
+            assert!(r.is_err() || r == Ok(json!(false)), "{r:?}");
+        }
         let (program, mut args) = if cfg!(windows) {
             ("cmd", vec!["/d".to_string(), "/c".into(), "type".into()])
         } else {
@@ -859,6 +901,7 @@ mod tests {
         };
         args.push(asked.into());
         let req = super::super::child::Request {
+            runtime: rt,
             plugin: plugin.into(),
             file: program.into(),
             args,
@@ -869,10 +912,10 @@ mod tests {
             p.spec.args.last().unwrap(),
             &real.to_string_lossy().into_owned()
         );
-        let stat = fs_op_for(plugin, &home, &json!({ "op": "stat", "path": asked })).unwrap();
+        let stat = fs_op_for(rt, plugin, &home, &json!({ "op": "stat", "path": asked })).unwrap();
         assert_eq!(stat["size"], json!(4));
-        forget_plugin(plugin, &home);
-        assert_eq!(unalias(plugin, asked), None);
+        forget_plugin(rt, plugin, &home);
+        assert_eq!(unalias(rt, plugin, asked), None);
         let _ = std::fs::remove_dir_all(&base);
     }
 }

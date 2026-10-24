@@ -24,6 +24,7 @@ use std::time::{Duration, Instant};
 use rquickjs::{ArrayBuffer, Ctx, Exception, Function, Object};
 use serde_json::{Value, json};
 
+use super::RuntimeId;
 use super::onnx::{self, Data, Tensor};
 use super::onnx_run::Plan;
 
@@ -109,21 +110,26 @@ type Done = Box<dyn FnOnce(Result<Value, String>) + Send>;
 struct Job {
     name: String,
     args: Value,
-    plugin: String,
+    owner: Owner,
     done: Done,
 }
 
+/// Whose a model is: a plugin of one runtime (a plugin's name is unique
+/// only within its runtime, see [`RuntimeId`]).
+type Owner = (RuntimeId, String);
+
 struct Loaded {
     plan: Arc<Plan>,
-    plugin: String,
+    owner: Owner,
     used: Instant,
 }
 
-/// Queues `depth.load`, `depth.run` or `depth.free` for `plugin`; `done`
-/// gets the answer on the worker thread.
+/// Queues `depth.load`, `depth.run` or `depth.free` for `runtime`'s
+/// `plugin`; `done` gets the answer on the worker thread.
 pub(super) fn submit(
     name: &str,
     args: Value,
+    runtime: RuntimeId,
     plugin: Option<String>,
     done: impl FnOnce(Result<Value, String>) + Send + 'static,
 ) {
@@ -133,7 +139,7 @@ pub(super) fn submit(
     let job = Job {
         name: name.to_string(),
         args,
-        plugin,
+        owner: (runtime, plugin),
         done: Box::new(done),
     };
     let mut worker = WORKER.lock().unwrap_or_else(PoisonError::into_inner);
@@ -160,15 +166,26 @@ pub(super) fn submit(
     }
 }
 
-/// A plugin stopped for good: the models it had loaded go now, not when
-/// the idle thread ends. Nothing starts if the thread is not running.
-pub(super) fn drop_plugin(plugin: &str) {
+/// `runtime`'s plugin stopped for good: the models it had loaded go now,
+/// not when the idle thread ends. Nothing starts if the thread is not
+/// running.
+pub(super) fn drop_plugin(runtime: RuntimeId, plugin: &str) {
+    tell("depth.drop", (runtime, plugin.to_string()));
+}
+
+/// `runtime` stopped: the models its plugins had loaded go now.
+pub(super) fn stop_runtime(runtime: RuntimeId) {
+    tell("depth.stop", (runtime, String::new()));
+}
+
+/// Hands the running thread a job nobody waits for.
+fn tell(name: &str, owner: Owner) {
     let worker = WORKER.lock().unwrap_or_else(PoisonError::into_inner);
     if let Some(tx) = worker.as_ref() {
         let _ = tx.send(Job {
-            name: "depth.drop".into(),
+            name: name.into(),
             args: Value::Null,
-            plugin: plugin.to_string(),
+            owner,
             done: Box::new(|_| {}),
         });
     }
@@ -198,7 +215,7 @@ fn work(rx: &Receiver<Job>) {
             Err(RecvTimeoutError::Disconnected) => return,
         };
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            run_job(&mut models, &job.name, &job.args, &job.plugin)
+            run_job(&mut models, &job.name, &job.args, &job.owner)
         }))
         .unwrap_or_else(|_| Err(format!("{} failed", job.name)));
         (job.done)(result);
@@ -215,7 +232,7 @@ fn run_job(
     models: &mut HashMap<u64, Loaded>,
     name: &str,
     a: &Value,
-    plugin: &str,
+    owner: &Owner,
 ) -> Result<Value, String> {
     match name {
         "depth.load" => {
@@ -227,7 +244,7 @@ fn run_job(
             // One plugin keeps at most a few: the least recently used goes.
             let mut own: Vec<(u64, Instant)> = models
                 .iter()
-                .filter(|(_, m)| m.plugin == plugin)
+                .filter(|(_, m)| m.owner == *owner)
                 .map(|(k, m)| (*k, m.used))
                 .collect();
             own.sort_by_key(|(_, used)| *used);
@@ -239,7 +256,7 @@ fn run_job(
                 id,
                 Loaded {
                     plan: Arc::new(plan),
-                    plugin: plugin.to_string(),
+                    owner: owner.clone(),
                     used: Instant::now(),
                 },
             );
@@ -247,20 +264,24 @@ fn run_job(
         }
         "depth.free" => {
             let id = num(a, "model")? as u64;
-            if models.get(&id).is_some_and(|m| m.plugin == plugin) {
+            if models.get(&id).is_some_and(|m| m.owner == *owner) {
                 models.remove(&id);
             }
             Ok(Value::Null)
         }
         "depth.drop" => {
-            models.retain(|_, m| m.plugin != plugin);
+            models.retain(|_, m| m.owner != *owner);
+            Ok(Value::Null)
+        }
+        "depth.stop" => {
+            models.retain(|_, m| m.owner.0 != owner.0);
             Ok(Value::Null)
         }
         "depth.run" => {
             let id = num(a, "model")? as u64;
             let image = take(num(a, "image")? as u64).ok_or("the image bytes are gone")?;
             let plan = match models.get_mut(&id) {
-                Some(m) if m.plugin == plugin => {
+                Some(m) if m.owner == *owner => {
                     m.used = Instant::now();
                     m.plan.clone()
                 }

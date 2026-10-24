@@ -227,6 +227,39 @@ say({{ dir, picked: await fsn("useFolder", dir), other: await fsn("useFolder", o
     let _ = std::fs::remove_dir_all(base);
 }
 
+/// A plugin's name is unique only within one runtime: a folder the user
+/// picked for a plugin opens to that runtime's plugin and not to another
+/// runtime's plugin of the same name with a data folder of its own (two
+/// tests side by side; the picks were kept by name for the whole process).
+#[test]
+fn a_pick_opens_only_in_the_runtime_it_was_made_in() {
+    let base = temp_dir("picked-twin");
+    let out = base.join("out");
+    std::fs::create_dir_all(&out).unwrap();
+    let name = "PickedTwinProbe";
+    let (one, host_one) = start(&base.join("luna-one"), vec![out.clone()]);
+    install(&one, name, r#"say({ dir: await fsn("pickFolder") });"#);
+    let picked = host_one.note(&one, 0);
+    assert_eq!(picked["dir"], json!(out.to_string_lossy()), "{picked}");
+    let (two, host_two) = start(&base.join("luna-two"), Vec::new());
+    install(
+        &two,
+        name,
+        &format!(r#"say(await fsn("useFolder", {}));"#, js(&out)),
+    );
+    let used = host_two.note(&two, 0);
+    for k in ["access", "stat", "mkdir", "write", "read"] {
+        assert_eq!(used[k], json!("EACCES"), "{k}: {used}");
+    }
+    assert!(
+        std::fs::read_dir(&out).unwrap().next().is_none(),
+        "nothing written in the other runtime's pick"
+    );
+    two.shutdown();
+    one.shutdown();
+    let _ = std::fs::remove_dir_all(base);
+}
+
 /// The file a save dialog gave (a downloader asking each time where a song
 /// goes, the owner's "Download folder unavailable"): its folder passes the
 /// plugin's check (`mkdir -p`, `access`, `stat`), the file is new and is
@@ -315,10 +348,10 @@ say({{ before: before.write, dir, after: (await fsn("useFolder", kept)).write }}
     luna.shutdown();
     let saved = std::fs::read_to_string(dir.join("plugins.json")).unwrap();
     assert!(saved.contains("\"picks\""), "{saved}");
-    // A new process knows nothing in memory: only what was saved.
-    super::super::fsops::forget_picks(name);
 
-    // No dialog answers this time: asking would be cancelled.
+    // The next runtime knows only what was saved (the first one's picks
+    // went with it). No dialog answers this time: asking would be
+    // cancelled.
     let (luna, host) = start(&dir, Vec::new());
     let second = host.note(&luna, 0);
     assert_eq!(
@@ -329,22 +362,12 @@ say({{ before: before.write, dir, after: (await fsn("useFolder", kept)).write }}
     assert_eq!(second["dir"], Value::Null, "not asked again: {second}");
     luna.uninstall(name);
     wait_until(&luna, 30, |s| plugin(s, name).is_none());
-    luna.shutdown();
-    assert!(super::super::fsops::picks_of(name).is_empty());
-    let probe = base.join("probe-home");
-    let r = super::super::fsops::fs_op_for(
-        name,
-        &probe,
-        &json!({ "op": "exists", "path": out.join("Artist").to_string_lossy() }),
-    );
-    assert!(r.as_ref().is_err_and(|e| e.starts_with("EACCES")), "{r:?}");
     let saved = std::fs::read_to_string(dir.join("plugins.json")).unwrap();
     assert!(!saved.contains(name), "{saved}");
 
-    // Installed again, it starts with nothing picked.
-    let (luna, host) = start(&dir, Vec::new());
+    // Installed again in the same run, it starts with nothing picked.
     install(&luna, name, &body);
-    let third = host.note(&luna, 0);
+    let third = host.note(&luna, 1);
     assert_eq!(third["before"], json!("EACCES"), "{third}");
     assert_eq!(third["dir"], Value::Null, "{third}");
     luna.shutdown();

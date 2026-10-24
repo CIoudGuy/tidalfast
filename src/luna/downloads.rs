@@ -15,7 +15,7 @@
 //! A body waits for its reader as long as it takes: it goes when it is read,
 //! when its response is dropped unread ([`release`], as Chromium drops an
 //! unread body with its response), or when its plugin stops. Every download
-//! belongs to a plugin of one runtime ([`Runtime`]): a plugin's name is
+//! belongs to a plugin of one runtime ([`RuntimeId`]): a plugin's name is
 //! unique only within its runtime, and when Luna restarts, the old runtime
 //! stops its plugins while the new one already runs them.
 
@@ -25,6 +25,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
+use super::RuntimeId;
+
 /// Responses larger than this go to a file as they arrive.
 pub const SPOOL_AT: usize = 8 << 20;
 
@@ -32,18 +34,6 @@ pub const SPOOL_AT: usize = 8 << 20;
 /// depth model is 102 MB). A body that says it is larger is refused before
 /// it is read, one that turns out larger is cut off there.
 pub const MAX_DOWNLOAD: u64 = 512 << 20;
-
-/// The Luna runtime a download belongs to, unique in the process.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Runtime(u64);
-
-impl Runtime {
-    /// A runtime's own: what it stops never touches another's downloads.
-    pub fn unique() -> Runtime {
-        static NEXT: AtomicU64 = AtomicU64::new(1);
-        Runtime(NEXT.fetch_add(1, Ordering::Relaxed))
-    }
-}
 
 /// A download under way, as the Plugins page shows it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -57,7 +47,7 @@ pub struct Progress {
 
 struct Active {
     id: u64,
-    runtime: Runtime,
+    runtime: RuntimeId,
     plugin: String,
     url: String,
     received: Arc<AtomicU64>,
@@ -66,7 +56,7 @@ struct Active {
 }
 
 struct Spooled {
-    runtime: Runtime,
+    runtime: RuntimeId,
     plugin: String,
     path: PathBuf,
 }
@@ -102,7 +92,7 @@ pub fn active() -> Vec<Progress> {
 
 /// Cuts off the downloads of the plugins of `runtime` that `stops` picks
 /// and deletes the bodies they have not taken.
-fn stop_where(runtime: Runtime, stops: impl Fn(&str) -> bool) {
+fn stop_where(runtime: RuntimeId, stops: impl Fn(&str) -> bool) {
     let gone: Vec<PathBuf> = with(|r| {
         for a in r
             .active
@@ -130,12 +120,12 @@ fn stop_where(runtime: Runtime, stops: impl Fn(&str) -> bool) {
 
 /// Cuts off the downloads of `runtime`'s `plugin` and deletes the bodies
 /// it has not taken.
-pub fn stop_plugin(runtime: Runtime, plugin: &str) {
+pub fn stop_plugin(runtime: RuntimeId, plugin: &str) {
     stop_where(runtime, |p| p == plugin);
 }
 
 /// `runtime` stopped: what is left of its downloads goes.
-pub fn stop_runtime(runtime: Runtime) {
+pub fn stop_runtime(runtime: RuntimeId) {
     stop_where(runtime, |_| true);
 }
 
@@ -150,7 +140,7 @@ pub fn sweep(dir: &Path) {
 
 /// Takes the body kept under `token` out of the list when `runtime`'s
 /// `plugin` (none: the runtime's own code) may have it.
-fn claim(runtime: Runtime, plugin: Option<&str>, token: &str) -> Option<Spooled> {
+fn claim(runtime: RuntimeId, plugin: Option<&str>, token: &str) -> Option<Spooled> {
     with(|r| {
         let mine = r
             .bodies
@@ -163,7 +153,7 @@ fn claim(runtime: Runtime, plugin: Option<&str>, token: &str) -> Option<Spooled>
 /// The body a fetch kept under `token` for `runtime`'s `plugin`, read whole
 /// and the file deleted. A token is the plugin's own: another plugin gets
 /// nothing.
-pub fn take(runtime: Runtime, plugin: Option<&str>, token: &str) -> Result<Vec<u8>, String> {
+pub fn take(runtime: RuntimeId, plugin: Option<&str>, token: &str) -> Result<Vec<u8>, String> {
     let body = claim(runtime, plugin, token)
         .ok_or("TypeError: the response body is gone (read twice, or its plugin stopped)")?;
     let bytes = std::fs::read(&body.path).map_err(|e| format!("TypeError: {e}"));
@@ -173,7 +163,7 @@ pub fn take(runtime: Runtime, plugin: Option<&str>, token: &str) -> Result<Vec<u
 
 /// The response that held `token` is gone unread (collected, or its fetch
 /// was aborted): its file goes.
-pub fn release(runtime: Runtime, plugin: Option<&str>, token: &str) {
+pub fn release(runtime: RuntimeId, plugin: Option<&str>, token: &str) {
     if let Some(b) = claim(runtime, plugin, token) {
         let _ = std::fs::remove_file(b.path);
     }
@@ -185,7 +175,7 @@ pub fn release(runtime: Runtime, plugin: Option<&str>, token: &str) {
 pub fn read_body(
     body: impl Read,
     total: Option<u64>,
-    runtime: Runtime,
+    runtime: RuntimeId,
     plugin: Option<&str>,
     url: &str,
     spool: &Path,
@@ -197,7 +187,7 @@ pub fn read_body(
 fn read_capped(
     mut body: impl Read,
     total: Option<u64>,
-    runtime: Runtime,
+    runtime: RuntimeId,
     plugin: Option<&str>,
     url: &str,
     spool: &Path,
@@ -336,7 +326,7 @@ struct Ticket {
 }
 
 impl Ticket {
-    fn start(runtime: Runtime, plugin: Option<&str>, url: &str, total: Option<u64>) -> Ticket {
+    fn start(runtime: RuntimeId, plugin: Option<&str>, url: &str, total: Option<u64>) -> Ticket {
         let received = Arc::new(AtomicU64::new(0));
         let cancel = Arc::new(AtomicBool::new(false));
         let id = with(|r| {
@@ -440,7 +430,7 @@ mod tests {
     }
 
     /// A spooled body of `size` bytes fetched by `rt`'s `plugin`.
-    fn spooled(rt: Runtime, plugin: &str, size: usize, d: &Path) -> String {
+    fn spooled(rt: RuntimeId, plugin: &str, size: usize, d: &Path) -> String {
         match read_body(slow(size), None, rt, Some(plugin), "u", d).unwrap() {
             Body::File { token, .. } => token,
             Body::Memory(_) => panic!("spooled"),
@@ -453,7 +443,7 @@ mod tests {
         let body = read_body(
             slow(1000),
             Some(1000),
-            Runtime::unique(),
+            RuntimeId::unique(),
             Some("p"),
             "u",
             &d,
@@ -471,7 +461,7 @@ mod tests {
     fn a_large_body_goes_to_a_file_its_plugin_takes_once() {
         const { assert!(MAX_DOWNLOAD > 102 << 20) };
         let d = dir("large");
-        let rt = Runtime::unique();
+        let rt = RuntimeId::unique();
         let size = SPOOL_AT + (3 << 20);
         let Body::File { token, size: got } =
             read_body(slow(size), Some(size as u64), rt, Some("@a/b"), "u", &d).unwrap()
@@ -484,7 +474,7 @@ mod tests {
             "not another plugin's"
         );
         assert!(
-            take(Runtime::unique(), Some("@a/b"), &token).is_err(),
+            take(RuntimeId::unique(), Some("@a/b"), &token).is_err(),
             "not another runtime's"
         );
         let bytes = take(rt, Some("@a/b"), &token).unwrap();
@@ -497,7 +487,7 @@ mod tests {
     #[test]
     fn past_the_cap_is_refused() {
         let d = dir("cap");
-        let rt = Runtime::unique();
+        let rt = RuntimeId::unique();
         assert!(read_body(slow(0), Some(MAX_DOWNLOAD + 1), rt, None, "u", &d).is_err());
         let cap = SPOOL_AT as u64 * 2;
         let r = read_capped(slow(cap as usize + 1), None, rt, None, "u", &d, cap);
@@ -509,7 +499,7 @@ mod tests {
     #[test]
     fn a_download_shows_its_progress_and_stops_with_its_plugin() {
         let d = dir("stop");
-        let rt = Runtime::unique();
+        let rt = RuntimeId::unique();
         // Pieces of 64 KB: enough of them to pass the spool line, so the
         // download is on disk when it is stopped.
         const PIECE: usize = 64 << 10;
@@ -550,7 +540,7 @@ mod tests {
         assert_eq!(seen.url, "https://example.com/model.onnx");
         assert_eq!(files_in(&d), 1, "past the spool line, on disk");
         // A plugin of the same name in another runtime is not this one.
-        stop_plugin(Runtime::unique(), "@stop/me");
+        stop_plugin(RuntimeId::unique(), "@stop/me");
         assert!(active().iter().any(|p| p.plugin == "@stop/me"));
         stop_plugin(rt, "@stop/me");
         gate.allowed.store(usize::MAX, Ordering::SeqCst);
@@ -569,7 +559,7 @@ mod tests {
     #[test]
     fn a_stop_as_the_last_piece_arrives_keeps_no_body() {
         let d = dir("last");
-        let rt = Runtime::unique();
+        let rt = RuntimeId::unique();
         const PIECE: usize = 64 << 10;
         let size = SPOOL_AT + 2 * PIECE;
         // Every piece of the body; the read that finds its end waits.
@@ -611,7 +601,7 @@ mod tests {
     #[test]
     fn stopping_a_plugin_deletes_bodies_it_did_not_take() {
         let d = dir("left");
-        let rt = Runtime::unique();
+        let rt = RuntimeId::unique();
         let token = spooled(rt, "@left/x", SPOOL_AT + (1 << 20), &d);
         stop_plugin(rt, "@left/x");
         assert!(take(rt, Some("@left/x"), &token).is_err());
@@ -625,7 +615,7 @@ mod tests {
     #[test]
     fn a_runtime_stops_only_its_own_plugins_bodies() {
         let d = dir("runtimes");
-        let (old, new) = (Runtime::unique(), Runtime::unique());
+        let (old, new) = (RuntimeId::unique(), RuntimeId::unique());
         let size = SPOOL_AT + (1 << 20);
         let left = spooled(old, "@same/name", size, &d);
         let kept = spooled(new, "@same/name", size, &d);
@@ -645,14 +635,14 @@ mod tests {
     #[test]
     fn a_body_waits_for_its_reader_or_its_release() {
         let d = dir("wait");
-        let rt = Runtime::unique();
+        let rt = RuntimeId::unique();
         let size = SPOOL_AT + (1 << 20);
         let first = spooled(rt, "@wait/me", size, &d);
         let second = spooled(rt, "@wait/me", size, &d);
         let third = spooled(rt, "@wait/me", size, &d);
         assert_eq!(take(rt, Some("@wait/me"), &first).unwrap().len(), size);
         release(rt, Some("@other/plugin"), &second);
-        release(Runtime::unique(), Some("@wait/me"), &second);
+        release(RuntimeId::unique(), Some("@wait/me"), &second);
         assert_eq!(
             files_in(&d),
             2,

@@ -138,8 +138,9 @@ impl Killer {
 /// What a fork runs, read by the Luna thread through the plugin's `fs`.
 pub struct Spawn {
     pub plugin: String,
-    /// Whose the fork's large downloads are: its plugin's runtime's.
-    pub downloads: super::downloads::Runtime,
+    /// Its plugin's runtime: the fork acts as that runtime's plugin (its
+    /// large downloads, the files the user picked for it).
+    pub runtime: super::RuntimeId,
     /// The plugin's data folder (its `fs` sandbox).
     pub home: PathBuf,
     /// The module's path, as Node gives it to the script (`__filename`).
@@ -340,7 +341,7 @@ impl ForkHub {
 struct State {
     handle: u32,
     plugin: String,
-    downloads: super::downloads::Runtime,
+    runtime: super::RuntimeId,
     home: PathBuf,
     luna: Sender<Msg>,
     killer: Arc<Killer>,
@@ -400,7 +401,7 @@ impl State {
         match name {
             "fs" => wrap(self.claimed_ok(&claimed).and_then(|()| {
                 let a: Value = serde_json::from_str(&arg).unwrap_or(Value::Null);
-                super::fsops::fs_op_for(&self.plugin, &self.home, &a)
+                super::fsops::fs_op_for(self.runtime, &self.plugin, &self.home, &a)
             })),
             "child.spawnSync" => {
                 let a: Value = serde_json::from_str(&arg).unwrap_or(Value::Null);
@@ -448,8 +449,11 @@ impl State {
         let a: Value = serde_json::from_str(arg).unwrap_or(Value::Null);
         let path = a["path"].as_str().unwrap_or_default();
         match a["op"].as_str().unwrap_or_default() {
-            "read" => super::fsops::read_bytes(&self.plugin, &self.home, path).map(Some),
+            "read" => {
+                super::fsops::read_bytes(self.runtime, &self.plugin, &self.home, path).map(Some)
+            }
             "write" => super::fsops::write_bytes(
+                self.runtime,
                 &self.plugin,
                 &self.home,
                 path,
@@ -486,7 +490,7 @@ fn child_main(
     let state = Rc::new(State {
         handle,
         plugin: spawn.plugin.clone(),
-        downloads: spawn.downloads,
+        runtime: spawn.runtime,
         home: spawn.home.clone(),
         luna,
         killer,
@@ -808,7 +812,7 @@ fn current<'js>(c: &Ctx<'js>) -> rquickjs::Result<Rc<State>> {
 /// `__fetch_take(token)`: a large fetched body, for the fork's plugin only.
 fn fetch_take<'js>(c: Ctx<'js>, token: String) -> rquickjs::Result<ArrayBuffer<'js>> {
     let state = current(&c)?;
-    let bytes = super::downloads::take(state.downloads, Some(&state.plugin), &token)
+    let bytes = super::downloads::take(state.runtime, Some(&state.plugin), &token)
         .map_err(|e| rquickjs::Exception::throw_message(&c, &e))?;
     ArrayBuffer::new(c, bytes)
 }
@@ -817,7 +821,7 @@ fn fetch_take<'js>(c: Ctx<'js>, token: String) -> rquickjs::Result<ArrayBuffer<'
 /// unread; its file goes.
 fn fetch_drop(c: Ctx<'_>, token: String) -> rquickjs::Result<()> {
     let state = current(&c)?;
-    super::downloads::release(state.downloads, Some(&state.plugin), &token);
+    super::downloads::release(state.runtime, Some(&state.plugin), &token);
     Ok(())
 }
 

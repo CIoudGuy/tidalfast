@@ -198,8 +198,10 @@ struct Inner {
     permits: Arc<super::permits::Permits>,
     /// Plugins' system-wide shortcuts (see [`super::hotkeys`]).
     hotkeys: super::hotkeys::Hotkeys,
-    /// Whose this runtime's large downloads are (see [`super::downloads`]).
-    downloads: super::downloads::Runtime,
+    /// This runtime, which what the process keeps for plugins (downloads,
+    /// TIDAL streams, file dialog picks, depth models) is keyed by with the
+    /// plugin's name (see [`super::RuntimeId`]).
+    id: super::RuntimeId,
     /// Message boxes plugins wait on, and the next id.
     boxes: Vec<super::MessageBox>,
     next_box: u64,
@@ -457,7 +459,7 @@ impl Inner {
     /// it had open outside the sandbox goes, and calls waiting for a
     /// permission answer fail.
     fn close_plugin_io(&mut self, name: &str) {
-        super::downloads::stop_plugin(self.downloads, name);
+        super::downloads::stop_plugin(self.id, name);
         self.net.close_plugin(name);
         self.children.close_plugin(name);
         self.forks.close_plugin(name);
@@ -472,7 +474,7 @@ impl Inner {
     /// audio streams; calls waiting for a permission answer fail.
     fn end_run(&mut self, name: &str) {
         self.hotkeys.close_plugin(name);
-        super::audio::close_plugin(name);
+        super::audio::close_plugin(self.id, name);
         for op in self.permits.close_plugin(name) {
             let _ = self.tx.send(Msg::OpDone {
                 id: op,
@@ -604,7 +606,7 @@ impl Inner {
         self.picks_seen = now;
         let mut changed = false;
         for r in &mut self.records {
-            let picks = super::fsops::picks_of(&r.name);
+            let picks = super::fsops::picks_of(self.id, &r.name);
             if picks != r.picks {
                 r.picks = picks;
                 changed = true;
@@ -1169,13 +1171,13 @@ fn op_sync(inner: &S, who: Who, name: &str, arg: &str) -> String {
 thread_local! {
     /// The runtime `__fs_bytes` works for (one per Luna thread).
     static FS_INNER: RefCell<Option<std::rc::Weak<RefCell<Inner>>>> = const { RefCell::new(None) };
-    /// Whose this thread's runtime's large downloads are.
-    static DOWNLOADS: Cell<Option<super::downloads::Runtime>> = const { Cell::new(None) };
+    /// The runtime this thread runs.
+    static RUNTIME: Cell<Option<super::RuntimeId>> = const { Cell::new(None) };
 }
 
-/// This thread's runtime's downloads, for `__fetch_take` and `__fetch_drop`.
-fn downloads_here<'js>(c: &Ctx<'js>) -> rquickjs::Result<super::downloads::Runtime> {
-    DOWNLOADS
+/// This thread's runtime, for `__fetch_take` and `__fetch_drop`.
+fn downloads_here<'js>(c: &Ctx<'js>) -> rquickjs::Result<super::RuntimeId> {
+    RUNTIME
         .with(Cell::get)
         .ok_or_else(|| rquickjs::Exception::throw_message(c, "EIO: the runtime is gone"))
 }
@@ -1238,18 +1240,19 @@ fn fs_bytes(
     data: Option<Vec<u8>>,
 ) -> Result<Option<Vec<u8>>, String> {
     let plugin = who.acting()?;
-    let home = {
+    let (home, runtime) = {
         let mut i = inner.borrow_mut();
         if i.record(&plugin).is_none() {
             return Err(format!("EACCES: unknown plugin {plugin}"));
         }
         i.used(&plugin, Permission::PluginFiles);
-        i.storage.data_dir(&plugin)
+        (i.storage.data_dir(&plugin), i.id)
     };
     let path = str_of(a, "path");
     match str_of(a, "op") {
-        "read" => super::fsops::read_bytes(&plugin, &home, path).map(Some),
+        "read" => super::fsops::read_bytes(runtime, &plugin, &home, path).map(Some),
         "write" => super::fsops::write_bytes(
+            runtime,
             &plugin,
             &home,
             path,
@@ -1666,15 +1669,21 @@ It is installed and switched on; what it may do is asked when it does it, and it
         // How far `MediaItem.download` is, and closing a TIDAL stream.
         "audio.progress" => {
             let plugin = who.acting()?;
-            Ok(match super::audio::progress(&plugin, str_of(a, "id")) {
-                Some((downloaded, total)) => json!({ "downloaded": downloaded, "total": total }),
-                None => Value::Null,
-            })
+            let runtime = inner.borrow().id;
+            Ok(
+                match super::audio::progress(runtime, &plugin, str_of(a, "id")) {
+                    Some((downloaded, total)) => {
+                        json!({ "downloaded": downloaded, "total": total })
+                    }
+                    None => Value::Null,
+                },
+            )
         }
         "audio.close" => {
             let plugin = who.acting()?;
             let handle = a["handle"].as_u64().unwrap_or_default() as u32;
-            super::audio::close(&plugin, handle);
+            let runtime = inner.borrow().id;
+            super::audio::close(runtime, &plugin, handle);
             Ok(Value::Null)
         }
         "state" => {
@@ -2089,7 +2098,7 @@ It is installed and switched on; what it may do is asked when it does it, and it
         }
         "fs" => {
             let plugin = who.acting()?;
-            let home = {
+            let (home, runtime) = {
                 let mut i = inner.borrow_mut();
                 if i.record(&plugin).is_none() {
                     return Err(format!("EACCES: unknown plugin {plugin}"));
@@ -2100,9 +2109,9 @@ It is installed and switched on; what it may do is asked when it does it, and it
                 ) {
                     i.used(&plugin, Permission::PluginFiles);
                 }
-                i.storage.data_dir(&plugin)
+                (i.storage.data_dir(&plugin), i.id)
             };
-            super::fsops::fs_op_for(&plugin, &home, a)
+            super::fsops::fs_op_for(runtime, &plugin, &home, a)
         }
         "net.connect" => {
             let plugin = who.acting()?;
@@ -2349,6 +2358,7 @@ fn child_request(a: &Value) -> child::Request {
         *slot = v.as_bool().unwrap_or(true);
     }
     child::Request {
+        runtime: super::RuntimeId::default(),
         plugin: String::new(),
         file: str_of(a, "file").to_string(),
         args: strings("args"),
@@ -2419,7 +2429,8 @@ fn fork_start(inner: &S, plugin: &str, a: &Value) -> Result<Value, String> {
         (i.storage.data_dir(plugin), i.cfg.memory_limit, i.tx.clone())
     };
     let file = str_of(a, "path").to_string();
-    let bytes = super::fsops::read_bytes(plugin, &home, &file)
+    let runtime = inner.borrow().id;
+    let bytes = super::fsops::read_bytes(runtime, plugin, &home, &file)
         .map_err(|e| format!("MODULE_NOT_FOUND: Cannot find module '{file}' ({e})"))?;
     if bytes.len() > MAX_CODE {
         return Err("E2BIG: the module is too large".into());
@@ -2436,7 +2447,7 @@ fn fork_start(inner: &S, plugin: &str, a: &Value) -> Result<Value, String> {
     };
     let spawn = super::fork::Spawn {
         plugin: plugin.to_string(),
-        downloads: inner.borrow().downloads,
+        runtime,
         file,
         code,
         args: strings("args"),
@@ -2475,6 +2486,7 @@ fn prepare_program(inner: &S, plugin: &str, a: &Value) -> Result<PreparedProgram
     let _ = std::fs::create_dir_all(&data_dir);
     let mut request = child_request(a);
     request.plugin = plugin.clone();
+    request.runtime = inner.borrow().id;
     let prepared = child::prepare(&request, &data_dir);
     Ok((plugin, notifier(tx), prepared))
 }
@@ -2696,7 +2708,8 @@ fn op_async(inner: &S, who: Who, name: String, arg: String, id: f64) {
     // more, which the request pools must not wait behind).
     if name.starts_with("depth.") {
         let tx = inner.borrow().tx.clone();
-        super::depth::submit(&name, a, plugin, move |r| {
+        let runtime = inner.borrow().id;
+        super::depth::submit(&name, a, runtime, plugin, move |r| {
             let (ok, json) = match r {
                 Ok(v) => (true, v.to_string()),
                 Err(e) => (false, json!(e).to_string()),
@@ -2705,7 +2718,7 @@ fn op_async(inner: &S, who: Who, name: String, arg: String, id: f64) {
         });
         return;
     }
-    let (tx, host, http, writes) = {
+    let (tx, host, http, writes, runtime) = {
         let mut i = inner.borrow_mut();
         let http = if name == "fetch" {
             if let Some(p) = &plugin {
@@ -2714,12 +2727,11 @@ fn op_async(inner: &S, who: Who, name: String, arg: String, id: f64) {
             Some(FetchCtx {
                 client: i.plugin_http(),
                 spool: i.storage.spool_dir(),
-                runtime: i.downloads,
             })
         } else {
             None
         };
-        (i.tx.clone(), i.host.clone(), http, i.writes.clone())
+        (i.tx.clone(), i.host.clone(), http, i.writes.clone(), i.id)
     };
     // TIDAL lookups (with the user's session) and everything else (fetch)
     // each run on a small pool, a few per plugin at a time; the rest wait
@@ -2727,7 +2739,7 @@ fn op_async(inner: &S, who: Who, name: String, arg: String, id: f64) {
     let owner = plugin.clone().unwrap_or_default();
     let job = move || {
         let r = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            op_async_run(&name, &a, &*host, http, &writes)
+            op_async_run(&name, &a, &*host, http, &writes, runtime)
         }))
         .unwrap_or_else(|_| Err(format!("{name} panicked")));
         let (ok, json) = match r {
@@ -2759,7 +2771,7 @@ static FILE_DIALOG_OPEN: std::sync::atomic::AtomicBool = std::sync::atomic::Atom
 
 /// `dialog.showOpenDialog` / `showSaveDialog` for a plugin: the host's
 /// native dialog, and the pick becomes reachable to that plugin's `fs`.
-fn file_dialog(a: &Value, host: &dyn LunaHost) -> Result<Value, String> {
+fn file_dialog(a: &Value, host: &dyn LunaHost, runtime: super::RuntimeId) -> Result<Value, String> {
     use std::sync::atomic::Ordering;
     let save = str_of(a, "kind") == "save";
     let properties: Vec<&str> = a["properties"]
@@ -2821,7 +2833,7 @@ fn file_dialog(a: &Value, host: &dyn LunaHost) -> Result<Value, String> {
     };
     if let Some(plugin) = plugin {
         for path in &paths {
-            super::fsops::grant(plugin, path, request.directory);
+            super::fsops::grant(runtime, plugin, path, request.directory);
         }
     }
     // `downloadObject`: a text the plugin gave is written to the picked file
@@ -2847,20 +2859,21 @@ fn file_dialog(a: &Value, host: &dyn LunaHost) -> Result<Value, String> {
     })
 }
 
-/// What a `fetch` takes from its runtime: the client, where a large body
-/// goes and whose it is.
+/// What a `fetch` takes from its runtime: the client and where a large body
+/// goes.
 struct FetchCtx {
     client: Result<reqwest::blocking::Client, String>,
     spool: std::path::PathBuf,
-    runtime: super::downloads::Runtime,
 }
 
+/// An asynchronous op on a worker thread, for a plugin of `runtime`.
 fn op_async_run(
     name: &str,
     a: &Value,
     host: &dyn LunaHost,
     http: Option<FetchCtx>,
     writes: &super::writes::Grants,
+    runtime: super::RuntimeId,
 ) -> Result<Value, String> {
     let id = str_of(a, "id");
     match name {
@@ -2887,7 +2900,7 @@ fn op_async_run(
                 }
             };
             let http = http.ok_or("no http client")?;
-            fetch(http.client?, a, &ask, &http.spool, http.runtime)
+            fetch(http.client?, a, &ask, &http.spool, runtime)
         }
         // `dns.lookup` of a name: asked like a connection to it, then the
         // system resolver answers.
@@ -2993,7 +3006,7 @@ fn op_async_run(
             .map(Value::String)
             .unwrap_or(Value::Null)),
         "host.isrc_tracks" => Ok(Value::Array(host.tracks_by_isrc(str_of(a, "isrc")))),
-        "file_dialog" => file_dialog(a, host),
+        "file_dialog" => file_dialog(a, host, runtime),
         // The TIDAL sign-in, for a plugin the user allowed (`op_async`
         // checked): the current token, never logged, and hidden from log
         // lines from now on.
@@ -3017,7 +3030,7 @@ fn op_async_run(
                 "codec": source.codec,
                 "extension": source.extension,
             });
-            let handle = super::audio::open_stream(plugin, source)?;
+            let handle = super::audio::open_stream(runtime, plugin, source)?;
             let mut info = info;
             info["handle"] = json!(handle);
             Ok(info)
@@ -3026,12 +3039,12 @@ fn op_async_run(
             use base64::Engine;
             let plugin = a.get("plugin").and_then(Value::as_str).ok_or("EACCES")?;
             let handle = a["handle"].as_u64().unwrap_or_default() as u32;
-            Ok(match super::audio::read(plugin, handle)? {
+            Ok(match super::audio::read(runtime, plugin, handle)? {
                 Some(bytes) => json!(base64::engine::general_purpose::STANDARD.encode(bytes)),
                 None => Value::Null,
             })
         }
-        "audio.save" => audio_save(a, host),
+        "audio.save" => audio_save(a, host, runtime),
         // A `fetchMediaItemStream` consumed only by sinks that drop every
         // chunk (node.js's `AudioStream`, a CDN warm-up after a stall): the
         // song's stream read to its end and dropped here. Nothing reaches
@@ -3041,7 +3054,7 @@ fn op_async_run(
             let plugin = a.get("plugin").and_then(Value::as_str).ok_or("EACCES")?;
             let source =
                 host.audio_source(Some(plugin), id, a.get("quality").and_then(Value::as_str))?;
-            Ok(json!(super::audio::drain(plugin, source)?))
+            Ok(json!(super::audio::drain(runtime, plugin, source)?))
         }
         "host.playback_info" => Ok(host
             .playback_info(id, a.get("quality").and_then(Value::as_str))
@@ -3054,7 +3067,7 @@ fn op_async_run(
 /// save TIDAL audio: the file goes where the user picked for this plugin in
 /// a file dialog; elsewhere the user is asked for a folder first (once for
 /// each folder the plugin names).
-fn audio_save(a: &Value, host: &dyn LunaHost) -> Result<Value, String> {
+fn audio_save(a: &Value, host: &dyn LunaHost, runtime: super::RuntimeId) -> Result<Value, String> {
     let plugin = a.get("plugin").and_then(Value::as_str).ok_or("EACCES")?;
     let id = str_of(a, "id");
     if id.is_empty() || !id.chars().all(|c| c.is_ascii_digit()) {
@@ -3062,7 +3075,7 @@ fn audio_save(a: &Value, host: &dyn LunaHost) -> Result<Value, String> {
     }
     let wanted = str_of(a, "path");
     let source = host.audio_source(Some(plugin), id, a.get("quality").and_then(Value::as_str))?;
-    let target = match super::fsops::granted_for(plugin, wanted) {
+    let target = match super::fsops::granted_for(runtime, plugin, wanted) {
         Some(path) => path,
         None => {
             let wanted = std::path::Path::new(wanted);
@@ -3075,7 +3088,7 @@ fn audio_save(a: &Value, host: &dyn LunaHost) -> Result<Value, String> {
                 .parent()
                 .map(std::path::Path::to_path_buf)
                 .unwrap_or_default();
-            let folder = match super::audio::redirect(plugin, &asked) {
+            let folder = match super::audio::redirect(runtime, plugin, &asked) {
                 Some(folder) => folder,
                 None => {
                     let picked = file_dialog(
@@ -3086,12 +3099,13 @@ fn audio_save(a: &Value, host: &dyn LunaHost) -> Result<Value, String> {
                             "properties": ["openDirectory", "createDirectory"],
                         }),
                         host,
+                        runtime,
                     )?;
                     let folder = picked["filePaths"][0]
                         .as_str()
                         .map(std::path::PathBuf::from)
                         .ok_or("ECANCELED: no folder was chosen")?;
-                    super::audio::remember_redirect(plugin, &asked, &folder);
+                    super::audio::remember_redirect(runtime, plugin, &asked, &folder);
                     folder
                 }
             };
@@ -3101,14 +3115,14 @@ fn audio_save(a: &Value, host: &dyn LunaHost) -> Result<Value, String> {
     let target = super::audio::with_extension(&target, &source);
     if let Some(parent) = target.parent()
         && !parent.exists()
-        && super::fsops::granted_for(plugin, &parent.to_string_lossy()).is_some()
+        && super::fsops::granted_for(runtime, plugin, &parent.to_string_lossy()).is_some()
     {
         std::fs::create_dir_all(parent).map_err(|e| format!("EIO: {e}"))?;
     }
-    super::audio::save(plugin, id, source, &target)?;
+    super::audio::save(runtime, plugin, id, source, &target)?;
     // The plugin goes on naming the file by the path it gave (a program it
     // hands it to, its own `fs`): that path is this file.
-    super::fsops::alias(plugin, wanted, &target);
+    super::fsops::alias(runtime, plugin, wanted, &target);
     Ok(json!({ "path": target.to_string_lossy() }))
 }
 
@@ -3221,7 +3235,7 @@ fn fetch(
     a: &Value,
     ask: &AskHop<'_>,
     spool: &std::path::Path,
-    runtime: super::downloads::Runtime,
+    runtime: super::RuntimeId,
 ) -> Result<Value, String> {
     let mut url = url::Url::parse(str_of(a, "url")).map_err(|e| format!("Invalid URL: {e}"))?;
     let mut method =
@@ -4296,10 +4310,10 @@ impl Engine {
         self.purge_stored(&claims, &others);
         let home = self.inner.borrow().storage.data_dir(name);
         let _ = std::fs::remove_dir_all(&home);
-        super::fsops::forget_plugin(name, &home);
-        let downloads = self.inner.borrow().downloads;
-        super::downloads::stop_plugin(downloads, name);
-        super::depth::drop_plugin(name);
+        let runtime = self.inner.borrow().id;
+        super::fsops::forget_plugin(runtime, name, &home);
+        super::downloads::stop_plugin(runtime, name);
+        super::depth::drop_plugin(runtime, name);
     }
 
     /// Delete what a plugin kept in Luna's stores (its settings, the named
@@ -4355,7 +4369,7 @@ impl Engine {
             i.permits.forget(name);
             i.writes.revoke(name);
             i.children.forget_plugin(name);
-            super::fsops::forget_picks(name);
+            super::fsops::forget_picks(i.id, name);
             // The settings box described the values just cleared.
             i.rt(name).settings = None;
             i.save_records();
@@ -4946,7 +4960,7 @@ impl Engine {
                 match &access {
                     super::Access::GlobalShortcuts => i.hotkeys.close_plugin(&plugin),
                     super::Access::Pipe { path } => i.net.close_pipe(&plugin, path),
-                    super::Access::SaveAudio => super::audio::close_plugin(&plugin),
+                    super::Access::SaveAudio => super::audio::close_plugin(i.id, &plugin),
                     super::Access::Credentials | super::Access::ExclusiveOutput => {}
                 }
                 let what = access.log_name();
@@ -5157,7 +5171,11 @@ impl Engine {
         for n in names {
             i.close_plugin_io(&n);
         }
-        super::downloads::stop_runtime(i.downloads);
+        // What the process kept for this runtime's plugins goes with it.
+        super::downloads::stop_runtime(i.id);
+        super::audio::stop_runtime(i.id);
+        super::fsops::stop_runtime(i.id);
+        super::depth::stop_runtime(i.id);
         i.children.stop_all();
         i.forks.stop_all();
         i.pages.stop_all();
@@ -5634,8 +5652,9 @@ fn setup_with(
         });
     }));
     // What the user picked for each plugin in file dialogs in earlier runs.
+    let id = super::RuntimeId::unique();
     for r in records.iter().filter(|r| !r.picks.is_empty()) {
-        super::fsops::restore_picks(&r.name, &r.picks);
+        super::fsops::restore_picks(id, &r.name, &r.picks);
     }
     let picks_seen = super::fsops::picks_version();
     // Bodies a run that ended abruptly left half downloaded.
@@ -5658,7 +5677,7 @@ fn setup_with(
         writes,
         permits,
         hotkeys,
-        downloads: super::downloads::Runtime::unique(),
+        id,
         boxes: Vec::new(),
         next_box: 1,
         gesture_at: None,
@@ -5808,7 +5827,7 @@ fn setup_with(
         g.set("__utf8_dec", Function::new(ctx.clone(), utf8_dec)?)?;
         g.set("__b64_enc", Function::new(ctx.clone(), b64_enc)?)?;
         g.set("__b64_dec", Function::new(ctx.clone(), b64_dec)?)?;
-        DOWNLOADS.with(|d| d.set(Some(inner.borrow().downloads)));
+        RUNTIME.with(|d| d.set(Some(inner.borrow().id)));
         g.set("__fetch_take", Function::new(ctx.clone(), fetch_take)?)?;
         g.set("__fetch_drop", Function::new(ctx.clone(), fetch_drop)?)?;
         FS_INNER.with(|f| *f.borrow_mut() = Some(Rc::downgrade(&inner)));
