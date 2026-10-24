@@ -867,6 +867,11 @@ pub struct HeaderAction {
     pub test: String,
     pub label: String,
     pub rect: Option<Rect>,
+    /// The button's 20-point icon (`svg._icon_`) and its caption's line,
+    /// each where it is drawn (`None` while not drawn: a caption the
+    /// header leaves out where it is narrow).
+    pub icon: Option<Rect>,
+    pub caption: Option<Rect>,
     pub checked: Option<bool>,
 }
 
@@ -2281,14 +2286,21 @@ fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction]) {
                 .class("css-j3v5ag")
                 .at(a.rect),
         );
-        out.push(el(format!("{key}:icon"), Some(&stack), "svg"));
+        // Each in its own box, as TIDAL 2.46.0 marks them up (`svg.
+        // _icon_77f3f89` over `span._buttonTextOffset_`): a right-click on
+        // the icon reaches the icon.
+        out.push(
+            el(format!("{key}:icon"), Some(&stack), "svg")
+                .class("_icon_77f3f89")
+                .at(a.icon),
+        );
         out.push(
             el(keys::page_action_label(&a.test), Some(&stack), "span")
                 .class("wave-text-caption-demi")
                 .class("_buttonTextOffset_a700b81")
                 .attr("data-wave-color", "textDefault")
                 .text(a.label.clone())
-                .at(a.rect),
+                .at(a.caption),
         );
     }
 }
