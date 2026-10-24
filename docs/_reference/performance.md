@@ -1212,8 +1212,98 @@ set of cards no longer changes as cards come into view, so the runtime
 restructures the page and rebuilds the overlay far less. A signed-in Home
 in lunatest held about 165 cards.
 
+## Themes, speed round 1: where time goes (2026-10-25)
+
+Release builds with the `demo` feature, the same machine and method as the
+egui fork's round above (off-screen, BelowNormal, other builds sometimes
+running), before and after run one after the other, three scroll runs and
+two browse and idle runs each. Before: tidal 11310160; after: the five
+commits below on top of it.
+
+**Where the 16 ms went.** Not the themes: Luna being on with a long list
+open. A probe build (scoped timers on the window's thread, not committed)
+while the bench scrolls 2,000 songs, microseconds a frame:
+
+| Window's thread, us a frame | Luna off | Luna on, no theme | Cotton candy |
+| --- | --- | --- | --- |
+| `App::logic` | 15 | 15,597 | 15,467 |
+| of it the open page's track list for plugins | 0 | 15,386 | 15,086 |
+| `App::ui` | 420 | 2,218 | 2,837 |
+| of it `end_frame` (anchor tree, compare, a deep copy for the runtime) | 0 | 869 | 890 |
+
+Every pass made TIDAL JSON for every loaded song of the open page only to
+compare the list's length with the one plugins had. At rest the runtime's
+thread built the whole overlay every second for the progress bar's
+`--progress` (about 15 ms with cotton candy, 10 ms with no theme), which
+came out the same.
+
+| Commit | Change | Measured on its own (round 1's builds) |
+| --- | --- | --- |
+| c822a7ce | the open page's list is counted each pass and made only when the page or its length changes | cotton candy scroll p50 20.62 to 2.02 ms, allocations a frame 174,528 to 20,738 |
+| 7e52420e | the anchor tree goes to the runtime shared (`Arc`), not copied | the copy for the runtime, 163 us to about 1 us a tree |
+| ec40d676 | an overlay build keeps each app element's entry while its inputs are unchanged | 9.4 to 6.0 ms a build (sample page, cotton candy) |
+| f949732d | a host's inline custom property no rule reads builds no overlay | cotton candy at four tree syncs a second: 512 to 179 ms busy in 10 s |
+| e9833e50 | the theme caches stay while a plugin changes only its own element | cotton candy on Home with a plugin changing its own element ten times a second: the window's thread 1,391 to 1,470 M cycles in 20 s before, 1,205 to 1,379 after, about 0.2 ms for each such overlay |
+
+Before against after, the five together:
+
+| Measure | Luna off | No theme | Blur | Meteor Night | Tidal TUI | Cotton candy (animated) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Scroll, frame CPU p50, ms | 0.55-0.61 / 0.54-0.58 | 18.0-20.2 / 0.71-0.79 | 18.3-19.0 / 0.89-0.98 | 18.9-21.0 / 0.86-1.04 | 18.7-19.9 / 0.92-1.01 | 19.4-21.2 / 1.56-2.26 |
+| Scroll, p99, ms | 0.96-1.19 / 1.06-1.16 | 24.2-27.2 / 1.78-2.32 | 23.8-25.1 / 2.26-2.53 | 25.9-29.0 / 2.22-2.88 | 24.2-27.6 / 2.43-2.71 | 27.2-29.4 / 3.75-4.32 |
+| Scroll, allocations a frame p50 | 2,415 / 2,415 | 174,524 / 4,320 | 175,763 / 5,290 | 174,968 / 4,711 | 176,097 / 4,655 | 180,314 / 16,492 |
+| Browse, the page's part of a pass over 20 pages, ms | 4.4-4.5 / 4.4-4.5 | 5.4-5.7 / 5.5 | 7.2 / 6.9-7.1 | 6.7-7.0 / 6.9-7.0 | 6.7-7.0 / 6.9-7.2 | 14.1-15.3 / 14.5-15.0 |
+| Idle on Home, process, M cycles in 20 s | 336-382 / 307-353 | 1,735-2,099 / 1,011-1,067 | 2,410-2,447 / 1,964-1,966 | 2,790-2,881 / 1,469-1,625 | 2,594-2,636 / 1,436-1,598 | 3,117-3,385 / 2,063-2,132 |
+| of it the runtime's (`luna`) thread | 0 / 0 | 1,296-1,539 / 572-644 | 2,101-2,151 / 1,601-1,678 | 1,890-1,963 / 681-740 | 2,324-2,341 / 1,090-1,301 | 2,206-2,559 / 1,163-1,357 |
+
+Scrolling with Luna on is as fast as with it off, give or take the theme's
+own drawing; at rest the runtime's thread does half the work or less. Blur
+gains least at rest: its selectors read the `style` attribute, so the
+progress bar's variable still builds an overlay (with the entries kept).
+The browse bench times only the page's drawing, which the round did not
+change. A theme's own cost while scrolling is now visible: cotton candy
+spends about 12,000 allocations a frame more than no theme (track rows'
+anchor keys and lookups, the anchor tree's build), round 2's subject.
+
+**Nothing drawn changed.** The theme parity checker on tidal 19f9c975 and
+the five commits on it, no theme, Blur, cotton candy, Cotton Candy Nights,
+Meteor Night and Sugarcoat: the style reports are identical item for item
+and the pixel numbers the same (Sugarcoat's album page 7.85 against 7.86 %,
+its animation). The demo's shots of the four pages are pixel-identical with
+no theme, Blur and Meteor Night; with the three animated themes they differ
+by at most 12 levels, only in the boxes that animate, as much as a build's
+two runs differ from each other. What the caches keep is checked end to end
+(`luna::tests::dom_tests::every_change_of_an_app_element_reaches_its_drawn_look_at_once`):
+a class, the pointer, the window's size and a custom property a rule reads
+each reach the drawn look on the first frame after the runtime has them, and
+the test fails with any of the invalidations taken out.
+
+### Round 2: what plugins read of the queue
+
+Every pass with Luna on made the queue's rows for plugins again, copied
+every queue song's JSON into a new snapshot, compared it whole with the one
+plugins had, and made the favourites again (92f5092a keeps all three while
+they are the same, shared with the snapshot). Measured with `--demo-show
+big-playlist,long-queue` (2,000 liked songs as the paused queue) while the
+bench scrolls 2,000 songs, before (the commit before it) against after:
+
+| Measure | No theme | Cotton candy |
+| --- | --- | --- |
+| Scroll, frame CPU p50, ms | 20.2-20.9 / 6.9-7.5 | 24.0-24.4 / 7.4-8.1 |
+| Scroll, p99, ms | 27.7-30.8 / 9.7-10.9 | 35.4-45.9 / 11.9-16.7 |
+| Allocations a frame p50 | 122,696 / 10,718 | 127,759 / 15,771 |
+| Idle on Home, process / window's thread, M cycles in 20 s | 101-117 / 80-96 before, 42-46 / 25 after | |
+
+Still about 6 ms a frame more than with the demo's 12-song queue: not yet
+found (a probe build is round 3's first step).
+
 ## Findings and decisions
 
+- **Luna's work follows changes, not the page.** With Luna on, a pass made
+  the open list's and the queue's TIDAL JSON and the favourites again, and the
+  runtime built the overlay for an inline variable no rule reads: 16 to 20 ms
+  of every frame while scrolling a long list. Each is now made when what it is
+  made of changes ("Themes, speed round 1" above).
 - **Long lists are already virtualised.** Track tables, card grids and the
   downloads list lay out only the rows in view, and playlist rows come
   from a cached table rebuilt only when the playlist changes. Scrolling
