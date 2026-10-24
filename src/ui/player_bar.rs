@@ -39,6 +39,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     // bar stays plain; the cover's colours show only behind now playing.
     let fill = if palette.tidal_dark() {
         Color32::from_rgb(30, 30, 30)
+    } else if palette.dark && palette.themed {
+        // The same glass over the page a theme colours (Tidalify's grey 18
+        // shows as grey 34 in TIDAL, Solo v2's near black as 30).
+        plugin_dom::tidal_bar_glass(Color32::TRANSPARENT, palette.window)
     } else {
         palette.panel
     };
@@ -3120,5 +3124,23 @@ mod narrow_tests {
         };
         let got = bar_colour(Some(footer), None);
         assert!(near(got, [87, 75, 81]), "{got:?}");
+    }
+
+    /// With no look of a theme's own for the bar, TIDAL's glass lies over
+    /// the page a theme colours: Tidalify's grey 18 page shows a grey 34
+    /// bar in TIDAL 2.46.0. Tidalfast filled the bar with the themed
+    /// palette's panel colour (grey 24 there).
+    #[test]
+    fn an_unstyled_bar_is_tidals_glass_over_a_themed_page() {
+        let window = Color32::from_gray(18);
+        let themed = crate::theme::Palette {
+            themed: true,
+            own_surfaces: false,
+            window,
+            panel: Color32::from_gray(24),
+            ..crate::theme::Palette::dark()
+        };
+        let got = bar_colour(None, Some(themed));
+        assert!(near(got, [34, 34, 34]), "{got:?}");
     }
 }
