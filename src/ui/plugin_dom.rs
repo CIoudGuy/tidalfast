@@ -1551,7 +1551,12 @@ pub fn filter_box(ui: &egui::Ui, r: Rect) -> bool {
     }
     let key = dom_anchors::keys::PAGE_FILTER_BOX;
     host_hover(ui, key, r);
+    // Rules that reach the box without painting one (a font, a text
+    // colour: Meteor Night, Minimalist Black, Giorgeous) leave TIDAL's own
+    // outline (TIDAL 2.46.0, captured: its 1-point 10 % white frame under
+    // them).
     paint_themed_box(ui, key, r, egui::CornerRadius::same(12))
+        && (paints_box(key) || fill(key).is_some())
 }
 
 /// The open play queue panel is drawn in `r` (`over_now_playing` while the
@@ -7749,6 +7754,17 @@ mod tests {
         };
         assert!(!styled_with(HostOverride {
             listens: vec!["click".into(), "mousedown".into()],
+            ..HostOverride::default()
+        }));
+        // A font and a text colour reach the box without painting one:
+        // TIDAL 2.46.0 keeps its outline under them (Meteor Night,
+        // Minimalist Black, Giorgeous, captured).
+        assert!(!styled_with(HostOverride {
+            style: Style {
+                font_family: Some("Doto, sans-serif".into()),
+                color: Some("#ffffff".into()),
+                ..Style::default()
+            },
             ..HostOverride::default()
         }));
         assert!(styled_with(HostOverride {
