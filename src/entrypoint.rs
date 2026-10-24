@@ -745,6 +745,7 @@ pub(crate) fn run() -> eframe::Result<()> {
                 tidalfast::bench::phase("window and GL");
                 if let Some(gl) = &cc.gl {
                     use eframe::glow::HasContext;
+                    tidalfast::ui::backdrop::init(gl);
                     // eframe has made this window's GL context current
                     // before calling the app creator. These identify the
                     // renderer actually selected, which may differ from

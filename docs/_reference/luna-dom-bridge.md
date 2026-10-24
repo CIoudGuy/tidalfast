@@ -747,9 +747,7 @@ parsed once per overlay change and cached by anchor): the box's
 `background-size`/`-position`; a radial gradient whose colour ends within 12
 px of its centre is a dot, drawn once per tile of its own `background-size`
 entry, as the Cotton Candy Nights family's stars), its `::before`/`::after` fill and images,
-`border`s, and `backdrop-filter: blur()` as frosted glass, which blurs the
-page's `url()` picture behind the box (over plain colours and gradients a
-blur changes nothing, so nothing is drawn). A theme that removes the header
+`border`s, and a `backdrop-filter` (see "Backdrop filter" below). A theme that removes the header
 art TIDAL paints in `[class^=_dataContainer_]::before` (`background-image:
 none`, `--img: none`, `display: none`) removes the cover wash. A theme that
 leaves that box alone keeps TIDAL's wash, darkened to black at its foot,
@@ -819,11 +817,10 @@ shape for shape):
   `:hover` too. A page pulled left but not kept that wide stays beside the
   sidebar. A sidebar the theme slides out keeps its width (a slid sidebar
   used to narrow itself to its least width, 210, and write that into the
-  settings). The content behind a `backdrop-filter` is not blurred here, so
-  the sidebar's glass over the page is laid over the window's colour and
-  drawn opaque (`plugin_dom::frosted`), which hides the page's text under it
-  as the blur does in TIDAL; beside the page, or without a blur, the theme's
-  fill is kept.
+  settings). The sidebar's glass over the page is laid over the window's
+  colour and drawn opaque (`plugin_dom::frosted`), which hides the page's
+  text under it as the blur does in TIDAL; beside the page, or without a
+  blur, the theme's fill is kept.
 - `::before`/`::after` fills and borders take all four corners
   (`border-radius: inherit` follows the box's).
 
@@ -842,7 +839,9 @@ reading one property at a time:
   part is in. A new overlay comes with every state change.
 - **Rust side.** `anchor_look(key) -> Option<Arc<AnchorLook>>` resolves the
   override once per overlay version and anchor (cached with the other theme
-  boxes): fill (with a `backdrop-filter` veil folded in; `Some(transparent)`
+  boxes): its backdrop filter where it is drawn (below), fill (the theme's
+  own over a drawn backdrop filter, else with the filter's veil folded in;
+  `Some(transparent)`
   when the theme clears the part's own fill), whether it has layers
   (gradients, `url()` pictures, `::before`/`::after` boxes, frosted glass,
   borders), corners (one to four, `em` of TIDAL's 14-point text), borders
@@ -853,7 +852,8 @@ reading one property at a time:
   hidden, or no rule for it: the part keeps the app's own look, so with no
   theme nothing changes.
 - **Painting.** `paint_part(ui, key, rect, native_corners, native_fill)`
-  paints the part's box in this order: outer shadow, fill (the theme's,
+  paints the part's box in this order: backdrop filter, outer shadow, fill
+  (the theme's,
   fading by the anchor's `transition`, else the part's own), layers and
   borders, inset glow; with no look it paints the native fill as before.
   It returns the look, whose `text_or` / `icon_or` / `look_text` give the
@@ -865,6 +865,26 @@ reading one property at a time:
   than one colour. A fill or border layer on a box the theme gives no
   corners follows the part's own corners, as the element keeps TIDAL's
   radius under a theme's border.
+- **Backdrop filter.** A theme's `backdrop-filter` (`blur()` and the
+  colour functions: `brightness`, `contrast`, `saturate`, `grayscale`,
+  `sepia`, `hue-rotate`, `invert`) is drawn on the GPU (`ui::backdrop`):
+  an egui paint callback placed before the box's fill copies the window's
+  pixels under the box, blurs them (a Gaussian of the filter's radius,
+  worked at halved sizes once the radius passes 3 pixels), runs the colour
+  functions in order and lays the result in the box's corners, mirroring at
+  its edges as Chromium does; the theme's fill goes over it. Parts on it:
+  every anchor-look box (the play queue panel, menus' and Explore's boxes,
+  the track list's panel, ...), a see-through box's layers
+  (`BoxLayer::Backdrop`, first: the title bar, the header's glass) and the
+  player bar. Only a box whose theme asks for one adds a callback, so a
+  window without such a theme draws as before. It needs OpenGL 3 or GLES 3;
+  without it (and in tests) the parts keep the stand-in: the brightness
+  folded into the fill or laid over as a veil, a blurred box made opaque over
+  the window's colour, and the page's `url()` picture blurred under the box.
+  Measured on this computer (release build, 2137 x 1183): 0.02 to 0.03 ms of
+  GPU time a box per frame (a 12-point blur over the whole player bar), no
+  change in the frame's CPU time while scrolling (p50 22 to 24 ms with the
+  cotton candy theme either way), nothing while the window is idle.
 - **Checking against TIDAL.** A demo build writes every anchor's resolved
   look and cascade style with `--demo-dump-looks <PATH>`
   (`src/ui/look_dump.rs`), so a theme's looks can be compared with the

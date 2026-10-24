@@ -7,6 +7,7 @@ pub mod album_credits;
 pub mod album_extras;
 pub mod artist;
 pub mod audio_output;
+pub mod backdrop;
 pub mod blocked;
 pub mod collection;
 pub mod compact;
