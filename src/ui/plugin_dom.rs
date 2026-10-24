@@ -169,6 +169,17 @@ struct State {
     /// drawn box, and whether it (or an ancestor up to its anchor) listens
     /// for `mousemove`/`pointermove`.
     pointer_node: Option<(u64, Rect, bool)>,
+    /// Last frame's plugin element under the pointer and anchors drawn over
+    /// the page, for a press read before the frame ([`secondary_press`]).
+    last_pointer_node: Option<(u64, Rect, bool)>,
+    last_floats: Vec<(String, Rect)>,
+    /// The right-click's `contextmenu` went to the plugins with the press:
+    /// its release sends none.
+    contextmenu_sent: bool,
+    /// The secondary button went up this frame (`contextmenu_sent` ends).
+    secondary_released: bool,
+    /// A right-click a plugin cancelled: its release is dropped too.
+    secondary_dropped: bool,
     /// The page background, parsed for this overlay version.
     page_layers: Option<(u64, Arc<PageLayers>)>,
     /// Anchors' box layers, parsed for this overlay version.
@@ -698,7 +709,12 @@ pub fn end_frame(ctx: &egui::Context) {
         super::css_motion::wake(ctx, s.host_motion.wake.take());
         s.hovered = std::mem::take(&mut s.hovered_now);
         let floats = std::mem::take(&mut s.floats_now);
+        s.last_pointer_node = s.pointer_node;
         pointer_events(ctx, s, &floats);
+        s.last_floats = floats;
+        if std::mem::take(&mut s.secondary_released) {
+            s.contextmenu_sent = false;
+        }
         paint_host_outlines(ctx, s);
         paint_host_labels(ctx, s);
         s.modal_open = s.frame.modal.is_some();
@@ -1247,6 +1263,7 @@ fn pointer_events(ctx: &egui::Context, s: &mut State, floats: &[(String, Rect)])
             .is_some_and(|h| h.listens.iter().any(|l| l == kind))
     };
     if doc_listens("contextmenu")
+        && !s.contextmenu_sent
         && node.is_none()
         && let Some(p) = pos
         && ctx.input(|i| i.pointer.secondary_clicked())
@@ -5583,6 +5600,135 @@ pub fn send(target: DomTarget, kind: &str, data: serde_json::Value) {
     with(|s| emit(&s.luna, event));
 }
 
+/// Whether this right-click's `contextmenu` already went to the plugins,
+/// with its press ([`secondary_press`]).
+pub fn contextmenu_sent() -> bool {
+    on() && with(|s| s.contextmenu_sent)
+}
+
+/// The window's input before egui reads it: a secondary-button press where
+/// plugins listen for `contextmenu` sends them the event at once (Chromium
+/// sends it with the press on Linux and macOS) and waits briefly for the
+/// listeners. When one cancelled it (`preventDefault()`, or
+/// `stopPropagation()` before TIDAL's root, where TIDAL opens its menu:
+/// downloadmanager's own menus, a plugin taking over right-clicks), egui
+/// never sees the press or its release, so the app's own menu does not
+/// open, as TIDAL's does not.
+pub fn filter_raw_input(raw: &mut egui::RawInput) {
+    if !on() {
+        return;
+    }
+    let mut dropping = with(|s| s.secondary_dropped);
+    raw.events.retain(|e| {
+        let egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers,
+        } = e
+        else {
+            return true;
+        };
+        if *pressed {
+            dropping = secondary_press(*pos, *modifiers);
+            !dropping
+        } else {
+            with(|s| s.secondary_released = true);
+            !std::mem::take(&mut dropping)
+        }
+    });
+    with(|s| s.secondary_dropped = dropping);
+}
+
+/// How long a right-click waits for the plugins' `contextmenu` listeners
+/// before the app's menu opens all the same.
+const CONTEXTMENU_WAIT: Duration = Duration::from_millis(150);
+
+/// A secondary press at `pos`: when a plugin listens for `contextmenu` on
+/// what is there, sends the event; whether a listener cancelled it.
+fn secondary_press(pos: egui::Pos2, m: egui::Modifiers) -> bool {
+    let Some((luna, event)) = with(|s| {
+        let target = if let Some((id, ..)) = s.last_pointer_node.filter(|(_, r, _)| r.contains(pos))
+        {
+            DomTarget::Node(id)
+        } else if let Some(key) = float_under(s.sent.as_ref(), &s.last_floats, pos) {
+            DomTarget::Host(key)
+        } else {
+            let key = s.sent.as_ref().and_then(|t| {
+                t.nodes.iter().rev().find_map(|n| {
+                    let [x, y, w, h] = n.rect?;
+                    (pos.x >= x
+                        && pos.x < x + w
+                        && pos.y >= y
+                        && pos.y < y + h
+                        && w > 0.0
+                        && h > 0.0)
+                        .then(|| n.key.clone())
+                })
+            });
+            DomTarget::Host(key.unwrap_or_default())
+        };
+        let heard = |listens: &[String]| listens.iter().any(|l| l == "contextmenu");
+        let listened = s.overlay.hosts.get("").is_some_and(|h| heard(&h.listens))
+            || match &target {
+                DomTarget::Host(key) => s.overlay.hosts.get(key).is_some_and(|h| heard(&h.listens)),
+                DomTarget::Node(id) => {
+                    fn find(
+                        nodes: &[crate::luna::dom::VNode],
+                        id: u64,
+                    ) -> Option<&crate::luna::dom::VNode> {
+                        nodes.iter().find_map(|n| {
+                            if n.id == id {
+                                Some(n)
+                            } else {
+                                find(&n.children, id)
+                            }
+                        })
+                    }
+                    s.overlay
+                        .injected
+                        .iter()
+                        .any(|i| find(&i.nodes, *id).is_some_and(|n| heard(&n.listens)))
+                }
+            };
+        if !listened {
+            return None;
+        }
+        s.contextmenu_sent = true;
+        let event = DomEvent {
+            target,
+            kind: "contextmenu".into(),
+            data: json!({
+                "clientX": pos.x, "clientY": pos.y, "pageX": pos.x, "pageY": pos.y,
+                "button": 2, "buttons": 2,
+                "shiftKey": m.shift, "ctrlKey": m.ctrl, "altKey": m.alt, "metaKey": m.mac_cmd,
+            }),
+        };
+        #[cfg(test)]
+        TEST_EVENTS.with(|e| e.borrow_mut().push(event.clone()));
+        Some((s.luna.clone(), event))
+    }) else {
+        return false;
+    };
+    #[cfg(test)]
+    if let Some(cancelled) = TEST_VERDICT.with(std::cell::Cell::get) {
+        return cancelled;
+    }
+    luna.is_some_and(|l| l.dom_event_verdict(event, CONTEXTMENU_WAIT) == Some(true))
+}
+
+#[cfg(test)]
+thread_local! {
+    /// What [`secondary_press`] hears back in tests without a runtime.
+    static TEST_VERDICT: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+}
+
+/// Tests: the plugins' answer to a right-click's `contextmenu`.
+#[cfg(test)]
+pub(crate) fn test_contextmenu_verdict(cancelled: Option<bool>) {
+    TEST_VERDICT.with(|v| v.set(cancelled));
+}
+
 /// Track hover for enter/leave: `Some(true)` on entering, `Some(false)` on
 /// leaving, `None` when nothing changed.
 pub fn hover_change(key: HoverKey, hovered: bool) -> Option<bool> {
@@ -5667,6 +5813,11 @@ pub fn host_clicks(ui: &egui::Ui, key: &str, response: &egui::Response) -> bool 
         (response.secondary_clicked(), "contextmenu"),
     ] {
         if happened && listens(key, kind) {
+            // A right-click whose `contextmenu` went with the press.
+            if kind == "contextmenu" && contextmenu_sent() {
+                heard = true;
+                continue;
+            }
             let mut data = pointer_data(ui);
             if kind == "contextmenu" {
                 data["button"] = json!(2);

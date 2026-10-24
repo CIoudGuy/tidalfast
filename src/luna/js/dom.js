@@ -362,6 +362,8 @@
 	const winTarget = new Target();
 	const parentForEvents = (n) => n.parentNode ?? (n === g.document ? winTarget : n instanceof ShadowRoot ? n.host : null);
 	const invoke = (node, ev, phase) => {
+		// TIDAL's root (React's handlers run there) heard it bubble.
+		if (node === D.wimp && phase !== 1) ev._root = true;
 		const arr = node._ls?.get(ev.type);
 		const self = node === winTarget ? g : node;
 		ev.currentTarget = self;
@@ -3502,7 +3504,13 @@
 			selectBetween(from.el, el, d.dragged === true, from.point, textPoint(d));
 		}
 		if (type === "click") clickWith(el, eventFor(type, d));
-		else dispatch(el, eventFor(type, d));
+		else {
+			const ev = eventFor(type, d);
+			dispatch(el, ev);
+			// A right-click a listener cancelled, or stopped before TIDAL's
+			// root heard it: TIDAL's own menu does not open.
+			if (type === "contextmenu") return { cancelled: ev.defaultPrevented || (wimp.contains(el) && !ev._root) };
+		}
 		if (type === "scroll") checkGeometry();
 	};
 	D.event = handleEvent;
@@ -3878,7 +3886,7 @@
 				return void sync(arg);
 			case "event":
 				D.wakeFrames();
-				return void handleEvent(arg);
+				return handleEvent(arg) ?? null;
 			case "flush":
 				dirty = true;
 				return void D.flush();

@@ -1429,24 +1429,28 @@ impl eframe::App for Shell {
         false
     }
 
-    #[cfg(feature = "demo")]
-    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        self.script.input(ctx, raw_input);
-        if let Some(bench) = self.bench.as_mut() {
-            bench.input(raw_input);
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        #[cfg(feature = "demo")]
+        {
+            self.script.input(_ctx, raw_input);
+            if let Some(bench) = self.bench.as_mut() {
+                bench.input(raw_input);
+            }
+            if let Some(drag) = self.drag.as_mut() {
+                // The script owns the pointer: drop whatever the real one did.
+                raw_input.events.retain(|event| {
+                    !matches!(
+                        event,
+                        egui::Event::PointerMoved(_)
+                            | egui::Event::PointerButton { .. }
+                            | egui::Event::PointerGone
+                    )
+                });
+                raw_input.events.extend(drag.events());
+            }
         }
-        if let Some(drag) = self.drag.as_mut() {
-            // The script owns the pointer: drop whatever the real one did.
-            raw_input.events.retain(|event| {
-                !matches!(
-                    event,
-                    egui::Event::PointerMoved(_)
-                        | egui::Event::PointerButton { .. }
-                        | egui::Event::PointerGone
-                )
-            });
-            raw_input.events.extend(drag.events());
-        }
+        // A right-click a plugin cancels never reaches the app's menus.
+        tidalfast::ui::plugin_dom::filter_raw_input(raw_input);
     }
 
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {

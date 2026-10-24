@@ -3093,7 +3093,7 @@ const GESTURE_WINDOW: Duration = Duration::from_secs(5);
 /// Input that is the user acting (browsers' "transient activation").
 fn is_user_gesture(msg: &Msg) -> bool {
     match msg {
-        Msg::DomEvent(ev, _) => matches!(
+        Msg::DomEvent(ev, ..) => matches!(
             ev.kind.as_str(),
             "click"
                 | "dblclick"
@@ -3771,11 +3771,25 @@ impl Engine {
     }
 
     /// Dispatch user input to the plugins' listeners.
-    fn dom_event(&self, ev: DomEvent) {
-        match serde_json::to_string(&ev) {
-            Ok(json) => self.dom_call("event", json),
-            Err(e) => log::warn!(target: "luna", "dom event: {e}"),
-        }
+    /// Dispatches `ev`; returns whether a listener cancelled it (see
+    /// [`Luna::dom_event_verdict`]).
+    fn dom_event(&self, ev: DomEvent) -> bool {
+        let json = match serde_json::to_string(&ev) {
+            Ok(json) => json,
+            Err(e) => {
+                log::warn!(target: "luna", "dom event: {e}");
+                return false;
+            }
+        };
+        let cancelled = match self.call("__luna_dom", vec![Arg::S("event".into()), Arg::S(json)]) {
+            Ok(v) => v.get("cancelled").and_then(Value::as_bool) == Some(true),
+            Err(f) => {
+                self.on_failure(f);
+                false
+            }
+        };
+        self.pump();
+        cancelled
     }
 
     /// `__luna_tick`: run the due timers (or, with `peek`, none) and return
@@ -4617,7 +4631,7 @@ impl Engine {
         // right-click), which in Chromium comes after the listeners ran:
         // element-hider ties the menu that appears to its `contextmenu`.
         let answer = match &msg {
-            Msg::DomEvent(_, seen) => self.tree_after(*seen),
+            Msg::DomEvent(_, seen, _) => self.tree_after(*seen),
             _ => false,
         };
         if !answer {
@@ -5057,8 +5071,11 @@ impl Engine {
                 self.pump();
                 let _ = reply.send(go);
             }
-            Msg::DomEvent(ev, _) => {
-                self.dom_event(ev);
+            Msg::DomEvent(ev, _, reply) => {
+                let cancelled = self.dom_event(ev);
+                if let Some(reply) = reply {
+                    let _ = reply.send(cancelled);
+                }
                 if answer {
                     self.apply_dom_sync();
                 }
