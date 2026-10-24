@@ -433,7 +433,11 @@
 	const TIDAL_ROOT =
 		":root { --pageWidth: 1500px; --resonancePageMaxWidth: 92vw; --pageHorizontalMargin: 28px; --pageHorizontalMarginWide: 48px; --pageBottomMargin: 48px; --pageMaxWidth: calc(var(--pageWidth) - var(--pageHorizontalMargin)); --headerHeight: 56px; --footerHeight: 96px; --tabbarHeight: 56px; --sidebarWidth: 240px; --responsiveSidebarWidth: 20vw; --collapsedSidebarWidth: 78px; --windowsTitleBarHeight: 30px; --miniPlayerHeight: 88px; --miniPlayerClearance: calc(var(--miniPlayerHeight) + 24px); --floating-panel-border-radius: 16px; }\n" +
 		"@media (max-width: 576px) { :root { --pageHorizontalMargin: 16px; --pageHorizontalMarginWide: 20px; --pageBottomMargin: 20px; --miniPlayerHeight: 72px; --floating-panel-border-radius: 32px; } }\n" +
-		".is-desktop-app { --floating-panel-border-radius: 12px; }\n";
+		".is-desktop-app { --floating-panel-border-radius: 12px; }\n" +
+		// Its stacking levels and the profile gradient, which plugins build
+		// on (betterFullscreen lays its background at `--z-index-low` and its
+		// words at `--z-index-high` over a backdrop of the gradient).
+		":root { --user-profile-linear-gradient: linear-gradient(160deg, #50a581 1.22%, #2e4958 40.51%, #0c0c0c 79.07%); --z-index-low: 10; --z-index-header: 20; --z-index-sidebar: 50; --z-index-play-queue: 45; --z-index-floating-aside: 70; --z-index-player: 80; --z-index-floating-aside-over-player: 90; --z-index-play-queue-over-player: 91; --z-index-search-popup: 95; --z-index-modal: 500; --z-index-context-menu: 550; --z-index-drag-layer: 600; --z-index-notifications: 700; --z-index-overlay: 900; --z-index-high-backdrop: 950; --z-index-high: 1000; }\n";
 	let tidal = null;
 	const tidalSheet = () => {
 		if (!tidal) {
