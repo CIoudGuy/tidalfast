@@ -3,6 +3,7 @@
 use crate::api::models::{join_names, pick_image};
 use crate::app::App;
 use crate::i18n::gettext;
+use crate::luna::dom_anchors::CardKind;
 use crate::model::{Action, Loadable, Page};
 use crate::settings::PageSort;
 use crate::theme::{self, Icon};
@@ -102,6 +103,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                 let context_here = app.playing_context_is(uri.as_str());
                 let playing_here = context_here && app.believed_playing();
                 let card_art = app.art_px(widgets::COLLECTION_CARD_MIN);
+                super::plugin_dom::next_card(cell_item(CardKind::Album, &id, &album.artists));
                 let card = widgets::collection_card(
                     ui,
                     app,
@@ -115,6 +117,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                         ..widgets::CardCover::square(playing_here)
                     },
                 );
+                super::plugin_dom::drop_next_card();
                 play_or_open(app, &card, context_here, uri, Page::Album(id));
                 widgets::context_drag_source(
                     ui,
@@ -168,6 +171,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                 let context_here = app.playing_context_is(uri.as_str());
                 let playing_here = context_here && app.believed_playing();
                 let card_art = app.art_px(widgets::COLLECTION_CARD_MIN);
+                super::plugin_dom::next_card(cell_item(CardKind::Artist, &id, &[]));
                 let card = widgets::collection_card(
                     ui,
                     app,
@@ -178,6 +182,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                     "",
                     widgets::CardCover::portrait(playing_here),
                 );
+                super::plugin_dom::drop_next_card();
                 play_or_open(app, &card, context_here, uri, Page::Artist(id));
                 widgets::context_drag_source(
                     ui,
@@ -254,6 +259,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                     .or(playlist.tracks.as_ref())
                     .map(|count| super::collection::tracks_and_time(app.locale, count.total, None))
                     .unwrap_or_default();
+                super::plugin_dom::next_card(cell_item(CardKind::Playlist, &playlist.id, &[]));
                 let card = widgets::collection_card(
                     ui,
                     app,
@@ -264,6 +270,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                     &count,
                     widgets::CardCover::square(playing_here),
                 );
+                super::plugin_dom::drop_next_card();
                 play_or_open(
                     app,
                     &card,
@@ -338,6 +345,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                 let card_art = app.art_px(widgets::COLLECTION_CARD_MIN);
                 let context_here = app.playing_context_is(mix.uri.as_str());
                 let playing_here = context_here && app.believed_playing();
+                super::plugin_dom::next_card(cell_item(CardKind::Mix, &mix.id, &[]));
                 let card = widgets::collection_card(
                     ui,
                     app,
@@ -348,6 +356,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, page: Page) {
                     "",
                     widgets::CardCover::square(playing_here),
                 );
+                super::plugin_dom::drop_next_card();
                 play_or_open(
                     app,
                     &card,
@@ -476,4 +485,23 @@ pub(super) fn footer(
         widgets::empty_state(ui, &palette, icon, empty_title, empty_body);
     }
     widgets::load_more_when_near_end(ui, app, page, can_load && !loading);
+}
+
+/// What a collection cell shows, for its anchor: TIDAL's `grid-item-<kind>`
+/// with the item's id, and a link for each artist its words name. Everything
+/// here is in the collection.
+fn cell_item(
+    kind: CardKind,
+    id: &str,
+    artists: &[crate::api::models::ArtistRef],
+) -> crate::luna::dom_anchors::CardItem {
+    crate::luna::dom_anchors::CardItem {
+        kind,
+        id: id.to_string(),
+        artists: artists
+            .iter()
+            .map(|a| (a.id.clone().unwrap_or_default(), a.name.clone()))
+            .collect(),
+        saved: Some(true),
+    }
 }
