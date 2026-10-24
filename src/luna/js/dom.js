@@ -885,10 +885,19 @@
 	D.splitDecls = splitDecls;
 	// A CSSStyleDeclaration: ordered property -> { value, important }. `owner`
 	// is told about changes (an element's inline style, or a CSS rule).
+	// `shared`: a map handed out to many (a computed style's), copied before
+	// this declaration changes it.
 	class CSSStyleDeclaration {
-		constructor(owner) {
-			Object.defineProperty(this, "_m", { value: new Map(), writable: true });
+		constructor(owner, shared) {
+			Object.defineProperty(this, "_m", { value: shared ?? new Map(), writable: true });
 			Object.defineProperty(this, "_owner", { value: owner ?? null, writable: true });
+			if (shared) Object.defineProperty(this, "_shared", { value: true, writable: true });
+		}
+		_own() {
+			if (this._shared) {
+				this._m = new Map(this._m);
+				this._shared = false;
+			}
 		}
 		_changed() {
 			this._owner?._styleChanged?.();
@@ -912,6 +921,7 @@
 			}
 			const cur = this._m.get(k);
 			if (cur && cur.value === value && cur.important === important) return;
+			this._own();
 			this._m.set(k, { value, important });
 			this._changed();
 		}
@@ -919,6 +929,7 @@
 			k = String(k);
 			const cur = this._m.get(k);
 			if (!cur) return "";
+			this._own();
 			this._m.delete(k);
 			this._changed();
 			return cur.value;
@@ -928,11 +939,13 @@
 		}
 		set cssText(v) {
 			this._m = new Map();
+			if (this._shared) this._shared = false;
 			for (const d of parseDecls(v)) this._m.set(d.name, { value: d.value, important: d.important });
 			this._changed();
 		}
 		_setSilently(text) {
 			this._m = new Map();
+			if (this._shared) this._shared = false;
 			for (const d of parseDecls(text)) this._m.set(d.name, { value: d.value, important: d.important });
 		}
 		get length() {
@@ -948,33 +961,46 @@
 			return this._owner?._isRule ? this._owner : null;
 		}
 	}
-	const declProxy = (decl) =>
-		new Proxy(decl, {
-			get(t, k, r) {
-				if (typeof k !== "string" || k in t) {
-					const v = Reflect.get(t, k, t);
-					return typeof v === "function" ? v.bind(t) : v;
-				}
-				if (/^\d+$/.test(k)) return t.item(Number(k));
-				return t.getPropertyValue(kebab(k));
-			},
-			set(t, k, v) {
-				if (typeof k !== "string") return true;
-				if (k in t) return Reflect.set(t, k, v, t);
-				t.setProperty(kebab(k), v === null || v === undefined ? "" : String(v));
-				return true;
-			},
-			has(t, k) {
-				return k in t || (typeof k === "string" && t._m.has(kebab(k)));
-			},
-			ownKeys(t) {
-				return [...new Set([...Reflect.ownKeys(t), ...[...t._m.keys()].map(camel)])];
-			},
-			getOwnPropertyDescriptor(t, k) {
-				if (typeof k === "string" && t._m.has(kebab(k))) return { value: t.getPropertyValue(kebab(k)), enumerable: true, configurable: true, writable: true };
-				return Reflect.getOwnPropertyDescriptor(t, k);
-			},
-		});
+	// One handler for every declaration (a computed style is one per call).
+	const DECL_HANDLER = {
+		get(t, k, r) {
+			if (typeof k !== "string" || k in t) {
+				const v = Reflect.get(t, k, t);
+				return typeof v === "function" ? v.bind(t) : v;
+			}
+			if (/^\d+$/.test(k)) return t.item(Number(k));
+			return t.getPropertyValue(kebabOf(k));
+		},
+		set(t, k, v) {
+			if (typeof k !== "string") return true;
+			if (k in t) return Reflect.set(t, k, v, t);
+			t.setProperty(kebabOf(k), v === null || v === undefined ? "" : String(v));
+			return true;
+		},
+		has(t, k) {
+			return k in t || (typeof k === "string" && t._m.has(kebabOf(k)));
+		},
+		ownKeys(t) {
+			return [...new Set([...Reflect.ownKeys(t), ...[...t._m.keys()].map(camel)])];
+		},
+		getOwnPropertyDescriptor(t, k) {
+			if (typeof k === "string" && t._m.has(kebabOf(k))) return { value: t.getPropertyValue(kebabOf(k)), enumerable: true, configurable: true, writable: true };
+			return Reflect.getOwnPropertyDescriptor(t, k);
+		},
+	};
+	// Property names as scripts write them (`backgroundImage`), converted
+	// once each.
+	const kebabs = new Map();
+	const kebabOf = (k) => {
+		let s = kebabs.get(k);
+		if (s === undefined) {
+			if (kebabs.size > 4096) kebabs.clear();
+			s = kebab(k);
+			kebabs.set(k, s);
+		}
+		return s;
+	};
+	const declProxy = (decl) => new Proxy(decl, DECL_HANDLER);
 	D.CSSStyleDeclaration = CSSStyleDeclaration;
 	D.declProxy = declProxy;
 	D.kebab = kebab;
