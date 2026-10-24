@@ -191,6 +191,9 @@ struct State {
     /// The shell geometry a theme sets, for this overlay version and window
     /// size (`None` inside when the theme sets none).
     layout: Option<LayoutCache>,
+    /// The window's size when the looks resolved from the theme were last
+    /// started over (a look's `vw` and `vh` are the window's).
+    looks_at: [f32; 2],
     /// The `:hover` target last told to the runtime.
     hover_sent: Option<DomTarget>,
     /// Pointer position last sent as `mousemove`, and when.
@@ -543,6 +546,7 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
         }
         let overlay = luna.dom_overlay();
         if overlay.version != s.overlay.version {
+            carry_looks(s, &overlay, [window.width(), window.height()]);
             let old = std::mem::replace(&mut s.overlay, overlay);
             s.pictures = sets_pictures(&s.overlay);
             if old.may_move_boxes(&s.overlay) {
@@ -610,6 +614,46 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
     fonts_tick(ctx);
     forward_keys(ctx);
     forward_drop(ctx);
+}
+
+/// A new overlay is taken: what was resolved from the theme for the overlay
+/// before (the palette, every anchor's look, box layers, the page's layers,
+/// the shell's geometry) answers for the new one when it leaves the theme's
+/// parts as they were ([`DomOverlay::theme_version`]) and the window kept its
+/// size. A plugin's own element that changes (a counter, a sprite, the sung
+/// line) made all of them again on the next frame.
+fn carry_looks(s: &mut State, new: &DomOverlay, viewport: [f32; 2]) {
+    let (from, to) = (s.overlay.version, new.version);
+    // A runtime that started again counts its versions from the start.
+    if new.theme_version != s.overlay.theme_version || to < from || s.looks_at != viewport {
+        s.looks_at = viewport;
+        return;
+    }
+    if let Some((v, _, _)) = s.theme.as_mut()
+        && *v == from
+    {
+        *v = to;
+    }
+    if let Some((v, _)) = s.page_layers.as_mut()
+        && *v == from
+    {
+        *v = to;
+    }
+    if let Some((v, _)) = s.box_layers.as_mut()
+        && *v == from
+    {
+        *v = to;
+    }
+    if let Some((v, _)) = s.theme_boxes.as_mut()
+        && *v == from
+    {
+        *v = to;
+    }
+    if let Some(((v, _), _)) = s.layout.as_mut()
+        && *v == from
+    {
+        *v = to;
+    }
 }
 
 /// Files dropped on the window go to plugins that listen for `drop` (Shazam):
@@ -9016,6 +9060,60 @@ pub(crate) fn test_overlay(overlay: Option<DomOverlay>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A new overlay that leaves the theme's parts as they were (a plugin's
+    /// own element changed) keeps the looks resolved from the theme; one that
+    /// changes an anchor's style, or a window of another size, gets new ones.
+    #[test]
+    fn a_plugin_elements_change_keeps_the_looks_a_look_change_does_not() {
+        use crate::luna::dom::{HostOverride, Style};
+        let key = dom_anchors::keys::FOOTER;
+        let fill = |c: &str| HostOverride {
+            style: Style {
+                background_color: Some(c.into()),
+                ..Style::default()
+            },
+            ..HostOverride::default()
+        };
+        let take = |o: &DomOverlay, viewport: [f32; 2]| {
+            with(|s| {
+                carry_looks(s, o, viewport);
+                s.overlay = Arc::new(o.clone());
+                s.frame.viewport = viewport;
+            });
+        };
+        let size = [1280.0, 800.0];
+        let mut o = DomOverlay {
+            version: 5,
+            theme_version: 2,
+            ..DomOverlay::default()
+        };
+        o.hosts.insert(key.into(), fill("rgb(10, 20, 30)"));
+        test_overlay(Some(o.clone()));
+        with(|s| {
+            s.frame.viewport = size;
+            s.looks_at = size;
+        });
+        let first = anchor_look(key).expect("a look");
+        // A plugin's own element changed: the theme's version is the same.
+        o.version = 6;
+        take(&o, size);
+        let kept = anchor_look(key).expect("a look");
+        assert!(Arc::ptr_eq(&first, &kept), "the look was made again");
+        // The anchor's style changed.
+        o.version = 7;
+        o.theme_version = 3;
+        o.hosts.insert(key.into(), fill("rgb(40, 50, 60)"));
+        take(&o, size);
+        let changed = anchor_look(key).expect("a look");
+        assert_eq!(changed.fill, Some(Color32::from_rgb(40, 50, 60)));
+        // The same theme in a window of another size: made again.
+        o.version = 8;
+        take(&o, [1000.0, 800.0]);
+        let resized = anchor_look(key).expect("a look");
+        assert!(!Arc::ptr_eq(&changed, &resized));
+        test_overlay(None);
+    }
 
     /// A theme's `::before` words sit at the element's corner moved by the
     /// box's margins and `translate` (Tidal TUI's `Tabs`: `margin: -10px

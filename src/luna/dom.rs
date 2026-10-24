@@ -407,6 +407,13 @@ pub struct NodeScroll {
 #[serde(default)]
 pub struct DomOverlay {
     pub version: u64,
+    /// Changes only when what a theme's look is made of changes: the
+    /// anchors' overrides ([`DomOverlay::hosts`]), the variables, the page's
+    /// style and the keyframes. A plugin's own elements changing (a counter,
+    /// a sprite, lyrics) leave it as it was, so the looks the UI resolved
+    /// from the theme stay (see [`DomOverlay::same_theme`]).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub theme_version: u64,
     /// CSS custom properties set on `:root`, `html`, `body` or `#wimp`
     /// (`--wave-color-solid-accent-fill` -> `#ff0000`).
     pub vars: BTreeMap<String, String>,
@@ -523,6 +530,17 @@ impl Style {
 }
 
 impl DomOverlay {
+    /// Whether `new` gives the app's elements the same look as this overlay:
+    /// the same anchor overrides, variables, page style and keyframes (a
+    /// plugin's own elements may differ).
+    pub fn same_theme(&self, new: &DomOverlay) -> bool {
+        self.hosts == new.hosts
+            && self.vars == new.vars
+            && self.page == new.page
+            && self.wimp_fill == new.wimp_fill
+            && self.keyframes == new.keyframes
+    }
+
     /// Whether `new` can lay the app's elements out differently from this
     /// overlay: an anchor's layout ([`Style::same_layout`]) or text changed,
     /// or plugin elements came
