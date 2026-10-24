@@ -1730,6 +1730,57 @@
 		}
 		return out;
 	};
+	// What TIDAL 2.46.0's page gives everything in it (captured: `html {
+	// font-family: "Square Sans Text VF", ...; font-size: calc(var(
+	// --baseFontSize) * 1px) }`, 14 px, and `body { font-weight: 500 }`), so
+	// an element that sets none of them computes TIDAL's values. A plugin
+	// window's page keeps what it had (16 px, 400).
+	const ROOT_FONT_PX = L.page ? 16 : 14;
+	const BASE_WEIGHT = L.page ? "400" : "500";
+	const BASE_FAMILY = L.page ? "nationale, sans-serif" : '"Square Sans Text VF", "Square Sans Text", Helvetica, Arial, sans-serif';
+	const FONT_KEYWORDS = { "xx-small": 9, "x-small": 10, small: 13, medium: 16, large: 18, "x-large": 24, "xx-large": 32, "xxx-large": 48 };
+	// A declared `font-size` as pixels, against the parent's (`em`, `%`,
+	// `smaller`) and the root's (`rem`); null when it cannot be read.
+	const declaredFontPx = (value, parent) => {
+		const s = String(value).trim().toLowerCase();
+		if (s === "inherit" || s === "unset" || s === "initial" || s === "revert") return parent;
+		if (s in FONT_KEYWORDS) return FONT_KEYWORDS[s];
+		if (s === "smaller") return parent / 1.2;
+		if (s === "larger") return parent * 1.2;
+		const m = /^(-?[\d.]+)(px|em|rem|%|pt)?$/.exec(s);
+		if (m) {
+			const n = parseFloat(m[1]);
+			return m[2] === "em" ? n * parent : m[2] === "rem" ? n * ROOT_FONT_PX : m[2] === "%" ? (n * parent) / 100 : m[2] === "pt" ? (n * 4) / 3 : n;
+		}
+		const calc = /^calc\((.*)\)$/.exec(s);
+		if (calc) {
+			// `calc(14 * 1px)`, as TIDAL's root writes it: a product of numbers
+			// and one length.
+			let total = 1;
+			for (const part of calc[1].split("*")) {
+				const p = declaredFontPx(part, parent);
+				if (p === null) return null;
+				total *= p;
+			}
+			return total;
+		}
+		return null;
+	};
+	// The element's font size in pixels, as a browser computes it: its own
+	// declared size against its parent's computed one, else the parent's.
+	// Kept with the cascaded result, which changes when anything can.
+	const fontSizeOf = (el) => {
+		const m = el._cs;
+		if (m === undefined) return ROOT_FONT_PX;
+		if (m.res.fontPx !== undefined) return m.res.fontPx;
+		const p = el.parentNode;
+		const parent = p instanceof g.Element && p._cs !== undefined ? fontSizeOf(p) : ROOT_FONT_PX;
+		const own = m.d?.get("font-size");
+		const px = own === undefined ? parent : (declaredFontPx(resolveVars(own, m.res.vars), parent) ?? parent);
+		m.res.fontPx = px;
+		return px;
+	};
+	const WEIGHTS = { normal: "400", bold: "700" };
 	const computedBase = (el, res) => {
 		const { props, vars } = res;
 		const m = new Map();
@@ -1740,9 +1791,8 @@
 			["opacity", "1"],
 			["color", "rgb(255, 255, 255)"],
 			["background-color", "rgba(0, 0, 0, 0)"],
-			["font-size", "16px"],
-			["font-weight", "400"],
-			["font-family", "nationale, sans-serif"],
+			["font-weight", BASE_WEIGHT],
+			["font-family", BASE_FAMILY],
 			["position", "static"],
 			["z-index", "auto"],
 		])
@@ -1752,6 +1802,17 @@
 		m.set("line-height", v("normal"));
 		m.set("transform", v("none"));
 		for (const [k, x] of props) m.set(k, v(x));
+		// Computed values as a browser reports them: the font size in pixels,
+		// a weight as its number, a z-index within a 32-bit integer (oneko's
+		// `Number.MAX_SAFE_INTEGER` reads 2147483647), an address quoted.
+		const size = fontSizeOf(el);
+		m.set("font-size", v(`${Math.round(size * 100) / 100}px`));
+		const weight = String(props.get("font-weight") ?? "").trim().toLowerCase();
+		if (weight in WEIGHTS) m.set("font-weight", v(WEIGHTS[weight]));
+		const z = String(props.get("z-index") ?? "").trim();
+		if (/^-?\d+$/.test(z)) m.set("z-index", v(String(Math.max(-2147483648, Math.min(2147483647, Number(z))))));
+		const image = props.get("background-image");
+		if (image !== undefined) m.set("background-image", v(String(image).replace(/url\(\s*([^"')\s][^)]*?)\s*\)/g, 'url("$1")')));
 		// A transform resolves to the matrix a browser reports.
 		if (props.has("transform") && L.parseTransform) {
 			const t = props.get("transform");

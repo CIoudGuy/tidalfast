@@ -664,6 +664,69 @@ unloads.add(() => clearInterval(timer));
     finish(luna, dir);
 }
 
+/// `getComputedStyle` reports what Chromium computes in TIDAL 2.46.0's page:
+/// an element that sets no font has TIDAL's (14 px, weight 500, its family:
+/// `html` and `body` set them), a size in `rem`, `em` or `%` is in pixels
+/// against the root's or the parent's, a weight keyword is its number, a
+/// z-index stays within a 32-bit integer and an image's address is quoted.
+/// The checker found every plugin element at the browser's 16 px and 400
+/// (oneko's cat, StarryNight's sky, star-ratings' stars, LuckyLP's button).
+#[test]
+fn computed_style_reports_tidals_fonts_and_chromiums_values() {
+    let (luna, _host, dir) = start(
+        r##"
+const add = (parent, css) => {
+	const el = document.createElement("div");
+	el.style.cssText = css;
+	parent.appendChild(el);
+	return el;
+};
+const plain = add(document.body, "");
+const small = add(document.body, "font-size: 0.8rem");
+const big = add(document.body, "font-size: 2em");
+const inner = add(big, "font-size: 50%");
+const deep = add(inner, "");
+const bold = add(document.body, "font-weight: bold");
+const top = add(document.body, "position: absolute; z-index: " + Number.MAX_SAFE_INTEGER);
+const cat = add(document.body, "background-image: url(https://example.test/cat.gif)");
+const cs = (el) => getComputedStyle(el);
+R.found = {
+	plain: [cs(plain).fontSize, cs(plain).fontWeight, cs(plain).fontFamily],
+	small: cs(small).fontSize,
+	big: cs(big).fontSize,
+	inner: cs(inner).fontSize,
+	deep: cs(deep).fontSize,
+	bold: cs(bold).fontWeight,
+	z: cs(top).zIndex,
+	image: cs(cat).backgroundImage,
+};
+"##,
+    );
+    let r = results_until(&luna, &dir, 20, |r| !r["found"].is_null());
+    let f = &r["found"];
+    assert_eq!(
+        f["plain"],
+        json!([
+            "14px",
+            "500",
+            "\"Square Sans Text VF\", \"Square Sans Text\", Helvetica, Arial, sans-serif"
+        ]),
+        "{f}"
+    );
+    assert_eq!(f["small"], json!("11.2px"), "{f}");
+    assert_eq!(f["big"], json!("28px"), "{f}");
+    assert_eq!(f["inner"], json!("14px"), "{f}");
+    assert_eq!(f["deep"], json!("14px"), "{f}");
+    assert_eq!(f["bold"], json!("700"), "{f}");
+    assert_eq!(f["z"], json!("2147483647"), "{f}");
+    assert_eq!(
+        f["image"],
+        json!("url(\"https://example.test/cat.gif\")"),
+        "{f}"
+    );
+    finish(luna, dir);
+}
+
 /// CSS hides what is inside a hidden element: `display: none` on the
 /// sidebar (element-hider's "Hide This Element" on a box round the rows)
 /// takes its rows and what a plugin put in it out of the page, and an
@@ -2555,10 +2618,11 @@ R.done = true;
         "{r}"
     );
     assert_eq!(r["resets"], json!(0), "{r}");
+    // Without the rule, the weight TIDAL's `body` gives everything (500).
     assert_eq!(r["bold"], json!("700"), "{r}");
-    assert_eq!(r["weight"], json!("400"), "{r}");
+    assert_eq!(r["weight"], json!("500"), "{r}");
     assert_eq!(r["bold2"], json!("700"), "{r}");
-    assert_eq!(r["weight2"], json!("400"), "{r}");
+    assert_eq!(r["weight2"], json!("500"), "{r}");
     // `:has` rules: the ancestors they may match are matched again, not
     // the page.
     assert_eq!(r["resets2"], json!(0), "{r}");
