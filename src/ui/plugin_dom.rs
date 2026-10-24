@@ -269,6 +269,69 @@ fn host_moved<V: super::css_motion::Lerp>(
 thread_local! {
     static ON: Cell<bool> = const { Cell::new(false) };
     static STATE: RefCell<State> = RefCell::new(State::default());
+    /// The plugin window whose page is being drawn ([`with_page`]).
+    static PAGE: RefCell<Option<PageScope>> = const { RefCell::new(None) };
+    static IN_PAGE: Cell<bool> = const { Cell::new(false) };
+}
+
+/// A plugin window's page while it is drawn (`plugin_windows.rs`): what
+/// the renderer reads (the overlay, its variables, the viewport) is the
+/// page's, and what it sends and measures goes to the page, not to the
+/// app's document.
+#[derive(Default)]
+pub struct PageScope {
+    pub overlay: Arc<DomOverlay>,
+    pub vars: Arc<BTreeMap<String, String>>,
+    pub viewport: [f32; 2],
+    /// Input for the page's listeners, from this pass.
+    pub events: Vec<DomEvent>,
+    /// Hover for enter/leave: last pass's and this pass's.
+    pub hovered: HashSet<HoverKey>,
+    pub hovered_now: HashSet<HoverKey>,
+    /// The deepest element under the pointer this pass.
+    pub pointer_node: Option<(u64, Rect, bool)>,
+    /// Where the elements scripts asked about were drawn.
+    pub node_rects: Vec<(u64, [f32; 4])>,
+    /// Boxes with a `-webkit-app-region` (`true`: drag), innermost first
+    /// (an element is done after what it holds).
+    pub regions: Vec<(Rect, bool)>,
+}
+
+/// Runs `f` with `scope` as the document being drawn, and gives the scope
+/// back with what the pass sent and measured. Pages do not nest.
+pub fn with_page<R>(scope: PageScope, f: impl FnOnce() -> R) -> (R, PageScope) {
+    PAGE.with(|p| *p.borrow_mut() = Some(scope));
+    IN_PAGE.with(|p| p.set(true));
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            IN_PAGE.with(|p| p.set(false));
+        }
+    }
+    let reset = Reset;
+    let r = f();
+    drop(reset);
+    let scope = PAGE.with(|p| p.borrow_mut().take()).unwrap_or_default();
+    (r, scope)
+}
+
+/// A box with `-webkit-app-region` was drawn at `r` (`drag` or not): in a
+/// plugin window, pressing there moves the window.
+pub fn app_region(r: Rect, drag: bool) {
+    in_page(|p| p.regions.push((r, drag)));
+}
+
+/// Whether a plugin window's page is being drawn ([`with_page`]).
+pub fn drawing_page() -> bool {
+    IN_PAGE.with(Cell::get)
+}
+
+/// While a page is drawn, `f` on its scope; `None` otherwise.
+fn in_page<R>(f: impl FnOnce(&mut PageScope) -> R) -> Option<R> {
+    if !IN_PAGE.with(Cell::get) {
+        return None;
+    }
+    PAGE.with(|p| p.borrow_mut().as_mut().map(f))
 }
 
 /// Whether the bridge runs this frame (Luna is on).
@@ -302,6 +365,18 @@ pub fn rect(r: Rect) -> Option<crate::luna::dom::Rect> {
 /// Plugin element `id` was drawn in `r`: when a script read its box, the
 /// tree tells it where.
 pub fn node_drawn(id: u64, r: Rect) {
+    if in_page(|p| {
+        if p.overlay.measure.binary_search(&id).is_ok()
+            && let Some(r) = rect(r)
+            && !p.node_rects.iter().any(|(n, _)| *n == id)
+        {
+            p.node_rects.push((id, r));
+        }
+    })
+    .is_some()
+    {
+        return;
+    }
     if !on() {
         return;
     }
@@ -1185,6 +1260,15 @@ pub fn pointer_over_node(id: u64, rect: Rect, moves: bool) {
     if id & super::plugin_slots::MEASURE_ID != 0 {
         return;
     }
+    if in_page(|p| {
+        if p.pointer_node.is_none() {
+            p.pointer_node = Some((id, rect, moves));
+        }
+    })
+    .is_some()
+    {
+        return;
+    }
     with(|s| {
         if s.pointer_node.is_none() {
             s.pointer_node = Some((id, rect, moves));
@@ -1195,11 +1279,17 @@ pub fn pointer_over_node(id: u64, rect: Rect, moves: bool) {
 /// The deepest plugin element under the pointer so far this frame: id,
 /// drawn box, listens for moves.
 pub fn pointer_node() -> Option<(u64, Rect, bool)> {
+    if let Some(n) = in_page(|p| p.pointer_node) {
+        return n;
+    }
     with(|s| s.pointer_node)
 }
 
 /// The last rect the anchor `key` was described with.
 pub fn host_rect(key: &str) -> Option<Rect> {
+    if IN_PAGE.with(Cell::get) {
+        return None;
+    }
     with(|s| {
         let [x, y, w, h] = s.sent.as_ref()?.nodes.iter().find(|n| n.key == key)?.rect?;
         Some(Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h)))
@@ -4048,6 +4138,9 @@ pub fn page_rect(r: Rect) {
 
 /// The plugins' overlay, `None` while Luna is off.
 pub fn overlay() -> Option<Arc<DomOverlay>> {
+    if let Some(o) = in_page(|p| p.overlay.clone()) {
+        return Some(o);
+    }
     if !on() {
         return None;
     }
@@ -4056,6 +4149,9 @@ pub fn overlay() -> Option<Arc<DomOverlay>> {
 }
 
 pub(crate) fn viewport() -> [f32; 2] {
+    if let Some(v) = in_page(|p| p.viewport) {
+        return v;
+    }
     with(|s| s.frame.viewport)
 }
 
@@ -4930,19 +5026,21 @@ pub fn send(target: DomTarget, kind: &str, data: serde_json::Value) {
     if matches!(target, DomTarget::Node(id) if id & super::plugin_slots::MEASURE_ID != 0) {
         return;
     }
+    let mut event = Some(DomEvent {
+        target,
+        kind: kind.to_string(),
+        data,
+    });
+    if in_page(|p| p.events.extend(event.take())).is_some() {
+        return;
+    }
+    let Some(event) = event else {
+        return;
+    };
     if !on() {
         return;
     }
-    with(|s| {
-        emit(
-            &s.luna,
-            DomEvent {
-                target,
-                kind: kind.to_string(),
-                data,
-            },
-        )
-    });
+    with(|s| emit(&s.luna, event));
 }
 
 /// Track hover for enter/leave: `Some(true)` on entering, `Some(false)` on
@@ -4951,6 +5049,22 @@ pub fn hover_change(key: HoverKey, hovered: bool) -> Option<bool> {
     if matches!(key, HoverKey::Node(id) if id & super::plugin_slots::MEASURE_ID != 0) {
         return None;
     }
+    let mut key = Some(key);
+    if let Some(r) = in_page(|p| {
+        let key = key.take()?;
+        let was = p.hovered.contains(&key);
+        if hovered {
+            p.hovered_now.insert(key);
+        }
+        match (was, hovered) {
+            (false, true) => Some(true),
+            (true, false) => Some(false),
+            _ => None,
+        }
+    }) {
+        return r;
+    }
+    let key = key?;
     with(|s| {
         let was = s.hovered.contains(&key);
         if hovered {
@@ -5293,6 +5407,9 @@ pub fn wave_tokens(p: &Palette) -> BTreeMap<String, String> {
 
 /// TIDAL tokens and plugin variables for resolving `var()`.
 pub fn vars() -> Arc<BTreeMap<String, String>> {
+    if let Some(v) = in_page(|p| p.vars.clone()) {
+        return v;
+    }
     with(|s| s.vars.clone())
 }
 

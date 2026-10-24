@@ -190,6 +190,8 @@ struct Inner {
     children: ChildHub,
     /// Plugins' forked processes (`child_process.fork`, see [`super::fork`]).
     forks: super::fork::ForkHub,
+    /// Plugins' windows (Electron's `BrowserWindow`, see [`super::page`]).
+    pages: super::page::PageHub,
     /// Who may change the account (see [`super::writes`]).
     writes: Arc<super::writes::Grants>,
     /// The other permissions plugins ask for (see [`super::permits`]).
@@ -275,6 +277,16 @@ struct Inner {
 }
 
 pub(crate) type OverlayCell = Arc<Mutex<Arc<DomOverlay>>>;
+
+/// What the runtime shares with the UI: the plugins' page as drawn
+/// ([`OverlayCell`]), the UI's anchor trees ([`TreeCell`]) and the plugins'
+/// windows ([`super::page::PageWindows`]).
+#[derive(Clone, Default)]
+pub(crate) struct Views {
+    pub overlay: OverlayCell,
+    pub trees: TreeCell,
+    pub pages: Arc<super::page::PageWindows>,
+}
 pub(crate) use super::layout::TreeCell;
 
 type S = Rc<RefCell<Inner>>;
@@ -447,6 +459,9 @@ impl Inner {
         self.net.close_plugin(name);
         self.children.close_plugin(name);
         self.forks.close_plugin(name);
+        if !self.pages.close_plugin(name).is_empty() {
+            self.host.changed();
+        }
         self.end_run(name);
     }
 
@@ -1229,8 +1244,10 @@ fn str_of<'a>(a: &'a Value, k: &str) -> &'a str {
     a.get(k).and_then(Value::as_str).unwrap_or_default()
 }
 
-fn op_sync_inner(inner: &S, who: &Who, name: &str, a: &Value) -> Result<Value, String> {
-    match name {
+/// The operations that need nothing but their arguments, for plugins and
+/// for plugin windows' pages ([`super::page`]); `None` for any other.
+pub(super) fn pure_op(name: &str, a: &Value) -> Option<Result<Value, String>> {
+    Some(match name {
         "platform" => Ok(json!(if cfg!(windows) {
             "win32"
         } else if cfg!(target_os = "macos") {
@@ -1238,6 +1255,78 @@ fn op_sync_inner(inner: &S, who: &Who, name: &str, a: &Value) -> Result<Value, S
         } else {
             "linux"
         })),
+        "arch" => Ok(json!(match std::env::consts::ARCH {
+            "x86_64" => "x64",
+            "aarch64" => "arm64",
+            "x86" => "ia32",
+            other => other,
+        })),
+        "url.parse" => {
+            let href = str_of(a, "href");
+            match a.get("base").and_then(Value::as_str) {
+                Some(b) => url::Url::parse(b).and_then(|b| b.join(href)),
+                None => url::Url::parse(href),
+            }
+            .map(|u| url_parts(&u))
+            .map_err(|e| format!("Invalid URL: {href} ({e})"))
+        }
+        "url.set" => url_set(a),
+        "crypto.random" => {
+            let n = a["n"].as_u64().unwrap_or(0).min(1 << 20) as usize;
+            let mut buf = vec![0u8; n];
+            rand::RngCore::fill_bytes(&mut rand::rng(), &mut buf);
+            Ok(json!(B64.encode(buf)))
+        }
+        "crypto.hash" => B64
+            .decode(str_of(a, "data"))
+            .map_err(|e| e.to_string())
+            .and_then(|data| hash(str_of(a, "alg"), &data))
+            .map(|h| json!(B64.encode(h))),
+        _ => return None,
+    })
+}
+
+fn url_set(a: &Value) -> Result<Value, String> {
+    let mut u = url::Url::parse(str_of(a, "href")).map_err(|e| e.to_string())?;
+    let v = str_of(a, "value");
+    match str_of(a, "part") {
+        "protocol" => {
+            let _ = u.set_scheme(v.trim_end_matches(':'));
+        }
+        "username" => {
+            let _ = u.set_username(v);
+        }
+        "password" => {
+            let _ = u.set_password(Some(v).filter(|s| !s.is_empty()));
+        }
+        "host" => {
+            let (h, p) = v
+                .rsplit_once(':')
+                .map_or((v, None), |(h, p)| (h, p.parse::<u16>().ok()));
+            let _ = u.set_host(Some(h));
+            if p.is_some() {
+                let _ = u.set_port(p);
+            }
+        }
+        "hostname" => {
+            let _ = u.set_host(Some(v));
+        }
+        "port" => {
+            let _ = u.set_port(v.parse().ok());
+        }
+        "pathname" => u.set_path(v),
+        "search" => u.set_query(Some(v.trim_start_matches('?')).filter(|s| !s.is_empty())),
+        "hash" => u.set_fragment(Some(v.trim_start_matches('#')).filter(|s| !s.is_empty())),
+        _ => {}
+    }
+    Ok(url_parts(&u))
+}
+
+fn op_sync_inner(inner: &S, who: &Who, name: &str, a: &Value) -> Result<Value, String> {
+    if let Some(r) = pure_op(name, a) {
+        return r;
+    }
+    match name {
         // The most memory plugins' JS may use in all (`v8.getHeapStatistics`).
         "heap.limit" => Ok(json!(inner.borrow().cfg.memory_limit)),
         // The system's resolvers, for `dns.getServers`.
@@ -1251,12 +1340,6 @@ fn op_sync_inner(inner: &S, who: &Who, name: &str, a: &Value) -> Result<Value, S
                 })
                 .collect::<Vec<_>>()
         )),
-        "arch" => Ok(json!(match std::env::consts::ARCH {
-            "x86_64" => "x64",
-            "aarch64" => "arm64",
-            "x86" => "ia32",
-            other => other,
-        })),
         "env" => {
             let mut m = serde_json::Map::new();
             for k in ["XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP", "LANG"] {
@@ -1487,6 +1570,10 @@ It is installed and switched on; what it may do is asked when it does it, and it
             host.command(HostCommand::CloseEditor(window));
             Ok(Value::Null)
         }
+        // Plugins' own windows (`BrowserWindow`, see `page.rs`): made,
+        // loaded, changed, messaged and closed by the plugin that owns them.
+        "window.create" | "window.load" | "window.set" | "window.send" | "window.reply"
+        | "window.close" => window_op(inner, &who.acting()?, name, a),
         // A plugin's `<audio>` stands in for TIDAL's muted player element
         // (media.js): Tidalfast's engine plays its address for the song.
         "host.replace_audio" => {
@@ -1966,60 +2053,6 @@ It is installed and switched on; what it may do is asked when it does it, and it
             i.dirty = true;
             Ok(Value::Null)
         }
-        "url.parse" => {
-            let href = str_of(a, "href");
-            let u = match a.get("base").and_then(Value::as_str) {
-                Some(b) => url::Url::parse(b).and_then(|b| b.join(href)),
-                None => url::Url::parse(href),
-            }
-            .map_err(|e| format!("Invalid URL: {href} ({e})"))?;
-            Ok(url_parts(&u))
-        }
-        "url.set" => {
-            let mut u = url::Url::parse(str_of(a, "href")).map_err(|e| e.to_string())?;
-            let v = str_of(a, "value");
-            match str_of(a, "part") {
-                "protocol" => {
-                    let _ = u.set_scheme(v.trim_end_matches(':'));
-                }
-                "username" => {
-                    let _ = u.set_username(v);
-                }
-                "password" => {
-                    let _ = u.set_password(Some(v).filter(|s| !s.is_empty()));
-                }
-                "host" => {
-                    let (h, p) = v
-                        .rsplit_once(':')
-                        .map_or((v, None), |(h, p)| (h, p.parse::<u16>().ok()));
-                    let _ = u.set_host(Some(h));
-                    if p.is_some() {
-                        let _ = u.set_port(p);
-                    }
-                }
-                "hostname" => {
-                    let _ = u.set_host(Some(v));
-                }
-                "port" => {
-                    let _ = u.set_port(v.parse().ok());
-                }
-                "pathname" => u.set_path(v),
-                "search" => u.set_query(Some(v.trim_start_matches('?')).filter(|s| !s.is_empty())),
-                "hash" => u.set_fragment(Some(v.trim_start_matches('#')).filter(|s| !s.is_empty())),
-                _ => {}
-            }
-            Ok(url_parts(&u))
-        }
-        "crypto.random" => {
-            let n = a["n"].as_u64().unwrap_or(0).min(1 << 20) as usize;
-            let mut buf = vec![0u8; n];
-            rand::RngCore::fill_bytes(&mut rand::rng(), &mut buf);
-            Ok(json!(B64.encode(buf)))
-        }
-        "crypto.hash" => {
-            let data = B64.decode(str_of(a, "data")).map_err(|e| e.to_string())?;
-            Ok(json!(B64.encode(hash(str_of(a, "alg"), &data)?)))
-        }
         "crypto.hmac" => {
             let key = B64.decode(str_of(a, "key")).map_err(|e| e.to_string())?;
             let data = B64.decode(str_of(a, "data")).map_err(|e| e.to_string())?;
@@ -2213,6 +2246,60 @@ fn notifier(tx: Sender<Msg>) -> child::Notifier {
     Arc::new(move |ev| {
         let _ = tx.send(Msg::Child(ev));
     })
+}
+
+fn window_op(inner: &S, plugin: &str, name: &str, a: &Value) -> Result<Value, String> {
+    let id = a["id"]
+        .as_u64()
+        .filter(|&n| n > 1 && n < 1 << 20)
+        .ok_or("no window")? as u32;
+    let mut i = inner.borrow_mut();
+    match name {
+        "window.create" => {
+            let spec: super::page::WindowSpec =
+                serde_json::from_value(a["spec"].clone()).map_err(|e| e.to_string())?;
+            let tx = i.tx.clone();
+            i.pages.create(plugin, id, spec, tx)?;
+            i.host.changed();
+        }
+        "window.load" => {
+            let preload = a["preload"]
+                .as_str()
+                .map(|src| (src.to_string(), str_of(a, "preloadFile").to_string()));
+            i.pages.load(
+                plugin,
+                id,
+                super::page::Load {
+                    url: str_of(a, "url").to_string(),
+                    html: str_of(a, "html").to_string(),
+                    preload,
+                },
+            )?;
+        }
+        "window.set" => {
+            i.pages.set(plugin, id, &a["spec"])?;
+            i.host.changed();
+        }
+        "window.send" => i.pages.send(
+            plugin,
+            id,
+            str_of(a, "channel").to_string(),
+            str_of(a, "args").to_string(),
+        )?,
+        "window.reply" => i.pages.reply(
+            plugin,
+            id,
+            a["op"].as_f64().unwrap_or(0.0),
+            a["ok"].as_bool().unwrap_or(false),
+            str_of(a, "json").to_string(),
+        )?,
+        _ => {
+            if i.pages.close(plugin, id) {
+                i.host.changed();
+            }
+        }
+    }
+    Ok(Value::Null)
 }
 
 fn child_request(a: &Value) -> child::Request {
@@ -3397,6 +3484,42 @@ impl Engine {
     }
 
     /// What a forked process ([`super::fork`]) did or asks for.
+    /// What a plugin window's page or the user did (see [`super::page`]).
+    fn page_msg(&self, m: super::page::FromPage) {
+        use super::page::FromPage;
+        match m {
+            FromPage::Ipc {
+                window,
+                channel,
+                args,
+                invoke,
+            } => self.host_call(
+                "page",
+                json!({ "window": window, "kind": "ipc", "channel": channel, "args": args, "invoke": invoke }),
+            ),
+            FromPage::Loaded { window, title } => self.host_call(
+                "page",
+                json!({ "window": window, "kind": "loaded", "title": title }),
+            ),
+            FromPage::User { window, kind, data } => self.host_call(
+                "page",
+                json!({ "window": window, "kind": kind, "data": data }),
+            ),
+            FromPage::Log { window, level, msg } => {
+                let mut i = self.inner.borrow_mut();
+                let plugin = i.pages.plugin_of(window);
+                i.log(
+                    plugin.as_deref(),
+                    level_of(&level),
+                    format!("[window {window}] {msg}"),
+                );
+            }
+            FromPage::Ended { window, generation } => {
+                self.inner.borrow_mut().pages.ended(window, generation);
+            }
+        }
+    }
+
     fn fork_msg(&self, m: FromChild) {
         match m {
             FromChild::Event {
@@ -4646,6 +4769,7 @@ impl Engine {
                 }
             }
             Msg::Fork(m) => self.fork_msg(m),
+            Msg::Page(m) => self.page_msg(m),
             Msg::ProgramAnswer { id, choice } => {
                 let notify = notifier(self.inner.borrow().tx.clone());
                 let mut i = self.inner.borrow_mut();
@@ -4937,6 +5061,7 @@ impl Engine {
         }
         i.children.stop_all();
         i.forks.stop_all();
+        i.pages.stop_all();
         i.hotkeys.stop_all();
         // What the unloads saved is on disk before the thread ends.
         i.storage.flush();
@@ -5346,10 +5471,9 @@ fn setup(
     host: Arc<dyn LunaHost>,
     tx: Sender<Msg>,
     shared: Arc<Mutex<LunaSnapshot>>,
-    overlay: OverlayCell,
-    trees: TreeCell,
+    views: Views,
 ) -> anyhow::Result<Engine> {
-    setup_with(cfg, host, tx, shared, overlay, trees, SHIMS)
+    setup_with(cfg, host, tx, shared, views, SHIMS)
 }
 
 /// [`setup`] with the shims given (a test gives a broken one).
@@ -5358,8 +5482,7 @@ fn setup_with(
     host: Arc<dyn LunaHost>,
     tx: Sender<Msg>,
     shared: Arc<Mutex<LunaSnapshot>>,
-    overlay: OverlayCell,
-    trees: TreeCell,
+    views: Views,
     shims: &[(&str, &str)],
 ) -> anyhow::Result<Engine> {
     std::fs::create_dir_all(&cfg.data_dir)?;
@@ -5418,6 +5541,11 @@ fn setup_with(
     let picks_seen = super::fsops::picks_version();
     // Bodies a run that ended abruptly left half downloaded.
     super::downloads::sweep(&Storage::new(cfg.data_dir.clone()).spool_dir());
+    let Views {
+        overlay,
+        trees,
+        pages,
+    } = views;
     let inner: S = Rc::new(RefCell::new(Inner {
         storage: Storage::new(cfg.data_dir.clone()),
         cfg,
@@ -5427,6 +5555,7 @@ fn setup_with(
         net: NetHub::default(),
         children: ChildHub::default(),
         forks: super::fork::ForkHub::default(),
+        pages: super::page::PageHub::new(pages),
         writes,
         permits,
         hotkeys,
@@ -5683,13 +5812,12 @@ fn run(
     tx: Sender<Msg>,
     rx: Receiver<Msg>,
     shared: Arc<Mutex<LunaSnapshot>>,
-    overlay: OverlayCell,
-    trees: TreeCell,
+    views: Views,
 ) -> anyhow::Result<()> {
     let auto_update = cfg.auto_update;
     let interval = cfg.update_interval;
     let wait_for_dom = cfg.wait_for_dom;
-    let engine = setup(cfg, host, tx, shared, overlay, trees)?;
+    let engine = setup(cfg, host, tx, shared, views)?;
     // The page exists before plugins run (TIDAL's does): the first host
     // tree is in the document when their code starts.
     let until = Instant::now() + wait_for_dom;
@@ -5873,8 +6001,7 @@ pub(crate) fn spawn(
     tx: Sender<Msg>,
     rx: Receiver<Msg>,
     shared: Arc<Mutex<LunaSnapshot>>,
-    overlay: OverlayCell,
-    trees: TreeCell,
+    views: Views,
 ) -> anyhow::Result<std::thread::JoinHandle<()>> {
     std::fs::create_dir_all(&cfg.data_dir)?;
     let shared2 = shared.clone();
@@ -5884,7 +6011,7 @@ pub(crate) fn spawn(
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
             let r = std::panic::catch_unwind(AssertUnwindSafe(|| {
-                run(cfg, host, tx, rx, shared, overlay, trees)
+                run(cfg, host, tx, rx, shared, views)
             }));
             let err = match r {
                 Ok(Ok(())) => None,
@@ -5948,8 +6075,7 @@ mod setup_tests {
                     Arc::new(Quiet),
                     tx,
                     Arc::default(),
-                    Arc::default(),
-                    TreeCell::default(),
+                    Views::default(),
                     &shims,
                 )
                 .err()

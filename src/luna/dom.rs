@@ -214,6 +214,10 @@ pub struct Style {
     /// here too, under that name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom: Option<BTreeMap<String, String>>,
+    /// `-webkit-app-region` (`drag` or `no-drag`): in a frameless plugin
+    /// window, where pressing moves the window, as in Electron.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_region: Option<String>,
     /// The words a theme's `::before` / `::after` on an anchor draws
     /// (`content: "Tabs"`, Tidal TUI's box labels): only on those boxes,
     /// and only when there are words to show.

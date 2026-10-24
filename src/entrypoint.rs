@@ -1533,8 +1533,15 @@ impl eframe::App for Shell {
             .sync(app.thumb_state(ui.ctx().system_theme() != Some(egui::Theme::Light)));
     }
 
-    /// The window paints itself over eframe's own ground.
+    /// The window paints itself over eframe's own ground. eframe clears
+    /// every window with this colour: while a see-through plugin window is
+    /// open it is fully transparent, so that window shows what is behind
+    /// it where its page paints nothing (the app's window covers its own
+    /// ground with its panels either way).
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        if tidalfast::ui::plugin_windows::transparent_open() {
+            return [0.0; 4];
+        }
         egui::Color32::from_rgba_unmultiplied(12, 12, 12, 180).to_normalized_gamma_f32()
     }
 

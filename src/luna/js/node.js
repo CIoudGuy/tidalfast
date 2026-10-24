@@ -3068,8 +3068,15 @@
 			this.session = electronSession;
 			this._url = "";
 		}
-		send() {}
-		postMessage() {}
+		// A plugin window's page hears it with `ipcRenderer.on` (page.js);
+		// the arguments are copied as Electron's structured clone copies them.
+		send(channel, ...args) {
+			const win = windows.get(this.id);
+			if (win?._live && !win._destroyed) win._call("window.send", { channel: String(channel), args: ipcEncode(args, true) });
+		}
+		postMessage(channel, message) {
+			this.send(channel, message);
+		}
 		insertCSS() {
 			return Promise.resolve("");
 		}
@@ -3081,22 +3088,35 @@
 			return this._url;
 		}
 		getTitle() {
-			return "";
+			return this._title ?? "";
 		}
 		isDestroyed() {
-			return false;
+			return !!windows.get(this.id)?._destroyed;
 		}
 		isLoading() {
-			return false;
+			return !!this._loading;
+		}
+		isLoadingMainFrame() {
+			return !!this._loading;
 		}
 		loadURL(u) {
 			this._url = String(u);
 			this._editor = editorPage(this._url);
-			return Promise.resolve();
+			const win = windows.get(this.id);
+			if (this._editor || !win?._live) return Promise.resolve();
+			return win._load(this._url, pageSource(this._url));
 		}
 		loadFile(f) {
 			this._url = `file://${f}`;
-			return Promise.resolve();
+			const win = windows.get(this.id);
+			if (!win?._live) return Promise.resolve();
+			let html = null;
+			try {
+				html = L.node.readText(String(f));
+			} catch (err) {
+				return Promise.reject(err);
+			}
+			return win._load(this._url, html);
 		}
 		// A Monaco editor page (Themer's CSS editor) is shown as Tidalfast's
 		// own editor: `window.editor.setValue(text)` opens it with the text.
@@ -3157,6 +3177,139 @@
 			open: false,
 		};
 	};
+	// The HTML of a page a plugin window loads: a `data:` URL's, or a
+	// `file:` URL's file (read through the plugin's own `fs`). Pages from
+	// the web are not loaded (`null`).
+	const pageSource = (address) => {
+		const m = /^data:text\/html([^,]*?)(;base64)?,([\s\S]*)$/i.exec(address);
+		if (m) {
+			try {
+				return m[2] ? Buffer.from(m[3], "base64").toString("utf8") : decodeURIComponent(m[3]);
+			} catch {
+				return "";
+			}
+		}
+		if (/^file:/i.test(address)) {
+			try {
+				return L.node.readText(url.fileURLToPath(address));
+			} catch {
+				return null;
+			}
+		}
+		return null;
+	};
+	// A plugin window's options as `page.rs` keeps them (`WindowSpec`).
+	const specOf = (o) => {
+		const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+		const s = {
+			title: typeof o.title === "string" ? o.title : undefined,
+			width: n(o.width),
+			height: n(o.height),
+			x: n(o.x),
+			y: n(o.y),
+			minWidth: n(o.minWidth),
+			minHeight: n(o.minHeight),
+			maxWidth: n(o.maxWidth),
+			maxHeight: n(o.maxHeight),
+			transparent: o.transparent === undefined ? undefined : !!o.transparent,
+			frame: o.frame === undefined ? undefined : !!o.frame,
+			alwaysOnTop: o.alwaysOnTop === undefined ? undefined : !!o.alwaysOnTop,
+			resizable: o.resizable === undefined ? undefined : !!o.resizable,
+			movable: o.movable === undefined ? undefined : !!o.movable,
+			visible: o.show === undefined ? undefined : !!o.show,
+			focusable: o.focusable === undefined ? undefined : !!o.focusable,
+			skipTaskbar: o.skipTaskbar === undefined ? undefined : !!o.skipTaskbar,
+			backgroundColor: typeof o.backgroundColor === "string" ? o.backgroundColor : undefined,
+		};
+		for (const k of Object.keys(s)) if (s[k] === undefined) delete s[k];
+		return s;
+	};
+	// What a plugin window's page or the user did (src/luna/page.rs).
+	L.node.pageEvent = (arg) => {
+		const win = windows.get(Number(arg.window));
+		if (!win || win._destroyed || !win._live) return;
+		const wc = win.webContents;
+		switch (arg.kind) {
+			case "ipc": {
+				let args;
+				try {
+					args = ipcDecode(String(arg.args ?? "[]"), true);
+				} catch (err) {
+					L.reportError(err);
+					return;
+				}
+				if (!Array.isArray(args)) args = [];
+				const event = { sender: wc, senderFrame: { url: wc._url, routingId: 1 }, frameId: 1, processId: 1000 + win.id, ports: [], returnValue: undefined, reply: (ch, ...a) => wc.send(ch, ...a), type: "frame", preventDefault() {} };
+				const channel = String(arg.channel ?? "");
+				if (arg.invoke !== null && arg.invoke !== undefined) {
+					const op = Number(arg.invoke);
+					const answer = (ok, json) => win._call("window.reply", { op, ok, json });
+					const handler = ipcMain._handlers.get(channel);
+					if (!handler) {
+						answer(false, JSON.stringify(`No handler registered for '${channel}'`));
+						return;
+					}
+					Promise.resolve()
+						.then(() => handler(event, ...args))
+						.then(
+							(v) => {
+								let enc;
+								try {
+									enc = ipcEncode(v, true);
+								} catch (err) {
+									answer(false, JSON.stringify(String(err?.message ?? err)));
+									return;
+								}
+								answer(true, JSON.stringify(enc));
+							},
+							(err) => answer(false, JSON.stringify(`${err?.name ?? "Error"}: ${err?.message ?? err}`)),
+						);
+					return;
+				}
+				wc.emit("ipc-message", event, channel, ...args);
+				ipcMain.emit(channel, event, ...args);
+				return;
+			}
+			case "loaded": {
+				wc._loading = false;
+				wc._title = String(arg.title ?? "");
+				if (wc._title) win.emit("page-title-updated", { preventDefault() {} }, wc._title, false);
+				wc.emit("dom-ready");
+				wc.emit("did-finish-load");
+				if (!win._readyShown) {
+					win._readyShown = true;
+					win.emit("ready-to-show");
+				}
+				const done = wc._loaded;
+				wc._loaded = null;
+				done?.();
+				return;
+			}
+			case "close":
+				win.close();
+				return;
+			case "bounds": {
+				const [x, y, width, height] = (Array.isArray(arg.data) ? arg.data : []).map((v) => Math.round(Number(v) || 0));
+				const old = win._bounds;
+				win._bounds = { x, y, width, height };
+				if (old.x !== x || old.y !== y) {
+					win.emit("move");
+					win.emit("moved");
+				}
+				if (old.width !== width || old.height !== height) {
+					win.emit("resize");
+					win.emit("resized");
+				}
+				return;
+			}
+			case "focus":
+			case "blur":
+				win._focused = arg.kind === "focus";
+				win.emit(arg.kind);
+				app.emit(`browser-window-${arg.kind}`, { preventDefault() {} }, win);
+				return;
+		}
+	};
 	// What a preload script hands the page through `contextBridge`, with
 	// `ipcRenderer.send/invoke` reaching `ipcMain` as from that window.
 	const runPreload = (win, path) => {
@@ -3211,17 +3364,79 @@
 	class BrowserWindow extends EventEmitter {
 		constructor(opts = {}) {
 			super();
-			if (!opts.__lunaMain) electronWarn("BrowserWindow");
 			this.id = nextWin++;
 			this._opts = opts;
 			this._bounds = { x: opts.x ?? 0, y: opts.y ?? 0, width: opts.width ?? 800, height: opts.height ?? 600 };
 			this._visible = opts.show !== false;
+			this._top = !!opts.alwaysOnTop;
+			this._resizable = opts.resizable !== false;
+			this._movable = opts.movable !== false;
+			this._focusable = opts.focusable !== false;
 			this.title = opts.title ?? "";
 			this.webContents = new WebContents(this.id);
 			this._destroyed = false;
 			this._main = !!opts.__lunaMain;
 			this._preload = opts.webPreferences?.preload ?? null;
 			windows.set(this.id, this);
+			// A plugin's window is a native window of its own showing its
+			// page (src/luna/page.rs), as Electron opens it.
+			if (!this._main) {
+				this._plugin = L.pluginFromStack();
+				this._spec = specOf(opts);
+				try {
+					callOp("window.create", { plugin: this._plugin ?? null, id: this.id, spec: this._spec });
+					this._live = true;
+				} catch (err) {
+					console.warn(`[Luna] the window could not be opened: ${err?.message ?? err}`);
+				}
+			}
+		}
+		// An op on this plugin window, as its plugin.
+		_call(op, extra) {
+			try {
+				return callOp(op, { plugin: this._plugin ?? null, id: this.id, ...extra });
+			} catch (err) {
+				console.warn(`[Luna] window ${this.id}: ${err?.message ?? err}`);
+			}
+		}
+		// Only what changes goes out (a plugin that keeps its window on top
+		// by setting it again every 200 ms costs nothing); bounds always go,
+		// as the user may have moved the window since.
+		_set(spec) {
+			if (!this._live || this._destroyed) return;
+			const changed = {};
+			for (const [k, v] of Object.entries(spec)) {
+				if (k === "raise") {
+					if (v) changed.raise = true;
+				} else if (k === "x" || k === "y" || k === "width" || k === "height" || this._spec[k] !== v) {
+					changed[k] = v;
+					this._spec[k] = v;
+				}
+			}
+			if (Object.keys(changed).length) this._call("window.set", { spec: changed });
+		}
+		// The window's page starts over with `html` (null: not loadable).
+		_load(url, html) {
+			if (html === null || html === undefined) {
+				console.warn(`[Luna] window ${this.id}: ${String(url).slice(0, 80)} was not loaded: plugin windows show data: and file: pages`);
+				return Promise.resolve();
+			}
+			let preload = null;
+			if (this._preload) {
+				try {
+					preload = L.node.readText(String(this._preload));
+				} catch (err) {
+					console.warn(`[Luna] window ${this.id}: its preload script could not be read: ${err?.message ?? err}`);
+				}
+			}
+			const wc = this.webContents;
+			wc._loading = true;
+			wc.emit("did-start-loading");
+			return new Promise((resolve) => {
+				wc._loaded?.();
+				wc._loaded = resolve;
+				this._call("window.load", { url: String(url), html: String(html), preload, preloadFile: String(this._preload ?? "") });
+			});
 		}
 		static getAllWindows() {
 			return [...windows.values()];
@@ -3243,6 +3458,20 @@
 		}
 		close() {
 			if (this._main) return callOp("window.control", { op: "close" });
+			if (this._destroyed) return;
+			// A plugin window asks first, as Electron's does: a `close`
+			// listener may keep it open.
+			if (this._live) {
+				let kept = false;
+				this.emit("close", {
+					preventDefault() {
+						kept = true;
+					},
+					sender: this,
+				});
+				if (kept) return;
+				this._closing = true;
+			}
 			this.destroy();
 		}
 		destroy() {
@@ -3253,6 +3482,14 @@
 				this.webContents._editor.open = false;
 				callOp("editor.close", { window: this.id });
 			}
+			if (this._live) {
+				this._call("window.close", {});
+				this.webContents._loaded?.();
+				this.webContents._loaded = null;
+				this.webContents.emit("destroyed");
+				this.emit("closed");
+				return;
+			}
 			this.emit("close", { preventDefault() {} });
 			this.emit("closed");
 		}
@@ -3260,21 +3497,35 @@
 			return this._destroyed;
 		}
 		show() {
+			const was = this._visible;
 			this._visible = true;
+			this._set({ visible: true, raise: true });
+			if (this._live && !was) this.emit("show");
 		}
 		showInactive() {
+			const was = this._visible;
 			this._visible = true;
+			this._set({ visible: true });
+			if (this._live && !was) this.emit("show");
 		}
 		hide() {
+			const was = this._visible;
 			this._visible = false;
+			this._set({ visible: false });
+			if (this._live && was) this.emit("hide");
 		}
 		isVisible() {
 			return this._visible;
 		}
-		focus() {}
+		focus() {
+			this._set({ raise: true });
+		}
+		// Electron raises the window without focusing it; the windowing
+		// layer has no such call, and a window kept on top is on top already.
+		moveTop() {}
 		blur() {}
 		isFocused() {
-			return this._main ? windowState().focused : false;
+			return this._main ? windowState().focused : !!this._focused;
 		}
 		// Only TIDAL's own window (the app's) is real; plugin-made windows
 		// keep their state to themselves.
@@ -3321,7 +3572,10 @@
 			return { ...this._bounds };
 		}
 		setBounds(b) {
-			Object.assign(this._bounds, b);
+			const next = {};
+			for (const k of ["x", "y", "width", "height"]) if (typeof b?.[k] === "number" && Number.isFinite(b[k]) && Math.round(b[k]) !== this._bounds[k]) next[k] = Math.round(b[k]);
+			Object.assign(this._bounds, next);
+			if (Object.keys(next).length) this._set(next);
 		}
 		getContentBounds() {
 			return this.getBounds();
@@ -3333,7 +3587,7 @@
 			return [this._bounds.width, this._bounds.height];
 		}
 		setSize(w, h) {
-			Object.assign(this._bounds, { width: w, height: h });
+			this.setBounds({ width: w, height: h });
 		}
 		getContentSize() {
 			return this.getSize();
@@ -3345,17 +3599,19 @@
 			return [this._bounds.x, this._bounds.y];
 		}
 		setPosition(x, y) {
-			Object.assign(this._bounds, { x, y });
+			this.setBounds({ x, y });
 		}
 		center() {}
 		setTitle(t) {
 			this.title = String(t);
+			this._set({ title: this.title });
 		}
 		getTitle() {
 			return this.title;
 		}
 		setAlwaysOnTop(v) {
 			this._top = !!v;
+			this._set({ alwaysOnTop: this._top });
 		}
 		isAlwaysOnTop() {
 			return !!this._top;
@@ -3364,17 +3620,34 @@
 		getOpacity() {
 			return 1;
 		}
-		setResizable() {}
-		isResizable() {
-			return true;
+		setResizable(v) {
+			this._resizable = !!v;
+			this._set({ resizable: this._resizable });
 		}
-		setMovable() {}
+		isResizable() {
+			return this._resizable !== false;
+		}
+		setMovable(v) {
+			this._movable = !!v;
+			this._set({ movable: this._movable });
+		}
+		isMovable() {
+			return this._movable !== false;
+		}
+		setFocusable(v) {
+			this._focusable = !!v;
+			this._set({ focusable: this._focusable });
+		}
+		isFocusable() {
+			return this._focusable !== false;
+		}
 		// The size limits a plugin sets are remembered, as Electron's getters
 		// answer them ([0, 0] is "no limit"), so a plugin that reads the old
 		// limit before widening it and restores it later (SmallWindow) works.
 		setMinimumSize(w, h) {
 			this._min = [Math.max(0, Math.trunc(w) || 0), Math.max(0, Math.trunc(h) || 0)];
 			if (this._main) callOp("window.min_size", { w: this._min[0], h: this._min[1] });
+			else this._set({ minWidth: this._min[0], minHeight: this._min[1] });
 		}
 		getMinimumSize() {
 			if (this._min) return [...this._min];
@@ -3388,15 +3661,20 @@
 		}
 		setMaximumSize(w, h) {
 			this._max = [Math.max(0, Math.trunc(w) || 0), Math.max(0, Math.trunc(h) || 0)];
+			if (!this._main) this._set({ maxWidth: this._max[0], maxHeight: this._max[1] });
 		}
 		getMaximumSize() {
 			return [...(this._max ?? [0, 0])];
 		}
 		setAspectRatio() {}
-		setSkipTaskbar() {}
+		setSkipTaskbar(v) {
+			this._set({ skipTaskbar: !!v });
+		}
 		setIgnoreMouseEvents() {}
 		setVisibleOnAllWorkspaces() {}
-		setBackgroundColor() {}
+		setBackgroundColor(c) {
+			if (typeof c === "string") this._set({ backgroundColor: c });
+		}
 		setMenuBarVisibility() {}
 		setAutoHideMenuBar() {}
 		setMenu() {}

@@ -1000,3 +1000,122 @@ rows, go to their host keys when listened.
 - A plugin's font family falls back to the system's symbol face (Segoe UI
   Symbol, Apple Symbols, DejaVu Sans) before the app's faces, so arrows and
   gears are outlines as in Chromium, not the emoji face's boxes.
+
+## Plugin windows (`BrowserWindow`)
+
+A plugin's `.native` code may open windows of its own with Electron's
+`BrowserWindow` (miniplayer's mini player and taskbar widget,
+lyrics-everywhere's lyrics window). Tidalfast opens each as a native
+window and shows its page with the same renderer as plugin elements in the
+app; there is no browser engine. Code: `src/luna/page.rs` (the window and
+its page), `src/luna/js/page.js` (what the page and its preload see),
+`src/ui/plugin_windows.rs` (the native window). Tests:
+`src/luna/page_tests.rs`, `src/luna/page_flow_tests.rs` (a made-up plugin
+through the plugin manager), `plugin_windows::tests`.
+
+**A page of its own, as Electron's renderer.** `new BrowserWindow(options)`
+makes the window (op `window.create`; at most 4 per plugin, 8 in all);
+`loadURL` with a `data:text/html` URL or a `file:` URL, or `loadFile`
+(read through the plugin's own `fs`), starts its page (`window.load`).
+The page runs in a QuickJS runtime of its own on a thread of its own:
+`prelude.js`, `dom.js` and `css.js` in page mode (`L.page`), then
+`page.js`. So the page's document, stylesheets, scripts and globals never
+mix with the plugins' realm or with TIDAL's page, a page stuck in a loop
+does not hold up the plugins (each of its tasks may run 10 s), and its
+heap is its own (128 MB). The page has no privileges: no `require`, no
+files, no network, nothing a plugin's permission grants.
+
+**Loading.** The browser's own sheet comes first at no specificity
+(`:where`): `html` black 16-pixel text, `body` an 8-pixel margin, `head`
+and its contents hidden, headings and lists as in Chromium. The preload
+script (`webPreferences.preload`, read when the page loads, as Electron
+reads it) runs first, as a sandboxed preload: its `require` gives the
+renderer's `electron` (`contextBridge`, `ipcRenderer`, `webFrame`) and
+`events`, `timers`, `url`. Then the parsed page goes into the document
+node by node and each inline `<script>` runs when it is inserted, as a
+browser runs it while parsing; `on*` attributes are compiled as a browser
+compiles them (`this` the element, the element and document in scope,
+`return false` cancelling). `DOMContentLoaded`, `load`, `document.title`
+and `readyState` follow; `loadURL` resolves after `did-finish-load`, and
+`ready-to-show` fires once. `location` is the page's URL; a `data:` page
+has an opaque origin, so `localStorage` throws a SecurityError there, as
+in Chromium (a `file:` page keeps it in memory while open).
+
+**Drawing.** In page mode `dom.js` builds the overlay from the page's root:
+one `<html>` VNode at anchor `""`, its ids from `window id × 2^40`, apart
+from the app page's. The UI draws it in the window with
+`plugin_slots::page`, from the browser's defaults (`Inherit::page`, no
+contrast changes to the page's colours), under
+`plugin_dom::with_page`: while a page is drawn, the overlay, variables,
+viewport, sent events, hover and measured boxes are the page's. The
+canvas takes the root's background, or the body's when the root has
+none, over the whole window. `-webkit-app-region` comes through as
+`Style::app_region`; a press where the innermost region box is `drag`
+moves the window (`StartDrag`). The page's layout goes back as a
+`HostTree` with no anchors: its viewport (`innerWidth`, `@media`) and the
+boxes scripts asked for (`getBoundingClientRect` waits for them as in the
+app page).
+
+**IPC.** `webContents.send(channel, ...args)` reaches the page's
+`ipcRenderer.on` listeners; `ipcRenderer.send` reaches `ipcMain.on` with an
+event whose `sender` is the window's `webContents` (and `reply`), and
+`ipcRenderer.invoke` gets what the `ipcMain.handle` handler returns (or
+"No handler registered"). Arguments are copied with the structured clone
+`fork` uses (Map, Set, Date, typed arrays, errors). `contextBridge`
+copies what it exposes; functions stay callable.
+
+**Window options.** `width`/`height` (the inside), `x`/`y`, `min*`/`max*`,
+`transparent`, `frame`, `alwaysOnTop`, `resizable`, `show`, `focusable`
+(whether it takes the focus when shown), `skipTaskbar`, `title`,
+`backgroundColor`; later `setBounds`/`setSize`/`setPosition`,
+`show`/`showInactive`/`hide`, `focus`, `setAlwaysOnTop`, `setTitle`,
+`setResizable`, `setMinimumSize`/`setMaximumSize`, `setSkipTaskbar`.
+Only what changes goes out (a plugin re-asserting always-on-top every 200 ms
+costs nothing). `move`/`resize`, `focus`/`blur` and `getBounds` follow the
+real window. Closing it (its close button, `window.close()` in the page,
+or `close()`) emits `close`, which a listener may cancel, then `closed`.
+A plugin's windows close when it stops, and all of them when Luna stops.
+
+**Cost.** Nothing runs while no plugin window is open: the app's pass
+reads one counter. An open window is an egui deferred viewport: it
+repaints only when its page publishes a new overlay or the user acts on
+it, without a pass of the app's window; its page's thread sleeps until a
+timer or message is due.
+
+**What the windowing layer can do** (winit through the crmne eframe fork,
+glow renderer):
+
+| | Windows | Linux X11 | Linux Wayland | macOS |
+|---|---|---|---|---|
+| Second window (deferred viewport) | yes | yes | yes | yes |
+| `transparent` | no: shown black where the page paints nothing (seen 2026-10-24); eframe picks one GL config, for the app's opaque window, for all windows | no, for the same reason (an ARGB visual is needed) | yes (not seen yet) | yes (not seen yet) |
+| `frame: false`, drag regions | yes | yes | yes (`xdg_toplevel.move`) | yes |
+| `alwaysOnTop` | topmost (one level; Electron's `screen-saver` level is the same here) | `_NET_WM_STATE_ABOVE` | no (no protocol; ignored) | floating level |
+| `x`/`y`, `getBounds` place | yes | yes | no: the compositor places windows | yes |
+| `skipTaskbar` | yes | yes (hint) | no | n/a (Dock) |
+| `focusable: false` | first activation only | first activation only | first activation only | first activation only |
+
+eframe clears every window with the app's `clear_color`; it is fully
+transparent while a see-through plugin window is open (the app's own
+window paints its whole surface either way, and looks the same). A window
+without a frame on Windows 11 also gets the system's thin border and
+rounded corners, which Electron's see-through windows do not have. Only
+Windows was run; the other columns are what winit documents.
+
+**Development.** `TIDALFAST_PLUGIN_WINDOW_POS=x,y` opens plugin windows
+there (off the screen in tests); in a dev script (`TIDALFAST_DEV_SCRIPT`),
+`window N` plays what follows in plugin window N (its `BrowserWindow` id;
+2 is the first a run opens, `window 0` the app's window), `shot` included;
+`TIDALFAST_PLUGIN_WINDOW_STATS` logs the windows' passes and their cost
+every 5 s (demo builds).
+
+**Not yet** (see the plan in `.internal/PLUGIN-WINDOWS-PROGRESS.md`):
+pages from `http(s)` URLs, `<link rel="stylesheet">` and `<script src>`
+(icon fonts such as Font Awesome), the page's own `@font-face` fonts,
+`scrollIntoView` inside a page's scroll box, keyboard input and text
+fields in a page, `webContents.executeJavaScript`/`insertCSS` on a plugin
+window, `ipcRenderer.sendSync`, a separate isolated world for the preload
+(it shares the page's realm, as with `contextIsolation: false`), real
+`screen` displays (work area, scale), `center()`, `setOpacity`,
+`setIgnoreMouseEvents`, and moving a window to the top without focusing
+it (`moveTop` does nothing).

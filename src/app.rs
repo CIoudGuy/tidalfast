@@ -13241,6 +13241,7 @@ impl App {
             crate::ui::show(self, ui);
         }
         crate::ui::plugin_dom::end_frame(ctx);
+        crate::ui::plugin_windows::show(ctx, self.plugins.luna.as_ref());
         self.apply_actions(ctx);
         let autoscroll = self.autoscroll.finish(
             ctx,

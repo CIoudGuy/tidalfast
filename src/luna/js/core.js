@@ -1690,6 +1690,8 @@
 				return void L.dom.setHidden(arg.hidden);
 			case "editor":
 				return void L.node.editorEvent(arg);
+			case "page":
+				return void L.node.pageEvent(arg);
 			case "focus":
 				L.setTimersFocused(arg.focused);
 				return void L.dom.setFocused(arg.focused);
