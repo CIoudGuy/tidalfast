@@ -1271,3 +1271,50 @@ once the taskbar is clicked).
 - Input events carry the number of host trees sent before them; a tree sent
   after the event is reconciled once the listeners ran (a right-click's
   `contextmenu` before the menu it opens, as in Chromium).
+
+### Plugin round 8 (2026-10-24)
+
+- The reconcile places the deepest parents first: a new part of the tree
+  is put together detached and goes in as one node, so an observer sees
+  one `childList` record with its root (React's commit), not one per
+  element.
+- `getComputedStyle`: an element's cascaded result is kept on it (`_cs`)
+  and worked out from its parent's while its declarations and its
+  parent's result are the same objects; nothing changed since the last
+  call (`csToken`: the index, `domGen`, `structGen`, `styleGen`) answers
+  without walking the ancestors. The declaration is built once per result
+  and shared (copied on a script's write); `width`, `height` and
+  `transform` read the box when read. Reading a colour no longer lays the
+  page out.
+- A plugin stopped by the watchdog (`__luna_dom("stopped")`): its
+  `MutationObserver`s and `ResizeObserver`s are disconnected before its
+  unloads run; after any interrupted job, a delivery it cut short goes on.
+- Shelf cards whose item is known: `div[data-test=<kind>-card-<id>]._card_38c6c04[role=presentation]`
+  (`grid-item` otherwise) with `card-content:<i>` (`div._contentContainer_6f8427a`) >
+  `card-title:<i>` (`div._title_3b8740e`) > `card-title-text:<i>`
+  (`span._titleText_9e9bb51`) > `card-title-link:<i>` (`a._titleLink_3c0fcd3`, the
+  title), and `card-subtitle:<i>` (`div._subtitle_8f7e568`) > `card-subtitle-part:<i>:<n>`
+  (`a[data-test=grid-item-detail-text-title-artist]` per artist,
+  `span[data-test=playlist-creator-text]`, or a mix's `span`). The card
+  draws the words of the title link and the subtitle parts.
+- Shelves: `shelf-wrap:<i>` > `shelf-header:<i>`
+  (`div._headerContainer_5618a8d[data-test=horizontal-list--<MODULE>-header]`) >
+  `shelf-title:<i>` (`h2._headerText_9398ec6`) and `shelf-buttons:<i>`
+  (`div._buttonContainer_a07db07`) > `shelf-previous:<i>`, `shelf-next:<i>`
+  (`button._scrollingButton_6c853a9[title]`), `shelf-view-all:<i>`
+  (`a._viewAllButton_4b4f90c[data-test=view-all-link]`) > `shelf-view-all-label:<i>`;
+  then the row `shelf:<i>` as before.
+- `list:<l>:album-col` and `list:<l>:added-col` (with their `:label`) where
+  the list shows those columns (TIDAL's ids for them are not known, so
+  they carry none); `page-release-date` has the box of its words.
+- `sidebar-scrollable-nav` (`nav[aria-label=Playlists]`) holds the library
+  rows and their art; `tab-bar` (`nav._mobileTabBar_b6e8ee2`) ends the
+  player; previous, play/pause and next carry a `title`; the cover toggle
+  reads "Now Playing".
+- `queue-panel` is `aside#playQueueSidebar._container_b3e8f28` whenever the
+  floating queue exists, `_isOpen_869124d` while open, holding the queue
+  only while it shows.
+- A right-click where plugins listen for `contextmenu` goes to them with
+  the press (`plugin_dom::filter_raw_input`, waiting at most 150 ms for
+  `Luna::dom_event_verdict`); when a listener cancels it, egui never sees
+  the press or its release.

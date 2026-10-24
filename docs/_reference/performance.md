@@ -1014,6 +1014,49 @@ Three more bench runs (one before, two after) drew their frames about
 300 ms apart, as an off-screen window does when the machine is busy, and
 are left out. The app's window costs the same within run-to-run noise.
 
+## Page-wide plugin scans (2026-10-24, plugin round 8)
+
+uwu-ifier, for every node added to the page, reads `getComputedStyle(el)`
+of every element in it, and the runtime's watchdog stopped it after 5 s on
+an album opened from the Albums grid. Two things made that slow: each
+`getComputedStyle` resolved the element's whole chain of ancestors and
+every root variable again, and read the element's box (after a style
+change, each read waited for the UI's next layout); and the host tree's
+reconcile inserted a new page one element at a time, so an observer heard
+of it in one record per element and scanned the page for each.
+
+Now an element's cascaded result is kept with it and worked out from its
+parent's while nothing it depends on changed, the declaration handed out is
+built once and shared, the box is read only when a size is, and a new part
+of the page goes in as one node, as React commits it (one record with its
+root). Values are unchanged (the tests check them against the old path).
+
+Measured with two synthetic probe plugins in the demo, off-screen at 2137 by
+1183, debug build (the app's own crate unoptimised; QuickJS and every other
+dependency at `opt-level = 2`, as in development, so the script engine's
+times are close to a release build's), BelowNormal priority, before and
+after on the same machine:
+
+| Measure | Before | After |
+| --- | --- | --- |
+| `getComputedStyle` over the album page (452 elements), first pass | 91 ms (201 µs an element) | 21 ms (46 µs) |
+| The same, again with nothing changed | 88 to 89 ms (195 to 197 µs) | 2 to 3 ms (4 to 7 µs) |
+| Home (363 elements), first pass and again | 215 ms, 72 to 74 ms | 13 ms, 2 ms |
+| A box read of each element of the album page | 6 to 9 ms | 2 to 3 ms |
+| An observer scanning the page for every added node, the album page opened | 226 records, 62 ms a scan; stopped by the watchdog at 5 s | 1 record, one scan of 29 ms |
+| The same with only the cached styles (before the one-record commit) | | 226 scans in 1,372 ms |
+| The same on the Albums page | 14 records, 871 ms | 1 record, 15 ms |
+| The window's pass on the album page while the probe scans (browse bench, CPU a pass) | 2.89 ms | 3.02 ms |
+
+The window's frame time does not change: the scans run on the plugins'
+thread, never on the interface's; what the change shortens is how long a
+plugin's work holds that thread (and every other plugin's timers, events and
+observers behind it). The first box read after the page loads now waits for
+the first layout itself (126 ms on Home in the run above), which the first
+`getComputedStyle` used to pay. uwu-ifier itself, live in a signed-in
+session: the album opened from the Albums grid is rewritten and the plugin
+keeps running.
+
 ## Findings and decisions
 
 - **Long lists are already virtualised.** Track tables, card grids and the
