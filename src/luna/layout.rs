@@ -34,6 +34,9 @@ pub const CARRY: Duration = Duration::from_millis(500);
 pub(crate) struct TreeSlot {
     /// The newest host tree the UI sent, not reconciled yet.
     pub tree: Option<HostTree>,
+    /// How many trees the UI has sent; the one in [`TreeSlot::tree`] is
+    /// the `sent`th.
+    pub sent: u64,
     /// The newest overlay that can move boxes, and when it went out.
     published: Option<(u64, Instant)>,
     /// The newest such overlay the UI started a frame with, and when.

@@ -3752,3 +3752,62 @@ new lib.StyleTag("dom-test", unloads, `
     );
     finish(luna, dir);
 }
+
+/// element-hider ties TIDAL's context menu to the right-click before it:
+/// its capture `contextmenu` listener sets a flag, and its observer adds
+/// its rows when `[data-test="contextmenu"]` appears with the flag set. In
+/// Chromium the event comes first and TIDAL's menu after; the menu the app
+/// drew in answer to the right-click reached the document before the event,
+/// so the plugin fell back to its own menu.
+#[test]
+fn a_right_click_reaches_listeners_before_the_menu_it_opens() {
+    let (luna, _host, dir) = start(
+        r##"
+let armed = false;
+document.addEventListener("contextmenu", () => {
+	armed = true;
+	R.heard = (R.heard ?? 0) + 1;
+}, true);
+new MutationObserver((records) => {
+	for (const r of records)
+		for (const n of r.addedNodes) {
+			if (!(n instanceof Element)) continue;
+			const menu = n.matches('[data-test="contextmenu"]') ? n : n.querySelector('[data-test="contextmenu"]');
+			if (menu) R.menuSeen = armed ? "after the event" : "before the event";
+		}
+}).observe(document.body, { childList: true, subtree: true });
+// A plugin busy on the thread while the input and the menu arrive.
+document.addEventListener("click", () => {
+	const until = Date.now() + 400;
+	while (Date.now() < until);
+	R.busy = true;
+});
+R.ready = true;
+"##,
+    );
+    let mut frame = dom_anchors::sample_frame();
+    let menu = frame.context_menu.take();
+    luna.sync_dom(dom_anchors::build(&frame));
+    results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
+    luna.sync(Duration::from_secs(10));
+    // The thread is held by a listener while the right-click goes out and
+    // then the frame that draws the menu.
+    luna.dom_event(DomEvent {
+        target: DomTarget::Host(String::new()),
+        kind: "click".into(),
+        data: json!({}),
+    });
+    std::thread::sleep(Duration::from_millis(100));
+    luna.dom_event(DomEvent {
+        target: DomTarget::Host(keys::row("album:55", 1)),
+        kind: "contextmenu".into(),
+        data: json!({ "button": 2, "clientX": 400, "clientY": 300 }),
+    });
+    frame.context_menu = menu;
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = results_until(&luna, &dir, 10, |r| r["menuSeen"].is_string());
+    assert_eq!(r["busy"], json!(true), "{r}");
+    assert_eq!(r["heard"], json!(1), "{r}");
+    assert_eq!(r["menuSeen"], json!("after the event"), "{r}");
+    finish(luna, dir);
+}

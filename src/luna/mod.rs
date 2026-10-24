@@ -1067,8 +1067,9 @@ pub(crate) enum Msg {
     /// The UI's anchor tree changed (DOM bridge).
     /// A new host tree is in [`runtime::TreeCell`].
     DomSync,
-    /// User input on a host widget or a plugin element.
-    DomEvent(dom::DomEvent),
+    /// User input on a host widget or a plugin element, and how many host
+    /// trees the UI had sent when it happened.
+    DomEvent(dom::DomEvent, u64),
     /// The window was hidden (minimized, closed to the tray) or shown again.
     Hidden(bool),
     /// The window gained or lost the keyboard focus.
@@ -1137,6 +1138,7 @@ impl Luna {
         let (slot, arrived) = &*self.trees;
         if let Ok(mut slot) = slot.lock() {
             slot.tree = Some(tree);
+            slot.sent += 1;
             arrived.notify_all();
         }
         let _ = self.tx.send(Msg::DomSync);
@@ -1173,9 +1175,14 @@ impl Luna {
         self.trees.0.lock().ok().and_then(|s| s.waiting)
     }
 
-    /// Forward user input to the plugins' DOM listeners.
+    /// Forward user input to the plugins' DOM listeners. The event names
+    /// the trees sent before it, the document the user acted on: a newer
+    /// tree holds the app's answer to the input (the menu a right-click
+    /// opens) and reaches the document after the listeners ran, as a page
+    /// in Chromium changes only once the event it dispatched is handled.
     pub fn dom_event(&self, event: dom::DomEvent) {
-        let _ = self.tx.send(Msg::DomEvent(event));
+        let seen = self.trees.0.lock().map_or(0, |slot| slot.sent);
+        let _ = self.tx.send(Msg::DomEvent(event, seen));
     }
 
     /// Plugins the background check updated after `seq` (cheap: no full
