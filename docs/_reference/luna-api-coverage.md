@@ -116,7 +116,7 @@ in `src/luna/coverage_tests.rs`.
 | Node modules in `.native` code (`fs`, `os`, `path`, `crypto`, `zlib`, `stream`, `stream/consumers`, `events`, `util`, `url`, `http`/`https` clients, `net`, `child_process`, `process`, `buffer`, `timers`, `assert`, `electron`, ...) | | works (`fs` and `child_process` behind their permissions; `child_process` asks first) | `node_builtin_shims`; `coverage_tests::core_helpers_follow_lunas_source` |
 | `https.createServer`, `tls`, `http2`, `dgram`, `vm`, `worker_threads.Worker`, `inspector`, `.node` addons | | refused: each throws with its reason (TLS servers, real UDP, running code in a context, threads, debugging the process, machine code for another ABI) | `native_addons_fail_with_the_reason_on_the_card`; `node_builtin_shims` |
 | `dns`, `v8` | | works (`dns`: `lookup` by the system resolver after the same question as a connection to the name; `resolve4/6` (with real TTLs), `resolveMx`, `resolveTxt`, `resolveSrv`, `resolveNs`, `resolveCname`, `resolvePtr`, `resolveSoa`, `resolveCaa`, `resolveNaptr`, `resolveTlsa`, `resolveAny`, `resolve(name, rrtype)` and `reverse` ask a DNS server through the app (UDP, then TCP when the answer is cut short), as plugins have no UDP: the servers a plugin gave `setServers` (each asked as a connection to it) or else the system's (`/etc/resolv.conf`, Windows `GetNetworkParams`); each `Resolver` keeps its own servers; c-ares error codes (`ENOTFOUND`, `ENODATA`, `ESERVFAIL`, `EREFUSED`, `ETIMEOUT`, ...) with Node's shapes. `v8`: `serialize`/`deserialize` round trip (the bytes are Tidalfast's own format, which no plugin can tell), `Serializer`/`Deserializer`, `getHeapStatistics` and `getHeapSpaceStatistics` from QuickJS's own accounting (used, total, available, code), `writeHeapSnapshot` and `getHeapSnapshot` refused: a snapshot would hand over the whole process) | `api3_tests::dns_record_types_are_asked_of_a_dns_server_by_the_host`; `dnsq::tests`; `api2_tests::dns_and_v8_answer_like_node`; `api3_tests::v8_heap_statistics_follow_the_runtimes_memory` |
-| `BrowserWindow` other than the main window | | refused: windows stay inert | luna-compat.md "Electron and window" |
+| `BrowserWindow` other than the main window | A window of its own with a page (HTML, CSS, scripts), its preload bridge and IPC | partial (2026-10-24): a native window showing a `data:` or `file:` page in a runtime and document of its own, the preload's `contextBridge` and `ipcRenderer` (`send`, `invoke`, `on`), `webContents.send`, the window options and their setters, `close`/`closed`, `move`/`resize`, `focus`/`blur`; not yet: web pages, linked stylesheets and scripts, see-through edges on Windows and X11, `executeJavaScript` and `insertCSS` on its `webContents`, `sendSync` | `page_tests`; `page_flow_tests`; `plugin_windows::tests`; luna-dom-bridge.md "Plugin windows" |
 | `globalShortcut` system-wide | | works on Windows after the user allows it (`RegisterHotKey`); elsewhere shortcuts fire while the window has focus | `hotkeys.rs`; `permits_flow_tests` |
 
 ## @luna/dev
@@ -136,6 +136,7 @@ Rows above (an API family is one row), by round (2026-10-16):
 | after round 2 | 52 | 8 | 1 | 6 | 67 |
 | after round 3 | 61 | 0 | 0 | 9 | 70 |
 | after the permissions (2026-10-20) | 65 | 0 | 0 | 6 | 71 |
+| after plugin windows round 1 (2026-10-24) | 65 | 1 | 0 | 5 | 71 |
 
 The permissions (project decision, 2026-10-20) moved three refused rows to
 works once the user allows them (`MediaItem.download`, `getCredentials`,
@@ -188,8 +189,9 @@ What is left, and why (all refused on purpose):
 - **The sign-in and token endpoints** through `fetch` (the sign-in itself is
   handed over only after the user allows it).
 - **Running code or reaching the machine beyond a permission**: `dgram`, TLS
-  servers, `vm`, `worker_threads`, `inspector`, native `.node` addons, windows
-  other than the app's, heap snapshots.
+  servers, `vm`, `worker_threads`, `inspector`, native `.node` addons, heap
+  snapshots. (Windows other than the app's were refused here until plugin
+  windows round 1, 2026-10-24, made them a partial row.)
 - **Another plugin's lifecycle**: `uninstall` of a plugin other than the
   caller.
 - **TIDAL's web app, which is not here** (no browser engine):

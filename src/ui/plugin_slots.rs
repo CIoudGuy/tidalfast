@@ -1225,6 +1225,19 @@ impl Inherit {
         }
     }
 
+    /// What a plugin window's page starts from: a browser's defaults for a
+    /// document (black 16-pixel text on a white page), which the page's own
+    /// stylesheet then sets.
+    fn page(ui: &egui::Ui) -> Self {
+        Self {
+            color: Color32::BLACK,
+            back: Color32::WHITE,
+            size: 16.0,
+            weight: 400,
+            ..Self::root(ui)
+        }
+    }
+
     /// What an element appended to `body` starts from: TIDAL's body text is
     /// weight 500 (measured in TIDAL 2.43.2), and plugin text that sets no
     /// weight keeps it. In Chromium on Windows a family without a 500 cut
@@ -1470,7 +1483,8 @@ fn luminance(c: Color32) -> f32 {
 /// with the colour's own opacity. TIDAL has no light window, so this is
 /// what its plugins' colours would have been had it one.
 fn readable(text: Color32, back: Color32) -> Color32 {
-    if plugin_dom::contrast(over(text, back), back) >= 1.6 {
+    // A plugin window's page has the colours it chose, as in a browser.
+    if plugin_dom::drawing_page() || plugin_dom::contrast(over(text, back), back) >= 1.6 {
         return text;
     }
     let ink = if luminance(back) > 0.4 {
@@ -2060,6 +2074,38 @@ fn slot(
         ui.ctx().request_repaint();
     }
     Some(Rect::from_min_size(rect.min, used))
+}
+
+/// A plugin window's page (`plugin_windows.rs`): `root`, its `<html>`
+/// element, drawn into `rect` (the window's inside) as a browser draws a
+/// document, from the browser's defaults. `canvas` is the background that
+/// covers the whole window: the root's, or the body's when the root has
+/// none, as CSS gives the canvas (the caller took it off that element).
+pub fn page(ui: &mut egui::Ui, root: &VNode, canvas: &Style, rect: Rect) {
+    let vars = plugin_dom::vars();
+    let overlay = plugin_dom::overlay();
+    let none = BTreeMap::new();
+    let cx = Cx {
+        vars: &vars,
+        viewport: [rect.width(), rect.height()],
+        keyframes: overlay.as_ref().map_or(&none, |o| &o.keyframes),
+    };
+    if let Some(fill) = cx.color(&canvas.background_color) {
+        ui.painter().rect_filled(rect, 0.0, fill);
+    }
+    let idx = ui.painter().add(egui::Shape::Noop);
+    paint_background(ui, idx, rect, canvas, 0.0, &cx);
+    let mut child = ui.new_child(
+        UiBuilder::new()
+            .id_salt(("luna-page", root.id))
+            .max_rect(rect)
+            .layout(Layout::top_down(Align::Min)),
+    );
+    child.set_clip_rect(rect);
+    child.spacing_mut().item_spacing = Vec2::ZERO;
+    // The root fills the window's width, as a document's root does.
+    IN_COLUMN.with(|s| s.set(true));
+    draw(&mut child, root, Inherit::page(ui), &cx);
 }
 
 /// Positioned (`absolute`/`fixed`) plugin elements appended to anchor `key`,
@@ -3538,7 +3584,9 @@ pub fn any(key: &str) -> bool {
 fn block(tag: &str) -> bool {
     matches!(
         tag,
-        "div"
+        "html"
+            | "body"
+            | "div"
             | "p"
             | "ul"
             | "ol"
@@ -4888,9 +4936,16 @@ fn draw_box(
         style.text_align.as_deref().map(str::trim),
         Some("center" | "right" | "end")
     );
+    // In a plugin window's page every block fills its container, as in
+    // CSS; in the app a plugin's block shrinks to what it holds unless it
+    // shows a box, so it sits beside the app's own widgets.
     let width = width.or_else(|| {
         (in_column
-            && (fill.is_some() || border.is_some() || spreads || aligns)
+            && (fill.is_some()
+                || border.is_some()
+                || spreads
+                || aligns
+                || plugin_dom::drawing_page())
             && (block(&node.tag) || flex_item)
             && !display.contains("inline"))
         .then(|| {
@@ -4974,8 +5029,10 @@ fn draw_box(
     // five stars touch, up-next's title and artist lines sit one on the
     // other); other boxes keep a little room between what they hold, as
     // the spaces between inline elements give.
+    // In a plugin window's page the white space between elements is there
+    // as text, and blocks touch, as in CSS.
     let gap = cx.len(&style.gap, font, 0.0).unwrap_or(
-        if display.contains("flex") || display.contains("grid") {
+        if display.contains("flex") || display.contains("grid") || plugin_dom::drawing_page() {
             0.0
         } else if row {
             4.0
@@ -5699,6 +5756,9 @@ fn draw_box(
     }
     if node.id & MEASURE_ID == 0 {
         plugin_dom::node_drawn(node.id, rect);
+        if let Some(region) = style.app_region.as_deref() {
+            plugin_dom::app_region(rect, region.trim() == "drag");
+        }
     }
     // Absolutely positioned children sit in this element's box.
     for child in placed {
@@ -6102,7 +6162,8 @@ fn image_source(
     } else {
         markup.into()
     };
-    if luminance(back) > 0.4 && markup.trim_start().starts_with('<') {
+    if luminance(back) > 0.4 && markup.trim_start().starts_with('<') && !plugin_dom::drawing_page()
+    {
         let resolved = if markup.contains("var(") {
             css::resolve_vars(&markup, &plugin_dom::vars())
         } else {

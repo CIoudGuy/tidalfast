@@ -927,6 +927,40 @@ cycles over 20 s on Home (Luna thread, process): Cotton Candy 1365 and 1926
 before, 697 and 1346 after; Lunallena 1372 and 1969 before, 729 and 1277
 after; empty theme 529 to 551 and 1015 to 1102.
 
+## Plugin windows (2026-10-24, round 1)
+
+A plugin's `BrowserWindow` (see "Plugin windows" in `luna-dom-bridge.md`)
+is an egui deferred viewport with its page in a runtime on a thread of its
+own. Measured on Windows 11 (NVIDIA, OpenGL), debug builds with the `demo`
+feature (dependencies at opt-level 2, the app crate unoptimized), the
+build before the change against the change, interleaved, off-screen
+windows:
+
+| Measure | Before | After |
+| --- | --- | --- |
+| `--demo-bench scroll` with Luna on, CPU per frame p50 (3 runs each) | 68.25, 68.99, 65.96 ms | 71.02, 68.20, 66.23 ms |
+| Allocations a frame, p50 | 273k, 274k, 282k | 283k, 275k, 278k |
+| Idle CPU, miniplayer installed, no window open, 30 s after 60 s (2 runs) | 0.16 %, 0.16 % of a core | 0.16 %, 0.16 % |
+| Private memory then | 125, 123 MB | 127, 124 MB |
+
+With no plugin window open a frame does one atomic load more
+(`Luna::plugin_windows`) and the renderer's accessors one thread-local
+check each; the numbers above are the same within run-to-run noise.
+
+The cost of an open window (the change, miniplayer's 700x380 window):
+
+- Open and idle: no passes at all (the window repaints only when its page
+  publishes a new overlay or the user acts on it), its page's thread
+  asleep; CPU 0.16 to 0.31 % of a core for the whole process, as with no
+  window; private memory about 5 MB more, one thread more.
+- Changing (its lyrics button clicked twice a second, each click running
+  0.3 to 0.4 s of CSS transitions): 107 passes a second for the off-screen
+  window, which no vsync slows, at 2.9 ms a pass for the window's own
+  layout and shapes (mean; max 6 ms), unoptimized; the app's window makes
+  no passes for it. The process used 70 % of a core in that debug build.
+  A release build and a frame cap for plugin windows (as the app's endless
+  decorations have) are for round 2.
+
 ## Findings and decisions
 
 - **Long lists are already virtualised.** Track tables, card grids and the

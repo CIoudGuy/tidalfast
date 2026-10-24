@@ -44,6 +44,7 @@ pub mod player_bar;
 pub(crate) mod player_utility;
 pub mod plugin_dom;
 pub mod plugin_slots;
+pub mod plugin_windows;
 pub mod plugins;
 pub mod profile;
 pub mod purchases;

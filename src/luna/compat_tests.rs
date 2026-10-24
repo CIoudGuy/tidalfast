@@ -15,6 +15,8 @@ use super::*;
 mod child_flow_tests;
 #[path = "fork_tests.rs"]
 mod fork_tests;
+#[path = "page_flow_tests.rs"]
+mod page_flow_tests;
 #[path = "permits_flow_tests.rs"]
 mod permits_flow_tests;
 #[path = "wasm_tests.rs"]

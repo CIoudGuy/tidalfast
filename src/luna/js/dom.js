@@ -2605,11 +2605,13 @@
 	const body = createEl("body");
 	const wimp = createEl("div");
 	wimp._attrs.set("id", "wimp");
+	// A plugin window's page (`L.page`, src/luna/page.rs) is a plain HTML
+	// document: its body holds the page, with no app shell in it.
 	for (const [p, c] of [
 		[doc, html],
 		[html, head],
 		[html, body],
-		[body, wimp],
+		...(L.page ? [] : [[body, wimp]]),
 	]) {
 		p.childNodes.push(c);
 		c.parentNode = p;
@@ -3095,7 +3097,7 @@
 				D.reducedMotion = reduce;
 				resized = true;
 			}
-			if (typeof tree.path === "string" && (tree.path !== loc.pathname + loc.search || !synced)) {
+			if (!L.page && typeof tree.path === "string" && (tree.path !== loc.pathname + loc.search || !synced)) {
 				setPath(tree.path);
 				pageChanged = true;
 			}
@@ -3348,7 +3350,9 @@
 
 	// ---------------------------------------------------------------- overlay
 	let vnodes = new Map();
-	let vidSeq = 1;
+	// A plugin window's elements are numbered apart from the app page's
+	// (`L.page.vidBase`): the UI keys its per-element state by these ids.
+	let vidSeq = L.page?.vidBase ?? 1;
 	let lastJson = "";
 	const SKIP = new Set(["style", "script", "link", "meta", "template", "head", "title", "noscript"]);
 	const listenTypes = (n) => {
@@ -3579,7 +3583,13 @@
 				push(anchor, pos, v);
 			});
 		};
-		scan(html, "");
+		// A plugin window's page is drawn whole, from its root element, as
+		// a browser draws a document; the app page's plugin elements sit at
+		// the anchors around them.
+		if (L.page) {
+			const v = buildVNode(html, comp, null);
+			if (v) push("", "append", v);
+		} else scan(html, "");
 		for (const [key, el] of hosts) {
 			const o = {};
 			const st = comp.get(el);

@@ -19,6 +19,9 @@
 //! text STRING       type text
 //! wait MS           pause before the next line
 //! shot PATH         write a PNG of the window's frame buffer to PATH
+//! window N          play what follows in plugin window N (a plugin's
+//!                   `BrowserWindow`, by its id: 2 is the first), or in the
+//!                   app's window with `window 0`
 //! focus             from here on the window reports itself focused, as
 //!                   one the user is working in (the app and plugins then
 //!                   act as for a window in front, not in the background)
@@ -52,6 +55,8 @@ enum Step {
     Shot(PathBuf),
     Drop(egui::DroppedFileHandle),
     Focus,
+    /// What follows goes to this window (`None`: the app's).
+    Window(Option<egui::ViewportId>),
 }
 
 #[derive(Default)]
@@ -64,6 +69,9 @@ pub struct DevScript {
     shot: Option<PathBuf>,
     /// `focus` was played: the window reports itself focused.
     focus: bool,
+    /// The plugin window the script plays in (`window N`); the app's
+    /// window when `None`.
+    target: Option<egui::ViewportId>,
 }
 
 impl DevScript {
@@ -79,6 +87,24 @@ impl DevScript {
         let Some(path) = self.path.clone() else {
             return;
         };
+        // Each window's pass comes here; the script plays in its target's.
+        // A plugin window that closed hands the script back to the app's.
+        if raw.viewport_id == egui::ViewportId::ROOT
+            && self.target.is_some_and(|t| !raw.viewports.contains_key(&t))
+            && self.started
+        {
+            self.target = None;
+        }
+        let target = self.target.unwrap_or(egui::ViewportId::ROOT);
+        if raw.viewport_id != target {
+            if self.started && (!self.steps.is_empty() || self.shot.is_some() || path.exists()) {
+                ctx.request_repaint_of(target);
+            }
+            return;
+        }
+        if self.target.is_some() {
+            self.plugin_window_shot(raw);
+        }
         // The scripted window has the keyboard, as a window being typed
         // into does: egui gives text fields no input while the window is
         // unfocused, and an off-screen test window is never focused.
@@ -123,11 +149,35 @@ impl DevScript {
             Some(Step::Wait(d)) => self.resume_at = Some(Instant::now() + d),
             Some(Step::Shot(p)) => {
                 self.shot = Some(p);
-                ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
+                ctx.send_viewport_cmd_to(
+                    target,
+                    egui::ViewportCommand::Screenshot(egui::UserData::default()),
+                );
+            }
+            Some(Step::Window(id)) => {
+                self.target = id;
+                ctx.request_repaint_of(id.unwrap_or(egui::ViewportId::ROOT));
             }
             None => return,
         }
-        ctx.request_repaint();
+        ctx.request_repaint_of(target);
+    }
+
+    /// A plugin window's screenshot arrives with its input (the app's
+    /// window takes its own in [`Self::frame`]).
+    fn plugin_window_shot(&mut self, raw: &egui::RawInput) {
+        if self.shot.is_none() {
+            return;
+        }
+        let Some(image) = raw.events.iter().find_map(|e| match e {
+            egui::Event::Screenshot { image, .. } => Some(image.clone()),
+            _ => None,
+        }) else {
+            return;
+        };
+        if let Some(path) = self.shot.take() {
+            save_png(&image, &path);
+        }
     }
 
     /// Write a screenshot asked for by `shot` once it arrives (from `logic`).
@@ -153,17 +203,7 @@ impl DevScript {
             return;
         };
         let Some(path) = self.shot.take() else { return };
-        let [w, h] = [image.size[0] as u32, image.size[1] as u32];
-        let pixels: Vec<u8> = image
-            .pixels
-            .iter()
-            .flat_map(|p| p.to_srgba_unmultiplied())
-            .collect();
-        if let Some(buffer) = image::RgbaImage::from_raw(w, h, pixels)
-            && let Err(e) = buffer.save(&path)
-        {
-            log::error!("dev script: could not write {}: {e}", path.display());
-        }
+        save_png(&image, &path);
     }
 
     fn parse(&mut self, text: &str) {
@@ -289,6 +329,12 @@ impl DevScript {
                     .steps
                     .push_back(Step::Wait(Duration::from_millis(nums[0] as u64))),
                 "focus" => self.steps.push_back(Step::Focus),
+                "window" if !nums.is_empty() => {
+                    let n = nums[0] as u32;
+                    self.steps.push_back(Step::Window(
+                        (n > 0).then(|| crate::ui::plugin_windows::viewport_id(n)),
+                    ));
+                }
                 "shot" => {
                     if let Some(p) = words.next() {
                         self.steps.push_back(Step::Shot(PathBuf::from(p)));
@@ -297,6 +343,20 @@ impl DevScript {
                 _ => log::warn!("dev script: cannot read {line:?}"),
             }
         }
+    }
+}
+
+fn save_png(image: &egui::ColorImage, path: &std::path::Path) {
+    let [w, h] = [image.size[0] as u32, image.size[1] as u32];
+    let pixels: Vec<u8> = image
+        .pixels
+        .iter()
+        .flat_map(|p| p.to_srgba_unmultiplied())
+        .collect();
+    if let Some(buffer) = image::RgbaImage::from_raw(w, h, pixels)
+        && let Err(e) = buffer.save(path)
+    {
+        log::error!("dev script: could not write {}: {e}", path.display());
     }
 }
 
@@ -317,7 +377,7 @@ click 1 1",
             match step {
                 Step::Events(e) => events.extend(e),
                 Step::Wait(d) => waited += d,
-                Step::Shot(_) | Step::Drop(_) | Step::Focus => {}
+                Step::Shot(_) | Step::Drop(_) | Step::Focus | Step::Window(_) => {}
             }
         }
         assert_eq!(waited, Duration::from_millis(200));

@@ -51,6 +51,7 @@ mod onnx;
 mod onnx_run;
 #[cfg(test)]
 mod onnx_tests;
+pub mod page;
 mod permits;
 #[cfg(feature = "demo")]
 pub mod plugrec;
@@ -1078,6 +1079,8 @@ pub(crate) enum Msg {
         window: u32,
         text: Option<String>,
     },
+    /// A plugin window's page, or the user on that window (see [`page`]).
+    Page(page::FromPage),
     Shutdown,
 }
 
@@ -1092,6 +1095,8 @@ pub struct Luna {
     overlay: Arc<Mutex<Arc<dom::DomOverlay>>>,
     /// The newest host tree, for the runtime (see [`Luna::sync_dom`]).
     trees: runtime::TreeCell,
+    /// The plugins' own windows (see [`page`]).
+    pages: Arc<page::PageWindows>,
     thread: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
 }
 
@@ -1101,24 +1106,22 @@ impl Luna {
     pub fn start(config: LunaConfig, host: Arc<dyn LunaHost>) -> anyhow::Result<Luna> {
         let (tx, rx) = std::sync::mpsc::channel();
         let shared = Arc::new(Mutex::new(LunaSnapshot::default()));
-        let overlay = Arc::new(Mutex::new(Arc::new(dom::DomOverlay::default())));
-        let trees = runtime::TreeCell::default();
-        let thread = runtime::spawn(
-            config,
-            host,
-            tx.clone(),
-            rx,
-            shared.clone(),
-            overlay.clone(),
-            trees.clone(),
-        )?;
+        let views = runtime::Views::default();
+        let thread = runtime::spawn(config, host, tx.clone(), rx, shared.clone(), views.clone())?;
         Ok(Luna {
             tx,
             shared,
-            overlay,
-            trees,
+            overlay: views.overlay,
+            trees: views.trees,
+            pages: views.pages,
             thread: Arc::new(Mutex::new(Some(thread))),
         })
+    }
+
+    /// The plugins' open windows (Electron's `BrowserWindow`), for the UI
+    /// to show. Cheap while none is open: one atomic load.
+    pub fn plugin_windows(&self) -> Vec<Arc<page::PageWindow>> {
+        self.pages.all()
     }
 
     /// What plugins did to the virtual DOM, for the UI to render. Cheap:
