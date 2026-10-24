@@ -1876,17 +1876,54 @@ pub fn list_panel(ui: &egui::Ui, r: Rect) {
     if !on() {
         return;
     }
+    // A playlist's filter sits inside TIDAL's `div._items_8615603` with
+    // the list (TIDAL 2.46.0, captured: the cotton candy family's glass
+    // panel runs round both, its padding round them). The filter, drawn
+    // first, kept a paint slot under it for the panel.
+    let playlist = with(|s| {
+        s.frame
+            .page
+            .as_ref()
+            .is_some_and(|p| p.page_id.as_deref() == Some("playlist"))
+    });
+    let filter = ui
+        .data(|d| d.get_temp::<FilterSlot>(egui::Id::new(FILTER_SLOT)))
+        .filter(|f| {
+            playlist
+                && f.pass == ui.ctx().cumulative_pass_nr()
+                && f.layer == ui.layer_id()
+                && f.rect.bottom() <= r.top() + 1.0
+        });
+    let panel = match &filter {
+        Some(f) => {
+            let both = f.rect.union(r);
+            let pad = anchor_look(dom_anchors::keys::LIST_PANEL)
+                .and_then(|l| l.padding)
+                .unwrap_or([0.0; 4])
+                .map(|p| p.clamp(0.0, 32.0));
+            Rect::from_min_max(
+                both.min - egui::vec2(pad[3], pad[0]),
+                both.max + egui::vec2(pad[1], pad[2]),
+            )
+        }
+        None => r,
+    };
     note(|f| {
         if let Some(p) = f.page.as_mut() {
-            p.list_panel = rect(r);
+            p.list_panel = rect(panel);
         }
     });
-    paint_themed_box(
-        ui,
-        dom_anchors::keys::LIST_PANEL,
-        r,
-        egui::CornerRadius::ZERO,
-    );
+    match filter {
+        Some(f) => paint_box_into(ui, f.slot, dom_anchors::keys::LIST_PANEL, panel),
+        None => {
+            paint_themed_box(
+                ui,
+                dom_anchors::keys::LIST_PANEL,
+                panel,
+                egui::CornerRadius::ZERO,
+            );
+        }
+    }
     // Its child `div` sits on top of it, as in TIDAL's markup.
     paint_themed_box(
         ui,
@@ -1894,6 +1931,71 @@ pub fn list_panel(ui: &egui::Ui, r: Rect) {
         r,
         egui::CornerRadius::ZERO,
     );
+}
+
+const FILTER_SLOT: &str = "plugin-dom-filter-panel-slot";
+
+/// The paint slot a page's filter kept under itself this pass.
+#[derive(Clone, Copy)]
+struct FilterSlot {
+    pass: u64,
+    layer: egui::LayerId,
+    slot: egui::layers::ShapeIdx,
+    rect: Rect,
+}
+
+/// A page's filter field is about to be drawn in `r`: keeps a paint slot
+/// under it, which [`list_panel`] fills with the list's panel when TIDAL
+/// holds the filter in that panel (a playlist's). Call before painting
+/// the field.
+pub fn filter_panel_slot(ui: &egui::Ui, r: Rect) {
+    // Nothing kept while no theme styles the panel: the page draws as
+    // without Luna.
+    let styled = |h: &HostOverride| !h.style.is_empty() || h.before.is_some() || h.after.is_some();
+    if !on()
+        || host(dom_anchors::keys::LIST_PANEL, |h, _| {
+            styled(h).then_some(())
+        })
+        .is_none()
+    {
+        return;
+    }
+    let slot = ui.painter().add(egui::Shape::Noop);
+    let entry = FilterSlot {
+        pass: ui.ctx().cumulative_pass_nr(),
+        layer: ui.layer_id(),
+        slot,
+        rect: r,
+    };
+    ui.data_mut(|d| d.insert_temp(egui::Id::new(FILTER_SLOT), entry));
+}
+
+/// [`paint_themed_box`] for anchor `key` in `r`, laid into the paint slot
+/// `slot` kept earlier (under what was drawn since).
+fn paint_box_into(ui: &egui::Ui, slot: egui::layers::ShapeIdx, key: &str, r: Rect) {
+    let ctx = ui.ctx();
+    let layer = ui.layer_id();
+    let scratch = egui::LayerId::new(
+        layer.order,
+        egui::Id::new("plugin-dom-box-into")
+            .with(layer.id)
+            .with(key),
+    );
+    let scratch_ui = egui::Ui::new(
+        ctx.clone(),
+        scratch.id,
+        egui::UiBuilder::new().layer_id(scratch).max_rect(r),
+    );
+    paint_themed_box(&scratch_ui, key, r, egui::CornerRadius::ZERO);
+    let shapes = ctx.graphics_mut(|g| {
+        let list = g.entry(scratch);
+        let shapes: Vec<egui::Shape> = list.all_entries().map(|c| c.shape.clone()).collect();
+        for i in 0..shapes.len() {
+            list.reset_shape(egui::layers::ShapeIdx(i));
+        }
+        shapes
+    });
+    ui.painter().set(slot, egui::Shape::Vec(shapes));
 }
 
 /// A collection page's grid of cards takes `r` (all its rows): gives it
@@ -7386,6 +7488,16 @@ pub(crate) fn test_scroll_top(key: &str, top: f32) {
 #[cfg(test)]
 pub(crate) fn test_page_frame() {
     with(|s| s.frame.page = Some(dom_anchors::Page::default()));
+}
+
+#[cfg(test)]
+pub(crate) fn test_page_frame_as(id: &str) {
+    with(|s| {
+        s.frame.page = Some(dom_anchors::Page {
+            page_id: Some(id.into()),
+            ..dom_anchors::Page::default()
+        })
+    });
 }
 
 /// The track list panel noted this frame.
