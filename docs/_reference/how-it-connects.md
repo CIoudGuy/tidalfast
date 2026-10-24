@@ -45,7 +45,7 @@ and the account's store country, which goes on every catalog request.
 | Surface | Base URL | Used for |
 | --- | --- | --- |
 | Legacy v1 | `https://api.tidal.com/v1/` | Catalog, favourites, playlists, search, lyrics, pages, `playbackinfopostpaywall`, logout |
-| Internal v2 | `https://api.tidal.com/v2/` | The library (folders, favourite playlists and mixes) and Home feed |
+| Internal v2 | `https://api.tidal.com/v2/` | The library (folders, favourite playlists and mixes), Home feed, and the Feed with its count of new items |
 | OpenAPI v2 | `https://openapi.tidal.com/v2/` | `trackManifests`, the stream for Lossless; Save for Later; Upload (your uploaded releases, their tracks and details) |
 | Images | `https://resources.tidal.com/images/` and `https://images.tidal.com/` | Cover art and mix artwork |
 
@@ -53,6 +53,13 @@ Everything is plain HTTPS with `Authorization: Bearer <token>`. The responses
 are mapped into Tidalfast's own models, so the interface does not depend on
 TIDAL's JSON shapes. Home, Mixes and Radio come from TIDAL's page endpoints.
 Lyrics come from TIDAL when it has them, then from [LRCLIB](https://lrclib.net).
+
+The number on the sidebar's Feed row comes from TIDAL, asked as TIDAL's own
+app asks it: once at sign-in, every five minutes while the window shows, and
+again when the network comes back or the window is shown again after being
+minimised or closed to the tray. Nothing is asked while the window is hidden
+or in offline mode. Opening the Feed tells TIDAL it has been seen, which
+clears the number in TIDAL's apps as well.
 
 ## Playback
 

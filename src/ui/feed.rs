@@ -8,7 +8,7 @@
 
 use egui::{Color32, CornerRadius, Rect, Sense, Vec2, pos2, vec2};
 
-use crate::api::models::{Feed, FeedEntry, FeedItem, ReleaseKind, join_names, pick_image};
+use crate::api::models::{FeedEntry, FeedItem, ReleaseKind, join_names, pick_image};
 use crate::app::App;
 use crate::i18n::gettext;
 use crate::model::{Action, Loadable, Page};
@@ -81,16 +81,8 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         }
         row(app, ui, index, entry);
     }
-    // Seen now: the sidebar's dot goes; the rows keep theirs this visit.
-    mark_seen(app, &feed);
-}
-
-fn mark_seen(app: &mut App, feed: &Feed) {
-    if feed.unseen > 0
-        && let Loadable::Loaded(feed) = &mut app.feed
-    {
-        feed.unseen = 0;
-    }
+    // The rows keep their unseen marks this visit; the sidebar's counter
+    // goes once they have loaded (`App::sync_feed_seen`).
 }
 
 /// A group's heading ("This month"), or its skeleton bar.

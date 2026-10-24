@@ -377,8 +377,20 @@ pub enum ApiRequest {
     UserNames {
         ids: Vec<String>,
     },
-    /// TIDAL's Feed page.
-    Feed,
+    /// TIDAL's Feed page. `serial` numbers the Feed's requests (with
+    /// `FeedUnseen`'s), so an answer older than the Feed being seen is told
+    /// apart.
+    Feed {
+        serial: u64,
+    },
+    /// The sidebar's Feed counter: how many activities are unseen.
+    FeedUnseen {
+        serial: u64,
+    },
+    /// Tells TIDAL the Feed has been seen.
+    FeedSeen {
+        serial: u64,
+    },
     /// One of Home's other tabs by its v2 feed (`editorial`, `uploads`).
     HomeTab {
         feed: String,
@@ -698,7 +710,18 @@ pub enum ApiResponse {
     },
     /// One answer per id: a name, no public profile, or a failure.
     UserNames(ApiResult<Vec<crate::api::tidal::UserNameAnswer>>),
-    Feed(ApiResult<crate::api::models::Feed>),
+    Feed {
+        serial: u64,
+        result: ApiResult<crate::api::models::Feed>,
+    },
+    FeedUnseen {
+        serial: u64,
+        result: ApiResult<u32>,
+    },
+    FeedSeen {
+        serial: u64,
+        result: ApiResult<()>,
+    },
     HomeTab {
         feed: String,
         result: ApiResult<Vec<crate::api::models::Shelf>>,
@@ -1130,6 +1153,8 @@ pub struct Backend {
     #[cfg(test)]
     save_later_requests: Mutex<Vec<(String, bool)>>,
     #[cfg(test)]
+    feed_requests: Mutex<Vec<ApiRequest>>,
+    #[cfg(test)]
     upload_requests: Mutex<Vec<crate::upload_jobs::UploadRequest>>,
     #[cfg(test)]
     artist_block_requests: Mutex<Vec<(String, bool)>>,
@@ -1267,6 +1292,8 @@ impl Backend {
             block_requests: Mutex::new(Vec::new()),
             #[cfg(test)]
             save_later_requests: Mutex::new(Vec::new()),
+            #[cfg(test)]
+            feed_requests: Mutex::new(Vec::new()),
             #[cfg(test)]
             upload_requests: Mutex::new(Vec::new()),
             #[cfg(test)]
@@ -1432,6 +1459,11 @@ impl Backend {
             ApiRequest::SetSaveLater { uri, saved } => {
                 record(&self.save_later_requests, (uri.clone(), *saved));
             }
+            ApiRequest::Feed { .. }
+            | ApiRequest::FeedUnseen { .. }
+            | ApiRequest::FeedSeen { .. } => {
+                record(&self.feed_requests, request.clone());
+            }
             ApiRequest::Upload(request) => record(&self.upload_requests, request.clone()),
             _ => {}
         }
@@ -1467,6 +1499,11 @@ impl Backend {
     #[cfg(test)]
     pub fn take_save_later_requests(&self) -> Vec<(String, bool)> {
         take(&self.save_later_requests)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_feed_requests(&self) -> Vec<ApiRequest> {
+        take(&self.feed_requests)
     }
 
     #[cfg(test)]
@@ -3863,7 +3900,18 @@ async fn handle(api: &ApiGateway, request: ApiRequest) -> ApiResponse {
             id,
         },
         ApiRequest::UserNames { ids } => ApiResponse::UserNames(call!(user_names(&ids))),
-        ApiRequest::Feed => ApiResponse::Feed(call!(feed())),
+        ApiRequest::Feed { serial } => ApiResponse::Feed {
+            result: call!(feed()),
+            serial,
+        },
+        ApiRequest::FeedUnseen { serial } => ApiResponse::FeedUnseen {
+            result: call!(feed_unseen()),
+            serial,
+        },
+        ApiRequest::FeedSeen { serial } => ApiResponse::FeedSeen {
+            result: call!(mark_feed_seen()),
+            serial,
+        },
         ApiRequest::HomeTab { feed } => ApiResponse::HomeTab {
             result: call!(home_tab(&feed)),
             feed,

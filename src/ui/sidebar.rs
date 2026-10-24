@@ -1360,13 +1360,10 @@ fn nav_label<'a>(test: &str, native: std::borrow::Cow<'a, str>) -> std::borrow::
     written.map_or(native, std::borrow::Cow::Owned)
 }
 
-/// TIDAL's Feed row (a bell), with a dot while the Feed holds releases
-/// TIDAL has not shown yet. The Feed is read once at start for the dot.
+/// TIDAL's Feed row (a bell) with its counter: how many Feed activities
+/// the account has not seen, which `App::poll_feed_badge` keeps (TIDAL
+/// 2.46.0's `feed.unseenFeedItemsCount`). At 0 there is no counter.
 fn feed_row(app: &mut App, ui: &mut egui::Ui, palette: &Palette, page: &Page, rail: bool) {
-    if matches!(app.feed, Loadable::NotLoaded) && app.network_reachable && app.is_connected() {
-        app.feed = Loadable::Loading;
-        app.backend.api(crate::backend::ApiRequest::Feed);
-    }
     let label = gettext(app.locale, "Feed");
     let response = if rail {
         rail_button(ui, palette, Icon::Bell, *page == Page::Feed).on_hover_text(label.as_ref())
@@ -1382,25 +1379,83 @@ fn feed_row(app: &mut App, ui: &mut egui::Ui, palette: &Palette, page: &Page, ra
             false,
         )
     };
-    if let Loadable::Loaded(feed) = &app.feed
-        && feed.unseen > 0
-        && *page != Page::Feed
-        && (rail
-            || super::plugin_dom::shown(&crate::luna::dom_anchors::keys::sidebar_item(
-                "sidebar-feed",
-            )) == super::plugin_dom::Shown::Drawn)
-    {
-        // TIDAL's unread dot on the bell's shoulder.
-        let bell = if rail {
-            response.rect.center()
+    let count = app.feed_unseen();
+    if count > 0 {
+        if rail {
+            feed_dot(ui, response.rect);
         } else {
-            pos2(response.rect.left() + 16.0 + 20.0, response.rect.center().y)
-        };
-        ui.painter()
-            .circle_filled(bell + vec2(6.0, -6.0), 3.5, palette.accent);
+            // The row's pill, as `nav_row` lays it out.
+            let row = response.rect.shrink2(vec2(16.0, 0.0));
+            feed_counter(ui, row, count);
+        }
     }
     if response.clicked() {
         app.actions.push(Action::Open(Page::Feed));
+    }
+}
+
+/// TIDAL's `--market-core-critical-fill-color`, the counter's fill
+/// (measured on TIDAL 2.46.0: rgb(204, 0, 35)).
+const FEED_COUNTER_FILL: egui::Color32 = egui::Color32::from_rgb(204, 0, 35);
+
+/// The counter on the Feed row's pill `row`, as TIDAL 2.46.0 draws
+/// `span._badgeCounter_bd84d2f`: an 18-point pill (at least 18 wide, 4 of
+/// padding either side of the number) 8 in from the row's right end and
+/// centred on it, the number white in 12-point regular on TIDAL's critical
+/// red. A theme's look for the span and words a plugin writes over it are
+/// drawn; a plugin that hides it (or the row) hides it.
+fn feed_counter(ui: &mut egui::Ui, row: Rect, count: u32) {
+    use crate::luna::dom_anchors::keys;
+    let row_shown = super::plugin_dom::shown(&keys::sidebar_item("sidebar-feed"));
+    if row.height() <= 0.0 || row_shown != super::plugin_dom::Shown::Drawn {
+        return;
+    }
+    let native = count.to_string();
+    let text = super::plugin_dom::text(keys::FEED_COUNTER, &native).into_owned();
+    let font = theme::regular(12.0);
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text, font, egui::Color32::WHITE);
+    let width = (galley.size().x + 8.0).max(18.0);
+    let rect = Rect::from_min_size(
+        pos2(row.right() - 8.0 - width, row.center().y - 9.0),
+        vec2(width, 18.0),
+    );
+    super::plugin_dom::note(|f| {
+        f.sidebar.feed_counter = Some(crate::luna::dom_anchors::FeedCounter {
+            text: native,
+            rect: super::plugin_dom::rect(rect),
+        });
+    });
+    if super::plugin_dom::shown(keys::FEED_COUNTER) != super::plugin_dom::Shown::Drawn
+        || !ui.is_rect_visible(rect)
+    {
+        return;
+    }
+    let look = super::plugin_dom::paint_part(
+        ui,
+        keys::FEED_COUNTER,
+        rect,
+        CornerRadius::same(9),
+        FEED_COUNTER_FILL,
+    );
+    let ink =
+        super::plugin_dom::look_text(keys::FEED_COUNTER, look.as_deref(), egui::Color32::WHITE);
+    let at = rect.center() - galley.size() / 2.0;
+    ui.painter()
+        .galley_with_override_text_color(at, galley, ink);
+}
+
+/// The counter in the narrowed sidebar (TIDAL's `_collapsed_f4061d3`): a
+/// 6-point dot with no number, 9 in from the button's top and right.
+fn feed_dot(ui: &mut egui::Ui, button: Rect) {
+    let dot = Rect::from_min_size(
+        pos2(button.right() - 9.0 - 6.0, button.top() + 9.0),
+        Vec2::splat(6.0),
+    );
+    if ui.is_rect_visible(dot) {
+        ui.painter()
+            .circle_filled(dot.center(), 3.0, FEED_COUNTER_FILL);
     }
 }
 
@@ -4109,5 +4164,217 @@ mod nav_label_tests {
             _ => false,
         });
         assert!(tinted, "the chevron in the theme's fill");
+    }
+}
+
+#[cfg(test)]
+mod feed_counter_tests {
+    use super::*;
+    use crate::luna::dom::{DomOverlay, HostOverride, Style};
+    use crate::luna::dom_anchors::keys;
+
+    fn app(name: &str, count: u32) -> App {
+        let root = crate::paths::unique_test_dir(&format!("feed-counter-{name}"));
+        let mut app = App::new(
+            &crate::backend::Waker::default(),
+            crate::paths::AppDirs {
+                config: root.join("config"),
+                state: root.join("state"),
+                cache: root.join("cache"),
+            },
+            crate::settings::Settings::default(),
+            crate::app::AppOptions {
+                media_controls: false,
+                restore_sign_in: false,
+                tray: false,
+            },
+        );
+        app.backend.set_offline(true);
+        let serial = app.feed_badge.feed_requested();
+        app.feed_badge.feed_answered(serial, Some(count));
+        app
+    }
+
+    /// One frame of the Feed row in a sidebar `width` wide: its shapes.
+    fn feed_frame(app: &mut App, width: f32, rail: bool) -> Vec<egui::Shape> {
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        let mut out = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(width, 40.0))),
+                ..Default::default()
+            },
+            |ui| {
+                ui.spacing_mut().item_spacing = Vec2::ZERO;
+                feed_row(app, ui, &Palette::dark(), &Page::Home, rail);
+            },
+        );
+        out.textures_delta.clear();
+        fn flat(shape: &egui::Shape, into: &mut Vec<egui::Shape>) {
+            match shape {
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| flat(s, into)),
+                other => into.push(other.clone()),
+            }
+        }
+        let mut shapes = Vec::new();
+        for clipped in &out.shapes {
+            flat(&clipped.shape, &mut shapes);
+        }
+        shapes
+    }
+
+    fn counter_pill(shapes: &[egui::Shape]) -> Option<egui::epaint::RectShape> {
+        shapes.iter().find_map(|shape| match shape {
+            egui::Shape::Rect(r) if r.fill == FEED_COUNTER_FILL => Some(r.clone()),
+            _ => None,
+        })
+    }
+
+    fn text<'a>(shapes: &'a [egui::Shape], words: &str) -> Option<&'a egui::epaint::TextShape> {
+        shapes.iter().find_map(|shape| match shape {
+            egui::Shape::Text(t) if t.galley.job.text == words => Some(t),
+            _ => None,
+        })
+    }
+
+    /// TIDAL 2.46.0 at 1440 x 900: the Feed row 208 x 40 at 16, its
+    /// counter 18 x 18, 8 in from the row's right end and centred on it,
+    /// rgb(204, 0, 35) with the number white; nothing at 0.
+    #[test]
+    fn the_feed_row_draws_tidals_counter_with_the_number_and_none_at_zero() {
+        let mut app = app("one", 1);
+        let shapes = feed_frame(&mut app, 240.0, false);
+        let pill = counter_pill(&shapes).expect("the counter's pill");
+        assert_eq!(
+            pill.rect,
+            Rect::from_min_size(pos2(198.0, 11.0), vec2(18.0, 18.0))
+        );
+        assert_eq!(pill.corner_radius, CornerRadius::same(9));
+        let number = text(&shapes, "1").expect("the number");
+        let at = number.galley.rect.translate(number.pos.to_vec2()).center();
+        assert!((at.x - pill.rect.center().x).abs() < 1.0, "{at:?}");
+        assert!((at.y - pill.rect.center().y).abs() < 2.0, "{at:?}");
+        assert_eq!(number.override_text_color, Some(egui::Color32::WHITE));
+        assert_eq!(
+            number.galley.job.sections[0].format.font_id,
+            theme::regular(12.0)
+        );
+        app.backend.shutdown();
+
+        // More than one digit widens the pill to the left.
+        let mut app = super::feed_counter_tests::app("many", 128);
+        let shapes = feed_frame(&mut app, 240.0, false);
+        let pill = counter_pill(&shapes).expect("the counter's pill");
+        assert_eq!(pill.rect.right(), 216.0);
+        assert!(pill.rect.width() > 18.0, "{:?}", pill.rect);
+        assert!(text(&shapes, "128").is_some());
+        app.backend.shutdown();
+
+        let mut app = super::feed_counter_tests::app("none", 0);
+        let shapes = feed_frame(&mut app, 240.0, false);
+        assert!(counter_pill(&shapes).is_none(), "no counter at 0");
+        assert!(text(&shapes, "0").is_none());
+        app.backend.shutdown();
+    }
+
+    /// The narrowed sidebar's counter (`_collapsed_f4061d3`): a 6-point dot,
+    /// no number, 9 in from the button's top and right.
+    #[test]
+    fn the_rails_feed_button_has_tidals_dot() {
+        let mut app = app("rail", 3);
+        let shapes = feed_frame(&mut app, RAIL_WIDTH, true);
+        let dot = shapes
+            .iter()
+            .find_map(|shape| match shape {
+                egui::Shape::Circle(c) if c.fill == FEED_COUNTER_FILL => Some(*c),
+                _ => None,
+            })
+            .expect("the dot");
+        let button =
+            Rect::from_center_size(pos2(RAIL_WIDTH / 2.0, 20.0), vec2(RAIL_BUTTON_WIDTH, 40.0));
+        assert_eq!(dot.radius, 3.0);
+        assert_eq!(dot.center, pos2(button.right() - 12.0, button.top() + 12.0));
+        assert!(text(&shapes, "3").is_none(), "no number in the dot");
+        app.backend.shutdown();
+        let mut app = super::feed_counter_tests::app("rail-none", 0);
+        let shapes = feed_frame(&mut app, RAIL_WIDTH, true);
+        assert!(
+            !shapes.iter().any(
+                |shape| matches!(shape, egui::Shape::Circle(c) if c.fill == FEED_COUNTER_FILL)
+            )
+        );
+        app.backend.shutdown();
+    }
+
+    /// The counter is TIDAL's span to plugins: noted where it is drawn with
+    /// its number; words a plugin writes over it are drawn, a theme's fill
+    /// for `._badgeCounter_` paints it, and hiding it (element-hider) hides
+    /// it.
+    #[test]
+    fn plugins_see_the_counter_and_their_rules_reach_it() {
+        // Each overlay its own version: a theme's looks are read once per
+        // version.
+        let overlay = |version: u64, style: Style, text: Option<&str>| {
+            let mut overlay = DomOverlay {
+                version,
+                ..DomOverlay::default()
+            };
+            overlay.hosts.insert(
+                keys::FEED_COUNTER.into(),
+                HostOverride {
+                    style,
+                    text: text.map(str::to_string),
+                    ..HostOverride::default()
+                },
+            );
+            overlay
+        };
+        let mut app = app("plugins", 2);
+        super::super::plugin_dom::test_overlay(Some(overlay(7, Style::default(), Some("2 new"))));
+        let shapes = feed_frame(&mut app, 240.0, false);
+        let noted = super::super::plugin_dom::test_feed_counter().expect("noted");
+        assert_eq!(noted.text, "2", "the span's own text is the number");
+        let pill = counter_pill(&shapes).expect("drawn");
+        assert_eq!(
+            noted.rect,
+            Some([
+                pill.rect.left(),
+                pill.rect.top(),
+                pill.rect.width(),
+                pill.rect.height()
+            ])
+        );
+        assert!(text(&shapes, "2 new").is_some(), "the plugin's words");
+
+        let green = egui::Color32::from_rgb(10, 200, 100);
+        super::super::plugin_dom::test_overlay(Some(overlay(
+            8,
+            Style {
+                background_color: Some("rgb(10, 200, 100)".into()),
+                ..Style::default()
+            },
+            None,
+        )));
+        let shapes = feed_frame(&mut app, 240.0, false);
+        assert!(
+            shapes
+                .iter()
+                .any(|shape| matches!(shape, egui::Shape::Rect(r) if r.fill == green)),
+            "the theme's fill"
+        );
+
+        super::super::plugin_dom::test_overlay(Some(overlay(
+            9,
+            Style {
+                display: Some("none".into()),
+                ..Style::default()
+            },
+            None,
+        )));
+        let shapes = feed_frame(&mut app, 240.0, false);
+        assert!(counter_pill(&shapes).is_none(), "hidden");
+        assert!(text(&shapes, "2").is_none());
+        super::super::plugin_dom::test_overlay(None);
+        app.backend.shutdown();
     }
 }

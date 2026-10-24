@@ -1267,3 +1267,111 @@ async fn playlist_recommendations_are_a_page_of_tracks_with_the_total() {
         seen[0]
     );
 }
+
+/// TIDAL 2.46.0's `checkFeedUpdates`: `GET feed/activities?userId=&limit=9`
+/// on the v2 gateway, read for `stats.totalNotSeenActivities` alone.
+#[tokio::test]
+async fn the_feed_counter_asks_for_nine_activities_and_reads_the_unseen_count() {
+    let (base, seen) = script(vec![
+        reply(
+            "200 OK",
+            "",
+            r#"{"activities":[{"followableActivity":{"activityType":"NEW_ALBUM_RELEASE"},"seen":false}],"stats":{"totalNotSeenActivities":2}}"#,
+        ),
+        reply("200 OK", "", r#"{"activities":[]}"#),
+    ])
+    .await;
+    let client = client(&base, refresher());
+    assert_eq!(client.feed_unseen().await.unwrap(), 2);
+    // No stats is none unseen (TIDAL's `?? 0`).
+    assert_eq!(client.feed_unseen().await.unwrap(), 0);
+    let seen = seen.lock().unwrap();
+    assert!(
+        seen[0].starts_with(
+            "GET /feed/activities?countryCode=US&userId=42&limit=9&deviceType=BROWSER&locale=en_US "
+        ),
+        "{}",
+        seen[0]
+    );
+}
+
+/// TIDAL 2.46.0's `hasSeenFeed`: `PUT feed/activities/seen?userId=` with
+/// no body; an empty answer is the success, a refusal an error.
+#[tokio::test]
+async fn the_feed_is_marked_seen_with_a_put_and_a_refusal_is_an_error() {
+    let (base, seen) = script(vec![
+        "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n".to_string(),
+        reply(
+            "403 Forbidden",
+            "",
+            r#"{"status":403,"subStatus":1002,"userMessage":"no"}"#,
+        ),
+    ])
+    .await;
+    let client = client(&base, refresher());
+    client.mark_feed_seen().await.unwrap();
+    let refused = client.mark_feed_seen().await.unwrap_err();
+    assert_eq!(refused.status(), Some(403));
+    let seen = seen.lock().unwrap();
+    assert!(
+        seen[0].starts_with(
+            "PUT /feed/activities/seen?countryCode=US&userId=42&deviceType=BROWSER&locale=en_US "
+        ),
+        "{}",
+        seen[0]
+    );
+    assert_eq!(seen.len(), 2, "a write is sent once, never retried");
+}
+
+/// The Feed counter's requests run while nothing on screen waits for them:
+/// unlike the Feed page's own read, they never hold up the "Waiting for
+/// TIDAL" spinner.
+#[tokio::test]
+async fn the_feed_counters_requests_never_show_as_activity() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let (arrived_tx, mut arrived) = tokio::sync::mpsc::unbounded_channel::<()>();
+    let (release_tx, mut release) = tokio::sync::mpsc::unbounded_channel::<()>();
+    tokio::spawn(async move {
+        for _ in 0..3 {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = vec![0u8; 16 * 1024];
+            let _ = socket.read(&mut buffer).await.unwrap();
+            arrived_tx.send(()).unwrap();
+            release.recv().await;
+            let body = r#"{"activities":[],"stats":{"totalNotSeenActivities":1}}"#;
+            socket
+                .write_all(reply("200 OK", "", body).as_bytes())
+                .await
+                .unwrap();
+            let _ = socket.shutdown().await;
+        }
+    });
+    let client = Arc::new(client(&base, refresher()));
+    let busy = |client: &TidalClient| client.activity.busy(Duration::ZERO);
+    let page = tokio::spawn({
+        let client = client.clone();
+        async move { client.feed().await }
+    });
+    arrived.recv().await;
+    assert!(busy(&client), "the page's read is activity");
+    release_tx.send(()).unwrap();
+    assert_eq!(page.await.unwrap().unwrap().unseen, 1);
+    let check = tokio::spawn({
+        let client = client.clone();
+        async move { client.feed_unseen().await }
+    });
+    arrived.recv().await;
+    assert!(!busy(&client), "the counter's check is not");
+    release_tx.send(()).unwrap();
+    assert_eq!(check.await.unwrap().unwrap(), 1);
+    let seen = tokio::spawn({
+        let client = client.clone();
+        async move { client.mark_feed_seen().await }
+    });
+    arrived.recv().await;
+    assert!(!busy(&client), "nor is telling TIDAL it was seen");
+    release_tx.send(()).unwrap();
+    seen.await.unwrap().unwrap();
+}
