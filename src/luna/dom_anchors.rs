@@ -3905,9 +3905,22 @@ pub fn context_menu(out: &mut Vec<HostNode>, menu: &ContextMenu) {
                 .attr("aria-disabled", "true");
         }
         out.push(node);
-        let mut link = el(format!("{row}:a"), Some(&row), "a")
-            .modules(&["actionText"])
-            .at(item.rect);
+        // TIDAL 2.46.0's entries are `button._actionText_d77b98b`, except
+        // the ones that open a page, links (`a._actionTextLink_faf5191.
+        // _actionText_d77b98b._link_6a45a19[data-test=track-radio]`):
+        // a theme's rules for `button` or `a` reach them as in TIDAL.
+        let opens_page = item.playlist.is_none() && item.action == "track-radio";
+        let mut link = if opens_page {
+            el(format!("{row}:a"), Some(&row), "a")
+                .class("_actionTextLink_faf5191")
+                .class("_actionText_d77b98b")
+                .class("_link_6a45a19")
+        } else {
+            el(format!("{row}:a"), Some(&row), "button")
+                .class("_actionText_d77b98b")
+                .attr("type", "button")
+        }
+        .at(item.rect);
         link = match &item.playlist {
             Some(uuid) => link
                 .attr("data-track--playlist-uuid", uuid.clone())
