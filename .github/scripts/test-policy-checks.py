@@ -84,6 +84,41 @@ winit = { version = "0.30", registry = "mirror" }
         found = sources.problems({"Cargo.toml": manifest})
         self.assertEqual(len(found), 3)
 
+    def test_the_repositorys_own_owner_passes_and_no_other_owner(self):
+        manifest = '[patch.crates-io]\negui = { git = "https://github.com/CIoudGuy/egui", rev = "abc" }\n'
+        lock = LOCK.format(source="git+https://github.com/CIoudGuy/egui?rev=abc#abc")
+        files = {"Cargo.toml": manifest, "Cargo.lock": lock}
+        self.assertEqual(sources.problems(files, sources.allowed_owners("CIoudGuy")), [])
+        self.assertEqual(flagged(sources.problems(files)), ["Cargo.lock", "Cargo.toml"])
+        self.assertEqual(
+            flagged(sources.problems(files, sources.allowed_owners("dennisgr7"))), ["Cargo.lock", "Cargo.toml"]
+        )
+        for url in (
+            "https://github.com/CIoudGuy-fork/egui",
+            "https://github.com/CIoudGuy/../dennisgr7/egui",
+            "https://gitlab.com/CIoudGuy/egui",
+            "http://github.com/CIoudGuy/egui",
+        ):
+            found = sources.problems(
+                {"Cargo.toml": f'[dependencies]\negui = {{ git = "{url}" }}\n'}, sources.allowed_owners("CIoudGuy")
+            )
+            self.assertEqual(flagged(found), ["Cargo.toml"], url)
+
+    def test_the_owner_comes_from_github_repository_then_origin_then_the_first_remote(self):
+        remotes = [
+            ("backup", "https://github.com/CIoudGuy/tidalfast-dev.git"),
+            ("upstream", "https://github.com/crmne/fastframe"),
+        ]
+        self.assertEqual(sources.repository_owner({"GITHUB_REPOSITORY": "crmne/tidalfast"}, remotes), "crmne")
+        self.assertEqual(sources.repository_owner({}, remotes), "CIoudGuy")
+        origin = ("origin", "git@github.com:someone/tidalfast.git")
+        self.assertEqual(sources.repository_owner({}, [*remotes, origin]), "someone")
+        self.assertEqual(sources.repository_owner({}, [("origin", "ssh://git@github.com/someone/tidalfast")]), "someone")
+        self.assertIsNone(sources.repository_owner({}, [("origin", "https://gitlab.com/someone/tidalfast")]))
+        self.assertIsNone(sources.repository_owner({}, []))
+        self.assertEqual(sources.allowed_owners(None), ("crmne",))
+        self.assertEqual(sources.allowed_owners("crmne"), ("crmne",))
+
     def test_other_registries_and_source_replacement_fail(self):
         lock = LOCK.format(source="registry+https://example.com/index")
         config = '[source.crates-io]\nreplace-with = "mirror"\n\n[source.mirror]\nregistry = "https://example.com/index"\n'
