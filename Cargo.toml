@@ -323,19 +323,24 @@ opt-level = 2
 # see-through plugin windows need: ViewportBuilder options that leave out
 # the border, rounded corners and shadow Windows 11 draws around a frameless
 # window, and eframe's NativeOptions::transparent_viewports, a GL config with
-# alpha so that see-through child windows also work on X11 and macOS. Every
-# egui crate comes from the same revision so they share one emath and
-# epaint. Move to crmne/egui again once it carries these changes.
-ecolor = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
-eframe = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
-egui = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
-egui-wgpu = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
-egui-winit = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
-egui_extras = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
-egui_glow = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
-emath = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
-epaint = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
-epaint_default_fonts = { git = "https://github.com/CIoudGuy/egui", rev = "466a177aff068fdf08786852ca77023387467472" }
+# alpha so that see-through child windows also work on X11 and macOS. It
+# also makes frames cheaper and text closer to TIDAL's: on Windows eframe
+# makes the GL context current only when another window's surface is
+# (emilk/egui#4173), egui_glow uploads a frame's meshes in one buffer upload
+# each, and FontColorTransferFunction::PerColor adjusts glyph coverage per
+# text colour in egui_glow's shader, as Chromium's Skia does. Every egui
+# crate comes from the same revision so they share one emath and epaint.
+# Move to crmne/egui again once it carries these changes.
+ecolor = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
+eframe = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
+egui = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
+egui-wgpu = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
+egui-winit = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
+egui_extras = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
+egui_glow = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
+emath = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
+epaint = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
+epaint_default_fonts = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
 # crmne/winit apps-0.30, shared with the same apps: winit 0.30.13 plus Wayland
 # `Occluded` for the xdg-shell suspended state with commits on the app's behalf
 # while it isn't presenting (rust-windowing/winit#4709, #4710), macOS Quit
