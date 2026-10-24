@@ -2569,6 +2569,69 @@ themes and no theme): 1375 over 51714 (97.34 %) at the start (round 37's checker
 
 Open (the checker's largest groups now): TIDAL's own rule that outranks a theme's for the header search field (`blur(20px) saturate(1.8)` and `box-shadow: none`; adding it to the cascade would give every window with Luna on a GPU pass under the search pill, so not done); a playlist's track list markup (TIDAL 2.46.0 wraps the list in `div[role=table]` and the first rows' slots differ from an album's `_nativeRowWrapper_`: the family's `._items_ ._tableContainer_ { translateY(-1.6em) }` and its first row's line); lines one side only on the sidebar, bar and header under Mocha Blue; Giorgeous' queue button corners. Light-scheme themes and `:hover` are still compared in the dark scheme and at rest only.
 
+### Round 39 (a pixel comparison, and the queue's words, 2026-10-24)
+
+The parity checker gained a second report: a pixel comparison. Each
+theme's Chromium replay of TIDAL 2.46.0's captured pages is screenshot and
+compared with Tidalfast's demo shot of the same page and theme, both
+2137x1183 at scale 1. A pixel differs when no pixel of Tidalfast's shot
+within 1 px of it is within 12 levels of it, so sub-pixel placement is not
+counted and a box, fill, border, shadow, gradient or icon that differs is.
+TIDAL's window draws TidaLuna's 30 px title bar inside the page, so the
+parts above TIDAL's player bar are compared 30 px lower there (checked on
+a real TIDAL screenshot), and the two context menus, which open where the
+pointer was, are compared aligned on their own corners. Left out on
+either side: words (the capture's account data against the demo's, and
+TIDAL's Square Sans, which is not available offline; the replay draws its
+families in Tidalfast's own face so that the boxes words size match),
+pictures (the capture holds none), the queue's rows and the bar's
+progress (data), and boxes running an endless animation (one frame each
+side). Eleven themes whose whole page animates (cc-calavera, eight of the
+cotton candy nights colourways, astronaut ice cream and its adaptive
+variant) are not pixel-compared yet.
+
+First numbers (dark-compared themes and no theme): 10.89 % of 227 million
+compared pixels differ; 14.42 % of the pixels a theme changes on either
+side. No theme: 1.97 %. Largest: page background gradients (Sugarcoat
+43.6 %, Fairy Floss 41.3 %, TidalCustomTheme 33.5 %, Sunken Tidal 27.4 %),
+then the sidebar's rows, the track rows and the collection grid.
+
+The style checker, re-run on egui 0.36.2, gave the plugin rounds' report
+item for item (779 differences over 76,986 anchor elements, 98.99 %). The
+items the queue's own rows added were real:
+
+- **The queue's rows sit in TIDAL's items container.** TIDAL 2.46.0's
+  queue list is inside `div._playQueueItemsContainer_01c88fe
+  [data-test=playqueue]`; Tidalfast's list sat beside it, so a theme's
+  rules nested under the container (the cotton candy family's 94 %,
+  weight 600 titles and artist lines, 95 % artist links) never reached the
+  rows. The queue now paints the size and weight a theme gives a row's
+  title and artist line; without one it keeps its own fonts.
+- **A radial gradient's stop position written against its colour
+  counts.** `rgb(85, 50, 103, .02)70%` is a colour at 70 %, as CSS
+  tokenises it (the cotton candy family's page backgrounds stack radials
+  written that way); the position was lost and the stop ran to the edge.
+
+Totals: 779 to 487 style differences (99.37 %); pixels 10.89 % to 10.96 %
+(the radial fix moves some themes' stacked gradients closer and others
+further, their other differences now showing). No-theme shots are
+pixel-identical before and after.
+
+Hover is compared on three pages (a track row, a navigation row, the Play
+pill), with TIDAL's element forced into `:hover`: 99.17 % of style
+properties agree, but inside the hovered part 60 to 88 % of pixels differ,
+with no theme too, which needs a capture of a real hovered part in TIDAL
+before anything is changed. Light-scheme themes are still compared in the
+dark scheme only: a light comparison needs a light-scheme capture of TIDAL
+(its own light-mode rules depend on an attribute its script sets).
+
+Open: page background gradients against Chromium's (colour interpolation
+and sizing of stacked radials); the selector engine matching a module
+class whatever its hash, so the cotton candy family's
+`._cellContainer_182d240` (TIDAL's queue cell) also rounds the queue
+cover, another TIDAL module of the same name; TIDAL's queue wrapper is the
+panel's parent, Tidalfast's its child.
+
 ### Round 28 (plugins in use, 2026-10-23)
 
 Sixteen popular plugins (Tidal Tags, tidal-genres, total-play-time,
