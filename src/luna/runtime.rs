@@ -1329,6 +1329,9 @@ fn op_sync_inner(inner: &S, who: &Who, name: &str, a: &Value) -> Result<Value, S
     match name {
         // The most memory plugins' JS may use in all (`v8.getHeapStatistics`).
         "heap.limit" => Ok(json!(inner.borrow().cfg.memory_limit)),
+        // The displays, the app window's among them (`electron.screen`,
+        // `window.screen`, `devicePixelRatio`).
+        "screen" => Ok(super::screen::op(None)),
         // The system's resolvers, for `dns.getServers`.
         "dns.servers" => Ok(json!(
             super::dnsq::system_servers()
@@ -5042,6 +5045,7 @@ impl Engine {
             }
             Msg::Hidden(hidden) => self.host_call("visibility", json!({ "hidden": hidden })),
             Msg::Focused(focused) => self.host_call("focus", json!({ "focused": focused })),
+            Msg::Screens => self.host_call("screen", Value::Null),
             Msg::Editor { window, text } => self.host_call(
                 "editor",
                 json!({ "window": window, "closed": text.is_none(), "text": text }),

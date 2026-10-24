@@ -3059,8 +3059,71 @@
 			return {};
 		}
 	};
+	// Electron's `screen`: the computer's displays as the UI last saw them
+	// (op `screen`, DIPs), the primary first.
+	const screenNow = () => {
+		try {
+			return callOp("screen", null) ?? {};
+		} catch {
+			return {};
+		}
+	};
 	const rect = { x: 0, y: 0, width: 1920, height: 1080 };
-	const display = { id: 1, bounds: rect, workArea: rect, size: { width: 1920, height: 1080 }, workAreaSize: { width: 1920, height: 1040 }, scaleFactor: 1, rotation: 0, internal: true, touchSupport: "unknown", monochrome: false, accelerometerSupport: "unknown", colorDepth: 24, colorSpace: "", depthPerComponent: 8, displayFrequency: 60, label: "Display" };
+	const oneDisplay = { id: 1, label: "Display", bounds: rect, workArea: rect, size: { width: 1920, height: 1080 }, workAreaSize: { width: 1920, height: 1080 }, scaleFactor: 1, rotation: 0, internal: false, detected: true, touchSupport: "unknown", monochrome: false, accelerometerSupport: "unknown", colorDepth: 24, colorSpace: "", depthPerComponent: 8, displayFrequency: 60, nativeOrigin: { x: 0, y: 0 }, maximumCursorSize: { width: 0, height: 0 } };
+	// The displays plugins were last given, to tell them what changed.
+	let displaysSeen = null;
+	const displays = () => {
+		const all = screenNow().displays;
+		displaysSeen = Array.isArray(all) && all.length ? all : [oneDisplay];
+		return displaysSeen.map((d) => structuredClone(d));
+	};
+	const inRect = (r, p) => p.x >= r.x && p.y >= r.y && p.x < r.x + r.width && p.y < r.y + r.height;
+	const distance = (r, p) => Math.hypot(Math.max(r.x - p.x, 0, p.x - (r.x + r.width)), Math.max(r.y - p.y, 0, p.y - (r.y + r.height)));
+	const nearest = (p) => {
+		const all = displays();
+		return all.find((d) => inRect(d.bounds, p)) ?? all.reduce((a, b) => (distance(b.bounds, p) < distance(a.bounds, p) ? b : a));
+	};
+	const overlap = (a, b) => Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+	const electronScreen = Object.assign(new EventEmitter(), {
+		getPrimaryDisplay: () => displays()[0],
+		getAllDisplays: () => displays(),
+		getDisplayNearestPoint: (p) => nearest({ x: Number(p?.x) || 0, y: Number(p?.y) || 0 }),
+		// The display the rectangle overlaps most, else the one nearest its middle.
+		getDisplayMatching: (r) => {
+			const box = { x: Number(r?.x) || 0, y: Number(r?.y) || 0, width: Number(r?.width) || 0, height: Number(r?.height) || 0 };
+			const all = displays();
+			const best = all.reduce((a, b) => (overlap(b.bounds, box) > overlap(a.bounds, box) ? b : a));
+			return overlap(best.bounds, box) > 0 ? best : nearest({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+		},
+		getCursorScreenPoint: () => ({ x: 0, y: 0 }),
+		// Physical pixels to DIPs and back, on the display that holds the point.
+		screenToDipPoint: (p) => {
+			const d = displays().find((d) => inRect({ ...d.nativeOrigin, width: d.size.width * d.scaleFactor, height: d.size.height * d.scaleFactor }, p));
+			return d ? { x: d.bounds.x + (p.x - d.nativeOrigin.x) / d.scaleFactor, y: d.bounds.y + (p.y - d.nativeOrigin.y) / d.scaleFactor } : { x: p.x, y: p.y };
+		},
+		dipToScreenPoint: (p) => {
+			const d = displays().find((d) => inRect(d.bounds, p));
+			return d ? { x: d.nativeOrigin.x + (p.x - d.bounds.x) * d.scaleFactor, y: d.nativeOrigin.y + (p.y - d.bounds.y) * d.scaleFactor } : { x: p.x, y: p.y };
+		},
+	});
+	// The monitors changed (the UI noticed): what plugins were given before
+	// against what there is now, as Electron reports it.
+	L.node.screenChanged = () => {
+		const before = displaysSeen;
+		if (!before) return;
+		const now = displays();
+		const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+		for (const d of before) if (!now.some((n) => n.id === d.id)) electronScreen.emit("display-removed", {}, structuredClone(d));
+		for (const d of now) {
+			const was = before.find((b) => b.id === d.id);
+			if (!was) {
+				electronScreen.emit("display-added", {}, d);
+				continue;
+			}
+			const changed = [["bounds", "bounds"], ["workArea", "workArea"], ["scaleFactor", "scaleFactor"], ["rotation", "rotation"]].filter(([k]) => !same(was[k], d[k])).map(([, name]) => name);
+			if (changed.length) electronScreen.emit("display-metrics-changed", {}, d, changed);
+		}
+	};
 	class WebContents extends EventEmitter {
 		constructor(id) {
 			super();
@@ -4154,7 +4217,7 @@
 		MenuItem,
 		Tray,
 		nativeImage,
-		screen: Object.assign(new EventEmitter(), { getPrimaryDisplay: () => display, getAllDisplays: () => [display], getDisplayNearestPoint: () => display, getDisplayMatching: () => display, getCursorScreenPoint: () => ({ x: 0, y: 0 }), screenToDipPoint: (p) => p, dipToScreenPoint: (p) => p }),
+		screen: electronScreen,
 		powerMonitor: Object.assign(new EventEmitter(), { getSystemIdleState: () => "active", getSystemIdleTime: () => 0, isOnBatteryPower: () => false, onBatteryPower: false }),
 		powerSaveBlocker: { start: () => 0, stop() {}, isStarted: () => false },
 		systemPreferences: Object.assign(new EventEmitter(), { getAccentColor: () => "000000ff", getColor: () => "#000000", isDarkMode: () => true, getMediaAccessStatus: () => "granted", askForMediaAccess: async () => true, getAnimationSettings: () => ({ shouldRenderRichAnimation: true }) }),

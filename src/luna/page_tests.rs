@@ -416,3 +416,47 @@ fn pseudo_content_reads_css_escapes() {
     assert_eq!(before("a"), "\u{f001}");
     assert_eq!(before("b"), "Ax\"y\\");
 }
+
+/// A page sees the display its window is on, as Chromium reports it: the
+/// size and work area in DIPs (the taskbar taken off, the work area's
+/// corner as `availLeft`/`availTop`), more than one display, and its
+/// window's own scale as `devicePixelRatio`.
+#[test]
+fn a_page_sees_its_windows_display_and_scale() {
+    let (_, side) = crate::luna::screen::set_test_displays();
+    let windows = Arc::new(PageWindows::default());
+    let mut hub = PageHub::new(windows.clone());
+    let (tx, rx) = channel();
+    hub.create("Probe", 2, WindowSpec::default(), tx).unwrap();
+    windows.all()[0].set_screen(Some(side), 2.0);
+    hub.load(
+        "Probe",
+        2,
+        Load {
+            url: "data:text/html,x".into(),
+            html: r#"<body><script>probe.send("probe.screen", [screen.width, screen.height, screen.availWidth, screen.availHeight, screen.availLeft, screen.availTop, screen.isExtended, screen.orientation.type, devicePixelRatio]);</script></body>"#.into(),
+            preload: Some((PRELOAD.to_string(), "probe.preload.js".to_string())),
+        },
+    )
+    .unwrap();
+    let page = Opened { hub, windows, rx };
+    let args = page.next(|m| match m {
+        FromPage::Ipc { channel, args, .. } if channel == "probe.screen" => Some(args),
+        _ => None,
+    });
+    assert_eq!(
+        serde_json::from_str::<Value>(&args).unwrap(),
+        json!([[
+            1920,
+            1080,
+            1920,
+            1040,
+            2048,
+            40,
+            true,
+            "landscape-primary",
+            2
+        ]]),
+        "the side display, right of the primary's 2048 DIPs"
+    );
+}

@@ -183,6 +183,9 @@ pub struct PageWindow {
     page: Mutex<Option<PageThread>>,
     waker: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
     luna: Mutex<Sender<Msg>>,
+    /// The display under the window's middle and the window's scale, as
+    /// the UI last saw them (the page's `screen` and `devicePixelRatio`).
+    screen: Mutex<(Option<u32>, f32)>,
 }
 
 impl PageWindow {
@@ -196,7 +199,23 @@ impl PageWindow {
             page: Mutex::new(None),
             waker: Mutex::new(None),
             luna: Mutex::new(luna),
+            screen: Mutex::new((None, 0.0)),
         }
+    }
+
+    /// The window is on `display` (see [`super::screen`]) at `scale` points
+    /// per pixel.
+    pub fn set_screen(&self, display: Option<u32>, scale: f32) {
+        if let Ok(mut s) = self.screen.lock()
+            && *s != (display, scale)
+        {
+            *s = (display, scale);
+        }
+    }
+
+    /// What [`PageWindow::set_screen`] last said.
+    pub fn screen(&self) -> (Option<u32>, f32) {
+        self.screen.lock().map(|s| *s).unwrap_or((None, 0.0))
     }
 
     /// The window as the plugin last set it.
@@ -782,6 +801,8 @@ fn op(s: &State, name: &str, a: &Value) -> Result<Value, String> {
         }
         "env" => Ok(json!({})),
         "heap.limit" => Ok(json!(PAGE_MEMORY)),
+        // The displays, this window's among them.
+        "screen" => Ok(super::screen::op(Some(s.window.screen()))),
         "plugin.uses_dom" => Ok(Value::Null),
         "dom.overlay" => {
             let mut ov: DomOverlay =
