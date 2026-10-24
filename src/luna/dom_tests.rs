@@ -2324,6 +2324,108 @@ R.done = true;
     finish(luna, dir);
 }
 
+/// The host's tree with the progress bar's inline style set to `style`.
+fn with_progress(t: &mut HostTree, style: &str) {
+    let bar = node(t, keys::PROGRESS_BAR);
+    bar.attrs.retain(|(k, _)| k != "style");
+    bar.attrs.push(("style".into(), style.into()));
+}
+
+/// TIDAL's progress bar sets `--progress` every second. While no rule reads
+/// that variable the overlay is not built again for it (every build came out
+/// the same, and took most of the runtime's time at rest), and a script
+/// still reads the new value.
+#[test]
+fn a_variable_no_rule_reads_builds_no_overlay() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = '[data-test="progress-bar"] { color: rgb(1, 2, 3); }';
+document.head.append(st);
+let base = null;
+const check = () => {
+	const bar = document.querySelector('[data-test="progress-bar"]');
+	if (!bar || R.done) return;
+	const v = bar.getAttribute("style") ?? "";
+	if (base === null) {
+		// The overlay with the sheet and the bar is out before counting.
+		setTimeout(() => {
+			base = D.overlayBuilds;
+			R.ready = true;
+		}, 300);
+		return;
+	}
+	if (!v.includes("0.5000")) return;
+	setTimeout(() => {
+		R.builds = D.overlayBuilds - base;
+		R.value = getComputedStyle(bar).getPropertyValue("--progress");
+		R.done = true;
+	}, 300);
+};
+new MutationObserver(check).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["style"] });
+"##,
+    );
+    let mut t = tree();
+    // No pictures: an `<img>` that finishes loading builds an overlay of
+    // its own.
+    for n in &mut t.nodes {
+        n.attrs.retain(|(k, _)| k != "src");
+    }
+    with_progress(&mut t, "--progress: 0.0000");
+    luna.sync_dom(t.clone());
+    results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
+    for v in ["0.1000", "0.2000", "0.3000", "0.4000", "0.5000"] {
+        with_progress(&mut t, &format!("--progress: {v}"));
+        luna.sync_dom(t.clone());
+        std::thread::sleep(Duration::from_millis(60));
+    }
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["builds"], json!(0), "{r}");
+    assert_eq!(r["value"], json!("0.5000"), "{r}");
+    finish(luna, dir);
+}
+
+/// A rule that reads the variable gets each new value at once, and so does
+/// one a plugin adds after values went by unread.
+#[test]
+fn a_variable_a_rule_reads_reaches_the_overlay_at_once() {
+    let (luna, _host, dir) = start(
+        r##"
+const st = document.createElement("style");
+st.textContent = '[data-test="progress-bar"] { color: rgb(1, 2, 3); }';
+document.head.append(st);
+new MutationObserver(() => {
+	const bar = document.querySelector('[data-test="progress-bar"]');
+	if (bar && (bar.getAttribute("style") ?? "").includes("0.3000") && !R.added) {
+		R.added = true;
+		const reads = document.createElement("style");
+		reads.textContent = '[data-test="progress-bar"] { opacity: var(--progress); }';
+		document.head.append(reads);
+	}
+}).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["style"] });
+"##,
+    );
+    let opacity = |o: &DomOverlay| {
+        o.hosts
+            .get(keys::PROGRESS_BAR)
+            .and_then(|h| h.style.opacity.clone())
+    };
+    let mut t = tree();
+    for v in ["0.1000", "0.2000", "0.3000"] {
+        with_progress(&mut t, &format!("--progress: {v}"));
+        luna.sync_dom(t.clone());
+        std::thread::sleep(Duration::from_millis(60));
+    }
+    overlay_until(&luna, 10, |o| opacity(o).as_deref() == Some("0.3000"));
+    for v in ["0.4000", "0.7000"] {
+        with_progress(&mut t, &format!("--progress: {v}"));
+        luna.sync_dom(t.clone());
+        overlay_until(&luna, 10, |o| opacity(o).as_deref() == Some(v));
+    }
+    finish(luna, dir);
+}
+
 /// An overlay build makes again only the app elements' entries whose inputs
 /// changed: with nothing changed none, a class a plugin adds that element's,
 /// a listener on the page every element's under it.

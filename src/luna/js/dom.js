@@ -77,6 +77,36 @@
 		noteLayout(el);
 		contentDirty();
 	};
+	// The host rewrote an app element's inline style (`before` held its
+	// declarations) and every property that changed is a custom property no
+	// rule reads: TIDAL's progress bar sets `--progress` every second. No
+	// element's style can change, so only that element's cascade is redone
+	// (`getComputedStyle` reads the variable) and the overlay is not built
+	// again; the overlay build that every second asked for came out the same
+	// and cost the runtime most of its time at rest. Not on the page's roots
+	// (their variables are the overlay's), nor round a plugin's element,
+	// whose markup may name the variable.
+	const NO_DECLS = new Map();
+	const quietStyle = (el, before) => {
+		if (!reconciling || el._hostKey === undefined || el === html || el === body || el === wimp) return false;
+		const read = L.css?.varsRead?.();
+		if (!read || L.css.attrMatters("style")) return false;
+		const after = el._style?._m ?? NO_DECLS;
+		const unread = (k) => k.startsWith("--") && !read.has(k);
+		for (const [k, d] of after) {
+			const b = before.get(k);
+			if (b && b.value === d.value && !!b.important === !!d.important) continue;
+			if (!unread(k)) return false;
+		}
+		for (const k of before.keys()) if (!after.has(k) && !unread(k)) return false;
+		return !someDescendant(el, (n) => n._hostKey === undefined);
+	};
+	const styleSet = (el, before) => {
+		if (!quietStyle(el, before)) return markStyleDirty(el);
+		restyled.add(el);
+		styleGen++;
+	};
+	const declsOf = (text) => (text ? new Map(parseDecls(text).map((d) => [d.name, d])) : NO_DECLS);
 	// A style, class or matched attribute of an app element (or of the
 	// page round them) changed: the boxes may move, and a box read before
 	// the overlay goes out publishes it at once (see forced layout).
@@ -1257,7 +1287,9 @@
 			const old = this._attrs.get(k) ?? null;
 			if (old === v && k !== "style") return;
 			this._attrs.set(k, v);
+			let before = NO_DECLS;
 			if (k === "style") {
+				before = this._style?._m ?? declsOf(old);
 				this._styleSync = true;
 				(this._style ??= new CSSStyleDeclaration(this))._setSilently(v);
 				this._styleSync = false;
@@ -1266,7 +1298,7 @@
 			// An element outside the document changes nothing drawn; it is
 			// matched afresh when it is inserted.
 			if (!this.isConnected) {
-			} else if (k === "style") markStyleDirty(this);
+			} else if (k === "style") styleSet(this, before);
 			else attrChanged(k, this);
 			if (k === "href" || k === "src" || k === "rel") D.connected?.(this);
 		}
@@ -1279,12 +1311,13 @@
 			if (!this._attrs.has(k)) return;
 			const old = this._attrs.get(k);
 			this._attrs.delete(k);
+			const before = k === "style" ? (this._style?._m ?? declsOf(old)) : NO_DECLS;
 			if (k === "style" && this._style) this._style._setSilently("");
 			record("attributes", this, { attributeName: k, oldValue: old });
 			// An element outside the document changes nothing drawn; it is
 			// matched afresh when it is inserted.
 			if (!this.isConnected) {
-			} else if (k === "style") markStyleDirty(this);
+			} else if (k === "style") styleSet(this, before);
 			else attrChanged(k, this);
 		}
 		toggleAttribute(k, f) {
