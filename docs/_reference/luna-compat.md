@@ -2687,6 +2687,82 @@ class whatever its hash, so the cotton candy family's
 cover, another TIDAL module of the same name; TIDAL's queue wrapper is the
 panel's parent, Tidalfast's its child.
 
+### Round 40 (page backgrounds against Chromium, and the player bar's glass, 2026-10-25)
+
+The pixel comparison's largest group was the page background: the cotton
+candy family and Sugarcoat stack ten radial gradients on the main
+container. Each background was drawn twice outside the app: by Chromium
+(a box of the same size and CSS, screenshot) and by Tidalfast's own box
+painter (its meshes rasterised as the GPU blends them). Gradient
+painting itself matched within a level on average: linear angles, stop
+positions, hard stops, oversized and moving images, transparent stops
+(premultiplied), `color-mix()` and `hsla()` stops, radial shapes, sizes,
+lengths and stacking. The differences were elsewhere:
+
+- **A radial gradient at `center left` sits at the left edge's middle.**
+  CSS reads two position keywords in either order (`center left` is `0%
+  50%`, `top right` is `100% 0%`); the radial parser took the first word
+  for the x keyword, so three of the ten layers were drawn in the middle
+  of the window. The `background-position` parser read `top right` as
+  the left edge's bottom. One position parser now reads CSS's one, two
+  and four word forms. On the main container alone, Fairy Floss and
+  Sugarcoat went from 38.5 % and 29.6 % of pixels more than 12 levels
+  off Chromium to none.
+- **Round 39's glued stop (`rgb(...)70%`) was right.** Its mixed effect
+  came from the misplaced layers: shrinking the top left layer to its 70 %
+  uncovered more of the wrong central glow in some themes and less in
+  others. With the positions fixed, the glued stop lowers the main
+  container's mean error from 1.3 to 0.8 levels (Fairy Floss) and from
+  1.7 to 0.8 (Sugarcoat), both under the comparison's tolerance.
+- **A box inside the sidebar's wrapper paints its fill over the
+  wrapper's.** Sugarcoat lays a 60 % glass on the wrapper and an opaque
+  pink on `aside#sidebar`; Tidalfast took the wrapper's fill alone.
+- **The album and playlist header art stays under a page a theme
+  colours light** (TidalCustomTheme's pink page keeps the art in TIDAL,
+  which draws it in its dark scheme whatever the page's colour).
+- **TIDAL's bar glass is the bar's `::after`** (`#282828bf`, `z-index:
+  -1`, inset 0): it lies over the bar's own colour and pictures
+  (Sugarcoat's and Cotton Candy's radial glow under it, not over it),
+  and a theme that hides or draws in the bar's `::before` (Sunken Tidal,
+  Lunallena) keeps it. With no look of a theme's own for the bar, the
+  bar is that glass over the themed page (Tidalify's grey 18 page gives a
+  grey 34 bar, Solo v2's near black 30), not the palette's panel colour.
+- **A floating card's shadow lies outside it.** The sidebar card and the
+  floating bar took a theme's `box-shadow` as egui's frame shadow, which
+  also lies under the card's inside: the cotton candy family's 28 % pink
+  card showed its 14 % dark shadow through (Sour Rainbow Strips'
+  rgb(230, 167, 134), TIDAL's rgb(255, 193, 151)).
+- **The document's base colour shows round the open play queue.** TIDAL
+  2.46.0's `body { background: var(--wave-color-solid-base-fill) }`
+  shows beside the queue panel, where its black `main` does not reach
+  (Catppuccin Mocha's navy).
+
+Totals (dark-compared themes and no theme, as in round 39): the style comparison stays at 475
+differences over 78,044 anchor elements (99.39 %); pixels 10.96 % to
+6.78 % of 225 million compared pixels (14.53 % to 8.36 % of those a
+theme changes). Worst before: Sugarcoat 44.0 %, Fairy Floss 42.5 %,
+TidalCustomTheme 33.5 %, Sunken Tidal 27.4 %, Sour Rainbow Strips
+18.3 %; after: 10.3, 8.3, 9.9, 10.2 and 11.3 %. Worst now: Snowcone
+13.5 %, Cotton Candy Nights (single) 12.1 %, Purple Paradise Punch
+12.0 %, Ube Charcoal 11.6 %, Blueberry Lemon 11.6 %. No-theme shots are pixel-identical before and after.
+
+Not done, largest first: the cotton candy family's page layout under its
+"header removal" rules (`[class*="_bar_"] { margin-bottom: -2.5em }`
+pulls TIDAL's container row 30 points up under its title bar, `#mainHeader
+> * { margin-top: 2em }` pushes the header's contents back down): their
+page content and sidebar card sit 25 to 30 points higher in TIDAL, now
+the largest group (the page's row lines and edges); the collection grid's
+own width and column gap rules (the cotton candy singles' eight columns);
+a track list panel's `backdrop-filter` saturation and its padded box;
+gradient stop positions in lengths (`112px`, `1em`, `calc(100% -
+1.5em)`), gradients tiled by a `background-size` under 100 % and a
+radial gradient's own `background-size`, which Chromium paints and
+Tidalfast does not (in the captured themes only the cotton candy row
+lines, the now-playing view and an animated theme use them); TIDAL's
+`saturate(180%)` in the bar glass (up to 5 levels); plugin boxes still
+draw their `box-shadow` as egui's frame shadow; the queue covers' hash
+matching (round 39).
+
 ### Round 28 (plugins in use, 2026-10-23)
 
 Sixteen popular plugins (Tidal Tags, tidal-genres, total-play-time,
