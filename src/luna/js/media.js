@@ -533,7 +533,8 @@
 		if (!m) return null;
 		let px = parseFloat(m[1]);
 		if (m[2] === "pt") px *= 4 / 3;
-		else if (m[2] === "em" || m[2] === "rem") px *= 16;
+		else if (m[2] === "rem") px *= 14;
+		else if (m[2] === "em") px *= 16;
 		else if (m[2] === "%") px *= 0.16;
 		const pre = s.slice(0, m.index + (m[0].startsWith(" ") ? 1 : 0)).toLowerCase();
 		let weight = 400;
