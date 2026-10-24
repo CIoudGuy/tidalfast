@@ -3890,28 +3890,78 @@ fn axis_scale(transform: &str) -> Vec2 {
     s
 }
 
+/// A track of `grid-template-columns`: a length, a share of the free room
+/// (`fr`), or as wide as what its items hold (`auto`, `max-content`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Track {
+    Fixed(f32),
+    Share(f32),
+    Auto,
+}
+
 /// The widths of `grid-template-columns` in `room` (lengths, `fr`
-/// shares of what the lengths and gaps leave, `minmax(min, max)` as its
-/// max, `auto` as `1fr`, `repeat(n, ...)`); `None` for what it cannot read.
+/// shares of what the other tracks and the gaps leave, `minmax(min, max)`
+/// as its max, `repeat(n, ...)`, `auto` as wide as its items' content,
+/// `content[i]` for track `i`, with the free room shared out among the
+/// `auto` tracks when none takes `fr`, as CSS Grid stretches them);
+/// `None` for what it cannot read.
+#[cfg(test)]
 fn grid_columns(
     template: &str,
     room: f32,
     gap: f32,
     font: f32,
     viewport: [f32; 2],
+    content: &[f32],
 ) -> Option<Vec<f32>> {
-    enum Track {
-        Fixed(f32),
-        Share(f32),
+    Some(track_widths(
+        &grid_tracks(template, room, font, viewport)?,
+        room,
+        gap,
+        content,
+    ))
+}
+
+/// The widths of `tracks` in `room`, `gap` apart; see `grid_columns`.
+fn track_widths(tracks: &[Track], room: f32, gap: f32, content: &[f32]) -> Vec<f32> {
+    let content_of = |i: usize| content.get(i).copied().unwrap_or(0.0).max(0.0);
+    let mut fixed = 0.0;
+    let mut shares = 0.0;
+    let mut autos = 0;
+    for (i, t) in tracks.iter().enumerate() {
+        match t {
+            Track::Fixed(w) => fixed += w,
+            Track::Share(f) => shares += f,
+            Track::Auto => {
+                fixed += content_of(i);
+                autos += 1;
+            }
+        }
     }
+    let free = (room - fixed - gap * tracks.len().saturating_sub(1) as f32).max(0.0);
+    tracks
+        .iter()
+        .enumerate()
+        .map(|(i, t)| match t {
+            Track::Fixed(w) => *w,
+            Track::Share(f) if shares > 0.0 => free * f / shares,
+            Track::Share(_) => 0.0,
+            Track::Auto if shares > 0.0 => content_of(i),
+            Track::Auto => content_of(i) + free / autos as f32,
+        })
+        .collect()
+}
+
+/// The tracks of `grid-template-columns`; `None` for what it cannot read.
+fn grid_tracks(template: &str, room: f32, font: f32, viewport: [f32; 2]) -> Option<Vec<Track>> {
     fn track(t: &str, room: f32, font: f32, viewport: [f32; 2]) -> Option<Track> {
         let t = t.trim();
         if let Some(inner) = t.strip_prefix("minmax(").and_then(|r| r.strip_suffix(')')) {
             let parts = css::split_top(inner, ',');
             return track(parts.get(1)?, room, font, viewport);
         }
-        if t == "auto" {
-            return Some(Track::Share(1.0));
+        if matches!(t, "auto" | "max-content" | "min-content" | "fit-content") {
+            return Some(Track::Auto);
         }
         if let Some(n) = t.strip_suffix("fr") {
             return n
@@ -3950,54 +4000,90 @@ fn grid_columns(
     if tracks.is_empty() || tracks.len() > 64 {
         return None;
     }
-    let fixed: f32 = tracks
-        .iter()
-        .map(|t| if let Track::Fixed(w) = t { *w } else { 0.0 })
-        .sum();
-    let shares: f32 = tracks
-        .iter()
-        .map(|t| if let Track::Share(f) = t { *f } else { 0.0 })
-        .sum();
-    let free = (room - fixed - gap * (tracks.len() - 1) as f32).max(0.0);
-    Some(
-        tracks
-            .iter()
-            .map(|t| match t {
-                Track::Fixed(w) => *w,
-                Track::Share(f) if shares > 0.0 => free * f / shares,
-                Track::Share(_) => 0.0,
-            })
-            .collect(),
-    )
+    Some(tracks)
 }
 
-/// `display: grid` items in rows of `cols`, each in its cell's width.
+/// `display: grid` items in rows of `tracks`, `gaps` (`[row, column]`)
+/// apart. An item in an `auto` track is as wide as what it holds, on one
+/// line (its max-content width, measured: the track is the widest of its
+/// items last frame); any other is stretched over its cell's width, as
+/// `justify-items: stretch` places it (lyrics-everywhere's colour
+/// presets, miniplayer's progress bar between its two times). A row is
+/// as tall as its tallest item; `align` places the others in it by their
+/// heights last frame (`align-items`: the start unless it says `center`
+/// or `end`).
 fn draw_grid(
     ui: &mut egui::Ui,
     items: &[&VNode],
-    cols: &[f32],
-    gap: f32,
-    center: bool,
+    tracks: &[Track],
+    gaps: [f32; 2],
+    align: Align,
     inherit: Inherit,
     cx: &Cx,
 ) -> bool {
-    let mut drawn = false;
-    for row in items.chunks(cols.len()) {
-        let align = if center { Align::Center } else { Align::Min };
-        ui.with_layout(Layout::left_to_right(align), |ui| {
-            ui.spacing_mut().item_spacing.x = gap;
-            for (child, w) in row.iter().zip(cols) {
-                ui.allocate_ui_with_layout(
-                    vec2(*w, ui.available_height()),
-                    Layout::top_down(Align::Min),
-                    |ui| {
-                        ui.set_width(*w);
-                        drawn |= draw(ui, child, inherit, cx);
-                    },
-                );
-            }
-        });
+    let width_id = |c: &VNode| egui::Id::new(("luna-grid-w", c.id));
+    let height_id = |c: &VNode| egui::Id::new(("luna-grid-h", c.id));
+    let n = tracks.len().max(1);
+    let mut content = vec![0.0f32; n];
+    for (i, c) in items.iter().enumerate() {
+        if let Some(w) = ui.data(|d| d.get_temp::<f32>(width_id(c))) {
+            content[i % n] = content[i % n].max(w);
+        }
     }
+    let cols = track_widths(tracks, ui.available_width(), gaps[1], &content);
+    let mut drawn = false;
+    let room = vec2(ui.available_width(), ui.available_height());
+    ui.allocate_ui_with_layout(room, Layout::top_down(Align::Min), |ui| {
+        ui.spacing_mut().item_spacing.y = gaps[0];
+        for row in items.chunks(n) {
+            let heights: Vec<Option<f32>> = row
+                .iter()
+                .map(|c| ui.data(|d| d.get_temp::<f32>(height_id(c))))
+                .collect();
+            let row_h = heights.iter().flatten().fold(0.0f32, |a, h| a.max(*h));
+            ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
+                ui.spacing_mut().item_spacing.x = gaps[1];
+                for (((child, w), track), own) in row.iter().zip(&cols).zip(tracks).zip(&heights) {
+                    let skip = own.map_or(0.0, |own| match align {
+                        Align::Center => ((row_h - own) / 2.0).max(0.0),
+                        Align::Max => (row_h - own).max(0.0),
+                        Align::Min => 0.0,
+                    });
+                    ui.allocate_ui_with_layout(
+                        vec2(*w, ui.available_height()),
+                        Layout::top_down(Align::Min),
+                        |ui| {
+                            if skip > 0.0 {
+                                ui.add_space(skip);
+                            }
+                            let auto = *track == Track::Auto;
+                            if auto {
+                                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+                            } else {
+                                ui.set_width(*w);
+                                IN_COLUMN.with(|s| s.set(true));
+                            }
+                            let r = ui.scope(|ui| draw(ui, child, inherit, cx));
+                            IN_COLUMN.with(|s| s.set(false));
+                            drawn |= r.inner;
+                            let used = r.response.rect.size();
+                            if auto {
+                                let last: Option<f32> = ui.data(|d| d.get_temp(width_id(child)));
+                                if last.is_none_or(|l| (l - used.x).abs() > 0.5) {
+                                    ui.data_mut(|d| d.insert_temp(width_id(child), used.x));
+                                    plugin_dom::request_frame(ui.ctx());
+                                }
+                            }
+                            if own.is_none_or(|l| (l - used.y).abs() > 0.5) {
+                                ui.data_mut(|d| d.insert_temp(height_id(child), used.y));
+                                plugin_dom::request_frame(ui.ctx());
+                            }
+                        },
+                    );
+                }
+            });
+        }
+    });
     drawn
 }
 
@@ -4508,6 +4594,22 @@ fn draw_given(
     let drawn = draw(ui, child, inherit, cx);
     GIVEN_HEIGHT.with(|s| s.set(None));
     drawn
+}
+
+/// The height element `id` would take, margins included, if nothing held
+/// it (a flex share, a scroll box): its own `height`, else what it holds,
+/// within its `min-height` and `max-height`. Only an element drawn in this
+/// pass has one.
+fn natural_of(ui: &egui::Ui, id: u64) -> Option<f32> {
+    let pass = ui.ctx().cumulative_pass_nr();
+    ui.data(|d| d.get_temp::<(u64, f32)>(egui::Id::new(("luna-natural", id))))
+        .filter(|(p, _)| *p == pass)
+        .map(|(_, h)| h)
+}
+
+fn note_natural(ui: &egui::Ui, id: u64, h: f32) {
+    let pass = ui.ctx().cumulative_pass_nr();
+    ui.data_mut(|d| d.insert_temp(egui::Id::new(("luna-natural", id)), (pass, h)));
 }
 
 /// Whether a flex container `style` lets its items run onto more lines.
@@ -5181,6 +5283,30 @@ fn draw_box(
             })
         })
         .flatten();
+    // A flex column held to a `max-height`, with no height of its own, is
+    // as tall as what it holds up to that: once what it holds would run
+    // past it, it is that tall, and its growing items share what its other
+    // items leave (lyrics-everywhere's container: the growing middle holds
+    // the player and the lyrics, which scroll). What it holds is measured
+    // as if nothing held it (see `note_natural`), so a held column stays
+    // held until its content fits.
+    let natural_id = egui::Id::new(("luna-natural-content", node.id));
+    let max_inner = cx
+        .len(&style.max_height, font, ui.available_height().min(400.0))
+        .map(|m| (m - block_inset).max(0.0));
+    let own_inner = cx
+        .len(&style.height, font, ui.available_height().min(400.0))
+        .map(|h| (h - block_inset).max(0.0));
+    let held_column = display.contains("flex") && !row && scroll.is_none() && max_inner.is_some();
+    let height = height.or_else(|| {
+        let m = max_inner?;
+        held_column
+            .then(|| ui.data(|d| d.get_temp::<f32>(natural_id)))
+            .flatten()
+            .filter(|n| *n > m + 0.5)
+            .map(|_| m)
+    });
+    let mut content_natural: Option<f32> = None;
     // An `<ol>`'s items are numbered from 1 within it.
     let list = matches!(node.tag.as_str(), "ul" | "ol" | "menu");
     if list {
@@ -5199,13 +5325,15 @@ fn draw_box(
             ),
         )
     };
+    // A layer of its own, not a scope: a scope takes room at the cursor
+    // (an empty one too), which made a box with placed children a gap
+    // taller in a column or grid with a gap.
     let place = |ui: &mut egui::Ui, child: &VNode, r: Rect, inherit: Inherit| {
-        ui.scope(|ui| {
-            if let Some(o) = opacity {
-                ui.multiply_opacity(o);
-            }
-            positioned(ui, child, padding_box(r), inherit, cx);
-        });
+        let mut layer = ui.new_child(UiBuilder::new().max_rect(ui.max_rect()));
+        if let Some(o) = opacity {
+            layer.multiply_opacity(o);
+        }
+        positioned(&mut layer, child, padding_box(r), inherit, cx);
     };
     let under_box: Option<Rect> = (!under.is_empty() || !between.is_empty())
         .then(|| ui.data(|d| d.get_temp(box_id)))
@@ -5444,6 +5572,12 @@ fn draw_box(
                             }
                         }
                         let begin = ui.cursor().min;
+                        // What the children would take if nothing held
+                        // them: in a column, the sum of the room each
+                        // would take over what it took; in a row, the
+                        // tallest.
+                        let mut natural_more = 0.0f32;
+                        let mut natural_row: Option<f32> = None;
                         drawn |= leaf(ui, node, inherit, width, height, rot, cx);
                         if let Some(text) = node.text.as_deref().filter(|t| !t.is_empty())
                             && !matches!(
@@ -5467,23 +5601,45 @@ fn draw_box(
                             }
                             drawn = true;
                         }
-                        // A grid's gap is its own (none unless set).
-                        let grid_gap = cx.len(&style.gap, font, 0.0).unwrap_or(0.0);
+                        // A grid's gaps are its own (none unless set):
+                        // `gap: <row> <column>`, `column-gap` over it.
+                        let grid_gaps = {
+                            let gap = style
+                                .gap
+                                .as_deref()
+                                .map(|g| css::resolve_vars(g, cx.vars))
+                                .unwrap_or_default();
+                            let words = css::split_top(gap.trim(), ' ');
+                            let len = |w: Option<&&str>| {
+                                w.and_then(|w| css::length(w, font, 0.0, cx.viewport))
+                                    .unwrap_or(0.0)
+                                    .max(0.0)
+                            };
+                            let row_gap = len(words.first());
+                            let column_gap = cx
+                                .len(&style.column_gap, font, 0.0)
+                                .unwrap_or_else(|| len(words.get(1).or(words.first())));
+                            [row_gap, column_gap.max(0.0)]
+                        };
                         let grid = display
                             .contains("grid")
                             .then_some(style.grid_template_columns.as_deref())
                             .flatten()
                             .and_then(|t| {
-                                grid_columns(
+                                grid_tracks(
                                     &css::resolve_vars(t, cx.vars),
                                     ui.available_width(),
-                                    grid_gap,
                                     font,
                                     cx.viewport,
                                 )
                             });
-                        if let Some(cols) = &grid {
-                            drawn |= draw_grid(ui, &flow, cols, grid_gap, center, inherit, cx);
+                        if let Some(tracks) = &grid {
+                            let align = match style.align_items.as_deref().map(str::trim) {
+                                Some("center") => Align::Center,
+                                Some("end" | "flex-end" | "self-end") => Align::Max,
+                                _ => Align::Min,
+                            };
+                            drawn |= draw_grid(ui, &flow, tracks, grid_gaps, align, inherit, cx);
                         } else if flows {
                             let align = style.text_align.as_deref().map_or("", str::trim);
                             drawn |= draw_inline_flow(ui, node.id, &flow, align, inherit, cx);
@@ -5540,6 +5696,9 @@ fn draw_box(
                                     );
                                     drawn |=
                                         draw_given(&mut cell, child, stretched(child), inherit, cx);
+                                    let n = natural_of(ui, child.id)
+                                        .unwrap_or_else(|| cell.min_rect().height());
+                                    natural_row = Some(natural_row.map_or(n, |r| r.max(n)));
                                     ui.allocate_exact_size(vec2(share, h), Sense::hover());
                                 }
                             } else if row && total > 0.0 {
@@ -5561,7 +5720,7 @@ fn draw_box(
                                 for (child, g) in flow.iter().zip(&grows) {
                                     if *g > 0.0 {
                                         let w = free * g / total;
-                                        ui.allocate_ui_with_layout(
+                                        let r = ui.allocate_ui_with_layout(
                                             vec2(w, ui.available_height()),
                                             Layout::left_to_right(Align::Center),
                                             |ui| {
@@ -5575,6 +5734,9 @@ fn draw_box(
                                                 );
                                             },
                                         );
+                                        let n = natural_of(ui, child.id)
+                                            .unwrap_or_else(|| r.response.rect.height());
+                                        natural_row = Some(natural_row.map_or(n, |r| r.max(n)));
                                     } else {
                                         // In a page an item that does not grow
                                         // is as wide as what it holds.
@@ -5638,6 +5800,8 @@ fn draw_box(
                                         SHRINK.with(|s| s.set(false));
                                         let (shown, own_h) = r.inner;
                                         drawn |= shown;
+                                        let n = natural_of(ui, child.id).unwrap_or(own_h);
+                                        natural_row = Some(natural_row.map_or(n, |r| r.max(n)));
                                         if plugin_dom::drawing_page() {
                                             let last: Option<f32> = ui.data(|d| d.get_temp(hid));
                                             if last.is_none_or(|l| (l - own_h).abs() > 0.5) {
@@ -5738,6 +5902,7 @@ fn draw_box(
                                     FLEX_COLUMN.with(|s| {
                                         s.set(!row && !cross_center && display.contains("flex"))
                                     });
+                                    let top = ui.cursor().min.y;
                                     match column_free {
                                         Some(free) if *g > 0.0 => {
                                             let share = free * g / total;
@@ -5767,12 +5932,26 @@ fn draw_box(
                                             );
                                         }
                                     }
+                                    if let Some(n) = natural_of(ui, child.id) {
+                                        if row {
+                                            natural_row = Some(natural_row.map_or(n, |r| r.max(n)));
+                                        } else {
+                                            natural_more +=
+                                                n - (ui.min_rect().max.y - top).max(0.0);
+                                        }
+                                    }
                                     SHRINK.with(|s| s.set(false));
                                     IN_COLUMN.with(|s| s.set(false));
                                     FLEX_COLUMN.with(|s| s.set(false));
                                 }
                             }
                         }
+                        let took = (ui.min_rect().max.y - begin.y).max(0.0);
+                        content_natural = Some(if row {
+                            natural_row.unwrap_or(took)
+                        } else {
+                            (took + natural_more).max(0.0)
+                        });
                         if shrink {
                             let used = ui.min_rect().width();
                             if wrapped.is_none_or(|w| (w - used).abs() > 0.5) {
@@ -5864,6 +6043,29 @@ fn draw_box(
         shown
     });
     let rect = inner.inner.rect;
+    if let Some(c) = content_natural {
+        if held_column {
+            let last: Option<f32> = ui.data(|d| d.get_temp(natural_id));
+            if last.is_none_or(|l| (l - c).abs() > 0.5) {
+                ui.data_mut(|d| d.insert_temp(natural_id, c));
+                plugin_dom::request_frame(ui.ctx());
+            }
+        }
+        // Its own height, else what it holds, within its `min-height` and
+        // `max-height`, with its padding, border and margins.
+        let mut h = own_inner.unwrap_or(c);
+        if let Some(m) = max_inner {
+            h = h.min(m);
+        }
+        if let Some(m) = min_height {
+            h = h.max(m);
+        }
+        note_natural(
+            ui,
+            node.id,
+            h + block_inset + margin.map_or(0.0, |m| m[0] + m[2]),
+        );
+    }
     NESTED.with(|n| n.set(nested));
     if list {
         LIST_ITEMS.with(|l| l.borrow_mut().pop());
@@ -9930,8 +10132,22 @@ mod tests {
             10.0,
             16.0,
             [800.0, 600.0],
+            &[],
         );
         assert_eq!(cols, Some(vec![40.0, 270.0, 270.0]));
+        // `auto` tracks are as wide as their items beside an `fr` track,
+        // and share the room among them without one.
+        let cols = grid_columns(
+            "auto 1fr auto",
+            250.0,
+            6.0,
+            16.0,
+            [800.0; 2],
+            &[20.0, 0.0, 30.0],
+        );
+        assert_eq!(cols, Some(vec![20.0, 188.0, 30.0]));
+        let cols = grid_columns("auto auto", 100.0, 0.0, 16.0, [800.0; 2], &[20.0, 40.0]);
+        assert_eq!(cols, Some(vec![40.0, 60.0]));
     }
 
     /// AltPlay's library header: status, a `flex: 1` spacer, then Sync and
