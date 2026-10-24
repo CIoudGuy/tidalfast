@@ -8573,6 +8573,90 @@ mod tests {
         );
     }
 
+    /// A header button's icon and caption are each their own element in
+    /// TIDAL (`div.tidal-ui__v-stack > svg._icon_ + span`, the 20-point icon
+    /// over the caption): a right-click on the icon reaches the `svg`, so
+    /// element-hider's "Hide This Element" there hides the icon and leaves
+    /// the caption. The caption had the whole button's box and the icon
+    /// none, so the click reached the caption, and a hidden icon still drew.
+    #[test]
+    fn a_header_buttons_icon_is_its_own_element() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("header-icon");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.open(Page::Album("alb0".into()));
+        let plain = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        plugin_dom::test_overlay(Some(plain.clone()));
+        for _ in 0..3 {
+            painted_frame(&ctx, &mut app);
+        }
+        let tree = plugin_dom::test_sent_tree().expect("a tree was sent");
+        plugin_dom::test_overlay(None);
+        let button = keys::page_action("credits-button");
+        let icon_key = format!("{button}:icon");
+        let rect_of = |key: &str| {
+            tree.nodes
+                .iter()
+                .find(|n| n.key == key)
+                .and_then(|n| n.rect)
+                .map(|[x, y, w, h]| egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h)))
+        };
+        let b = rect_of(&button).expect("the Credits button has a box");
+        let icon = rect_of(&icon_key).expect("its icon has a box");
+        assert!(
+            (icon.width() - 20.0).abs() < 0.5 && (icon.height() - 20.0).abs() < 0.5,
+            "the icon is 20 points: {icon:?}"
+        );
+        assert!(b.contains_rect(icon), "{icon:?} in {b:?}");
+        let caption = rect_of(&keys::page_action_label("credits-button")).expect("caption box");
+        assert!(caption.top() >= icon.bottom(), "{caption:?} under {icon:?}");
+        // The element under the pointer at the icon (the deepest anchor
+        // there, as plugins' events find it) is the icon.
+        let p = icon.center();
+        let under = tree.nodes.iter().rev().find_map(|n| {
+            let [x, y, w, h] = n.rect?;
+            (p.x >= x && p.x < x + w && p.y >= y && p.y < y + h).then(|| n.key.clone())
+        });
+        assert_eq!(under.as_deref(), Some(icon_key.as_str()));
+        // Hidden, the icon paints nothing and the caption stays.
+        let mut overlay = plain;
+        overlay.hosts.insert(
+            icon_key.clone(),
+            HostOverride {
+                style: Style {
+                    visibility: Some("hidden".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        plugin_dom::test_overlay(Some(overlay));
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            shapes = painted_frame(&ctx, &mut app);
+        }
+        plugin_dom::test_overlay(None);
+        assert!(
+            painted_inside(&shapes, icon).is_empty(),
+            "{:?}",
+            painted_inside(&shapes, icon)
+        );
+        assert!(
+            painted_inside(&shapes, b)
+                .iter()
+                .any(|s| s == "text \"Credits\""),
+            "the caption stays: {:?}",
+            painted_inside(&shapes, b)
+        );
+        app.backend.shutdown();
+    }
+
     /// radiant-lyrics hides TIDAL's full screen button in the now-playing
     /// header (`[data-test=new-now-playing-expand]{display:none}`), and puts
     /// its own buttons there: the header is Similar tracks, Credits, Lyrics,

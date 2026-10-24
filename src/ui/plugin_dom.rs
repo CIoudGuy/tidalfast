@@ -2606,14 +2606,24 @@ pub fn nav_row_rect(test: &str) -> Option<Option<Rect>> {
 }
 
 /// A captioned header button (TIDAL's `data-test` `test`) with the caption
-/// it shows; `r` is `None` while a plugin keeps it out of the page.
-pub fn page_action(test: &str, label: &str, r: Option<Rect>, checked: Option<bool>) {
+/// it shows; `r` is `None` while a plugin keeps it out of the page, `icon`
+/// and `caption` where its icon and caption line are drawn.
+pub fn page_action(
+    test: &str,
+    label: &str,
+    r: Option<Rect>,
+    icon: Option<Rect>,
+    caption: Option<Rect>,
+    checked: Option<bool>,
+) {
     note(|f| {
         if let Some(p) = f.page.as_mut() {
             p.actions.push(dom_anchors::HeaderAction {
                 test: test.to_string(),
                 label: label.to_string(),
                 rect: r.and_then(rect),
+                icon: icon.and_then(rect),
+                caption: caption.and_then(rect),
                 checked,
             });
         }

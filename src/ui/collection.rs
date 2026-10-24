@@ -15,6 +15,7 @@ use crate::model::{
 use crate::theme::{self, Icon, Palette};
 use crate::util;
 
+use super::plugin_dom::Shown;
 use super::skeleton;
 use super::widgets::{self, TrackRow};
 
@@ -1663,35 +1664,40 @@ pub(super) fn header_action(
     tint: egui::Color32,
     checked: Option<bool>,
 ) -> Option<egui::Response> {
-    use super::plugin_dom::Shown;
     use crate::luna::dom_anchors::keys;
     let label = keys::page_action_label(test);
     // Its caption and icon sit in `div.tidal-ui__v-stack`: a stack a plugin
-    // hid hides both, a hidden caption leaves the icon.
+    // hid hides both; a hidden icon or caption leaves the other.
     let stack = super::plugin_dom::shown(&format!("{}:stack", keys::page_action(test)));
-    let shown = if super::plugin_dom::shown(&label) == Shown::Drawn {
-        super::plugin_dom::text(&label, caption)
-    } else {
-        std::borrow::Cow::Borrowed("")
-    };
-    let response = super::plugin_dom::anchored(ui, &keys::page_action(test), |ui| {
-        let response = if stack == Shown::Drawn {
-            captioned_button_tinted(ui, icon, &shown, tint)
+    let parts = [
+        super::plugin_dom::shown(&format!("{}:icon", keys::page_action(test))),
+        super::plugin_dom::shown(&label),
+    ];
+    let shown = super::plugin_dom::text(&label, caption);
+    let drawn = super::plugin_dom::anchored(ui, &keys::page_action(test), |ui| {
+        let mut drawn = if stack == Shown::Drawn {
+            captioned_parts(ui, icon, &shown, tint, parts)
         } else {
             ui.scope(|ui| {
                 ui.set_invisible();
-                captioned_button_tinted(ui, icon, &shown, tint)
+                captioned_parts(ui, icon, &shown, tint, parts)
             })
             .inner
         };
         if icon_only(ui) {
-            response.on_hover_text(shown.as_ref())
-        } else {
-            response
+            drawn.response = drawn.response.on_hover_text(shown.as_ref());
         }
+        drawn
     });
-    super::plugin_dom::page_action(test, caption, response.as_ref().map(|r| r.rect), checked);
-    response
+    super::plugin_dom::page_action(
+        test,
+        caption,
+        drawn.as_ref().map(|d| d.response.rect),
+        drawn.as_ref().and_then(|d| d.icon),
+        drawn.as_ref().and_then(|d| d.caption),
+        checked,
+    );
+    drawn.map(|d| d.response)
 }
 
 pub(super) fn captioned_button(
@@ -1986,6 +1992,30 @@ pub(super) fn captioned_button_tinted(
     caption: &str,
     tint: egui::Color32,
 ) -> egui::Response {
+    captioned_parts(ui, icon, caption, tint, [Shown::Drawn; 2]).response
+}
+
+/// A captioned button and where its parts were drawn.
+pub(super) struct Captioned {
+    pub response: egui::Response,
+    /// The 20-point icon's box (`None` while it is left out).
+    pub icon: Option<Rect>,
+    /// The caption's line (`None` while it is left out, or the button is
+    /// its icon alone).
+    pub caption: Option<Rect>,
+}
+
+/// [`captioned_button_tinted`], its icon and caption shown as `shown`
+/// says (TIDAL's `div.tidal-ui__v-stack` centres them as a column: one
+/// left out, the other sits in the middle; an invisible one keeps its
+/// place and paints nothing).
+pub(super) fn captioned_parts(
+    ui: &mut egui::Ui,
+    icon: Icon,
+    caption: &str,
+    tint: egui::Color32,
+    [icon_shown, caption_shown]: [Shown; 2],
+) -> Captioned {
     let (width, labels) = ui
         .data(|data| data.get_temp::<(f32, bool)>(button_style_id()))
         .unwrap_or((BUTTON_WIDTH, true));
@@ -1995,29 +2025,41 @@ pub(super) fn captioned_button_tinted(
     });
     // TIDAL's header buttons fade to half opacity under the pointer.
     let color = header_button_color(ui.ctx(), &response, tint);
+    let labels = labels && caption_shown != Shown::Gone;
+    let has_icon = icon_shown != Shown::Gone;
     let icon_y = if labels {
         rect.top() + 11.0
     } else {
         rect.center().y
     };
-    theme::paint_icon(
-        ui,
-        icon,
-        Rect::from_center_size(pos2(rect.center().x, icon_y), Vec2::splat(20.0)),
-        20.0,
-        color,
-    );
-    if labels {
-        ui.painter().text(
-            pos2(rect.center().x, rect.top() + 29.0 + 8.0),
-            egui::Align2::CENTER_CENTER,
-            caption,
-            theme::semibold(12.0),
-            color,
-        );
+    let icon_rect =
+        has_icon.then(|| Rect::from_center_size(pos2(rect.center().x, icon_y), Vec2::splat(20.0)));
+    if let Some(r) = icon_rect
+        && icon_shown == Shown::Drawn
+    {
+        theme::paint_icon(ui, icon, r, 20.0, color);
     }
+    let caption_rect = labels.then(|| {
+        let y = if has_icon {
+            rect.top() + 29.0 + 8.0
+        } else {
+            rect.center().y
+        };
+        let galley = ui
+            .painter()
+            .layout_no_wrap(caption.to_string(), theme::semibold(12.0), color);
+        let r = egui::Align2::CENTER_CENTER.anchor_size(pos2(rect.center().x, y), galley.size());
+        if caption_shown == Shown::Drawn {
+            ui.painter().galley(r.min, galley, color);
+        }
+        r
+    });
     theme::focus_ring(ui, &response);
-    response
+    Captioned {
+        response,
+        icon: icon_rect,
+        caption: caption_rect,
+    }
 }
 
 /// A track table with virtualised rows and paging.
