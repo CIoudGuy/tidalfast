@@ -4001,3 +4001,132 @@ go();
     );
     finish(luna, dir);
 }
+
+// ---------------------------------------------------------------- page scans (plugin round 8)
+
+/// Reading a colour or an image from `getComputedStyle` does not lay the
+/// page out, as in a browser: the box is read when a size is. A script
+/// scanning the whole page (uwu-ifier reads `backgroundImage` of every
+/// element for every added node) made the page lay out on each call, and
+/// after a style change each read waited for the UI's next layout.
+#[test]
+fn reading_a_style_does_not_lay_out_the_page() {
+    let (luna, _host, dir) = start(
+        r##"
+const proto = Element.prototype;
+const real = proto.getBoundingClientRect;
+let boxes = 0;
+proto.getBoundingClientRect = function () { boxes++; return real.call(this); };
+const box = document.createElement("div");
+box.className = "scan-box";
+box.style.backgroundImage = 'url("https://example.com/a.png")';
+for (let i = 0; i < 20; i++) box.append(document.createElement("span"));
+document.body.append(box);
+let images = 0;
+for (const el of document.body.querySelectorAll("*")) {
+	const b = getComputedStyle(el).backgroundImage;
+	if (b && b !== "none") images++;
+}
+R.images = images;
+R.scanBoxes = boxes;
+boxes = 0;
+const s = getComputedStyle(box);
+R.idleBoxes = boxes;
+R.width = s.width;
+R.widthBoxes = boxes > 0;
+R.rectWidth = `${real.call(box).width}px`;
+proto.getBoundingClientRect = real;
+R.done = true;
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["images"], json!(1), "{r}");
+    assert_eq!(r["scanBoxes"], json!(0), "{r}");
+    assert_eq!(r["idleBoxes"], json!(0), "{r}");
+    assert_eq!(r["widthBoxes"], json!(true), "{r}");
+    assert_eq!(r["width"], r["rectWidth"], "{r}");
+    finish(luna, dir);
+}
+
+/// `getComputedStyle` over the whole page works each element out once:
+/// a second scan with nothing changed resolves none, a class change
+/// resolves the subtree it can change, and every value follows the change
+/// (inherited colours, variables set by an ancestor's class, an inline
+/// style, a moved element, a new style sheet). A script writing to the
+/// declaration it got changes nothing else.
+#[test]
+fn a_page_scan_resolves_each_element_once() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = ":root { --tint: rgb(1, 2, 3); } .scan { color: var(--tint); } .scan.alt { --tint: rgb(4, 5, 6); } .scan i { font-weight: 700; }";
+document.head.append(st);
+const top = document.createElement("div");
+top.className = "scan";
+let at = top;
+const chain = [];
+for (let i = 0; i < 12; i++) {
+	const d = document.createElement("div");
+	at.append(d);
+	chain.push(d);
+	for (let j = 0; j < 3; j++) d.append(document.createElement("i"));
+	at = d;
+}
+document.body.append(top);
+const all = () => [top, ...top.querySelectorAll("*")];
+const scan = () => all().map((el) => { const s = getComputedStyle(el); return `${s.color}/${s.fontWeight}`; });
+const leafOf = () => chain.at(-1).lastChild;
+scan();
+let n = D.styleResolves;
+const a = scan();
+R.again = D.styleResolves - n;
+R.leaf = getComputedStyle(leafOf()).color + "/" + getComputedStyle(leafOf()).fontWeight;
+R.elements = all().length;
+top.classList.add("alt");
+n = D.styleResolves;
+scan();
+R.afterClass = D.styleResolves - n;
+R.leafAlt = getComputedStyle(leafOf()).color;
+chain[8].style.color = "rgb(7, 8, 9)";
+n = D.styleResolves;
+scan();
+R.afterInline = D.styleResolves - n;
+R.leafInline = getComputedStyle(leafOf()).color;
+R.aboveInline = getComputedStyle(chain[7]).color;
+const moved = leafOf();
+chain[2].append(moved);
+R.moved = getComputedStyle(moved).color;
+const st2 = document.createElement("style");
+st2.textContent = ".scan i { font-weight: 300; }";
+document.head.append(st2);
+R.sheet = getComputedStyle(moved).fontWeight;
+const cs = getComputedStyle(chain[0]);
+cs.setProperty("color", "rgb(9, 9, 9)");
+R.written = cs.color;
+R.fresh = getComputedStyle(chain[0]).color;
+R.done = true;
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    let elements = r["elements"].as_u64().unwrap();
+    assert_eq!(r["again"], json!(0), "{r}");
+    assert_eq!(r["leaf"], json!("rgb(1, 2, 3)/700"), "{r}");
+    // The class goes on `top`: it and what is inside it, and at most the
+    // page round it when a rule looks at siblings.
+    let after = r["afterClass"].as_u64().unwrap();
+    assert!(after >= elements && after <= elements + 3, "{r}");
+    assert_eq!(r["leafAlt"], json!("rgb(4, 5, 6)"), "{r}");
+    // An inline style on the ninth: it and the four levels below it.
+    let inline = r["afterInline"].as_u64().unwrap();
+    assert!((1..=elements / 2).contains(&inline), "{r}");
+    assert_eq!(r["leafInline"], json!("rgb(7, 8, 9)"), "{r}");
+    assert_eq!(r["aboveInline"], json!("rgb(4, 5, 6)"), "{r}");
+    assert_eq!(r["moved"], json!("rgb(4, 5, 6)"), "{r}");
+    assert_eq!(r["sheet"], json!("300"), "{r}");
+    assert_eq!(r["written"], json!("rgb(9, 9, 9)"), "{r}");
+    assert_eq!(r["fresh"], json!("rgb(4, 5, 6)"), "{r}");
+    finish(luna, dir);
+}

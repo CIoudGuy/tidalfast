@@ -1625,28 +1625,63 @@
 	const NONE = new Set(["head", "style", "script", "meta", "link", "title", "template"]);
 	// What the cascade declares for `el` (variables resolved, inherited
 	// properties carried down), with no used values: nothing here asks for
-	// the element's box.
+	// the element's box. Read only: the maps are shared.
+	//
+	// Worked out from the parent's and kept on the element (`_cs`) while
+	// its own declarations and its parent's result are the same objects (the
+	// cascade memo hands out the same Map until something that can change it
+	// happens), so a script that scans the whole page (`querySelectorAll("*")`
+	// and `getComputedStyle` on each, uwu-ifier on every added node) resolves
+	// each element once instead of its whole chain of ancestors on every
+	// call. While nothing changed at all (`csToken`), not even the chain is
+	// checked again.
+	const ROOT_CS = { props: new Map(), vars: new Map(TIDAL_VARS) };
+	let csTok = null;
+	let csIx = null;
+	let csGens = "";
+	const csToken = (ix) => {
+		const gens = `${D.domGen()}|${D.structGen()}|${D.styleGen()}`;
+		if (csTok === null || csIx !== ix || csGens !== gens) {
+			csTok = {};
+			csIx = ix;
+			csGens = gens;
+		}
+		return csTok;
+	};
+	const cascadedOf = (ix, tok, el) => {
+		const m = el._cs;
+		if (m !== undefined && m.tok === tok) return m.res;
+		const p = el.parentNode;
+		const up = p instanceof g.Element ? cascadedOf(ix, tok, p) : ROOT_CS;
+		const d = cascade(ix, el);
+		if (m !== undefined && m.d === d && m.up === up) {
+			m.tok = tok;
+			return m.res;
+		}
+		// Counted for the tests that check what a scan works out again.
+		D.styleResolves = (D.styleResolves ?? 0) + 1;
+		let vars = up.vars;
+		const props = new Map();
+		for (const [k, v] of up.props) if (INHERITED.has(k)) props.set(k, v);
+		if (d) {
+			for (const [k, v] of d)
+				if (k.startsWith("--")) {
+					if (vars === up.vars) vars = new Map(vars);
+					vars.set(k, v);
+				}
+			for (const [k, v] of d) {
+				if (k.startsWith("--")) continue;
+				const r = resolveVars(v, vars);
+				if (r !== "inherit") props.set(k, r);
+			}
+		}
+		const res = { props, vars, base: null };
+		el._cs = { tok, d, up, res };
+		return res;
+	};
 	const cascaded = (el) => {
 		const ix = buildIndex();
-		const chain = [];
-		for (let n = el; n instanceof g.Element; n = n.parentNode) chain.unshift(n);
-		let vars = new Map(TIDAL_VARS);
-		const props = new Map();
-		for (const n of chain) {
-			const d = cascade(ix, n);
-			const own = new Map();
-			if (d) {
-				for (const [k, v] of d) if (k.startsWith("--")) vars.set(k, v);
-				for (const [k, v] of d) if (!k.startsWith("--")) own.set(k, resolveVars(v, vars));
-			}
-			for (const k of [...props.keys()]) if (!INHERITED.has(k)) props.delete(k);
-			for (const [k, v] of own) {
-				if (v === "inherit") continue;
-				props.set(k, v);
-			}
-			if (n === el) vars = new Map(vars);
-		}
-		return { props, vars };
+		return cascadedOf(ix, csToken(ix), el);
 	};
 	// The overlay style `el` has right now, with what it inherits, when it has
 	// a `transition` (else null): the style a browser's style pass would
@@ -1676,42 +1711,72 @@
 		}
 		return st;
 	};
-	const computedStyle = (el, pseudo) => {
-		const decl = new CSSStyleDeclaration();
-		if (!(el instanceof g.Element) || (pseudo && /::?(before|after|marker|placeholder|selection|-webkit-scrollbar)/.test(String(pseudo)))) return declProxy(decl);
-		const { props, vars } = cascaded(el);
-		const r = el.getBoundingClientRect();
-		const defaults = {
-			display: NONE.has(el.localName) ? "none" : BLOCK.has(el.localName) ? "block" : el.localName === "svg" || el.localName === "img" ? "inline-block" : "inline",
-			visibility: "visible",
-			opacity: "1",
-			color: "rgb(255, 255, 255)",
-			"background-color": "rgba(0, 0, 0, 0)",
-			"font-size": "16px",
-			"font-weight": "400",
-			"font-family": "nationale, sans-serif",
-			position: "static",
-			"z-index": "auto",
-			width: `${r.width}px`,
-			height: `${r.height}px`,
-			"line-height": "normal",
-			transform: "none",
-		};
-		for (const [k, v] of Object.entries(defaults)) decl._m.set(k, { value: v, important: false });
-		for (const [k, v] of props) decl._m.set(k, { value: v, important: false });
+	// The declaration `getComputedStyle` hands out for a cascaded result:
+	// built once per result and shared (copied only if a script writes to
+	// its copy). The box is read when a size or transform is: as in a
+	// browser, a script that only reads colours or images does not make the
+	// page lay out (each such read waited for the UI's next layout after a
+	// style change).
+	const v = (value) => ({ value, important: false });
+	// The variables resolved, once per set of them (most elements share
+	// their parent's).
+	const resolvedVars = new WeakMap();
+	const varsOut = (vars) => {
+		let out = resolvedVars.get(vars);
+		if (!out) {
+			out = [];
+			for (const [k, x] of vars) out.push([k, v(resolveVars(x, vars).trim())]);
+			resolvedVars.set(vars, out);
+		}
+		return out;
+	};
+	const computedBase = (el, res) => {
+		const { props, vars } = res;
+		const m = new Map();
+		const box = () => el.getBoundingClientRect();
+		m.set("display", v(NONE.has(el.localName) ? "none" : BLOCK.has(el.localName) ? "block" : el.localName === "svg" || el.localName === "img" ? "inline-block" : "inline"));
+		for (const [k, x] of [
+			["visibility", "visible"],
+			["opacity", "1"],
+			["color", "rgb(255, 255, 255)"],
+			["background-color", "rgba(0, 0, 0, 0)"],
+			["font-size", "16px"],
+			["font-weight", "400"],
+			["font-family", "nationale, sans-serif"],
+			["position", "static"],
+			["z-index", "auto"],
+		])
+			m.set(k, v(x));
+		m.set("width", { get value() { return `${box().width}px`; }, important: false });
+		m.set("height", { get value() { return `${box().height}px`; }, important: false });
+		m.set("line-height", v("normal"));
+		m.set("transform", v("none"));
+		for (const [k, x] of props) m.set(k, v(x));
 		// A transform resolves to the matrix a browser reports.
 		if (props.has("transform") && L.parseTransform) {
-			try {
-				const { m, is2D } = L.parseTransform(props.get("transform"), [r.width, r.height]);
-				const v = props.get("transform").trim() === "none" ? "none" : is2D ? `matrix(${[m[0], m[1], m[4], m[5], m[12], m[13]].join(", ")})` : `matrix3d(${m.join(", ")})`;
-				decl._m.set("transform", { value: v, important: false });
-			} catch {}
+			const t = props.get("transform");
+			m.set("transform", {
+				get value() {
+					try {
+						const r = box();
+						const { m: x, is2D } = L.parseTransform(t, [r.width, r.height]);
+						return t.trim() === "none" ? "none" : is2D ? `matrix(${[x[0], x[1], x[4], x[5], x[12], x[13]].join(", ")})` : `matrix3d(${x.join(", ")})`;
+					} catch {
+						return t;
+					}
+				},
+				important: false,
+			});
 		}
-		if (props.has("background")) decl._m.set(isImage(props.get("background")) ? "background-image" : "background-color", { value: props.get("background"), important: false });
-		for (const [k, v] of vars) decl._m.set(k, { value: resolveVars(v, vars).trim(), important: false });
-		Object.defineProperty(decl, "_owner", { value: null });
-		const p = declProxy(decl);
-		return p;
+		if (props.has("background")) m.set(isImage(props.get("background")) ? "background-image" : "background-color", v(props.get("background")));
+		for (const [k, x] of varsOut(vars)) m.set(k, x);
+		return m;
+	};
+	const computedStyle = (el, pseudo) => {
+		if (!(el instanceof g.Element) || (pseudo && /::?(before|after|marker|placeholder|selection|-webkit-scrollbar)/.test(String(pseudo)))) return declProxy(new CSSStyleDeclaration());
+		const res = cascaded(el);
+		res.base ??= computedBase(el, res);
+		return declProxy(new CSSStyleDeclaration(null, res.base));
 	};
 
 	// Whether any selector names attribute `k` (from the last index; a sheet
