@@ -6930,12 +6930,13 @@ fn paint_layers(
                 at,
                 ellipse,
                 size,
+                extent,
             }) if corners.is_some() => {
                 let middle = egui::pos2(
                     rect.left() + rect.width() * center[0],
                     rect.top() + rect.height() * center[1],
                 );
-                let radii = radial_radii(rect, middle, *ellipse, *size);
+                let radii = radial_extent(rect, middle, *ellipse, *size, *extent);
                 paint_radial_in(ui.painter(), rect, middle, radii, stops, at, corners);
             }
             BoxLayer::Frost(radius) => {
@@ -7408,6 +7409,10 @@ pub enum PageLayer {
         ellipse: bool,
         #[serde(default)]
         size: RadialSize,
+        /// The ending shape's radii given as lengths (`60% 60%`, `circle
+        /// 120px`), in place of `size`.
+        #[serde(default)]
+        extent: Option<[Extent; 2]>,
     },
     /// A radial gradient whose colour ends a few points from its centre
     /// (`hsla(...) 1px, transparent 0`): a dot, once per `background-size`
@@ -7433,6 +7438,37 @@ pub enum RadialSize {
     FarthestCorner,
 }
 
+/// A radius of a radial gradient's ending shape given as a length: in
+/// points, or a fraction of the box's width (x) or height (y).
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum Extent {
+    Px(f32),
+    Frac(f32),
+}
+
+impl Extent {
+    fn of(word: &str) -> Option<Self> {
+        if let Some(p) = word.strip_suffix('%') {
+            return p
+                .trim()
+                .parse::<f32>()
+                .ok()
+                .map(|p| Extent::Frac(p / 100.0));
+        }
+        match word.strip_suffix("px") {
+            Some(px) => px.trim().parse::<f32>().ok().map(Extent::Px),
+            None => (word == "0").then_some(Extent::Px(0.0)),
+        }
+    }
+
+    fn points(self, side: f32) -> f32 {
+        match self {
+            Extent::Px(p) => p,
+            Extent::Frac(f) => f * side,
+        }
+    }
+}
+
 /// A `radial-gradient(...)` with its shape, size, position and stops, as
 /// CSS reads them; `None` for anything else.
 fn radial(layer: &str) -> Option<PageLayer> {
@@ -7451,6 +7487,13 @@ fn radial(layer: &str) -> Option<PageLayer> {
         None => (head, ""),
     };
     let ellipse = !shape.split_whitespace().any(|w| w == "circle");
+    // Radii as lengths: one for a circle, two for an ellipse.
+    let lengths: Vec<Extent> = shape.split_whitespace().filter_map(Extent::of).collect();
+    let extent = match lengths.as_slice() {
+        [x, y] if ellipse => Some([*x, *y]),
+        [r] if !ellipse => Some([*r, *r]),
+        _ => None,
+    };
     let size = shape
         .split_whitespace()
         .find_map(|w| match w {
@@ -7509,6 +7552,7 @@ fn radial(layer: &str) -> Option<PageLayer> {
         at: stop_positions(&given),
         ellipse,
         size,
+        extent,
     })
 }
 
@@ -7544,6 +7588,49 @@ fn stop_positions(given: &[Option<f32>]) -> Vec<f32> {
         i = end;
     }
     at.into_iter().map(|p| p.unwrap_or(0.0)).collect()
+}
+
+/// The ending shape's radii for a gradient centred at `c` in `r`: its
+/// lengths when given, else its size keyword's.
+fn radial_extent(
+    r: Rect,
+    c: egui::Pos2,
+    ellipse: bool,
+    size: RadialSize,
+    extent: Option<[Extent; 2]>,
+) -> egui::Vec2 {
+    match extent {
+        Some([x, y]) => {
+            egui::vec2(x.points(r.width()), y.points(r.height())).max(egui::Vec2::splat(0.5))
+        }
+        None => radial_radii(r, c, ellipse, size),
+    }
+}
+
+/// A `radial-gradient()` layer of a box's background, painted in `r`
+/// (inside `corners`) as CSS paints it; `None` for any other layer.
+pub(crate) fn radial_box_mesh(
+    layer: &str,
+    r: Rect,
+    corners: Option<egui::CornerRadius>,
+) -> Option<egui::Mesh> {
+    let PageLayer::Radial {
+        center,
+        stops,
+        at,
+        ellipse,
+        size,
+        extent,
+    } = radial(layer)?
+    else {
+        return None;
+    };
+    let c = egui::pos2(
+        r.left() + r.width() * center[0],
+        r.top() + r.height() * center[1],
+    );
+    let radii = radial_extent(r, c, ellipse, size, extent);
+    radial_mesh(r, c, radii, &stops, &at, corners)
 }
 
 /// The ending shape's radii for a gradient centred at `c` in `r`.
@@ -7728,12 +7815,13 @@ pub(crate) fn paint_layer(ui: &egui::Ui, r: Rect, layer: &PageLayer) {
             at,
             ellipse,
             size,
+            extent,
         } => {
             let center = egui::pos2(
                 r.left() + r.width() * center[0],
                 r.top() + r.height() * center[1],
             );
-            let radii = radial_radii(r, center, *ellipse, *size);
+            let radii = radial_extent(r, center, *ellipse, *size, *extent);
             paint_radial(painter, r, center, radii, stops, at);
         }
         PageLayer::Dot {
@@ -8812,6 +8900,7 @@ mod tests {
             at,
             ellipse,
             size,
+            ..
         }) = page_layer("radial-gradient(ellipse at 50% 50%, red, blue 40%, green)")
         else {
             panic!("not a radial gradient");
@@ -10418,6 +10507,7 @@ mod tests {
             at,
             ellipse,
             size,
+            ..
         }) = page_layer(layer)
         else {
             panic!("not a radial gradient");

@@ -763,7 +763,15 @@ pub(crate) mod css {
 
     /// `opacity` 0..=1.
     pub fn opacity(value: &str) -> Option<f32> {
-        let v = strip_important(value);
+        let v = strip_important(value).trim();
+        // `calc(.2 * 0.4)` (betterFullscreen's glows, a setting times a
+        // factor): worked out as CSS does, a percentage of 1.
+        if ["calc(", "min(", "max(", "clamp("]
+            .iter()
+            .any(|f| v.to_ascii_lowercase().starts_with(f))
+        {
+            return length(v, 0.0, 1.0, [0.0, 0.0]).map(|o| o.clamp(0.0, 1.0));
+        }
         match v.strip_suffix('%') {
             Some(p) => p.parse::<f32>().ok().map(|p| p / 100.0),
             None => v.parse::<f32>().ok(),
@@ -1086,6 +1094,22 @@ pub(crate) mod css {
                 first_family("\"Comic Sans MS\", sans-serif"),
                 Some("Comic Sans MS".into())
             );
+        }
+
+        /// An opacity worked out by `calc()` and its kin, as CSS has it:
+        /// it read as none, so betterFullscreen's faint glows (`calc(.2 *
+        /// var(--vibrant-color-opacity))`) covered the player in white.
+        #[test]
+        fn an_opacity_can_be_worked_out() {
+            assert_eq!(
+                opacity("calc(.2 * 0.4)").map(|o| (o * 1000.0).round()),
+                Some(80.0)
+            );
+            assert_eq!(opacity("min(0.5, 0.3)"), Some(0.3));
+            assert_eq!(opacity("clamp(0, 2, 1)"), Some(1.0));
+            assert_eq!(opacity("calc(50% / 2)"), Some(0.25));
+            assert_eq!(opacity("0.4"), Some(0.4));
+            assert_eq!(opacity("40%"), Some(0.4));
         }
 
         #[test]
@@ -1822,6 +1846,36 @@ fn inline_with(
         plugin_dom::request_frame(ui.ctx());
     }
     drawn
+}
+
+/// A gradient layer of a plugin box's background.
+enum BoxGradient {
+    Linear(super::theme_gradient::Angled),
+    /// A `radial-gradient()`, as written.
+    Radial(String),
+}
+
+/// A plugin box's `background-image` when every layer is a gradient: its
+/// linear (see [`box_gradient`]) and radial layers, the first on top as CSS
+/// paints them. A radial glow (betterFullscreen's round light behind the
+/// cover, fading out at 70%) was a box filled with its first colour, and
+/// layers after the first went unpainted.
+fn box_gradients(value: &str) -> Option<Vec<BoxGradient>> {
+    let mut out = Vec::new();
+    for layer in css::split_top(value, ',') {
+        let layer = layer.trim();
+        let lower = layer.to_ascii_lowercase();
+        if lower.starts_with("linear-gradient(") {
+            out.push(BoxGradient::Linear(box_gradient(layer)?));
+        } else if lower.starts_with("radial-gradient(")
+            || lower.starts_with("-webkit-radial-gradient(")
+        {
+            out.push(BoxGradient::Radial(layer.to_string()));
+        } else {
+            return None;
+        }
+    }
+    (!out.is_empty()).then_some(out)
 }
 
 /// A `linear-gradient()` a plugin box is filled with: an angled one as a
@@ -4869,7 +4923,7 @@ fn draw_box(
     let gradient = style
         .background_image
         .as_deref()
-        .and_then(|b| box_gradient(&css::resolve_vars(b, cx.vars)));
+        .and_then(|b| box_gradients(&css::resolve_vars(b, cx.vars)));
     let fill = cx.color(&style.background_color).or_else(|| {
         style.background_image.as_deref().and_then(|b| {
             css::colors_in(&css::resolve_vars(b, cx.vars))
@@ -6074,15 +6128,24 @@ fn draw_box(
             let r = shown.rect - margin.map_or(Margin::ZERO, margin_of);
             if has_url {
                 paint_background(ui, idx, r, style, rot, cx);
-            } else if let Some(g) = &gradient {
-                // The whole gradient, inside the box's corners
-                // (custom-fonts' pink-to-blue tag).
+            } else if let Some(layers) = &gradient {
+                // The whole gradients, inside the box's corners
+                // (custom-fonts' pink-to-blue tag), the first on top.
                 let corners = CornerRadius::same(radius.clamp(0.0, 255.0) as u8);
-                if let Some(mesh) =
-                    super::theme_gradient::mesh(r, Some(corners), g, g.angle, g.position)
-                {
-                    ui.painter().set(idx, egui::Shape::mesh(mesh));
-                }
+                let meshes: Vec<egui::Shape> = layers
+                    .iter()
+                    .rev()
+                    .filter_map(|layer| match layer {
+                        BoxGradient::Linear(g) => {
+                            super::theme_gradient::mesh(r, Some(corners), g, g.angle, g.position)
+                        }
+                        BoxGradient::Radial(layer) => {
+                            plugin_dom::radial_box_mesh(layer, r, Some(corners))
+                        }
+                    })
+                    .map(egui::Shape::mesh)
+                    .collect();
+                ui.painter().set(idx, egui::Shape::Vec(meshes));
             }
         }
         // `filter: brightness(<1)`: the box and what it holds, dimmed (as
@@ -8675,6 +8738,99 @@ mod tests {
         let spread = xs.iter().copied().fold(f32::MIN, f32::max)
             - xs.iter().copied().fold(f32::MAX, f32::min);
         assert!(spread > 4.0 && spread < 10.0, "{xs:?}");
+    }
+
+    /// A box's radial background is a round glow fading out where its stops
+    /// say, at its opacity, and a background of several gradient layers
+    /// paints each, the first on top: betterFullscreen's glow behind the
+    /// cover (`radial-gradient(circle at center, <colour> 0, transparent
+    /// 70%)` at `opacity: calc(.4 * 0.4)`) was a square of its first colour
+    /// at full opacity, and its player's dark radial layer over TIDAL's
+    /// profile gradient was one flat colour.
+    #[test]
+    fn a_radial_background_is_a_glow_and_layers_paint_in_order() {
+        let fixed = |id: u64, left: &str, background: &str, opacity: Option<&str>| VNode {
+            id,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                top: Some("10px".into()),
+                left: Some(left.into()),
+                width: Some("200px".into()),
+                height: Some("200px".into()),
+                background_image: Some(background.into()),
+                opacity: opacity.map(str::to_string),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let shapes = floating_shapes(vec![
+            fixed(
+                1,
+                "10px",
+                "radial-gradient(circle at center,rgba(255, 255, 255, 0.5) 0,transparent 70%)",
+                Some("calc(.4 * 0.4)"),
+            ),
+            fixed(
+                2,
+                "300px",
+                "radial-gradient(60% 60% at 25% 35%,rgb(255, 0, 0) 0,transparent 70%),linear-gradient(90deg,#0000ff,#00ff00)",
+                None,
+            ),
+        ]);
+        let meshes: Vec<&egui::Mesh> = shapes
+            .iter()
+            .filter_map(|s| match s {
+                egui::Shape::Mesh(m) => Some(&**m),
+                _ => None,
+            })
+            .collect();
+        // No box is filled with a gradient's first colour.
+        assert!(
+            !shapes
+                .iter()
+                .any(|s| matches!(s, egui::Shape::Rect(r) if r.fill.a() > 0)),
+            "{shapes:?}"
+        );
+        let inside = |m: &egui::Mesh, x0: f32| {
+            m.vertices
+                .iter()
+                .all(|v| v.pos.x >= x0 - 1.0 && v.pos.x <= x0 + 201.0)
+        };
+        let glow = meshes.iter().find(|m| inside(m, 10.0)).expect("the glow");
+        // Its centre: half-white at 0.16; its corners: nothing.
+        let at = |m: &egui::Mesh, p: Pos2| {
+            m.vertices
+                .iter()
+                .min_by(|a, b| a.pos.distance(p).total_cmp(&b.pos.distance(p)))
+                .map(|v| v.color)
+                .unwrap()
+        };
+        let centre = at(glow, Pos2::new(110.0, 110.0));
+        assert_eq!(at(glow, Pos2::new(10.0, 10.0)).a(), 0);
+        // The second box: the linear layer under the radial one, which is
+        // an ellipse of 120 by 120 at (350, 80).
+        let second: Vec<usize> = meshes
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| inside(m, 300.0))
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(second.len(), 2, "two layers");
+        let (under, over) = (meshes[second[0]], meshes[second[1]]);
+        assert!(
+            under.vertices.iter().all(|v| v.color.r() == 0)
+                && under.vertices.iter().any(|v| v.color.b() > 0),
+            "the blue-green ramp first"
+        );
+        let red = at(over, Pos2::new(350.0, 80.0));
+        assert!(red.r() > 3 * red.g().max(1) && red.a() > 0, "{red:?}");
+        // The glow's centre is half-white at 0.16 against the red's full
+        // colour, both as the new layers fade in (egui's areas do).
+        let ratio = f32::from(centre.a()) / f32::from(red.a());
+        assert!((0.06..=0.10).contains(&ratio), "{centre:?} against {red:?}");
+        // 0.7 of 120 points from the centre the red is gone.
+        assert!(at(over, Pos2::new(350.0 + 90.0, 80.0)).a() < 10);
     }
 
     /// custom-fonts' Comic Sans tag: `transform: rotate(-3deg)` turns the
