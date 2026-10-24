@@ -409,7 +409,6 @@
 	g.name = "";
 	g.opener = null;
 	g.closed = false;
-	g.devicePixelRatio = 1;
 
 	// ---------------------------------------------------------------- inline handlers
 	// `onclick="..."` and the other `on*` attributes are compiled as a

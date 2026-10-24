@@ -1692,6 +1692,8 @@
 				return void L.node.editorEvent(arg);
 			case "page":
 				return void L.node.pageEvent(arg);
+			case "screen":
+				return void L.node.screenChanged?.();
 			case "focus":
 				L.setTimersFocused(arg.focused);
 				return void L.dom.setFocused(arg.focused);

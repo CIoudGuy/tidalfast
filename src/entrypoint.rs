@@ -1428,6 +1428,8 @@ impl eframe::App for Shell {
         if !std::mem::replace(&mut self.recovery_checked, true) && !dev_window_placed() {
             fastframe_shell::window::recover_offscreen(ctx, frame);
         }
+        // The monitors plugins see (Electron's `screen`, `window.screen`).
+        tidalfast::luna::screen::poll(ctx, frame);
         let app = &mut *self.app;
         #[cfg(target_os = "macos")]
         for command in tidalfast::mac_menu::drain_commands() {

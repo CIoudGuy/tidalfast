@@ -58,6 +58,7 @@ pub mod plugrec;
 mod pool;
 pub mod redux;
 mod runtime;
+pub mod screen;
 pub mod settings;
 mod sourcemap;
 mod storage;
@@ -1074,6 +1075,8 @@ pub(crate) enum Msg {
     Hidden(bool),
     /// The window gained or lost the keyboard focus.
     Focused(bool),
+    /// The monitors changed ([`screen`]).
+    Screens,
     /// The user edited (`Some`) or closed (`None`) a plugin's editor.
     Editor {
         window: u32,
@@ -1287,6 +1290,12 @@ impl Luna {
 
     pub fn set_hidden(&self, hidden: bool) {
         let _ = self.tx.send(Msg::Hidden(hidden));
+    }
+
+    /// The monitors changed: plugins listening on Electron's `screen` hear
+    /// `display-added`, `display-removed` and `display-metrics-changed`.
+    pub fn screens_changed(&self) {
+        let _ = self.tx.send(Msg::Screens);
     }
 
     /// Tell plugins something happened.

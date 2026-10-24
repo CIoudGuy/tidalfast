@@ -45,6 +45,9 @@ pub(crate) struct Seen {
     /// Queue tracks as TIDAL JSON, and what they were built from.
     pub items_key: Option<u64>,
     pub items: std::collections::BTreeMap<String, serde_json::Value>,
+    /// How many times the monitors had changed when plugins were last told
+    /// ([`crate::luna::screen::changes`]).
+    pub screens: u64,
 }
 
 /// The plugins' running state, held by the app.

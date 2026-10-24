@@ -506,6 +506,13 @@ impl App {
             let hidden = self.luna_hidden(ctx, window);
             self.plugins.host.set_hidden(hidden);
             self.luna_visibility(hidden);
+            let screens = crate::luna::screen::changes();
+            if self.plugins.seen.screens != screens {
+                self.plugins.seen.screens = screens;
+                if let Some(luna) = &self.plugins.luna {
+                    luna.screens_changed();
+                }
+            }
             if self.plugins.seen.focused != Some(window.focused) {
                 self.plugins.seen.focused = Some(window.focused);
                 if let Some(luna) = &self.plugins.luna {

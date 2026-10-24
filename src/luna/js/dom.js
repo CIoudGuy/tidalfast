@@ -2685,9 +2685,91 @@
 	g.innerHeight = 800;
 	g.outerWidth = 1280;
 	g.outerHeight = 800;
-	g.devicePixelRatio = 1;
 	g.scrollX = g.scrollY = g.pageXOffset = g.pageYOffset = 0;
-	g.screen = { width: 1920, height: 1080, availWidth: 1920, availHeight: 1080, colorDepth: 24, pixelDepth: 24, orientation: { type: "landscape-primary", angle: 0, addEventListener() {}, removeEventListener() {} } };
+	// The display the window is on and its scale, from the UI (op `screen`,
+	// DIPs as Chromium gives them), read again at most once a second.
+	let screenRead = null;
+	let screenAt = 0;
+	const screenInfo = () => {
+		const now = Date.now();
+		if (!screenRead || now - screenAt >= 1000) {
+			try {
+				screenRead = L.callOp("screen", null) ?? {};
+			} catch {
+				screenRead = {};
+			}
+			screenAt = now;
+		}
+		return screenRead;
+	};
+	const ONE_SCREEN = { bounds: { x: 0, y: 0, width: 1920, height: 1080 }, workArea: { x: 0, y: 0, width: 1920, height: 1080 } };
+	const onScreen = () => {
+		const s = screenInfo();
+		const all = Array.isArray(s.displays) ? s.displays : [];
+		return all.find((d) => d.id === s.current) ?? all[0] ?? ONE_SCREEN;
+	};
+	class ScreenOrientation extends Target {
+		get type() {
+			const b = onScreen().bounds;
+			return b.width >= b.height ? "landscape-primary" : "portrait-primary";
+		}
+		get angle() {
+			return 0;
+		}
+		lock() {
+			return Promise.reject(new g.DOMException("The page cannot lock the screen's orientation.", "NotSupportedError"));
+		}
+		unlock() {}
+	}
+	const orientation = new ScreenOrientation();
+	class Screen extends Target {
+		get width() {
+			return onScreen().bounds.width;
+		}
+		get height() {
+			return onScreen().bounds.height;
+		}
+		get availWidth() {
+			return onScreen().workArea.width;
+		}
+		get availHeight() {
+			return onScreen().workArea.height;
+		}
+		get availLeft() {
+			return onScreen().workArea.x;
+		}
+		get availTop() {
+			return onScreen().workArea.y;
+		}
+		get colorDepth() {
+			return 24;
+		}
+		get pixelDepth() {
+			return 24;
+		}
+		get isExtended() {
+			return (screenInfo().displays?.length ?? 1) > 1;
+		}
+		get orientation() {
+			return orientation;
+		}
+	}
+	g.Screen = Screen;
+	g.ScreenOrientation = ScreenOrientation;
+	g.screen = new Screen();
+	// The window's scale, its zoom included; a page may replace it, as in
+	// a browser.
+	let dprSet;
+	Object.defineProperty(g, "devicePixelRatio", {
+		get() {
+			return dprSet !== undefined ? dprSet : Number(screenInfo().dpr) || 1;
+		},
+		set(v) {
+			dprSet = v;
+		},
+		configurable: true,
+		enumerable: true,
+	});
 	const loc = { href: "https://desktop.tidal.com/", origin: "https://desktop.tidal.com", protocol: "https:", host: "desktop.tidal.com", hostname: "desktop.tidal.com", port: "", pathname: "/", search: "", hash: "", reload() {}, assign() {}, replace() {}, toString() { return this.href; } };
 	g.location = loc;
 	const setPath = (path) => {

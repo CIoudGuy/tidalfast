@@ -40,6 +40,8 @@ struct Win {
     /// The tree last sent to the page.
     sent: Option<HostTree>,
     bounds: Option<[f32; 4]>,
+    /// The display under the window's middle (see [`crate::luna::screen`]).
+    display: Option<u32>,
     focused: Option<bool>,
     /// The size and place the window was opened with (the builder keeps
     /// them, so egui never moves the window back by itself).
@@ -110,10 +112,13 @@ pub fn show(ctx: &egui::Context, luna: Option<&Luna>) {
                 win.placed = spec.placed;
                 win.raised = spec.raised;
             }
-            // What the plugin asked for after opening it.
+            // What the plugin asked for after opening it. A development
+            // place (`TIDALFAST_PLUGIN_WINDOW_POS`) keeps the window there.
             if spec.placed != win.placed {
                 win.placed = spec.placed;
-                if let (Some(x), Some(y)) = (spec.x, spec.y) {
+                if let (Some(x), Some(y)) = (spec.x, spec.y)
+                    && dev_place().is_none()
+                {
                     ctx.send_viewport_cmd_to(id, ViewportCommand::OuterPosition(egui::pos2(x, y)));
                 }
                 ctx.send_viewport_cmd_to(
@@ -160,19 +165,19 @@ fn builder(spec: &WindowSpec, opened: ([f32; 2], Option<[f32; 2]>)) -> ViewportB
         let max = |v: f32| if v > 0.0 { v } else { f32::INFINITY };
         b = b.with_max_inner_size([max(spec.max_width), max(spec.max_height)]);
     }
-    // Development: `TIDALFAST_PLUGIN_WINDOW_POS` opens plugin windows at a
-    // place of the developer's (off the screen in tests).
-    let place = std::env::var("TIDALFAST_PLUGIN_WINDOW_POS")
-        .ok()
-        .and_then(|value| {
-            let (x, y) = value.split_once(',')?;
-            Some([x.trim().parse().ok()?, y.trim().parse().ok()?])
-        })
-        .or(opened.1);
-    if let Some(p) = place {
+    if let Some(p) = dev_place().or(opened.1) {
         b = b.with_position(p);
     }
     b
+}
+
+/// Development: `TIDALFAST_PLUGIN_WINDOW_POS` opens plugin windows at a
+/// place of the developer's (off the screen in tests) and keeps them there
+/// whatever the plugin asks later.
+fn dev_place() -> Option<[f32; 2]> {
+    let value = std::env::var("TIDALFAST_PLUGIN_WINDOW_POS").ok()?;
+    let (x, y) = value.split_once(',')?;
+    Some([x.trim().parse().ok()?, y.trim().parse().ok()?])
 }
 
 /// Whether a CSS background paints anything.
@@ -345,6 +350,7 @@ fn draw_pass(ui: &mut egui::Ui, w: &PageWindow) {
             v.close_requested(),
             v.outer_rect.or(v.inner_rect),
             v.focused,
+            v.native_pixels_per_point.unwrap_or(i.pixels_per_point),
         )
     });
     WINDOWS.with(|m| {
@@ -368,7 +374,7 @@ fn draw_pass(ui: &mut egui::Ui, w: &PageWindow) {
             win.sent = Some(tree.clone());
             w.sync_dom(tree);
         }
-        let (close, outer, focused) = viewport;
+        let (close, outer, focused, native) = viewport;
         if close {
             // The plugin decides (`close` can be cancelled); it closes the
             // window when it lets it go.
@@ -380,8 +386,15 @@ fn draw_pass(ui: &mut egui::Ui, w: &PageWindow) {
             if win.bounds != Some(b) {
                 win.bounds = Some(b);
                 w.user_bounds(b);
+                // The monitors are in physical pixels.
+                let middle = r.center();
+                win.display = crate::luna::screen::display_at(
+                    f64::from(middle.x * native),
+                    f64::from(middle.y * native),
+                );
             }
         }
+        w.set_screen(win.display, ctx.pixels_per_point());
         if let Some(f) = focused
             && win.focused != Some(f)
         {

@@ -150,3 +150,46 @@ await check("closedSeen", () => until(async () => ((await n("closed")) ? n("seen
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A plugin's native code sees the computer's displays through Electron's
+/// `screen` (DIPs, the primary first, its work area without the taskbar)
+/// and the app's page sees the display the app's window is on, at the
+/// window's scale.
+#[test]
+fn plugins_see_the_real_displays() {
+    let (primary, side) = crate::luna::screen::set_test_displays();
+    let body = format!(
+        r#"const n = await native("Probe/screen.native.ts", {native});
+await check("primary", () => n("primary"));
+await check("all", () => n("all"));
+await check("near", () => n("near"));
+await check("page", () => [screen.width, screen.availHeight, screen.availTop, devicePixelRatio]);
+R.done = true;
+"#,
+        native = serde_json::to_string(
+            r#""use strict";
+const { screen } = require("electron");
+exports.primary = () => { const d = screen.getPrimaryDisplay(); return [d.id, d.bounds, d.workArea, d.scaleFactor]; };
+exports.all = () => screen.getAllDisplays().map((d) => [d.id, d.bounds.x, d.workArea.y]);
+exports.near = () => [screen.getDisplayNearestPoint({ x: 3000, y: 10 }).id, screen.getDisplayMatching({ x: 1990, y: 0, width: 100, height: 100 }).id, screen.getDisplayNearestPoint({ x: -50, y: 5000 }).id];
+"#
+        )
+        .unwrap()
+    );
+    let (r, luna, _host, dir) = run("Probe", &body);
+    assert_eq!(
+        r["primary"],
+        json!([
+            primary,
+            { "x": 0, "y": 0, "width": 2048, "height": 1152 },
+            { "x": 0, "y": 0, "width": 2048, "height": 1114 },
+            1.25
+        ]),
+        "{r}"
+    );
+    assert_eq!(r["all"], json!([[primary, 0, 0], [side, 2048, 40]]), "{r}");
+    assert_eq!(r["near"], json!([side, primary, primary]), "{r}");
+    assert_eq!(r["page"], json!([1920, 1040, 40, 1.5]), "{r}");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
