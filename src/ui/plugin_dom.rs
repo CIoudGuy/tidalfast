@@ -7573,27 +7573,9 @@ fn radial(layer: &str) -> Option<PageLayer> {
             _ => None,
         })
         .unwrap_or(RadialSize::FarthestCorner);
-    let words: Vec<&str> = at.split_whitespace().collect();
-    let axis = |word: Option<&&str>, low: &str, high: &str| match word.copied() {
-        Some(w) if w == low => 0.0,
-        Some(w) if w == high => 1.0,
-        Some(w) => w
-            .strip_suffix('%')
-            .and_then(|p| p.trim().parse::<f32>().ok())
-            .map_or(0.5, |p| p / 100.0),
-        None => 0.5,
-    };
-    // Keywords either way round (`top left`).
-    let (x, y) = match (words.first().copied(), words.get(1)) {
-        (Some("top" | "bottom"), second) => (
-            axis(second, "left", "right"),
-            axis(words.first(), "top", "bottom"),
-        ),
-        _ => (
-            axis(words.first(), "left", "right"),
-            axis(words.get(1), "top", "bottom"),
-        ),
-    };
+    // Keywords either way round, as CSS reads them: `center left` is the
+    // left edge's middle, `top center` the top edge's.
+    let (x, y) = super::theme_motion::parse_position(at).unwrap_or((0.5, 0.5));
     let mut colors = Vec::new();
     let mut given: Vec<Option<f32>> = Vec::new();
     for stop in stops {
@@ -7756,31 +7738,11 @@ fn radial_dot(layer: &str) -> Option<PageLayer> {
     if !(0.0..=DOT_MAX).contains(&radius) || rest.is_empty() || !rest.iter().all(|s| clear(s)) {
         return None;
     }
-    // `circle at 10% 20%`, or keywords.
-    let at = head
+    // `circle at 10% 20%`, or keywords in either order.
+    let (x, y) = head
         .and_then(|h| h.split_once("at "))
-        .map(|(_, at)| at.split_whitespace().collect::<Vec<_>>())
-        .unwrap_or_default();
-    let axis = |word: Option<&&str>, low: &str, high: &str| match word.copied() {
-        Some(w) if w == low => 0.0,
-        Some(w) if w == high => 1.0,
-        Some(w) => w
-            .strip_suffix('%')
-            .and_then(|p| p.parse::<f32>().ok())
-            .map_or(0.5, |p| p / 100.0),
-        None => 0.5,
-    };
-    // Keywords may come in either order (`top left`).
-    let (x, y) = match (at.first().copied(), at.get(1).copied()) {
-        (Some("top" | "bottom"), second) => (
-            axis(second.as_ref(), "left", "right"),
-            axis(at.first(), "top", "bottom"),
-        ),
-        _ => (
-            axis(at.first(), "left", "right"),
-            axis(at.get(1), "top", "bottom"),
-        ),
-    };
+        .and_then(|(_, at)| super::theme_motion::parse_position(at))
+        .unwrap_or((0.5, 0.5));
     Some(PageLayer::Dot {
         at: [x, y],
         radius,
@@ -8770,6 +8732,63 @@ pub(crate) fn test_feed_counter() -> Option<dom_anchors::FeedCounter> {
 #[cfg(test)]
 pub(crate) fn test_list_panel() -> Option<[f32; 4]> {
     with(|s| s.frame.page.as_ref()?.list_panel)
+}
+
+/// The colour the painted `shapes` leave at `p` over `under`, as the GPU
+/// paints them: a mesh's vertex colours (premultiplied, gamma) interpolated
+/// at the point, a filled rectangle's colour, each laid over what is below
+/// in order. Textures count as white, corners as square: for the gradients
+/// and fills a background is.
+#[cfg(test)]
+pub(crate) fn test_colour_at(
+    shapes: &[egui::epaint::ClippedShape],
+    p: egui::Pos2,
+    under: Color32,
+) -> Color32 {
+    fn channels(c: Color32) -> [f32; 4] {
+        c.to_array().map(|x| f32::from(x) / 255.0)
+    }
+    fn over(out: &mut [f32; 4], s: [f32; 4]) {
+        *out = std::array::from_fn(|k| s[k] + out[k] * (1.0 - s[3]));
+    }
+    fn lay(shape: &egui::Shape, p: egui::Pos2, out: &mut [f32; 4]) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| lay(s, p, out)),
+            egui::Shape::Rect(r) if r.rect.contains(p) => over(out, channels(r.fill)),
+            egui::Shape::Mesh(mesh) => {
+                let cross = |u: egui::Vec2, v: egui::Vec2| u.x * v.y - u.y * v.x;
+                for tri in mesh.indices.as_chunks::<3>().0 {
+                    let [a, b, c] = tri.map(|i| &mesh.vertices[i as usize]);
+                    let area = cross(b.pos - a.pos, c.pos - a.pos);
+                    if area.abs() < 1e-6 {
+                        continue;
+                    }
+                    let wa = cross(b.pos - p, c.pos - p) / area;
+                    let wb = cross(c.pos - p, a.pos - p) / area;
+                    let wc = 1.0 - wa - wb;
+                    if wa < -1e-4 || wb < -1e-4 || wc < -1e-4 {
+                        continue;
+                    }
+                    let [ca, cb, cc] = [a, b, c].map(|v| channels(v.color));
+                    over(
+                        out,
+                        std::array::from_fn(|k| ca[k] * wa + cb[k] * wb + cc[k] * wc),
+                    );
+                    // The triangles of one mesh do not overlap.
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = channels(under);
+    for clipped in shapes {
+        if clipped.clip_rect.contains(p) {
+            lay(&clipped.shape, p, &mut out);
+        }
+    }
+    let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    Color32::from_rgba_premultiplied(q(out[0]), q(out[1]), q(out[2]), q(out[3]))
 }
 
 #[cfg(test)]

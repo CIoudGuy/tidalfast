@@ -20,20 +20,60 @@ use crate::luna::dom::Style;
 /// (`0%` is the start, `100%` the end), per axis.
 pub type Position = (f32, f32);
 
-/// A `background-position` value (`0% 50%`, `left top`, `center`) as
-/// fractions; none for lengths, which move with the box's size.
+/// A CSS `<position>` (a `background-position`, a radial gradient's `at`)
+/// as fractions, read as CSS reads it: one word (`top` is the middle of the
+/// top edge), two keywords in either order (`center left`, `top right`),
+/// a percentage and a keyword in the order CSS allows, and four words that
+/// give offsets from edges (`right 10% bottom 20%`). None for lengths,
+/// which move with the box's size, and for what CSS rejects.
 pub fn parse_position(value: &str) -> Option<Position> {
+    /// One word of a position: a keyword of one axis, `center`, or a
+    /// percentage.
+    #[derive(Clone, Copy)]
+    enum Word {
+        X(f32),
+        Y(f32),
+        Center,
+        Share(f32),
+    }
+    use Word::{Center, Share, X, Y};
     let lower = value.to_ascii_lowercase();
     let words: Vec<&str> = lower.split_whitespace().collect();
-    let axis = |w: &str| match w {
-        "left" | "top" => Some(0.0),
-        "center" => Some(0.5),
-        "right" | "bottom" => Some(1.0),
-        w => Some(w.strip_suffix('%')?.trim().parse::<f32>().ok()? / 100.0),
+    let word = |w: &str| match w {
+        "left" => Some(X(0.0)),
+        "right" => Some(X(1.0)),
+        "top" => Some(Y(0.0)),
+        "bottom" => Some(Y(1.0)),
+        "center" => Some(Center),
+        w => Some(Share(
+            w.strip_suffix('%')?.trim().parse::<f32>().ok()? / 100.0,
+        )),
     };
     match words.as_slice() {
-        [x] => Some((axis(x)?, 0.5)),
-        [x, y] => Some((axis(x)?, axis(y)?)),
+        [one] => match word(one)? {
+            X(x) | Share(x) => Some((x, 0.5)),
+            Y(y) => Some((0.5, y)),
+            Center => Some((0.5, 0.5)),
+        },
+        [first, second] => match (word(first)?, word(second)?) {
+            (X(x) | Share(x), Y(y) | Share(y)) | (Y(y), X(x)) => Some((x, y)),
+            (X(x) | Share(x), Center) | (Center, X(x)) => Some((x, 0.5)),
+            (Center, Y(y) | Share(y)) | (Y(y), Center) => Some((0.5, y)),
+            (Center, Center) => Some((0.5, 0.5)),
+            _ => None,
+        },
+        // Offsets from edges: `right 10%` is 10 % in from the right.
+        [k1, v1, k2, v2] => {
+            let from = |edge: Word, by: &str| match (edge, word(by)?) {
+                (X(e) | Y(e), Share(v)) => Some(if e == 0.0 { v } else { 1.0 - v }),
+                _ => None,
+            };
+            match (word(k1)?, word(k2)?) {
+                (a @ X(_), b @ Y(_)) => Some((from(a, v1)?, from(b, v2)?)),
+                (a @ Y(_), b @ X(_)) => Some((from(b, v2)?, from(a, v1)?)),
+                _ => None,
+            }
+        }
         _ => None,
     }
 }
@@ -284,6 +324,35 @@ mod tests {
         assert_eq!(parse_position("right top"), Some((1.0, 0.0)));
         assert_eq!(parse_position("center"), Some((0.5, 0.5)));
         assert_eq!(parse_position("12px 4px"), None);
+    }
+
+    /// CSS reads two keywords in either order and one keyword as an edge's
+    /// middle; Chromium's computed `background-position` for each value is
+    /// the expected pair (`center left` is `0% 50%`). These read the first
+    /// word as x and the second as y: `top right` was the left edge's
+    /// bottom.
+    #[test]
+    fn positions_read_keywords_in_either_order_as_css_does() {
+        for (value, at) in [
+            ("center left", (0.0, 0.5)),
+            ("center right", (1.0, 0.5)),
+            ("top right", (1.0, 0.0)),
+            ("bottom left", (0.0, 1.0)),
+            ("top center", (0.5, 0.0)),
+            ("top", (0.5, 0.0)),
+            ("bottom", (0.5, 1.0)),
+            ("right", (1.0, 0.5)),
+            ("25% top", (0.25, 0.0)),
+            ("left 30%", (0.0, 0.3)),
+            ("right 10% bottom 20%", (0.9, 0.8)),
+            ("bottom 20% right 10%", (0.9, 0.8)),
+        ] {
+            assert_eq!(parse_position(value), Some(at), "{value}");
+        }
+        // What CSS rejects.
+        for value in ["top 30%", "30% left", "left right", "top bottom"] {
+            assert_eq!(parse_position(value), None, "{value}");
+        }
     }
 
     #[test]
