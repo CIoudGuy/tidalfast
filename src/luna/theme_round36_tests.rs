@@ -137,3 +137,21 @@ fn nested_relative_font_sizes_compound() {
     pd::test_overlay(None);
     assert_eq!(sizes, [Some(7.0), Some(3.5)]);
 }
+/// A negative padding is invalid CSS: the browser drops the declaration as
+/// it parses and the padding before it stays (TIDAL 2.46.0 ignores the
+/// cotton candy family's `padding-bottom: -3em` on the album's list panel).
+/// Tidalfast took it, a panel 42 points shorter inside than TIDAL's.
+#[test]
+fn a_negative_padding_is_dropped() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::SIDEBAR;
+    let css = r#"/* {"name": "Negative padding"} */
+[class*="_sidebarWrapper_"] { padding: 10px 12px; }
+[class*="_sidebarWrapper_"] { padding-bottom: -3em; }
+"#;
+    let o = overlay_for("negative-padding.css", css, SIDEBAR);
+    pd::test_overlay(Some((*o).clone()));
+    let padding = pd::anchor_look(SIDEBAR).and_then(|l| l.padding);
+    pd::test_overlay(None);
+    assert_eq!(padding, Some([10.0, 12.0, 10.0, 12.0]));
+}
