@@ -1546,6 +1546,38 @@ lib.observe(unloads, ".is-fullscreen.is-now-playing", (el) => {
     finish(luna, dir);
 }
 
+/// TIDAL 2.46.0's root variables plugins build on: its stacking levels and
+/// the profile gradient. betterFullscreen's player lost its whole
+/// background (`radial-gradient(...), var(--user-profile-linear-gradient)`
+/// is invalid while the variable is missing) and its backdrop fell back to
+/// `z-index: -1` under the player, where TIDAL lays it at 10.
+#[test]
+fn tidals_root_variables_reach_plugin_styles() {
+    let (luna, _host, dir) = start(
+        r##"
+const s = document.createElement("style");
+s.textContent = ".p { position: fixed; inset: 0; background: radial-gradient(rgba(20, 20, 30, 0.9), #000), var(--user-profile-linear-gradient); } .b { position: absolute; inset: 0; z-index: var(--z-index-low, -1); } .c { position: relative; z-index: var(--z-index-high); }";
+document.head.appendChild(s);
+const p = document.createElement("div");
+p.className = "p";
+const b = document.createElement("div");
+b.className = "b";
+const c = document.createElement("div");
+c.className = "c";
+p.append(b, c);
+document.body.appendChild(p);
+R.low = getComputedStyle(document.documentElement).getPropertyValue("--z-index-low").trim();
+R.z = [getComputedStyle(b).zIndex, getComputedStyle(c).zIndex];
+R.bg = getComputedStyle(p).backgroundImage;
+"##,
+    );
+    let r = results_until(&luna, &dir, 10, |r| r["bg"].is_string());
+    assert_eq!(r["low"], json!("10"));
+    assert_eq!(r["z"], json!(["10", "1000"]));
+    assert!(r["bg"].as_str().unwrap().contains("160deg"), "{r}");
+    finish(luna, dir);
+}
+
 /// TIDAL 2.46.0 marks its layout with the view's state, and plugins wait
 /// for those classes with an attribute observer or match them exactly as
 /// themes do: the player bar is `_player_8c80ae6 nowPlayingVisible
