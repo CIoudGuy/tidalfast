@@ -117,3 +117,42 @@ fn a_full_height_header_art_box_is_as_tall_as_the_page_box() {
     assert_eq!(rect.min, page.min);
     assert_eq!(rect.height(), page.height());
 }
+
+/// TIDAL's queue panel is grey glass of its own (`._container_b3e8f28 {
+/// background: linear-gradient(rgba(60,60,60,.35), rgba(70,70,70,.35)) }`,
+/// TIDAL 2.46.0): a theme's `background-color` on the panel lies under it
+/// (Abyss Neptune's 80 % black shows as TIDAL's grey 21), while the
+/// `background` shorthand or `background-image` replaces it (the cotton
+/// candy family's pink glass, TidalCustomTheme's pink).
+#[test]
+fn a_themes_panel_colour_lies_under_tidals_queue_glass() {
+    use crate::ui::plugin_dom as pd;
+    let mut frame = dom_anchors::sample_frame();
+    frame.queue_panel = Some((Some([1000.0, 90.0, 334.0, 600.0]), false));
+    let glass = |name: &str, css: &str| {
+        let tree = dom_anchors::build(&frame);
+        let luna = themed_luna(name, css);
+        let o = wait(&luna, &tree, &|o| {
+            o.hosts
+                .get(dom_anchors::keys::QUEUE_PANEL)
+                .is_some_and(|h| h.style.background_color.is_some())
+        });
+        luna.shutdown();
+        pd::test_overlay(Some((*o).clone()));
+        let kept = pd::queue_glass();
+        pd::test_overlay(None);
+        kept
+    };
+    assert!(glass(
+        "under-glass.css",
+        "/* {\"name\": \"Under glass\"} */\n#playQueueSidebar { background-color: rgba(0, 0, 0, 0.8); }\n"
+    ));
+    assert!(!glass(
+        "no-glass.css",
+        "/* {\"name\": \"No glass\"} */\n._container_b3e8f28 { background: rgb(240, 120, 200); }\n"
+    ));
+    assert!(!glass(
+        "no-image.css",
+        "/* {\"name\": \"No image\"} */\n#playQueueSidebar { background-color: rgb(240, 120, 200); background-image: none; }\n"
+    ));
+}

@@ -346,6 +346,12 @@ pub struct HostOverride {
     /// nearest one up the tree that is not `auto`) is not `none`.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub selectable: bool,
+    /// TIDAL's own grey glass on its play queue panel
+    /// (`._container_b3e8f28 { background: linear-gradient(...) }`) is
+    /// still in place: a theme's `background-color` lies under it, its
+    /// `background` shorthand or `background-image` takes it away.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub glass: bool,
 }
 
 impl HostOverride {
