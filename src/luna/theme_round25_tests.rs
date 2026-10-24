@@ -858,11 +858,11 @@ fn navigation_labels_take_the_themes_colour_for_their_words() {
     assert_eq!(color, Some(egui::Color32::from_rgb(0x8a, 0x00, 0x22)));
 }
 
-/// TIDAL lays its own glass (`#282828` at 75 %, the bar's `::before`) over
+/// TIDAL lays its own glass (`#282828` at 75 %, the bar's `::after`) over
 /// a theme's fill for `#footerPlayer`: Tidal Amoled's black bar shows
 /// rgb(31, 31, 31) in TIDAL and Minimalist Black's `#181818` rgb(36, 36,
-/// 36). Tidalfast drew the theme's fill alone. A theme that styles that
-/// `::before` (the cotton candy family hides it) keeps its own colour.
+/// 36). Tidalfast drew the theme's fill alone. A theme that hides that
+/// `::after` keeps its own colour.
 #[test]
 fn tidals_bar_glass_lies_over_a_themes_bar_fill() {
     use crate::ui::plugin_dom as pd;
@@ -900,7 +900,7 @@ fn tidals_bar_glass_lies_over_a_themes_bar_fill() {
     ));
     assert_eq!(
         glass(
-            r#"/* {"name": "Own glass"} */ #footerPlayer { background-color: #000; } ._player_8c80ae6:before { display: none; }"#,
+            r#"/* {"name": "Own glass"} */ #footerPlayer { background-color: #000; } ._player_8c80ae6:after { display: none; }"#,
             "bar-own.css",
             black,
         ),

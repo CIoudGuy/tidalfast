@@ -49,12 +49,19 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let fill = crate::motion::blend(fill, Color32::TRANSPARENT, over_view);
     // Luna plugins may restyle `#footerPlayer` (themes, radiant-lyrics).
     let fill = plugin_dom::surface(keys::FOOTER, fill);
-    // TIDAL's own glass over a theme's fill for the bar (Tidal Amoled's
-    // black bar is TIDAL's dark grey).
-    let fill = if over_view > 0.0 {
-        fill
+    // TIDAL's own glass over a theme's look for the bar (Tidal Amoled's
+    // black bar is TIDAL's dark grey): the theme's colour over the page
+    // here, its pictures and the glass laid in the bar below (Sugarcoat's
+    // pink glow lies under the glass).
+    let glass = over_view <= 0.0 && plugin_dom::footer_glass();
+    let fill = if glass {
+        crate::motion::blend(
+            palette.window.to_opaque(),
+            fill.to_opaque(),
+            f32::from(fill.a()) / 255.0,
+        )
     } else {
-        plugin_dom::footer_under_glass(fill, palette.window)
+        fill
     };
     // A floating bar (radiant-lyrics, a theme) is TIDAL's fixed
     // `#footerPlayer` lifted off the window's edges: the page runs on under
@@ -120,6 +127,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             if plugin_dom::on() {
                 if backdrop.is_some() {
                     plugin_dom::paint_layers_over_backdrop(ui, keys::FOOTER, behind, None);
+                } else if glass {
+                    plugin_dom::paint_host_layers_under_glass(
+                        ui,
+                        keys::FOOTER,
+                        behind,
+                        plugin_dom::TIDAL_BAR_GLASS,
+                    );
                 } else if over_view < 1.0 {
                     plugin_dom::paint_host_layers(ui, keys::FOOTER, behind);
                 }
@@ -3038,5 +3052,73 @@ mod narrow_tests {
             ..Style::default()
         });
         assert!(gradient > none, "gradient cards: {none} -> {gradient}");
+    }
+
+    /// The colour the bar shows at `p`, away from its words and buttons,
+    /// with `footer` as the theme's look for `#footerPlayer` and `palette`
+    /// as the app's.
+    fn bar_colour(
+        footer: Option<crate::luna::dom::Style>,
+        palette: Option<crate::theme::Palette>,
+    ) -> [u8; 3] {
+        use crate::luna::dom::HostOverride;
+        let (ctx, mut app) = setup();
+        if let Some(p) = palette {
+            app.palette = p;
+        }
+        let mut o = overlay();
+        if let Some(style) = footer {
+            o.hosts.insert(
+                keys::FOOTER.into(),
+                HostOverride {
+                    style,
+                    ..HostOverride::default()
+                },
+            );
+        }
+        crate::ui::plugin_dom::test_overlay(Some(o));
+        let mut colour = [0; 3];
+        for _ in 0..4 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(2000.0, 820.0))),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(&mut app, ui),
+            );
+            output.textures_delta.clear();
+            let c = crate::ui::plugin_dom::test_colour_at(
+                &output.shapes,
+                pos2(650.5, 740.5),
+                Color32::BLACK,
+            );
+            colour = [c.r(), c.g(), c.b()];
+        }
+        crate::ui::plugin_dom::test_overlay(None);
+        colour
+    }
+
+    fn near(got: [u8; 3], want: [u8; 3]) -> bool {
+        got.iter().zip(want).all(|(a, b)| a.abs_diff(b) <= 3)
+    }
+
+    /// TIDAL's bar glass is the bar's `::after` with `z-index: -1` (TIDAL
+    /// 2.46.0): it lies over the bar's own background colour and pictures.
+    /// Sugarcoat and Cotton Candy give the bar a colour and a radial glow;
+    /// TIDAL shows the glow under the glass (Sugarcoat's bar rgb(91, 56,
+    /// 72)), and Tidalfast laid the glow over the glass (rgb(134, 77, 96)).
+    /// Here a pink bar under a white 50 % picture: TIDAL's glass over both
+    /// is rgb(87, 75, 81), Chromium's composition of the same layers.
+    #[test]
+    fn a_themes_bar_pictures_lie_under_tidals_glass() {
+        let footer = crate::luna::dom::Style {
+            background_color: Some("rgb(200, 100, 150)".into()),
+            background_image: Some(
+                "linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5))".into(),
+            ),
+            ..crate::luna::dom::Style::default()
+        };
+        let got = bar_colour(Some(footer), None);
+        assert!(near(got, [87, 75, 81]), "{got:?}");
     }
 }
