@@ -280,6 +280,23 @@ mod tests {
         }
     }
 
+    /// The notes are found from the crate being compiled, not from the
+    /// checkout the build script last ran in: a build folder reused after
+    /// that checkout was deleted named notes that no longer existed.
+    #[test]
+    fn the_notes_are_included_from_this_crate() {
+        let generated = include_str!(concat!(env!("OUT_DIR"), "/release_notes.rs"));
+        assert!(
+            generated.contains("env!(\"CARGO_MANIFEST_DIR\")"),
+            "{generated}"
+        );
+        let here = env!("CARGO_MANIFEST_DIR").replace('\\', "/");
+        assert!(
+            !generated.replace("\\\\", "/").contains(&here),
+            "the generated list names this checkout's path: {generated}"
+        );
+    }
+
     #[test]
     fn a_bold_lead_in_stays_bold_and_the_rest_does_not() {
         let notes = parse("- **Music videos.** Play `videos` here.");
