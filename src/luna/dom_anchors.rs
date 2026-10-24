@@ -18,6 +18,10 @@ use super::dom::{HostNode, HostTree, Rect};
 pub mod keys {
     pub const SHELL: &str = "shell";
     pub const BAR: &str = "bar";
+    /// TIDAL 2.46.0's `#wimp > div[data-market-theme]` (`display:
+    /// contents`), round the app's shell: themes count it in child chains
+    /// (`#wimp > div > div > div._mainContainer_...`).
+    pub const MARKET: &str = "market-theme";
     /// The title bar's app name (`._title_a453dad`): custom-fonts rewrites
     /// it to "TIDALuna" and appends its Comic Sans tag.
     pub const BAR_TITLE: &str = "bar-title";
@@ -1570,7 +1574,8 @@ pub fn theme_roles(out: &mut Vec<HostNode>) {
     );
 }
 
-/// `#wimp > div` with the top bar, main container, `#main`, header and search.
+/// `#wimp > div > div` (in TIDAL 2.46.0's market theme box) with the main
+/// container, its title bar, `#main`, header and search.
 /// Its classes are TIDAL's exactly (`has-footer-player is-desktop-app`, then
 /// `is-fullscreen` and `is-now-playing`): themes nest their floating player
 /// bar under `[class="has-footer-player is-desktop-app"]`.
@@ -1581,7 +1586,23 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     // open (`showNowPlaying && !isFullscreen`), fullscreen, a player.
     let docked_view = frame.now_playing.is_some() && !s.fullscreen;
     let has_player = frame.player.is_some();
-    let mut root = el(SHELL, None, "div")
+    out.push(
+        el(MARKET, None, "div")
+            .attr(
+                "data-market-theme",
+                if frame.light {
+                    "tidal light-mode"
+                } else {
+                    "tidal dark-mode"
+                },
+            )
+            .attr(
+                "data-market-mode",
+                if frame.light { "light" } else { "dark" },
+            )
+            .attr("style", "display: contents;"),
+    );
+    let mut root = el(SHELL, Some(MARKET), "div")
         .class("has-footer-player is-desktop-app")
         .at(s.rect);
     if s.fullscreen {
@@ -1591,25 +1612,34 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
         root = root.class("is-now-playing");
     }
     out.push(root);
-    out.push(el(BAR, Some(SHELL), "div").modules(&["bar"]).at(s.bar));
-    // TIDAL's title bar names the app in `div._title_a453dad`.
-    out.push(
-        el(BAR_TITLE, Some(BAR), "div")
-            .modules(&["title"])
-            .text("Tidalfast")
-            .at(s.bar_title),
-    );
-    let mut container = el(MAIN_CONTAINER, Some(SHELL), "div")
-        .modules(&["mainContainer"])
-        .class("enable-scrollbar-styles")
-        .at(s.main);
+    // TIDAL 2.46.0's main container (`_hasPlayer_57557c6` with the player
+    // bar) holds the title bar, `div._bar_5b9ac59._smallText_a636ed6` (the
+    // cotton candy family's `#wimp > div > div > div._mainContainer_
+    // 6519c30._hasPlayer_57557c6 > div._bar_5b9ac59._smallText_a636ed6 {
+    // backdrop-filter: blur(3px) }`).
+    let mut container = el(MAIN_CONTAINER, Some(SHELL), "div").modules(&["mainContainer"]);
     if has_player {
         container = container.class("_hasPlayer_57557c6");
     }
+    container = container.class("enable-scrollbar-styles").at(s.main);
     if s.fullscreen {
         container = container.class("_isFullscreen_75c1ba4");
     }
     out.push(container);
+    out.push(
+        el(BAR, Some(MAIN_CONTAINER), "div")
+            .modules(&["bar"])
+            .class("_smallText_a636ed6")
+            .at(s.bar),
+    );
+    // TIDAL's title bar names the app in `div._title_a453dad`.
+    out.push(
+        el(BAR_TITLE, Some(BAR), "div")
+            .modules(&["title"])
+            .class("_smallText_a636ed6")
+            .text("Tidalfast")
+            .at(s.bar_title),
+    );
     // TIDAL 2.46.0's fullscreen view, after the main container: always
     // there, covering the window (`position: fixed; inset: 0`) while the
     // view is fullscreen, its `section#nowPlaying` then holding the view's
@@ -3460,17 +3490,19 @@ fn docked_now_playing(rect: Option<Rect>) -> HostNode {
         .at(rect)
 }
 
-/// Where plugin elements sit directly in TIDAL's root (`#wimp > div`) or
-/// beside it: `anchor` at `position` is the root itself, or a sibling
-/// place next to one of the root's own children. Positioned elements
-/// there are placed against the window (betterFullscreen's player, which
-/// takes the place of `section._fullscreen_`).
+/// Where plugin elements sit directly in TIDAL's root (`#wimp > div >
+/// div`, in the `display: contents` market theme box) or beside it:
+/// `anchor` at `position` is the root or that box, or a sibling place next
+/// to one of the root's own children (the title bar is in the main
+/// container, as in TIDAL 2.46.0). Positioned elements there are placed
+/// against the window (betterFullscreen's player, which takes the place of
+/// `section._fullscreen_`).
 pub fn in_root(anchor: &str, position: super::dom::Position) -> bool {
     use super::dom::Position::{After, Before};
     anchor == keys::SHELL
+        || anchor == keys::MARKET
         || (matches!(position, Before | After)
             && [
-                keys::BAR,
                 keys::MAIN_CONTAINER,
                 keys::NP_FULLSCREEN,
                 keys::NOW_PLAYING,
@@ -4487,7 +4519,8 @@ mod tests {
             Some(keys::NOW_PLAYING)
         );
         // The root's children in order: the fullscreen view and the docked
-        // one after the main container, the player bar last.
+        // one after the main container (which holds the title bar, as in
+        // TIDAL 2.46.0), the player bar last.
         let order: Vec<&str> = tree
             .nodes
             .iter()
@@ -4497,7 +4530,6 @@ mod tests {
         assert_eq!(
             order,
             [
-                keys::BAR,
                 keys::MAIN_CONTAINER,
                 keys::NP_FULLSCREEN,
                 keys::NOW_PLAYING,

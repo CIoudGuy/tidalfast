@@ -134,7 +134,7 @@ new MutationObserver((list) => {
 	R.recs = recs.slice(-200);
 	R.rows = document.querySelectorAll('[data-test="tracklist-row"][data-track-id]').length;
 	R.slider = !!document.querySelector('div[class^="_sliderContainer"]');
-	R.shell = document.querySelector("#wimp > div")?.className ?? null;
+	R.shell = document.querySelector("#wimp > div[data-market-theme] > div")?.className ?? null;
 	R.title = document.querySelector('[data-test="footer-track-title"]')?.textContent ?? null;
 	R.mine = !!document.querySelector("#mine");
 	R.order = [...document.querySelector('[data-test="track-info"]')?.parentElement?.children ?? []].map((e) => e.getAttribute("data-test") ?? e.id ?? "");
@@ -1510,7 +1510,7 @@ fn an_observer_waiting_for_the_roots_fullscreen_classes_runs_when_they_come() {
 R.calls = 0;
 lib.observe(unloads, ".is-fullscreen.is-now-playing", (el) => {
 	R.calls++;
-	R.root = el.parentElement?.id === "wimp";
+	R.root = el.matches("#wimp > div[data-market-theme] > div");
 	R.inside = !!el.querySelector('[class^="_fullscreen_"] > section[data-test="new-now-playing"] #nowPlayingHeader');
 	R.docked = !!el.querySelector(':scope > [class*="_nowPlayingContainer_"]');
 });

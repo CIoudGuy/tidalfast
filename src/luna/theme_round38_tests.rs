@@ -465,3 +465,27 @@ fn a_border_image_paints_the_rows_line() {
     assert_eq!(color_at(&line, 0.05).a(), 0);
     assert_eq!(color_at(&line, 0.95).a(), 0);
 }
+
+/// TIDAL 2.46.0's title bar sits in its main container, under the
+/// `#wimp > div[data-market-theme]` box round the app's shell:
+/// `#wimp > div > div.has-footer-player > div._mainContainer_6519c30.
+/// _hasPlayer_57557c6 > div._bar_5b9ac59._smallText_a636ed6`. The cotton
+/// candy family names it by that chain (its frosted title bar) and by its
+/// two classes exactly; the anchor sat beside the main container with one
+/// class, so neither reached it.
+#[test]
+fn the_title_bar_is_in_tidals_main_container() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::BAR;
+    let css = r#"/* {"name": "Title bar chain"} */
+#wimp > div > div > div._mainContainer_6519c30._hasPlayer_57557c6 > div._bar_5b9ac59._smallText_a636ed6 { background-color: rgb(1, 2, 3); }
+[class="_bar_5b9ac59 _smallText_a636ed6"] { opacity: 0.5; }
+"#;
+    let o = overlay("title-bar.css", css, &dom_anchors::sample_frame(), BAR);
+    pd::test_overlay(Some((*o).clone()));
+    let look = pd::anchor_look(BAR);
+    pd::test_overlay(None);
+    let look = look.expect("the title bar's look");
+    assert_eq!(look.fill, Some(egui::Color32::from_rgb(1, 2, 3)));
+    assert_eq!(look.opacity, Some(0.5));
+}
