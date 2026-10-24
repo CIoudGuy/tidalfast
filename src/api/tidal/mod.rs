@@ -51,6 +51,9 @@ pub const OPENAPI_BASE: &str = "https://openapi.tidal.com/v2";
 /// The web player's version, which TIDAL's newer endpoints expect.
 const CLIENT_VERSION: &str = "2025.7.16";
 const LOCALE: &str = "en_US";
+/// How many activities the Feed counter's check asks for (TIDAL 2.46.0's
+/// `limit=9`); it reads only the count of unseen ones.
+const FEED_CHECK_LIMIT: u32 = 9;
 const MAX_IN_FLIGHT: usize = 6;
 const RETRIES: u32 = 3;
 const MAX_RETRY_AFTER: Duration = Duration::from_secs(30);
@@ -1077,6 +1080,45 @@ impl TidalClient {
             )
             .await?;
         Ok(feed::parse(&value))
+    }
+
+    /// How many Feed activities the account has not seen, the number on
+    /// the sidebar's Feed row. TIDAL 2.46.0's `checkFeedUpdates` asks for
+    /// the first nine activities and reads only the answer's stats. Nothing
+    /// on screen waits for it, so it never shows as activity.
+    pub async fn feed_unseen(&self) -> Result<u32> {
+        super::client::unseen(async {
+            let value: Value = self
+                .get(
+                    Call::new(Method::GET, self.v2("feed/activities"))
+                        .query("userId", self.user_id()?)
+                        .query("limit", FEED_CHECK_LIMIT)
+                        .query("deviceType", "BROWSER")
+                        .query("locale", LOCALE),
+                )
+                .await?;
+            Ok(feed::unseen(&value))
+        })
+        .await
+    }
+
+    /// Tells TIDAL the account has seen its Feed (`PUT
+    /// v2/feed/activities/seen`), as TIDAL 2.46.0's `hasSeenFeed` does once
+    /// the Feed page has loaded with unseen activities. TIDAL's own counter
+    /// (in its apps on the account's devices) clears with it. Not shown as
+    /// activity either: the counter already went.
+    pub async fn mark_feed_seen(&self) -> Result<()> {
+        super::client::unseen(async {
+            self.send(
+                Call::new(Method::PUT, self.v2("feed/activities/seen"))
+                    .query("userId", self.user_id()?)
+                    .query("deviceType", "BROWSER")
+                    .query("locale", LOCALE),
+            )
+            .await?;
+            Ok(())
+        })
+        .await
     }
 
     // ---- favourites ----------------------------------------------------------

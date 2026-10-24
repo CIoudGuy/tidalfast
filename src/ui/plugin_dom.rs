@@ -760,6 +760,7 @@ pub fn end_frame(ctx: &egui::Context) {
         next.sidebar.row_words.clear();
         next.sidebar.playing = None;
         next.sidebar.heading = None;
+        next.sidebar.feed_counter = None;
         next.player = None;
         next.now_playing = None;
         next.context_menu = None;
@@ -7965,6 +7966,12 @@ pub(crate) fn test_page_frame_as(id: &str) {
             ..dom_anchors::Page::default()
         })
     });
+}
+
+/// The Feed row's counter noted this frame.
+#[cfg(test)]
+pub(crate) fn test_feed_counter() -> Option<dom_anchors::FeedCounter> {
+    with(|s| s.frame.sidebar.feed_counter.clone())
 }
 
 /// The track list panel noted this frame.

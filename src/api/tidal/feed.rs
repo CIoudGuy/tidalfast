@@ -37,12 +37,22 @@ pub(crate) fn parse(value: &Value) -> Feed {
         .flatten()
         .filter_map(entry)
         .collect();
-    let unseen = value
+    Feed {
+        entries,
+        unseen: unseen(value),
+    }
+}
+
+/// How many activities the account has not seen, from an answer of
+/// `v2/feed/activities` (TIDAL 2.46.0: `stats.totalNotSeenActivities ?? 0`).
+/// The sidebar's counter shows it; the light check asks with `limit=9`
+/// and reads only this.
+pub(crate) fn unseen(value: &Value) -> u32 {
+    value
         .get("stats")
         .and_then(|stats| stats.get("totalNotSeenActivities"))
         .and_then(Value::as_u64)
-        .unwrap_or(0) as u32;
-    Feed { entries, unseen }
+        .map_or(0, |count| u32::try_from(count).unwrap_or(u32::MAX))
 }
 
 fn entry(value: &Value) -> Option<FeedEntry> {
@@ -171,6 +181,30 @@ mod tests {
             }
             other => panic!("expected a mix, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn the_unseen_count_is_read_from_the_stats_alone() {
+        // The light check's answer (`limit=9`): only the stats count.
+        let answer = json!({
+            "activities": [{ "followableActivity": { "activityType": "NEW_ALBUM_RELEASE" }, "seen": false }],
+            "stats": { "totalNotSeenActivities": 3 }
+        });
+        assert_eq!(unseen(&answer), 3);
+        assert_eq!(
+            unseen(&json!({ "stats": { "totalNotSeenActivities": 0 } })),
+            0
+        );
+        // TIDAL's `?? 0`: no stats, or no number, is none unseen.
+        assert_eq!(unseen(&json!({ "activities": [] })), 0);
+        assert_eq!(
+            unseen(&json!({ "stats": { "totalNotSeenActivities": null } })),
+            0
+        );
+        assert_eq!(
+            unseen(&json!({ "stats": { "totalNotSeenActivities": "2" } })),
+            0
+        );
     }
 
     #[test]

@@ -851,6 +851,56 @@ fn activity(app: &mut App) {
     app.activity.fill(Some("demo"), today, past, reports, local);
 }
 
+/// TIDAL's Feed: a new single not seen yet, which the sidebar's Feed row
+/// counts, an album from last month and a monthly mix.
+fn feed(app: &mut App) {
+    use crate::api::models::{Feed, FeedEntry, FeedItem, ReleaseKind};
+    let today = jiff::Zoned::now().date();
+    let ago = |days: i64| {
+        today
+            .checked_sub(jiff::Span::new().days(days))
+            .unwrap_or(today)
+            .to_string()
+    };
+    let mut single = album(3);
+    single.id = "feed0".into();
+    single.uri = "tidal:album:feed0".into();
+    let mut mix = mix(1);
+    mix.name = "September 2026".into();
+    let feed = Feed {
+        entries: vec![
+            FeedEntry {
+                item: FeedItem::Release {
+                    album: single,
+                    kind: ReleaseKind::Single,
+                    explicit: false,
+                },
+                date: today.to_string(),
+                seen: false,
+            },
+            FeedEntry {
+                item: FeedItem::Release {
+                    album: album(1),
+                    kind: ReleaseKind::Album,
+                    explicit: true,
+                },
+                date: ago(35),
+                seen: true,
+            },
+            FeedEntry {
+                item: FeedItem::Mix(mix),
+                date: ago(70),
+                seen: true,
+            },
+        ],
+        unseen: 1,
+    };
+    // As TIDAL's answer would set them: the rows and the counter.
+    let serial = app.feed_badge.feed_requested();
+    app.feed_badge.feed_answered(serial, Some(feed.unseen));
+    app.feed = Loadable::Loaded(feed);
+}
+
 pub fn populate(app: &mut App) {
     crate::uploads::demo::populate(&mut app.uploads);
     app.backend.set_offline(true);
@@ -1164,6 +1214,7 @@ pub fn populate(app: &mut App) {
     uploader_profile(app);
 
     activity(app);
+    feed(app);
 
     // Explore and a genre page, as TIDAL's page modules.
     let links = |titles: &[&str], prefix: &str| -> Vec<crate::api::models::PageLink> {

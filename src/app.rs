@@ -467,6 +467,8 @@ pub struct App {
     pub activity_fixed_day: Option<jiff::civil::Date>,
     /// TIDAL's Feed page.
     pub feed: Loadable<crate::api::models::Feed>,
+    /// The sidebar's Feed counter and its polling.
+    pub feed_badge: feed_badge::FeedBadge,
     /// Home's tab: `None` for For you, else the v2 feed of Staff Picks
     /// (`editorial`) or Uploads (`uploads`).
     pub home_tab: Option<&'static str>,
@@ -1107,6 +1109,7 @@ impl App {
             activity: Default::default(),
             activity_fixed_day: None,
             feed: Loadable::NotLoaded,
+            feed_badge: Default::default(),
             home_tab: None,
             home_tabs: HashMap::new(),
             remote: None,
@@ -2751,10 +2754,7 @@ impl App {
             }
             Page::Feed => {
                 if self.network_reachable {
-                    if !matches!(self.feed, Loadable::Loaded(_)) {
-                        self.feed = Loadable::Loading;
-                    }
-                    self.backend.api(ApiRequest::Feed);
+                    self.request_feed();
                 }
             }
             Page::LikedSongs => {
@@ -2960,6 +2960,9 @@ impl App {
         self.blocked_fetched = false;
         self.save_later.reset();
         self.purchases = Loadable::NotLoaded;
+        // The Feed and its counter are the account's.
+        self.feed = Loadable::NotLoaded;
+        self.feed_badge.reset();
         self.queue = Loadable::NotLoaded;
         self.queue_shuffle_pending = None;
         self.queue_reorder_pending = None;
@@ -3735,6 +3738,9 @@ impl App {
 
         self.recheck_unconfirmed_playlists(ctx);
         self.refresh_plugin_playlists(ctx);
+        // TIDAL polls the Feed counter while its window shows.
+        let shown = main_window && !ctx.input(|input| input.viewport().minimized.unwrap_or(false));
+        self.poll_feed_badge(shown);
 
         if let Some(at) = self.library.playlists_retry_at {
             if !self.is_connected() || self.offline {
@@ -4937,10 +4943,7 @@ impl App {
                 // TIDAL reads the Feed afresh each time it is opened; the
                 // rows already shown stay until the answer replaces them.
                 if self.network_reachable {
-                    if !matches!(self.feed, Loadable::Loaded(_)) {
-                        self.feed = Loadable::Loading;
-                    }
-                    self.backend.api(ApiRequest::Feed);
+                    self.request_feed();
                 }
             }
             Page::LikedSongs => self.ensure_liked_songs(),
@@ -8158,14 +8161,9 @@ impl App {
                 };
                 self.home_tabs.insert(feed, loaded);
             }
-            ApiResponse::Feed(result) => {
-                self.feed = match result {
-                    Ok(feed) => Loadable::Loaded(feed),
-                    // A failed refresh keeps the rows already shown.
-                    Err(_) if matches!(self.feed, Loadable::Loaded(_)) => return,
-                    Err(error) => Loadable::Failed(friendly_api_error(self.locale, &error)),
-                };
-            }
+            ApiResponse::Feed { serial, result } => self.handle_feed(serial, result),
+            ApiResponse::FeedUnseen { serial, result } => self.handle_feed_unseen(serial, result),
+            ApiResponse::FeedSeen { serial, result } => self.handle_feed_seen(serial, result),
             ApiResponse::Profile { id, result } => {
                 let loaded = match result {
                     Ok(profile) => Loadable::Loaded(profile),
@@ -13951,6 +13949,7 @@ fn next_clock_tick(position_ms: u32) -> Duration {
 }
 
 mod downloads;
+mod feed_badge;
 mod plugins;
 mod radio;
 mod repaint_trace;

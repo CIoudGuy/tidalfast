@@ -372,6 +372,10 @@ pub mod keys {
     pub fn sidebar_item_arrow(test: &str) -> String {
         format!("sidebar:{test}:arrow")
     }
+    /// The Feed row's counter, TIDAL 2.46.0's
+    /// `span._badgeCounter_bd84d2f[data-test=feed-counter]` after the row's
+    /// words: the number of Feed activities not seen yet, absent at 0.
+    pub const FEED_COUNTER: &str = "sidebar:sidebar-feed:counter";
     /// The `div[data-type=media-table]` of a list.
     pub fn list(list: &str) -> String {
         format!("list:{list}")
@@ -752,6 +756,15 @@ pub struct SidebarItem {
     pub rect: Option<Rect>,
 }
 
+/// The Feed row's counter (TIDAL's `span[data-test=feed-counter]`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct FeedCounter {
+    /// The number it shows.
+    pub text: String,
+    /// Its pill, `None` while it is not drawn.
+    pub rect: Option<Rect>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Sidebar {
     pub rect: Option<Rect>,
@@ -777,6 +790,8 @@ pub struct Sidebar {
     pub playing: Option<usize>,
     /// The "All playlists" heading's box.
     pub heading: Option<Rect>,
+    /// The Feed row's counter while some activity is unseen.
+    pub feed_counter: Option<FeedCounter>,
 }
 
 /// The page shown in `main`.
@@ -1770,6 +1785,29 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
                 .rect
                 .map(|[x, y, w, h]| [x + 40.0, y, (w - 40.0).max(0.0), h])),
         );
+        // The Feed row's counter after its words, as TIDAL 2.46.0 marks it
+        // up (captured: `span._marketText_1lyag_1._paragraph10_1lyag_156
+        // ._badgeCounter_bd84d2f[data-test=feed-counter]`, with
+        // `_collapsed_f4061d3` in the narrowed sidebar), the number its
+        // text: TIDAL renders nothing at 0, and neither does this.
+        if item.test == "sidebar-feed"
+            && let Some(counter) = &side.feed_counter
+        {
+            let mut node = el(
+                keys::FEED_COUNTER,
+                Some(&keys::sidebar_item(&item.test)),
+                "span",
+            )
+            .class("_marketText_1lyag_1 _paragraph10_1lyag_156 _badgeCounter_bd84d2f");
+            if side.collapsed {
+                node = node.class("_collapsed_f4061d3");
+            }
+            out.push(
+                node.test("feed-counter")
+                    .text(counter.text.clone())
+                    .at(counter.rect),
+            );
+        }
         // Collection opens its menu: TIDAL's `svg._icon_77f3f89._icon_b8b52c1
         // ._arrowRight_f57b400`, an icon like the row's.
         if item.test == "sidebar-collection-menu" {
@@ -3447,6 +3485,7 @@ pub fn sample_frame() -> Frame {
             row_words: Vec::new(),
             playing: None,
             heading: None,
+            feed_counter: None,
         },
         page: Some(Page {
             rect: r(240.0, 92.0, 1040.0, 608.0),
@@ -3964,6 +4003,77 @@ mod tests {
         assert_eq!(
             find(&tree, &keys::modal_button(1)).text.as_deref(),
             Some("Add anyway")
+        );
+    }
+
+    /// The Feed row's counter is TIDAL 2.46.0's span after the row's words,
+    /// with its classes, `data-test` and the number as its text, so a
+    /// plugin reads it and a theme's `._badgeCounter_` rules reach it; the
+    /// narrowed sidebar adds `_collapsed_`, and at 0 there is none.
+    #[test]
+    fn the_feed_rows_counter_is_tidals_span_with_the_number() {
+        let feed = || SidebarItem {
+            test: "sidebar-feed".into(),
+            label: "Feed".into(),
+            href: Some("/feed".into()),
+            selected: false,
+            rect: Some([16.0, 168.0, 208.0, 40.0]),
+        };
+        let mut frame = sample_frame();
+        frame.sidebar.items.push(feed());
+        let tree = build(&frame);
+        assert!(
+            !tree.nodes.iter().any(|n| n.key == keys::FEED_COUNTER),
+            "none at 0"
+        );
+        frame.sidebar.feed_counter = Some(FeedCounter {
+            text: "1".into(),
+            rect: Some([198.0, 179.0, 18.0, 18.0]),
+        });
+        let tree = build(&frame);
+        let counter = find(&tree, keys::FEED_COUNTER);
+        assert_eq!(counter.tag, "span");
+        assert_eq!(
+            counter.parent.as_deref(),
+            Some(keys::sidebar_item("sidebar-feed").as_str())
+        );
+        assert_eq!(
+            attr(counter, "class"),
+            Some("_marketText_1lyag_1 _paragraph10_1lyag_156 _badgeCounter_bd84d2f")
+        );
+        assert_eq!(attr(counter, "data-test"), Some("feed-counter"));
+        assert_eq!(counter.text.as_deref(), Some("1"));
+        assert_eq!(counter.rect, Some([198.0, 179.0, 18.0, 18.0]));
+        // After the row's icon and words, as TIDAL's children are.
+        let order: Vec<&str> = tree
+            .nodes
+            .iter()
+            .filter(|n| n.parent.as_deref() == Some("sidebar:sidebar-feed"))
+            .map(|n| n.key.as_str())
+            .collect();
+        assert_eq!(
+            order,
+            [
+                "sidebar:sidebar-feed:icon",
+                "sidebar:sidebar-feed:label",
+                keys::FEED_COUNTER
+            ]
+        );
+        // Only the Feed row has one.
+        assert_eq!(
+            tree.nodes
+                .iter()
+                .filter(|n| n.key == keys::FEED_COUNTER)
+                .count(),
+            1
+        );
+        frame.sidebar.collapsed = true;
+        let tree = build(&frame);
+        assert_eq!(
+            attr(find(&tree, keys::FEED_COUNTER), "class"),
+            Some(
+                "_marketText_1lyag_1 _paragraph10_1lyag_156 _badgeCounter_bd84d2f _collapsed_f4061d3"
+            )
         );
     }
 
