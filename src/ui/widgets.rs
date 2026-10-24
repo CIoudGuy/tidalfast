@@ -5200,6 +5200,24 @@ pub fn underline_tabs(
     labels: &[String],
     active: usize,
 ) -> Option<usize> {
+    underline_tabs_named(ui, palette, salt, labels, active, &[])
+}
+
+/// [`underline_tabs`] whose tabs are Home's vibe tabs, `names[i]` (TIDAL's
+/// `static`, `editorial`, `uploads`) for `labels[i]`: each draws the words a
+/// plugin wrote over it, keeps its room but paints nothing and takes no
+/// click where a plugin made it invisible, takes no room where a plugin
+/// took it away, and is reported where it is drawn.
+pub fn underline_tabs_named(
+    ui: &mut Ui,
+    palette: &Palette,
+    salt: &str,
+    labels: &[String],
+    active: usize,
+    names: &[&str],
+) -> Option<usize> {
+    use super::plugin_dom::Shown;
+    use crate::luna::dom_anchors::keys;
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
     ui.painter().hline(
         rect.x_range(),
@@ -5224,15 +5242,43 @@ pub fn underline_tabs(
                 ui.horizontal(|ui| {
                     for (index, label) in labels.iter().enumerate() {
                         let selected = index == active;
+                        let name = names.get(index).copied();
+                        // The tab, then its button: either taken away takes
+                        // the tab's room, either made invisible keeps it.
+                        let shown = name.map_or(Shown::Drawn, |n| {
+                            match (
+                                super::plugin_dom::shown(&keys::vibe_tab(n)),
+                                super::plugin_dom::shown(&keys::vibe_tab_button(n)),
+                            ) {
+                                (Shown::Gone, _) | (_, Shown::Gone) => Shown::Gone,
+                                (Shown::Invisible, _) | (_, Shown::Invisible) => Shown::Invisible,
+                                _ => Shown::Drawn,
+                            }
+                        });
+                        if shown == Shown::Gone {
+                            if let Some(n) = name {
+                                super::plugin_dom::vibe_tab(n, label, None, selected);
+                            }
+                            continue;
+                        }
+                        let words = name.map_or(std::borrow::Cow::Borrowed(label.as_str()), |n| {
+                            super::plugin_dom::text(&keys::vibe_tab_button(n), label)
+                        });
                         // Laid out without a colour, so the one given when it
                         // is painted (grey unless chosen or hovered) applies.
                         let galley = ui.painter().layout_no_wrap(
-                            label.clone(),
+                            words.into_owned(),
                             theme::medium(14.0),
                             Color32::PLACEHOLDER,
                         );
                         let width = galley.size().x;
                         let (hit, _) = ui.allocate_exact_size(vec2(width, 36.0), Sense::hover());
+                        if let Some(n) = name {
+                            super::plugin_dom::vibe_tab(n, label, Some(hit), selected);
+                        }
+                        if shown == Shown::Invisible {
+                            continue;
+                        }
                         let response =
                             ui.interact(hit, ui.id().with((salt, index)), Sense::click());
                         response.widget_info(|| {

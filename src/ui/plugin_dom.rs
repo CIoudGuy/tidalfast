@@ -3081,6 +3081,22 @@ pub fn grid_card(r: Rect, artist: bool) -> Option<String> {
     key
 }
 
+/// Home's vibe tab `name` (TIDAL's `static`, `editorial`, `uploads`)
+/// with the app's words `label`, drawn at `r` (none: a plugin took it away),
+/// the one shown when `selected`.
+pub fn vibe_tab(name: &str, label: &str, r: Option<Rect>, selected: bool) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.vibe_tabs.push(dom_anchors::VibeTab {
+                name: name.to_string(),
+                label: label.to_string(),
+                rect: r.and_then(rect),
+                selected,
+            });
+        }
+    });
+}
+
 /// What the card about to be drawn shows (its kind and id, the artists its
 /// subtitle names): its anchor then carries TIDAL's card id and links.
 pub fn next_card(item: dom_anchors::CardItem) {
@@ -8678,6 +8694,12 @@ pub(crate) fn test_scroll_top(key: &str, top: f32) {
 #[cfg(test)]
 pub(crate) fn test_page_frame() {
     with(|s| s.frame.page = Some(dom_anchors::Page::default()));
+}
+
+/// The page frame as the app starts it for `page` (its id, Home's feed).
+#[cfg(test)]
+pub(crate) fn test_page_frame_for(page: &Page) {
+    with(|s| s.frame.page = Some(page_root(page)));
 }
 
 #[cfg(test)]

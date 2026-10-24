@@ -49,6 +49,24 @@ pub mod keys {
     pub const MAIN_CONTENT: &str = "main-content";
     pub const PAGE: &str = "page";
     pub const PAGE_TITLE: &str = "page-title";
+    /// Home's own header and title (TIDAL 2.46.0: `div._pageHeader_1d2b3ad >
+    /// h1._title_2d8da11`, "Home", before its feed in the main content; its
+    /// CSS shows it only in a window up to 576 points wide).
+    pub const HOME_HEADER: &str = "home-header";
+    pub const HOME_TITLE: &str = "home-title";
+    /// Home's vibe tabs (For you, Staff Picks, Uploads): the switcher
+    /// (`div._vibeSwitcher_2728673`), its tab list
+    /// (`div._marketPagingTabList_mibfb_1`), each tab
+    /// (`vibe-tab:<name>`, `div[data-test=vibe-tab-<name>]`) and its button
+    /// with the tab's words (`vibe-tab:<name>:button`).
+    pub const VIBE_SWITCHER: &str = "vibe-switcher";
+    pub const VIBE_TABS: &str = "vibe-tabs";
+    pub fn vibe_tab(name: &str) -> String {
+        format!("vibe-tab:{name}")
+    }
+    pub fn vibe_tab_button(name: &str) -> String {
+        format!("vibe-tab:{name}:button")
+    }
     /// A collection page's `div._header_d2e600f` round its title.
     pub const PAGE_TITLE_HEADER: &str = "page-title-header";
     /// The header's details box round an album's or playlist's title
@@ -1215,6 +1233,22 @@ pub struct Page {
     pub cloud_rows: Vec<Option<Rect>>,
     /// The pills of those rows: the row each sits in and its box.
     pub cloud_pills: Vec<(usize, Option<Rect>)>,
+    /// Home's vibe tabs, as drawn.
+    pub vibe_tabs: Vec<VibeTab>,
+}
+
+/// A tab of Home's vibe switcher: `div[data-test=vibe-tab-<name>]
+/// ._marketPagingTab_wl3o7_1._small_wl3o7_73 > button._button_wl3o7_17`,
+/// `._selected_wl3o7_125` on the tab shown.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct VibeTab {
+    /// TIDAL's name for it: `static` (For you), `editorial` (Staff Picks)
+    /// or `uploads`.
+    pub name: String,
+    /// Its words, as the app draws them.
+    pub label: String,
+    pub rect: Option<Rect>,
+    pub selected: bool,
 }
 
 /// A shortcut tile of the home page: `a._disableUnderline_8e517ad._link_ >
@@ -2541,7 +2575,58 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     } else if collection {
         node = node.test("page-title-container");
     }
+    if page.feed {
+        // Home's own title, before its feed; TIDAL's CSS shows it only in a
+        // narrow window, so it has no box here (korean-translation
+        // translates it all the same).
+        out.push(el(HOME_HEADER, Some(MAIN_CONTENT), "div").class("_pageHeader_1d2b3ad"));
+        out.push(
+            el(HOME_TITLE, Some(HOME_HEADER), "h1")
+                .class("wave-text-headline-bold")
+                .class("_title_2d8da11")
+                .attr("data-wave-color", "textDefault")
+                .text("Home"),
+        );
+    }
     out.push(node);
+    if page.feed && !page.vibe_tabs.is_empty() {
+        let span = page.vibe_tabs.iter().filter_map(|t| t.rect).reduce(union);
+        out.push(
+            el(VIBE_SWITCHER, Some(PAGE), "div")
+                .class("_vibeSwitcher_2728673")
+                .at(span),
+        );
+        out.push(
+            el(VIBE_TABS, Some(VIBE_SWITCHER), "div")
+                .class("_marketPagingTabList_mibfb_1")
+                .class("_small_mibfb_19")
+                .attr("role", "tablist")
+                .at(span),
+        );
+        for tab in &page.vibe_tabs {
+            let mut node = el(vibe_tab(&tab.name), Some(VIBE_TABS), "div")
+                .test(&format!("vibe-tab-{}", tab.name))
+                .class("_marketPagingTab_wl3o7_1")
+                .class("_small_wl3o7_73");
+            if tab.selected {
+                node = node.class("_selected_wl3o7_125");
+            }
+            out.push(node.at(tab.rect));
+            out.push(
+                el(
+                    vibe_tab_button(&tab.name),
+                    Some(&vibe_tab(&tab.name)),
+                    "button",
+                )
+                .class("_button_wl3o7_17")
+                .attr("type", "button")
+                .attr("role", "tab")
+                .attr("aria-selected", if tab.selected { "true" } else { "false" })
+                .text(tab.label.clone())
+                .at(tab.rect),
+            );
+        }
+    }
     if collection && let Some(title) = &page.title {
         out.push(el(PAGE_TITLE_HEADER, Some(PAGE), "div").class("_header_d2e600f"));
         out.push(
