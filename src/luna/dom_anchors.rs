@@ -3508,29 +3508,46 @@ fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction], markup: &He
 
 /// `div[data-type=media-table]` with its header row and visible rows.
 pub fn track_list(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
+    // TIDAL 2.46.0 (captured): the table is `div[aria-label=Tracklist]
+    // [role=table]`, its header row `div._tableHeader_[role=row]`.
     let table = keys::list(&list.id);
     out.push(
         el(table.clone(), Some(parent), "div")
             .attr("data-type", "media-table")
             .test("media-table")
             .attr("role", "table")
+            .attr("aria-label", "Tracklist")
             .modules(&["table"])
             .at(list.rect),
     );
     let header = format!("{table}:header");
     out.push(
         el(header.clone(), Some(&table), "div")
-            .attr("aria-label", "Tracklist")
             .attr("role", "row")
             .modules(&["tableHeader"])
             .at(list.header_rect),
     );
-    // The album and date-added headings only where the list shows those
-    // columns; TIDAL's ids for them are not known, so they carry none.
+    // TIDAL 2.46.0's headings (captured, a playlist's and an album's):
+    // `span._<name>Column_[role=columnheader] > span._headerColumn_fed0322
+    // ._trackcells-sort_ecf19dd._overline_70ce5b5 > span` with the words;
+    // where the list sorts by them (a playlist's) the heading takes
+    // `tabindex=0` and the inner span `_headerColumnSortable_8d4c2d3`, and
+    // the title heading `_titleAndCoverColumn_cc5a4dd`. TIDAL 2.46.0 gives
+    // none of them an id; the title, artist and time headings keep the
+    // `headerColumn-*` ids of an earlier TIDAL that themes colour
+    // (Inrixia's example). The album and date-added headings, with no id as
+    // in TIDAL, are there only where the list shows those columns.
+    let sortable = list.id.starts_with("playlist:");
+    let title_classes: &[&str] = if sortable {
+        &["_titleAndCoverColumn_cc5a4dd"]
+    } else {
+        &[]
+    };
     let columns = [
         Some((
             "title-col",
             "titleColumn",
+            title_classes,
             Some("header-title"),
             "Title",
             None,
@@ -3538,43 +3555,64 @@ pub fn track_list(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
         Some((
             "artist-col",
             "artistColumn",
+            &[][..],
             Some("header-artist"),
             "Artist",
             None,
         )),
         list.album_header_rect
-            .map(|r| ("album-col", "albumColumn", None, "Album", Some(r))),
-        list.added_header_rect
-            .map(|r| ("added-col", "dateAddedColumn", None, "Date added", Some(r))),
+            .map(|r| ("album-col", "albumColumn", &[][..], None, "Album", Some(r))),
+        list.added_header_rect.map(|r| {
+            (
+                "added-col",
+                "dateAddedColumn",
+                &["_ellipsisText_9e99400"][..],
+                None,
+                "Date added",
+                Some(r),
+            )
+        }),
         Some((
             "time-col",
             "timeColumn",
+            &[][..],
             Some("header-duration"),
             "Time",
             list.time_header_rect,
         )),
     ];
-    for (cell, module, test, label, rect) in columns.into_iter().flatten() {
-        let mut node = el(format!("{table}:{cell}"), Some(&header), "span")
+    for (cell, module, classes, test, label, rect) in columns.into_iter().flatten() {
+        let key = format!("{table}:{cell}");
+        let mut node = el(key.clone(), Some(&header), "span")
             .modules(&[module])
             .attr("role", "columnheader")
             .at(rect);
+        for class in classes {
+            node = node.class(class);
+        }
         if let Some(test) = test {
             node = node.attr("id", format!("headerColumn-{test}")).test(test);
         }
+        if sortable {
+            node = node.attr("tabindex", "0");
+        }
         out.push(node);
-        // TIDAL's heading holds its label one level down (`span > div >
-        // "Time"`, a sort arrow beside it when sorted): Tidal Tags clones
-        // the time heading and writes its own title into
-        // `firstChild.firstChild`.
+        // The label two levels down: Tidal Tags clones the time heading and
+        // writes its own title into `firstChild.firstChild`.
+        let sort = format!("{key}:sort");
+        let mut inner = el(sort.clone(), Some(&key), "span");
+        if sortable {
+            inner = inner.class("_headerColumnSortable_8d4c2d3");
+        }
         out.push(
-            el(
-                format!("{table}:{cell}:label"),
-                Some(&format!("{table}:{cell}")),
-                "div",
-            )
-            .text(label)
-            .at(rect),
+            inner
+                .class("_headerColumn_fed0322 _trackcells-sort_ecf19dd _overline_70ce5b5")
+                .at(rect),
+        );
+        out.push(
+            el(format!("{key}:label"), Some(&sort), "span")
+                .text(label)
+                .at(rect),
         );
     }
     // TIDAL's virtual list holds each row two boxes down, in a box of its
