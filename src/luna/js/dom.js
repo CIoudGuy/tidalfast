@@ -3308,8 +3308,15 @@
 				if (el.parentNode && !el._pluginMoved) el.remove();
 				el._hostKey = undefined;
 			}
-			// placement: host children in tree order; plugin nodes keep their spot
-			for (const [parent, want] of order) {
+			// placement: host children in tree order; plugin nodes keep their spot.
+			// The deepest parents first, as React commits a new subtree: it is
+			// put together while detached and goes in as one node, so a new
+			// page is one mutation record with its root (TIDAL's), not one per
+			// element (an observer that scans the page for every added node
+			// scanned it hundreds of times). A parent's entry comes before its
+			// descendants' (`order` is filled in tree order), so backwards is
+			// deepest first.
+			for (const [parent, want] of [...order].reverse()) {
 				let prev = null;
 				for (const el of want) {
 					if (el._pluginRemoved || (el._pluginMoved && el.parentNode !== parent)) continue;
