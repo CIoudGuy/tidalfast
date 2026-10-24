@@ -1523,7 +1523,7 @@ lib.observe(unloads, '[data-test="sidebar-music"]', () => {
     luna.sync_dom(tree());
     let r = results_until(&luna, &dir, 10, |r| r["hits"].is_number());
     let o = overlay_until(&luna, 10, |o| {
-        o.host("sidebar:sidebar-music")
+        o.host(&keys::sidebar_item_label("sidebar-music"))
             .is_some_and(|h| h.text.as_deref() == Some("홈"))
     });
     assert!(r["hits"].as_u64().unwrap() >= 1, "{r}");
@@ -3448,10 +3448,13 @@ R.started = true;
         full.nodes.iter_mut().for_each(|_| {});
         luna.sync_dom(std::mem::take(&mut full));
         let o = overlay_until(&luna, 10, |o| {
-            o.host("sidebar:sidebar-music")
+            o.host(&keys::sidebar_item_label("sidebar-music"))
                 .is_some_and(|h| h.text.as_deref().is_some_and(|t| t.starts_with('~')))
         });
-        assert!(o.host("sidebar:sidebar-music").is_some(), "late {late}");
+        assert!(
+            o.host(&keys::sidebar_item_label("sidebar-music")).is_some(),
+            "late {late}"
+        );
         finish(luna, dir);
     }
 }
@@ -3483,10 +3486,10 @@ R.rewritten = count;
     });
     assert!(r["rewritten"].as_u64().unwrap() > 5, "{r}");
     let o = overlay_until(&luna, 10, |o| {
-        o.host("sidebar:sidebar-music")
+        o.host(&keys::sidebar_item_label("sidebar-music"))
             .is_some_and(|h| h.text.as_deref().is_some_and(|t| t.starts_with('~')))
     });
-    assert!(o.host("sidebar:sidebar-music").is_some());
+    assert!(o.host(&keys::sidebar_item_label("sidebar-music")).is_some());
     finish(luna, dir);
 }
 
