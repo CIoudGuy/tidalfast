@@ -1026,8 +1026,24 @@ heap is its own (128 MB). The page has no privileges: no `require`, no
 files, no network, nothing a plugin's permission grants.
 
 **Loading.** The browser's own sheet comes first at no specificity
-(`:where`): `html` black 16-pixel text, `body` an 8-pixel margin, `head`
-and its contents hidden, headings and lists as in Chromium. The preload
+(`:where`), outside the document as in Chromium (it is not one of
+`document.styleSheets`): `html` black 16-pixel text, `body` an 8-pixel
+margin, `head` and its contents hidden, headings and lists as in
+Chromium. The page has none of TIDAL's sheets or elements (no root
+variables, no icon sprite). A `<link rel="stylesheet" href>` (one the
+parser meets or one a script adds) loads its sheet through the host
+(`page.stylesheet` in `page.rs`): a plain GET of an `https:` address
+(plain `http:` only from this computer), redirects held to that, answered
+as `text/css` or refused as Chromium refuses a cross-origin sheet of
+another type, 8 MB at most, each address once per run. Its `url()`s are
+of the sheet's address. As in Chromium the page is not drawn while a sheet
+its parser met is loading (at most 5 s), and `load` waits for the sheets.
+The page's `@font-face` fonts (an icon font such as Font Awesome) are
+loaded with the plugins' fonts (`plugin_dom::fonts_tick`, also run by each
+plugin window's pass), and the families its elements name are matched as
+in the app; a declared family's faces are matched by CSS's weight rules
+(a 900 face draws bold when there is no 700). `content` strings read CSS
+escapes (`"001"` is that code point). The preload
 script (`webPreferences.preload`, read when the page loads, as Electron
 reads it) runs first, as a sandboxed preload: its `require` gives the
 renderer's `electron` (`contextBridge`, `ipcRenderer`, `webFrame`) and
@@ -1109,9 +1125,16 @@ there (off the screen in tests); in a dev script (`TIDALFAST_DEV_SCRIPT`),
 `TIDALFAST_PLUGIN_WINDOW_STATS` logs the windows' passes and their cost
 every 5 s (demo builds).
 
+**Layout.** Pages are laid out by the same renderer as plugin elements,
+with CSS's rules where the app's own placement differs: every block fills
+its container; a flex row's items are as wide as what they hold unless
+they grow (`flex: 1` takes the rest); a column that centres its items is
+as wide as its widest one; `justify-content: space-between`, `-around` and
+`-evenly` share the free room out round the items; a row that centres its
+items puts a shorter one in its middle by last frame's heights.
+
 **Not yet** (see the plan in `.internal/PLUGIN-WINDOWS-PROGRESS.md`):
-pages from `http(s)` URLs, `<link rel="stylesheet">` and `<script src>`
-(icon fonts such as Font Awesome), the page's own `@font-face` fonts,
+pages from `http(s)` URLs, `<script src>`, `@import` in a linked sheet,
 `scrollIntoView` inside a page's scroll box, keyboard input and text
 fields in a page, `webContents.executeJavaScript`/`insertCSS` on a plugin
 window, `ipcRenderer.sendSync`, a separate isolated world for the preload

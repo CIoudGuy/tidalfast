@@ -160,6 +160,14 @@ TidaLuna would, with no cookie or account detail, and draws the plugin's text
 in it. Fonts at other kinds of address (a file on this computer or a network
 share) are never opened.
 
+A window a plugin opens (its own `BrowserWindow`, such as miniplayer's mini
+player) can link a stylesheet on the web (`<link rel="stylesheet">`;
+miniplayer's icons come from Font Awesome on cdnjs) and the fonts that sheet
+declares. Tidalfast fetches each such sheet once per run over HTTPS, as the
+window's page in TIDAL would, with no cookie or account detail, uses it only
+when it is served as a stylesheet, and never opens one at another kind of
+address. The page itself gets nothing else from the network.
+
 ## Limits Tidalfast works within
 
 - TIDAL's API for these clients is not a documented public contract; endpoints
