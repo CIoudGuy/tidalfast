@@ -1784,6 +1784,13 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                     remote.state.is_playing = false;
                 }
             }
+            // The song stopped on has no words, so its now-playing view has
+            // no Lyrics tab: the plugin checker compares with TIDAL paused
+            // on such a song.
+            "no-lyrics" => {
+                app.lyrics_uri = app.now_playing().map(|now| now.uri);
+                app.lyrics = Loadable::Loaded(None);
+            }
             "no-playback" => app.remote = None,
             // The page scrolled down, to check what moves with it.
             "scrolled" => app.demo_scroll = Some(300.0),
