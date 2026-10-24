@@ -2568,7 +2568,7 @@ fn a_store_card_shows_the_compat_pill_only_for_the_listed_plugin() {
         assert_eq!(said("Needs your permission: "), 1, "{all:?}");
         assert_eq!(said("Not supported: "), 0, "{all:?}");
         assert_eq!(said("Partly supported: "), 1, "{all:?}");
-        assert!(has_text(&update, "separate lyrics window does not"));
+        assert!(has_text(&update, "the lyrics window work"));
         assert!(has_text(&update, "sends your TIDAL sign-in"));
         assert!(has_text(&update, "@jxnxsdev/miniplayer"));
         assert!(!all.iter().any(|t| t.contains("mini player is a separate")));

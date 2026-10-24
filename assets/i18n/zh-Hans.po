@@ -3661,12 +3661,6 @@ msgid ""
 "you allow it."
 msgstr "它会将你的 TIDAL 登录发送到作者的服务器，但只有在你允许后才会这样做。"
 
-#: src/luna/mod.rs:503
-msgid ""
-"Its mini player is a separate browser window, which Tidalfast does not "
-"include."
-msgstr "它的迷你播放器是一个独立的浏览器窗口，Tidalfast 不包含。"
-
 #: src/luna/mod.rs:507
 msgid ""
 "It takes the media keys across the whole computer, which it does only after "
@@ -3700,13 +3694,6 @@ msgid ""
 "Last.fm scrobbling needs TIDAL's own Last.fm key, which Tidalfast does not "
 "have."
 msgstr "Last.fm 记录播放需要 TIDAL 自己的 Last.fm 密钥，而 Tidalfast 没有。"
-
-#: src/luna/mod.rs:527
-msgid ""
-"The lyrics bubble over the player bar works, but its separate lyrics window "
-"does not, because that needs a browser engine."
-msgstr ""
-"播放栏上方的歌词气泡可以使用，但它独立的歌词窗口不行，因为那需要浏览器引擎。"
 
 #: src/luna/mod.rs:531
 msgid ""

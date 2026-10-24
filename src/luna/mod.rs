@@ -529,10 +529,6 @@ impl CompatNote {
                 locale,
                 "Last.fm scrobbling needs TIDAL's own Last.fm key, which Tidalfast does not have.",
             ),
-            "The lyrics bubble over the player bar works, but its separate lyrics window does not, because that needs a browser engine." => gettext(
-                locale,
-                "The lyrics bubble over the player bar works, but its separate lyrics window does not, because that needs a browser engine.",
-            ),
             "The Small depth model works, but the Base model (about 100 MB) is more than a plugin may download here." => gettext(
                 locale,
                 "The Small depth model works, but the Base model (about 100 MB) is more than a plugin may download here.",
@@ -628,7 +624,7 @@ const COMPAT: &[CompatRow] = &[
         name: "@jxnxsdev/miniplayer",
         note: CompatNote {
             level: Compat::PartlySupported,
-            reason: "Its mini player opens in a window of its own, but its buttons have no icons yet and parts of its look differ from TIDAL.",
+            reason: "Its mini player and Windows taskbar widget open in windows of their own, but their edges are not see-through yet.",
         },
     },
     needs_permission(
@@ -661,7 +657,7 @@ const COMPAT: &[CompatRow] = &[
         name: "@jxnxsdev/lyrics-everywhere",
         note: CompatNote {
             level: Compat::PartlySupported,
-            reason: "The lyrics bubble over the player bar works, but its separate lyrics window does not, because that needs a browser engine.",
+            reason: "The lyrics bubble and the lyrics window work, but the window's edges are not see-through yet and its lyrics do not scroll.",
         },
     },
     CompatRow {

@@ -267,8 +267,8 @@ fn labels_are_keyed_by_store_and_package_name() {
         )
         .is_none()
     );
-    // Partly supported: miniplayer (its window opens, without its icons),
-    // lyrics-everywhere (its window), Avatar (no email for Gravatar) and
+    // Partly supported: miniplayer and lyrics-everywhere (their windows
+    // open and work, without see-through edges), Avatar (no email for Gravatar) and
     // Themer (no Monaco window). 3d-cover's Base model and its fade and
     // spinner work, so it carries no label.
     let partly: Vec<&str> = COMPAT
@@ -383,6 +383,7 @@ const NEW_REASONS: &[&str] = &[
     "@vmohammad/mpv",
     "@jxnxsdev/audiovisualiser",
     "@jxnxsdev/miniplayer",
+    "@jxnxsdev/lyrics-everywhere",
 ];
 
 /// The plugins that run once the user gives them a permission are labelled
