@@ -619,6 +619,9 @@ pub struct App {
     pub lyrics_fullscreen_seen: bool,
     lyrics_fullscreen_restoring: Option<bool>,
     lyrics_restore_maximized: bool,
+    /// The window never changes its mode ([`plugins::window_held`]): a
+    /// request for fullscreen is emulated in the window as it is.
+    pub(crate) window_held: bool,
     pub lyrics_backdrop: crate::images::LyricsBackdrop,
     pub softened_covers: crate::images::SoftenedCovers,
     /// The track the lyrics below are for.
@@ -1202,6 +1205,7 @@ impl App {
             lyrics_fullscreen_seen: false,
             lyrics_fullscreen_restoring: None,
             lyrics_restore_maximized: false,
+            window_held: plugins::window_held(),
             lyrics_backdrop: Default::default(),
             softened_covers: Default::default(),
             lyrics_uri: None,
@@ -11718,10 +11722,10 @@ impl App {
                     self.show_queue_panel = false;
                     self.lyrics_following = true;
                     self.request_lyrics();
-                    // The off-screen Luna harness (`TIDALFAST_DEMO_LUNA`)
-                    // never fills a real display, whatever a scripted click
-                    // lands on; the view still opens in the window.
-                    if plugins::demo_luna().is_none() {
+                    // An off-screen test window never fills a real display,
+                    // whatever a scripted click lands on; the view still
+                    // opens in the window.
+                    if !self.window_held {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
                     }
                 } else if !fullscreen {
@@ -11935,7 +11939,7 @@ impl App {
             }
             Action::ToggleWindowFullscreen => {
                 let fullscreen = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
-                if fullscreen || plugins::demo_luna().is_none() {
+                if fullscreen || !self.window_held {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!fullscreen));
                 }
             }
