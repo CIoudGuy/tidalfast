@@ -4802,6 +4802,19 @@ pub fn outline_sides(key: &str, fallback: Color32) -> Option<([f32; 4], Color32)
     Some((sides.unwrap_or([width; 4]), color))
 }
 
+/// The gradient a theme's `border-image` paints a box's border with (the
+/// cotton candy family's track rows: `border-image: linear-gradient(to
+/// right, ...) 1`, a line that fades in and out), `None` without one.
+pub fn border_image(key: &str) -> Option<super::theme_gradient::Angled> {
+    if !on() {
+        return None;
+    }
+    host(key, |h, vars| {
+        let v = css::resolve_vars(h.style.border_image.as_deref()?, vars);
+        super::theme_gradient::parse_any(&v)
+    })
+}
+
 /// A theme's own border on a box that has no look of its own in Tidalfast
 /// (the wrappers TIDAL's virtual list holds a track row in): only a
 /// `border` style counts, never the classes [`outline`] marks, as its

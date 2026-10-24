@@ -139,6 +139,9 @@ pub struct Style {
     /// `backdrop-filter` (`blur(12px)`): frosted glass over what is painted
     /// behind the box.
     pub backdrop_filter: Option<String>,
+    /// `border-image` (`linear-gradient(...) 1`): the picture that paints
+    /// the box's border in place of its colour.
+    pub border_image: Option<String>,
     /// `fixed` elements under `body` float over the window.
     pub position: Option<String>,
     pub top: Option<String>,
