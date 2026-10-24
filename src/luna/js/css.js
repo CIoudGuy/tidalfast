@@ -425,6 +425,11 @@
 	// `background-image` replaces it (the cotton candy family, Solo v2).
 	// Tidalfast draws that glass natively; the host only says it survived.
 	const PANEL_GLASS = "linear-gradient(rgba(60, 60, 60, 0.35) 0%, rgba(70, 70, 70, 0.35) 100%)";
+	// Its own half-point border too (TIDAL 2.46.0's `._container_b3e8f28 {
+	// border: .5px solid rgba(255, 255, 255, .1) }`), drawn natively while
+	// it stands: a theme's `border-style` and `border-color` for the panel
+	// (the cotton candy family's) recolour TIDAL's line, as in TIDAL.
+	const PANEL_BORDER = "0.5px solid rgba(255, 255, 255, 0.1)";
 	// TIDAL's layout variables on its root (TIDAL 2.46.0's own sheet, the
 	// narrow window's values under 577 points): themes size and shift their
 	// boxes by them (the cotton candy family's `.mainContent {
@@ -472,7 +477,7 @@
 					// title text: `em` in a theme's lengths for it is 32
 					// (the cotton candy family's `translateY(-.4em)` is 12.8).
 					":where(.wave-text-title-bold) { font-size: 32px; }\n" +
-					`._container_b3e8f28 { background: ${PANEL_GLASS}; }`,
+					`._container_b3e8f28 { background: ${PANEL_GLASS}; border: ${PANEL_BORDER}; }`,
 			);
 		}
 		return tidal;
@@ -1715,5 +1720,5 @@
 	// Whether a rule looks at siblings, children or position: then a changed
 	// class can change what matches outside the element's own subtree.
 	const structural = () => !!buildIndex().structural;
-	L.css = { setUserAgentSheet, panelGlass: PANEL_GLASS, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, structural, rangeParts };
+	L.css = { setUserAgentSheet, panelGlass: PANEL_GLASS, panelBorder: PANEL_BORDER, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, structural, rangeParts };
 })();

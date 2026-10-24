@@ -3713,6 +3713,12 @@
 				o.glass = true;
 				if (!Object.keys(o.style).length) delete o.style;
 			}
+			// So is its own border while a theme leaves it as it is.
+			const line = L.css?.panelBorder;
+			if (line && o.style && String(o.style.border ?? "").replace(/\s+/g, " ").trim() === line && /(^|\s)_container_b3e8f28(\s|$)/.test(el.getAttribute("class") ?? "")) {
+				delete o.style.border;
+				if (!Object.keys(o.style).length) delete o.style;
+			}
 			const ps = css.pseudo?.get(el);
 			if (ps?.before) o.before = ps.before;
 			if (ps?.after) o.after = ps.after;
