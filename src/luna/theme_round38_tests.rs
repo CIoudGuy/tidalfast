@@ -403,7 +403,9 @@ fn the_sidebar_content_is_tidals_navigation_block() {
 /// the cotton candy family's rules for those titles (`._title_c9bc1b1 {
 /// font-size: 30px }`, `[class="_dataContainer_66f4f40"] { [data-wave-color
 /// ="textDefault"] { transform: translateY(-.4em) } }`, 12.8 of the title's
-/// 32 points) reached nothing.
+/// 32 points) reached nothing. A playlist's header box is
+/// `[data-test=header-background]`, under which the family nests its rules
+/// for the playlist's title.
 #[test]
 fn an_album_and_playlist_title_is_the_headers_own() {
     use crate::ui::plugin_dom as pd;
@@ -411,7 +413,7 @@ fn an_album_and_playlist_title_is_the_headers_own() {
     let css = r#"/* {"name": "Header titles"} */
 [class="_dataContainer_66f4f40"] { [data-wave-color="textDefault"] { transform: translateY(-.4em); } }
 ._detailContainer_5b36b6c > ._titleText_7494646 { color: rgb(11, 12, 13); }
-._title_c9bc1b1 { font-size: 30px !important; padding-top: .3em; }
+[data-test="header-background"] { ._title_c9bc1b1 { font-size: 30px !important; padding-top: .3em; } }
 "#;
     let look = |page: &str| {
         let mut frame = dom_anchors::sample_frame();

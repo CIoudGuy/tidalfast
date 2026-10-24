@@ -2612,11 +2612,16 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         out.push(el(keys::PROFILE_PIC_IMG, Some(keys::PROFILE_PIC), "img").at(Some(rect)));
     }
     if has_data {
-        out.push(
-            el(PAGE_DATA, Some(PAGE), "div")
-                .class(&page_data_class(page.page_id.as_deref()))
-                .at(page.data),
-        );
+        let mut data = el(PAGE_DATA, Some(PAGE), "div")
+            .class(&page_data_class(page.page_id.as_deref()))
+            .at(page.data);
+        // A playlist's header box is `[data-test=header-background]` in
+        // TIDAL 2.46.0 (the cotton candy family nests its playlist title
+        // rules in it).
+        if page.page_id.as_deref() == Some("playlist") {
+            data = data.test("header-background");
+        }
+        out.push(data);
     }
     // An album's or playlist's title is the header's `h2` in its details
     // box: the cotton candy family's `[class="_dataContainer_66f4f40"] {
