@@ -1037,10 +1037,18 @@ pub fn build(frame: &Frame) -> HostTree {
         Vec::with_capacity(64 + frame.lists.iter().map(|l| l.rows.len() * 8).sum::<usize>());
     shell(&mut out, frame);
     theme_roles(&mut out);
+    // A page's track list sits in its list panel's
+    // `div._tableContainer_556e9aa` (TIDAL 2.46.0), so a theme's rules
+    // nested in that container reach its rows (the cotton candy family's
+    // row words and the playing title's colour).
     let list_parent = match &frame.page {
         Some(page) => {
             page_root(&mut out, page);
-            keys::PAGE
+            if page.list_panel.is_some() {
+                keys::LIST_PANEL_INNER
+            } else {
+                keys::PAGE
+            }
         }
         None => keys::MAIN_CONTENT,
     };
@@ -2154,8 +2162,10 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
             .attr("aria-selected", "true");
     }
     if row.playing {
+        // TIDAL 2.46.0 marks the playing row `._tableRowIsPlaying_a59b9fa`
+        // (captured; TidalCustomTheme's `[class*=_tableRowIsPlaying_]`).
         node = node
-            .modules(&["tableRowPlaying"])
+            .class("_tableRowIsPlaying_a59b9fa")
             .attr("data-playing", "true")
             .attr("data-test-is-playing", "true");
     }
@@ -2191,19 +2201,23 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
     // The title's words sit in the span itself, not in a link (TIDAL
     // 2.46.0: `span._titleText_51cccae.table--inactive-title[data-id]
     // [title]`), so a theme's `a { color }` does not reach them and its
-    // `[class*="active"]` does (Catppuccin Mocha Blue's blue titles). A
-    // playing row's class is not captured, so it gets neither.
-    let mut title_text = el(cell("title-text"), Some(&title), "span")
-        .modules(&["titleText"])
-        .test("table-cell-title")
-        .attr("data-id", row.track_id.clone())
-        .attr("title", row.title.clone())
-        .text(row.title.clone())
-        .at(row.title_rect);
-    if !row.playing {
-        title_text = title_text.class("table--inactive-title");
+    // `[class*="active"]` does (Catppuccin Mocha Blue's blue titles). The
+    // playing row's title keeps that class and adds the playing song's
+    // quality, `_textHigh_bbc1075` for a lossless one, whose TIDAL rule
+    // draws it in the accent token (captured).
+    let mut title_text = el(cell("title-text"), Some(&title), "span").modules(&["titleText"]);
+    if row.playing {
+        title_text = title_text.class("_textHigh_bbc1075");
     }
-    out.push(title_text);
+    out.push(
+        title_text
+            .class("table--inactive-title")
+            .test("table-cell-title")
+            .attr("data-id", row.track_id.clone())
+            .attr("title", row.title.clone())
+            .text(row.title.clone())
+            .at(row.title_rect),
+    );
     let artist = cell("artist");
     out.push(
         el(artist.clone(), Some(&key), "div")

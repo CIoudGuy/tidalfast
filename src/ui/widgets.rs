@@ -2998,8 +2998,14 @@ fn tidal_row_cells(
         );
         child.set_clip_rect(title_rect.intersect(ui.clip_rect()));
         child.spacing_mut().item_spacing = vec2(4.0, 0.0);
+        // The playing title is the accent, or a theme's colour for it.
         let color = if is_current && !unavailable {
-            palette.accent
+            super::plugin_dom::playing_title(
+                &super::plugin_dom::list_id(row.context),
+                row.index,
+                palette.window,
+            )
+            .unwrap_or(palette.accent)
         } else {
             title_color
         };
