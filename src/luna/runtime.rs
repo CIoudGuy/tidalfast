@@ -2014,7 +2014,7 @@ It is installed and switched on; what it may do is asked when it does it, and it
                 return Ok(Value::Null);
             };
             inner.borrow_mut().laid_out = tree.laid_out;
-            serde_json::to_value(&tree).map_err(|e| e.to_string())
+            serde_json::to_value(&*tree).map_err(|e| e.to_string())
         }
         // The question before an account write (see `writes.rs`): where this
         // plugin stands, and the user's answer.
@@ -3810,7 +3810,7 @@ impl Engine {
             return;
         };
         self.inner.borrow_mut().laid_out = tree.laid_out;
-        match serde_json::to_string(&tree) {
+        match serde_json::to_string(&*tree) {
             Ok(json) => self.dom_call("sync", json),
             Err(e) => log::warn!(target: "luna", "host tree: {e}"),
         }

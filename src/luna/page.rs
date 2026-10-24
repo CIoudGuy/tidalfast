@@ -236,10 +236,10 @@ impl PageWindow {
 
     /// The UI's layout of the page (its size and the boxes scripts asked
     /// for); send it only when it changed.
-    pub fn sync_dom(&self, tree: HostTree) {
+    pub fn sync_dom(&self, tree: impl Into<Arc<HostTree>>) {
         let (slot, arrived) = &*self.trees;
         if let Ok(mut slot) = slot.lock() {
-            slot.tree = Some(tree);
+            slot.tree = Some(tree.into());
             arrived.notify_all();
         }
         self.to_page(ToPage::Sync);
@@ -837,7 +837,7 @@ fn op(s: &State, name: &str, a: &Value) -> Result<Value, String> {
                 return Ok(Value::Null);
             };
             s.laid_out.set(tree.laid_out);
-            serde_json::to_value(&tree).map_err(|e| e.to_string())
+            serde_json::to_value(&*tree).map_err(|e| e.to_string())
         }
         "page.ipc" => {
             let args = str_of("args");
@@ -1195,7 +1195,7 @@ fn drive(
                     match tree {
                         Some(tree) => {
                             s.laid_out.set(tree.laid_out);
-                            match serde_json::to_string(&tree) {
+                            match serde_json::to_string(&*tree) {
                                 Ok(json) => entries.call(
                                     s,
                                     ctx,
