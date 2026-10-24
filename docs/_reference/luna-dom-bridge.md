@@ -15,7 +15,8 @@ parser, reconcile, overlay) and `src/luna/js/css.js` (stylesheets and the
 cascade). Tests: `src/luna/dom_tests.rs`.
 
 **Document.** `html > head, body > div#wimp`; host nodes with no parent are
-children of `#wimp`, so `#wimp > div` is the app shell.
+children of `#wimp`, so `#wimp > div` is TIDAL 2.46.0's market theme box
+(`display: contents`) and `#wimp > div > div` the app shell.
 
 **Reconcile** (`Luna::sync_dom`). Syncs coalesce: only the newest tree is
 applied, always before any other message. Host elements are matched by key;
@@ -264,8 +265,9 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 
 | Key | Element | Native widget | Slots drawn |
 |---|---|---|---|
-| `shell` | `#wimp > div.has-footer-player.is-desktop-app` (+ `is-fullscreen`, `is-now-playing`; exactly TIDAL's class list, which themes match with `[class="has-footer-player is-desktop-app"]`) | the window | |
-| `bar` | `div._bar_` | title bar (`titlebar.rs`); hidden by `display:none` (NativeFullscreen) | Append |
+| `market-theme` | `#wimp > div[data-market-theme="tidal dark-mode"][data-market-mode=dark]` (`light-mode`, `light` in Light), `display: contents`, as TIDAL 2.46.0 | | |
+| `shell` | `div.has-footer-player.is-desktop-app` in it (+ `is-fullscreen`, `is-now-playing`; exactly TIDAL's class list, which themes match with `[class="has-footer-player is-desktop-app"]`) | the window | |
+| `bar` | `div._bar_5b9ac59._smallText_a636ed6` in the main container (`div._mainContainer_6519c30._hasPlayer_57557c6`), as TIDAL 2.46.0 | title bar (`titlebar.rs`); hidden by `display:none` (NativeFullscreen) | Append |
 | `bar-title` | `div._title_a453dad` (the app's name, TIDAL's window title) | the name in the title bar; text override and colour drawn, what plugins append runs on from it (custom-fonts' "TIDALuna" and Comic Sans tag) | Append |
 | `main-container` | `div._mainContainer_.enable-scrollbar-styles` | everything above the player bar | |
 | `container-row` | `div._containerRow_` | same | |
