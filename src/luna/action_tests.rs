@@ -240,7 +240,7 @@ lib.redux.intercept("search/SEARCH_COMMIT", unloads, (phrase) => {
 #[test]
 fn remove_element_shows_in_the_queue_before_the_app_applies_it() {
     let snap = PlaybackSnapshot {
-        queue: vec![entry("1", "1:0"), entry("2", "2:0"), entry("3", "3:0")],
+        queue: vec![entry("1", "1:0"), entry("2", "2:0"), entry("3", "3:0")].into(),
         current_index: Some(0),
         known_items: [
             ("1".to_string(), item(1, "Song")),
@@ -248,7 +248,8 @@ fn remove_element_shows_in_the_queue_before_the_app_applies_it() {
             ("3".to_string(), item(3, "Other")),
         ]
         .into_iter()
-        .collect(),
+        .collect::<std::collections::BTreeMap<_, _>>()
+        .into(),
         ..Default::default()
     };
     let (luna, host, dir) = start(
@@ -294,7 +295,8 @@ fn remove_element_shows_only_the_rows_the_app_can_remove() {
             entry("2", "2:0"),
             entry("3", "3:0"),
             entry("4", "4:0"),
-        ],
+        ]
+        .into(),
         removable_rows: Some(1),
         current_index: Some(0),
         known_items: [
@@ -304,7 +306,8 @@ fn remove_element_shows_only_the_rows_the_app_can_remove() {
             ("4".to_string(), item(4, "Other")),
         ]
         .into_iter()
-        .collect(),
+        .collect::<std::collections::BTreeMap<_, _>>()
+        .into(),
         ..Default::default()
     };
     let (luna, host, dir) = start(
@@ -396,7 +399,7 @@ lib.redux.intercept("playQueue/ADD_ALREADY_LOADED_ITEMS_TO_QUEUE", unloads, () =
 #[test]
 fn plugin_dispatches_become_host_commands() {
     let snap = PlaybackSnapshot {
-        queue: vec![entry("1", "1:0"), entry("2", "2:0")],
+        queue: vec![entry("1", "1:0"), entry("2", "2:0")].into(),
         current_index: Some(0),
         track_lists: [(
             "playlist/p".to_string(),
@@ -698,7 +701,7 @@ say("fired:" + (await n("fired")));
 fn queue_actions_translate_with_position_and_start_index() {
     use super::redux::{ActionOutcome, action_outcome};
     let snap = PlaybackSnapshot {
-        queue: vec![entry("1", "1:0")],
+        queue: vec![entry("1", "1:0")].into(),
         track_lists: [(
             "album/3".to_string(),
             vec!["1".into(), "2".into(), "3".into()],
@@ -797,7 +800,7 @@ fn queue_actions_translate_with_position_and_start_index() {
     );
     // A reset that swaps a later track keeps the playing one going.
     let queue = PlaybackSnapshot {
-        queue: vec![entry("1", "1:0"), entry("2", "2:0"), entry("3", "3:0")],
+        queue: vec![entry("1", "1:0"), entry("2", "2:0"), entry("3", "3:0")].into(),
         current_index: Some(0),
         ..Default::default()
     };
@@ -826,7 +829,7 @@ fn queue_actions_translate_with_position_and_start_index() {
 #[test]
 fn media_item_formats_come_from_the_engine_and_the_quality_tier() {
     let mut snap = PlaybackSnapshot {
-        queue: vec![entry("101", "u1")],
+        queue: vec![entry("101", "u1")].into(),
         current_index: Some(0),
         current_item: Some(item(101, "Playing")),
         audio_quality: Some("HI_RES_LOSSLESS".into()),
@@ -835,7 +838,7 @@ fn media_item_formats_come_from_the_engine_and_the_quality_tier() {
         codec: Some("FLAC".into()),
         ..PlaybackSnapshot::default()
     };
-    snap.known_items.insert(
+    Arc::make_mut(&mut snap.known_items).insert(
         "202".into(),
         json!({ "id": 202, "title": "Listed", "duration": 100, "audioQuality": "LOSSLESS" }),
     );
@@ -881,7 +884,7 @@ fn the_playing_songs_format_reaches_withformat_at_every_song_change() {
     use super::dom::DomOverlay;
     use super::dom_anchors::{self, keys};
     let mut snap = PlaybackSnapshot {
-        queue: vec![entry("101", "u1")],
+        queue: vec![entry("101", "u1")].into(),
         current_index: Some(0),
         current_item: Some(item(101, "Before")),
         audio_quality: Some("LOSSLESS".into()),
@@ -892,7 +895,7 @@ fn the_playing_songs_format_reaches_withformat_at_every_song_change() {
         ..PlaybackSnapshot::default()
     };
     for id in [202, 303] {
-        snap.known_items.insert(
+        Arc::make_mut(&mut snap.known_items).insert(
             id.to_string(),
             json!({ "id": id, "title": "Song", "duration": 200, "audioQuality": "LOSSLESS" }),
         );
@@ -923,7 +926,7 @@ say("ready");
     let play = |id: &str, expected: &str, quality: &str, bits: u32, rate: u32, bitrate: u32| {
         {
             let mut snap = host.snap.lock().unwrap();
-            snap.queue = vec![entry(id, "u2")];
+            snap.queue = vec![entry(id, "u2")].into();
             snap.current_item = Some(item(id.parse().unwrap(), "Song"));
             snap.audio_quality = Some(expected.into());
             snap.bit_depth = None;
@@ -997,7 +1000,7 @@ fn a_plugin_audio_for_the_muted_player_replaces_the_songs_source() {
     let snap = PlaybackSnapshot {
         state: PlaybackState::Playing,
         desired_state: PlaybackState::Playing,
-        queue: vec![entry("42", "u1")],
+        queue: vec![entry("42", "u1")].into(),
         current_index: Some(0),
         current_item: Some(item(42, "Song")),
         duration: Some(200.0),
@@ -1122,7 +1125,7 @@ fn a_plugin_audio_for_a_paused_player_is_the_plugins_own_song() {
     let snap = PlaybackSnapshot {
         state: PlaybackState::Paused,
         desired_state: PlaybackState::Paused,
-        queue: vec![entry("42", "u1")],
+        queue: vec![entry("42", "u1")].into(),
         current_index: Some(0),
         current_item: Some(item(42, "Song")),
         duration: Some(200.0),
@@ -1176,7 +1179,7 @@ fn player_signals_tell_listeners_the_current_time() {
     let snap = PlaybackSnapshot {
         state: PlaybackState::Paused,
         desired_state: PlaybackState::Paused,
-        queue: vec![entry("42", "u1"), entry("43", "u2")],
+        queue: vec![entry("42", "u1"), entry("43", "u2")].into(),
         current_index: Some(0),
         current_item: Some(item(42, "Song")),
         duration: Some(200.0),
@@ -1273,14 +1276,15 @@ say([typeof s.session.userId, creator.id === s.session.userId, s.user.meta.id ==
 #[test]
 fn the_state_keeps_the_objects_that_did_not_change() {
     let snap = PlaybackSnapshot {
-        queue: vec![entry("1", "1:0"), entry("2", "2:0")],
+        queue: vec![entry("1", "1:0"), entry("2", "2:0")].into(),
         current_index: Some(0),
         known_items: [
             ("1".to_string(), item(1, "Song")),
             ("2".to_string(), item(2, "Other")),
         ]
         .into_iter()
-        .collect(),
+        .collect::<std::collections::BTreeMap<_, _>>()
+        .into(),
         ..Default::default()
     };
     let (luna, host, dir) = start(
@@ -1318,9 +1322,8 @@ lib.redux.intercept("playQueue/MOVE_TO", unloads, async () => {
     // While the plugin waits, song 1 is renamed and a third one queued.
     {
         let mut snap = host.snap.lock().unwrap();
-        snap.known_items
-            .insert("1".into(), item(1, "Song (renamed)"));
-        snap.queue.push(entry("3", "3:0"));
+        Arc::make_mut(&mut snap.known_items).insert("1".into(), item(1, "Song (renamed)"));
+        Arc::make_mut(&mut snap.queue).push(entry("3", "3:0"));
     }
     host.wait(&luna, "the second reading", |h| h.notes().len() > 1);
     let note: Value = serde_json::from_str(&host.notes()[1]).unwrap();
@@ -1637,9 +1640,12 @@ lib.redux.intercept("playQueue/MOVE_TO", unloads, async () => {
 #[test]
 fn the_playing_song_is_in_the_stores_track_entities() {
     let snap = PlaybackSnapshot {
-        queue: vec![entry("1", "1:0"), entry("2", "2:0")],
+        queue: vec![entry("1", "1:0"), entry("2", "2:0")].into(),
         current_index: Some(0),
-        known_items: [("1".to_string(), item(1, "Song"))].into_iter().collect(),
+        known_items: [("1".to_string(), item(1, "Song"))]
+            .into_iter()
+            .collect::<std::collections::BTreeMap<_, _>>()
+            .into(),
         ..Default::default()
     };
     let (luna, host, dir) = start(

@@ -725,7 +725,7 @@ pub fn redux_state(snap: &PlaybackSnapshot) -> Value {
             .unwrap_or_else(|| "track".into());
         media_items.insert(id.clone(), json!({ "item": item, "type": kind }));
     }
-    for (id, item) in &snap.known_items {
+    for (id, item) in snap.known_items.iter() {
         media_items
             .entry(id.clone())
             .or_insert_with(|| json!({ "item": item, "type": "track" }));

@@ -1312,7 +1312,8 @@ fn real_dom_plugins_work_end_to_end() {
                 uid: format!("u{id}"),
                 kind: "track".into(),
             })
-            .collect();
+            .collect::<Vec<_>>()
+            .into();
         s.current_index = Some(0);
         s.duration = Some(200.0);
     }

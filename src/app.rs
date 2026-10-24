@@ -14850,8 +14850,8 @@ mod tests {
         app.saved.insert("tidal:album:55".into(), false);
         app.saved.insert("tidal:artist:9".into(), true);
         let snap = app.luna_playback(None);
-        assert_eq!(snap.favorite_albums, ["4104020", "77"]);
-        assert_eq!(snap.favorite_artists, ["17275", "9"]);
+        assert_eq!(*snap.favorite_albums, ["4104020", "77"]);
+        assert_eq!(*snap.favorite_artists, ["17275", "9"]);
     }
 
     #[test]

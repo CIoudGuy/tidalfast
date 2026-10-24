@@ -157,7 +157,8 @@ fn base_snapshot() -> PlaybackSnapshot {
                 uid: format!("uid-{i}"),
                 kind: "track".into(),
             })
-            .collect(),
+            .collect::<Vec<_>>()
+            .into(),
         current_index: Some(0),
         source: Some(QueueSource {
             kind: "playlist".into(),
@@ -173,9 +174,9 @@ fn base_snapshot() -> PlaybackSnapshot {
         codec: Some("FLAC".into()),
         country_code: Some("US".into()),
         user_id: Some("0".into()),
-        favorite_tracks: vec![QUEUE[2].into()],
-        favorite_albums: vec!["1002".into()],
-        favorite_artists: vec!["3346".into()],
+        favorite_tracks: vec![QUEUE[2].into()].into(),
+        favorite_albums: vec!["1002".into()].into(),
+        favorite_artists: vec!["3346".into()].into(),
         favorite_playlists: vec![PLAYLIST.into()],
         ..Default::default()
     }
@@ -283,17 +284,17 @@ impl LunaHost for SweepHost {
             HostCommand::AddFavorites { ids, .. } => {
                 for id in ids {
                     if !s.favorite_tracks.contains(&id) {
-                        s.favorite_tracks.push(id);
+                        Arc::make_mut(&mut s.favorite_tracks).push(id);
                     }
                 }
             }
             HostCommand::RemoveFavorites { ids, .. } => {
-                s.favorite_tracks.retain(|x| !ids.contains(x))
+                Arc::make_mut(&mut s.favorite_tracks).retain(|x| !ids.contains(x))
             }
             HostCommand::AddToQueue(ids) => {
                 for id in ids {
                     let uid = format!("uid-{}", s.queue.len());
-                    s.queue.push(QueueEntry {
+                    Arc::make_mut(&mut s.queue).push(QueueEntry {
                         id,
                         uid,
                         kind: "track".into(),
@@ -961,11 +962,7 @@ fn run_one(store: &str, store_name: Option<String>, sp: &StorePlugin, pipe: &str
         ev(LunaEvent::Seek(90.0));
         host.snap.lock().unwrap().volume = 45.0;
         ev(LunaEvent::Volume(45.0));
-        host.snap
-            .lock()
-            .unwrap()
-            .favorite_tracks
-            .push(QUEUE[0].into());
+        Arc::make_mut(&mut host.snap.lock().unwrap().favorite_tracks).push(QUEUE[0].into());
         ev(LunaEvent::FavoritesChanged);
         ev(LunaEvent::Preload {
             id: QUEUE[1].into(),

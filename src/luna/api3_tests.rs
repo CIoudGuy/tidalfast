@@ -17,7 +17,7 @@ use super::*;
 #[test]
 fn every_tidal_action_acts_or_says_why_it_does_not() {
     let snap = PlaybackSnapshot {
-        queue: vec![],
+        queue: Default::default(),
         track_lists: [(
             "album/3".to_string(),
             vec!["1".to_string(), "2".to_string()],

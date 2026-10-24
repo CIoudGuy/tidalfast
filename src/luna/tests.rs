@@ -408,7 +408,8 @@ fn fixture_plugin_end_to_end() {
             id: "123".into(),
             uid: "u1".into(),
             kind: "track".into(),
-        }];
+        }]
+        .into();
         snap.current_index = Some(0);
         snap.state = PlaybackState::Playing;
         snap.desired_state = PlaybackState::Playing;
@@ -731,7 +732,8 @@ fn real_plugins_run_unmodified() {
         id: "1".into(),
         uid: "u".into(),
         kind: "track".into(),
-    }];
+    }]
+    .into();
     host.snap.lock().unwrap().current_index = Some(0);
     luna.event(LunaEvent::TrackChanged { id: "1".into() });
     luna.event(LunaEvent::PlaybackState(PlaybackState::Playing));
@@ -839,7 +841,8 @@ fn real_discord_rpc_sets_activity_over_ipc() {
             id: "1".into(),
             uid: "u".into(),
             kind: "track".into(),
-        }];
+        }]
+        .into();
         s.current_index = Some(0);
         s.state = PlaybackState::Playing;
         s.desired_state = PlaybackState::Playing;
@@ -971,7 +974,8 @@ fn real_discord_rpc_names_the_playing_song() {
                 id: "4".into(),
                 uid: "u".into(),
                 kind: "track".into(),
-            }],
+            }]
+            .into(),
             current_index: Some(0),
             state: PlaybackState::Playing,
             desired_state: PlaybackState::Playing,

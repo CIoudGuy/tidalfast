@@ -2,6 +2,7 @@
 //! requests plugins make of the app.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -57,9 +58,14 @@ pub(super) fn window_held() -> bool {
 }
 
 fn tidal_id(uri: &str, kind: &str) -> Option<String> {
+    tidal_id_str(uri, kind).map(str::to_string)
+}
+
+/// [`tidal_id`], borrowed from the URI.
+fn tidal_id_str<'a>(uri: &'a str, kind: &str) -> Option<&'a str> {
     let mut parts = uri.split(':');
     (parts.next()? == "tidal" && parts.next()? == kind)
-        .then(|| parts.next().map(str::to_string))
+        .then(|| parts.next())
         .flatten()
 }
 
@@ -101,6 +107,11 @@ fn luna_lyrics(id: &str, lyrics: &crate::lyrics::Lyrics) -> Value {
 thread_local! {
     /// Tracks made into TIDAL JSON on this thread ([`track_json`]).
     static TRACK_JSONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Queue rows made for plugins on this thread (`App::luna_queue`).
+    static QUEUE_ROWS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Times the favourites were made for plugins on this thread
+    /// (`App::luna_favorites`).
+    static FAVORITE_LISTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// A TIDAL v1-shaped track for plugins, from what the app already knows.
@@ -384,38 +395,164 @@ impl App {
     /// Row `uid`s are the track id and which copy of it this is, so a row
     /// keeps its uid when others before it go.
     fn luna_queue(&self, playing_uri: Option<&str>) -> Vec<QueueEntry> {
-        let mut seen: HashMap<String, usize> = HashMap::new();
-        let mut queue = Vec::new();
-        let mut push = |id: String| {
-            let n = seen.entry(id.clone()).or_default();
-            queue.push(QueueEntry {
-                uid: format!("{id}:{n}"),
-                id,
-                kind: "track".into(),
-            });
-            *n += 1;
-        };
-        if let Some(id) = playing_uri.and_then(|u| tidal_id(u, "track")) {
-            push(id);
-        }
+        let mut seen: HashMap<&str, usize> = HashMap::new();
+        self.luna_queue_ids(playing_uri)
+            .map(|id| {
+                #[cfg(test)]
+                QUEUE_ROWS.with(|n| n.set(n.get() + 1));
+                let n = seen.entry(id).or_default();
+                let row = QueueEntry {
+                    uid: format!("{id}:{n}"),
+                    id: id.to_string(),
+                    kind: "track".into(),
+                };
+                *n += 1;
+                row
+            })
+            .collect()
+    }
+
+    /// The track ids of [`Self::luna_queue`]'s rows in order, read from the
+    /// app's queue without making anything: a pass compares them with the
+    /// rows plugins have.
+    fn luna_queue_ids<'a>(
+        &'a self,
+        playing_uri: Option<&'a str>,
+    ) -> impl Iterator<Item = &'a str> + 'a {
         let loaded = self.queue.get().filter(|q| !q.queue.is_empty());
-        if let Some(q) = loaded {
-            for item in &q.queue {
-                if let Some(id) = tidal_id(item.uri(), "track") {
-                    push(id);
+        // The remembered song, shown paused before anything plays: what
+        // follows it is the queue it was saved with (songs queued by hand,
+        // then the rest of its context or radio), as Next plays it.
+        let resumed = (loaded.is_none() && self.resume_only())
+            .then(|| {
+                self.resume_queue
+                    .iter()
+                    .chain(&self.resume_upcoming)
+                    .map(String::as_str)
+            })
+            .into_iter()
+            .flatten();
+        let next_up = loaded
+            .into_iter()
+            .flat_map(|q| q.queue.iter().map(PlayableItem::uri));
+        playing_uri
+            .into_iter()
+            .chain(next_up)
+            .chain(resumed)
+            .filter_map(|uri| tidal_id_str(uri, "track"))
+    }
+
+    /// What plugins read of the queue and of the library, kept from pass to
+    /// pass and shared with every snapshot ([`crate::plugins::Seen`]): the
+    /// queue's rows, its songs as TIDAL JSON and the favourites are made
+    /// again only when what they are made of changes. Every pass made all of
+    /// them again and copied the songs' JSON into the snapshot, which was
+    /// then compared whole with the one plugins had.
+    fn luna_shared(&mut self, now: Option<&NowPlaying>) {
+        // The rows are the queue's only while something plays.
+        let playing_uri = now.map(|now| now.uri.as_str());
+        let rows = &self.plugins.seen.queue_rows;
+        let same = if now.is_some() {
+            rows.iter()
+                .map(|row| row.id.as_str())
+                .eq(self.luna_queue_ids(playing_uri))
+        } else {
+            rows.is_empty()
+        };
+        if !same {
+            let rows = if now.is_some() {
+                self.luna_queue(playing_uri)
+            } else {
+                Vec::new()
+            };
+            self.plugins.seen.queue_rows = Arc::new(rows);
+            self.plugins.seen.queue_made += 1;
+        }
+        let items_key = (self.plugins.seen.queue_made, self.track_cache.len());
+        if self.plugins.seen.items_key != Some(items_key) {
+            let items = self.luna_queue_items(&self.plugins.seen.queue_rows);
+            self.plugins.seen.items = Arc::new(items);
+            self.plugins.seen.items_key = Some(items_key);
+        }
+        let print = self.favorites_print();
+        if self.plugins.seen.favorites_key != Some(print) {
+            self.plugins.seen.favorite_lists = self.luna_favorites().map(Arc::new);
+            self.plugins.seen.favorites_key = Some(print);
+        }
+    }
+
+    /// Favourite ids as TIDAL's `favorites` slice: the tracks, albums and
+    /// artists.
+    fn luna_favorites(&self) -> [Vec<String>; 3] {
+        #[cfg(test)]
+        FAVORITE_LISTS.with(|n| n.set(n.get() + 1));
+        let mut tracks: Vec<String> = self
+            .saved
+            .iter()
+            .filter(|(_, saved)| **saved)
+            .filter_map(|(uri, _)| tidal_id(uri, "track"))
+            .collect();
+        tracks.sort();
+        // Saved albums and followed artists: what the library lists have
+        // loaded plus what was saved or followed here, as TIDAL's
+        // `favorites.albums` / `favorites.artists` (LuckyLP picks a random
+        // saved album from the first).
+        let mut albums: std::collections::BTreeSet<String> = self
+            .library
+            .albums
+            .items
+            .iter()
+            .map(|saved| saved.album.id.clone())
+            .collect();
+        let mut artists: std::collections::BTreeSet<String> = self
+            .library
+            .artists
+            .items
+            .iter()
+            .map(|artist| artist.id.clone())
+            .collect();
+        for (uri, saved) in &self.saved {
+            if let Some(id) = tidal_id(uri, "album") {
+                if *saved {
+                    albums.insert(id);
+                } else {
+                    albums.remove(&id);
                 }
-            }
-        } else if self.resume_only() {
-            // The remembered song, shown paused before anything plays: what
-            // follows it is the queue it was saved with (songs queued by
-            // hand, then the rest of its context or radio), as Next plays it.
-            for uri in self.resume_queue.iter().chain(&self.resume_upcoming) {
-                if let Some(id) = tidal_id(uri, "track") {
-                    push(id);
+            } else if let Some(id) = tidal_id(uri, "artist") {
+                if *saved {
+                    artists.insert(id);
+                } else {
+                    artists.remove(&id);
                 }
             }
         }
-        queue
+        [
+            tracks,
+            albums.into_iter().filter(|id| !id.is_empty()).collect(),
+            artists.into_iter().filter(|id| !id.is_empty()).collect(),
+        ]
+    }
+
+    /// What [`Self::luna_favorites`] is made of, as one number: the saved
+    /// flags (in the map's own order, which stays while the map does) and
+    /// the library's albums and artists. Read every pass; nothing is made.
+    fn favorites_print(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.saved.len().hash(&mut h);
+        for (uri, saved) in &self.saved {
+            uri.hash(&mut h);
+            saved.hash(&mut h);
+        }
+        self.library.albums.items.len().hash(&mut h);
+        for saved in &self.library.albums.items {
+            saved.album.id.hash(&mut h);
+        }
+        self.library.artists.items.len().hash(&mut h);
+        for artist in &self.library.artists.items {
+            artist.id.hash(&mut h);
+        }
+        h.finish()
     }
 
     /// The queue's songs as TIDAL JSON, for `content.mediaItems`: from the
@@ -483,7 +620,8 @@ impl App {
         if wanted && !hold && self.plugins.luna.is_none() && self.plugins.luna_error.is_none() {
             // Plugins read the state as they load: the account and what is
             // playing are there before the first sync.
-            let snap = self.luna_playback(self.now_playing().as_ref());
+            let now = self.now_playing();
+            let snap = self.luna_playback(now.as_ref());
             self.plugins.host.set_snapshot(snap);
             self.plugins.start_luna(self.dirs.luna_dir());
             if let (Some(luna), Some(urls)) = (&self.plugins.luna, demo_luna()) {
@@ -639,7 +777,10 @@ impl App {
     }
 
     /// The state Luna plugins read.
-    pub(super) fn luna_playback(&self, now: Option<&NowPlaying>) -> PlaybackSnapshot {
+    pub(super) fn luna_playback(&mut self, now: Option<&NowPlaying>) -> PlaybackSnapshot {
+        self.luna_shared(now);
+        let seen = &self.plugins.seen;
+        let [favorite_tracks, favorite_albums, favorite_artists] = seen.favorite_lists.clone();
         let mut snap = PlaybackSnapshot {
             // The account is there whether or not a song is: plugins read
             // `session.userId` as they load, before anything plays
@@ -651,50 +792,14 @@ impl App {
             // Exclusive output exists on Windows (WASAPI) and Linux (ALSA).
             exclusive_mode: cfg!(any(windows, target_os = "linux"))
                 .then_some(self.settings.bit_perfect),
+            favorite_tracks,
+            favorite_albums,
+            favorite_artists,
+            // The queue's songs, for `content.mediaItems` (empty while
+            // nothing plays, as the queue is).
+            known_items: Arc::clone(&seen.items),
             ..PlaybackSnapshot::default()
         };
-        snap.favorite_tracks = self
-            .saved
-            .iter()
-            .filter(|(_, saved)| **saved)
-            .filter_map(|(uri, _)| tidal_id(uri, "track"))
-            .collect();
-        snap.favorite_tracks.sort();
-        // Saved albums and followed artists: what the library lists have
-        // loaded plus what was saved or followed here, as TIDAL's
-        // `favorites.albums` / `favorites.artists` (LuckyLP picks a random
-        // saved album from the first).
-        let mut albums: std::collections::BTreeSet<String> = self
-            .library
-            .albums
-            .items
-            .iter()
-            .map(|saved| saved.album.id.clone())
-            .collect();
-        let mut artists: std::collections::BTreeSet<String> = self
-            .library
-            .artists
-            .items
-            .iter()
-            .map(|artist| artist.id.clone())
-            .collect();
-        for (uri, saved) in &self.saved {
-            if let Some(id) = tidal_id(uri, "album") {
-                if *saved {
-                    albums.insert(id);
-                } else {
-                    albums.remove(&id);
-                }
-            } else if let Some(id) = tidal_id(uri, "artist") {
-                if *saved {
-                    artists.insert(id);
-                } else {
-                    artists.remove(&id);
-                }
-            }
-        }
-        snap.favorite_albums = albums.into_iter().filter(|id| !id.is_empty()).collect();
-        snap.favorite_artists = artists.into_iter().filter(|id| !id.is_empty()).collect();
         let Some(now) = now else {
             snap.volume = f64::from(volume_to_percent(self.local.volume));
             return snap;
@@ -722,10 +827,10 @@ impl App {
         snap.muted = now.volume_percent == 0;
         snap.shuffle = now.shuffle;
         snap.repeat = luna_repeat(now.repeat);
-        if tidal_id(&now.uri, "track").is_some() {
+        if tidal_id_str(&now.uri, "track").is_some() {
             snap.current_index = Some(0);
         }
-        snap.queue = self.luna_queue(Some(&now.uri));
+        snap.queue = Arc::clone(&self.plugins.seen.queue_rows);
         // On this computer's queue a plugin takes out any row (the songs the
         // user queued, and the rest of a context for this pass of it, queue.md
         // rule 12); its clear takes out only the queued ones (rule 7).
@@ -806,23 +911,9 @@ impl App {
 
     /// Refresh what plugins read and tell them what changed.
     pub(super) fn luna_sync(&mut self, now: Option<&NowPlaying>, window: WindowState) {
-        let mut snap = self.luna_playback(now);
-        // The queue's tracks, as TIDAL JSON, for `content.mediaItems`; built
-        // again only when the queue or what the app has cached changes.
-        let items_key = {
-            use std::hash::{Hash, Hasher};
-            let mut h = std::collections::hash_map::DefaultHasher::new();
-            for e in &snap.queue {
-                e.id.hash(&mut h);
-            }
-            self.track_cache.len().hash(&mut h);
-            h.finish()
-        };
-        if self.plugins.seen.items_key != Some(items_key) {
-            self.plugins.seen.items = self.luna_queue_items(&snap.queue);
-            self.plugins.seen.items_key = Some(items_key);
-        }
-        snap.known_items = self.plugins.seen.items.clone();
+        // The queue, its songs and the favourites are the ones plugins have
+        // until they change ([`Self::luna_shared`]).
+        let snap = self.luna_playback(now);
         let now_playing_view = self.now_playing_view;
         let lyrics_state = {
             let id = now.and_then(|n| n.id.clone());
@@ -915,19 +1006,12 @@ impl App {
             }
             seen.repeat = Some(snap.repeat);
         }
-        let queue_key = {
-            use std::hash::{Hash, Hasher};
-            let mut h = std::collections::hash_map::DefaultHasher::new();
-            for e in &snap.queue {
-                e.id.hash(&mut h);
-            }
-            h.finish()
-        };
-        if seen.queue != Some(queue_key) {
+        // The rows are made again exactly when the queue's songs change.
+        if seen.queue != Some(seen.queue_made) {
             if seen.queue.is_some() {
                 events.push(LunaEvent::QueueChanged);
             }
-            seen.queue = Some(queue_key);
+            seen.queue = Some(seen.queue_made);
         }
         let favorites =
             snap.favorite_tracks.len() + snap.favorite_albums.len() + snap.favorite_artists.len();
@@ -1586,6 +1670,120 @@ mod tests {
             listed(&app, "album/alb0").is_some_and(|n| n > 0),
             "the album's list"
         );
+        app.backend.shutdown();
+    }
+
+    /// What plugins read of the queue and the library is made again only
+    /// when it changes, and every change reaches them on the next pass: a
+    /// song added, one swapped for another in its place (the queue as long
+    /// as before), the next song playing, a pause, and a liked song swapped
+    /// for another in one pass (as many favourites as before). Every pass
+    /// made each queue row and the favourites again, and copied every queue
+    /// song's JSON into the snapshot, compared whole with the last one:
+    /// milliseconds of every frame with a long queue.
+    #[test]
+    fn plugins_read_the_queue_as_it_is_and_it_is_made_only_when_it_changes() {
+        use crate::luna::LunaHost as _;
+        use std::cell::Cell;
+        let mut app = app("plugin-queue-shared");
+        let song = |n: usize| {
+            PlayableItem::Track(Track {
+                id: Some(n.to_string()),
+                name: format!("Song {n}"),
+                uri: format!("tidal:track:{n}"),
+                duration_ms: 100_000 + n as u32,
+                ..Track::default()
+            })
+        };
+        let queue = |playing: usize, next: std::ops::Range<usize>| {
+            Loadable::Loaded(crate::api::models::Queue {
+                currently_playing: Some(song(playing)),
+                queue: next.map(song).collect(),
+            })
+        };
+        let now = |n: usize, playing: bool| NowPlaying {
+            local: true,
+            device_name: None,
+            device_kind: None,
+            uri: format!("tidal:track:{n}"),
+            id: Some(n.to_string()),
+            title: String::new(),
+            artists: Vec::new(),
+            subtitle: String::new(),
+            album_name: String::new(),
+            album_id: None,
+            art_url: None,
+            art_small: None,
+            duration_ms: 200_000,
+            position_ms: 1_000,
+            playing,
+            loading: false,
+            shuffle: false,
+            repeat: RepeatMode::Off,
+            volume_percent: 50,
+            can_control: true,
+            can_set_volume: true,
+            resuming: false,
+        };
+        let window = WindowState::default();
+        let ids = |app: &App| -> Vec<String> {
+            let snap = app.plugins.host.playback();
+            snap.queue.iter().map(|row| row.id.clone()).collect()
+        };
+        let has_song =
+            |app: &App, id: &str| app.plugins.host.playback().known_items.contains_key(id);
+        app.queue = queue(0, 1..500);
+        app.luna_sync(Some(&now(0, true)), window);
+        assert_eq!(ids(&app).len(), 500);
+        assert!(has_song(&app, "499"));
+        // Passes with nothing changed make none of it again.
+        let made = || {
+            (
+                QUEUE_ROWS.with(Cell::get),
+                TRACK_JSONS.with(Cell::get),
+                FAVORITE_LISTS.with(Cell::get),
+            )
+        };
+        let before = made();
+        app.luna_sync(Some(&now(0, true)), window);
+        app.luna_sync(Some(&now(0, true)), window);
+        assert_eq!(made(), before, "(rows, songs, favourites) made again");
+
+        // A song added at the end.
+        app.queue = queue(0, 1..501);
+        app.luna_sync(Some(&now(0, true)), window);
+        assert_eq!(ids(&app).last().map(String::as_str), Some("500"));
+        assert!(has_song(&app, "500"));
+        // A song swapped for another in its place.
+        if let Loadable::Loaded(q) = &mut app.queue {
+            q.queue[9] = song(900);
+        }
+        app.luna_sync(Some(&now(0, true)), window);
+        assert_eq!(ids(&app)[10], "900");
+        assert_eq!(ids(&app).len(), 501);
+        assert!(has_song(&app, "900"));
+        // The next song plays, then pauses.
+        app.queue = queue(1, 2..501);
+        app.luna_sync(Some(&now(1, true)), window);
+        let snap = app.plugins.host.playback();
+        assert_eq!(snap.queue.first().map(|row| row.id.as_str()), Some("1"));
+        assert_eq!((snap.queue.len(), snap.current_index), (500, Some(0)));
+        assert_eq!(snap.state, LunaState::Playing);
+        app.luna_sync(Some(&now(1, false)), window);
+        assert_eq!(app.plugins.host.playback().state, LunaState::Paused);
+        // A liked song, then swapped for another in one pass.
+        let liked = |app: &App| app.plugins.host.playback().favorite_tracks.to_vec();
+        app.saved.insert("tidal:track:7".into(), true);
+        app.saved.insert("tidal:track:8".into(), false);
+        app.luna_sync(Some(&now(1, false)), window);
+        assert_eq!(liked(&app), ["7"]);
+        app.saved.insert("tidal:track:7".into(), false);
+        app.saved.insert("tidal:track:8".into(), true);
+        app.luna_sync(Some(&now(1, false)), window);
+        assert_eq!(liked(&app), ["8"]);
+        // Nothing plays: no queue.
+        app.luna_sync(None, window);
+        assert!(ids(&app).is_empty());
         app.backend.shutdown();
     }
 

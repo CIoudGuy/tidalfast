@@ -483,7 +483,8 @@ fn real_audiovisualiser_analyses_songs_in_a_forked_process() {
                     uid: format!("u{i}"),
                     kind: "track".into(),
                 })
-                .collect();
+                .collect::<Vec<_>>()
+                .into();
             s.current_index = Some(0);
             s.state = PlaybackState::Playing;
             s.duration = Some(180.0);

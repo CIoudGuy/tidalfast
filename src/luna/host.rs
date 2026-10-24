@@ -5,6 +5,8 @@
 //! read through `MediaItem.tidalItem`, `Album.tidalAlbum`, ...), so the host
 //! can hand over what its TIDAL client already fetched.
 
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -62,7 +64,7 @@ impl RepeatMode {
 }
 
 /// One play-queue entry.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QueueEntry {
     /// TIDAL track id (numeric string).
     pub id: String,
@@ -91,7 +93,12 @@ pub struct QueueSource {
 /// Everything plugins can read synchronously (`redux.store.getState()`,
 /// `PlayState.*`). The host should answer [`LunaHost::playback`] from a
 /// cached snapshot; it is called often.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+///
+/// The queue, its songs and the favourites are shared (`Arc`): the host
+/// hands every snapshot the same ones until they change, so a snapshot of a
+/// long queue is cheap to make, to copy and to compare (the same lists
+/// compare equal without being read).
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlaybackSnapshot {
     pub state: PlaybackState,
     /// What the user asked for (PLAYING while buffering, for instance).
@@ -103,7 +110,7 @@ pub struct PlaybackSnapshot {
     pub muted: bool,
     pub shuffle: bool,
     pub repeat: RepeatMode,
-    pub queue: Vec<QueueEntry>,
+    pub queue: Arc<Vec<QueueEntry>>,
     /// How many rows right after the playing one the app lets a plugin
     /// remove one by one (the songs the user queued, and the rest of a
     /// playlist or album, which the plugin takes out of this pass of its
@@ -134,16 +141,16 @@ pub struct PlaybackSnapshot {
     /// The account's public name (`user.meta.profileName`).
     pub profile_name: Option<String>,
     /// Favourite ids, as TIDAL's `favorites` slice.
-    pub favorite_tracks: Vec<String>,
-    pub favorite_albums: Vec<String>,
-    pub favorite_artists: Vec<String>,
+    pub favorite_tracks: Arc<Vec<String>>,
+    pub favorite_albums: Arc<Vec<String>>,
+    pub favorite_artists: Arc<Vec<String>>,
     pub favorite_playlists: Vec<String>,
     /// Item ids of loaded lists, by TIDAL's `trackListName` (what the
     /// `ADD_TRACK_LIST_*` actions name); `content.trackLists`.
     pub track_lists: std::collections::BTreeMap<String, Vec<String>>,
     /// TIDAL v1 track JSON for the queue and loaded-list ids the app
     /// knows, by id; `content.mediaItems`.
-    pub known_items: std::collections::BTreeMap<String, Value>,
+    pub known_items: Arc<std::collections::BTreeMap<String, Value>>,
     /// The main window, for `BrowserWindow.isFullScreen()` and friends.
     pub window: WindowState,
     /// Whether the output is asked to be exclusive (the Bit-perfect setting;
