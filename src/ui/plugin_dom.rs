@@ -5185,13 +5185,23 @@ pub fn wave_tokens(p: &Palette) -> BTreeMap<String, String> {
         let [r, g, b, _] = c.to_srgba_unmultiplied();
         format!("rgba({r}, {g}, {b}, {a})")
     };
+    // TIDAL's own Dark palette has TIDAL's own steps (TIDAL 2.46.0's root:
+    // bright #18181b, brighter #242429, brightest #303036), one above the
+    // panel and surface shades Tidalfast paints with: the play queue's
+    // `color-mix(in srgb, var(--wave-color-solid-base-brighter), ...)`
+    // under the cotton candy family and Blur is that grey in TIDAL.
+    let (bright, brighter, brightest) = if p.tidal_dark() {
+        ("#18181b".into(), "#242429".into(), "#303036".into())
+    } else {
+        (hex(p.panel), hex(p.surface), hex(p.surface_hover))
+    };
     let mut out: Vec<(String, String)> = [
         ("--wave-color-solid-base-fill", hex(p.window)),
         ("--wave-color-solid-base-base", hex(p.window)),
         ("--wave-color-solid-base-darkest", hex(p.window)),
-        ("--wave-color-solid-base-bright", hex(p.panel)),
-        ("--wave-color-solid-base-brighter", hex(p.surface)),
-        ("--wave-color-solid-base-brightest", hex(p.surface_hover)),
+        ("--wave-color-solid-base-bright", bright),
+        ("--wave-color-solid-base-brighter", brighter),
+        ("--wave-color-solid-base-brightest", brightest),
         ("--wave-color-solid-accent-fill", hex(p.accent)),
         ("--wave-color-solid-accent-base", hex(p.accent)),
         ("--wave-color-solid-accent-bright", hex(p.accent_hover)),

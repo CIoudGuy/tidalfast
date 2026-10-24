@@ -76,3 +76,33 @@ fn tidals_layout_variables_are_defined() {
     assert_eq!(padding[2], 88.0, "{padding:?}");
     assert_eq!(padding[0], 14.0, "{padding:?}");
 }
+
+/// TIDAL's own dark base steps (`--wave-color-solid-base-bright`,
+/// `-brighter`, `-brightest`: #18181b, #242429, #303036 in TIDAL 2.46.0)
+/// are what a theme reads with no palette of its own: the cotton candy
+/// family's and Blur's `color-mix(in srgb, var(--wave-color-solid-base-
+/// brighter), ...)` play queue is TIDAL's grey 36, not the surface 24.
+#[test]
+fn tidals_own_dark_base_steps_are_its_tokens() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::QUEUE_PANEL;
+    let mut frame = dom_anchors::sample_frame();
+    frame.queue_panel = Some((Some([1000.0, 90.0, 334.0, 600.0]), false));
+    let css = r#"/* {"name": "Brighter glass"} */
+#playQueueSidebar { background: color-mix(in srgb, var(--wave-color-solid-base-brighter), transparent 75%); }
+"#;
+    let o = overlay("brighter.css", css, &frame, QUEUE_PANEL);
+    pd::test_overlay(Some((*o).clone()));
+    let _ = pd::themed_palette(crate::theme::Palette::dark());
+    let look = pd::anchor_look(QUEUE_PANEL);
+    pd::test_overlay(None);
+    let fill = look.and_then(|l| l.fill).expect("the panel's fill");
+    let [r, g, b, a] = fill.to_srgba_unmultiplied();
+    assert!(
+        (i32::from(r) - 36).abs() <= 1
+            && (i32::from(g) - 36).abs() <= 1
+            && (i32::from(b) - 41).abs() <= 1,
+        "{fill:?}"
+    );
+    assert!((i32::from(a) - 64).abs() <= 1, "{fill:?}");
+}
