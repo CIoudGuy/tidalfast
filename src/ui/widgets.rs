@@ -788,10 +788,17 @@ pub(crate) fn menu_icon_row(ui: &mut Ui, palette: &Palette, icon: Icon, label: &
     let width = menu_row_width(ui, need);
     let (rect, response) = ui.allocate_exact_size(vec2(width, MENU_ITEM_HEIGHT), Sense::click());
     if ui.is_rect_visible(rect) {
+        // TIDAL 2.46.0's create menu rows are its context menu's rows
+        // (`div._actionItem_ > button > span._extraLeftIconContainer_ >
+        // svg._icon_`, `span._actionTextInner_`, captured): the hovered one
+        // is TIDAL's white wash or a theme's `:hover` rule, the icon and
+        // words take a theme's rules for menu icons and words (Cotton Candy
+        // Nights' black).
         if response.hovered() {
-            ui.painter()
-                .rect_filled(rect, CornerRadius::same(9), menu_hover(palette));
+            super::plugin_dom::paint_menu_hover(ui, rect, action_hover(palette));
         }
+        let glyph = super::plugin_dom::menu_icon(false).unwrap_or(palette.text);
+        let words = super::plugin_dom::menu_row_words(palette.menu_bg()).unwrap_or(palette.text);
         theme::paint_icon(
             ui,
             icon,
@@ -800,14 +807,14 @@ pub(crate) fn menu_icon_row(ui: &mut Ui, palette: &Palette, icon: Icon, label: &
                 Vec2::splat(16.0),
             ),
             16.0,
-            palette.text,
+            glyph,
         );
         let x = rect.left() + 44.0;
         let galley = crate::bidi::layout(
             ui.painter(),
             label,
             theme::semibold(12.0),
-            palette.text,
+            words,
             (rect.right() - 12.0 - x).max(0.0),
             1,
             Some(crate::bidi::ELLIPSIS),
@@ -816,11 +823,8 @@ pub(crate) fn menu_icon_row(ui: &mut Ui, palette: &Palette, icon: Icon, label: &
             pos2(x, rect.center().y - galley.size().y / 2.0),
             pos2(rect.right() - 12.0, rect.center().y + galley.size().y / 2.0),
         );
-        ui.painter().galley(
-            crate::bidi::galley_pos(text_rect, &galley),
-            galley,
-            palette.text,
-        );
+        ui.painter()
+            .galley(crate::bidi::galley_pos(text_rect, &galley), galley, words);
     }
     response.widget_info(|| {
         egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label)
