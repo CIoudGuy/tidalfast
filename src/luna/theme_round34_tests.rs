@@ -179,6 +179,85 @@ a { color: rgb(216, 218, 255); }
     assert_eq!(playing, Some(egui::Color32::from_rgb(216, 218, 255)));
 }
 
+/// TIDAL 2.46.0's playlist chooser has a search field of its own
+/// (`div._container_f1be359._searchInput_79eecb3`, not the header's
+/// `.searchFieldWithinSearchFieldWithPopover`): a theme's rule for the
+/// header pill leaves it alone and its rule for `._container_f1be359`
+/// reaches it (Cotton Candy Nights' pink glass on the chooser, its indigo on
+/// the pill; captured). Tidalfast's playlist picker took the header pill's
+/// look.
+#[test]
+fn the_playlist_choosers_search_takes_its_own_rules() {
+    use crate::theme::Palette;
+    use crate::ui::{plugin_dom as pd, widgets};
+    let css = r#"/* {"name": "Two searches"} */
+._container_f1be359 { background-color: rgb(250, 190, 250); }
+.searchFieldWithinSearchFieldWithPopover { background-color: rgb(31, 17, 75) !important; }
+"#;
+    let o = overlay_for(
+        "two-searches.css",
+        css,
+        dom_anchors::keys::CHOOSER_SEARCH_FIELD,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let palette = Palette::dark();
+    let header = widgets::search_field_style(&palette, widgets::SearchLook::Header);
+    let chooser = widgets::search_field_style(&palette, widgets::CHOOSER_SEARCH);
+    pd::test_overlay(None);
+    assert_eq!(
+        header.and_then(|s| s.fill),
+        Some(egui::Color32::from_rgb(31, 17, 75))
+    );
+    assert_eq!(
+        chooser.and_then(|s| s.fill),
+        Some(egui::Color32::from_rgb(250, 190, 250))
+    );
+}
+
+/// A theme that styles only the header pill leaves the chooser's field
+/// native, as TIDAL 2.46.0 does under Blur (its white on the pill only,
+/// captured).
+#[test]
+fn a_header_only_rule_leaves_the_choosers_search_native() {
+    use crate::theme::Palette;
+    use crate::ui::{plugin_dom as pd, widgets};
+    let css = r#"/* {"name": "Pill only"} */
+.searchFieldWithinSearchFieldWithPopover { background-color: rgba(255, 255, 255, 0.15); }
+"#;
+    let o = overlay_for("pill-only.css", css, dom_anchors::keys::SEARCH_FIELD);
+    pd::test_overlay(Some((*o).clone()));
+    let chooser = widgets::search_field_style(&Palette::dark(), widgets::CHOOSER_SEARCH);
+    pd::test_overlay(None);
+    assert_eq!(chooser, None);
+}
+
+/// TidaLuna's store search is an MUI text field, which the cotton candy
+/// family colours by its classes (`.css-1xqp9nb` dark violet with white
+/// words under Cotton Candy Nights in TIDAL 2.46.0, captured). The Plugins
+/// page's search takes that, not the header pill's look.
+#[test]
+fn the_plugin_store_search_takes_tidalunas_field_rules() {
+    use crate::theme::Palette;
+    use crate::ui::{plugin_dom as pd, widgets};
+    let css = r#"/* {"name": "Store field"} */
+.css-1xqp9nb { color: #ffffff !important; background-color: rgb(47, 10, 61) !important; }
+.searchFieldWithinSearchFieldWithPopover { background-color: rgb(250, 190, 250); }
+"#;
+    let o = overlay_for(
+        "store-field.css",
+        css,
+        dom_anchors::keys::STORE_SEARCH_FIELD,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let store = widgets::search_field_style(&Palette::dark(), widgets::STORE_SEARCH);
+    pd::test_overlay(None);
+    assert_eq!(
+        store.and_then(|s| s.fill),
+        Some(egui::Color32::from_rgb(47, 10, 61))
+    );
+    assert_eq!(store.and_then(|s| s.color), Some(egui::Color32::WHITE));
+}
+
 /// TIDAL 2.46.0 has many `_titleText_` modules, one hash each (the track
 /// list's `_titleText_51cccae`, the queue's `_titleText_6563d98`, the
 /// sidebar heading's `_titleText_1d0e44e`, the mini header's

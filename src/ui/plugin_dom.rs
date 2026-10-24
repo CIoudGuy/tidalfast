@@ -2348,16 +2348,21 @@ pub fn search_style(palette: &Palette) -> Option<NavStyle> {
         .filter(|f| f.a() > 0)
         .unwrap_or_else(|| palette.chip());
     if let Some(ink) = style.color {
-        let under = palette.window;
-        style.color = Some(readable_text(ink, fill, under).unwrap_or_else(|| {
-            if luminance(opaque_over(fill, opaque(under))) > 0.4 {
-                Color32::BLACK
-            } else {
-                Color32::WHITE
-            }
-        }));
+        style.color = Some(readable_over(ink, fill, palette.window));
     }
     (style != NavStyle::default()).then_some(style)
+}
+
+/// A field's typed words `ink` over its `fill` (on `under`): the theme's
+/// colour, or black or white, whichever reads, where it would not.
+pub fn readable_over(ink: Color32, fill: Color32, under: Color32) -> Color32 {
+    readable_text(ink, fill, under).unwrap_or_else(|| {
+        if luminance(opaque_over(fill, opaque(under))) > 0.4 {
+            Color32::BLACK
+        } else {
+            Color32::WHITE
+        }
+    })
 }
 
 /// Paints the top bar's search pill in `r`: `fill` (the pill's colour as

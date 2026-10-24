@@ -1154,7 +1154,9 @@ pub(crate) fn playlist_picker(
             highlighted = index;
         }
     }
-    let field = search_field(
+    // TIDAL's playlist chooser has a search field of its own, which themes
+    // style apart from the header's pill.
+    let field = search_field_as(
         ui,
         &palette,
         locale,
@@ -1162,6 +1164,7 @@ pub(crate) fn playlist_picker(
         query,
         &gettext(locale, "Filter playlists"),
         width,
+        CHOOSER_SEARCH,
     );
     if *query != chosen_for {
         highlighted = (!query.trim().is_empty()).then_some(0);
@@ -5156,6 +5159,32 @@ pub fn text_edit(ui: &mut Ui, locale: Locale, edit: egui::TextEdit<'_>) -> egui:
     output.response.response
 }
 
+/// Whose look a search field takes under a theme.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SearchLook {
+    /// TIDAL's header pill, whole ([`header_search_field`]).
+    Header,
+    /// The header pill's fill, corners and words: a field TIDAL has no
+    /// equivalent of (Settings' search).
+    Pill,
+    /// A TIDAL field of its own, its box and its input anchors: the look a
+    /// theme gives them, else the native one (a theme that leaves the field
+    /// alone leaves it native, as in TIDAL).
+    Own(&'static str, &'static str),
+}
+
+/// The playlist picker's filter: TIDAL's playlist chooser's search field.
+pub const CHOOSER_SEARCH: SearchLook = SearchLook::Own(
+    crate::luna::dom_anchors::keys::CHOOSER_SEARCH_FIELD,
+    crate::luna::dom_anchors::keys::CHOOSER_SEARCH_INPUT,
+);
+
+/// The Plugins page's search: TidaLuna's store search field.
+pub const STORE_SEARCH: SearchLook = SearchLook::Own(
+    crate::luna::dom_anchors::keys::STORE_SEARCH_FIELD,
+    crate::luna::dom_anchors::keys::STORE_SEARCH_INPUT,
+);
+
 /// A text field with a leading search icon.
 pub fn search_field(
     ui: &mut Ui,
@@ -5166,7 +5195,64 @@ pub fn search_field(
     hint: &str,
     width: f32,
 ) -> egui::Response {
-    search_field_in(ui, palette, locale, id, text, hint, width, false)
+    search_field_in(ui, palette, locale, id, text, hint, width, SearchLook::Pill)
+}
+
+/// [`search_field`] with the look of the TIDAL field it stands for.
+#[allow(clippy::too_many_arguments)]
+pub fn search_field_as(
+    ui: &mut Ui,
+    palette: &Palette,
+    locale: Locale,
+    id: egui::Id,
+    text: &mut String,
+    hint: &str,
+    width: f32,
+    look: SearchLook,
+) -> egui::Response {
+    search_field_in(ui, palette, locale, id, text, hint, width, look)
+}
+
+/// The fill, corners and words' colour a field of `look` takes under a
+/// theme (`None` each where the theme gives none), and whether the theme
+/// paints a box of its own for it.
+pub fn search_field_style(
+    palette: &Palette,
+    look: SearchLook,
+) -> Option<super::plugin_dom::NavStyle> {
+    if !super::plugin_dom::on() {
+        return None;
+    }
+    match look {
+        SearchLook::Header | SearchLook::Pill => super::plugin_dom::search_style(palette),
+        SearchLook::Own(field, input) => {
+            let boxed = super::plugin_dom::anchor_look(field);
+            let typed = super::plugin_dom::anchor_look(input);
+            let style = super::plugin_dom::NavStyle {
+                fill: boxed.as_ref().and_then(|l| l.fill),
+                radius: boxed
+                    .as_ref()
+                    .and_then(|l| l.corners)
+                    .map(|c| f32::from(c.nw)),
+                color: typed
+                    .as_ref()
+                    .and_then(|l| l.text)
+                    .or_else(|| boxed.as_ref().and_then(|l| l.text))
+                    .map(|ink| {
+                        let under = boxed
+                            .as_ref()
+                            .and_then(|l| l.fill)
+                            .filter(|f| f.a() > 0)
+                            .unwrap_or_else(|| palette.chip());
+                        super::plugin_dom::readable_over(ink, under, palette.window)
+                    }),
+                ..Default::default()
+            };
+            (style != super::plugin_dom::NavStyle::default()
+                || boxed.is_some_and(|l| l.paints_box()))
+            .then_some(style)
+        }
+    }
 }
 
 /// The top bar's search: [`search_field`] painted with the whole look a
@@ -5182,7 +5268,16 @@ pub fn header_search_field(
     hint: &str,
     width: f32,
 ) -> egui::Response {
-    search_field_in(ui, palette, locale, id, text, hint, width, true)
+    search_field_in(
+        ui,
+        palette,
+        locale,
+        id,
+        text,
+        hint,
+        width,
+        SearchLook::Header,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -5194,7 +5289,7 @@ fn search_field_in(
     text: &mut String,
     hint: &str,
     width: f32,
-    header: bool,
+    look: SearchLook,
 ) -> egui::Response {
     // TIDAL's search: a 36-point frosted pill, the glyph centred 18 in,
     // text from 44, a .55 white placeholder.
@@ -5204,9 +5299,7 @@ fn search_field_in(
     ui.data_mut(|data| data.insert_temp(search_pill_id(id), rect));
     let has_focus = ui.memory(|memory| memory.has_focus(id));
     // A theme's rules for the pill (fill, corners, the typed text's colour).
-    let themed = super::plugin_dom::on()
-        .then(|| super::plugin_dom::search_style(palette))
-        .flatten();
+    let themed = search_field_style(palette, look);
     let corner = themed
         .and_then(|s| s.radius)
         .map_or(height / 2.0, |r| r.clamp(0.0, height / 2.0));
@@ -5214,10 +5307,32 @@ fn search_field_in(
         .and_then(|s| s.fill)
         .filter(|f| f.a() > 0)
         .unwrap_or_else(|| palette.chip());
-    if header {
-        super::plugin_dom::paint_search_pill(ui, rect, corner, fill);
-    } else {
-        ui.painter().rect_filled(rect, corner, fill);
+    match look {
+        SearchLook::Header => super::plugin_dom::paint_search_pill(ui, rect, corner, fill),
+        SearchLook::Pill => {
+            ui.painter().rect_filled(rect, corner, fill);
+        }
+        SearchLook::Own(field, input) => {
+            let corners = egui::CornerRadius::same(corner.round() as u8);
+            match super::plugin_dom::anchor_look(field) {
+                // The theme's whole box, over the native fill where it
+                // gives none.
+                Some(own) => super::plugin_dom::paint_look_with_fill(
+                    ui,
+                    field,
+                    &own,
+                    rect,
+                    corners,
+                    own.fill.unwrap_or(fill),
+                ),
+                None => {
+                    ui.painter().rect_filled(rect, corners, fill);
+                }
+            }
+            if super::plugin_dom::anchor_look(input).is_some_and(|l| l.paints_box()) {
+                super::plugin_dom::paint_anchor_box(ui, input, rect, corners);
+            }
+        }
     }
     // TIDAL desktop rings the field in solid white while it has focus.
     if has_focus {

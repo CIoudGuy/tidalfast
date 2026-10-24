@@ -304,6 +304,25 @@ pub mod keys {
     pub const THEME_MENU_CHEVRON_WRAP: &str = "theme-roles:menu-chevron-wrap";
     pub const THEME_MENU_CHEVRON: &str = "theme-roles:menu-chevron";
     pub const THEME_MENU_CHEVRON_USE: &str = "theme-roles:menu-chevron-use";
+    /// The search field of TIDAL 2.46.0's playlist chooser ("Add to
+    /// playlist", all playlists): `div._searchField_8094337 >
+    /// div._container_f1be359._searchInput_79eecb3 >
+    /// input._searchField_4b7fbda[data-test=search-input]`, a box of its own
+    /// that themes style apart from the header's pill (captured: Blur's
+    /// white lies on the pill only, Cotton Candy Nights' pink glass on the
+    /// chooser's). Tidalfast's playlist picker's filter takes its look.
+    pub const CHOOSER_SEARCH_WRAP: &str = "theme-roles:chooser-search-wrap";
+    pub const CHOOSER_SEARCH_FIELD: &str = "theme-roles:chooser-search";
+    pub const CHOOSER_SEARCH_INPUT: &str = "theme-roles:chooser-search-input";
+    /// The search field of TidaLuna's plugin store and themes tab, an MUI
+    /// outlined text field (`div.MuiFormControl-root.MuiTextField-root >
+    /// div.MuiInputBase-root.MuiOutlinedInput-root... >
+    /// input.MuiInputBase-input.MuiOutlinedInput-input`), which the cotton
+    /// candy family colours by its emotion classes (`.css-1xqp9nb`,
+    /// `.css-15v65ck`). The Plugins page's search takes its look.
+    pub const STORE_SEARCH_WRAP: &str = "theme-roles:store-search-wrap";
+    pub const STORE_SEARCH_FIELD: &str = "theme-roles:store-search";
+    pub const STORE_SEARCH_INPUT: &str = "theme-roles:store-search-input";
     /// The same popover around the open context menu.
     pub const CONTEXT_MENU_BOX: &str = "contextmenu-box";
 
@@ -1253,6 +1272,48 @@ pub fn theme_roles(out: &mut Vec<HostNode>) {
     );
     out.push(el(THEME_MENU_CHEVRON, Some(THEME_MENU_CHEVRON_WRAP), "svg").class("_icon_77f3f89"));
     out.push(el(THEME_MENU_CHEVRON_USE, Some(THEME_MENU_CHEVRON), "use"));
+    // The playlist chooser's search field and the plugin store's (see the
+    // keys). The chooser's box carries `[data-type=search-field]`, which
+    // Catppuccin Mocha Blue's rule for TIDAL's search fields names (its
+    // surface and border on both in TIDAL, captured).
+    out.push(el(CHOOSER_SEARCH_WRAP, Some(THEME_ROLES), "div").class("_searchField_8094337"));
+    out.push(
+        el(CHOOSER_SEARCH_FIELD, Some(CHOOSER_SEARCH_WRAP), "div")
+            .attr("data-type", "search-field")
+            .class("_container_f1be359")
+            .class("_searchInput_79eecb3"),
+    );
+    out.push(
+        el(CHOOSER_SEARCH_INPUT, Some(CHOOSER_SEARCH_FIELD), "input")
+            .attr("type", "text")
+            .attr("placeholder", "Search")
+            .test("search-input")
+            .class("_searchField_4b7fbda"),
+    );
+    out.push(
+        el(STORE_SEARCH_WRAP, Some(THEME_ROLES), "div")
+            .class("MuiFormControl-root")
+            .class("MuiFormControl-fullWidth")
+            .class("MuiTextField-root")
+            .class("css-1vbfw84"),
+    );
+    out.push(
+        el(STORE_SEARCH_FIELD, Some(STORE_SEARCH_WRAP), "div")
+            .class("MuiInputBase-root")
+            .class("MuiOutlinedInput-root")
+            .class("MuiInputBase-colorPrimary")
+            .class("MuiInputBase-fullWidth")
+            .class("MuiInputBase-formControl")
+            .class("css-1xqp9nb"),
+    );
+    out.push(
+        el(STORE_SEARCH_INPUT, Some(STORE_SEARCH_FIELD), "input")
+            .attr("type", "text")
+            .attr("placeholder", "Search plugins...")
+            .class("MuiInputBase-input")
+            .class("MuiOutlinedInput-input")
+            .class("css-15v65ck"),
+    );
     out.push(el(THEME_MENU_HOVER_ITEM, Some(THEME_SUBMENU_LIST), "li"));
     out.push(
         el(THEME_MENU_HOVER_ROW, Some(THEME_MENU_HOVER_ITEM), "div")
