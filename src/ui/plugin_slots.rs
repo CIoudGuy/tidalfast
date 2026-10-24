@@ -5129,6 +5129,28 @@ fn draw_box(
     // that does not leaves them under its background too.
     let (under, placed): (Vec<&VNode>, Vec<&VNode>) =
         placed.into_iter().partition(|c| z_index(&c.style) < 0);
+    // A child in the flow that is positioned (`relative`, `sticky`) with
+    // a `z-index` stacks by it (CSS 2.1 Appendix E): the absolutely placed
+    // children with a lower one paint under it, over this element's
+    // background (betterFullscreen's backdrop at TIDAL's `--z-index-low`,
+    // 10, under its words at `--z-index-high`, 1000; it was painted over
+    // them, as every placed child went after the flow).
+    let flow_z = flow
+        .iter()
+        .filter(|c| {
+            c.style
+                .position
+                .as_deref()
+                .is_some_and(|p| matches!(p.trim(), "relative" | "sticky"))
+        })
+        .filter_map(|c| c.style.z_index.as_deref()?.trim().parse::<i64>().ok())
+        .max();
+    let (mut between, mut placed): (Vec<&VNode>, Vec<&VNode>) = placed
+        .into_iter()
+        .partition(|c| flow_z.is_some_and(|z| z_index(&c.style) < z));
+    // Placed children stack by `z-index`, in tree order within one.
+    between.sort_by_key(|c| z_index(&c.style));
+    placed.sort_by_key(|c| z_index(&c.style));
     let flows = inline_flow(&node.tag, display, &flow);
     // White space between children is a gap only in a line of inline
     // boxes; a column, row or grid has no place for it.
@@ -5185,7 +5207,7 @@ fn draw_box(
             positioned(ui, child, padding_box(r), inherit, cx);
         });
     };
-    let under_box: Option<Rect> = (!under.is_empty())
+    let under_box: Option<Rect> = (!under.is_empty() || !between.is_empty())
         .then(|| ui.data(|d| d.get_temp(box_id)))
         .flatten();
     // Under the element's own background (inside its opacity already) or,
@@ -5224,6 +5246,12 @@ fn draw_box(
             .show(ui, |ui| {
                 if own_context {
                     drawn |= paint_under(ui, true);
+                }
+                if let Some(r) = under_box {
+                    for child in between.iter().filter(|c| !c.style.hidden()) {
+                        positioned(ui, child, padding_box(r), parent, cx);
+                        drawn = true;
+                    }
                 }
                 // A width already gave way to `min-width` and `max-width`
                 // above; they bound only a box without one. (A larger
@@ -5892,7 +5920,7 @@ fn draw_box(
             }
         }
     }
-    if !under.is_empty() {
+    if !under.is_empty() || !between.is_empty() {
         let last: Option<Rect> = ui.data(|d| d.get_temp(box_id));
         if last.is_none_or(|l| {
             (l.min - rect.min).length() > 0.5 || (l.size() - rect.size()).length() > 0.5
@@ -8085,6 +8113,78 @@ mod tests {
         assert_eq!(font.size, 18.0);
         // The page's weight is TIDAL's body's, 500: the app's medium face.
         assert_eq!(font, crate::theme::medium(18.0));
+    }
+
+    /// A box in the flow that is `position: relative` with a `z-index`
+    /// stacks over an absolutely placed sibling with a lower one (CSS 2.1
+    /// Appendix E): a full-window player's backdrop at `z-index: 10` lies
+    /// under its words at `z-index: 1000`, whichever comes first in the
+    /// tree, and placed layers stack among themselves by `z-index`.
+    #[test]
+    fn a_placed_layer_under_a_relative_box_with_a_higher_z_index_paints_under_it() {
+        let red = Color32::from_rgb(200, 0, 0);
+        let blue = Color32::from_rgb(0, 0, 200);
+        let green = Color32::from_rgb(0, 200, 0);
+        let layer = |id: u64, z: Option<&str>, colour: &str| VNode {
+            id,
+            tag: "div".into(),
+            style: Style {
+                position: Some("absolute".into()),
+                top: Some("0".into()),
+                left: Some("0".into()),
+                right: Some("0".into()),
+                bottom: Some("0".into()),
+                z_index: z.map(str::to_string),
+                background_color: Some(colour.into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let words = VNode {
+            id: 3,
+            tag: "div".into(),
+            style: Style {
+                position: Some("relative".into()),
+                z_index: Some("1000".into()),
+                width: Some("100px".into()),
+                height: Some("50px".into()),
+                background_color: Some("rgb(0, 0, 200)".into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let player = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                position: Some("fixed".into()),
+                top: Some("0".into()),
+                left: Some("0".into()),
+                width: Some("400px".into()),
+                height: Some("300px".into()),
+                ..Style::default()
+            },
+            children: vec![
+                layer(2, Some("10"), "rgb(200, 0, 0)"),
+                words,
+                layer(4, None, "rgb(0, 200, 0)"),
+            ],
+            ..VNode::default()
+        };
+        let shapes = floating_shapes(vec![player]);
+        let at = |colour: Color32| {
+            shapes
+                .iter()
+                .position(|s| match s {
+                    egui::Shape::Rect(r) => same_hue(r.fill, colour),
+                    _ => false,
+                })
+                .unwrap_or_else(|| panic!("{colour:?} not painted: {shapes:?}"))
+        };
+        assert!(at(red) < at(blue), "the backdrop over the words");
+        // A placed layer with no `z-index` stacks at level 0: under the
+        // one at 10, though it comes later in the tree.
+        assert!(at(green) < at(red));
     }
 
     /// The shapes a floating overlay of `nodes` paints in an 800 by 600
