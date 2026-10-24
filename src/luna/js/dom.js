@@ -1090,6 +1090,9 @@
 	// then places itself (`min(clientX, innerWidth - width - 10)`). Its size
 	// is what its style declares, as lengths in px, em, %, vw or vh, not
 	// the viewport's, which would push it to the page's corner.
+	// A size its style leaves to its content (a menu's rows) is the size the
+	// UI laid it out at (`_rect`, see `floatsUnsized`); its place is always
+	// its style's, so a script that moves it reads the new place at once.
 	const floatingRect = (el) => {
 		for (let n = el; n && n !== html && n !== body && n !== wimp; n = n.parentNode) {
 			if (n.nodeType !== 1 || n._hostKey !== undefined) continue;
@@ -1108,18 +1111,37 @@
 				// TIDAL's root font is 14 px (`:root { --baseFontSize: 14 }`).
 				return m[2] === "rem" ? v * 14 : m[2] === "em" ? v * 16 : v;
 			};
-			const w = len("width", g.innerWidth) ?? len("min-width", g.innerWidth);
-			const h = len("height", g.innerHeight) ?? len("min-height", g.innerHeight);
+			const laid = n._rect;
+			const w = len("width", g.innerWidth) ?? laid?.[2] ?? len("min-width", g.innerWidth);
+			const h = len("height", g.innerHeight) ?? laid?.[3] ?? len("min-height", g.innerHeight);
 			if (w === null && h === null) continue;
 			return [len("left", g.innerWidth) ?? 0, len("top", g.innerHeight) ?? 0, w ?? 0, h ?? 0];
 		}
 		return null;
+	};
+	// A `position: fixed|absolute` element a plugin appended to the page
+	// whose style leaves its width or height to its content: only the UI
+	// knows that size, so a read of its box asks where the UI drew it.
+	const floatsUnsized = (el) => {
+		const up = el.parentNode;
+		if (el._hostKey !== undefined || (up !== html && up !== body && up !== wimp)) return false;
+		const props = L.css?.cascaded(el).props;
+		if (!props) return false;
+		const pos = String(props.get("position") ?? "").trim();
+		if (pos !== "fixed" && pos !== "absolute") return false;
+		const sized = (name) => /^-?[\d.]+(px|%|vw|vh|em|rem)?$/.test(String(props.get(name) ?? "").trim());
+		return !sized("width") || !sized("height");
 	};
 	// A `position: fixed` element is placed against the window wherever it
 	// was inserted (radiant-lyrics' backdrop, `100vw` x `100vh` inside
 	// `main`): it does not take the box of the app element round it.
 	const fixedPlugin = (n) => n.nodeType === 1 && n._hostKey === undefined && String(L.css?.cascaded(n)?.props?.get("position") ?? "").trim() === "fixed";
 	const rectOf = (el) => {
+		// Measured once (`_rect`), it is still placed by its style.
+		if (el._rect && el._hostKey === undefined && floatsUnsized(el)) {
+			const r = floatingRect(el);
+			if (r) return r;
+		}
 		for (let n = el; n; n = n.parentNode) {
 			if (n._rect && n !== html && n !== body && n !== wimp) return n._rect;
 			if (n === html || n === body || n === wimp) {
@@ -1375,10 +1397,12 @@
 		// ------------------------------------------------ geometry
 		getBoundingClientRect() {
 			touch();
-			// A plugin element inside another one has no box of its own yet:
+			// A plugin element inside another one, or one floating over the
+			// page whose size is its content's, has no box of its own yet:
 			// the UI is asked where it draws it, and this read waits for that.
 			const up = this.parentNode;
-			if (this._hostKey === undefined && !this._rect && this.isConnected && !this._pluginRemoved && up instanceof Element && up._hostKey === undefined && up !== html && up !== body && up !== wimp) D.wantRect(this);
+			const nested = up instanceof Element && up._hostKey === undefined && up !== html && up !== body && up !== wimp;
+			if (this._hostKey === undefined && !this._rect && this.isConnected && !this._pluginRemoved && (nested || floatsUnsized(this))) D.wantRect(this);
 			forceLayout();
 			const r = rectOf(this);
 			if (!r || this._pluginRemoved || !this.isConnected) return rectObj(null);

@@ -3250,6 +3250,88 @@ setTimeout(go, 300);
     finish(luna, dir);
 }
 
+/// A menu a plugin appends to the page at the pointer, with no height of
+/// its own (`position: fixed`, padding and its rows), measures its rows'
+/// height, and so keeps inside the window near its bottom edge
+/// (element-hider: `top = min(clientY, innerHeight - height - 10)`). It
+/// measured only the size its style declares, 0 tall, so the menu opened
+/// on a player bar button ran off the window's bottom. Its place stays its
+/// style's: moved, it reads where it was moved to at once.
+#[test]
+fn a_floating_menu_measures_its_rows_and_stays_in_the_window() {
+    let (luna, _host, dir) = start(
+        r#"
+const go = () => {
+	if (!document.querySelector('[data-test="footer-player"]')) return setTimeout(go, 20);
+	const s = document.createElement("style");
+	s.textContent = ".menu{position:fixed;min-width:180px;padding:8px 0;border:1px solid #444}.menu button{display:flex;width:100%;padding:8px 16px}";
+	document.head.appendChild(s);
+	const m = document.createElement("div");
+	m.className = "menu";
+	for (const t of ["Hide This Element", "Unhide All Elements (0)"]) {
+		const b = document.createElement("button");
+		b.textContent = t;
+		m.appendChild(b);
+	}
+	document.body.appendChild(m);
+	const r = m.getBoundingClientRect();
+	R.size = [r.width, r.height];
+	const top = Math.min(window.innerHeight - 20, window.innerHeight - r.height - 10);
+	m.style.left = "600px";
+	m.style.top = top + "px";
+	const moved = m.getBoundingClientRect();
+	R.moved = [moved.left, moved.top, moved.width, moved.height];
+	R.top = top;
+	R.inner = window.innerHeight;
+};
+setTimeout(go, 300);
+"#,
+    );
+    let t0 = Instant::now();
+    luna.set_layout_clock(t0);
+    let mut t = tree();
+    node(&mut t, keys::FOOTER).rect = Some([0.0, 700.0, 800.0, 90.0]);
+    luna.sync_dom(t.clone());
+    // The UI draws each overlay as it comes, and the menu where it lays it
+    // out: at the window's corner until the plugin places it, 182 x 88.
+    let end = Instant::now() + Duration::from_secs(10);
+    let mut drawn = 0;
+    loop {
+        let o = luna.dom_overlay();
+        if o.version > drawn {
+            drawn = o.version;
+            luna.drawing_boxes(drawn);
+            t.node_rects = o
+                .measure
+                .iter()
+                .map(|id| (*id, [0.0, 0.0, 182.0, 88.0]))
+                .collect();
+            t.laid_out = drawn;
+            luna.sync_dom(t.clone());
+            if !o.measure.is_empty() {
+                break;
+            }
+        }
+        assert!(Instant::now() < end, "the menu's box was not asked for");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let r = results_until(&luna, &dir, 10, |r| !r["inner"].is_null());
+    let inner = r["inner"].as_f64().unwrap();
+    let numbers = |v: &Value| -> Vec<f64> {
+        v.as_array()
+            .map(|a| a.iter().filter_map(Value::as_f64).collect())
+            .unwrap_or_default()
+    };
+    assert_eq!(numbers(&r["size"]), [182.0, 88.0], "{r}");
+    assert_eq!(r["top"].as_f64(), Some(inner - 88.0 - 10.0), "{r}");
+    assert_eq!(
+        numbers(&r["moved"]),
+        [600.0, inner - 88.0 - 10.0, 182.0, 88.0],
+        "{r}"
+    );
+    finish(luna, dir);
+}
+
 /// Play the UI until the footer's `min-width` is `width`: draw each overlay
 /// after version `drawn` published before it at once, and send the tree
 /// laid out with it (`t`). Returns that overlay, not drawn. Read straight
