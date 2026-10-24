@@ -3515,6 +3515,14 @@
 			const o = {};
 			const st = comp.get(el);
 			if (st) o.style = { ...st };
+			// TIDAL's own panel glass is drawn natively: the host says only
+			// that a theme's rules left it in place.
+			const glass = L.css?.panelGlass;
+			if (glass && o.style && String(o.style["background-image"] ?? "").replace(/\s+/g, " ").trim() === glass) {
+				delete o.style["background-image"];
+				o.glass = true;
+				if (!Object.keys(o.style).length) delete o.style;
+			}
 			const ps = css.pseudo?.get(el);
 			if (ps?.before) o.before = ps.before;
 			if (ps?.after) o.after = ps.after;

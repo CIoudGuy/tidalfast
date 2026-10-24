@@ -706,7 +706,26 @@ pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
                     .rect_filled(panel, 12.0, floating_fill(&palette, over_now_playing));
             }
             // A theme's box for TIDAL's side panel replaces the native one.
-            let themed = super::plugin_dom::queue_panel(ui, panel, over_now_playing);
+            // A theme that styles the panel without painting a box (a font,
+            // `filter: none`, a text colour: Giorgeous, Minimalist Black,
+            // Meteor Night) leaves TIDAL's panel as it is (TIDAL 2.46.0,
+            // captured), not a hole onto the window.
+            let styled = super::plugin_dom::queue_panel(ui, panel, over_now_playing);
+            let themed = styled
+                && (boxed
+                    || super::plugin_dom::fill(crate::luna::dom_anchors::keys::QUEUE_PANEL)
+                        .is_some());
+            // TIDAL's grey glass stays over a theme's fill unless the theme
+            // replaced the panel's background (TIDAL 2.46.0, captured: Blur's
+            // 25 % grey and Abyss Neptune's 80 % black give TIDAL's grey 27
+            // and 21, not near black).
+            if themed && super::plugin_dom::queue_glass() {
+                let corners =
+                    super::plugin_dom::anchor_look(crate::luna::dom_anchors::keys::QUEUE_PANEL)
+                        .and_then(|look| look.corners)
+                        .unwrap_or(egui::CornerRadius::same(12));
+                ui.painter().rect_filled(panel, corners, QUEUE_GLASS);
+            }
             let frame = Frame::new()
                 .fill(if themed {
                     egui::Color32::TRANSPARENT
@@ -754,6 +773,10 @@ pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
         });
 }
 
+/// TIDAL's queue glass, `linear-gradient(rgba(60, 60, 60, .35),
+/// rgba(70, 70, 70, .35))`, at its middle.
+const QUEUE_GLASS: egui::Color32 = egui::Color32::from_rgba_premultiplied(23, 23, 23, 89);
+
 /// The panel is fully opaque, so page text behind it never shows through:
 /// TIDAL desktop's #171717. Over the now-playing view, where only the
 /// view's backdrop lies behind it, TIDAL darkens what is behind by 30 %
@@ -764,6 +787,20 @@ fn floating_fill(palette: &theme::Palette, over_now_playing: bool) -> egui::Colo
     } else if palette.tidal_dark() {
         // A theme's root base colour tints TIDAL's own panel.
         super::plugin_dom::token_queue_fill().unwrap_or(egui::Color32::from_gray(23))
+    } else if palette.dark && !over_now_playing {
+        // A dark theme's own surfaces leave TIDAL's panel as it is: its
+        // grey glass (`linear-gradient(rgba(60,60,60,.35),
+        // rgba(70,70,70,.35))` with a backdrop blur) over the theme's page,
+        // or over its root base colour (TIDAL 2.46.0, captured: Tidalify's
+        // grey 18 page gives 33, Tidal Amoled's black 21, Meteor Night's
+        // blue page a blue grey).
+        super::plugin_dom::token_queue_fill().unwrap_or_else(|| {
+            if palette.window.to_opaque() == egui::Color32::BLACK {
+                egui::Color32::from_gray(23)
+            } else {
+                super::plugin_dom::queue_fill_from(palette.window)
+            }
+        })
     } else {
         palette.panel.to_opaque()
     }
@@ -1420,6 +1457,26 @@ mod opaque_tests {
         );
     }
 
+    /// A dark theme with its own surfaces (no TIDAL base token) leaves
+    /// TIDAL's queue panel its grey glass over the theme's page (TIDAL
+    /// 2.46.0, captured: Tidal Amoled's black page under the panel gives 21,
+    /// Meteor Night's blue page a blue grey). Tidalfast used the theme's
+    /// panel colour, near black (8 under Tidal Amoled, where TIDAL's is 21).
+    #[test]
+    fn a_dark_themes_page_shows_through_tidals_queue_glass() {
+        let mut palette = theme::Palette::dark();
+        palette.themed = true;
+        palette.own_surfaces = false;
+        palette.window = egui::Color32::from_rgb(6, 11, 28);
+        palette.panel = egui::Color32::from_rgb(4, 8, 20);
+        assert_eq!(
+            floating_fill(&palette, false),
+            super::super::plugin_dom::queue_fill_from(egui::Color32::from_rgb(6, 11, 28))
+        );
+        palette.window = egui::Color32::BLACK;
+        assert_eq!(floating_fill(&palette, false), egui::Color32::from_gray(23));
+    }
+
     #[test]
     fn over_the_now_playing_view_the_panel_darkens_what_is_behind_as_tidal_does() {
         let dark = floating_fill(&theme::Palette::dark(), true);
@@ -1667,6 +1724,114 @@ mod one_scroll_tests {
             "{shown:?}"
         );
         assert!(shown.iter().any(|label| label == "Next up"), "{shown:?}");
+    }
+
+    /// A theme's rules that reach TIDAL's queue panel without painting a
+    /// box (a font, `filter: none`: Giorgeous, Minimalist Black) leave the
+    /// panel's own fill (TIDAL 2.46.0, captured: its grey glass, 21 over the
+    /// black page). Tidalfast took any rule as the theme's box and drew the
+    /// panel see-through, a hole onto the window.
+    #[test]
+    fn a_themes_rules_without_a_box_keep_the_queue_panels_fill() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        let mut app = app();
+        app.show_queue_panel = true;
+        let mut o = DomOverlay::default();
+        o.hosts.insert(
+            crate::luna::dom_anchors::keys::QUEUE_PANEL.to_string(),
+            HostOverride {
+                style: Style {
+                    font_family: Some("Doto, sans-serif".into()),
+                    filter: Some("none".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        super::super::plugin_dom::test_overlay(Some(o));
+        let ctx = egui::Context::default();
+        theme::install(&ctx);
+        let mut fills = Vec::new();
+        for frame in 0..40 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::pos2(0.0, 0.0),
+                        egui::vec2(1280.0, 800.0),
+                    )),
+                    time: Some(f64::from(frame) * 0.1),
+                    ..Default::default()
+                },
+                |ui| floating_panel(&mut app, ui),
+            );
+            output.textures_delta.clear();
+            fills.clear();
+            let mut stack: Vec<&egui::Shape> = output.shapes.iter().map(|c| &c.shape).collect();
+            while let Some(shape) = stack.pop() {
+                match shape {
+                    egui::Shape::Vec(v) => stack.extend(v.iter()),
+                    egui::Shape::Rect(r) if r.rect.width() > 320.0 => fills.push(r.fill),
+                    _ => {}
+                }
+            }
+        }
+        super::super::plugin_dom::test_overlay(None);
+        assert!(
+            fills.contains(&egui::Color32::from_gray(23)),
+            "the panel keeps TIDAL's fill: {fills:?}"
+        );
+    }
+
+    /// A theme's colour on the queue panel lies under TIDAL's grey glass
+    /// when its rules leave the glass in place (TIDAL 2.46.0, captured:
+    /// Abyss Neptune's 80 % black panel is TIDAL's grey 21, Blur's 25 %
+    /// grey 27). Tidalfast drew the theme's colour alone, near black.
+    #[test]
+    fn tidals_queue_glass_lies_over_a_themes_panel_colour() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        let mut app = app();
+        app.show_queue_panel = true;
+        let mut o = DomOverlay::default();
+        o.hosts.insert(
+            crate::luna::dom_anchors::keys::QUEUE_PANEL.to_string(),
+            HostOverride {
+                style: Style {
+                    background_color: Some("rgba(0, 0, 0, 0.8)".into()),
+                    ..Style::default()
+                },
+                glass: true,
+                ..HostOverride::default()
+            },
+        );
+        super::super::plugin_dom::test_overlay(Some(o));
+        let ctx = egui::Context::default();
+        theme::install(&ctx);
+        let mut fills = Vec::new();
+        for frame in 0..40 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::pos2(0.0, 0.0),
+                        egui::vec2(1280.0, 800.0),
+                    )),
+                    time: Some(f64::from(frame) * 0.1),
+                    ..Default::default()
+                },
+                |ui| floating_panel(&mut app, ui),
+            );
+            output.textures_delta.clear();
+            fills.clear();
+            let mut stack: Vec<&egui::Shape> = output.shapes.iter().map(|c| &c.shape).collect();
+            while let Some(shape) = stack.pop() {
+                match shape {
+                    egui::Shape::Vec(v) => stack.extend(v.iter()),
+                    egui::Shape::Rect(r) if r.rect.width() > 320.0 => fills.push(r.fill),
+                    _ => {}
+                }
+            }
+        }
+        super::super::plugin_dom::test_overlay(None);
+        assert!(fills.contains(&QUEUE_GLASS), "{fills:?}");
     }
 
     #[test]

@@ -1572,6 +1572,12 @@ pub fn queue_panel(ui: &egui::Ui, r: Rect, over_now_playing: bool) -> bool {
     )
 }
 
+/// TIDAL's own grey glass on the play queue panel survived a theme's rules
+/// (see [`HostOverride::glass`]): the theme's own fill lies under it.
+pub fn queue_glass() -> bool {
+    host(dom_anchors::keys::QUEUE_PANEL, |h, _| h.glass.then_some(())).is_some()
+}
+
 /// A colour a theme's root declares for `name` (`--track-vibrant-color:
 /// white`), `None` without one or while Luna is off.
 pub fn theme_var_color(name: &str) -> Option<Color32> {

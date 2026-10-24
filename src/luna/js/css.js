@@ -409,6 +409,13 @@
 	// the menu: Cotton Candy Nights sets the token to black on
 	// `._contextMenu_` alone, and TIDAL 2.46.0 draws the title black there
 	// (white with no theme).
+	// TIDAL's play queue panel is grey glass of its own (TIDAL 2.46.0:
+	// `._container_b3e8f28 { background: linear-gradient(...) }` with a
+	// backdrop blur): a theme's `background-color` lies under it (Blur,
+	// Abyss Neptune, Lunallena), its `background` shorthand or
+	// `background-image` replaces it (the cotton candy family, Solo v2).
+	// Tidalfast draws that glass natively; the host only says it survived.
+	const PANEL_GLASS = "linear-gradient(rgba(60, 60, 60, 0.35) 0%, rgba(70, 70, 70, 0.35) 100%)";
 	let tidal = null;
 	const tidalSheet = () => {
 		if (!tidal) {
@@ -425,7 +432,8 @@
 					"._qualityHigh_39ef787:is(._textContent_462c76e ._title_8b245d1, ._textContent_462c76e ._subtitle_c0fd197) { color: initial; }\n" +
 					"._textHigh_ee6a2ff, ._textHigh_ee6a2ff span { color: initial; }\n" +
 					"._textHigh_bbc1075 { color: var(--wave-color-solid-accent-fill); }\n" +
-					"._title_2bc5e10 { color: var(--wave-color-solid-contrast-fill); }",
+					"._title_2bc5e10 { color: var(--wave-color-solid-contrast-fill); }\n" +
+					`._container_b3e8f28 { background: ${PANEL_GLASS}; }`,
 			);
 		}
 		return tidal;
@@ -1623,5 +1631,5 @@
 	// Whether a rule looks at siblings, children or position: then a changed
 	// class can change what matches outside the element's own subtree.
 	const structural = () => !!buildIndex().structural;
-	L.css = { parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, structural, rangeParts };
+	L.css = { panelGlass: PANEL_GLASS, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, structural, rangeParts };
 })();
