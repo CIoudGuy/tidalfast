@@ -2102,7 +2102,7 @@ pub fn row_text(list: &str, index: usize, window: Color32) -> Option<RowText> {
     // keep their own colour: Black Glow's stay white).
     let row_token = || token_contrast_text(window);
     let made = RowText {
-        title: read(&["title-text", "title"]).or_else(row_token),
+        title: read(&["title-text", "title-wrap", "title"]).or_else(row_token),
         artist: read(&["artist:0", "artist"]),
         album: read(&["album-link", "album"]),
         time: read(&["duration"]).or_else(row_token),

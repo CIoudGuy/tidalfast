@@ -496,6 +496,10 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("timeColumn", "_timeColumn_3cd7564"),
     ("dateAddedColumn", "_dateAddedColumn_87dfbd3"),
     ("titleCell", "_titleCell_e18305f"),
+    // A track row's title cell and the list heading's title column (TIDAL
+    // 2.46.0, captured: `div._titleColumn_ac57455[data-test=table-row-title]
+    // > div._flexWrapper_9d7a784._titleCell_e18305f > span._titleText_`).
+    ("titleColumn", "_titleColumn_ac57455"),
     // TIDAL 2.46.0 has a `_titleText_` module per place, each its own hash
     // (the queue's `_titleText_6563d98`, the mini header's
     // `_titleText_e186d6e`), which themes colour apart: the track list's
@@ -2254,7 +2258,7 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
     let title = cell("title");
     out.push(
         el(title.clone(), Some(&key), "div")
-            .modules(&["titleCell"])
+            .modules(&["titleColumn"])
             // TIDAL's cells carry ids (`titleCell...`, `albumText...`,
             // `timeColumn...`, `contributionText...`) that themes name with
             // `[id^=...]` (Inrixia's example theme); the number keeps them
@@ -2264,6 +2268,16 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
             .attr("role", "gridcell")
             .at(row.title_rect),
     );
+    // TIDAL 2.46.0 holds the title one box further down, in
+    // `div._flexWrapper_9d7a784._titleCell_e18305f` (captured), which rules
+    // name (`._titleCell_._flexWrapper_ > ._titleText_`, `[class*=
+    // _tableRowIsPlaying_]>div>div>span`).
+    let title_wrap = cell("title-wrap");
+    out.push(
+        el(title_wrap.clone(), Some(&title), "div")
+            .modules(&["flexWrapper", "titleCell"])
+            .at(row.title_rect),
+    );
     // The title's words sit in the span itself, not in a link (TIDAL
     // 2.46.0: `span._titleText_51cccae.table--inactive-title[data-id]
     // [title]`), so a theme's `a { color }` does not reach them and its
@@ -2271,7 +2285,7 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
     // playing row's title keeps that class and adds the playing song's
     // quality, `_textHigh_bbc1075` for a lossless one, whose TIDAL rule
     // draws it in the accent token (captured).
-    let mut title_text = el(cell("title-text"), Some(&title), "span").modules(&["titleText"]);
+    let mut title_text = el(cell("title-text"), Some(&title_wrap), "span").modules(&["titleText"]);
     if row.playing {
         title_text = title_text.class("_textHigh_bbc1075");
     }
