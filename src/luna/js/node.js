@@ -3336,7 +3336,12 @@
 			case "loaded": {
 				wc._loading = false;
 				wc._title = String(arg.title ?? "");
-				if (wc._title) win.emit("page-title-updated", { preventDefault() {} }, wc._title, false);
+				// The window takes the page's title unless a listener prevents it.
+				if (wc._title) {
+					let kept = false;
+					win.emit("page-title-updated", { preventDefault: () => (kept = true) }, wc._title, false);
+					if (!kept) win.setTitle(wc._title);
+				}
 				wc.emit("dom-ready");
 				wc.emit("did-finish-load");
 				if (!win._readyShown) {
