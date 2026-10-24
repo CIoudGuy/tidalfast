@@ -31,8 +31,17 @@ Plugins enabled at start are held back (up to 3 s, `LunaConfig::wait_for_dom`)
 for the first tree, so the page is in the document when their code runs, as
 TIDAL's is for Luna.
 
-**Hiding native elements.** A plugin rule that makes an anchor `display: none`
-or `visibility: hidden` hides it on screen for the pictures (grid cards' and
+**Hiding native elements.** CSS hides what is inside a hidden element: the
+overlay gives every app element and plugin element under a `display: none`
+element `display: none`, and under an inherited `visibility: hidden`
+`visibility: hidden` (a child's own `visible` shows again). Native parts ask
+`plugin_dom::shown(key)` (drawn, invisible, gone) or draw through
+`plugin_dom::anchored(ui, key, ...)`: a gone part takes no room where its
+layout allows, an invisible one keeps its room, paints nothing and takes no
+input; a gone part stays described with no box, so the rule keeps matching.
+`demo::tests::every_native_part_a_plugin_hides_paints_nothing` hides every
+anchor with a box on Home and an album in turn. A plugin rule that makes an
+anchor `display: none` or `visibility: hidden` hides it on screen for the pictures (grid cards' and
 tiles' covers, library art, hero and profile covers, the player bar's cover,
 the now-playing artwork), grid cards, home tiles, track rows, and the anchors
 listed above as "hidden". The element keeps its place (a grid cell stays
@@ -322,6 +331,7 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 |---|---|---|---|
 | `contextmenu` | `div[data-test=contextmenu][data-type=list-container__context-menu][role=menu]` | an open popup menu (`widgets::menu_row`) | Append (track row menu) |
 | `contextmenu:<i>` > `:a` > `:label` | `div[data-type=contextmenu-item] > a[data-test=<label as slug>]._actionText_ > span._actionTextInner_` (+ `_actionItemDisabled_`, `_disabled_`) | a menu row; clicks forwarded | |
+| `page-small-buttons` > `page-overflow-buttons` > `page-action:<test>` > `:stack` > `:icon`, `:label` | `div._smallButtons_5c1ea50 > div._overflowButtons_246e699 > button._buttonStates_91bed47[data-test=favorite-button\|credits-button\|share-button\|edit-button\|public-toggle-button] > div.tidal-ui__v-stack > svg + span.wave-text-caption-demi._buttonTextOffset_a700b81` (the caption as text; Add and Private carry `role=switch` and `aria-checked`), then `button[data-test=show-context-menu-button]` (More) after the overflow box, as TIDAL 2.46.0 | the page header's captioned buttons; caption text override, hidden | |
 | `confirm-modal` | `div[data-test=confirm-modal] > h2 + div._modalButtonWrapper_ > button*` | builder only (no native dialog wired yet) | |
 
 ### Plugin elements
