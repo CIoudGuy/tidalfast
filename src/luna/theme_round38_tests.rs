@@ -489,3 +489,32 @@ fn the_title_bar_is_in_tidals_main_container() {
     assert_eq!(look.fill, Some(egui::Color32::from_rgb(1, 2, 3)));
     assert_eq!(look.opacity, Some(0.5));
 }
+
+/// TIDAL 2.46.0's play queue panel has a half-point border of its own
+/// (`._container_b3e8f28 { border: .5px solid rgba(255, 255, 255, .1) }`):
+/// a theme that sets only its style and colour (the cotton candy family's
+/// `border-style: solid; border-color: ...`) recolours that line. The
+/// cascade had no width for it, so the theme's colour went nowhere; with
+/// no theme TIDAL's own line stays the native one.
+#[test]
+fn a_theme_recolours_the_queue_panels_own_border() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::QUEUE_PANEL;
+    let css = r#"/* {"name": "Queue line"} */
+#playQueueSidebar { border-style: solid; border-color: rgb(9, 99, 199); }
+"#;
+    let o = overlay("queue-line.css", css, &queue_frame(), QUEUE_PANEL);
+    let layers = pd::box_layers(&o.hosts[QUEUE_PANEL], &o.vars, [2137.0, 1183.0]);
+    assert!(
+        layers.iter().any(|l| matches!(l, pd::BoxLayer::Border(w, c, _) if (*w - 0.5).abs() < 1e-3 && *c == egui::Color32::from_rgb(9, 99, 199))),
+        "{layers:?}"
+    );
+    let plain = r#"/* {"name": "Queue plain"} */
+#playQueueSidebar { opacity: 0.99; }
+"#;
+    let o = overlay("queue-plain.css", plain, &queue_frame(), QUEUE_PANEL);
+    assert_eq!(
+        o.hosts[QUEUE_PANEL].style.border, None,
+        "TIDAL's own line is native"
+    );
+}
