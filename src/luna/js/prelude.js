@@ -1574,11 +1574,58 @@
 	// WebAssembly: js/wasm.js (on src/luna/wasm.rs).
 
 	// ---------------------------------------------------------------- misc
+	// The browser identity TIDAL's Electron gives on the same system: its
+	// default user agent (the system as Chromium names it, the app's name
+	// and version, Chrome's and Electron's versions from `process.versions`)
+	// and the user-agent client hints.
+	const os = callOp("platform", null);
+	const versions = g.__lunaVersions ?? {};
+	const chrome = String(versions.chrome);
+	const uaSystem = os === "win32" ? "Windows NT 10.0; Win64; x64" : os === "darwin" ? "Macintosh; Intel Mac OS X 10_15_7" : "X11; Linux x86_64";
+	const userAgent = `Mozilla/5.0 (${uaSystem}) AppleWebKit/537.36 (KHTML, like Gecko) Tidalfast/${versions.tidal} Chrome/${chrome} Electron/${versions.electron} Safari/537.36`;
+	const hintBrands = (full) => [
+		{ brand: "Not/A)Brand", version: full ? "8.0.0.0" : "8" },
+		{ brand: "Chromium", version: full ? chrome : chrome.split(".")[0] },
+	];
+	const hintPlatform = os === "win32" ? "Windows" : os === "darwin" ? "macOS" : "Linux";
+	const userAgentData = {
+		brands: hintBrands(false),
+		mobile: false,
+		platform: hintPlatform,
+		getHighEntropyValues: async (hints) => {
+			const arch = callOp("arch", null);
+			const all = {
+				architecture: arch === "arm64" ? "arm" : "x86",
+				bitness: arch === "ia32" ? "32" : "64",
+				fullVersionList: hintBrands(true),
+				model: "",
+				uaFullVersion: chrome,
+				wow64: false,
+			};
+			const out = { brands: hintBrands(false), mobile: false, platform: hintPlatform };
+			for (const h of Array.isArray(hints) ? hints : []) if (h in all) out[h] = all[h];
+			return out;
+		},
+		toJSON() {
+			return { brands: this.brands, mobile: this.mobile, platform: this.platform };
+		},
+	};
 	g.navigator = {
-		userAgent: "Mozilla/5.0 (Tidalfast; Luna compatibility) QuickJS",
+		userAgent,
+		appVersion: userAgent.slice("Mozilla/".length),
+		appName: "Netscape",
+		appCodeName: "Mozilla",
+		product: "Gecko",
+		productSub: "20030107",
+		vendor: "Google Inc.",
+		vendorSub: "",
+		userAgentData,
 		language: "en-US",
 		languages: ["en-US", "en"],
-		platform: callOp("platform", null) === "win32" ? "Win32" : callOp("platform", null) === "darwin" ? "MacIntel" : "Linux x86_64",
+		platform: os === "win32" ? "Win32" : os === "darwin" ? "MacIntel" : "Linux x86_64",
+		maxTouchPoints: 0,
+		cookieEnabled: true,
+		webdriver: false,
 		onLine: true,
 		clipboard: { writeText: async (text) => callOp("clipboard", { text: String(text) }), readText: async () => callOp("clipboard.read", null) ?? "" },
 		mediaSession: { metadata: null, setActionHandler: () => {}, playbackState: "none", setPositionState: () => {} },

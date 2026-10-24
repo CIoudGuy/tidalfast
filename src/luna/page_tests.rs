@@ -434,7 +434,7 @@ fn a_page_sees_its_windows_display_and_scale() {
         2,
         Load {
             url: "data:text/html,x".into(),
-            html: r#"<body><script>probe.send("probe.screen", [screen.width, screen.height, screen.availWidth, screen.availHeight, screen.availLeft, screen.availTop, screen.isExtended, screen.orientation.type, devicePixelRatio]);</script></body>"#.into(),
+            html: r#"<body><script>probe.send("probe.screen", [screen.width, screen.height, screen.availWidth, screen.availHeight, screen.availLeft, screen.availTop, screen.isExtended, screen.orientation.type, devicePixelRatio]); probe.send("probe.ua", navigator.userAgent);</script></body>"#.into(),
             preload: Some((PRELOAD.to_string(), "probe.preload.js".to_string())),
         },
     )
@@ -459,4 +459,16 @@ fn a_page_sees_its_windows_display_and_scale() {
         ]]),
         "the side display, right of the primary's 2048 DIPs"
     );
+    // The page's browser is the one plugins see (Electron's user agent).
+    let ua = page.next(|m| match m {
+        FromPage::Ipc { channel, args, .. } if channel == "probe.ua" => Some(args),
+        _ => None,
+    });
+    let ua: Value = serde_json::from_str(&ua).unwrap();
+    let ua = ua[0].as_str().unwrap_or_default();
+    assert!(
+        ua.starts_with("Mozilla/5.0 (") && ua.contains(" Chrome/") && ua.contains(" Electron/"),
+        "{ua}"
+    );
+    assert_eq!(ua.contains("Windows NT 10.0"), cfg!(windows), "{ua}");
 }
