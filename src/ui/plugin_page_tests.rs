@@ -452,3 +452,20 @@ fn a_pages_scripts_scroll_its_scroll_boxes() {
     assert!(near(b["l10"][1], 30.0), "{:?} {:?}", b["l10"], b["s"]);
     assert!(near(b["m5"][1], 100.0), "{:?} {:?}", b["m5"], b["t"]);
 }
+
+/// A scroll box shorter than egui's least scroll area (64 points) keeps
+/// its own height: `height: 30px` is 30, and one held to `max-height:
+/// 20px` is 20 (Chromium).
+#[test]
+fn a_short_scroll_box_keeps_its_height() {
+    let b = boxes(
+        r#"<!doctype html><html><head><style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        .s{overflow-y:auto;width:100px}
+        .s div{height:40px}
+        </style></head><body><div class="s" id="a" style="height:30px"><div></div><div></div></div><div class="s" id="b" style="max-height:20px"><div></div><div></div></div></body></html>"#,
+        [400.0, 300.0],
+    );
+    assert_eq!(b["a"], [0.0, 0.0, 100.0, 30.0], "{b:?}");
+    assert_eq!(b["b"], [0.0, 30.0, 100.0, 20.0], "{b:?}");
+}
