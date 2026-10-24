@@ -1558,6 +1558,39 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// TIDAL's own fullscreen (the now-playing view's full screen button)
+    /// is the one plugins see in a real window: in a held test window it
+    /// is emulated too, as a plugin's request is, and ends with the view's
+    /// fullscreen. Plugins never saw it there (betterFullscreen's player
+    /// waits for TIDAL's `.is-fullscreen`).
+    #[test]
+    fn a_held_window_emulates_the_apps_own_fullscreen_for_plugins() {
+        let mut app = app("held-window-lyrics");
+        app.window_held = true;
+        let ctx = egui::Context::default();
+        for (action, fullscreen) in [
+            (Action::SetLyricsFullscreen(true), true),
+            (Action::SetLyricsFullscreen(false), false),
+        ] {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                app.apply(action.clone(), ui.ctx());
+            });
+            output.textures_delta.clear();
+            assert!(
+                !output.viewport_output[&egui::ViewportId::ROOT]
+                    .commands
+                    .contains(&egui::ViewportCommand::Fullscreen(true)),
+                "the window was asked to fill the display"
+            );
+            assert_eq!(
+                crate::ui::plugin_dom::window_fullscreen(&ctx),
+                fullscreen,
+                "after {action:?}"
+            );
+        }
+        app.backend.shutdown();
+    }
+
     /// A song just started is shown at once while the engine still reports
     /// the song before it. The playbackContext plugins read named the new
     /// song with the old one's format (Tidal Tags' pill kept "16-bit
