@@ -2324,6 +2324,43 @@ R.done = true;
     finish(luna, dir);
 }
 
+/// An overlay build makes again only the app elements' entries whose inputs
+/// changed: with nothing changed none, a class a plugin adds that element's,
+/// a listener on the page every element's under it.
+#[test]
+fn an_overlay_build_makes_again_only_the_entries_that_changed() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const go = () => {
+	const bar = document.querySelector('[data-test="progress-bar"]');
+	if (!bar || R.done) return;
+	R.done = true;
+	D.build();
+	let n = D.hostBuilds;
+	D.build();
+	R.same = D.hostBuilds - n;
+	bar.classList.add("lit");
+	n = D.hostBuilds;
+	const lit = D.build().hosts["progress-bar"]?.classes ?? [];
+	R.classed = [D.hostBuilds - n > 0 && D.hostBuilds - n < 10, lit];
+	n = D.hostBuilds;
+	const before = Object.keys(D.build().hosts).length;
+	document.body.addEventListener("click", () => {});
+	const all = D.build();
+	R.listened = [D.hostBuilds - n > before, (all.hosts["progress-bar"]?.listens ?? []).includes("click")];
+};
+new MutationObserver(go).observe(document.body, { childList: true, subtree: true });
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| r["listened"].is_array());
+    assert_eq!(r["same"], json!(0), "{r}");
+    assert_eq!(r["classed"], json!([true, ["lit"]]), "{r}");
+    assert_eq!(r["listened"], json!([true, true]), "{r}");
+    finish(luna, dir);
+}
+
 /// A theme with `::before` rules, root variables and keyframes costs nothing
 /// per overlay build while none of them change (the page's clock rewrites the
 /// tree every second, and Cotton Candy declares hundreds of variables), and

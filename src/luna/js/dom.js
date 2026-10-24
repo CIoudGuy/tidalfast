@@ -180,6 +180,9 @@
 	// on every mutation in the document, each time a full recascade of the
 	// page before).
 	let structGen = 0;
+	// Bumped when a node is put in or taken out of a parent: what is round
+	// an element (the listeners an event on it reaches) may have changed.
+	let treeGen = 0;
 	const inserted = new Set();
 	const markStructDirty = (node) => {
 		if (L.stat) L.stat(`restructure by ${L.pluginFromStack?.() ?? "host"}`, Date.now());
@@ -648,6 +651,7 @@
 			else if (c instanceof CharacterData) textChangedIn(this);
 			D.connected?.(c);
 			if (c instanceof Element && c._hostKey === undefined && !reconciling && this.isConnected) noteFresh(c);
+			treeGen++;
 			markStructDirty(c);
 			return c;
 		}
@@ -664,6 +668,7 @@
 			if (isStyleish(c) || (c instanceof Element && c.querySelector("style"))) cssChanged();
 			else if (c instanceof CharacterData) textChangedIn(this);
 			if (this instanceof Element) detachedFrom.add(this);
+			treeGen++;
 			markStructDirty(null);
 			return c;
 		}
@@ -3646,6 +3651,8 @@
 	};
 	const isHost = (n) => n._hostKey !== undefined;
 	const build = () => {
+		// Counted for the tests that check what a change builds again.
+		D.overlayBuilds = (D.overlayBuilds ?? 0) + 1;
 		// Elements this build shows for the first time get their first style
 		// here: no earlier pass to start a transition from.
 		fresh.clear();
@@ -3753,13 +3760,50 @@
 		// A plugin window's page is drawn whole, from its root element, as
 		// a browser draws a document; the app page's plugin elements sit at
 		// the anchors around them.
+		const ts = L.stat ? Date.now() : 0;
 		if (L.page) {
 			const v = buildVNode(html, comp, null);
 			if (v) push("", "append", v);
 		} else scan(html, "");
+		if (L.stat) L.stat("overlay scan", ts);
+		const th = L.stat ? Date.now() : 0;
 		for (const [key, el] of hosts) {
-			const o = {};
+			// What the entry is made of. While all of it is as it was (the
+			// clock's second rewrites the tree every second, and the progress
+			// bar's inline style with it), the entry made last time is the
+			// entry: making it again for every app element cost an overlay
+			// build most of its time with nothing changed.
 			const st = comp.get(el);
+			const ps = css.pseudo?.get(el);
+			const sel = !!css.selectable?.has(el);
+			const gone = !!el._pluginRemoved || (!el.isConnected && !el._pluginMoved);
+			const up = gone ? null : el.parentElement;
+			const hidden = up ? goneAt(up) : false;
+			const invisible = up ? invisibleAt(up) : false;
+			const hostClass = el._hostAttrs.get("class") ?? "";
+			const curClass = el._attrs.get("class") ?? "";
+			const memo = el._ovMemo;
+			if (
+				memo &&
+				!el._pluginAttrs?.size &&
+				!el._textTouched &&
+				memo.st === st &&
+				memo.ps === ps &&
+				memo.sel === sel &&
+				memo.gone === gone &&
+				memo.up === up &&
+				memo.hidden === hidden &&
+				memo.invisible === invisible &&
+				memo.hostClass === hostClass &&
+				memo.curClass === curClass &&
+				memo.listens === listenVersion &&
+				memo.tree === treeGen
+			) {
+				if (memo.keep) hostsOut[key] = memo.o;
+				continue;
+			}
+			D.hostBuilds = (D.hostBuilds ?? 0) + 1;
+			const o = {};
 			if (st) o.style = { ...st };
 			// TIDAL's own panel glass is drawn natively: the host says only
 			// that a theme's rules left it in place.
@@ -3775,19 +3819,18 @@
 				delete o.style.border;
 				if (!Object.keys(o.style).length) delete o.style;
 			}
-			const ps = css.pseudo?.get(el);
 			if (ps?.before) o.before = ps.before;
 			if (ps?.after) o.after = ps.after;
 			if (ps?.selection) o.selection = ps.selection;
-			if (css.selectable?.has(el)) o.selectable = true;
-			if (el._pluginRemoved || (!el.isConnected && !el._pluginMoved)) o.style = { ...(o.style ?? {}), display: "none" };
+			if (sel) o.selectable = true;
+			if (gone) o.style = { ...(o.style ?? {}), display: "none" };
 			else {
 				// An app element inside one CSS hides is hidden with it.
-				const style = hiddenBy(el.parentElement, el, o.style);
+				const style = hiddenBy(up, el, o.style);
 				if (style !== o.style) o.style = style;
 			}
-			const hostCls = (el._hostAttrs.get("class") ?? "").split(/\s+/);
-			const curCls = (el._attrs.get("class") ?? "").split(/\s+/);
+			const hostCls = hostClass.split(/\s+/);
+			const curCls = curClass.split(/\s+/);
 			const added = curCls.filter((c) => c && !hostCls.includes(c));
 			if (added.length) o.classes = added;
 			// TIDAL's own classes a plugin took away (AltPlay moves the
@@ -3806,8 +3849,11 @@
 			}
 			const ls = listensUp(el);
 			if (ls.length) o.listens = ls;
-			if (Object.keys(o).length) hostsOut[key] = o;
+			const keep = Object.keys(o).length > 0;
+			el._ovMemo = { st, ps, sel, gone, up, hidden, invisible, hostClass, curClass, listens: listenVersion, tree: treeGen, keep, o };
+			if (keep) hostsOut[key] = o;
 		}
+		if (L.stat) L.stat("overlay hosts", th);
 		const docLs = [...new Set([...listenTypes(doc), ...listenTypes(winTarget), ...listenTypes(body), ...listenTypes(html)])].sort();
 		if (docLs.length) hostsOut[""] = { listens: docLs };
 		const ov = { vars: css.vars, page: css.page, hosts: hostsOut, injected, fonts: [...css.fonts, ...fontFaces()], scroll_to: scrollTo, css_bytes: css.bytes };
