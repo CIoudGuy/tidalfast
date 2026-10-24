@@ -949,6 +949,9 @@ fn submenu<R>(
         egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label)
     });
     theme::focus_ring(ui, &response);
+    // Luna: TIDAL's row that opens it (`button[data-test=add-to-playlist]`,
+    // `[data-test=share]`).
+    super::plugin_dom::menu_item(ui, label, true, &response);
     let mut config = egui::menu::MenuConfig::find(ui);
     if let Some(close_behavior) = close_behavior {
         config = config.close_behavior(close_behavior);

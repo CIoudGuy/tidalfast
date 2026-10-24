@@ -15073,6 +15073,63 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
     }
 
+    /// A song's menu rows carry TIDAL 2.46.0's `data-test`s (`track-radio`,
+    /// `add-to-remove-from-collection`, `show-track-info`, ...), which
+    /// plugins and translations look rows up by; they were the labels as
+    /// slugs (`go-to-track-radio`, `add-to-my-collection`). Tidalfast's own
+    /// rows (Download) have none, as a plugin's rows in TIDAL's menu.
+    #[test]
+    fn a_track_menus_rows_carry_tidals_ids() {
+        let (ctx, mut app) = accessible_app("track-menu-ids");
+        app.backend.set_offline(true);
+        crate::ui::plugin_dom::test_overlay(Some(crate::luna::dom::DomOverlay::default()));
+        let item = PlayableItem::Track(track(0));
+        let context = RowContext::Context {
+            uri: "tidal:playlist:pl1".into(),
+            editable_playlist: Some(("pl1".to_string(), None)),
+        };
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(760.0, 900.0),
+                )),
+                ..Default::default()
+            },
+            |ui| crate::ui::widgets::item_menu(ui, &mut app, &item, Some(&context), Some(1)),
+        );
+        output.textures_delta.clear();
+        let rows = crate::ui::plugin_dom::test_menu_rows();
+        crate::ui::plugin_dom::test_overlay(None);
+        let id = |label: &str| {
+            rows.iter()
+                .find(|(l, _)| l == label)
+                .map(|(_, id)| id.as_str())
+                .unwrap_or_else(|| panic!("no {label}: {rows:?}"))
+        };
+        assert_eq!(id("Play next"), "play-next");
+        assert_eq!(id("Add to queue"), "add-to-queue");
+        assert_eq!(id("Add to playlist"), "add-to-playlist");
+        assert_eq!(id("Remove from playlist"), "contextmenu-delete");
+        let mine = rows
+            .iter()
+            .find(|(l, _)| l.ends_with("My Collection"))
+            .map(|(_, id)| id.as_str());
+        assert_eq!(mine, Some("add-to-remove-from-collection"), "{rows:?}");
+        assert_eq!(id("Save for Later"), "save-for-later");
+        assert_eq!(id("Go to track radio"), "track-radio");
+        assert_eq!(id("Go to album"), "go-to-album");
+        assert_eq!(id("Credits"), "show-track-info");
+        assert_eq!(id("Go to artist"), "go-to-artist");
+        assert_eq!(id("Share"), "share");
+        let download = rows
+            .iter()
+            .find(|(l, _)| l == "Download" || l == "Remove download")
+            .map(|(_, id)| id.as_str());
+        assert_eq!(download, Some(""), "{rows:?}");
+        app.backend.shutdown();
+    }
+
     /// A song's menu holds TIDAL's entries in TIDAL's order (Add to queue
     /// right under Play next), then Tidalfast's Download, plugin entries last; Go to
     /// album is left out on the album's own page.

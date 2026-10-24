@@ -1098,7 +1098,8 @@ pub struct NowPlayingTab {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MenuItem {
-    /// `data-test` of the item's link (`track-radio`, `add-to-queue`, ...).
+    /// `data-test` of the item's link, TIDAL 2.46.0's (`track-radio`,
+    /// `add-to-queue`, ...); empty for a row TIDAL does not have.
     pub action: String,
     pub label: String,
     pub disabled: bool,
@@ -3363,6 +3364,7 @@ pub fn context_menu(out: &mut Vec<HostNode>, menu: &ContextMenu) {
             Some(uuid) => link
                 .attr("data-track--playlist-uuid", uuid.clone())
                 .attr("data-tracktype--playlist-uuid", "string"),
+            None if item.action.is_empty() => link,
             None => link.test(&item.action),
         };
         if item.disabled {
