@@ -4,24 +4,26 @@
 fn embed_release_notes() {
     use std::fmt::Write as _;
     println!("cargo:rerun-if-changed=packaging/release-notes");
-    let mut files: Vec<(String, std::path::PathBuf)> = std::fs::read_dir("packaging/release-notes")
+    let mut files: Vec<(String, String)> = std::fs::read_dir("packaging/release-notes")
         .into_iter()
         .flatten()
         .flatten()
         .filter_map(|entry| {
-            let path = entry.path();
-            let name = path.file_name()?.to_str()?;
-            let version = name.strip_prefix('v')?.strip_suffix(".md")?;
-            Some((version.to_string(), std::fs::canonicalize(&path).ok()?))
+            let name = entry.file_name().to_str()?.to_string();
+            let version = name.strip_prefix('v')?.strip_suffix(".md")?.to_string();
+            Some((version, name))
         })
         .collect();
     files.sort();
     let mut code = String::from("pub const RELEASE_NOTES: &[(&str, &str)] = &[\n");
-    for (version, path) in &files {
-        // Debug formatting escapes the backslashes of a Windows path.
-        let path = path.to_string_lossy();
-        let path = path.strip_prefix(r"\\?\").unwrap_or(&path);
-        let _ = writeln!(code, "    ({version:?}, include_str!({path:?})),");
+    for (version, name) in &files {
+        // Found from the crate being compiled, so a build folder reused
+        // after its first checkout was deleted still finds the notes.
+        let _ = writeln!(
+            code,
+            "    ({version:?}, include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), {:?}))),",
+            format!("/packaging/release-notes/{name}")
+        );
     }
     code.push_str("];\n");
     // The release dates come from the Flatpak metainfo, which lists every
