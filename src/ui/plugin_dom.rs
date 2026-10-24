@@ -829,6 +829,11 @@ pub fn end_frame(ctx: &egui::Context) {
         next.now_playing = None;
         next.context_menu = None;
         next.queue_rows.clear();
+        // The play queue's panel and title are noted while they are drawn:
+        // a closed queue's must not stay in the page.
+        next.queue_panel = None;
+        next.queue_title = None;
+        next.queue_sidebar = None;
         next.modal = None;
         next.main_scroll = None;
         next.node_rects.clear();
