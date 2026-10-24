@@ -624,7 +624,7 @@ const COMPAT: &[CompatRow] = &[
         name: "@jxnxsdev/miniplayer",
         note: CompatNote {
             level: Compat::PartlySupported,
-            reason: "Its mini player and Windows taskbar widget open in windows of their own, but their edges are not see-through yet.",
+            reason: "Its mini player and Windows taskbar widget open in windows of their own, but the widget can end up under the taskbar.",
         },
     },
     needs_permission(
@@ -657,7 +657,7 @@ const COMPAT: &[CompatRow] = &[
         name: "@jxnxsdev/lyrics-everywhere",
         note: CompatNote {
             level: Compat::PartlySupported,
-            reason: "The lyrics bubble and the lyrics window work, but the window's edges are not see-through yet.",
+            reason: "The lyrics bubble and the lyrics window work; the window's settings panel still differs a little from TIDAL's.",
         },
     },
     CompatRow {

@@ -1169,13 +1169,13 @@ with the keyboard focus and 30 without, and none while it is minimised or
 covered (`plugin_windows::pace`; what the page's drawing asks for is noted
 for its window instead of egui's next frame).
 
-**What the windowing layer can do** (winit through the crmne eframe fork,
-glow renderer):
+**What the windowing layer can do** (winit through the owner's eframe fork,
+CIoudGuy/egui on crmne/egui apps-0.36.2, glow renderer):
 
 | | Windows | Linux X11 | Linux Wayland | macOS |
 |---|---|---|---|---|
 | Second window (deferred viewport) | yes | yes | yes | yes |
-| `transparent` | no: shown black where the page paints nothing (seen 2026-10-24); eframe picks one GL config, for the app's opaque window, for all windows | no, for the same reason (an ARGB visual is needed) | yes (not seen yet) | yes (not seen yet) |
+| `transparent` | yes (seen 2026-10-24: miniplayer's taskbar widget and lyrics-everywhere's window over a test pattern) | yes: while Luna is on, eframe picks a GL config with alpha (an ARGB visual) for its windows (not seen yet) | yes (not seen yet) | yes: the same GL config option (not seen yet) |
 | `frame: false`, drag regions | yes | yes | yes (`xdg_toplevel.move`) | yes |
 | `alwaysOnTop` | topmost (one level; Electron's `screen-saver` level is the same here) | `_NET_WM_STATE_ABOVE` | no (no protocol; ignored) | floating level |
 | `x`/`y`, `getBounds` place | yes | yes | no: the compositor places windows | yes |
@@ -1184,10 +1184,14 @@ glow renderer):
 
 eframe clears every window with the app's `clear_color`; it is fully
 transparent while a see-through plugin window is open (the app's own
-window paints its whole surface either way, and looks the same). A window
-without a frame on Windows 11 also gets the system's thin border and
-rounded corners, which Electron's see-through windows do not have. Only
-Windows was run; the other columns are what winit documents.
+window paints its whole surface either way, and looks the same). A
+see-through window without a frame has no system shadow, and on Windows 11
+none of the thin border and rounded corners the system draws around other
+frameless windows, as Electron draws nothing around such a window. The GL
+config with alpha (eframe's `NativeOptions::transparent_viewports`) is
+picked when the app's window opens with Luna on; turning Luna on later
+takes effect at the window's next opening. Only Windows was run; the
+other columns are what winit and glutin document.
 
 **Development.** `TIDALFAST_PLUGIN_WINDOW_POS=x,y` opens plugin windows
 there (off the screen in tests); in a dev script (`TIDALFAST_DEV_SCRIPT`),

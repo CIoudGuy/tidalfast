@@ -992,6 +992,28 @@ window without the focus (the unit test
 `plugin_windows::tests::an_animating_page_draws_at_the_windows_frame_cap`
 checks its 30-frame cap) and a window on screen, where vsync also paces it.
 
+## Plugin windows: see-through, egui fork (2026-10-24)
+
+egui moved from crmne/egui apps-0.36 (ba6790fe) to the owner's fork
+CIoudGuy/egui (466a177a: egui 0.36.2 with crmne's changes, plus options for
+see-through windows). A see-through frameless plugin window now has no
+system frame, and with Luna on eframe picks a GL config with alpha for its
+windows (on X11 and macOS; Windows and Wayland keep their config). Debug
+builds with the `demo` feature, Windows 11, NVIDIA (OpenGL), before against
+after, interleaved, the app's window off-screen, Luna on with miniplayer
+installed (its taskbar widget open off-screen):
+
+| Measure | Before | After |
+| --- | --- | --- |
+| `--demo-bench scroll`, CPU per frame p50 | 46.86, 46.93, 47.18, 44.71, 45.27 ms | 46.82, 46.45, 43.06, 45.21 ms |
+| The same, p95 | 66.48, 67.92, 74.46, 70.77, 69.00 ms | 71.04, 72.09, 63.53, 66.15 ms |
+| Idle CPU on the home page, 30 s after 60 s | 0.26, 0.57, 0.10 % of a core | 0.31, 0.16, 0.31 % |
+| Private memory then | 224, 174, 171 MB | 171, 175, 174 MB |
+
+Three more bench runs (one before, two after) drew their frames about
+300 ms apart, as an off-screen window does when the machine is busy, and
+are left out. The app's window costs the same within run-to-run noise.
+
 ## Findings and decisions
 
 - **Long lists are already virtualised.** Track tables, card grids and the
