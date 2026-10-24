@@ -2426,6 +2426,64 @@ new MutationObserver(() => {
     finish(luna, dir);
 }
 
+/// The overlay's theme version stays while only a plugin's own element
+/// changes (the UI keeps the looks it resolved from the theme), and moves
+/// when an app element's look changes.
+#[test]
+fn the_theme_version_moves_with_the_apps_look_not_a_plugins_element() {
+    let (luna, _host, dir) = start(
+        r##"
+const st = document.createElement("style");
+st.textContent = '[data-test="footer-player"] { color: rgb(1, 2, 3); }';
+document.head.append(st);
+const tick = document.createElement("div");
+tick.textContent = "0";
+document.body.append(tick);
+let n = 0;
+const id = setInterval(() => {
+	tick.textContent = String(++n);
+	if (n === 5) document.querySelector('[data-test="footer-player"]')?.classList.add("lit");
+	if (n >= 8) clearInterval(id);
+}, 120);
+unloads.add(() => clearInterval(id));
+"##,
+    );
+    luna.sync_dom(tree());
+    // The counter's words in an overlay, with its theme version.
+    let count = |o: &DomOverlay| {
+        o.injected
+            .iter()
+            .flat_map(|i| &i.nodes)
+            .flat_map(|n| &n.children)
+            .find_map(|c| c.text.as_deref()?.parse::<u32>().ok())
+    };
+    let mut seen: Vec<(u32, u64)> = Vec::new();
+    let end = Instant::now() + Duration::from_secs(15);
+    while Instant::now() < end {
+        luna.sync(Duration::from_secs(5));
+        let o = luna.dom_overlay();
+        if let Some(n) = count(&o)
+            && seen.last().is_none_or(|(m, _)| *m != n)
+        {
+            seen.push((n, o.theme_version));
+        }
+        if seen.last().is_some_and(|(n, _)| *n >= 8) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(15));
+    }
+    let before: Vec<u64> = seen
+        .iter()
+        .filter(|(n, _)| (1..5).contains(n))
+        .map(|s| s.1)
+        .collect();
+    let after: Vec<u64> = seen.iter().filter(|(n, _)| *n >= 5).map(|s| s.1).collect();
+    assert!(before.len() >= 2 && !after.is_empty(), "{seen:?}");
+    assert!(before.windows(2).all(|w| w[0] == w[1]), "{seen:?}");
+    assert!(after.iter().all(|t| *t > before[0]), "{seen:?}");
+    finish(luna, dir);
+}
+
 /// An overlay build makes again only the app elements' entries whose inputs
 /// changed: with nothing changed none, a class a plugin adds that element's,
 /// a listener on the page every element's under it.

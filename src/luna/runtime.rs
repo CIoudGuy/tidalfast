@@ -1967,6 +1967,13 @@ It is installed and switched on; what it may do is asked when it does it, and it
                     return Ok(Value::Null);
                 };
                 ov.version = cur.version;
+                // Worked out here, off the UI thread: the looks the UI
+                // resolved from the theme stay while this holds.
+                ov.theme_version = if cur.same_theme(&ov) {
+                    cur.theme_version
+                } else {
+                    cur.theme_version + 1
+                };
                 if **cur == ov {
                     None
                 } else {
