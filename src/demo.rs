@@ -8620,14 +8620,7 @@ mod tests {
             .filter(|(_, ok)| !ok)
             .map(|(c, _)| c.as_str())
             .collect();
-        assert!(
-            failed.is_empty(),
-            "{}",
-            failed.join(
-                "
-"
-            )
-        );
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 
     /// TIDAL 2.46.0's home cards and shelf headers are elements with their
@@ -9036,14 +9029,7 @@ mod tests {
             .filter(|(_, ok)| !ok)
             .map(|(c, _)| c.as_str())
             .collect();
-        assert!(
-            failed.is_empty(),
-            "{}",
-            failed.join(
-                "
-"
-            )
-        );
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 
     /// The controls over Home's cards are TIDAL 2.46.0's: a play button
@@ -9158,14 +9144,7 @@ mod tests {
             .filter(|(_, ok)| !ok)
             .map(|(c, _)| c.as_str())
             .collect();
-        assert!(
-            failed.is_empty(),
-            "{}",
-            failed.join(
-                "
-"
-            )
-        );
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 
     /// My Collection's cells carry their words as TIDAL 2.46.0's do
@@ -9305,14 +9284,7 @@ mod tests {
             .filter(|(_, ok)| !ok)
             .map(|(c, _)| c.as_str())
             .collect();
-        assert!(
-            failed.is_empty(),
-            "{}",
-            failed.join(
-                "
-"
-            )
-        );
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 
     /// The track lists' headings are TIDAL 2.46.0's (captured, a playlist's
@@ -9418,14 +9390,7 @@ mod tests {
             .filter(|(_, ok)| !ok)
             .map(|(c, _)| c.as_str())
             .collect();
-        assert!(
-            failed.is_empty(),
-            "{}",
-            failed.join(
-                "
-"
-            )
-        );
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 
     /// A right-click a plugin cancels (`preventDefault()` on `contextmenu`,
