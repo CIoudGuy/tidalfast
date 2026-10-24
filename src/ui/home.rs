@@ -586,7 +586,12 @@ fn card_item(item: &ShelfItem) -> crate::luna::dom_anchors::CardItem {
         ),
         ShelfItem::Video(video) => (CardKind::Track, video.id.clone(), Vec::new()),
     };
-    CardItem { kind, id, artists }
+    CardItem {
+        kind,
+        id,
+        artists,
+        saved: None,
+    }
 }
 
 /// The height of a detailed card's text: title, subtitle and meta lines.
@@ -678,9 +683,11 @@ pub(super) fn tidal_card_marked<'a>(
         ShelfItem::Album(album) => mark.with_album(album),
         _ => mark,
     };
-    // What the card shows, for its anchor: TIDAL's card id and the links
-    // in its subtitle.
-    super::plugin_dom::next_card(card_item(item));
+    // What the card shows, for its anchor: TIDAL's card id, the links in
+    // its subtitle and whether it is in the collection.
+    let mut shown = card_item(item);
+    shown.saved = app.is_saved(uri);
+    super::plugin_dom::next_card(shown);
     let card = if detailed {
         let width = widgets::card_width(ui);
         let height = width

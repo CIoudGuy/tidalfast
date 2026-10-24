@@ -9041,6 +9041,128 @@ mod tests {
         );
     }
 
+    /// The controls over Home's cards are TIDAL 2.46.0's: a play button
+    /// titled Play named for the card's item (`play-button-<id>` on an album
+    /// or an artist, `playlist-play-button-<uuid>`, `mix-card-<id>-play-button`)
+    /// where the app shows its play button, and but for an artist
+    /// `favorite-button-<id>` saying Add to or Remove from My Collection as
+    /// the item is in it. A play button a plugin hides is not drawn
+    /// (korean-translation translates their words in TIDAL; Tidalfast had
+    /// no such buttons).
+    #[test]
+    fn home_cards_have_tidals_play_and_favourite_buttons() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::{attr, keys};
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("plugin-card-buttons");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.open(Page::Home);
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let node = |key: &str| tree.nodes.iter().find(|n| n.key == key).cloned();
+        let cards: Vec<(usize, String)> = tree
+            .nodes
+            .iter()
+            .filter_map(|n| {
+                let i = n.key.strip_prefix("card:")?.parse::<usize>().ok()?;
+                Some((i, attr(n, "data-test")?.to_string()))
+            })
+            .collect();
+        let mut checks: Vec<(String, bool)> = Vec::new();
+        let mut played = None;
+        for (kind, play, favourite) in [
+            ("album-card-", "play-button-", true),
+            ("playlist-card-", "playlist-play-button-", true),
+            ("mix-card-", "mix-card-", true),
+            ("artist-card-", "play-button-", false),
+        ] {
+            let Some((i, test)) = cards.iter().find(|(_, t)| t.starts_with(kind)) else {
+                checks.push((format!("a {kind} card is drawn"), false));
+                continue;
+            };
+            let id = test.trim_start_matches(kind);
+            let expected = if kind == "mix-card-" {
+                format!("mix-card-{id}-play-button")
+            } else {
+                format!("{play}{id}")
+            };
+            let button = node(&keys::card_play(*i));
+            checks.push((
+                format!("the {kind} card's play button is {expected}, titled Play, with a box"),
+                button.as_ref().is_some_and(|n| {
+                    n.tag == "button"
+                        && attr(n, "data-test") == Some(expected.as_str())
+                        && attr(n, "title") == Some("Play")
+                        && attr(n, "aria-label") == Some("Play")
+                        && n.rect.is_some()
+                        && n.parent.as_deref() == Some(keys::card_overlay(*i).as_str())
+                }),
+            ));
+            let fav = node(&keys::card_favorite(*i));
+            checks.push((
+                format!("the {kind} card has a favourite button: {favourite}"),
+                if favourite {
+                    fav.as_ref().is_some_and(|n| {
+                        attr(n, "data-test") == Some(format!("favorite-button-{id}").as_str())
+                            && matches!(
+                                attr(n, "aria-label"),
+                                Some("Add to My Collection" | "Remove from My Collection")
+                            )
+                    })
+                } else {
+                    fav.is_none()
+                },
+            ));
+            if played.is_none() {
+                played = button.and_then(|n| n.rect).map(|r| (*i, r));
+            }
+        }
+        // A play button a plugin hid is not drawn.
+        if let Some((i, [x, y, w, h])) = played {
+            let r = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h));
+            let key = keys::card(i);
+            checks.push((
+                "a play button nobody hid may be drawn".into(),
+                plugin_dom::card_play(Some(&key), r),
+            ));
+            plugin_dom::test_overlay(Some(DomOverlay {
+                version: 3,
+                hosts: [(
+                    keys::card_play(i),
+                    HostOverride {
+                        style: Style {
+                            display: Some("none".into()),
+                            ..Style::default()
+                        },
+                        ..HostOverride::default()
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..DomOverlay::default()
+            }));
+            checks.push((
+                "a play button a plugin hid is not drawn".into(),
+                !plugin_dom::card_play(Some(&key), r),
+            ));
+            plugin_dom::test_overlay(None);
+        }
+        app.backend.shutdown();
+        let failed: Vec<_> = checks
+            .iter()
+            .filter(|(_, ok)| !ok)
+            .map(|(c, _)| c.as_str())
+            .collect();
+        assert!(
+            failed.is_empty(),
+            "{}",
+            failed.join(
+                "
+"
+            )
+        );
+    }
+
     /// A right-click a plugin cancels (`preventDefault()` on `contextmenu`,
     /// downloadmanager's own menus) opens none of the app's menus, as TIDAL
     /// opens none of its own; one the plugins let through opens the row's

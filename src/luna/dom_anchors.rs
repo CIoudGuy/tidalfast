@@ -525,6 +525,22 @@ pub mod keys {
     pub fn card_cover_img(index: usize) -> String {
         format!("card-cover-img:{index}")
     }
+    /// The controls over a card's cover (`card-overlay:<index>`): its play
+    /// button (`card-play:<index>`), and where TIDAL has them its options
+    /// button (`card-menu:<index>`) and its favourite button
+    /// (`card-favorite:<index>`).
+    pub fn card_overlay(index: usize) -> String {
+        format!("card-overlay:{index}")
+    }
+    pub fn card_play(index: usize) -> String {
+        format!("card-play:{index}")
+    }
+    pub fn card_menu(index: usize) -> String {
+        format!("card-menu:{index}")
+    }
+    pub fn card_favorite(index: usize) -> String {
+        format!("card-favorite:{index}")
+    }
     /// A card's words, as TIDAL's card holds them: `card-content:<index>`
     /// (`div._contentContainer_`), its title (`card-title:<index>`,
     /// `div._title_`) with the title's text (`card-title-text:<index>`,
@@ -882,6 +898,92 @@ fn shelf_header_nodes(
             .class("_marketText_1lyag_1 _semibold20_1lyag_246 _text20_1lyag_291")
             .text(label.clone())
             .at(*rect),
+        );
+    }
+}
+
+/// The controls over a card's cover as TIDAL 2.46.0 has them (they show
+/// under the pointer). A shelf card's (`div._overlay_91ba65b` after the
+/// picture): its play button, `button._noPadding_9cb3eea._iconButton_4b3ed40`
+/// titled Play, named for its item (`play-button-<id>` for an album or an
+/// artist, `playlist-play-button-<uuid>`, `mix-card-<id>-play-button`), and,
+/// but for an artist, `button[data-test=favorite-button-<id>]._button_c372e89`
+/// saying whether the item is in the collection. A collection cell's
+/// (`div.fx-hover-controls._fxHoverControls_cb86dc6`): `play-button`,
+/// `context-menu-button` (Show options) and `favorite-button`, its item
+/// being in the collection.
+fn card_buttons(out: &mut Vec<HostNode>, i: usize, card: &GridCard, collection: bool, cover: Rect) {
+    let overlay = keys::card_overlay(i);
+    let play = |test: String| {
+        el(keys::card_play(i), Some(&overlay), "button")
+            .class("_noPadding_9cb3eea _iconButton_4b3ed40")
+            .test(&test)
+            .attr("aria-label", "Play")
+            .attr("title", "Play")
+            .attr("type", "button")
+            .at(card.play)
+    };
+    if collection && card.shelf.is_none() {
+        if card.artist {
+            return;
+        }
+        out.push(
+            el(overlay.clone(), Some(&keys::card_cover(i)), "div")
+                .class("fx-hover-controls _fxHoverControls_cb86dc6")
+                .at(Some(cover)),
+        );
+        out.push(play("play-button".into()).attr("data-type", "button__play"));
+        out.push(
+            el(keys::card_menu(i), Some(&overlay), "button")
+                .class("tidal-ui__button css-bzw2lh")
+                .test("context-menu-button")
+                .attr("aria-label", "Show options")
+                .attr("title", "Show options")
+                .attr("type", "button")
+                .attr("data-type", "contextmenu-open"),
+        );
+        out.push(
+            el(keys::card_favorite(i), Some(&overlay), "button")
+                .class("tidal-ui__button css-bzw2lh _button_98ab3d0")
+                .test("favorite-button")
+                .attr("aria-label", "Remove from My Collection")
+                .attr("title", "Remove from My Collection")
+                .attr("type", "button")
+                .attr("aria-checked", "true")
+                .attr("role", "switch"),
+        );
+        return;
+    }
+    let Some(item) = card.item.as_ref().filter(|_| card.shelf.is_some()) else {
+        return;
+    };
+    let (test, favorite) = match item.kind {
+        CardKind::Album => (format!("play-button-{}", item.id), true),
+        CardKind::Artist => (format!("play-button-{}", item.id), false),
+        CardKind::Playlist => (format!("playlist-play-button-{}", item.id), true),
+        CardKind::Mix => (format!("mix-card-{}-play-button", item.id), true),
+        CardKind::Track => return,
+    };
+    out.push(
+        el(overlay.clone(), Some(&keys::card_cover(i)), "div")
+            .class("_overlay_91ba65b")
+            .at(Some(cover)),
+    );
+    out.push(play(test));
+    if favorite {
+        out.push(
+            el(keys::card_favorite(i), Some(&overlay), "button")
+                .class("_button_c372e89")
+                .test(&format!("favorite-button-{}", item.id))
+                .attr(
+                    "aria-label",
+                    if item.saved == Some(true) {
+                        "Remove from My Collection"
+                    } else {
+                        "Add to My Collection"
+                    },
+                )
+                .attr("type", "button"),
         );
     }
 }
@@ -1298,6 +1400,8 @@ pub struct GridCard {
     pub item: Option<CardItem>,
     /// Its title and subtitle as drawn.
     pub words: Option<CardWords>,
+    /// Where its play button shows under the pointer.
+    pub play: Option<Rect>,
 }
 
 /// What a card shows: TIDAL's card id is `<kind>-card-<id>`, and its
@@ -1309,6 +1413,9 @@ pub struct CardItem {
     pub id: String,
     /// `(id, name)` of each artist the subtitle names.
     pub artists: Vec<(String, String)>,
+    /// Whether the item is in the user's collection, when known: its
+    /// favourite button says Remove from (or Add to) My Collection.
+    pub saved: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -2786,6 +2893,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 )
                 .at(Some(cover)),
             );
+            card_buttons(out, i, card, collection, cover);
         }
         if let Some(words) = &card.words {
             card_word_nodes(out, i, card, words);

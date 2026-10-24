@@ -3971,16 +3971,18 @@ pub fn card(
             subtitle_rect,
         );
 
-        if playable && overlay > 0.0 {
-            let center = if round {
-                image_rect.center()
-            } else {
-                pos2(
-                    image_rect.left() + 8.0 + 18.0,
-                    image_rect.bottom() - 8.0 - 18.0,
-                )
-            };
-            let button_rect = Rect::from_center_size(center, Vec2::splat(36.0));
+        let center = if round {
+            image_rect.center()
+        } else {
+            pos2(
+                image_rect.left() + 8.0 + 18.0,
+                image_rect.bottom() - 8.0 - 18.0,
+            )
+        };
+        let button_rect = Rect::from_center_size(center, Vec2::splat(36.0));
+        // The play button's anchor is where it shows; a plugin can hide it.
+        let play_shown = playable && super::plugin_dom::card_play(card_key.as_deref(), button_rect);
+        if play_shown && overlay > 0.0 {
             let mut child = ui.new_child(
                 UiBuilder::new()
                     .max_rect(button_rect)
@@ -4452,16 +4454,18 @@ pub fn collection_card(
             let height = galley.size().y;
             line(ui, galley, top + (16.0 - height) / 2.0, secondary);
         }
-        if playable && overlay > 0.0 {
-            let center = if circular {
-                image_rect.center()
-            } else {
-                pos2(
-                    image_rect.left() + 16.0 + 20.0,
-                    image_rect.bottom() - 16.0 - 20.0,
-                )
-            };
-            let button_rect = Rect::from_center_size(center, Vec2::splat(40.0));
+        let center = if circular {
+            image_rect.center()
+        } else {
+            pos2(
+                image_rect.left() + 16.0 + 20.0,
+                image_rect.bottom() - 16.0 - 20.0,
+            )
+        };
+        let button_rect = Rect::from_center_size(center, Vec2::splat(40.0));
+        // The play button's anchor is where it shows; a plugin can hide it.
+        let play_shown = playable && super::plugin_dom::card_play(card_key.as_deref(), button_rect);
+        if play_shown && overlay > 0.0 {
             let mut child = ui.new_child(
                 UiBuilder::new()
                     .max_rect(button_rect)
