@@ -268,7 +268,8 @@ fn labels_are_keyed_by_store_and_package_name() {
         .is_none()
     );
     // Partly supported: miniplayer and lyrics-everywhere (their windows
-    // open and work, without see-through edges), Avatar (no email for Gravatar) and
+    // open and work; the widget can slip under the taskbar and the lyrics
+    // window does not scroll), Avatar (no email for Gravatar) and
     // Themer (no Monaco window). 3d-cover's Base model and its fade and
     // spinner work, so it carries no label.
     let partly: Vec<&str> = COMPAT
