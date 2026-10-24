@@ -3129,6 +3129,57 @@ pub fn grid_card(r: Rect, artist: bool) -> Option<String> {
     key
 }
 
+/// A shelf's card laid out at `r` with its cover at `cover` but not on
+/// screen (below the fold, or scrolled out of its shelf). TIDAL's page holds
+/// every card of every shelf, so plugins find this one as they find a drawn
+/// one: its anchors are given the boxes the layout gave it, its words the
+/// lines a drawn card puts them on, and nothing is painted or measured.
+/// Outside a shelf (a long grid) nothing is noted. Returns the card's key.
+pub fn unseen_card(
+    r: Rect,
+    cover: Rect,
+    artist: bool,
+    title: &str,
+    subtitle: &str,
+) -> Option<String> {
+    if !on() || with(|s| s.frame.page.as_ref().is_none_or(|p| p.open_shelf.is_none())) {
+        return None;
+    }
+    let key = grid_card(r, artist)?;
+    let index: usize = key.strip_prefix("card:")?.parse().ok()?;
+    let line = |top: f32| {
+        Rect::from_min_size(
+            egui::pos2(cover.left(), top),
+            egui::vec2(cover.width(), 20.0),
+        )
+    };
+    let play = if artist {
+        Rect::from_center_size(cover.center(), egui::Vec2::splat(36.0))
+    } else {
+        Rect::from_center_size(
+            egui::pos2(cover.left() + 26.0, cover.bottom() - 26.0),
+            egui::Vec2::splat(36.0),
+        )
+    };
+    note(|f| {
+        if let Some(card) = f.page.as_mut().and_then(|p| p.cards.get_mut(index)) {
+            card.cover = rect(cover);
+            card.play = rect(play);
+            card.words = Some(dom_anchors::CardWords {
+                title: title.to_string(),
+                title_rect: rect(line(cover.bottom() + 11.0)),
+                subtitle: subtitle.to_string(),
+                subtitle_rect: (!subtitle.is_empty())
+                    .then(|| rect(line(cover.bottom() + 33.0)))
+                    .flatten(),
+                meta: String::new(),
+                meta_rect: None,
+            });
+        }
+    });
+    Some(key)
+}
+
 /// The card whose anchor is `key` shows its play button at `r` under the
 /// pointer: notes where, and says whether it may be drawn (a plugin did
 /// not hide it).
