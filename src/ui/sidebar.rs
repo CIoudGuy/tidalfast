@@ -1178,7 +1178,13 @@ fn paint_expanded_art(app: &mut App, ui: &mut egui::Ui, rect: Rect) {
     let Some(now) = app.now_playing() else {
         return;
     };
-    let Some(url) = now.art_url.clone().or_else(|| now.art_small.clone()) else {
+    // The playing song's cover as TIDAL's player shows it: the picture a
+    // plugin gave the bar's cover (`img` in `[data-test=current-media-
+    // imagery]`; uwu-ifier, AltPlay) is this one too.
+    let Some(url) = super::plugin_dom::picture(|| crate::luna::dom_anchors::keys::COVER_IMG)
+        .or_else(|| now.art_url.clone())
+        .or_else(|| now.art_small.clone())
+    else {
         return;
     };
     let album_id = now.album_id.clone();

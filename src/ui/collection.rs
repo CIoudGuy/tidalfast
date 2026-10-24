@@ -490,15 +490,27 @@ fn hero_byline(app: &mut App, ui: &mut egui::Ui, hero: &Hero<'_>, byline: Rect) 
             Avatar::Placeholder => None,
             Avatar::Url(url) => Some(url.as_str()),
         };
-        widgets::paint_cover(
-            &child,
-            &palette,
-            url,
-            avatar_rect,
-            10.0,
-            Icon::User,
-            Some(&art),
-        );
+        // Luna: TIDAL's byline picture, which plugins hide or give another
+        // picture (uwu-ifier's nekos).
+        super::plugin_dom::byline_picture(avatar_rect, url);
+        let plugin = super::plugin_dom::picture(|| crate::luna::dom_anchors::keys::BYLINE_PIC_IMG);
+        let drawn = [
+            crate::luna::dom_anchors::keys::BYLINE_PIC,
+            crate::luna::dom_anchors::keys::BYLINE_PIC_IMG,
+        ]
+        .iter()
+        .all(|k| super::plugin_dom::shown(k) == super::plugin_dom::Shown::Drawn);
+        if drawn {
+            widgets::paint_cover(
+                &child,
+                &palette,
+                plugin.as_deref().or(url),
+                avatar_rect,
+                10.0,
+                Icon::User,
+                Some(&art),
+            );
+        }
     }
     child.spacing_mut().item_spacing.x = 0.0;
     let link = palette.text.gamma_multiply(0.8);

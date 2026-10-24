@@ -3923,3 +3923,81 @@ lib.observe(unloads, "div[data-track--page-id='mycollection_albums']", (e) => {
     assert!(o.at(keys::PAGE, Position::Append).next().is_none());
     finish(luna, dir);
 }
+
+/// The open queue's rows are TIDAL 2.46.0's: a plugin finds each
+/// `div[data-test=playqueue-item]`, reads and rewrites its title's `p`, and
+/// sets its cover's `img.src` (uwu-ifier); those changes reach the overlay
+/// at the rows' parts. The rows were not in the document.
+#[test]
+fn plugins_read_and_rewrite_the_queue_rows() {
+    let (luna, _host, dir) = start(
+        r##"
+const go = () => {
+	const rows = document.querySelectorAll('[data-test="playqueue-scroll"] [data-test="playqueue-item"]');
+	if (!rows.length || R.done) return;
+	R.titles = [...rows].map((r) => r.querySelector('[data-test="playqueue-item-title"] p')?.textContent ?? null);
+	R.priorities = [...rows].map((r) => r.getAttribute("data-test-priority"));
+	R.artist = rows[1].querySelector('[data-test="grid-item-detail-text-title-artist"]')?.textContent ?? null;
+	R.playing = !!rows[0].querySelector('[data-test="nowplaying-icon"]');
+	rows[1].querySelector('[data-test="playqueue-item-title"] p').textContent = "Wewwitten";
+	rows[1].querySelector('[data-test="cell-cover"] img').src = "https://example.test/neko.png";
+	R.done = true;
+};
+new MutationObserver(go).observe(document.body, { childList: true, subtree: true });
+go();
+"##,
+    );
+    let mut frame = dom_anchors::sample_frame();
+    frame.queue_panel = Some((Some([900.0, 40.0, 360.0, 600.0]), false));
+    let row = |id: &str, y: f32, title: &str, priority: &'static str| dom_anchors::QueueRow {
+        id: id.into(),
+        priority,
+        now_playing: id == "current",
+        track_id: "77".into(),
+        title: title.into(),
+        artists: vec![dom_anchors::Link {
+            id: "5".into(),
+            name: "Artist Five".into(),
+        }],
+        cover_url: Some("https://resources.tidal.com/images/a/80x80.jpg".into()),
+        removable: id != "current",
+        rect: Some([900.0, y, 360.0, 56.0]),
+        cover_rect: Some([902.0, y + 8.0, 40.0, 40.0]),
+        title_rect: Some([954.0, y + 10.0, 260.0, 20.0]),
+        artist_rect: Some([954.0, y + 30.0, 260.0, 20.0]),
+        action_rect: Some([1230.0, y + 14.0, 28.0, 28.0]),
+    };
+    // Noted out of order: the document has them as the screen does.
+    frame.queue_rows = vec![
+        row("next:0", 160.0, "Next Song", "priority_keep"),
+        row("current", 100.0, "Playing Song", "priority_none"),
+    ];
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["titles"], json!(["Playing Song", "Next Song"]), "{r}");
+    assert_eq!(
+        r["priorities"],
+        json!(["priority_none", "priority_keep"]),
+        "{r}"
+    );
+    assert_eq!(r["artist"], json!("Artist Five"), "{r}");
+    assert_eq!(r["playing"], json!(true), "{r}");
+    let row = keys::queue_item("next:0");
+    let o = overlay_until(&luna, 10, |o| {
+        o.host(&format!("{row}:title"))
+            .is_some_and(|h| h.text.is_some())
+    });
+    assert_eq!(
+        o.host(&format!("{row}:title")).unwrap().text.as_deref(),
+        Some("Wewwitten")
+    );
+    assert!(
+        o.host(&format!("{row}:img")).is_some_and(|h| h
+            .attrs
+            .iter()
+            .any(|(n, v)| n == "src" && v.contains("neko"))),
+        "{:?}",
+        o.host(&format!("{row}:img"))
+    );
+    finish(luna, dir);
+}

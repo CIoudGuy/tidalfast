@@ -771,6 +771,7 @@ pub fn end_frame(ctx: &egui::Context) {
         next.player = None;
         next.now_playing = None;
         next.context_menu = None;
+        next.queue_rows.clear();
         next.modal = None;
         next.main_scroll = None;
         next.node_rects.clear();
@@ -3366,6 +3367,21 @@ pub fn grid_card_cover(key: &str, r: Rect) -> Option<CoverStyle> {
 /// TIDAL's anchors (`._coverArtContainer_ > ._coverArt_ > img`) and returns
 /// what a theme made of them (Tidal Light's soft shadow). `None` while no
 /// theme styles them, so the art stays as drawn.
+/// The header byline's picture drawn at `r` (see
+/// [`dom_anchors::keys::BYLINE_PIC`]).
+pub fn byline_picture(r: Rect, url: Option<&str>) {
+    if !on() {
+        return;
+    }
+    note(|f| {
+        if let Some(p) = f.page.as_mut()
+            && let Some(r) = rect(r)
+        {
+            p.byline_picture = Some((r, url.map(str::to_string)));
+        }
+    });
+}
+
 pub fn hero_cover(r: Rect, radio: bool) -> Option<CoverStyle> {
     use dom_anchors::keys::{HERO_COVER, HERO_COVER_ART, HERO_COVER_IMG};
     if !on() {
@@ -7999,6 +8015,12 @@ pub(crate) fn test_tree_builds() -> u64 {
 #[cfg(test)]
 pub(crate) fn test_sent_tree() -> Option<HostTree> {
     with(|s| s.sent.clone())
+}
+
+/// The queue rows noted since the last call, taken.
+#[cfg(test)]
+pub(crate) fn test_take_queue_rows() -> Vec<dom_anchors::QueueRow> {
+    with(|s| std::mem::take(&mut s.frame.queue_rows))
 }
 
 /// The open context menu's rows noted this frame: label and `data-test`.

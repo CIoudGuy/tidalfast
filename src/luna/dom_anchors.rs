@@ -218,6 +218,10 @@ pub mod keys {
     /// look of the queue's other rows.
     pub const QUEUE_ROLE_ROW: &str = "queue-roles:row";
     pub const QUEUE_ROLE_HOVER_ROW: &str = "queue-roles:hover-row";
+    /// The open queue's list (`div[data-test=playqueue-scroll]
+    /// ._playQueueItems_84488b2 > div[role=table]`) round its drawn rows.
+    pub const QUEUE_LIST: &str = "queue-list";
+    pub const QUEUE_TABLE: &str = "queue-table";
 
     pub const NOW_PLAYING: &str = "now-playing";
     pub const NP_HEADER: &str = "now-playing-header";
@@ -390,6 +394,11 @@ pub mod keys {
     pub const HERO_COVER: &str = "hero-cover";
     pub const HERO_COVER_ART: &str = "hero-cover-art";
     pub const HERO_COVER_IMG: &str = "hero-cover-img";
+    /// The header byline's picture (the album's artist, the playlist's
+    /// owner): `span._creatorImageContainer_274e19d > div.
+    /// _creatorImages_6cd6b4e > div._avatar_7c6d39c > img._cellImage_`.
+    pub const BYLINE_PIC: &str = "byline-pic";
+    pub const BYLINE_PIC_IMG: &str = "byline-pic-img";
     /// A profile page's picture (`img._profilePicture_1786ea0._artworkImage_5bde5a4`,
     /// in a box of its own).
     pub const PROFILE_PIC: &str = "profile-pic";
@@ -482,6 +491,13 @@ pub mod keys {
     /// now-playing header); its label is `now-playing-tab:<name>:span`.
     pub fn now_playing_tab(name: &str) -> String {
         format!("now-playing-tab:{name}")
+    }
+    /// A row of the open queue, `queue-item:<id>` (`history:<i>`,
+    /// `current`, `next:<i>`): TIDAL 2.46.0's `div[data-test=playqueue-item]`;
+    /// its parts are `<row>:img` (the cover's `img`), `<row>:title` (the
+    /// title's `p`), `<row>:artists` and `<row>:artist:<i>`.
+    pub fn queue_item(id: &str) -> String {
+        format!("queue-item:{id}")
     }
     /// `lyric:<index>`
     pub fn lyric(index: usize) -> String {
@@ -722,6 +738,29 @@ pub struct Link {
     pub name: String,
 }
 
+/// A row the open play queue drew.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct QueueRow {
+    /// `history:<i>`, `current` or `next:<i>` ([`keys::queue_item`]).
+    pub id: String,
+    /// TIDAL's `data-test-priority`: `priority_history`, `priority_keep`
+    /// (a song the user queued) or `priority_none`.
+    pub priority: &'static str,
+    /// The playing song's row.
+    pub now_playing: bool,
+    pub track_id: String,
+    pub title: String,
+    pub artists: Vec<Link>,
+    pub cover_url: Option<String>,
+    /// TIDAL's cross for a song still to come, else its "..." menu.
+    pub removable: bool,
+    pub rect: Option<Rect>,
+    pub cover_rect: Option<Rect>,
+    pub title_rect: Option<Rect>,
+    pub artist_rect: Option<Rect>,
+    pub action_rect: Option<Rect>,
+}
+
 /// The app frame around pages.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Shell {
@@ -839,6 +878,8 @@ pub struct Page {
     /// The header is a track or artist radio's (TIDAL's `_coverArt_88c4d74`
     /// and `_coverArt_68a3984` art, not an album's `_coverArt_79d862c`).
     pub hero_radio: bool,
+    /// The header byline's picture and its address.
+    pub byline_picture: Option<(Rect, Option<String>)>,
     /// A profile page's round picture.
     pub profile_picture: Option<Rect>,
     /// The home page's shortcut tiles, in drawing order.
@@ -1146,6 +1187,8 @@ pub struct Frame {
     /// The open play queue panel's box, and whether it is over the
     /// now-playing view.
     pub queue_panel: Option<(Option<Rect>, bool)>,
+    /// The rows the open queue drew.
+    pub queue_rows: Vec<QueueRow>,
     pub context_menu: Option<ContextMenu>,
     pub modal: Option<ConfirmModal>,
     /// `main`'s scroll: [scrollTop, scrollHeight].
@@ -1273,6 +1316,9 @@ pub fn build(frame: &Frame) -> HostTree {
                 .text(text.clone())
                 .at(*rect),
         );
+    }
+    if frame.queue_panel.is_some() && !frame.queue_rows.is_empty() {
+        queue_rows(&mut out, &frame.queue_rows);
     }
     if let Some(player) = &frame.player {
         player_bar(&mut out, player, frame.shell.fullscreen);
@@ -2402,6 +2448,45 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         out.push(art_box);
         out.push(el(keys::HERO_COVER_IMG, Some(keys::HERO_COVER_ART), "img").at(Some(art)));
     }
+    // TIDAL 2.46.0's byline picture (captured on an album).
+    if let Some((r, url)) = &page.byline_picture {
+        out.push(
+            el(keys::BYLINE_PIC, Some(PAGE_DATA), "span")
+                .class("_creatorImageContainer_274e19d")
+                .at(Some(*r)),
+        );
+        out.push(
+            el(
+                format!("{}:images", keys::BYLINE_PIC),
+                Some(keys::BYLINE_PIC),
+                "div",
+            )
+            .class("_creatorImages_6cd6b4e")
+            .at(Some(*r)),
+        );
+        out.push(
+            el(
+                format!("{}:avatar", keys::BYLINE_PIC),
+                Some(&format!("{}:images", keys::BYLINE_PIC)),
+                "div",
+            )
+            .class("tidal-ui__geometry")
+            .class("_avatar_7c6d39c")
+            .at(Some(*r)),
+        );
+        let mut img = el(
+            keys::BYLINE_PIC_IMG,
+            Some(&format!("{}:avatar", keys::BYLINE_PIC)),
+            "img",
+        )
+        .class("_cellImage_0ef8dd3")
+        .class("_image_145331a")
+        .at(Some(*r));
+        if let Some(url) = url {
+            img = img.attr("src", url.clone());
+        }
+        out.push(img);
+    }
 }
 
 /// The header's captioned buttons as TIDAL 2.46.0 builds them, after the
@@ -3376,6 +3461,176 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying, fullscreen: bool) {
     );
 }
 
+/// The open queue's rows as TIDAL 2.46.0 has them (its bundle and a
+/// capture): in the scroll box's table, each in its virtual list's slot
+/// (`div[data-index]`) and effects box, `div[data-test=playqueue-item]
+/// [role=row]` holding the cover (`div[data-test=cell-cover] > img.
+/// _cellImage_`), the title (`a[data-test=playqueue-item-title] >
+/// p._titleText_6563d98`), the artist links and the cross or "..." button,
+/// in the order they are on screen.
+pub fn queue_rows(out: &mut Vec<HostNode>, rows: &[QueueRow]) {
+    use keys::*;
+    let span = rows.iter().filter_map(|r| r.rect).reduce(|a, b| {
+        let (x0, y0) = (a[0].min(b[0]), a[1].min(b[1]));
+        let (x1, y1) = (
+            (a[0] + a[2]).max(b[0] + b[2]),
+            (a[1] + a[3]).max(b[1] + b[3]),
+        );
+        [x0, y0, x1 - x0, y1 - y0]
+    });
+    out.push(
+        el(QUEUE_LIST, Some(QUEUE_WRAPPER), "div")
+            .class("_playQueueItems_84488b2")
+            .test("playqueue-scroll")
+            .attr("aria-label", "Play queue")
+            .at(span),
+    );
+    out.push(
+        el(QUEUE_TABLE, Some(QUEUE_LIST), "div")
+            .attr("role", "table")
+            .attr("aria-label", "Play queue")
+            .at(span),
+    );
+    let mut order: Vec<&QueueRow> = rows.iter().collect();
+    order.sort_by(|a, b| {
+        let y = |r: &QueueRow| r.rect.map_or(f32::MAX, |r| r[1]);
+        y(a).total_cmp(&y(b))
+    });
+    for (index, row) in order.into_iter().enumerate() {
+        let key = queue_item(&row.id);
+        let part = |name: &str| format!("{key}:{name}");
+        out.push(
+            el(part("slot"), Some(QUEUE_TABLE), "div")
+                .attr("data-index", index.to_string())
+                .at(row.rect),
+        );
+        out.push(
+            el(part("fx"), Some(&part("slot")), "div")
+                .class("_fxContainer_c9d502b")
+                .at(row.rect),
+        );
+        let mut node = el(key.clone(), Some(&part("fx")), "div");
+        if row.priority == "priority_history" {
+            node = node.class("_containerPriorityHistory_1e38e0b");
+        }
+        out.push(
+            node.class("_container_aab70e3")
+                .test("playqueue-item")
+                .attr("data-test-media-item-id", row.track_id.clone())
+                .attr("data-test-priority", row.priority)
+                .attr("role", "row")
+                .at(row.rect),
+        );
+        out.push(
+            el(part("cell"), Some(&key), "div")
+                .class("_cellContainer_182d240")
+                .attr("role", "cell")
+                .at(row.cover_rect),
+        );
+        if row.now_playing {
+            out.push(
+                el(part("playing-icon"), Some(&part("cell")), "span")
+                    .class("_nowPlayingIconContainer_615aacb")
+                    .test("nowplaying-icon")
+                    .at(row.cover_rect),
+            );
+        }
+        out.push(
+            el(part("cover-box"), Some(&part("cell")), "div")
+                .class("_cellCoverContainer_c92ee9d")
+                .at(row.cover_rect),
+        );
+        out.push(
+            el(part("cover"), Some(&part("cover-box")), "div")
+                .class("_cellContainer_c39825b")
+                .test("cell-cover")
+                .attr("role", "group")
+                .at(row.cover_rect),
+        );
+        let mut img = el(part("img"), Some(&part("cover")), "img")
+            .class("_cellImage_0ef8dd3")
+            .class("_image_145331a")
+            .at(row.cover_rect);
+        if let Some(url) = &row.cover_url {
+            img = img.attr("src", url.clone());
+        }
+        out.push(img);
+        if row.now_playing {
+            out.push(
+                el(part("playing-cell"), Some(&part("cell")), "div")
+                    .class("_nowPlayingCell_883ec8f")
+                    .at(row.cover_rect),
+            );
+        }
+        out.push(
+            el(part("group"), Some(&key), "div")
+                .class("_titleArtistGroup_41b8765")
+                .attr("role", "cell"),
+        );
+        out.push(
+            el(part("title-box"), Some(&part("group")), "div")
+                .class("_cellColumnDefaults_fb96706")
+                .at(row.title_rect),
+        );
+        out.push(
+            el(part("title-link"), Some(&part("title-box")), "a")
+                .class("_titleLink_712223c")
+                .test("playqueue-item-title")
+                .attr("title", row.title.clone())
+                .attr("href", format!("/track/{}", row.track_id))
+                .at(row.title_rect),
+        );
+        out.push(
+            el(part("title"), Some(&part("title-link")), "p")
+                .class("_marketText_1lyag_1")
+                .class("_medium20_1lyag_192")
+                .class("_titleText_6563d98")
+                .text(row.title.clone())
+                .at(row.title_rect),
+        );
+        out.push(
+            el(part("artists"), Some(&part("group")), "span")
+                .class("_marketText_1lyag_1")
+                .class("_paragraph20_1lyag_138")
+                .class("_text20_1lyag_291")
+                .class("_artistText_73966a1")
+                .at(row.artist_rect),
+        );
+        for (i, a) in row.artists.iter().enumerate() {
+            out.push(
+                el(part(&format!("artist:{i}")), Some(&part("artists")), "a")
+                    .class("_item_39605ae")
+                    .class("_link_6a45a19")
+                    .test("grid-item-detail-text-title-artist")
+                    .attr("aria-label", a.name.clone())
+                    .attr("title", a.name.clone())
+                    .attr("href", format!("/artist/{}", a.id))
+                    .text(a.name.clone()),
+            );
+        }
+        out.push(
+            el(part("actions"), Some(&key), "div")
+                .class("_actions_3b2b8f9")
+                .attr("role", "cell")
+                .at(row.action_rect),
+        );
+        let button = if row.removable {
+            el(part("remove"), Some(&part("actions")), "button")
+                .class("_removeButton_a439eeb")
+                .test("remove-button")
+                .attr("title", "Remove")
+        } else {
+            el(part("menu"), Some(&part("actions")), "button")
+                .class("_button_a3412d0")
+                .class("_contextMenuButton_5f2de86")
+                .test("play-queue-item-context-menu")
+                .attr("aria-label", "Show options")
+                .attr("title", "Show options")
+        };
+        out.push(button.at(row.action_rect));
+    }
+}
+
 /// `[data-test=contextmenu]` with `[data-type=contextmenu-item]` rows.
 pub fn context_menu(out: &mut Vec<HostNode>, menu: &ContextMenu) {
     out.push(
@@ -3580,6 +3835,7 @@ pub fn sample_frame() -> Frame {
         }),
         queue_title: None,
         queue_panel: None,
+        queue_rows: Vec::new(),
         context_menu: Some(ContextMenu {
             rect: r(400.0, 300.0, 220.0, 120.0),
             items: vec![MenuItem {
