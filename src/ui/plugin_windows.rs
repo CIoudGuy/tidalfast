@@ -3,8 +3,8 @@
 //! its own (an egui deferred viewport), where its page's document is drawn
 //! by the same renderer as plugin elements in the app
 //! ([`super::plugin_slots::page`]), with the page's own overlay, variables
-//! and viewport ([`super::plugin_dom::with_page`]). Clicks and the pointer
-//! there go back to the page's listeners; `-webkit-app-region: drag` moves
+//! and viewport ([`super::plugin_dom::with_page`]). Clicks, the pointer and
+//! the keyboard there go back to the page's listeners; `-webkit-app-region: drag` moves
 //! a frameless window; closing it asks the plugin, as Electron does.
 //!
 //! A window repaints only when its page changed or the user acts on it,
@@ -256,6 +256,38 @@ fn pace(ctx: &egui::Context, frame_in: Option<f64>) {
     crate::theme::repaint_after(ctx, Duration::from_secs_f64(seconds.max(0.0)).max(cap));
 }
 
+/// The keys pressed and released in the window this pass, as the page's
+/// `keydown` and `keyup` (Chromium sends them to the focused element, else
+/// the body, and they bubble to the document and the window).
+fn key_events(ctx: &egui::Context) -> Vec<DomEvent> {
+    ctx.input(|i| {
+        i.events
+            .iter()
+            .filter_map(|e| match e {
+                egui::Event::Key {
+                    key,
+                    pressed,
+                    repeat,
+                    modifiers: m,
+                    ..
+                } => {
+                    let (dom_key, code) = plugin_dom::dom_key(*key, m.shift);
+                    Some(DomEvent {
+                        target: DomTarget::Host(String::new()),
+                        kind: if *pressed { "keydown" } else { "keyup" }.into(),
+                        data: serde_json::json!({
+                            "key": dom_key, "code": code, "repeat": repeat,
+                            "shiftKey": m.shift, "ctrlKey": m.ctrl, "altKey": m.alt,
+                            "metaKey": m.mac_cmd,
+                        }),
+                    })
+                }
+                _ => None,
+            })
+            .collect()
+    })
+}
+
 /// Whether a press at `p` moves the window: the innermost box with a
 /// `-webkit-app-region` there decides (`regions` lists inner boxes first),
 /// as Electron's drag and no-drag regions nest.
@@ -358,6 +390,7 @@ fn draw_pass(ui: &mut egui::Ui, w: &PageWindow) {
         }
     });
     pace(&ctx, scope.frame_in);
+    let keys = key_events(&ctx);
     let pointer = ctx.input(|i| i.pointer.hover_pos());
     if ctx.input(|i| i.pointer.primary_pressed())
         && pointer.is_some_and(|p| drags(&scope.regions, p))
@@ -403,7 +436,7 @@ fn draw_pass(ui: &mut egui::Ui, w: &PageWindow) {
                 data: serde_json::Value::Null,
             });
         }
-        for e in scope.events {
+        for e in scope.events.into_iter().chain(keys) {
             w.dom_event(e);
         }
         if win.sent.as_ref() != Some(&tree) {
@@ -606,6 +639,66 @@ mod tests {
         assert!(
             !drags(&regions, Pos2::new(299.0, 150.0)),
             "outside the body"
+        );
+    }
+
+    /// Keys pressed in the window go to the page's document as `keydown`
+    /// and `keyup` with the DOM's `key`, `code` and modifiers.
+    #[test]
+    fn keys_in_the_window_go_to_the_page() {
+        let ctx = egui::Context::default();
+        let key = |key, pressed, modifiers| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers,
+        };
+        let mut events = Vec::new();
+        let mut out = ctx.run_ui(
+            egui::RawInput {
+                events: vec![
+                    key(egui::Key::Escape, true, egui::Modifiers::NONE),
+                    key(egui::Key::A, true, egui::Modifiers::SHIFT),
+                    key(egui::Key::Escape, false, egui::Modifiers::NONE),
+                ],
+                ..egui::RawInput::default()
+            },
+            |ui| events = key_events(ui.ctx()),
+        );
+        out.textures_delta.clear();
+        let seen: Vec<_> = events
+            .iter()
+            .map(|e| {
+                (
+                    e.target.clone(),
+                    e.kind.as_str(),
+                    e.data["key"].clone(),
+                    e.data["code"].clone(),
+                    e.data["shiftKey"].clone(),
+                )
+            })
+            .collect();
+        let doc = DomTarget::Host(String::new());
+        assert_eq!(
+            seen,
+            [
+                (
+                    doc.clone(),
+                    "keydown",
+                    "Escape".into(),
+                    "Escape".into(),
+                    false.into()
+                ),
+                (
+                    doc.clone(),
+                    "keydown",
+                    "A".into(),
+                    "KeyA".into(),
+                    true.into()
+                ),
+                (doc, "keyup", "Escape".into(), "Escape".into(), false.into()),
+            ]
         );
     }
 

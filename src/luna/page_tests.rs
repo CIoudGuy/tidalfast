@@ -472,3 +472,29 @@ fn a_page_sees_its_windows_display_and_scale() {
     );
     assert_eq!(ua.contains("Windows NT 10.0"), cfg!(windows), "{ua}");
 }
+
+/// A key the user presses in the window reaches the page's document
+/// listeners as Chromium sends it: on the focused element, else the body,
+/// bubbling to the document (lyrics-everywhere's window closes on Escape).
+#[test]
+fn a_key_in_the_window_reaches_the_pages_listeners() {
+    let page = open(
+        r#"<body><script>document.addEventListener("keydown", (e) => probe.send("probe.key", [e.key, e.code, e.shiftKey, e.target.tagName, e.isTrusted]));</script></body>"#,
+        "data:text/html,x",
+        Some(PRELOAD),
+    );
+    page.next(|m| matches!(m, FromPage::Loaded { .. }).then_some(()));
+    page.window().dom_event(DomEvent {
+        target: DomTarget::Host(String::new()),
+        kind: "keydown".into(),
+        data: json!({ "key": "Escape", "code": "Escape", "repeat": false, "shiftKey": false }),
+    });
+    let args = page.next(|m| match m {
+        FromPage::Ipc { channel, args, .. } if channel == "probe.key" => Some(args),
+        _ => None,
+    });
+    assert_eq!(
+        serde_json::from_str::<Value>(&args).unwrap(),
+        json!([["Escape", "Escape", false, "BODY", true]])
+    );
+}
