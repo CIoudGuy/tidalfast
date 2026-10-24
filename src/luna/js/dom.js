@@ -1474,12 +1474,12 @@
 			const dy = typeof a === "object" && a !== null ? (a.top ?? 0) : (b ?? 0);
 			this.scrollTo({ top: this.scrollTop + Number(dy) });
 		}
-		scrollIntoView() {
+		scrollIntoView(opts) {
 			touch();
-			D.scrollIntoView(this);
+			D.scrollIntoView(this, opts);
 		}
-		scrollIntoViewIfNeeded() {
-			this.scrollIntoView();
+		scrollIntoViewIfNeeded(center) {
+			this.scrollIntoView({ block: center === false ? "nearest" : "center" });
 		}
 		focus() {
 			if (focused === this) return;
@@ -2827,7 +2827,29 @@
 		for (let n = el; n; n = n.parentNode) if (n._hostKey !== undefined) return n;
 		return null;
 	};
-	D.scrollIntoView = (el) => {
+	// Scrolls asked of the plugins' own elements (in the app or a plugin
+	// window's page), the newest per element, for the UI. The count starts
+	// from the clock so a restarted runtime's requests are newer still.
+	const nodeScrolls = new Map();
+	let nodeScrollSeq = Date.now();
+	const ownNode = (el) => el instanceof Element && el._hostKey === undefined && el.isConnected && vidOf(el) !== undefined;
+	const askNodeScroll = (el, ask) => {
+		nodeScrolls.delete(el._vid);
+		nodeScrolls.set(el._vid, { id: el._vid, ...ask, seq: ++nodeScrollSeq });
+		for (const id of nodeScrolls.keys()) {
+			if (nodeScrolls.size <= 64) break;
+			nodeScrolls.delete(id);
+		}
+		contentDirty();
+	};
+	D.nodeScrolls = () => [...nodeScrolls.values()].filter((s) => vnodes.has(s.id)).sort((a, b) => a.id - b.id);
+	D.scrollIntoView = (el, opts) => {
+		if (ownNode(el)) {
+			const o = typeof opts === "object" && opts !== null ? opts : { block: opts === false ? "end" : "start" };
+			const block = ["start", "center", "end", "nearest"].includes(o.block) ? o.block : "start";
+			askNodeScroll(el, { block, smooth: o.behavior === "smooth" });
+			return;
+		}
 		const h = hostAnchorOf(el);
 		if (!h) return;
 		scrollTo = [h._hostKey, ++scrollSeq];
@@ -2836,6 +2858,10 @@
 	// A scroll position asked of a host container: remembered for the UI, and
 	// translated to the host row nearest the middle of the new viewport.
 	D.requestScroll = (el, top) => {
+		if (ownNode(el)) {
+			askNodeScroll(el, { top });
+			return;
+		}
 		const h = hostAnchorOf(el);
 		if (!h) return;
 		scrollTop = [h._hostKey, top, ++scrollSeq];
@@ -3411,8 +3437,10 @@
 			if (el.checked !== was[0] || el.value !== was[1]) markDirty();
 		}
 		if (type === "scroll" && d.scrollTop !== undefined) {
-			el._scroll = [Number(d.scrollTop) || 0, el._scroll?.[1] ?? Number(d.scrollHeight) ?? 0];
+			el._scroll = [Number(d.scrollTop) || 0, d.scrollHeight !== undefined ? Number(d.scrollHeight) || 0 : (el._scroll?.[1] ?? 0)];
 			el._scrollTop = undefined;
+			// What the box holds changed, or its first report: no scroll happened.
+			if (d.quiet === true) return;
 		}
 		if (type === "focus") {
 			focused = el;
@@ -3723,6 +3751,8 @@
 		const ov = { vars: css.vars, page: css.page, hosts: hostsOut, injected, fonts: [...css.fonts, ...fontFaces()], scroll_to: scrollTo, css_bytes: css.bytes };
 		if (css.wimpFill) ov.wimp_fill = css.wimpFill;
 		if (scrollTop) ov.scroll_top = scrollTop;
+		const ns = D.nodeScrolls();
+		if (ns.length) ov.node_scrolls = ns;
 		if (hostClicks.length) ov.clicks = hostClicks.slice();
 		if (css.keyframes && Object.keys(css.keyframes).length) ov.keyframes = css.keyframes;
 		if (css.hover) ov.hover = true;

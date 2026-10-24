@@ -423,3 +423,32 @@ fn a_grids_cells_hold_their_absolutely_placed_names() {
     assert!(near(n[0], 15.0) && near(n[0] + n[2], 177.0), "{b:?}");
     assert!(near(n[1] + n[3], 69.0), "{b:?}");
 }
+
+/// A page's scripts scroll its scroll boxes: `scrollIntoView({block:
+/// "center"})` puts a line in the middle of the box round it
+/// (lyrics-everywhere's sung line) and `scrollTop =` moves a box (Chromium:
+/// line 10 at 30 in its 100-pixel box, the second box's sixth line at its
+/// top).
+#[test]
+fn a_pages_scripts_scroll_its_scroll_boxes() {
+    let lines = |p: &str| -> String {
+        (0..20)
+            .map(|i| format!(r#"<div id="{p}{i}">{p}{i}</div>"#))
+            .collect()
+    };
+    let html = format!(
+        r#"<!doctype html><html><head><style>
+        *{{margin:0;padding:0;box-sizing:border-box}}
+        .s{{height:100px;overflow-y:auto;width:200px}}
+        .s div{{height:40px}}
+        </style></head><body><div class="s" id="s">{}</div><div class="s" id="t">{}</div>
+        <script>document.getElementById("l10").scrollIntoView({{block: "center"}});
+        document.getElementById("t").scrollTop = 200;</script></body></html>"#,
+        lines("l"),
+        lines("m")
+    );
+    let b = boxes(&html, [400.0, 300.0]);
+    assert_eq!(b["s"], [0.0, 0.0, 200.0, 100.0], "{b:?}");
+    assert!(near(b["l10"][1], 30.0), "{:?} {:?}", b["l10"], b["s"]);
+    assert!(near(b["m5"][1], 100.0), "{:?} {:?}", b["m5"], b["t"]);
+}

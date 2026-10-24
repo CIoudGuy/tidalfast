@@ -3640,16 +3640,53 @@ fn scroll_box<R>(
     ui: &mut egui::Ui,
     id: u64,
     scroll: Option<(f32, bool)>,
+    style: &Style,
+    offset: Option<f32>,
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
     match scroll {
         Some((height, fixed)) => {
-            egui::ScrollArea::vertical()
+            let mut area = egui::ScrollArea::vertical()
                 .id_salt(("luna-scroll", id))
                 .max_height(height.max(1.0))
-                .auto_shrink([false, !fixed])
-                .show(ui, add)
-                .inner
+                .auto_shrink([false, !fixed]);
+            // `scrollbar-width: none` scrolls with no bar
+            // (lyrics-everywhere's lyrics).
+            if style
+                .scrollbar_width
+                .as_deref()
+                .is_some_and(|w| w.trim() == "none")
+            {
+                area = area
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden);
+            }
+            // `scrollTop =`, `scrollTo()`, `scrollBy()` from the page.
+            if let Some(top) = offset {
+                area = area.vertical_scroll_offset(top.max(0.0));
+            }
+            let out = area.show(ui, add);
+            // The page reads where the box is (`scrollTop`, `scrollHeight`)
+            // and hears `scroll` when the user or a script moves it; the
+            // first report and a change of what it holds only update what
+            // it reads, as no scroll happened.
+            let top = out.state.offset.y;
+            let held = out.content_size.y;
+            let sent_id = egui::Id::new(("luna-scroll-sent", id));
+            let last: Option<[f32; 2]> = ui.data(|d| d.get_temp(sent_id));
+            let moved = last.is_some_and(|l| (l[0] - top).abs() > 0.5);
+            if moved || last.is_none_or(|l| (l[1] - held).abs() > 0.5) {
+                ui.data_mut(|d| d.insert_temp(sent_id, [top, held]));
+                plugin_dom::send(
+                    DomTarget::Node(id),
+                    "scroll",
+                    json!({
+                        "scrollTop": top,
+                        "scrollHeight": held.max(out.inner_rect.height()),
+                        "quiet": !moved,
+                    }),
+                );
+            }
+            out.inner
         }
         None => add(ui),
     }
@@ -5307,6 +5344,16 @@ fn draw_box(
             .map(|_| m)
     });
     let mut content_natural: Option<f32> = None;
+    // A scroll the plugin asked of this element and not made yet: a new
+    // `scrollTop` for its scroll box, or a place for it in the scroll
+    // boxes round it (`scrollIntoView`).
+    let asked = plugin_dom::node_scroll(node.id).filter(|a| {
+        ui.data(|d| d.get_temp::<u64>(egui::Id::new(("luna-scroll-seq", node.id))))
+            .is_none_or(|seq| seq < a.seq)
+    });
+    if let Some(a) = &asked {
+        ui.data_mut(|d| d.insert_temp(egui::Id::new(("luna-scroll-seq", node.id)), a.seq));
+    }
     // An `<ol>`'s items are numbered from 1 within it.
     let list = matches!(node.tag.as_str(), "ul" | "ol" | "menu");
     if list {
@@ -5501,7 +5548,8 @@ fn draw_box(
                 } else {
                     ui.available_size()
                 };
-                scroll_box(ui, node.id, scroll, |ui| {
+                let offset = asked.as_ref().and_then(|a| a.top);
+                scroll_box(ui, node.id, scroll, style, offset, |ui| {
                     ui.allocate_ui_with_layout(room, layout, |ui| {
                         if shrink {
                             // Its width is what it holds, which must not depend
@@ -6142,6 +6190,20 @@ fn draw_box(
         // region is the border box too: the margins are outside both.
         let border_box = rect - margin.map_or(Margin::ZERO, margin_of);
         plugin_dom::node_drawn(node.id, border_box);
+        if let Some(block) = asked.as_ref().and_then(|a| a.block.as_deref()) {
+            let align = match block {
+                "center" => Some(Align::Center),
+                "end" => Some(Align::Max),
+                "nearest" => None,
+                _ => Some(Align::Min),
+            };
+            let animation = if asked.as_ref().is_some_and(|a| a.smooth) {
+                ui.style().scroll_animation
+            } else {
+                egui::style::ScrollAnimation::none()
+            };
+            ui.scroll_to_rect_animation(border_box, align, animation);
+        }
         if let Some(region) = style.app_region.as_deref() {
             plugin_dom::app_region(border_box, region.trim() == "drag");
         }
