@@ -1112,6 +1112,7 @@ fn track_menu(
 ) {
     let palette = app.palette;
     let locale = app.locale;
+    super::plugin_dom::menu_subject("track");
     fixed_width(ui, MENU_WIDTH);
     let uri = item.uri().to_string();
     let PlayableItem::Track(track) = item;
@@ -1523,6 +1524,12 @@ pub fn context_menu_with_head(
         data
     });
     let kind = util::uri_kind(uri).unwrap_or("");
+    if let Some(subject) = ["album", "artist", "playlist", "mix", "track"]
+        .into_iter()
+        .find(|k| *k == kind)
+    {
+        super::plugin_dom::menu_subject(subject);
+    }
     // A card on a shelf was never asked about: read whether it is followed
     // or saved as the menu opens, so Follow and Unfollow tell the truth.
     if matches!(kind, "artist" | "album" | "playlist" | "mix") && app.is_saved(uri).is_none() {

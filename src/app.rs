@@ -13207,6 +13207,7 @@ impl App {
             ui.max_rect(),
             self.page(),
         );
+        crate::ui::plugin_dom::set_locale(self.locale);
         self.apply_theme(ctx);
         let autoscroll_on = crate::autoscroll::enabled(self.settings.middle_click_autoscroll);
         self.autoscroll.begin(ctx, autoscroll_on);

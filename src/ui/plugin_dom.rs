@@ -114,6 +114,12 @@ struct State {
     modal_open: bool,
     /// The next menu row is an Add to playlist entry for this uuid.
     next_playlist: Option<String>,
+    /// What the open context menu is about (`track`, `album`, `artist`,
+    /// `playlist`, `mix`), for its rows' TIDAL ids.
+    menu_subject: Option<&'static str>,
+    /// The app's language: the menu rows' labels are read back to TIDAL's
+    /// ids in it.
+    locale: crate::i18n::Locale,
     /// The `min-width` of each column plugins insert before the time
     /// column (0 where none is set), in order.
     extra_cols: Vec<f32>,
@@ -656,6 +662,7 @@ pub fn end_frame(ctx: &egui::Context) {
         paint_host_labels(ctx, s);
         s.modal_open = s.frame.modal.is_some();
         s.next_playlist = None;
+        s.menu_subject = None;
         let mut frame = std::mem::take(&mut s.frame);
         let mut unchanged = s.last_frame.as_ref() == Some(&frame);
         // Transition and animation events due now go after the boxes as
@@ -4107,9 +4114,88 @@ pub fn next_menu_row_style() -> Option<NavStyle> {
     }
 }
 
+/// The app's language this frame (see [`State::locale`]).
+pub fn set_locale(locale: crate::i18n::Locale) {
+    with(|s| s.locale = locale);
+}
+
+/// The open context menu is about a `subject` (`track`, `album`, ...):
+/// TIDAL names some rows by it (Credits is `show-track-info` or
+/// `show-album-info`).
+pub fn menu_subject(subject: &'static str) {
+    if on() {
+        with(|s| s.menu_subject = Some(subject));
+    }
+}
+
+/// TIDAL 2.46.0's `data-test` of each context menu row (its bundle's menu
+/// items), by Tidalfast's English label and, where TIDAL tells them apart,
+/// the menu's subject. Rows TIDAL does not have get none, as a plugin's
+/// rows in TIDAL's menu have none.
+const TIDAL_MENU_IDS: &[(Option<&str>, &str, &str)] = &[
+    (None, "Play next", "play-next"),
+    (None, "Play now", "play-now"),
+    (None, "Add to queue", "add-to-queue"),
+    (None, "Add to playlist", "add-to-playlist"),
+    (
+        None,
+        "Add to My Collection",
+        "add-to-remove-from-collection",
+    ),
+    (
+        None,
+        "Remove from My Collection",
+        "add-to-remove-from-collection",
+    ),
+    (None, "Save for Later", "save-for-later"),
+    (None, "Remove from Save for Later", "save-for-later"),
+    (None, "Go to track radio", "track-radio"),
+    (None, "Go to artist radio", "artist-radio"),
+    (None, "Go to album", "go-to-album"),
+    (None, "Go to artist", "go-to-artist"),
+    (Some("album"), "Credits", "show-album-info"),
+    (None, "Credits", "show-track-info"),
+    (None, "Share", "share"),
+    (None, "Copy link", "copy-share-link"),
+    (None, "Copy embed code", "share-embed"),
+    (None, "Invite as collaborator", "share-invite-collaborator"),
+    (None, "Bio", "artist-info"),
+    (Some("track"), "Block", "block-track"),
+    (None, "Block", "block-artist"),
+    (None, "Unblock", "unblock"),
+    (None, "Follow", "toggle-follow"),
+    (None, "Unfollow", "toggle-follow"),
+    (None, "Remove from playlist", "contextmenu-delete"),
+    (None, "Edit playlist", "playlist-edit"),
+    (None, "Delete playlist", "delete-playlist"),
+    (None, "Make private", "toggle-playlist-public"),
+    (None, "Make public", "toggle-playlist-public"),
+    (None, "Move to folder", "move-to-folder"),
+    (None, "Collaborators", "playlist-collaborators"),
+    (None, "Create new playlist", "create-new-playlist"),
+    (None, "Create folder", "create-folder"),
+    (None, "Shuffle", "shuffle"),
+];
+
+/// The `data-test` TIDAL gives the menu row labelled `label` (in
+/// `locale`), if it has that row.
+fn tidal_menu_id(
+    locale: crate::i18n::Locale,
+    subject: Option<&str>,
+    label: &str,
+) -> Option<&'static str> {
+    TIDAL_MENU_IDS
+        .iter()
+        .find(|(about, english, _)| {
+            about.is_none_or(|a| Some(a) == subject)
+                && crate::i18n::gettext(locale, english) == label
+        })
+        .map(|(_, _, id)| *id)
+}
+
 /// A row of an open context menu: becomes a `[data-type=contextmenu-item]`
-/// whose link's `data-test` is the label as a slug. Clicks go to plugins
-/// listening on the item (track-radio).
+/// whose link's `data-test` is TIDAL's for that row ([`TIDAL_MENU_IDS`]).
+/// Clicks go to plugins listening on the item (track-radio).
 pub fn menu_item(ui: &mut egui::Ui, label: &str, enabled: bool, response: &egui::Response) {
     if !on() {
         return;
@@ -4130,8 +4216,9 @@ pub fn menu_item(ui: &mut egui::Ui, label: &str, enabled: bool, response: &egui:
             }
             None => [r.left(), r.top(), r.width(), r.height()],
         });
+        let action = tidal_menu_id(s.locale, s.menu_subject, label).unwrap_or_default();
         menu.items.push(dom_anchors::MenuItem {
-            action: slug(label),
+            action: action.to_string(),
             label: label.to_string(),
             disabled: !enabled,
             rect: rect(r),
@@ -4194,19 +4281,6 @@ pub fn next_menu_playlist(uuid: &str) {
     if on() {
         with(|s| s.next_playlist = Some(uuid.to_string()));
     }
-}
-
-/// `Go to track radio` -> `go-to-track-radio`.
-pub fn slug(label: &str) -> String {
-    let mut out = String::with_capacity(label.len());
-    for c in label.chars() {
-        if c.is_alphanumeric() {
-            out.extend(c.to_lowercase());
-        } else if !out.ends_with('-') && !out.is_empty() {
-            out.push('-');
-        }
-    }
-    out.trim_end_matches('-').to_string()
 }
 
 /// A plugin's `scrollTo` on `key`, once per request.
@@ -7922,6 +7996,23 @@ pub(crate) fn test_tree_builds() -> u64 {
 #[cfg(test)]
 pub(crate) fn test_sent_tree() -> Option<HostTree> {
     with(|s| s.sent.clone())
+}
+
+/// The open context menu's rows noted this frame: label and `data-test`.
+#[cfg(test)]
+pub(crate) fn test_menu_rows() -> Vec<(String, String)> {
+    with(|s| {
+        s.frame
+            .context_menu
+            .as_ref()
+            .map(|m| {
+                m.items
+                    .iter()
+                    .map(|i| (i.label.clone(), i.action.clone()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    })
 }
 
 #[cfg(test)]
