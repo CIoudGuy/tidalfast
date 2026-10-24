@@ -145,3 +145,29 @@ fn the_sidebars_aside_paints_over_the_wrappers_fill() {
         .all(|(a, b)| a.abs_diff(b) <= 1);
     assert!(near, "Tidalfast {both:?}, Chromium {chromium:?}");
 }
+
+/// TIDAL's bar glass is the bar's `::after` (TIDAL 2.46.0: `background:
+/// #282828bf`); its `::before` is the shadow above the bar. A theme that
+/// hides the `::before` keeps the glass: Sunken Tidal's rgb(10, 10, 10)
+/// bar shows rgb(31, 31, 31) in TIDAL, Lunallena's (which draws a line in
+/// it) rgb(38, 38, 38). Tidalfast took any styled `::before` for the glass
+/// and drew the themes' own colours, rgb(10, 10, 10) and rgb(27, 27, 27).
+#[test]
+fn a_bar_whose_before_a_theme_hides_keeps_tidals_glass() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Sunk bar"} */
+#footerPlayer { background-color: rgb(10, 10, 10); }
+[data-test="footer-player"]::before { display: none !important; }
+"#;
+    let o = overlay(
+        "sunk-bar.css",
+        css,
+        &dom_anchors::sample_frame(),
+        dom_anchors::keys::FOOTER,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let bar = pd::footer_under_glass(egui::Color32::from_gray(10), egui::Color32::BLACK);
+    pd::test_overlay(None);
+    // TIDAL's glass over the theme's grey 10: 30 + 10 / 4.
+    assert!(bar.r().abs_diff(32) <= 1, "{bar:?}");
+}

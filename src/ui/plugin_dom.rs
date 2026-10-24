@@ -6592,37 +6592,47 @@ fn luminance(c: Color32) -> f32 {
 /// plugin's background, else `native`. A page painted by a plugin
 /// ([`paint_page`]) shows through the main area and sidebar.
 /// The player bar's colour when a theme fills `#footerPlayer` itself:
-/// TIDAL lays its own glass (`#282828` at 75 %) over that fill unless the
-/// theme styles the bar's `::before` (the cotton candy family hides it)
-/// or clears the background or backdrop filter of its `::after`, where
-/// the glass is (TidalCustomTheme's `[class^="_player_"]:after {
-/// background: none; backdrop-filter: none }` leaves its pink bar pink in
-/// TIDAL). Measured: Tidal Amoled's black bar shows rgb(31, 31, 31) in
-/// TIDAL, Minimalist Black's `#181818` rgb(36, 36, 36). `fill` is the
-/// theme's colour, `under` what lies beneath a see-through one.
+/// TIDAL lays its own glass (`#282828` at 75 %) over that fill (see
+/// [`footer_glass`]). Measured: Tidal Amoled's black bar shows rgb(31,
+/// 31, 31) in TIDAL, Minimalist Black's `#181818` rgb(36, 36, 36). `fill`
+/// is the theme's colour, `under` what lies beneath a see-through one.
 pub fn footer_under_glass(fill: Color32, under: Color32) -> Color32 {
-    if !on() {
-        return fill;
+    if footer_glass() {
+        tidal_bar_glass(fill, under)
+    } else {
+        fill
     }
-    let styled = host(dom_anchors::keys::FOOTER, |h, _| {
-        let glass = h.after.as_ref().is_some_and(|a| {
+}
+
+/// Whether TIDAL's own bar glass lies over a theme's look for the bar.
+/// The glass is the bar's `::after` (TIDAL 2.46.0: `background:
+/// #282828bf; backdrop-filter: blur(20px) saturate(180%); z-index: -1;
+/// inset: 0`): it covers the bar's own background, colour and pictures
+/// (Sugarcoat's and Cotton Candy's radial glow under it), unless the
+/// theme clears the background or backdrop filter of that `::after` or
+/// hides it (TidalCustomTheme's `[class^="_player_"]:after { background:
+/// none; backdrop-filter: none }` leaves its pink bar pink in TIDAL). The
+/// bar's `::before` is TIDAL's shadow above the bar, not the glass: a
+/// theme that hides it (Sunken Tidal, the cotton candy family) or draws a
+/// line in it (Lunallena) keeps the glass.
+pub fn footer_glass() -> bool {
+    if !on() {
+        return false;
+    }
+    host(dom_anchors::keys::FOOTER, |h, vars| {
+        let cleared = h.after.as_ref().is_some_and(|a| {
             a.background_color.is_some()
                 || a.background_image.is_some()
                 || a.backdrop_filter.is_some()
                 || a.display.is_some()
         });
-        Some(h.before.is_some() || glass)
+        Some(!cleared && own_fill(h, vars).is_some())
     })
-    .unwrap_or(true);
-    let themed = host(dom_anchors::keys::FOOTER, |h, vars| {
-        Some(own_fill(h, vars).is_some())
-    })
-    .unwrap_or(false);
-    if styled || !themed {
-        return fill;
-    }
-    tidal_bar_glass(fill, under)
+    .unwrap_or(false)
 }
+
+/// What TIDAL's bar glass paints over the bar's own look.
+pub const TIDAL_BAR_GLASS: Color32 = Color32::from_rgba_premultiplied(30, 30, 30, 191);
 
 /// TIDAL's bar glass, `#282828` at 75 %, over `fill` laid on `under`.
 pub fn tidal_bar_glass(fill: Color32, under: Color32) -> Color32 {
@@ -6852,7 +6862,14 @@ pub fn paint_host_layers_rounded(
     rect: Rect,
     fallback: Option<egui::CornerRadius>,
 ) {
-    paint_layers(ui, key, rect, fallback, false);
+    paint_layers(ui, key, rect, fallback, false, None);
+}
+
+/// [`paint_host_layers`] with `glass` laid over the box's own colour and
+/// pictures and under its borders, as TIDAL lays its bar glass (the bar's
+/// `::after`, `z-index: -1`, inset 0) over a theme's look for the bar.
+pub fn paint_host_layers_under_glass(ui: &egui::Ui, key: &str, rect: Rect, glass: Color32) {
+    paint_layers(ui, key, rect, None, false, Some(glass));
 }
 
 /// [`paint_host_layers_rounded`] for a box whose backdrop filter was drawn
@@ -6864,7 +6881,7 @@ pub fn paint_layers_over_backdrop(
     rect: Rect,
     fallback: Option<egui::CornerRadius>,
 ) {
-    paint_layers(ui, key, rect, fallback, true);
+    paint_layers(ui, key, rect, fallback, true, None);
 }
 
 fn paint_layers(
@@ -6873,6 +6890,7 @@ fn paint_layers(
     rect: Rect,
     fallback: Option<egui::CornerRadius>,
     over_backdrop: bool,
+    glass: Option<Color32>,
 ) {
     if !on() {
         return;
@@ -6893,7 +6911,7 @@ fn paint_layers(
                 .clone(),
         )
     });
-    let Some(layers) = layers.filter(|l| !l.is_empty()) else {
+    let Some(layers) = layers.filter(|l| !l.is_empty() || glass.is_some()) else {
         return;
     };
     let corners = layers.iter().find_map(|l| match l {
@@ -6934,7 +6952,18 @@ fn paint_layers(
             })
         })
         .flatten();
+    // The glass goes over the colour and pictures, under the borders.
+    let mut glass = glass;
+    let mut lay_glass = |ui: &egui::Ui| {
+        if let Some(c) = glass.take() {
+            ui.painter()
+                .rect_filled(rect, corners.unwrap_or_default(), c);
+        }
+    };
     for layer in layers.iter() {
+        if matches!(layer, BoxLayer::Border(..) | BoxLayer::Sides(..)) {
+            lay_glass(ui);
+        }
         let windowed;
         let layer = match layer {
             BoxLayer::Window {
@@ -7031,6 +7060,7 @@ fn paint_layers(
             }
         }
     }
+    lay_glass(ui);
 }
 
 /// The layers of [`paint_host_layers`] for one anchor.
