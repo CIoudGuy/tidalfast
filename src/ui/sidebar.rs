@@ -1340,18 +1340,23 @@ fn playlist_entry(
     }
 }
 
-/// A navigation row's label as a plugin left it on the row's DOM anchor (a
-/// translation plugin replaces the text of `a[data-test=sidebar-music]`),
-/// else `native`. Costs nothing while Luna is off.
+/// A navigation row's label as a plugin left it in the row's words (TIDAL
+/// 2.46.0's `span._title_` in `a[data-test=sidebar-music]`, which a
+/// translation plugin rewrites), or over the whole row, else `native`.
+/// Costs nothing while Luna is off.
 fn nav_label<'a>(test: &str, native: std::borrow::Cow<'a, str>) -> std::borrow::Cow<'a, str> {
     if !super::plugin_dom::on() {
         return native;
     }
-    let key = crate::luna::dom_anchors::keys::sidebar_item(test);
-    let written = match super::plugin_dom::text(&key, &native) {
+    let written = [
+        crate::luna::dom_anchors::keys::sidebar_item_label(test),
+        crate::luna::dom_anchors::keys::sidebar_item(test),
+    ]
+    .iter()
+    .find_map(|key| match super::plugin_dom::text(key, &native) {
         std::borrow::Cow::Owned(text) => Some(text),
         std::borrow::Cow::Borrowed(_) => None,
-    };
+    });
     written.map_or(native, std::borrow::Cow::Owned)
 }
 

@@ -8512,6 +8512,7 @@ mod tests {
                     (keys::lib_row_title(0), "Wow a pwaywist"),
                     (keys::lib_row_subtitle(0), "Wif items uwu"),
                     (keys::LIB_HEADING_TITLE.to_string(), "Aww pwaywists"),
+                    (keys::sidebar_item_label("sidebar-feed"), "Feed uwu"),
                 ],
             ),
             (

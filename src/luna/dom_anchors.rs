@@ -1666,7 +1666,6 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             // Light's hover) reach nothing in TIDAL.
             .modules(&["navigationItem"])
             .test(&item.test)
-            .text(item.label.clone())
             .at(item.rect);
         if item.selected {
             // `selected` is too generic a module for a theme's class to
@@ -1701,6 +1700,9 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
                 "span",
             )
             .class("_marketText_1lyag_1 _semibold20_1lyag_246 _title_f46b277")
+            // The row's words are this span's text, as in TIDAL 2.46.0:
+            // what reads or hides the span reads or hides the words.
+            .text(item.label.clone())
             // The words' box, after the 24-point icon box and its gap.
             .at(item
                 .rect
