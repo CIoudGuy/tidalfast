@@ -244,7 +244,7 @@ fn labels_are_keyed_by_store_and_package_name() {
     let jx =
         "https://github.com/jxnxsdev/luna-plugins/releases/download/latest/jxnxsdev.miniplayer";
     let note = compat_note(jx, Some("@jxnxsdev/miniplayer")).unwrap();
-    assert_eq!(note.level, Compat::NotSupported);
+    assert_eq!(note.level, Compat::PartlySupported);
     // Any case in the address, and the dev channel of the same repository.
     assert!(
         compat_note(
@@ -267,15 +267,24 @@ fn labels_are_keyed_by_store_and_package_name() {
         )
         .is_none()
     );
-    // Partly supported: lyrics-everywhere (its window), Avatar (no email
-    // for Gravatar) and Themer (no Monaco window). 3d-cover's Base model
-    // and its fade and spinner work, so it carries no label.
+    // Partly supported: miniplayer (its window opens, without its icons),
+    // lyrics-everywhere (its window), Avatar (no email for Gravatar) and
+    // Themer (no Monaco window). 3d-cover's Base model and its fade and
+    // spinner work, so it carries no label.
     let partly: Vec<&str> = COMPAT
         .iter()
         .filter(|r| r.note.level == Compat::PartlySupported)
         .map(|r| r.name)
         .collect();
-    assert_eq!(partly, ["@jxnxsdev/lyrics-everywhere", "Avatar", "Themer"]);
+    assert_eq!(
+        partly,
+        [
+            "@jxnxsdev/miniplayer",
+            "@jxnxsdev/lyrics-everywhere",
+            "Avatar",
+            "Themer"
+        ]
+    );
     assert!(
         compat_note(
             &store_url("visiuun/tidaluna-plugins", "visiuun.3d-cover.mjs"),
@@ -373,6 +382,7 @@ const NEW_REASONS: &[&str] = &[
     "MediaKeysFixer",
     "@vmohammad/mpv",
     "@jxnxsdev/audiovisualiser",
+    "@jxnxsdev/miniplayer",
 ];
 
 /// The plugins that run once the user gives them a permission are labelled
@@ -394,10 +404,12 @@ fn plugins_behind_a_permission_say_so() {
     for name in [
         "DesktopConnect",
         "TidalMediaControls",
-        "@jxnxsdev/miniplayer",
         "ScrobbleFix",
         "@squadgazzz/playlist-indicator",
     ] {
         assert_eq!(level(name), Some(Compat::NotSupported), "{name}");
     }
+    // Its window opens since plugin windows came (round 1), without its
+    // icons yet.
+    assert_eq!(level("@jxnxsdev/miniplayer"), Some(Compat::PartlySupported));
 }
