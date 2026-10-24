@@ -1192,6 +1192,26 @@ visible card while Luna runs; layout itself (the flex alignment of plugin
 elements) costs a lookup of last frame's height per item, only in rows that
 centre or end their items.
 
+### Every Home card in the page (plugin round 10)
+
+Home now notes every card of every shelf for plugins, drawn or not (TIDAL's
+page holds them all); with Luna off nothing is noted. Browse bench, debug
+demo build, Luna on with no plugin, BelowNormal priority, two runs each,
+`tidal` 11310160 against plug10 (the page's part of a window pass):
+
+| Page | Before | After |
+| --- | --- | --- |
+| Home | 1,154 allocations, 821 to 981 µs | 1,273 allocations, 874 to 1,045 µs |
+
+The Rust heap after the 20-page walk is 7.6 MB instead of 7.3. While Home
+scrolls (20 s of wheel scrolling, `TIDALFAST_LUNA_STATS`, same build) the
+Luna thread is less busy than before: 30 % and 32 % of a core (104 and 105
+DOM syncs, 22 and 26 overlay builds in 10 s) against 45 % and 48 % (217 and
+226 syncs, 59 and 64 overlay builds). Each sync carries more cards, but the
+set of cards no longer changes as cards come into view, so the runtime
+restructures the page and rebuilds the overlay far less. A signed-in Home
+in lunatest held about 165 cards.
+
 ## Findings and decisions
 
 - **Long lists are already virtualised.** Track tables, card grids and the
