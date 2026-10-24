@@ -1152,10 +1152,10 @@ impl Luna {
     /// only when it changed (the caller compares with the last tree sent).
     /// Trees coalesce: the runtime reconciles the newest one, and a plugin
     /// measuring after its change can wait for it (`dom.wait_layout`).
-    pub fn sync_dom(&self, tree: dom::HostTree) {
+    pub fn sync_dom(&self, tree: impl Into<Arc<dom::HostTree>>) {
         let (slot, arrived) = &*self.trees;
         if let Ok(mut slot) = slot.lock() {
-            slot.tree = Some(tree);
+            slot.tree = Some(tree.into());
             slot.sent += 1;
             arrived.notify_all();
         }

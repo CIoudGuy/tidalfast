@@ -41,7 +41,7 @@ struct Win {
     /// The `:hover` target last told to the page.
     hover_sent: Option<DomTarget>,
     /// The tree last sent to the page.
-    sent: Option<HostTree>,
+    sent: Option<Arc<HostTree>>,
     bounds: Option<[f32; 4]>,
     /// The display under the window's middle (see [`crate::luna::screen`]).
     display: Option<u32>,
@@ -448,8 +448,11 @@ fn draw_pass(ui: &mut egui::Ui, w: &PageWindow) {
         for e in scope.events.into_iter().chain(keys) {
             w.dom_event(e);
         }
-        if win.sent.as_ref() != Some(&tree) {
-            win.sent = Some(tree.clone());
+        if win.sent.as_deref() != Some(&tree) {
+            // Kept to compare the next pass's with and reconciled by the
+            // page's runtime: one tree, shared.
+            let tree = Arc::new(tree);
+            win.sent = Some(Arc::clone(&tree));
             w.sync_dom(tree);
         }
         let (close, outer, focused, native) = viewport;

@@ -85,7 +85,8 @@ struct State {
     /// one a plugin keeps out of the page.
     nav_rows: Vec<(String, Option<Rect>)>,
     last_frame: Option<Frame>,
-    sent: Option<HostTree>,
+    /// The tree last sent, shared with the runtime that reconciles it.
+    sent: Option<Arc<HostTree>>,
     sent_at: Option<Instant>,
     /// Boxes settle until then: rect-only changes go every frame.
     settle_until: Option<Instant>,
@@ -769,7 +770,7 @@ pub fn end_frame(ctx: &egui::Context) {
             let mut tree = dom_anchors::build(&frame);
             tree.laid_out = s.laid_out;
             let send = match &s.sent {
-                Some(old) if *old == tree => false,
+                Some(old) if **old == tree => false,
                 Some(old) if same_but_rects(old, &tree) => {
                     let since = s.sent_at.map_or(RECT_THROTTLE, |t| t.elapsed());
                     if since >= RECT_THROTTLE || force || settling {
@@ -791,8 +792,11 @@ pub fn end_frame(ctx: &egui::Context) {
                 let rehover = s.overlay.hover
                     && ctx.input(|i| i.pointer.hover_pos()).is_some()
                     && s.sent.as_ref().is_none_or(|old| !same_boxes(old, &tree));
+                // The runtime reconciles the tree kept here to compare the
+                // next frame's with: one tree, not a copy per send.
+                let tree = Arc::new(tree);
                 if let Some(luna) = &s.luna {
-                    luna.sync_dom(tree.clone());
+                    luna.sync_dom(Arc::clone(&tree));
                 }
                 s.sent = Some(tree);
                 s.sent_at = Some(Instant::now());
@@ -1231,7 +1235,7 @@ fn pointer_events(ctx: &egui::Context, s: &mut State, floats: &[(String, Rect)])
         if let Some(id) = node {
             return DomTarget::Node(id);
         }
-        if let Some(key) = pos.and_then(|p| float_under(s.sent.as_ref(), floats, p)) {
+        if let Some(key) = pos.and_then(|p| float_under(s.sent.as_deref(), floats, p)) {
             return DomTarget::Host(key);
         }
         let key = pos.and_then(|p| {
@@ -5897,7 +5901,7 @@ fn secondary_press(pos: egui::Pos2, m: egui::Modifiers) -> bool {
         let target = if let Some((id, ..)) = s.last_pointer_node.filter(|(_, r, _)| r.contains(pos))
         {
             DomTarget::Node(id)
-        } else if let Some(key) = float_under(s.sent.as_ref(), &s.last_floats, pos) {
+        } else if let Some(key) = float_under(s.sent.as_deref(), &s.last_floats, pos) {
             DomTarget::Host(key)
         } else {
             let key = s.sent.as_ref().and_then(|t| {
@@ -8844,7 +8848,7 @@ pub(crate) fn test_tree_builds() -> u64 {
 /// The anchor tree last sent to the runtime.
 #[cfg(test)]
 pub(crate) fn test_sent_tree() -> Option<HostTree> {
-    with(|s| s.sent.clone())
+    with(|s| s.sent.as_deref().cloned())
 }
 
 /// The queue rows noted since the last call, taken.
@@ -8872,7 +8876,7 @@ pub(crate) fn test_menu_rows() -> Vec<(String, String)> {
 
 #[cfg(test)]
 pub(crate) fn test_sent(tree: HostTree) {
-    with(|s| s.sent = Some(tree));
+    with(|s| s.sent = Some(Arc::new(tree)));
 }
 
 /// Where the pointer was last sent as hovering (`:hover` rules).

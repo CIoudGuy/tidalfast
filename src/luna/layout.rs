@@ -32,8 +32,9 @@ pub const CARRY: Duration = Duration::from_millis(500);
 
 #[derive(Default)]
 pub(crate) struct TreeSlot {
-    /// The newest host tree the UI sent, not reconciled yet.
-    pub tree: Option<HostTree>,
+    /// The newest host tree the UI sent, not reconciled yet (the UI keeps
+    /// the same tree to compare the next frame's with: shared, not copied).
+    pub tree: Option<Arc<HostTree>>,
     /// How many trees the UI has sent; the one in [`TreeSlot::tree`] is
     /// the `sent`th.
     pub sent: u64,
@@ -112,7 +113,7 @@ impl TreeSlot {
 /// Wait for the tree laid out with overlay `want` (see the module), at
 /// least `floor` for the UI to start drawing it; returns the newest tree
 /// sent, laid out with it or not.
-pub(crate) fn wait(cell: &TreeCell, want: u64, floor: Duration) -> Option<HostTree> {
+pub(crate) fn wait(cell: &TreeCell, want: u64, floor: Duration) -> Option<Arc<HostTree>> {
     let (slot, arrived) = &**cell;
     let mut slot = slot.lock().ok()?;
     let start = slot.now();
@@ -213,19 +214,19 @@ mod tests {
             let mut s = cell.0.lock().unwrap();
             s.set_clock(t0);
             s.published(2);
-            s.tree = Some(HostTree {
+            s.tree = Some(Arc::new(HostTree {
                 laid_out: 1,
                 ..Default::default()
-            });
+            }));
             // The deadline is long past.
             s.set_clock(t0 + CARRY + PICKUP_CAP);
         }
         let tree = wait(&cell, 2, FLOOR).expect("the newest tree");
         assert_eq!(tree.laid_out, 1);
-        cell.0.lock().unwrap().tree = Some(HostTree {
+        cell.0.lock().unwrap().tree = Some(Arc::new(HostTree {
             laid_out: 2,
             ..Default::default()
-        });
+        }));
         assert_eq!(wait(&cell, 2, FLOOR).map(|t| t.laid_out), Some(2));
         assert!(wait(&cell, 2, FLOOR).is_none(), "taken");
     }
