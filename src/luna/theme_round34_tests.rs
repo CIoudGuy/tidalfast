@@ -258,6 +258,66 @@ fn the_plugin_store_search_takes_tidalunas_field_rules() {
     assert_eq!(store.and_then(|s| s.color), Some(egui::Color32::WHITE));
 }
 
+/// The sidebar's create menu ("Playlist", "Folder") is a TIDAL context menu
+/// whose rows carry a leading icon (TIDAL 2.46.0, captured): the hovered
+/// row is TIDAL's white wash under a theme, and the words take a theme's
+/// rule for the menu's words (Cotton Candy Nights' black). Tidalfast drew
+/// the palette's own hover and white words there.
+#[test]
+fn the_create_menus_rows_take_the_menus_look() {
+    use crate::theme::Palette;
+    use crate::ui::{plugin_dom as pd, widgets};
+    let ink = egui::Color32::from_rgb(5, 0, 20);
+    let css = r#"/* {"name": "Inked create menu"} */
+._contextMenu_8606b2d { background-color: rgb(240, 170, 230); }
+._actionTextInner_a14f37c { color: rgb(5, 0, 20); }
+"#;
+    let o = overlay_for("inked-create.css", css, dom_anchors::keys::THEME_MENU_TEXT);
+    pd::test_overlay(Some((*o).clone()));
+    let candy = Palette {
+        themed: true,
+        own_surfaces: false,
+        overlay: egui::Color32::from_rgb(240, 170, 230),
+        surface_hover: egui::Color32::from_rgb(40, 20, 60),
+        ..Palette::dark()
+    };
+    let ctx = egui::Context::default();
+    crate::theme::install(&ctx);
+    let mut fills = Vec::new();
+    let mut words = Vec::new();
+    for _ in 0..3 {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(800.0, 600.0),
+            )),
+            events: vec![egui::Event::PointerMoved(egui::pos2(60.0, 20.0))],
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
+            ui.set_width(widgets::MENU_MIN_CONTENT);
+            let _ = widgets::menu_icon_row(ui, &candy, crate::theme::Icon::NotePlus, "Playlist");
+        });
+        out.textures_delta.clear();
+        fills.clear();
+        words.clear();
+        for c in &out.shapes {
+            match &c.shape {
+                egui::Shape::Rect(r) => fills.push(r.fill),
+                egui::Shape::Text(t) => words.push(t.fallback_color),
+                _ => {}
+            }
+        }
+    }
+    pd::test_overlay(None);
+    assert!(
+        fills.contains(&egui::Color32::from_white_alpha(38)),
+        "TIDAL's white: {fills:?}"
+    );
+    assert_eq!(words, vec![ink]);
+}
+
 /// TIDAL 2.46.0 has many `_titleText_` modules, one hash each (the track
 /// list's `_titleText_51cccae`, the queue's `_titleText_6563d98`, the
 /// sidebar heading's `_titleText_1d0e44e`, the mini header's
