@@ -697,7 +697,14 @@ fn host_outlines(
                 .style
                 .outline_offset
                 .as_deref()
-                .and_then(|v| css::length(&css::resolve_vars(v, vars), 16.0, 0.0, viewport))
+                .and_then(|v| {
+                    css::length(
+                        &css::resolve_vars(v, vars),
+                        super::theme_layout::EM,
+                        0.0,
+                        viewport,
+                    )
+                })
                 .unwrap_or(0.0);
             let glow = super::theme_layout::shadow(h.style.box_shadow.as_deref(), vars, viewport);
             let radius =
@@ -4000,7 +4007,7 @@ pub fn before_height(key: &str, reference: f32) -> Option<f32> {
     let viewport = viewport();
     host(key, |h, _| {
         let height = h.before.as_ref()?.height.as_deref()?;
-        super::plugin_slots::css::length(height, 16.0, reference, viewport)
+        super::plugin_slots::css::length(height, super::theme_layout::EM, reference, viewport)
     })
     .filter(|h| h.is_finite() && *h >= 0.0)
 }

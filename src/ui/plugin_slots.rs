@@ -732,7 +732,8 @@ pub(crate) mod css {
         let mut colour = None;
         let mut styled = false;
         for w in words(v) {
-            if let Some(px) = length(w, 16.0, 0.0, [0.0, 0.0]) {
+            // `em` of TIDAL's 14-point text, as on its boxes.
+            if let Some(px) = length(w, 14.0, 0.0, [0.0, 0.0]) {
                 width = px;
             } else if let Some(c) = color(w) {
                 colour = Some(c);

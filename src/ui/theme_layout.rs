@@ -19,6 +19,12 @@ use super::plugin_slots::css;
 /// The most a theme may move the bar or sidebar in from the window's edge.
 const MAX_GAP: f32 = 64.0;
 
+/// What `em` is on TIDAL's boxes, in points: their font size, which they
+/// take from `html` (TIDAL 2.46.0's 14-point root; its sidebar, bar, queue,
+/// menus and pages all compute 14 px). Media queries are another matter:
+/// there `em` is the browser's 16, and they are resolved elsewhere.
+pub const EM: f32 = 14.0;
+
 /// A shell box a theme lifts off the window's edges.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Floating {
@@ -225,7 +231,7 @@ fn split_len(
             .filter(|n| n.is_finite())
             .map(|n| (n / 100.0, 0.0));
     }
-    css::length(v, 16.0, 0.0, viewport)
+    css::length(v, EM, 0.0, viewport)
         .filter(|n| n.is_finite())
         .map(|n| (0.0, n))
 }
@@ -263,13 +269,13 @@ fn header_tab(
         })
         .unwrap_or_default();
     let side = |v: Option<&String>| {
-        v.and_then(|v| css::length(&css::resolve_vars(v, vars), 16.0, 0.0, viewport))
+        v.and_then(|v| css::length(&css::resolve_vars(v, vars), EM, 0.0, viewport))
             .filter(|n| n.is_finite())
     };
     let base = style
         .padding
         .as_deref()
-        .map_or([0.0; 4], |v| css::sides(&css::resolve_vars(v, vars), 16.0));
+        .map_or([0.0; 4], |v| css::sides(&css::resolve_vars(v, vars), EM));
     let padding = [
         side(style.padding_top.as_ref()).unwrap_or(base[0]),
         side(style.padding_right.as_ref()).unwrap_or(base[1]),
@@ -296,7 +302,7 @@ fn len(
     viewport: [f32; 2],
 ) -> Option<f32> {
     let v = css::resolve_vars(value?, vars);
-    css::length(&v, 16.0, reference, viewport).filter(|n| n.is_finite())
+    css::length(&v, EM, reference, viewport).filter(|n| n.is_finite())
 }
 
 /// `position` lets `top`/`bottom` move the box (TIDAL's bar and sidebar
@@ -397,7 +403,7 @@ pub fn radii(
     let corners: Vec<u8> = css::words(v)
         .into_iter()
         .map(|w| {
-            css::length(w, 16.0, 0.0, viewport)
+            css::length(w, EM, 0.0, viewport)
                 .filter(|n| n.is_finite())
                 .map_or(0, |n| n.clamp(0.0, 255.0).round() as u8)
         })
@@ -433,7 +439,7 @@ pub fn shadow(
         let mut lengths = Vec::new();
         let mut color = None;
         for w in &words {
-            if let Some(n) = css::length(w, 16.0, 0.0, viewport) {
+            if let Some(n) = css::length(w, EM, 0.0, viewport) {
                 lengths.push(n);
             } else if let Some(c) = css::color(w) {
                 color = Some(c);
@@ -477,7 +483,7 @@ pub fn inset_shadow(
         let mut lengths = Vec::new();
         let mut color = None;
         for w in &words {
-            if let Some(n) = css::length(w, 16.0, 0.0, viewport) {
+            if let Some(n) = css::length(w, EM, 0.0, viewport) {
                 lengths.push(n);
             } else if let Some(c) = css::color(w) {
                 color = Some(c);
@@ -688,7 +694,8 @@ mod tests {
                 bottom: 7
             }
         );
-        assert_eq!(b.radius, CornerRadius::same(16));
+        // `1em` on TIDAL's 14-point bar (TIDAL 2.46.0 rounds it 14 px).
+        assert_eq!(b.radius, CornerRadius::same(14));
         assert_eq!(b.shadow.blur, 22);
         assert_eq!(b.shadow.spread, 5);
         assert_eq!(

@@ -1279,7 +1279,7 @@ fn theme_rules_reach_the_profile_picture_radio_art_and_nested_tile_text() {
     crate::ui::plugin_dom::test_viewport([1400.0, 900.0]);
     let picture: CoverStyle =
         profile_picture(egui::Rect::NOTHING).expect("a themed profile picture");
-    assert_eq!(picture.radius, Some(11.0), ".7em, to whole points");
+    assert_eq!(picture.radius, Some(10.0), ".7em of 14, to whole points");
     assert_eq!(picture.scale, 0.93);
     assert!(
         (picture.offset.y - (-0.28 * 14.0)).abs() < 1e-3,
