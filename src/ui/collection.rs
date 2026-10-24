@@ -942,6 +942,8 @@ pub(super) fn filter_field(
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 42.0), Sense::hover());
     let id = egui::Id::new(("collection-filter", name));
     let focused = ui.memory(|memory| memory.has_focus(id));
+    // Room under the field for a theme's panel round it and the list.
+    super::plugin_dom::filter_panel_slot(ui, rect);
     // A theme's pill replaces the outline.
     if !super::plugin_dom::filter_box(ui, rect) {
         ui.painter().rect_stroke(

@@ -318,6 +318,56 @@ fn the_create_menus_rows_take_the_menus_look() {
     assert_eq!(words, vec![ink]);
 }
 
+/// A playlist's filter sits inside TIDAL's `div._items_8615603` with the
+/// list (TIDAL 2.46.0, captured): the cotton candy family's glass panel
+/// runs round both, its padding round them. Tidalfast's panel began at the
+/// list, under the filter.
+#[test]
+fn a_playlists_panel_holds_its_filter() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Glass items"} */
+._items_8615603 { background-color: rgba(40, 10, 60, 0.5); padding: 10px 12px 0px; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    let page = frame.page.get_or_insert_with(dom_anchors::Page::default);
+    page.page_id = Some("playlist".into());
+    page.list_panel = Some([260.0, 400.0, 1000.0, 300.0]);
+    let o = overlay_of(
+        &frame,
+        "glass-items.css",
+        css,
+        dom_anchors::keys::LIST_PANEL,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    pd::test_page_frame_as("playlist");
+    let ctx = egui::Context::default();
+    let filter = egui::Rect::from_min_size(egui::pos2(260.0, 300.0), egui::vec2(1000.0, 42.0));
+    let list = egui::Rect::from_min_size(egui::pos2(260.0, 382.0), egui::vec2(1000.0, 300.0));
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        pd::filter_panel_slot(ui, filter);
+        ui.painter()
+            .rect_filled(filter, 12.0, egui::Color32::from_rgb(1, 2, 3));
+        pd::list_panel(ui, list);
+    });
+    out.textures_delta.clear();
+    let panel = pd::test_list_panel();
+    pd::test_overlay(None);
+    let panel = panel.expect("the panel is noted");
+    assert_eq!(panel, [248.0, 290.0, 1024.0, 392.0]);
+    // Painted under the filter: the panel's shapes come first.
+    let first_filter = out
+        .shapes
+        .iter()
+        .position(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.fill == egui::Color32::from_rgb(1, 2, 3)))
+        .expect("the filter");
+    let panel_at = out
+        .shapes
+        .iter()
+        .position(|c| !matches!(&c.shape, egui::Shape::Noop))
+        .expect("something drawn");
+    assert!(panel_at < first_filter, "panel under the filter");
+}
+
 /// TIDAL 2.46.0 has many `_titleText_` modules, one hash each (the track
 /// list's `_titleText_51cccae`, the queue's `_titleText_6563d98`, the
 /// sidebar heading's `_titleText_1d0e44e`, the mini header's
