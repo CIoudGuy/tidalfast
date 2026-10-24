@@ -171,6 +171,15 @@ fn builder(spec: &WindowSpec, opened: ([f32; 2], Option<[f32; 2]>)) -> ViewportB
     if let Some(p) = dev_place().or(opened.1) {
         b = b.with_position(p);
     }
+    if spec.transparent && !spec.frame {
+        // Electron draws nothing around a see-through frameless window: no
+        // shadow, and on Windows 11 none of the system's border or rounded
+        // corners, so only what its page paints shows.
+        b = b
+            .with_has_shadow(false)
+            .with_border_shown(false)
+            .with_rounded_corners(false);
+    }
     b
 }
 
@@ -559,6 +568,43 @@ mod tests {
         let mut o = page_overlay();
         o.injected[0].nodes[0].children[0].style.background_color = Some("transparent".into());
         assert_eq!(prepare(&o).unwrap().1.background_color, None);
+    }
+
+    /// A see-through frameless window leaves out the system's shadow,
+    /// border and rounded corners (Windows 11 draws them around frameless
+    /// windows too); a window with a frame, or an opaque one, keeps the
+    /// system's look.
+    #[test]
+    fn a_see_through_frameless_window_has_no_frame_of_the_systems() {
+        let opened = ([250.0, 42.0], None);
+        let widget = WindowSpec {
+            transparent: true,
+            frame: false,
+            ..WindowSpec::default()
+        };
+        let b = builder(&widget, opened);
+        assert_eq!(b.transparent, Some(true));
+        assert_eq!(b.decorations, Some(false));
+        assert_eq!(b.has_shadow, Some(false));
+        assert_eq!(b.border_shown, Some(false));
+        assert_eq!(b.rounded_corners, Some(false));
+        for spec in [
+            WindowSpec {
+                frame: false,
+                ..WindowSpec::default()
+            },
+            WindowSpec {
+                transparent: true,
+                ..WindowSpec::default()
+            },
+        ] {
+            let b = builder(&spec, opened);
+            assert_eq!(
+                (b.has_shadow, b.border_shown, b.rounded_corners),
+                (None, None, None),
+                "{spec:?}"
+            );
+        }
     }
 
     /// A click on the page's button goes to the page (its element, by id),
