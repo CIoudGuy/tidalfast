@@ -2027,7 +2027,9 @@ fn page_search(ui: &mut Ui, palette: &Palette, locale: Locale, page: &mut PageSt
     } else {
         t("Search themes...")
     };
-    widgets::search_field(
+    // TidaLuna's store search is its own field in TIDAL, not the header's
+    // pill: it takes a theme's rules for that field.
+    widgets::search_field_as(
         ui,
         palette,
         locale,
@@ -2035,6 +2037,7 @@ fn page_search(ui: &mut Ui, palette: &Palette, locale: Locale, page: &mut PageSt
         &mut page.search,
         &hint,
         ui.available_width().min(max),
+        widgets::STORE_SEARCH,
     );
 }
 
