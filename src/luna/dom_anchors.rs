@@ -90,8 +90,13 @@ pub mod keys {
     pub fn page_action_label(test: &str) -> String {
         format!("page-action:{test}:label")
     }
+    /// The account button's box (`div._buttonContainer_d207640`).
+    pub const PROFILE_CONTAINER: &str = "profile-container";
+    /// The account button (`button[data-test=header-profile-menu-button]`).
     pub const PROFILE: &str = "profile-picture";
-    pub const PROFILE_SVG: &str = "profile-picture:svg";
+    /// The account picture in it (`img._artworkImage_5bde5a4.
+    /// _profilePicture_1786ea0`).
+    pub const PROFILE_IMG: &str = "profile-picture:img";
     pub const FIXED_NAV: &str = "sidebar-fixed-nav";
     /// The "All playlists" heading over the library rows
     /// (`div._sectionHeader_ca54638`) and its words
@@ -723,8 +728,10 @@ pub struct Shell {
     pub nav_disabled: [bool; 2],
     pub search: Option<Rect>,
     pub search_text: String,
-    /// The account button (`button._profilePicture_`), with `svg` inside.
+    /// The account button, with its picture inside.
     pub profile: Option<Rect>,
+    /// The account picture's address, the `img`'s `src`.
+    pub profile_src: Option<String>,
     /// Window fullscreen (`#wimp > div.is-fullscreen`).
     pub fullscreen: bool,
 }
@@ -1530,14 +1537,35 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
                 [x, y + inset, w, h - 2.0 * inset]
             })),
     );
+    // TIDAL 2.46.0's account button (captured): `div._buttonContainer_
+    // d207640 > button[data-test=header-profile-menu-button]._headerButton_
+    // 6ea2754._profileMenuButton_c237480._enabled_d9eea2a > img.
+    // _artworkImage_5bde5a4._profilePicture_1786ea0`. No class there starts
+    // `_profilePicture_`, so rules for `[class^="_profilePicture_"]`
+    // (Avatar's) reach nothing in the header, as in TIDAL; rules for
+    // TIDAL's class reach the picture.
     out.push(
-        el(PROFILE, Some(HEADER_BAR), "button")
-            .modules(&["profilePicture"])
-            .test("profile-picture")
-            .attr("aria-label", "Profile")
+        el(PROFILE_CONTAINER, Some(HEADER_BAR), "div")
+            .class("_buttonContainer_d207640")
             .at(s.profile),
     );
-    out.push(el(PROFILE_SVG, Some(PROFILE), "svg").at(s.profile));
+    out.push(
+        el(PROFILE, Some(PROFILE_CONTAINER), "button")
+            .class("_headerButton_6ea2754")
+            .class("_profileMenuButton_c237480")
+            .class("_enabled_d9eea2a")
+            .test("header-profile-menu-button")
+            .attr("aria-label", "Show options")
+            .at(s.profile),
+    );
+    let mut picture = el(PROFILE_IMG, Some(PROFILE), "img")
+        .class("_artworkImage_5bde5a4")
+        .class("_profilePicture_1786ea0")
+        .at(s.profile);
+    if let Some(src) = &s.profile_src {
+        picture = picture.attr("src", src.clone());
+    }
+    out.push(picture);
     out.push(
         el(MAIN_CONTENT, Some(MAIN), "div")
             .class("mainContent")
@@ -3592,9 +3620,10 @@ mod tests {
             (keys::QUALITY_LABEL, keys::QUALITY_TEXT, "span"),
             (keys::TITLE_STACK, keys::TRACK_CONTENT, "div"),
             (keys::FIXED_NAV, keys::SIDEBAR_CONTENT, "div"),
-            (keys::PROFILE, keys::HEADER_BAR, "button"),
+            (keys::PROFILE_CONTAINER, keys::HEADER_BAR, "div"),
+            (keys::PROFILE, keys::PROFILE_CONTAINER, "button"),
             (keys::HEADER_BAR, keys::HEADER, "div"),
-            (keys::PROFILE_SVG, keys::PROFILE, "svg"),
+            (keys::PROFILE_IMG, keys::PROFILE, "img"),
             (keys::NP_CLOSE, keys::NP_HEADER, "button"),
             (keys::NP_FOOTER, keys::NOW_PLAYING, "div"),
         ] {
@@ -3611,10 +3640,13 @@ mod tests {
             attr(find(&tree, keys::NP_CLOSE), "data-test"),
             Some("new-now-playing-close")
         );
-        assert!(
-            attr(find(&tree, keys::PROFILE), "class")
-                .unwrap()
-                .starts_with("_profilePicture_")
+        assert_eq!(
+            attr(find(&tree, keys::PROFILE), "data-test"),
+            Some("header-profile-menu-button")
+        );
+        assert_eq!(
+            attr(find(&tree, keys::PROFILE_IMG), "class"),
+            Some("_artworkImage_5bde5a4 _profilePicture_1786ea0")
         );
         assert!(
             attr(find(&tree, keys::FIXED_NAV), "class")

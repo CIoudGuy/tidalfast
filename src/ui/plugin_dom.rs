@@ -3685,8 +3685,12 @@ pub struct HeaderPill {
 }
 
 /// The account button in the top bar.
-pub fn profile(r: Rect) {
-    note(|f| f.shell.profile = rect(r));
+/// The account button is drawn at `r`, its picture from `src`.
+pub fn profile(r: Rect, src: Option<&str>) {
+    note(|f| {
+        f.shell.profile = rect(r);
+        f.shell.profile_src = src.map(str::to_string);
+    });
 }
 
 /// Tests: a plugin's `element.click()` on the native widget `key`.

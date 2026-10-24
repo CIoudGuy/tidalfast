@@ -3489,3 +3489,49 @@ R.rewritten = count;
     assert!(o.host("sidebar:sidebar-music").is_some());
     finish(luna, dir);
 }
+
+/// TIDAL 2.46.0's account button holds the account picture as an image
+/// (`button[data-test=header-profile-menu-button] > img._artworkImage_
+/// 5bde5a4._profilePicture_1786ea0`), so rules for elements whose class
+/// starts `_profilePicture_` (Avatar's background picture and hidden `svg`)
+/// reach nothing in the header and the picture stays TIDAL's, while a rule
+/// for TIDAL's class reaches the picture. Tidalfast's button was
+/// `button._profilePicture_ > svg`: such rules painted their picture over
+/// the account picture, which TIDAL never shows.
+#[test]
+fn rules_for_the_account_picture_match_as_in_tidal() {
+    let (luna, _host, dir) = start(
+        r##"
+new lib.StyleTag("dom-test", unloads, `
+[class^="_profilePicture_"] { background-image: url("https://pictures.test/a.png"); background-size: cover; }
+[class^="_profilePicture_"] svg { display: none; }
+._profilePicture_1786ea0 { opacity: .5; }
+`);
+"##,
+    );
+    let t = tree();
+    let picture = t
+        .nodes
+        .iter()
+        .find(|n| n.parent.as_deref() == Some(keys::PROFILE))
+        .map(|n| (n.key.clone(), n.tag.clone()));
+    luna.sync_dom(t);
+    let o = overlay_until(&luna, 10, |o| {
+        o.hosts
+            .values()
+            .any(|h| h.style.opacity.is_some() || h.style.background_image.is_some() || h.hidden())
+    });
+    let (img, tag) = picture.expect("the account button holds its picture");
+    assert_eq!(tag, "img", "the picture is TIDAL's image");
+    let button = o.host(keys::PROFILE);
+    assert!(
+        button.is_none_or(|h| h.style.background_image.is_none()),
+        "no picture painted on the button: {button:?}"
+    );
+    let shown = o.host(&img);
+    assert!(
+        shown.is_some_and(|h| !h.hidden() && h.style.opacity.as_deref() == Some(".5")),
+        "the picture shows, with the rule for TIDAL's class: {shown:?}"
+    );
+    finish(luna, dir);
+}
