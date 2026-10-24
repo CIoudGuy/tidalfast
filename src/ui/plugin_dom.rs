@@ -100,6 +100,8 @@ struct State {
     /// The newest such version a tree said so for.
     laid_out: u64,
     overlay: Arc<DomOverlay>,
+    /// Some plugin set an `<img>`'s `src` in this overlay ([`picture`]).
+    pictures: bool,
     luna: Option<Luna>,
     scroll_seq: u64,
     scroll_pending: Option<String>,
@@ -424,6 +426,7 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
         let overlay = luna.dom_overlay();
         if overlay.version != s.overlay.version {
             let old = std::mem::replace(&mut s.overlay, overlay);
+            s.pictures = sets_pictures(&s.overlay);
             if old.may_move_boxes(&s.overlay) {
                 s.boxes_moved = true;
                 // A plugin reading a box now waits for this frame's
@@ -2962,6 +2965,20 @@ pub fn home_tile(r: Rect, image: Rect, owned: bool, kind: dom_anchors::TileKind)
     key
 }
 
+/// The picture a plugin put in the `img` of the tile `key` (from
+/// [`home_tile`]), as [`picture`].
+pub fn tile_picture(key: &str) -> Option<String> {
+    let index = key.rsplit(':').next()?.parse().ok()?;
+    picture(|| dom_anchors::keys::tile_img(index))
+}
+
+/// The picture a plugin put in the cover `img` of the card `key`
+/// (`card:<index>`), as [`picture`].
+pub fn card_picture(key: &str) -> Option<String> {
+    let index = key.strip_prefix("card:")?.parse().ok()?;
+    picture(|| dom_anchors::keys::card_cover_img(index))
+}
+
 /// A theme's text colour for the words of the tile `key` (from
 /// [`home_tile`]): the cotton candy family's `._marketText_ { color: white }`
 /// nested in its tile rule.
@@ -3053,6 +3070,8 @@ pub fn home_tile_height(natural: f32) -> f32 {
 /// cotton candy family's 2 px coloured outline, rounded corners).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ThumbStyle {
+    /// The picture a plugin put in the art's `img` ([`picture`]).
+    pub picture: Option<String>,
     pub radius: Option<f32>,
     pub outline: Option<(f32, Color32)>,
     /// The `filter` on the art or its picture (`sepia(.9) hue-rotate(...)`).
@@ -3088,13 +3107,15 @@ pub fn thumbnail(r: Rect) -> Option<ThumbStyle> {
     };
     if hidden(&key) || hidden(&dom_anchors::keys::thumb_img(index)) {
         return Some(ThumbStyle {
+            picture: None,
             radius: None,
             outline: None,
             filter: None,
             hidden: true,
         });
     }
-    host(&key, |h, vars| {
+    let picture = picture(|| dom_anchors::keys::thumb_img(index));
+    let themed = host(&key, |h, vars| {
         let radius = h
             .style
             .border_radius
@@ -3107,12 +3128,24 @@ pub fn thumbnail(r: Rect) -> Option<ThumbStyle> {
             .and_then(|o| css::border(&css::resolve_vars(o, vars)))
             .filter(|(w, c)| *w > 0.0 && c.a() > 0);
         (radius.is_some() || outline.is_some() || filter.is_some()).then_some(ThumbStyle {
+            picture: None,
             radius,
             outline,
             filter: filter.clone(),
             hidden: false,
         })
-    })
+    });
+    match (themed, picture) {
+        (Some(style), picture) => Some(ThumbStyle { picture, ..style }),
+        (None, Some(picture)) => Some(ThumbStyle {
+            picture: Some(picture),
+            radius: None,
+            outline: None,
+            filter: None,
+            hidden: false,
+        }),
+        (None, None) => None,
+    }
 }
 
 /// A shelf's row of cards drawn at `r`: its key, for [`shelf_spacing`].
@@ -4299,6 +4332,29 @@ pub fn attr(key: &str, name: &str) -> Option<String> {
             .find(|(n, _)| n == name)
             .map(|(_, v)| v.clone())
     })
+}
+
+/// Whether a plugin set the `src` of one of TIDAL's elements in `o`.
+fn sets_pictures(o: &DomOverlay) -> bool {
+    o.hosts
+        .values()
+        .any(|h| h.attrs.iter().any(|(n, _)| n == "src"))
+}
+
+/// The picture a plugin put in one of TIDAL's `<img>` elements in place of
+/// TIDAL's (`img.src = ...`: uwu-ifier's nekos on every image, AltPlay's
+/// cover of the song it plays), when the art loader can fetch it. Every
+/// native picture that is an `img` in TIDAL draws through here, `key` being
+/// that `img`'s anchor. The key is only built while some plugin set a
+/// picture, and the art loader fetches and decodes a picture only when it
+/// is painted, at the size painted, so pictures no plugin changed cost
+/// nothing more.
+pub fn picture<K: AsRef<str>>(key: impl FnOnce() -> K) -> Option<String> {
+    if !on() || !with(|s| s.pictures) {
+        return None;
+    }
+    attr(key().as_ref(), "src")
+        .filter(|src| src.starts_with("https://") || src.starts_with("http://"))
 }
 
 fn style_color(
@@ -7762,6 +7818,7 @@ pub(crate) fn test_hover() -> Option<DomTarget> {
 pub(crate) fn test_overlay_keep(o: DomOverlay) {
     with(|s| {
         s.vars = Arc::new(o.vars.clone());
+        s.pictures = sets_pictures(&o);
         s.overlay = Arc::new(o);
     });
 }
@@ -7802,6 +7859,7 @@ pub(crate) fn test_overlay(overlay: Option<DomOverlay>) {
             with(|s| {
                 s.vars = Arc::new(o.vars.clone());
                 s.extra_cols = extra_column_mins(&o);
+                s.pictures = sets_pictures(&o);
                 s.overlay = Arc::new(o);
                 s.test_overlay = true;
             });

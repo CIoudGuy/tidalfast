@@ -643,12 +643,20 @@ fn big_cover(app: &App, ui: &mut egui::Ui, cover: Rect) {
         }
         .as_shape(cover, 0.0),
     );
+    // A picture a plugin put in the artwork's `img` is the one shown.
+    let plugin_cover =
+        super::plugin_dom::picture(|| crate::luna::dom_anchors::keys::NP_ARTWORK_IMG)
+            .filter(|src| Some(src.as_str()) != now.art_url.as_deref())
+            .filter(|src| Some(src.as_str()) != now.art_small.as_deref());
     widgets::playing_cover(
         ui,
         &theme::Palette::dark(),
         app.backend.art(),
         "now-playing-view",
-        now.art_url.as_deref().or(now.art_small.as_deref()),
+        plugin_cover
+            .as_deref()
+            .or(now.art_url.as_deref())
+            .or(now.art_small.as_deref()),
         cover,
         0.0,
         super::plugin_dom::playing_cover_style(1).as_ref(),

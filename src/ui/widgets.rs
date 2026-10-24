@@ -1828,11 +1828,16 @@ fn classic_row_cells(
         );
         // A theme's rules for the thumbnail (TIDAL's `._imageContainer_`):
         // corners, filters, opacity.
-        let themed = if super::plugin_dom::on() {
+        let (themed, plugin_image) = if super::plugin_dom::on() {
             let list = super::plugin_dom::list_id(row.context);
-            super::plugin_dom::row_image(&list, row.index, cover_rect)
+            (
+                super::plugin_dom::row_image(&list, row.index, cover_rect),
+                super::plugin_dom::picture(|| {
+                    crate::luna::dom_anchors::keys::row_cell(&list, row.index, "image-img")
+                }),
+            )
         } else {
-            None
+            (None, None)
         };
         let id = egui::Id::new(("row-cover", row.index));
         paint_themed_cover(
@@ -1840,7 +1845,9 @@ fn classic_row_cells(
             &palette,
             themed,
             id,
-            row.item.image(app.art_px(size)),
+            plugin_image
+                .as_deref()
+                .or_else(|| row.item.image(app.art_px(size))),
             cover_rect,
             4.0,
             false,
@@ -2948,15 +2955,33 @@ fn tidal_row_cells(
     x += cols.number;
     if cols.cover > 0.0 {
         let cover = Rect::from_min_size(pos2(x, rect.center().y - 21.0), Vec2::splat(42.0));
-        paint_cover(
-            ui,
-            &palette,
-            row.item.image(app.art_px(42.0)),
-            cover,
-            2.0,
-            Icon::Music,
-            Some(app.backend.art()),
-        );
+        // The cover is the row's `img` for plugins: one they hid is not
+        // painted, and a picture they put in it is the one shown.
+        let (hidden, plugin_image) = if super::plugin_dom::on() {
+            let list = super::plugin_dom::list_id(row.context);
+            let themed = super::plugin_dom::row_image(&list, row.index, cover);
+            (
+                themed.is_some_and(|s| s.opacity <= 0.0),
+                super::plugin_dom::picture(|| {
+                    crate::luna::dom_anchors::keys::row_cell(&list, row.index, "image-img")
+                }),
+            )
+        } else {
+            (false, None)
+        };
+        if !hidden {
+            paint_cover(
+                ui,
+                &palette,
+                plugin_image
+                    .as_deref()
+                    .or_else(|| row.item.image(app.art_px(42.0))),
+                cover,
+                2.0,
+                Icon::Music,
+                Some(app.backend.art()),
+            );
+        }
         if cols.number == 0.0 {
             let busy = pending || (hovered && !unavailable) || playing;
             if busy {
@@ -3866,6 +3891,9 @@ fn paint_card_cover(
 ) -> (Rect, f32) {
     let style = card_key.and_then(|key| super::plugin_dom::grid_card_cover(key, image_rect));
     let id = egui::Id::new(("cover-motion", card_key));
+    // A picture a plugin put in the cover's `img` is the one shown.
+    let plugin_image = card_key.and_then(super::plugin_dom::card_picture);
+    let image = plugin_image.as_deref().or(image);
     paint_themed_cover(
         ui, palette, style, id, image, image_rect, radius, circular, fallback, art,
     )
@@ -4004,6 +4032,8 @@ pub fn paint_thumbnail(
     if style.as_ref().is_some_and(|s| s.hidden) {
         return;
     }
+    // A picture a plugin put in the thumbnail's `img` is the one shown.
+    let url = style.as_ref().and_then(|s| s.picture.as_deref()).or(url);
     let round = radius >= rect.width() / 2.0 - 0.5;
     let radius = match style.as_ref().and_then(|s| s.radius) {
         Some(r) if !round => r,

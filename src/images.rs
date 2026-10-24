@@ -179,6 +179,10 @@ struct Inner {
     /// block on it through the gate, which ends them when the app closes.
     runtime: RuntimeGate,
     cache_dir: PathBuf,
+    /// Every artwork URL painting asked for, for tests (the network is
+    /// closed to them, so nothing else tells what a frame went to fetch).
+    #[cfg(test)]
+    asked: Mutex<std::collections::HashSet<String>>,
 }
 
 #[derive(Clone)]
@@ -196,8 +200,20 @@ impl ArtLoader {
                 http: http.into(),
                 runtime: runtime.into(),
                 cache_dir,
+                #[cfg(test)]
+                asked: Mutex::default(),
             }),
         }
+    }
+
+    /// Whether painting asked for `url`'s artwork.
+    #[cfg(test)]
+    pub fn was_asked(&self, url: &str) -> bool {
+        self.inner
+            .asked
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .contains(url)
     }
 
     /// The image loader that scales this loader's artwork for painting.
@@ -630,6 +646,12 @@ impl BytesLoader for ArtLoader {
         if !is_http(uri) {
             return Err(LoadError::NotSupported);
         }
+        #[cfg(test)]
+        self.inner
+            .asked
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .insert(uri.to_string());
         let mut entries = self.inner.entries.lock().unwrap_or_else(|p| p.into_inner());
         match entries.get_mut(uri) {
             Some(Entry::Ready {

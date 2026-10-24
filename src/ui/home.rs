@@ -347,10 +347,13 @@ fn quick_access(app: &mut App, ui: &mut egui::Ui) {
                             Some(CornerRadius::same(6)),
                         );
                     }
+                    // A picture a plugin put in the tile's `img` is the
+                    // one shown.
+                    let plugin_image = themed.as_deref().and_then(super::plugin_dom::tile_picture);
                     widgets::paint_cover(
                         ui,
                         &palette,
-                        image.as_deref(),
+                        plugin_image.as_deref().or(image.as_deref()),
                         cover,
                         if *round { TILE_ART / 2.0 } else { 2.0 },
                         Icon::Music,

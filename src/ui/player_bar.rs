@@ -489,8 +489,7 @@ fn now_playing_block(
 
     // A plugin that plays its own item (AltPlay's Jellyfin song) puts that
     // item's picture on the cover element: shown in place of TIDAL's.
-    let plugin_cover = plugin_dom::attr(keys::COVER_IMG, "src")
-        .filter(|src| src.starts_with("http"))
+    let plugin_cover = plugin_dom::picture(|| keys::COVER_IMG)
         .filter(|src| Some(src.as_str()) != now.art_small.as_deref())
         .filter(|src| Some(src.as_str()) != now.art_url.as_deref());
     // TIDAL: while the now-playing view shows the cover large, the bar

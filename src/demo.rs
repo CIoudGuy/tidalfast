@@ -8657,6 +8657,120 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// A picture a plugin puts in any of TIDAL's `<img>` elements is the
+    /// picture drawn there, as in TIDAL (uwu-ifier sets every image's `src`
+    /// to a neko). Only the player bar's cover read it; the album and
+    /// playlist header's art, track rows' covers, cards and artists'
+    /// pictures, the home page's shortcuts, the library's thumbnails, the
+    /// now-playing art and the profile picture kept TIDAL's.
+    #[test]
+    fn a_picture_a_plugin_sets_on_an_img_is_the_one_drawn() {
+        use crate::luna::dom::{DomOverlay, HostOverride};
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("plugin-pictures");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        // The account's own profile page, not the artist page it uploads as.
+        if let Some(crate::model::Loadable::Loaded(profile)) = app.profiles.get_mut("demo") {
+            profile.artist_id = None;
+        }
+        let mut checked = std::collections::BTreeSet::new();
+        let mut missing = Vec::new();
+        for (page, now_playing) in [
+            (Page::Home, false),
+            (Page::Album("alb0".into()), false),
+            (Page::Playlist("pl1".into()), false),
+            (Page::Albums, false),
+            (Page::Artists, false),
+            (Page::Profile("demo".into()), false),
+            (Page::Home, true),
+        ] {
+            app.open(page.clone());
+            app.now_playing_view = now_playing;
+            plugin_dom::test_overlay(Some(DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            }));
+            for _ in 0..3 {
+                painted_frame(&ctx, &mut app);
+            }
+            let tree = plugin_dom::test_sent_tree().expect("a tree was sent");
+            plugin_dom::test_overlay(None);
+            // Every picture in view: the `img`s with a box in the page
+            // above the player bar, and the bar's cover.
+            let pictures: Vec<(String, String)> = tree
+                .nodes
+                .iter()
+                .filter(|n| n.tag == "img")
+                .filter(|n| {
+                    n.rect.is_some_and(|[x, y, w, h]| {
+                        w >= 8.0
+                            && h >= 8.0
+                            && x >= 0.0
+                            && y >= 0.0
+                            && x + w <= 1280.0
+                            && (y + h <= 712.0
+                                || n.key == crate::luna::dom_anchors::keys::COVER_IMG)
+                    })
+                })
+                .map(|n| {
+                    let name: String = format!("{page:?}-{now_playing}-{}", n.key)
+                        .chars()
+                        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+                        .collect();
+                    (n.key.clone(), format!("https://pictures.test/{name}.png"))
+                })
+                .collect();
+            assert!(!pictures.is_empty(), "{page:?} shows pictures");
+            plugin_dom::test_overlay(Some(DomOverlay {
+                version: 2,
+                hosts: pictures
+                    .iter()
+                    .map(|(key, url)| {
+                        (
+                            key.clone(),
+                            HostOverride {
+                                attrs: vec![("src".into(), url.clone())],
+                                ..HostOverride::default()
+                            },
+                        )
+                    })
+                    .collect(),
+                ..DomOverlay::default()
+            }));
+            for _ in 0..3 {
+                painted_frame(&ctx, &mut app);
+            }
+            plugin_dom::test_overlay(None);
+            for (key, url) in &pictures {
+                // The kind of picture, without the row or card number.
+                let kind: String = key.chars().filter(|c| !c.is_ascii_digit()).collect();
+                checked.insert(kind);
+                if !app.backend.art().was_asked(url) {
+                    missing.push(format!("{page:?} (now playing {now_playing}): {key}"));
+                }
+            }
+        }
+        app.now_playing_view = false;
+        app.backend.shutdown();
+        assert!(missing.is_empty(), "not drawn:\n{}", missing.join("\n"));
+        // Each kind of picture was there to check.
+        for kind in [
+            "hero-cover-img",
+            "cover-img",
+            "now-playing-artwork-img",
+            "profile-pic-img",
+        ] {
+            assert!(checked.contains(kind), "{kind} checked: {checked:?}");
+        }
+        for part in ["card-cover-img:", "thumb-img:", "tile-img:", ":image-img"] {
+            assert!(
+                checked.iter().any(|k| k.contains(part)),
+                "{part} checked: {checked:?}"
+            );
+        }
+    }
+
     /// radiant-lyrics hides TIDAL's full screen button in the now-playing
     /// header (`[data-test=new-now-playing-expand]{display:none}`), and puts
     /// its own buttons there: the header is Similar tracks, Credits, Lyrics,
