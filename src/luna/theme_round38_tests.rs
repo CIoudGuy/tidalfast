@@ -328,3 +328,25 @@ fn a_library_rows_art_is_in_the_row() {
     assert_eq!(filter(&thumb_img(1)), "none");
     assert!(o.hosts.contains_key(&thumb_img(0)) && !thumb(0).is_empty());
 }
+
+/// The queue's word stand-ins sit in TIDAL 2.46.0's scrolling list
+/// (`div._playQueueItemsContainer_01c88fe[data-test=playqueue] >
+/// div._playQueueItems_84488b2`), under which
+/// the cotton candy family nests its rules for the queue's artist lines
+/// (`[class="_playQueueItems_84488b2"] { ._artistText_73966a1... { transform:
+/// translatey(-.1em) } }`); with no box of that class they reached nothing.
+#[test]
+fn the_queue_words_sit_in_tidals_scrolling_list() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::QUEUE_ROLE_SECONDARY;
+    let css = r#"/* {"name": "Queue list"} */
+[class="_playQueueItems_84488b2"] { ._artistText_73966a1._text20_1lyag_291 { transform: translateY(-.5em); color: rgb(3, 4, 5); } }
+"#;
+    let o = overlay("queue-list.css", css, &queue_frame(), QUEUE_ROLE_SECONDARY);
+    pd::test_overlay(Some((*o).clone()));
+    let look = pd::anchor_look(QUEUE_ROLE_SECONDARY);
+    pd::test_overlay(None);
+    let look = look.expect("the artist line's look");
+    assert_eq!(look.translate, egui::vec2(0.0, -7.0));
+    assert_eq!(look.text, Some(egui::Color32::from_rgb(3, 4, 5)));
+}
