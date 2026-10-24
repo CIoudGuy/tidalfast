@@ -807,6 +807,7 @@ fn collapsing(app: &mut App, ui: &mut egui::Ui, collapse: f32) -> Placed {
     let behind = floating
         .filter(|_| !over)
         .map(|_| ui.painter().add(egui::Shape::Noop));
+    let shadow = floating.map(|_| ui.painter().add(egui::Shape::Noop));
     let response = egui::Panel::left("sidebar-rail")
         .resizable(false)
         .exact_size(width)
@@ -842,6 +843,7 @@ fn collapsing(app: &mut App, ui: &mut egui::Ui, collapse: f32) -> Placed {
         f.sidebar.width = edge.width();
         f.sidebar.collapsed = collapse >= 0.5;
     });
+    card_shadow(ui, shadow, edge, floating.as_ref(), shift);
     edge_line(ui, &palette, edge, behind, floating.is_some(), shift);
     Placed {
         slot: edge.width(),
@@ -959,15 +961,34 @@ fn floating(ctx: &egui::Context) -> Option<crate::ui::theme_layout::Floating> {
     super::plugin_dom::theme_layout(ctx).and_then(|l| l.sidebar)
 }
 
-/// The sidebar's frame, as a card when a theme floats it.
+/// The sidebar's frame, as a card when a theme floats it. Its shadow is
+/// laid apart ([`card_shadow`]).
 fn float(frame: Frame, floating: Option<&crate::ui::theme_layout::Floating>) -> Frame {
     match floating {
-        Some(f) => frame
-            .outer_margin(f.gaps)
-            .corner_radius(f.radius)
-            .shadow(f.shadow),
+        Some(f) => frame.outer_margin(f.gaps).corner_radius(f.radius),
         None => frame,
     }
+}
+
+/// The floating card's outer shadow in `slot`, under the panel: outside the
+/// card only, as a browser draws a `box-shadow`. egui's own frame shadow
+/// also lies under the card's inside, which a see-through card shows (the
+/// cotton candy family's 28 % pink card over its page was 14 % darker).
+fn card_shadow(
+    ui: &egui::Ui,
+    slot: Option<egui::layers::ShapeIdx>,
+    edge: Rect,
+    floating: Option<&crate::ui::theme_layout::Floating>,
+    shift: Option<f32>,
+) {
+    let (Some(slot), Some(f)) = (slot, floating) else {
+        return;
+    };
+    let card = (edge - f.gaps).translate(egui::vec2(-shift.unwrap_or(0.0), 0.0));
+    ui.painter().set(
+        slot,
+        super::plugin_dom::outer_shadow_shape(card, f.radius, f.shadow),
+    );
 }
 
 /// TIDAL's 1-point divider along the sidebar's right edge; round a card a
@@ -1062,6 +1083,7 @@ fn place_panel(app: &mut App, ui: &mut egui::Ui) -> Placed {
     let behind = floating
         .filter(|_| !over)
         .map(|_| ui.painter().add(egui::Shape::Noop));
+    let shadow = floating.map(|_| ui.painter().add(egui::Shape::Noop));
     let panel = egui::Panel::left("sidebar")
         .resizable(true)
         .default_size(app.settings.sidebar_width)
@@ -1104,6 +1126,7 @@ fn place_panel(app: &mut App, ui: &mut egui::Ui) -> Placed {
         f.sidebar.width = edge.width();
         f.sidebar.collapsed = false;
     });
+    card_shadow(ui, shadow, edge, floating.as_ref(), shift);
     edge_line(ui, &palette, edge, behind, floating.is_some(), shift);
     let width = edge.width();
     if (width - app.settings.sidebar_width).abs() > 1.0

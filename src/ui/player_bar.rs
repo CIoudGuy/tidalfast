@@ -93,14 +93,16 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let mut frame = Frame::new()
         .fill(fill)
         .inner_margin(Margin::symmetric(18, 0));
-    // Inset, lifted, rounded, shadowed.
+    // Inset, lifted, rounded; its shadow is laid under it apart, outside
+    // the card only, as a browser draws a `box-shadow` (egui's frame shadow
+    // also lies under the inside, which a see-through bar shows).
     if let Some(f) = &floating {
-        frame = frame
-            .outer_margin(f.gaps)
-            .corner_radius(f.radius)
-            .shadow(f.shadow);
+        frame = frame.outer_margin(f.gaps).corner_radius(f.radius);
     }
-    egui::Panel::bottom("player-bar")
+    let shadow = floating
+        .as_ref()
+        .map(|_| ui.painter().add(egui::Shape::Noop));
+    let placed = egui::Panel::bottom("player-bar")
         .exact_size(reserved_height(ui.ctx()))
         .resizable(false)
         .show_separator_line(false)
@@ -246,6 +248,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             plugin_dom::player_part(PlayerPart::Controls, center);
             plugin_dom::player_part(PlayerPart::Utility, right_ui.min_rect());
         });
+    if let (Some(slot), Some(f)) = (shadow, &floating) {
+        ui.painter().set(
+            slot,
+            plugin_dom::outer_shadow_shape(placed.response.rect - f.gaps, f.radius, f.shadow),
+        );
+    }
 }
 
 /// The floating bar a theme the user applied asks for.
@@ -3124,6 +3132,106 @@ mod narrow_tests {
         };
         let got = bar_colour(Some(footer), None);
         assert!(near(got, [87, 75, 81]), "{got:?}");
+    }
+
+    /// The colours at `points` with the theme's looks `hosts` (anchor key and
+    /// style) over a blue main container.
+    fn colours_with(
+        hosts: &[(&str, crate::luna::dom::HostOverride)],
+        points: &[[f32; 2]],
+    ) -> Vec<Color32> {
+        use crate::luna::dom::{HostOverride, Style};
+        let (ctx, mut app) = setup();
+        let mut o = overlay();
+        o.hosts.insert(
+            keys::MAIN_CONTAINER.into(),
+            HostOverride {
+                style: Style {
+                    background_color: Some("rgb(0, 0, 255)".into()),
+                    background_image: Some(
+                        "linear-gradient(rgb(0, 0, 255), rgb(0, 0, 255))".into(),
+                    ),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        for (key, host) in hosts {
+            o.hosts.insert((*key).into(), host.clone());
+        }
+        crate::ui::plugin_dom::test_overlay(Some(o));
+        let mut colours = Vec::new();
+        for _ in 0..4 {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(2000.0, 820.0))),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(&mut app, ui),
+            );
+            output.textures_delta.clear();
+            colours = points
+                .iter()
+                .map(|[x, y]| {
+                    crate::ui::plugin_dom::test_colour_at(
+                        &output.shapes,
+                        pos2(*x + 0.5, *y + 0.5),
+                        Color32::BLACK,
+                    )
+                })
+                .collect();
+        }
+        crate::ui::plugin_dom::test_overlay(None);
+        colours
+    }
+
+    /// A theme's outer `box-shadow` on a floating card lies outside the
+    /// card, as a browser draws it: a see-through card (the cotton candy
+    /// family's 28 % sidebar over its page, their bar with TIDAL's glass
+    /// cleared) shows the page through it, not its own shadow. egui's frame
+    /// shadow lay under the card's inside too, and the cards came out darker
+    /// (Sour Rainbow Strips' sidebar rgb(230, 167, 134), TIDAL's rgb(255,
+    /// 193, 151)).
+    #[test]
+    fn a_floating_cards_shadow_does_not_show_through_it() {
+        use crate::luna::dom::{HostOverride, Style};
+        let card = |shadow: Option<&str>| {
+            let sidebar = Style {
+                background_color: Some("rgba(255, 0, 0, 0.25)".into()),
+                border_radius: Some("0 19px 19px 0".into()),
+                top: Some("2.25em".into()),
+                box_shadow: shadow.map(str::to_string),
+                ..Style::default()
+            };
+            let bar = Style {
+                background_color: Some("rgba(255, 0, 0, 0.25)".into()),
+                border_radius: Some("20px".into()),
+                position: Some("fixed".into()),
+                bottom: Some("2vh".into()),
+                width: Some("98vw".into()),
+                box_shadow: shadow.map(str::to_string),
+                ..Style::default()
+            };
+            let host = |style: Style| HostOverride {
+                style,
+                ..HostOverride::default()
+            };
+            // Without TIDAL's glass, which is opaque.
+            let glassless = HostOverride {
+                after: Some(Style {
+                    display: Some("none".into()),
+                    ..Style::default()
+                }),
+                ..host(bar)
+            };
+            colours_with(
+                &[(keys::SIDEBAR, host(sidebar)), (keys::FOOTER, glassless)],
+                &[[236.0, 420.0], [650.0, 745.0]],
+            )
+        };
+        let plain = card(None);
+        let shadowed = card(Some("0px 0px 2em rgba(0, 0, 0, 0.6)"));
+        assert_eq!(plain, shadowed, "inside the sidebar card and the bar");
     }
 
     /// With no look of a theme's own for the bar, TIDAL's glass lies over
