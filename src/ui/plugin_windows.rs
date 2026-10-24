@@ -71,6 +71,7 @@ pub fn viewport_id(window: u32) -> ViewportId {
 pub fn show(ctx: &egui::Context, luna: Option<&Luna>) {
     let windows = luna.map(Luna::plugin_windows).unwrap_or_default();
     if windows.is_empty() {
+        plugin_dom::keep_pages(&[]);
         if TRANSPARENT_OPEN.load(Ordering::Relaxed) {
             TRANSPARENT_OPEN.store(false, Ordering::Relaxed);
         }
@@ -90,6 +91,7 @@ pub fn show(ctx: &egui::Context, luna: Option<&Luna>) {
         m.borrow_mut()
             .retain(|id, _| windows.iter().any(|w| w.id == *id))
     });
+    plugin_dom::keep_pages(&windows.iter().map(|w| w.id).collect::<Vec<_>>());
     for w in windows {
         let spec = w.spec();
         let id = viewport_id(w.id);
@@ -277,6 +279,10 @@ fn draw_pass(ui: &mut egui::Ui, w: &PageWindow) {
         ui.painter().rect_filled(rect, 0.0, back);
     }
     let overlay = w.overlay();
+    // The page's fonts (an icon font its linked sheet declares) load and
+    // install even while the app's window is not drawn.
+    plugin_dom::page_overlay(w.id, &overlay);
+    plugin_dom::fonts_tick(&ctx);
     let (root, canvas, hovered, version_changed) = WINDOWS.with(|m| {
         let mut m = m.borrow_mut();
         let win = m.entry(w.id).or_default();
@@ -384,6 +390,10 @@ fn draw_pass(ui: &mut egui::Ui, w: &PageWindow) {
         }
     });
 }
+
+#[cfg(test)]
+#[path = "plugin_page_tests.rs"]
+mod page_tests;
 
 #[cfg(test)]
 mod tests {

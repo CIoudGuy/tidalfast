@@ -2634,7 +2634,8 @@
 		"general__lyrics-sync": "M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z",
 		player__heart: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z",
 	};
-	{
+	// Not in a plugin window's page: that document is the page's alone.
+	if (!L.page) {
 		const sprite = createEl("svg", SVG_NS);
 		sprite._sprite = true;
 		sprite._attrs.set("id", "svg-sprite");
@@ -2663,7 +2664,7 @@
 	const inlineUses = (m) =>
 		m.replace(/<use\b([^>]*?)\/?>(?:<\/use>)?/g, (all, attrs) => {
 			const id = /\bhref="#([^"]+)"/.exec(attrs)?.[1];
-			const glyph = id && SPRITE[id];
+			const glyph = !L.page && id && SPRITE[id];
 			if (!glyph) return all;
 			const path = glyph.stroke
 				? `<path d="${glyph.stroke}" fill="none" stroke="__luna-paint__" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
@@ -3657,6 +3658,9 @@
 	D.flush = () => {
 		flushQueued = false;
 		if (!dirty) return;
+		// A plugin window's page waits for the stylesheets its parser met
+		// (page.js), as Chromium does not draw a page before them.
+		if (D.holdPaint?.()) return;
 		dirty = false;
 		layoutDirty = false;
 		lastFlush = Date.now();

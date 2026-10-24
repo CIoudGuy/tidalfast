@@ -351,7 +351,9 @@
 	// A <style> element's sheet: reparsed when its text changes, unless the
 	// plugin edited the sheet through the CSSOM since.
 	const sheetOf = (el) => {
-		const text = el.textContent;
+		// A plugin window's `<link rel="stylesheet">` holds the sheet it
+		// loaded (page.js).
+		const text = el.localName === "link" ? (el._linkText ?? "") : el.textContent;
 		let sh = el._sheet;
 		if (!sh) {
 			sh = el._sheet = new CSSStyleSheet({ media: el.getAttribute("media") ?? "" });
@@ -368,7 +370,14 @@
 	};
 	const styleElements = () => {
 		const out = [];
-		for (const e of D.descendants(g.document)) if (e.localName === "style") out.push(e);
+		for (const e of D.descendants(g.document)) {
+			if (e.localName === "style") out.push(e);
+			else if (L.page && e.localName === "link") {
+				// One a script put in the page loads now.
+				if (e._linkState === undefined) L.pageLink?.(e);
+				if (typeof e._linkText === "string") out.push(e);
+			}
+		}
 		return out;
 	};
 	const documentSheets = () => {
@@ -476,6 +485,14 @@
 		}
 		return looks;
 	};
+	// A plugin window's page: the browser's own sheet (page.js), first and
+	// outside the document, as Chromium's is not one of `document.styleSheets`.
+	let userAgentSheet = null;
+	const setUserAgentSheet = (text) => {
+		userAgentSheet = new CSSStyleSheet();
+		userAgentSheet.replaceSync(String(text));
+		D.markDirty?.();
+	};
 	let index = null;
 	let indexKey = "";
 	// Nothing in the document changed since the index was checked: reuse it
@@ -490,7 +507,9 @@
 		indexSize = size;
 		const key = `${D.cssVersion()}|${size}`;
 		const els = styleElements();
-		const sheets = [tidalSheet(), looksSheet(), ...els.map(sheetOf), ...(g.document.adoptedStyleSheets ?? [])];
+		// A plugin window's page has only its own sheets: TIDAL's are the
+		// app page's.
+		const sheets = [...(L.page ? [userAgentSheet].filter(Boolean) : [tidalSheet(), looksSheet()]), ...els.map(sheetOf), ...(g.document.adoptedStyleSheets ?? [])];
 		const srcKey = `${key}|${els.length}|${sheets.map((s) => (s._src ?? "").length).join(",")}`;
 		if (index && srcKey === indexKey) return index;
 		indexKey = srcKey;
@@ -1339,10 +1358,21 @@
 	};
 	// The text a `content` value draws: its quoted strings (`""` is an
 	// empty box, a CSS triangle's); anything else draws nothing here.
+	// Escapes are CSS's: `\f001` (up to six hex digits, and one white space
+	// after them) is that code point, an icon font's glyph; a backslash
+	// before a line break is nothing; before anything else, that character.
+	const unescapeCss = (t) =>
+		t.replace(/\\(?:([0-9a-fA-F]{1,6})[ \t\n\r\f]?|(\r\n|[\n\r\f])|([\s\S]))/g, (_, hex, nl, ch) => {
+			if (hex) {
+				const cp = parseInt(hex, 16);
+				return cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff) ? "�" : String.fromCodePoint(cp);
+			}
+			return nl ? "" : (ch ?? "");
+		});
 	const contentText = (v) => {
 		let out = "";
-		String(v ?? "").replace(/"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'/g, (_, a, b) => {
-			out += (a ?? b ?? "").replace(/\\(.)/g, "$1");
+		String(v ?? "").replace(/"((?:[^"\\]|\\[\s\S])*)"|'((?:[^'\\]|\\[\s\S])*)'/g, (_, a, b) => {
+			out += unescapeCss(a ?? b ?? "");
 			return "";
 		});
 		return out;
@@ -1668,5 +1698,5 @@
 	// Whether a rule looks at siblings, children or position: then a changed
 	// class can change what matches outside the element's own subtree.
 	const structural = () => !!buildIndex().structural;
-	L.css = { panelGlass: PANEL_GLASS, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, structural, rangeParts };
+	L.css = { setUserAgentSheet, panelGlass: PANEL_GLASS, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, structural, rangeParts };
 })();
