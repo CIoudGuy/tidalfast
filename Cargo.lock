@@ -1313,7 +1313,7 @@ checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 [[package]]
 name = "ecolor"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=466a177aff068fdf08786852ca77023387467472#466a177aff068fdf08786852ca77023387467472"
+source = "git+https://github.com/CIoudGuy/egui?rev=36760640cdc3db4614c5b3c530cc93f8ea06aa48#36760640cdc3db4614c5b3c530cc93f8ea06aa48"
 dependencies = [
  "bytemuck",
  "emath",
@@ -1323,7 +1323,7 @@ dependencies = [
 [[package]]
 name = "eframe"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=466a177aff068fdf08786852ca77023387467472#466a177aff068fdf08786852ca77023387467472"
+source = "git+https://github.com/CIoudGuy/egui?rev=36760640cdc3db4614c5b3c530cc93f8ea06aa48#36760640cdc3db4614c5b3c530cc93f8ea06aa48"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -1358,7 +1358,7 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=466a177aff068fdf08786852ca77023387467472#466a177aff068fdf08786852ca77023387467472"
+source = "git+https://github.com/CIoudGuy/egui?rev=36760640cdc3db4614c5b3c530cc93f8ea06aa48#36760640cdc3db4614c5b3c530cc93f8ea06aa48"
 dependencies = [
  "accesskit",
  "ahash",
@@ -1379,7 +1379,7 @@ dependencies = [
 [[package]]
 name = "egui-wgpu"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=466a177aff068fdf08786852ca77023387467472#466a177aff068fdf08786852ca77023387467472"
+source = "git+https://github.com/CIoudGuy/egui?rev=36760640cdc3db4614c5b3c530cc93f8ea06aa48#36760640cdc3db4614c5b3c530cc93f8ea06aa48"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -1398,7 +1398,7 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=466a177aff068fdf08786852ca77023387467472#466a177aff068fdf08786852ca77023387467472"
+source = "git+https://github.com/CIoudGuy/egui?rev=36760640cdc3db4614c5b3c530cc93f8ea06aa48#36760640cdc3db4614c5b3c530cc93f8ea06aa48"
 dependencies = [
  "accesskit_winit",
  "arboard",
@@ -1420,7 +1420,7 @@ dependencies = [
 [[package]]
 name = "egui_extras"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=466a177aff068fdf08786852ca77023387467472#466a177aff068fdf08786852ca77023387467472"
+source = "git+https://github.com/CIoudGuy/egui?rev=36760640cdc3db4614c5b3c530cc93f8ea06aa48#36760640cdc3db4614c5b3c530cc93f8ea06aa48"
 dependencies = [
  "ahash",
  "egui",
@@ -1436,7 +1436,7 @@ dependencies = [
 [[package]]
 name = "egui_glow"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=466a177aff068fdf08786852ca77023387467472#466a177aff068fdf08786852ca77023387467472"
+source = "git+https://github.com/CIoudGuy/egui?rev=36760640cdc3db4614c5b3c530cc93f8ea06aa48#36760640cdc3db4614c5b3c530cc93f8ea06aa48"
 dependencies = [
  "bytemuck",
  "egui",
@@ -1455,7 +1455,7 @@ checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
 [[package]]
 name = "emath"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=466a177aff068fdf08786852ca77023387467472#466a177aff068fdf08786852ca77023387467472"
+source = "git+https://github.com/CIoudGuy/egui?rev=36760640cdc3db4614c5b3c530cc93f8ea06aa48#36760640cdc3db4614c5b3c530cc93f8ea06aa48"
 dependencies = [
  "bytemuck",
  "serde",
@@ -1554,7 +1554,7 @@ dependencies = [
 [[package]]
 name = "epaint"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=466a177aff068fdf08786852ca77023387467472#466a177aff068fdf08786852ca77023387467472"
+source = "git+https://github.com/CIoudGuy/egui?rev=36760640cdc3db4614c5b3c530cc93f8ea06aa48#36760640cdc3db4614c5b3c530cc93f8ea06aa48"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -1580,7 +1580,7 @@ dependencies = [
 [[package]]
 name = "epaint_default_fonts"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=466a177aff068fdf08786852ca77023387467472#466a177aff068fdf08786852ca77023387467472"
+source = "git+https://github.com/CIoudGuy/egui?rev=36760640cdc3db4614c5b3c530cc93f8ea06aa48#36760640cdc3db4614c5b3c530cc93f8ea06aa48"
 
 [[package]]
 name = "equivalent"
