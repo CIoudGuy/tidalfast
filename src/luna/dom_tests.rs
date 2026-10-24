@@ -4199,3 +4199,192 @@ const wait = setInterval(() => {
     assert_eq!(r, json!([["x-panel", 3]]));
     finish(luna, dir);
 }
+
+// ---------------------------------------------------------------- mutation observer delivery (plugin round 8)
+
+/// Installs `first` and then `second` (each as written, with `R` its
+/// results), waiting for each to run, with a short watchdog.
+fn start_two(first: (&str, &str), second: (&str, &str)) -> (Luna, PathBuf) {
+    let files: Files = Arc::default();
+    for (name, body) in [first, second] {
+        files.lock().unwrap().insert(
+            format!("/{name}.json"),
+            json!({ "name": name, "version": "1.0.0", "hash": name })
+                .to_string()
+                .into_bytes(),
+        );
+        files.lock().unwrap().insert(
+            format!("/{name}.mjs"),
+            format!("{HEADER}{body}").into_bytes(),
+        );
+    }
+    let base = serve(files);
+    let dir = temp_dir("dom2");
+    let mut cfg = config(&dir);
+    cfg.watchdog = Duration::from_secs(1);
+    let luna = Luna::start(cfg, Arc::new(MockHost::default())).unwrap();
+    for (name, _) in [first, second] {
+        luna.install(&format!("{base}/{name}.mjs"));
+        wait_until(&luna, 30, |s| {
+            plugin(s, name).is_some_and(|p| p.status == PluginStatus::Running)
+        });
+    }
+    (luna, dir)
+}
+
+/// Observer callbacks run one after another, never one inside another,
+/// whatever a callback does (lays the page out, clicks, changes the page),
+/// in the DOM standard's order (Chromium's): the records a callback causes
+/// reach an observer whose turn is still to come in the same round, and
+/// the observers already called in the next one.
+#[test]
+fn observer_callbacks_never_run_inside_each_other() {
+    let (luna, _host, dir) = start(
+        r##"
+let depth = 0;
+const log = [];
+const host = () => document.querySelector('[data-test="footer-track-title"]');
+const box = document.createElement("div");
+box.className = "nest-box";
+document.body.append(box);
+const button = document.createElement("button");
+button.addEventListener("click", () => box.append(document.createElement("u")));
+box.append(button);
+const watch = (name, act) => new MutationObserver((list) => {
+	if (depth > 0) log.push(`nested ${name}`);
+	depth++;
+	try {
+		log.push(`${name} ${list.length}`);
+		act?.();
+	} finally {
+		depth--;
+	}
+	R.log = log;
+}).observe(box, { childList: true, subtree: true, attributes: true });
+let rounds = 0;
+watch("a", () => {
+	if (rounds++ > 0) return;
+	const t = host();
+	if (t) {
+		t.style.color = "rgb(1, 2, 3)";
+		getComputedStyle(t).width;
+		t.getBoundingClientRect();
+	}
+	button.click();
+	box.append(document.createElement("i"));
+	box.setAttribute("data-x", "1");
+});
+watch("b");
+const wait = setInterval(() => {
+	if (!host()) return;
+	clearInterval(wait);
+	box.append(document.createElement("s"));
+	setTimeout(() => (R.done = true), 300);
+}, 20);
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    // Round one: the first append to `a`; to `b` with the three changes
+    // `a` made (its click's append, its append and its attribute). Round
+    // two: those three to `a`.
+    assert_eq!(r["log"], json!(["a 1", "b 4", "a 3"]), "{r}");
+    finish(luna, dir);
+}
+
+/// A plugin whose observer callback never returns is stopped by the
+/// watchdog, and the other observers still get the records they were
+/// waiting for with it (they waited until something else changed the
+/// page).
+#[test]
+fn a_stopped_callback_leaves_the_other_observers_their_records() {
+    let (luna, dir) = start_two(
+        (
+            "Hog",
+            r##"
+new MutationObserver((list) => {
+	for (const r of list) for (const n of r.addedNodes) if (n.dataset?.hog !== undefined) for (;;) {}
+}).observe(document.body, { childList: true, subtree: true });
+"##,
+        ),
+        (
+            "Watch",
+            r##"
+new MutationObserver((list) => {
+	for (const r of list) for (const n of r.addedNodes) if (n.dataset?.hog !== undefined) R.seen = true;
+}).observe(document.body, { childList: true, subtree: true });
+setTimeout(() => {
+	const d = document.createElement("div");
+	d.dataset.hog = "";
+	document.body.append(d);
+}, 50);
+"##,
+        ),
+    );
+    let s = wait_until(&luna, 20, |s| {
+        plugin(s, "Hog").is_some_and(|p| matches!(p.status, PluginStatus::Failed(_)))
+    });
+    assert!(
+        matches!(&plugin(&s, "Hog").unwrap().status, PluginStatus::Failed(e) if e.contains("without yielding"))
+    );
+    let r = results_until(&luna, &dir, 5, |r| r["seen"] == json!(true));
+    assert_eq!(r["seen"], json!(true));
+    assert_eq!(
+        plugin(&luna.snapshot(), "Watch").unwrap().status,
+        PluginStatus::Running
+    );
+    finish(luna, dir);
+}
+
+/// A plugin stopped by the watchdog in its observer callback gets no
+/// more callbacks while its unloads run (each ran away again, holding up
+/// every plugin for the watchdog's time once more).
+#[test]
+fn a_stopped_plugins_observers_get_no_more_records() {
+    let (luna, dir) = start_two(
+        (
+            "Hog",
+            r##"
+unloads.add(() => new Promise((ok) => setTimeout(ok, 2000)));
+new MutationObserver((list) => {
+	console.log("hog called");
+	for (const r of list) for (const n of r.addedNodes) if (n.dataset?.hog !== undefined) for (;;) {}
+}).observe(document.body, { childList: true, subtree: true });
+"##,
+        ),
+        (
+            "Watch",
+            r##"
+let n = 0;
+new MutationObserver((list) => {
+	n += list.length;
+	R.records = n;
+}).observe(document.body, { childList: true, subtree: true });
+setTimeout(() => {
+	const d = document.createElement("div");
+	d.dataset.hog = "";
+	document.body.append(d);
+	setTimeout(() => document.body.append(document.createElement("p")), 1300);
+}, 50);
+"##,
+        ),
+    );
+    let r = results_until(&luna, &dir, 20, |r| r["records"] == json!(2));
+    assert_eq!(r["records"], json!(2));
+    std::thread::sleep(Duration::from_millis(2500));
+    luna.sync(Duration::from_secs(5));
+    let s = luna.snapshot();
+    let hog = plugin(&s, "Hog").unwrap();
+    assert!(
+        matches!(&hog.status, PluginStatus::Failed(_)),
+        "{:?}",
+        hog.status
+    );
+    let calls = hog
+        .logs
+        .iter()
+        .filter(|l| l.message.contains("hog called"))
+        .count();
+    assert_eq!(calls, 1, "{:#?}", hog.logs);
+    finish(luna, dir);
+}

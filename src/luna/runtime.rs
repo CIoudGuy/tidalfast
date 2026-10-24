@@ -3385,6 +3385,7 @@ impl Engine {
         self.deadline.set(Some(Instant::now() + self.watchdog()));
         super::caller::new_turn();
         let mut ran = false;
+        let mut interrupted = false;
         loop {
             match self.rt.execute_pending_job() {
                 Ok(true) => {
@@ -3407,6 +3408,7 @@ impl Engine {
                         describe(&ctx, caught)
                     });
                     let stop = failure.interrupted;
+                    interrupted |= stop;
                     self.on_failure(failure);
                     // The budget is spent: what is still queued runs on the
                     // next turn, with a fresh one, instead of each job being
@@ -3420,6 +3422,14 @@ impl Engine {
         self.report_rejections();
         self.deadline.set(None);
         self.apply_disables();
+        // A job cut short (a mutation observer's delivery among them): what
+        // it left waiting for others goes on (see `stopped` in dom.js).
+        if interrupted {
+            let _ = self.call(
+                "__luna_dom",
+                vec![Arg::S("stopped".into()), Arg::S("{}".into())],
+            );
+        }
         ran
     }
 
@@ -3694,6 +3704,16 @@ impl Engine {
                 NotifyLevel::Error,
                 &format!("{name} was disabled: {err}"),
             );
+            // Its observers hear nothing more, before its unloads run.
+            let _ = self
+                .call(
+                    "__luna_dom",
+                    vec![
+                        Arg::S("stopped".into()),
+                        Arg::S(json!({ "name": name }).to_string()),
+                    ],
+                )
+                .map_err(|f| self.on_failure(f));
             let _ = self
                 .call(
                     "__luna_host",

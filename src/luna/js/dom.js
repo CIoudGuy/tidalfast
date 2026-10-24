@@ -546,6 +546,21 @@
 	}
 	g.MutationObserver = MutationObserver;
 	g.WebKitMutationObserver = MutationObserver;
+	// The watchdog stopped a script (in an observer callback or elsewhere):
+	// the stopped plugin's observers hear nothing more (its unloads still
+	// run, and a callback that ran away runs away again), and the records
+	// the other observers were waiting for in the delivery it cut short go
+	// to them now, not when something else changes the page.
+	const stopped = (plugin) => {
+		if (plugin !== null) {
+			for (const o of [...observers]) if (o._plugin === plugin) o.disconnect();
+			for (const o of [...sizeObservers]) if (o._plugin === plugin) o.disconnect();
+		}
+		if (!deliverQueued && [...observers].some((o) => o._queue.length)) {
+			deliverQueued = true;
+			Promise.resolve().then(deliver);
+		}
+	};
 
 	// ---------------------------------------------------------------- nodes
 	const isStyleish = (n) => n?.localName === "style";
@@ -3867,6 +3882,8 @@
 			case "flush":
 				dirty = true;
 				return void D.flush();
+			case "stopped":
+				return void stopped(arg.name ?? null);
 			default:
 				throw new Error(`Unknown DOM call ${kind}`);
 		}
