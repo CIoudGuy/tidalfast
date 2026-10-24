@@ -740,7 +740,8 @@ lib.redux.intercept("playQueue/ADD_ALREADY_LOADED_ITEMS_TO_QUEUE", unloads, (p) 
         }
         fn command(&self, c: HostCommand) {
             if let HostCommand::RemoveUid(uid) = &c {
-                self.snap.lock().unwrap().queue.retain(|e| e.uid != *uid);
+                std::sync::Arc::make_mut(&mut self.snap.lock().unwrap().queue)
+                    .retain(|e| e.uid != *uid);
             }
             self.commands.lock().unwrap().push(c);
         }
@@ -820,9 +821,9 @@ lib.redux.intercept("playQueue/ADD_ALREADY_LOADED_ITEMS_TO_QUEUE", unloads, (p) 
         .collect();
         {
             let mut snap = host.snap.lock().unwrap();
-            snap.queue = vec![row("100"), row("102")];
+            snap.queue = vec![row("100"), row("102")].into();
             snap.current_index = Some(0);
-            snap.known_items = known;
+            snap.known_items = known.into();
             snap.state = crate::luna::PlaybackState::Playing;
             snap.desired_state = crate::luna::PlaybackState::Playing;
         }
@@ -860,7 +861,7 @@ lib.redux.intercept("playQueue/ADD_ALREADY_LOADED_ITEMS_TO_QUEUE", unloads, (p) 
         );
         let out = settle(&mut gate, out);
         assert!(matches!(out.as_slice(), [Outcome::Go(_)]), "{out:?}");
-        host.snap.lock().unwrap().queue.insert(1, row("101"));
+        std::sync::Arc::make_mut(&mut host.snap.lock().unwrap().queue).insert(1, row("101"));
         luna.event(crate::luna::LunaEvent::QueueChanged);
         wait_for("the remix was not removed", &|c| {
             c.contains(&HostCommand::RemoveUid("101:0".into()))
@@ -877,7 +878,7 @@ lib.redux.intercept("playQueue/ADD_ALREADY_LOADED_ITEMS_TO_QUEUE", unloads, (p) 
         // 2. A remix that starts playing is skipped.
         {
             let mut snap = host.snap.lock().unwrap();
-            snap.queue = vec![row("101"), row("102")];
+            snap.queue = vec![row("101"), row("102")].into();
             snap.current_index = Some(0);
         }
         luna.event(crate::luna::LunaEvent::TrackChanged { id: "101".into() });

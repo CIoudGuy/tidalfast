@@ -27,6 +27,7 @@ pub(crate) struct Seen {
     pub volume: Option<u8>,
     pub shuffle: Option<bool>,
     pub repeat: Option<crate::luna::RepeatMode>,
+    /// The queue plugins were last told about: [`Seen::queue_made`] then.
     pub queue: Option<u64>,
     pub seek_sequence: Option<u64>,
     pub position_s: Option<u32>,
@@ -42,9 +43,20 @@ pub(crate) struct Seen {
     /// The open page's track list given to plugins: its context and how
     /// many tracks it held.
     pub page_list: Option<(String, usize)>,
-    /// Queue tracks as TIDAL JSON, and what they were built from.
-    pub items_key: Option<u64>,
-    pub items: std::collections::BTreeMap<String, serde_json::Value>,
+    /// The queue as plugins see it (the playing song, then Next up), shared
+    /// with every snapshot: made again only when its songs change.
+    pub queue_rows: Arc<Vec<crate::luna::QueueEntry>>,
+    /// How many times [`Seen::queue_rows`] was made: what the queue's songs
+    /// and the queue-changed event follow.
+    pub queue_made: u64,
+    /// Queue tracks as TIDAL JSON, and the queue ([`Seen::queue_made`]) and
+    /// cached track count they were built from.
+    pub items_key: Option<(u64, usize)>,
+    pub items: Arc<std::collections::BTreeMap<String, serde_json::Value>>,
+    /// The favourite tracks, albums and artists plugins read, and a print
+    /// of what they were made from (the saved flags and the library).
+    pub favorites_key: Option<u64>,
+    pub favorite_lists: [Arc<Vec<String>>; 3],
     /// How many times the monitors had changed when plugins were last told
     /// ([`crate::luna::screen::changes`]).
     pub screens: u64,

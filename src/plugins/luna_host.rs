@@ -418,12 +418,11 @@ impl LunaHost for AppHost {
         }
         if !snap.track_lists.is_empty() {
             let known = self.list_items.lock().unwrap_or_else(|l| l.into_inner());
+            let items = std::sync::Arc::make_mut(&mut snap.known_items);
             for ids in snap.track_lists.values() {
                 for id in ids {
                     if let Some(item) = known.get(id) {
-                        snap.known_items
-                            .entry(id.clone())
-                            .or_insert_with(|| item.clone());
+                        items.entry(id.clone()).or_insert_with(|| item.clone());
                     }
                 }
             }
@@ -1492,7 +1491,8 @@ mod tests {
                 id: "777".into(),
                 uid: "777:0".into(),
                 kind: "track".into(),
-            }],
+            }]
+            .into(),
             current_index: Some(0),
             ..Default::default()
         });
