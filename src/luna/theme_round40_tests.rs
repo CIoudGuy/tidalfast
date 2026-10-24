@@ -104,3 +104,44 @@ fn a_radial_gradient_at_center_right_sits_on_the_right_edge() {
     let chromium = [[251, 0, 0], [147, 0, 0], [74, 0, 0], [0, 0, 246], [0, 0, 0]];
     assert_near(&painted(&o, key, rect, &pixels), &chromium, 3);
 }
+
+/// A box inside the sidebar's wrapper paints its fill over the wrapper's,
+/// as CSS paints a child over its parent: Sugarcoat lays a 60 % glass on
+/// the wrapper and fills `aside#sidebar` in it with an opaque pink, and
+/// TIDAL's sidebar is that pink. Tidalfast took the wrapper's fill alone
+/// whenever the wrapper had one, and drew the paler glass.
+#[test]
+fn the_sidebars_aside_paints_over_the_wrappers_fill() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{SIDEBAR, SIDEBAR_NAV};
+    let surface = |name: &str, css: &str| {
+        let o = overlay(name, css, &dom_anchors::sample_frame(), SIDEBAR_NAV);
+        pd::test_overlay(Some((*o).clone()));
+        let c = pd::surface(SIDEBAR, egui::Color32::BLACK);
+        pd::test_overlay(None);
+        c
+    };
+    let opaque = surface(
+        "glass-and-pink.css",
+        r#"/* {"name": "Glass and pink"} */
+._sidebarWrapper_2f256ce { background-color: rgba(255, 255, 255, 0.6); }
+#sidebar { background-color: rgb(255, 144, 186); }
+"#,
+    );
+    assert_eq!(opaque, egui::Color32::from_rgb(255, 144, 186));
+    // Two see-through fills add up: half red over half blue.
+    let both = surface(
+        "half-and-half.css",
+        r#"/* {"name": "Half and half"} */
+._sidebarWrapper_2f256ce { background-color: rgba(0, 0, 255, 0.5); }
+#sidebar { background-color: rgba(255, 0, 0, 0.5); }
+"#,
+    );
+    let chromium = egui::Color32::from_rgba_premultiplied(128, 0, 64, 191);
+    let near = both
+        .to_array()
+        .iter()
+        .zip(chromium.to_array())
+        .all(|(a, b)| a.abs_diff(b) <= 1);
+    assert!(near, "Tidalfast {both:?}, Chromium {chromium:?}");
+}

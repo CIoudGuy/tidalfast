@@ -6639,23 +6639,14 @@ pub fn surface(key: &str, native: Color32) -> Color32 {
         return native;
     }
     let page_painted = see_through();
-    // Under a plugin layer behind the page every box is painted over it,
-    // so nested boxes' see-through fills add up.
-    let own = if super::plugin_slots::has_backdrop() {
-        stacked_fill(key)
-    } else {
-        match fill(key) {
-            // A box made see-through (`background: unset`) shows what the
-            // boxes in it paint: CoverTheme clears the sidebar's wrapper and
-            // tints `aside#sidebar` in it 30 % grey over its gradients.
-            Some(c) if c.a() == 0 => stacked_fill(key).or(Some(c)),
-            // A box the theme leaves alone shows the boxes in it that it
-            // fills: TidalCustomTheme paints `#sidebar` (the `aside` in
-            // the wrapper) its sidebar pink, not the wrapper.
-            None => stacked_fill(key),
-            other => other,
-        }
-    };
+    // The boxes in it paint their fills over its own, as CSS paints them: a
+    // box made see-through (`background: unset`) shows what they paint
+    // (CoverTheme clears the sidebar's wrapper and tints `aside#sidebar` in
+    // it 30 % grey), a box the theme leaves alone shows the ones it fills
+    // (TidalCustomTheme paints `#sidebar` its sidebar pink), and a box it
+    // fills is covered by them (Sugarcoat's wrapper glass under its opaque
+    // pink `aside`); see-through fills add up.
+    let own = stacked_fill(key);
     if let Some(c) = own {
         return c;
     }
