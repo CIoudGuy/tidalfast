@@ -47,6 +47,10 @@ pub mod keys {
     pub const PAGE_TITLE: &str = "page-title";
     /// A collection page's `div._header_d2e600f` round its title.
     pub const PAGE_TITLE_HEADER: &str = "page-title-header";
+    /// The header's details box round an album's or playlist's title
+    /// (TIDAL 2.46.0: `div._detailContainer_5b36b6c` on an album,
+    /// `_detailContainer_105eeff` on a playlist, in the header box).
+    pub const PAGE_DETAIL: &str = "page-detail";
     pub const PAGE_DATA: &str = "page-data";
     pub const PAGE_SMALL_HEADER: &str = "page-small-header";
     pub const PAGE_META: &str = "page-meta-line";
@@ -685,6 +689,19 @@ pub(crate) fn literal_module_names() -> Vec<&'static str> {
 /// still carry match nothing there (the cotton candy family's
 /// `[class="_dataContainer_108ce86"] { transform: translateY(-6em) }`,
 /// once an artist page's, lifted the album header 84 points here).
+/// An album's or playlist's title as TIDAL 2.46.0 marks it up: the details
+/// box round it and the title's own module (`h2.wave-text-title-bold.
+/// _titleText_7494646._selectableText_e3d7134` in `div._detailContainer_
+/// 5b36b6c` on an album, `h2..._title_c9bc1b1...` in `_detailContainer_
+/// 105eeff` on a playlist). Other pages keep the page's `h1`.
+fn header_title_markup(page_id: Option<&str>) -> Option<(&'static str, &'static str)> {
+    match page_id {
+        Some("album") => Some(("_detailContainer_5b36b6c", "_titleText_7494646")),
+        Some("playlist") => Some(("_detailContainer_105eeff", "_title_c9bc1b1")),
+        _ => None,
+    }
+}
+
 fn page_data_class(page_id: Option<&str>) -> String {
     match page_id {
         Some("album") => "_dataContainer_66f4f40".into(),
@@ -2419,7 +2436,13 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
             );
         }
     }
-    if let Some(title) = page.title.as_ref().filter(|_| !collection) {
+    let has_data = page.data.is_some() || page.meta.is_some() || page.hero.is_some();
+    let header_title = header_title_markup(page.page_id.as_deref()).filter(|_| has_data);
+    if let Some(title) = page
+        .title
+        .as_ref()
+        .filter(|_| !collection && header_title.is_none())
+    {
         out.push(
             el(PAGE_TITLE, Some(PAGE), "h1")
                 .modules(&["pageTitle"])
@@ -2558,11 +2581,33 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         );
         out.push(el(keys::PROFILE_PIC_IMG, Some(keys::PROFILE_PIC), "img").at(Some(rect)));
     }
-    if page.data.is_some() || page.meta.is_some() || page.hero.is_some() {
+    if has_data {
         out.push(
             el(PAGE_DATA, Some(PAGE), "div")
                 .class(&page_data_class(page.page_id.as_deref()))
                 .at(page.data),
+        );
+    }
+    // An album's or playlist's title is the header's `h2` in its details
+    // box: the cotton candy family's `[class="_dataContainer_66f4f40"] {
+    // [data-wave-color="textDefault"] { transform: translateY(-.4em) } }`
+    // and `._title_c9bc1b1 { font-size: 30px }` are for it.
+    if let (Some((detail, class)), Some(title)) = (header_title, &page.title) {
+        out.push(
+            el(keys::PAGE_DETAIL, Some(PAGE_DATA), "div")
+                .class(detail)
+                .at(page.title_rect),
+        );
+        out.push(
+            el(PAGE_TITLE, Some(keys::PAGE_DETAIL), "h2")
+                .class("wave-text-title-bold")
+                .class(class)
+                .class("_selectableText_e3d7134")
+                .test("title")
+                .attr("data-wave-color", "textDefault")
+                .attr("data-wave-number-of-lines", "2")
+                .text(title.clone())
+                .at(page.title_rect),
         );
     }
     // TIDAL 2.43: `div.content-header > div._smallHeader_f2c3791`, with

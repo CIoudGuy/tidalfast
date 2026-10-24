@@ -193,7 +193,7 @@ pub(super) fn look_of(
         .and_then(|t| super::function_factor(t, "scale"));
     let translate = transform
         .as_deref()
-        .map_or(egui::Vec2::ZERO, super::translation);
+        .map_or(egui::Vec2::ZERO, |t| super::translation_em(t, em));
     let look = AnchorLook {
         fill,
         backdrop,

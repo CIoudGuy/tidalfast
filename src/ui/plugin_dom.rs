@@ -3665,6 +3665,11 @@ fn cover_style_uncached(boxes: &[String]) -> Option<CoverStyle> {
 /// The `translate`, `translateX` and `translateY` in a `transform`, in
 /// points (lengths in `em` are of TIDAL's 14-point text).
 fn translation(transform: &str) -> egui::Vec2 {
+    translation_em(transform, 14.0)
+}
+
+/// [`translation`] with `em` of a box whose text is `em` points.
+fn translation_em(transform: &str, em: f32) -> egui::Vec2 {
     let lower = transform.to_ascii_lowercase();
     let mut total = egui::Vec2::ZERO;
     let mut rest = lower.as_str();
@@ -3674,7 +3679,7 @@ fn translation(transform: &str) -> egui::Vec2 {
             break;
         };
         let args = &rest[open + 1..open + close];
-        let len = |v: &str| css::length(v.trim(), 14.0, 0.0, [0.0, 0.0]).unwrap_or(0.0);
+        let len = |v: &str| css::length(v.trim(), em, 0.0, [0.0, 0.0]).unwrap_or(0.0);
         match name {
             "translate" => {
                 let mut parts = args.split(',');
@@ -5067,16 +5072,61 @@ impl Title {
     }
 }
 
+/// TIDAL's header title text size (`.wave-text-title-bold`).
+const TIDAL_TITLE_SIZE: f32 = 32.0;
+
+/// The look of an album's or playlist's own header title, TIDAL 2.46.0's
+/// `h2` in the header's details box (see `dom_anchors::header_title_markup`),
+/// where the page has one: a theme's rules for that element come first.
+fn header_title_look(title: Title) -> Option<Arc<AnchorLook>> {
+    if title != Title::Header {
+        return None;
+    }
+    let own = with(|s| {
+        s.last_frame
+            .as_ref()
+            .and_then(|f| f.page.as_ref())
+            .and_then(|p| p.page_id.as_deref())
+            .is_some_and(|id| matches!(id, "album" | "playlist"))
+    });
+    own.then(|| anchor_look(dom_anchors::keys::PAGE_TITLE))
+        .flatten()
+}
+
 /// [`headline_font`] for `title`.
 pub fn title_font(title: Title, size: f32) -> egui::FontId {
     let (text, heading) = title.keys();
-    heading_font(text, heading, size)
+    let own = header_title_look(title);
+    // TIDAL's own 32 is the native size, which the header shrinks to fit.
+    match own
+        .as_ref()
+        .and_then(|l| l.font_size)
+        .filter(|s| (s - TIDAL_TITLE_SIZE).abs() > 0.01)
+    {
+        Some(themed) => {
+            let weight = own.as_ref().and_then(|l| l.font_weight).unwrap_or(700);
+            font_at(themed, weight)
+        }
+        None => match own.as_ref().and_then(|l| l.font_weight) {
+            Some(weight) => font_at(heading_font(text, heading, size).size, weight),
+            None => heading_font(text, heading, size),
+        },
+    }
 }
 
 /// [`headline_color`] for `title`.
 pub fn title_color(title: Title, native: Color32) -> Color32 {
     let (text, heading) = title.keys();
-    heading_color(text, heading).unwrap_or(native)
+    header_title_look(title)
+        .and_then(|l| l.text)
+        .or_else(|| heading_color(text, heading))
+        .unwrap_or(native)
+}
+
+/// Where a theme moves `title` (`transform: translate()` on the header's
+/// title, `em` of its 32 points), else nothing.
+pub fn title_offset(title: Title) -> egui::Vec2 {
+    header_title_look(title).map_or(egui::Vec2::ZERO, |l| l.translate)
 }
 
 /// [`headline_case`] for `title`.
@@ -5085,7 +5135,9 @@ pub fn title_case(title: Title, text: &str) -> Cow<'_, str> {
         return Cow::Borrowed(text);
     }
     let (words, heading) = title.keys();
-    let upper = uppercase(words)
+    let upper = header_title_look(title)
+        .and_then(|l| l.uppercase)
+        .or_else(|| uppercase(words))
         .or_else(|| uppercase(heading))
         .unwrap_or(false);
     cased(text, upper)

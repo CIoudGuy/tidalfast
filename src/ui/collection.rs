@@ -244,7 +244,9 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
     let block = 40.0 + title_extra + 10.0 + byline_height + description_height + meta_height;
     let mut y = (rect.center().y - block / 2.0).max(rect.top());
     let block_top = y;
-    let title_rect = Rect::from_min_size(pos2(left, y + (40.0 - title_row) / 2.0), title.size());
+    // A theme's `translate` on the title moves its words, not the rest.
+    let title_rect = Rect::from_min_size(pos2(left, y + (40.0 - title_row) / 2.0), title.size())
+        .translate(super::plugin_dom::title_offset(kind));
     ui.painter().galley(title_rect.min, title, title_color);
     super::plugin_dom::page_title(ui, hero.title, title_rect, false);
     // A description straight under the title sits 49 below its top

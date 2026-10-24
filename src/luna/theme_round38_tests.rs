@@ -395,3 +395,48 @@ fn the_sidebar_content_is_tidals_navigation_block() {
         Some(egui::Color32::from_rgb(9, 8, 7))
     );
 }
+
+/// An album's title is TIDAL 2.46.0's `h2.wave-text-title-bold.
+/// _titleText_7494646` in the header's `div._detailContainer_5b36b6c`, a
+/// playlist's `h2..._title_c9bc1b1` in `_detailContainer_105eeff`, each in
+/// the header box. The anchor was the page's `h1._pageTitle_` beside it, so
+/// the cotton candy family's rules for those titles (`._title_c9bc1b1 {
+/// font-size: 30px }`, `[class="_dataContainer_66f4f40"] { [data-wave-color
+/// ="textDefault"] { transform: translateY(-.4em) } }`, 12.8 of the title's
+/// 32 points) reached nothing.
+#[test]
+fn an_album_and_playlist_title_is_the_headers_own() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::PAGE_TITLE;
+    let css = r#"/* {"name": "Header titles"} */
+[class="_dataContainer_66f4f40"] { [data-wave-color="textDefault"] { transform: translateY(-.4em); } }
+._detailContainer_5b36b6c > ._titleText_7494646 { color: rgb(11, 12, 13); }
+._title_c9bc1b1 { font-size: 30px !important; padding-top: .3em; }
+"#;
+    let look = |page: &str| {
+        let mut frame = dom_anchors::sample_frame();
+        if let Some(p) = frame.page.as_mut() {
+            p.page_id = Some(page.into());
+            p.title = Some("Fragments".into());
+            p.title_rect = Some([560.0, 120.0, 300.0, 40.0]);
+            p.data = Some([240.0, 92.0, 1040.0, 300.0]);
+        }
+        let o = overlay(
+            &format!("header-titles-{page}.css"),
+            css,
+            &frame,
+            PAGE_TITLE,
+        );
+        pd::test_overlay(Some((*o).clone()));
+        let look = pd::anchor_look(PAGE_TITLE).expect("the title's look");
+        pd::test_overlay(None);
+        look
+    };
+    let album = look("album");
+    assert_eq!(album.translate, egui::vec2(0.0, -12.8));
+    assert_eq!(album.text, Some(egui::Color32::from_rgb(11, 12, 13)));
+    let playlist = look("playlist");
+    assert_eq!(playlist.font_size, Some(30.0));
+    assert_eq!(playlist.padding.map(|p| p[0]), Some(9.0));
+    assert_eq!(playlist.text, None);
+}
