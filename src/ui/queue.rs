@@ -1086,6 +1086,27 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
         _ => rect,
     };
     let current = kind == FloatingRow::Current;
+    // Luna: TIDAL 2.46.0's `div[data-test=playqueue-item]`, its cover, title
+    // and artist links, which plugins read, rewrite, hide and give other
+    // pictures.
+    let key = super::plugin_dom::on().then(|| {
+        crate::luna::dom_anchors::keys::queue_item(&match kind {
+            FloatingRow::History(index) => format!("history:{index}"),
+            FloatingRow::Current => "current".to_string(),
+            FloatingRow::Queue { index, .. } => format!("next:{index}"),
+        })
+    });
+    let part = |name: &str| key.as_ref().map(|key| format!("{key}:{name}"));
+    let drawn = |name: Option<String>| {
+        name.is_none_or(|k| super::plugin_dom::shown(&k) == super::plugin_dom::Shown::Drawn)
+    };
+    // A row a plugin hid is an empty slot, as in TIDAL's virtual list, and
+    // takes no input; it is still described, so the rule that hides it
+    // keeps matching it.
+    if !drawn(key.clone()) {
+        note_queue_row(app, item, kind, key.as_deref(), rect, [None; 4]);
+        return;
+    }
     response.widget_info(|| {
         egui::WidgetInfo::labeled(
             egui::WidgetType::Button,
@@ -1130,15 +1151,21 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
         egui::pos2(rect.left() + 2.0, rect.center().y - ROW_COVER / 2.0),
         egui::vec2(ROW_COVER, ROW_COVER),
     );
-    widgets::paint_cover(
-        ui,
-        &palette,
-        item.image(80),
-        cover,
-        2.0,
-        Icon::Music,
-        Some(app.backend.art()),
-    );
+    let picture = key
+        .as_deref()
+        .and_then(|key| super::plugin_dom::picture(|| format!("{key}:img")));
+    let cover_shown = drawn(part("cover-box")) && drawn(part("img"));
+    if cover_shown {
+        widgets::paint_cover(
+            ui,
+            &palette,
+            picture.as_deref().or(item.image(80)),
+            cover,
+            2.0,
+            Icon::Music,
+            Some(app.backend.art()),
+        );
+    }
     if current {
         ui.painter().rect_filled(
             cover,
@@ -1161,9 +1188,13 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
             egui::pos2(text.right(), rect.top() + top + 20.0),
         )
     };
+    let words = match part("title") {
+        Some(title) => super::plugin_dom::text(&title, app.row_title(item)),
+        None => std::borrow::Cow::Borrowed(app.row_title(item)),
+    };
     let title = widgets::ellipsized(
         ui,
-        app.row_title(item),
+        &words,
         theme::semibold(14.0),
         if current {
             palette.accent
@@ -1178,16 +1209,26 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
             .max_rect(line(10.0))
             .layout(Layout::left_to_right(Align::Center)),
     );
-    title_ui.add(egui::Label::new(title).selectable(false));
+    if drawn(part("title-link")) && drawn(part("title")) {
+        title_ui.add(egui::Label::new(title).selectable(false));
+    }
     let PlayableItem::Track(track) = item;
-    let artists = track.artists.clone();
+    let artists = match &key {
+        Some(key) => {
+            super::plugin_dom::artist_names(&track.artists, |i| format!("{key}:artist:{i}"))
+                .into_owned()
+        }
+        None => track.artists.clone(),
+    };
     let mut artists_ui = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(line(30.0))
             .layout(Layout::left_to_right(Align::Center)),
     );
-    let colors = super::now_playing::queue_name_colors(&app.palette);
-    super::now_playing::names_in(app, &mut artists_ui, &artists, theme::medium(13.0), colors);
+    if drawn(part("artists")) {
+        let colors = super::now_playing::queue_name_colors(&app.palette);
+        super::now_playing::names_in(app, &mut artists_ui, &artists, theme::medium(13.0), colors);
+    }
     let mut right = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(egui::Rect::from_min_max(
@@ -1198,6 +1239,7 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
     );
     // TIDAL: a cross removes any song after the playing one; the history
     // and the playing song have a "..." menu, always shown.
+    let action_rect;
     if let Some(index) = queue_index
         && app.can_remove_from_queue(index)
     {
@@ -1209,6 +1251,7 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
             palette.text,
             &gettext(app.locale, "Remove"),
         );
+        action_rect = remove.rect;
         if remove.clicked() {
             app.actions.push(Action::RemoveFromQueue {
                 rows: vec![(index, item.uri().to_string())],
@@ -1223,10 +1266,24 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
             palette.text,
             &gettext(app.locale, "More"),
         );
+        action_rect = more.rect;
         egui::Popup::menu(&more)
             .frame(widgets::menu_frame(&palette))
             .show(|ui| widgets::item_menu(ui, app, item, None, None));
     }
+    note_queue_row(
+        app,
+        item,
+        kind,
+        key.as_deref(),
+        rect,
+        [
+            Some(cover),
+            Some(line(10.0)),
+            Some(line(30.0)),
+            Some(action_rect),
+        ],
+    );
     let menu_key = match kind {
         FloatingRow::History(index) => ("history", index),
         FloatingRow::Current => ("current", 0),
@@ -1265,6 +1322,43 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
             });
         }
     }
+}
+
+/// One drawn row of the open queue for Luna's document, `rects` being its
+/// cover, title, artist line and button.
+fn note_queue_row(
+    app: &App,
+    item: &PlayableItem,
+    kind: FloatingRow,
+    key: Option<&str>,
+    rect: egui::Rect,
+    rects: [Option<egui::Rect>; 4],
+) {
+    let Some(key) = key else {
+        return;
+    };
+    let PlayableItem::Track(track) = item;
+    let [cover, title, artists, action] = rects.map(|r| r.and_then(super::plugin_dom::rect));
+    let row = crate::luna::dom_anchors::QueueRow {
+        id: key.strip_prefix("queue-item:").unwrap_or(key).to_string(),
+        priority: match kind {
+            FloatingRow::History(_) => "priority_history",
+            FloatingRow::Queue { index, .. } if index < app.queued_rows_len() => "priority_keep",
+            _ => "priority_none",
+        },
+        now_playing: kind == FloatingRow::Current,
+        track_id: super::plugin_dom::uri_id(item.uri()),
+        title: app.row_title(item).to_string(),
+        artists: super::plugin_dom::artist_links(&track.artists),
+        cover_url: item.image(80).map(str::to_string),
+        removable: matches!(kind, FloatingRow::Queue { index, .. } if app.can_remove_from_queue(index)),
+        rect: super::plugin_dom::rect(rect),
+        cover_rect: cover,
+        title_rect: title,
+        artist_rect: artists,
+        action_rect: action,
+    };
+    super::plugin_dom::note(|f| f.queue_rows.push(row));
 }
 
 #[cfg(test)]
@@ -1712,6 +1806,69 @@ mod one_scroll_tests {
         assert!(
             count("Remove") >= 8,
             "every visible upcoming row has a cross: {shown:?}"
+        );
+    }
+
+    /// TIDAL 2.46.0's queue rows are `div[data-test=playqueue-item]` with
+    /// their cover's `img`, title and artist links, which plugins rewrite
+    /// (uwu-ifier, translators), hide and give other pictures. Tidalfast's
+    /// rows were not in the document: a plugin's words never showed and a
+    /// hidden row stayed. A hidden row is an empty slot, still described.
+    #[test]
+    fn plugins_rewrite_and_hide_the_queue_rows() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::keys;
+        let mut app = local_app();
+        let mut frames = Frames::new();
+        super::super::plugin_dom::test_overlay(Some(DomOverlay::default()));
+        frames.open(&mut app);
+        let rows = super::super::plugin_dom::test_take_queue_rows();
+        let current = rows
+            .iter()
+            .find(|r| r.now_playing)
+            .expect("the playing song's row is described")
+            .clone();
+        assert_eq!(current.id, "current");
+        let next = rows
+            .iter()
+            .find(|r| r.id == "next:0")
+            .expect("the first song to come is described")
+            .clone();
+        assert!(next.removable && next.title_rect.is_some(), "{next:?}");
+        let mut o = DomOverlay {
+            version: 2,
+            ..DomOverlay::default()
+        };
+        o.hosts.insert(
+            format!("{}:title", keys::queue_item("current")),
+            HostOverride {
+                text: Some("Wewwitten by a pwugin".into()),
+                ..HostOverride::default()
+            },
+        );
+        o.hosts.insert(
+            keys::queue_item("next:0"),
+            HostOverride {
+                style: Style {
+                    display: Some("none".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        super::super::plugin_dom::test_overlay(Some(o));
+        let shown = painted(&mut frames, &mut app);
+        let rows = super::super::plugin_dom::test_take_queue_rows();
+        super::super::plugin_dom::test_overlay(None);
+        assert!(
+            shown.iter().any(|t| t == "Wewwitten by a pwugin"),
+            "{shown:?}"
+        );
+        assert!(!shown.contains(&current.title), "{shown:?}");
+        assert!(!shown.contains(&next.title), "the hidden row: {shown:?}");
+        assert!(
+            rows.iter().any(|r| r.id == "next:0"),
+            "the hidden row is still described"
         );
     }
 

@@ -8748,6 +8748,8 @@ mod tests {
         ] {
             app.open(page.clone());
             app.now_playing_view = now_playing;
+            // The play queue's rows beside one page.
+            app.show_queue_panel = matches!(page, Page::Artists);
             plugin_dom::test_overlay(Some(DomOverlay {
                 version: 1,
                 ..DomOverlay::default()
@@ -8813,6 +8815,7 @@ mod tests {
             }
         }
         app.now_playing_view = false;
+        app.show_queue_panel = false;
         app.backend.shutdown();
         assert!(missing.is_empty(), "not drawn:\n{}", missing.join("\n"));
         // Each kind of picture was there to check.
@@ -8821,10 +8824,17 @@ mod tests {
             "cover-img",
             "now-playing-artwork-img",
             "profile-pic-img",
+            "byline-pic-img",
         ] {
             assert!(checked.contains(kind), "{kind} checked: {checked:?}");
         }
-        for part in ["card-cover-img:", "thumb-img:", "tile-img:", ":image-img"] {
+        for part in [
+            "card-cover-img:",
+            "thumb-img:",
+            "tile-img:",
+            ":image-img",
+            "queue-item:",
+        ] {
             assert!(
                 checked.iter().any(|k| k.contains(part)),
                 "{part} checked: {checked:?}"
