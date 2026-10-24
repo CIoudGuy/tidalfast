@@ -152,10 +152,18 @@ pub(super) fn look_of(
     }
     .or_else(cleared);
     let layers = !super::box_layers(h, vars, viewport).is_empty();
+    let font_size = s.font_size.as_deref().and_then(|v| {
+        let v = css::resolve_vars(v, vars);
+        css::length(&v, 14.0, 14.0, viewport).filter(|n| *n > 0.0)
+    });
+    // `em` in the box's own lengths is its own text size (TIDAL's medium
+    // market buttons are 16 points: the cotton candy family's `.9em`
+    // corners on the Play pill are 14.4), else TIDAL's 14.
+    let em = font_size.unwrap_or(14.0);
     let corners = s
         .border_radius
         .as_deref()
-        .and_then(|v| corners(v, vars, viewport));
+        .and_then(|v| corners(v, vars, viewport, em));
     let sides = some_sides(s, vars, viewport);
     let shadow = super::super::theme_layout::shadow(s.box_shadow.as_deref(), vars, viewport);
     let glow = super::super::theme_layout::inset_shadow(s.box_shadow.as_deref(), vars, viewport);
@@ -168,10 +176,6 @@ pub(super) fn look_of(
     let icon = style_color(s, |s| s.fill.as_ref(), vars)
         .filter(|c| c.a() > 0)
         .or(text);
-    let font_size = s.font_size.as_deref().and_then(|v| {
-        let v = css::resolve_vars(v, vars);
-        css::length(&v, 14.0, 14.0, viewport).filter(|n| *n > 0.0)
-    });
     let font_weight = s.font_weight.as_deref().and_then(|v| {
         let v = css::resolve_vars(v, vars);
         (!matches!(v.trim(), "inherit" | "")).then(|| css::weight(v.trim()))
@@ -182,7 +186,7 @@ pub(super) fn look_of(
             .trim()
             .eq_ignore_ascii_case("uppercase")
     });
-    let padding = padding(s, vars, viewport);
+    let padding = padding(s, vars, viewport, em);
     let transform = s.transform.as_deref().map(|t| css::resolve_vars(t, vars));
     let scale = transform
         .as_deref()
@@ -212,13 +216,15 @@ pub(super) fn look_of(
     (look != AnchorLook::default()).then_some(look)
 }
 
-/// `border-radius`, one to four corners (`0 20px 20px 0`), `em` of TIDAL's
-/// 14-point text as the native rows measure it; the elliptical part after
-/// `/` is left out. `None` for a value that is no length.
+/// `border-radius`, one to four corners (`0 20px 20px 0`), `em` of the
+/// box's text size `em` (TIDAL's 14-point text unless the box has its
+/// own); the elliptical part after `/` is left out. `None` for a value that
+/// is no length.
 fn corners(
     value: &str,
     vars: &std::collections::BTreeMap<String, String>,
     viewport: [f32; 2],
+    em: f32,
 ) -> Option<CornerRadius> {
     let v = css::resolve_vars(value, vars);
     let v = v.trim().trim_end_matches("!important").trim();
@@ -226,7 +232,7 @@ fn corners(
     let n: Vec<u8> = css::words(v)
         .iter()
         .map(|w| {
-            css::length(w, 14.0, 0.0, viewport)
+            css::length(w, em, 0.0, viewport)
                 .filter(|n| n.is_finite())
                 .map(|n| n.clamp(0.0, 255.0).round() as u8)
         })
@@ -270,13 +276,15 @@ pub(super) fn some_sides(
     (!all && sides.iter().any(|w| *w > 0.0) && color.a() > 0).then_some((sides, color))
 }
 
-/// The box's `padding` and its `padding-*` sides, in points.
+/// The box's `padding` and its `padding-*` sides, in points (`em` of the
+/// box's text size `em`).
 fn padding(
     s: &Style,
     vars: &std::collections::BTreeMap<String, String>,
     viewport: [f32; 2],
+    em: f32,
 ) -> Option<[f32; 4]> {
-    let len = |v: &str| css::length(v, 14.0, 0.0, viewport);
+    let len = |v: &str| css::length(v, em, 0.0, viewport);
     let mut out = s.padding.as_deref().and_then(|v| {
         let v = css::resolve_vars(v, vars);
         let n: Vec<f32> = css::words(&v)

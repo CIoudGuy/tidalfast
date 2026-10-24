@@ -845,7 +845,7 @@ reading one property at a time:
   `Some(transparent)`
   when the theme clears the part's own fill), whether it has layers
   (gradients, `url()` pictures, `::before`/`::after` boxes, frosted glass,
-  borders), corners (one to four, `em` of TIDAL's 14-point text), borders
+  borders), corners (one to four, `em` of the box's own text size, else TIDAL's 14 points: the header's Play and Shuffle are 16), borders
   on some sides only, the first outer shadow and inset glow, opacity, text
   colour (and whether a rule leaves it `inherit`), icon colour (`fill`,
   else the text colour), font size and weight, `text-transform`, padding,
