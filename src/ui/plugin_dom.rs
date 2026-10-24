@@ -3075,10 +3075,26 @@ pub fn grid_card(r: Rect, artist: bool) -> Option<String> {
                 shelf: p.open_shelf,
                 item,
                 words: None,
+                play: None,
             });
         }
     });
     key
+}
+
+/// The card whose anchor is `key` shows its play button at `r` under the
+/// pointer: notes where, and says whether it may be drawn (a plugin did
+/// not hide it).
+pub fn card_play(key: Option<&str>, r: Rect) -> bool {
+    let Some(i) = key.and_then(|k| k.strip_prefix("card:")?.parse::<usize>().ok()) else {
+        return true;
+    };
+    note(|f| {
+        if let Some(card) = f.page.as_mut().and_then(|p| p.cards.get_mut(i)) {
+            card.play = rect(r);
+        }
+    });
+    !hidden(&dom_anchors::keys::card_play(i))
 }
 
 /// Home's vibe tab `name` (TIDAL's `static`, `editorial`, `uploads`)
