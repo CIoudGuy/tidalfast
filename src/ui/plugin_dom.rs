@@ -350,18 +350,33 @@ pub fn window_fullscreen(ctx: &egui::Context) -> bool {
     fullscreen_emulated() || ctx.input(|i| i.viewport().fullscreen.unwrap_or(false))
 }
 
+/// The emulated fullscreen, for the whole process: the app asks for it
+/// where it handles plugins' requests, and the UI reads it where it draws,
+/// which need not be one thread.
+#[cfg(not(test))]
+static EMULATED_FULLSCREEN: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(test)]
 thread_local! {
+    /// Tests run in parallel in one process: each sees only its own.
     static EMULATED_FULLSCREEN: Cell<bool> = const { Cell::new(false) };
 }
 
 /// A window that keeps its mode (an off-screen test window) shows plugins
 /// the fullscreen one of them asked for, or leaves it.
 pub fn emulate_fullscreen(on: bool) {
+    #[cfg(not(test))]
+    EMULATED_FULLSCREEN.store(on, std::sync::atomic::Ordering::Relaxed);
+    #[cfg(test)]
     EMULATED_FULLSCREEN.with(|f| f.set(on));
 }
 
 /// Whether plugins see an emulated fullscreen ([`emulate_fullscreen`]).
 pub fn fullscreen_emulated() -> bool {
+    #[cfg(not(test))]
+    return EMULATED_FULLSCREEN.load(std::sync::atomic::Ordering::Relaxed);
+    #[cfg(test)]
     EMULATED_FULLSCREEN.with(Cell::get)
 }
 
