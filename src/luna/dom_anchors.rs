@@ -1955,6 +1955,37 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
             out.push(el(icon, Some(button), "svg").modules(&["icon"]));
         }
     }
+    // Each row's art is the row's first child in TIDAL 2.46.0 (`a.
+    // _contentItem_ > div._thumbnail_f82abfa > img._artworkImage_5bde5a4`),
+    // so a theme's rules for the open or hovered row's art reach it (the
+    // cotton candy family's `._contentItem_684cbbe._selected_ae83ba5 {
+    // ._thumbnail_f82abfa img { filter: none } }` leaves it untinted). The
+    // art goes in the row it is drawn in; art drawn outside every row stays
+    // in the sidebar's content.
+    let inside = |art: &Option<Rect>, row: &Option<Rect>| match (art, row) {
+        (Some([x, y, w, h]), Some([rx, ry, rw, rh])) => {
+            let (cx, cy) = (x + w / 2.0, y + h / 2.0);
+            cx >= *rx && cx <= rx + rw && cy >= *ry && cy <= ry + rh
+        }
+        _ => false,
+    };
+    let home: Vec<Option<usize>> = side
+        .thumbs
+        .iter()
+        .map(|art| side.rows.iter().position(|(row, _)| inside(art, row)))
+        .collect();
+    let thumb = |out: &mut Vec<HostNode>, j: usize, parent: &str| {
+        out.push(
+            el(keys::thumb(j), Some(parent), "div")
+                .class("_thumbnail_f82abfa")
+                .at(side.thumbs[j]),
+        );
+        out.push(
+            el(keys::thumb_img(j), Some(&keys::thumb(j)), "img")
+                .class("_artworkImage_5bde5a4")
+                .at(side.thumbs[j]),
+        );
+    };
     for (i, (rect, selected)) in side.rows.iter().enumerate() {
         // A link in TIDAL (`a[href*='/playlist/']`): Black Glow's `a,
         // button { background: none }` clears the selected row's pill.
@@ -1974,6 +2005,9 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
         // `._marketText_1lyag_1._text20_1lyag_291`, Tidal Light's
         // `._textContent_462c76e ._title_8b245d1`).
         let row = keys::lib_row(i);
+        for j in (0..side.thumbs.len()).filter(|j| home[*j] == Some(i)) {
+            thumb(out, j, &row);
+        }
         let words = keys::lib_row_words(i);
         out.push(
             el(words.clone(), Some(&row), "div")
@@ -2011,13 +2045,8 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
         }
         out.push(subtitle);
     }
-    for (i, rect) in side.thumbs.iter().enumerate() {
-        out.push(
-            el(keys::thumb(i), Some(SIDEBAR_CONTENT), "div")
-                .class("_thumbnail_f82abfa")
-                .at(*rect),
-        );
-        out.push(el(keys::thumb_img(i), Some(&keys::thumb(i)), "img").at(*rect));
+    for j in (0..side.thumbs.len()).filter(|j| home[*j].is_none()) {
+        thumb(out, j, SIDEBAR_CONTENT);
     }
     // TIDAL's market text as the theme's rules colour it in the sidebar
     // (Tidal Light's `._marketText_1lyag_1 { color: var(--text-default) }`
