@@ -271,7 +271,8 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | `container-row` | `div._containerRow_` | same | |
 | `sidebar` | `div._sidebarWrapper_[data-test=main-layout-sidebar-wrapper][style="width: 240px;"]` (TIDAL's inline width: always 240 expanded, whatever width the user dragged Tidalfast's sidebar to; the icon rail carries its own, `72px`; the real width is `--sidebarWidth` on `container-row`, with `--collapsedSidebarWidth`) | sidebar panel; background restyled; a theme's `top` and `border-radius` float it as a card, a negative `left` slides it out to the left with its contents faded as the theme says, back in under the pointer through its `:hover` rule (Lunallena; see Theme) | |
 | `sidebar-nav` | `aside#sidebar._sidebar_[aria-label="Navigation sidebar"]`, the wrapper's child | sidebar | |
-| `sidebar-content` | `div#sidebar-content` | sidebar | Append (after the nav rows) |
+| `sidebar-content` | `div#sidebar-content._fixedNavigation_00842ee` round the navigation links (TIDAL 2.46.0); a theme's `translate` on it moves the rows | sidebar | Append (after the nav rows) |
+| `sidebar-list-section` | `div._listSection_26d6dae > div._container_4454af7 > div._scrollableContent_4035207 > div` with the "All playlists" heading and `nav[data-test=sidebar-scrollable-nav]` holding the library rows (TIDAL 2.46.0) | sidebar | |
 | `sidebar:<test>` | `a._navigationItem_[data-test=sidebar-music\|sidebar-explore\|sidebar-collection-menu]` (+ `_selected_`; TIDAL 2.43.2 has no `_sidebarItem_`) | nav rows | |
 | `sidebar:sidebar-feed:counter` | `span._marketText_1lyag_1._paragraph10_1lyag_156._badgeCounter_bd84d2f[data-test=feed-counter]` in the Feed row, after its words (+ `_collapsed_f4061d3` in the narrowed sidebar), its text the number of unseen Feed activities; absent at 0, as in TIDAL 2.46.0 | the Feed row's counter; a theme's look for it and words a plugin writes over it are drawn, hiding it hides it | |
 | `main` | `main#main[data-test=main]._main_` (`scroll` = [scrollTop, scrollHeight]) | page panel and its scroll area; background restyled; `scroll_top` scrolls it; `scroll` events go to listeners | |
@@ -600,8 +601,9 @@ exact `Range` (`selectBetween`). The selected words keep their colour.
   The "All playlists" heading is `sidebar-lib-heading`
   (`div._sectionHeader_ca54638`) > `:title`
   (`span._titleText_1d0e44e._medium20_1lyag_192._marketText_1lyag_1`).
-- `sidebar-fixed-nav` (`._fixedNavigation_`) is the navigation rows' bounds,
-  not the whole sidebar.
+- `sidebar-content` (`#sidebar-content._fixedNavigation_`) is the
+  navigation rows' bounds, not the whole sidebar (`FIXED_NAV` is the same
+  element).
 - The open queue's button carries `_activeButton_122ab25` and
   `aria-pressed`.
 - An artist card's `card:<i>:cover-wrapper` carries TIDAL's `_round_5776dee`;

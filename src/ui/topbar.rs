@@ -615,7 +615,7 @@ pub fn show_tab(
 /// Lays `add` out where it sits and draws it moved by `shift` (a theme's
 /// `transform: translate()`): the room it takes stays where it was, as a
 /// browser keeps a moved box's room, and the clicks follow it.
-fn moved<R>(ui: &mut egui::Ui, shift: Vec2, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+pub(crate) fn moved<R>(ui: &mut egui::Ui, shift: Vec2, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     if shift == Vec2::ZERO {
         return add(ui);
     }

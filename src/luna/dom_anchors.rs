@@ -102,7 +102,18 @@ pub mod keys {
     /// The account picture in it (`img._artworkImage_5bde5a4.
     /// _profilePicture_1786ea0`).
     pub const PROFILE_IMG: &str = "profile-picture:img";
-    pub const FIXED_NAV: &str = "sidebar-fixed-nav";
+    /// TIDAL 2.46.0's navigation block is `div#sidebar-content.
+    /// _fixedNavigation_00842ee` itself: one element, [`SIDEBAR_CONTENT`].
+    pub const FIXED_NAV: &str = SIDEBAR_CONTENT;
+    /// The playlists' section after it (TIDAL 2.46.0: `div._listSection_
+    /// 26d6dae > div._container_4454af7 > div._scrollableContent_4035207 >
+    /// div`, holding the "All playlists" heading and `nav[data-test=
+    /// sidebar-scrollable-nav]` with the rows).
+    pub const LIST_SECTION: &str = "sidebar-list-section";
+    pub const LIST_CONTAINER: &str = "sidebar-list-section:container";
+    pub const LIST_SCROLL: &str = "sidebar-list-section:scroll";
+    pub const LIST_INNER: &str = "sidebar-list-section:inner";
+    pub const LIB_NAV: &str = "sidebar-list-section:nav";
     /// The "All playlists" heading over the library rows
     /// (`div._sectionHeader_ca54638`) and its words
     /// (`span._titleText_1d0e44e._medium20_ ._marketText_`).
@@ -1818,24 +1829,23 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
             .attr("aria-label", "Navigation sidebar")
             .at(side.rect),
     );
-    out.push(
-        el(SIDEBAR_CONTENT, Some(SIDEBAR_NAV), "div")
-            .id("sidebar-content")
-            .at(side.rect),
-    );
-    // TIDAL's box round the navigation rows (Tidal TUI labels it `Tabs` at
-    // its corner): their bounds, none while they are not drawn (the
-    // now-playing view covering the window).
-    let nav = side.items.iter().filter_map(|i| i.rect).reduce(|a, b| {
+    // TIDAL's box round the navigation rows, `div#sidebar-content.
+    // _fixedNavigation_00842ee` (Tidal TUI labels it `Tabs` at its corner;
+    // the cotton candy family's `[class="_fixedNavigation_00842ee"] {
+    // transform: translateY(-.5em) }` lifts the rows): their bounds, none
+    // while they are not drawn (the now-playing view covering the window).
+    let union = |a: Rect, b: Rect| {
         let (x0, y0) = (a[0].min(b[0]), a[1].min(b[1]));
         let (x1, y1) = (
             (a[0] + a[2]).max(b[0] + b[2]),
             (a[1] + a[3]).max(b[1] + b[3]),
         );
         [x0, y0, x1 - x0, y1 - y0]
-    });
+    };
+    let nav = side.items.iter().filter_map(|i| i.rect).reduce(union);
     out.push(
-        el(FIXED_NAV, Some(SIDEBAR_CONTENT), "div")
+        el(SIDEBAR_CONTENT, Some(SIDEBAR_NAV), "div")
+            .id("sidebar-content")
             .modules(&["fixedNavigation"])
             .at(nav),
     );
@@ -1947,11 +1957,33 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
             );
         }
     }
+    // The playlists' section, its heading and rows (their bounds).
+    let list = side
+        .heading
+        .into_iter()
+        .chain(side.rows.iter().filter_map(|(r, _)| *r))
+        .reduce(union);
+    out.push(
+        el(LIST_SECTION, Some(SIDEBAR_NAV), "div")
+            .class("_listSection_26d6dae")
+            .at(list),
+    );
+    out.push(
+        el(LIST_CONTAINER, Some(LIST_SECTION), "div")
+            .class("_container_4454af7")
+            .at(list),
+    );
+    out.push(
+        el(LIST_SCROLL, Some(LIST_CONTAINER), "div")
+            .class("_scrollableContent_4035207")
+            .at(list),
+    );
+    out.push(el(LIST_INNER, Some(LIST_SCROLL), "div").at(list));
     if let Some(rect) = side.heading {
         // Exactly TIDAL's class: the cotton candy family names it as
         // `[class="_sectionHeader_ca54638"]`.
         out.push(
-            el(LIB_HEADING, Some(SIDEBAR_CONTENT), "div")
+            el(LIB_HEADING, Some(LIST_INNER), "div")
                 .class("_sectionHeader_ca54638")
                 .at(Some(rect)),
         );
@@ -1973,6 +2005,11 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
             out.push(el(icon, Some(button), "svg").modules(&["icon"]));
         }
     }
+    out.push(
+        el(LIB_NAV, Some(LIST_INNER), "nav")
+            .test("sidebar-scrollable-nav")
+            .at(side.rows.iter().filter_map(|(r, _)| *r).reduce(union)),
+    );
     // Each row's art is the row's first child in TIDAL 2.46.0 (`a.
     // _contentItem_ > div._thumbnail_f82abfa > img._artworkImage_5bde5a4`),
     // so a theme's rules for the open or hovered row's art reach it (the
@@ -2007,7 +2044,7 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
     for (i, (rect, selected)) in side.rows.iter().enumerate() {
         // A link in TIDAL (`a[href*='/playlist/']`): Black Glow's `a,
         // button { background: none }` clears the selected row's pill.
-        let mut node = el(keys::lib_row(i), Some(SIDEBAR_CONTENT), "a")
+        let mut node = el(keys::lib_row(i), Some(LIB_NAV), "a")
             .modules(&["contentItem"])
             .at(*rect);
         if *selected {
@@ -2064,7 +2101,7 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
         out.push(subtitle);
     }
     for j in (0..side.thumbs.len()).filter(|j| home[*j].is_none()) {
-        thumb(out, j, SIDEBAR_CONTENT);
+        thumb(out, j, LIB_NAV);
     }
     // TIDAL's market text as the theme's rules colour it in the sidebar
     // (Tidal Light's `._marketText_1lyag_1 { color: var(--text-default) }`
@@ -4232,7 +4269,8 @@ mod tests {
             (keys::TITLE_SPAN, keys::TITLE_LINK, "span"),
             (keys::QUALITY_LABEL, keys::QUALITY_TEXT, "span"),
             (keys::TITLE_STACK, keys::TRACK_CONTENT, "div"),
-            (keys::FIXED_NAV, keys::SIDEBAR_CONTENT, "div"),
+            // `div#sidebar-content._fixedNavigation_` in the aside (TIDAL 2.46.0).
+            (keys::FIXED_NAV, keys::SIDEBAR_NAV, "div"),
             (keys::PROFILE_CONTAINER, keys::HEADER_BAR, "div"),
             (keys::PROFILE, keys::PROFILE_CONTAINER, "button"),
             (keys::HEADER_BAR, keys::HEADER, "div"),
