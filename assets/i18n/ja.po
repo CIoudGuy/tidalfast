@@ -3766,13 +3766,6 @@ msgid ""
 msgstr ""
 "TIDALのログイン情報を作者のサーバーに送信しますが、許可した後にのみ行います。"
 
-#: src/luna/mod.rs:503
-msgid ""
-"Its mini player is a separate browser window, which Tidalfast does not "
-"include."
-msgstr ""
-"ミニプレーヤーは別のブラウザウィンドウで、Tidalfastには含まれていません。"
-
 #: src/luna/mod.rs:507
 msgid ""
 "It takes the media keys across the whole computer, which it does only after "
@@ -3812,14 +3805,6 @@ msgid ""
 msgstr ""
 "Last.fmのスクロブルにはTIDAL独自のLast.fmキーが必要ですが、Tidalfastにはあり"
 "ません。"
-
-#: src/luna/mod.rs:527
-msgid ""
-"The lyrics bubble over the player bar works, but its separate lyrics window "
-"does not, because that needs a browser engine."
-msgstr ""
-"プレーヤーバーの上に表示される歌詞の吹き出しは動作しますが、別ウィンドウの歌"
-"詞表示はブラウザエンジンが必要なため動作しません。"
 
 #: src/luna/mod.rs:531
 msgid ""

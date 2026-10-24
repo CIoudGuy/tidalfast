@@ -3785,13 +3785,6 @@ msgstr ""
 "TIDAL oturumunuzu yapımcısının sunucusuna gönderir, ancak bunu yalnızca siz "
 "izin verdikten sonra yapar."
 
-#: src/luna/mod.rs:503
-msgid ""
-"Its mini player is a separate browser window, which Tidalfast does not "
-"include."
-msgstr ""
-"Mini oynatıcısı ayrı bir tarayıcı penceresidir ve Tidalfast bunu içermez."
-
 #: src/luna/mod.rs:507
 msgid ""
 "It takes the media keys across the whole computer, which it does only after "
@@ -3831,14 +3824,6 @@ msgid ""
 msgstr ""
 "Last.fm scrobble işlemi, Tidalfast'te bulunmayan TIDAL'ın kendi Last.fm "
 "anahtarına ihtiyaç duyar."
-
-#: src/luna/mod.rs:527
-msgid ""
-"The lyrics bubble over the player bar works, but its separate lyrics window "
-"does not, because that needs a browser engine."
-msgstr ""
-"Oynatıcı çubuğunun üzerindeki şarkı sözü balonu çalışır, ancak ayrı şarkı "
-"sözü penceresi çalışmaz, çünkü bir tarayıcı motoru gerektirir."
 
 #: src/luna/mod.rs:531
 msgid ""

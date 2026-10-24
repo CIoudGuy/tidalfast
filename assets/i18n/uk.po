@@ -3809,13 +3809,6 @@ msgid ""
 msgstr ""
 "Надсилає ваш вхід у TIDAL на сервер автора, але лише після вашого дозволу."
 
-#: src/luna/mod.rs:503
-msgid ""
-"Its mini player is a separate browser window, which Tidalfast does not "
-"include."
-msgstr ""
-"Його мініпрогравач — це окреме вікно браузера, якого в Tidalfast немає."
-
 #: src/luna/mod.rs:507
 msgid ""
 "It takes the media keys across the whole computer, which it does only after "
@@ -3855,14 +3848,6 @@ msgid ""
 msgstr ""
 "Скроблінг у Last.fm потребує власного ключа Last.fm від TIDAL, якого в "
 "Tidalfast немає."
-
-#: src/luna/mod.rs:527
-msgid ""
-"The lyrics bubble over the player bar works, but its separate lyrics window "
-"does not, because that needs a browser engine."
-msgstr ""
-"Бульбашка з текстом пісні над панеллю програвача працює, а окреме вікно з "
-"текстом ні, бо для нього потрібен рушій браузера."
 
 #: src/luna/mod.rs:531
 msgid ""

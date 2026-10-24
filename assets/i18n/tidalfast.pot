@@ -3660,12 +3660,6 @@ msgid ""
 "you allow it."
 msgstr ""
 
-#: src/luna/mod.rs:503
-msgid ""
-"Its mini player is a separate browser window, which Tidalfast does not "
-"include."
-msgstr ""
-
 #: src/luna/mod.rs:507
 msgid ""
 "It takes the media keys across the whole computer, which it does only after "
@@ -3694,12 +3688,6 @@ msgstr ""
 msgid ""
 "Last.fm scrobbling needs TIDAL's own Last.fm key, which Tidalfast does not "
 "have."
-msgstr ""
-
-#: src/luna/mod.rs:527
-msgid ""
-"The lyrics bubble over the player bar works, but its separate lyrics window "
-"does not, because that needs a browser engine."
 msgstr ""
 
 #: src/luna/mod.rs:531

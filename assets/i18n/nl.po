@@ -3804,12 +3804,6 @@ msgstr ""
 "Het stuurt je TIDAL-aanmelding naar de server van de maker, maar pas nadat "
 "je dat toestaat."
 
-#: src/luna/mod.rs:503
-msgid ""
-"Its mini player is a separate browser window, which Tidalfast does not "
-"include."
-msgstr "De miniplayer is een apart browservenster, dat Tidalfast niet bevat."
-
 #: src/luna/mod.rs:507
 msgid ""
 "It takes the media keys across the whole computer, which it does only after "
@@ -3849,14 +3843,6 @@ msgid ""
 msgstr ""
 "Last.fm-scrobbling heeft TIDALs eigen Last.fm-sleutel nodig, die Tidalfast "
 "niet heeft."
-
-#: src/luna/mod.rs:527
-msgid ""
-"The lyrics bubble over the player bar works, but its separate lyrics window "
-"does not, because that needs a browser engine."
-msgstr ""
-"De songtekstballon boven de spelerbalk werkt, maar het aparte "
-"songtekstvenster niet, omdat daarvoor een browser-engine nodig is."
 
 #: src/luna/mod.rs:531
 msgid ""

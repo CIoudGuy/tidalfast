@@ -3807,14 +3807,6 @@ msgstr ""
 "Envía tu inicio de sesión de TIDAL al servidor de su autor, y solo lo hace "
 "después de que lo permitas."
 
-#: src/luna/mod.rs:503
-msgid ""
-"Its mini player is a separate browser window, which Tidalfast does not "
-"include."
-msgstr ""
-"Su minirreproductor es una ventana de navegador independiente, que Tidalfast "
-"no incluye."
-
 #: src/luna/mod.rs:507
 msgid ""
 "It takes the media keys across the whole computer, which it does only after "
@@ -3854,14 +3846,6 @@ msgid ""
 msgstr ""
 "El scrobbling de Last.fm necesita la clave de Last.fm propia de TIDAL, que "
 "Tidalfast no tiene."
-
-#: src/luna/mod.rs:527
-msgid ""
-"The lyrics bubble over the player bar works, but its separate lyrics window "
-"does not, because that needs a browser engine."
-msgstr ""
-"La burbuja de letras sobre la barra del reproductor funciona, pero su "
-"ventana de letras independiente no, porque necesita un motor de navegador."
 
 #: src/luna/mod.rs:531
 msgid ""
