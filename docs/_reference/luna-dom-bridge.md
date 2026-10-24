@@ -952,7 +952,9 @@ utility-button cards, and the play queue's rows (`div._container_aab70e3
 hovered row, which the queue floats over the row under the pointer so
 `:hover` rules reach it). A border on some sides of a box (`border-style: solid
 none none none`, the runtime's `border-width` of four) is drawn on those
-sides for every box layer, not round the box.
+sides for every box layer, not round the box. A track row's `border-image`
+(`linear-gradient(...) 1`, the cotton candy family's row lines) paints its
+border's sides in that gradient instead of the colour, unrounded.
 
 Themer's CSS editor (a BrowserWindow on a Monaco page) is shown as a window
 inside the app (`HostCommand::OpenEditor`): its text is the plugin's CSS and

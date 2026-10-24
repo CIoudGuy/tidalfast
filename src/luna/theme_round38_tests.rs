@@ -440,3 +440,28 @@ fn an_album_and_playlist_title_is_the_headers_own() {
     assert_eq!(playlist.padding.map(|p| p[0]), Some(9.0));
     assert_eq!(playlist.text, None);
 }
+
+/// A theme's `border-image` paints a box's border with its picture in
+/// place of the colour: the cotton candy family's track rows (`border-
+/// style: solid none none none; border-image: linear-gradient(to right,
+/// #0000 2%, <line> 20%, <line> 80%, #0000 100%) 1`) have a line that
+/// fades in and out, as in TIDAL; the cascade dropped the property, so the
+/// line was drawn solid end to end.
+#[test]
+fn a_border_image_paints_the_rows_line() {
+    use crate::ui::plugin_dom as pd;
+    use crate::ui::theme_gradient::color_at;
+    let css = r#"/* {"name": "Row lines"} */
+._tableRow_299a426 { border-style: solid none none none; border-width: 2px; border-image: linear-gradient(to right, #0000 10%, rgb(200, 0, 0) 50%, #0000 90%) 1; }
+"#;
+    let row = dom_anchors::keys::row("album:55", 1);
+    let o = overlay("row-lines.css", css, &dom_anchors::sample_frame(), &row);
+    pd::test_overlay(Some((*o).clone()));
+    let line = pd::border_image(&row);
+    pd::test_overlay(None);
+    let line = line.expect("the row's border image");
+    assert!((line.angle - 90.0).abs() < 1e-3, "{line:?}");
+    assert_eq!(color_at(&line, 0.5), egui::Color32::from_rgb(200, 0, 0));
+    assert_eq!(color_at(&line, 0.05).a(), 0);
+    assert_eq!(color_at(&line, 0.95).a(), 0);
+}

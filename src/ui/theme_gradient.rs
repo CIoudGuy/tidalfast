@@ -109,6 +109,77 @@ pub fn parse(layer: &str) -> Option<Angled> {
     })
 }
 
+/// Any `linear-gradient(...)` in `value` as an angled gradient, the plain
+/// ramps too (a border image's: the cotton candy family's row lines, `to
+/// right` fading in and out).
+pub fn parse_any(value: &str) -> Option<Angled> {
+    let lower = value.trim().to_ascii_lowercase();
+    let at = lower.find("linear-gradient(")?;
+    let rest = &value.trim()[at..];
+    let mut depth = 0;
+    let end = rest.char_indices().find_map(|(i, c)| {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+        None
+    })?;
+    let layer = &rest[..=end];
+    if let Some(g) = parse(layer) {
+        return Some(g);
+    }
+    let inner = css::func(&layer.to_ascii_lowercase(), "linear-gradient")?.to_string();
+    let parts = css::split_top(&inner, ',');
+    let (first, rest) = parts.split_first()?;
+    let (angle, stops) = match direction(first) {
+        Some((angle, _)) => (angle, rest),
+        None => (180.0, parts.as_slice()),
+    };
+    let colors: Vec<Color32> = stops
+        .iter()
+        .filter_map(|s| css::words(s.trim()).first().and_then(|w| css::color(w)))
+        .collect();
+    if colors.len() < 2 {
+        return None;
+    }
+    let last = (colors.len() - 1) as f32;
+    Some(Angled {
+        stops: colors
+            .iter()
+            .enumerate()
+            .map(|(i, c)| (i as f32 / last, *c))
+            .collect(),
+        angle,
+        spin: None,
+        size: [1.0, 1.0],
+        position: [0.0, 0.0],
+    })
+}
+
+/// The colour `g` has at `t` along its line (0 start, 1 end).
+pub fn color_at(g: &Angled, t: f32) -> Color32 {
+    let Some(first) = g.stops.first() else {
+        return Color32::TRANSPARENT;
+    };
+    if t <= first.0 {
+        return first.1;
+    }
+    for pair in g.stops.windows(2) {
+        let ((a, ca), (b, cb)) = (pair[0], pair[1]);
+        if t <= b {
+            let k = if b > a { (t - a) / (b - a) } else { 1.0 };
+            return ca.lerp_to_gamma(cb, k);
+        }
+    }
+    g.stops.last().map_or(Color32::TRANSPARENT, |s| s.1)
+}
+
 /// CSS's rules for stops without a position: the first is at 0, the last at
 /// 1, none goes before the one ahead of it, and a run of them is spread
 /// evenly between its neighbours.

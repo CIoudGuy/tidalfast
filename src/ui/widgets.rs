@@ -1618,11 +1618,14 @@ fn track_row_contents(
         for (sides, color, radius) in row_wrapper_borders(&list, row.index) {
             paint_border(ui.painter(), rect, sides, color, radius);
         }
-        if let Some((sides, color)) = super::plugin_dom::outline_sides(
-            &crate::luna::dom_anchors::keys::row(&list, row.index),
-            app.palette.accent,
-        ) {
-            paint_border(ui.painter(), rect, sides, color, 4.0);
+        let key = crate::luna::dom_anchors::keys::row(&list, row.index);
+        if let Some((sides, color)) = super::plugin_dom::outline_sides(&key, app.palette.accent) {
+            // A `border-image` paints the border's sides in its picture
+            // instead of the colour (corners take no rounding then).
+            match super::plugin_dom::border_image(&key) {
+                Some(g) => paint_border_image(ui.painter(), rect, sides, &g),
+                None => paint_border(ui.painter(), rect, sides, color, 4.0),
+            }
         }
     }
     // A plugin hid the row (`display: none`): its place stays, empty. Its
@@ -2847,6 +2850,66 @@ pub(crate) fn row_wrapper_borders(list: &str, index: usize) -> Vec<([f32; 4], Co
         .into_iter()
         .filter_map(|part| super::plugin_dom::box_border(&row_cell(list, index, part)))
         .collect()
+}
+
+/// A border of `sides` (top, right, bottom, left) round `rect` painted in
+/// the gradient `g`, as `border-image: <gradient> 1` paints it: each side's
+/// strip shows the part of the gradient laid over the whole box.
+fn paint_border_image(
+    painter: &egui::Painter,
+    rect: Rect,
+    sides: [f32; 4],
+    g: &super::theme_gradient::Angled,
+) {
+    let [t, r, b, l] = sides;
+    for (w, strip) in [
+        (
+            t,
+            Rect::from_min_max(rect.min, pos2(rect.max.x, rect.min.y + t)),
+        ),
+        (
+            r,
+            Rect::from_min_max(pos2(rect.max.x - r, rect.min.y), rect.max),
+        ),
+        (
+            b,
+            Rect::from_min_max(pos2(rect.min.x, rect.max.y - b), rect.max),
+        ),
+        (
+            l,
+            Rect::from_min_max(rect.min, pos2(rect.min.x + l, rect.max.y)),
+        ),
+    ] {
+        if w <= 0.0 {
+            continue;
+        }
+        // The strip's share of the gradient over the whole row.
+        let mut part = g.clone();
+        let horizontal = (g.angle - 90.0).abs() < 0.01 || (g.angle - 270.0).abs() < 0.01;
+        let (from, to) = if horizontal {
+            (
+                (strip.min.x - rect.min.x) / rect.width().max(1.0),
+                (strip.max.x - rect.min.x) / rect.width().max(1.0),
+            )
+        } else {
+            (
+                (strip.min.y - rect.min.y) / rect.height().max(1.0),
+                (strip.max.y - rect.min.y) / rect.height().max(1.0),
+            )
+        };
+        if (to - from) < 1.0 - 1e-3 {
+            part.stops = (0..=8)
+                .map(|i| {
+                    let at = i as f32 / 8.0;
+                    (
+                        at,
+                        super::theme_gradient::color_at(g, from + (to - from) * at),
+                    )
+                })
+                .collect();
+        }
+        super::theme_gradient::paint(painter, strip, None, &part, part.angle, part.position);
+    }
 }
 
 /// A border of `sides` (top, right, bottom, left) round `rect`: one stroke
