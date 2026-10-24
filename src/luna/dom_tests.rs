@@ -3276,3 +3276,83 @@ setTimeout(go, 300);
     assert_eq!(r["unsent"].as_f64(), Some(800.0));
     finish(luna, dir);
 }
+
+/// A plugin that rewrites every text node at load and in nodes added later
+/// (the shape of a text-rewriting plugin): the navigation rows' words
+/// reach the overlay whether the sidebar is in the first host tree, or
+/// mounts later.
+#[test]
+fn text_rewritten_in_navigation_rows_reaches_the_overlay_whenever_they_mount() {
+    let body = r##"
+const seen = new WeakSet();
+const walk = (root) => {
+	const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	let n;
+	while ((n = w.nextNode())) {
+		if (seen.has(n)) continue;
+		const t = n.textContent;
+		if (!t.trim()) continue;
+		n.textContent = "~" + t;
+		seen.add(n);
+	}
+};
+walk(document.body);
+new MutationObserver((list) => {
+	for (const r of list) r.addedNodes.forEach((a) => walk(a));
+}).observe(document.body, { childList: true, subtree: true });
+R.started = true;
+"##;
+    for late in [false, true] {
+        let (luna, _host, dir) = start(body);
+        results_until(&luna, &dir, 10, |r| r["started"] == json!(true));
+        let mut full = tree();
+        if late {
+            let mut early = full.clone();
+            early.nodes.retain(|n| !n.key.starts_with("sidebar"));
+            luna.sync_dom(early);
+            std::thread::sleep(Duration::from_millis(300));
+        }
+        full.nodes.iter_mut().for_each(|_| {});
+        luna.sync_dom(std::mem::take(&mut full));
+        let o = overlay_until(&luna, 10, |o| {
+            o.host("sidebar:sidebar-music")
+                .is_some_and(|h| h.text.as_deref().is_some_and(|t| t.starts_with('~')))
+        });
+        assert!(o.host("sidebar:sidebar-music").is_some(), "late {late}");
+        finish(luna, dir);
+    }
+}
+
+/// The same rewrite made once at load, with the page there when the plugin
+/// starts (`wait_for_dom`): the navigation rows' words are rewritten.
+#[test]
+fn text_rewritten_at_load_in_the_first_host_tree_reaches_the_overlay() {
+    let body = r##"
+const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+let n; let count = 0;
+while ((n = w.nextNode())) {
+	const t = n.textContent;
+	if (!t.trim()) continue;
+	n.textContent = "~" + t;
+	count++;
+}
+R.rewritten = count;
+"##;
+    let (luna, _host, dir) = start(body);
+    luna.shutdown();
+    let mut cfg = config(&dir);
+    cfg.wait_for_dom = Duration::from_secs(20);
+    let luna = Luna::start(cfg, Arc::new(MockHost::default())).unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 30, |r| {
+        r["rewritten"].as_u64().unwrap_or(0) > 0
+    });
+    assert!(r["rewritten"].as_u64().unwrap() > 5, "{r}");
+    let o = overlay_until(&luna, 10, |o| {
+        o.host("sidebar:sidebar-music")
+            .is_some_and(|h| h.text.as_deref().is_some_and(|t| t.starts_with('~')))
+    });
+    assert!(o.host("sidebar:sidebar-music").is_some());
+    finish(luna, dir);
+}
