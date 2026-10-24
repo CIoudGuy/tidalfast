@@ -554,13 +554,39 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("aspectRatio1x1", "_aspectRatio1x1_8faaf4e"),
     ("imageContainer", "_imageContainer_c0c79a9"),
     ("imageWrapper", "_imageWrapper_aecc0c5"),
+    // The bar's title box. TIDAL 2.46.0 has nine `_titleContainer_`
+    // modules; the cotton candy family's `[class="_titleContainer_9fba00e"]
+    // { transform: translateX(-.38em) }` names an older album title's,
+    // which is none of them, and moved the bar's title here.
+    ("titleContainer", "_titleContainer_2da23c0"),
 ];
+
+/// Module names whose anchors carry TIDAL's exact hash, which differs by
+/// page (see [`page_data_class`]).
+const PAGE_LITERALS: &[&str] = &["dataContainer"];
 
 /// Module names whose anchors carry TIDAL's exact hash: a theme's class
 /// for one of them must name that hash (the selector engine matches other
 /// modules whatever their hash).
 pub(crate) fn literal_module_names() -> Vec<&'static str> {
-    LITERAL_CLASSES.iter().map(|(name, _)| *name).collect()
+    LITERAL_CLASSES
+        .iter()
+        .map(|(name, _)| *name)
+        .chain(PAGE_LITERALS.iter().copied())
+        .collect()
+}
+
+/// An album's or playlist's header box, TIDAL 2.46.0's own module for the
+/// page: themes name it by hash, and the hashes of older TIDAL builds they
+/// still carry match nothing there (the cotton candy family's
+/// `[class="_dataContainer_108ce86"] { transform: translateY(-6em) }`,
+/// once an artist page's, lifted the album header 84 points here).
+fn page_data_class(page_id: Option<&str>) -> String {
+    match page_id {
+        Some("album") => "_dataContainer_66f4f40".into(),
+        Some("playlist") => "_dataContainer_9f47346".into(),
+        _ => module_class("dataContainer"),
+    }
 }
 
 /// The CSS-module class for `name`: `_name_<7 hex>`, the literal hash when a
@@ -2162,7 +2188,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     if page.data.is_some() || page.meta.is_some() || page.hero.is_some() {
         out.push(
             el(PAGE_DATA, Some(PAGE), "div")
-                .modules(&["dataContainer"])
+                .class(&page_data_class(page.page_id.as_deref()))
                 .at(page.data),
         );
     }

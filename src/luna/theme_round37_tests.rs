@@ -143,6 +143,45 @@ fn the_selected_navigation_rows_class_list_is_tidals() {
     assert_eq!(inks, [Some(egui::Color32::from_rgb(10, 200, 100)); 2]);
 }
 
+/// TIDAL 2.46.0's album and playlist headers are `_dataContainer_66f4f40`
+/// and `_dataContainer_9f47346`, and its bar's title box is
+/// `_titleContainer_2da23c0` (one of nine `_titleContainer_` modules). A
+/// theme's hash from an older TIDAL build names none of them: the cotton
+/// candy family's `[class="_dataContainer_108ce86"] { transform:
+/// translateY(-6em) }` and `[class="_titleContainer_9fba00e"] { transform:
+/// translateX(-.38em) }` move nothing in TIDAL, while here they lifted the
+/// album header 84 points and moved the bar's title.
+#[test]
+fn an_older_tidal_builds_hash_names_neither_the_header_nor_the_bars_title() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{PAGE_DATA, TITLE};
+    let css = r#"/* {"name": "Old hashes"} */
+[class="_dataContainer_108ce86"] { transform: translateY(-6em); }
+[class="_dataContainer_66f4f40"] { opacity: 0.5; }
+[class="_titleContainer_9fba00e"] { transform: translateX(-.38em); }
+[class="_titleContainer_2da23c0"] { opacity: 0.5; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(page) = frame.page.as_mut() {
+        page.page_id = Some("album".into());
+        page.data = Some([240.0, 92.0, 1040.0, 300.0]);
+    }
+    let tree = dom_anchors::build(&frame);
+    let luna = themed_luna("old-hashes.css", css);
+    let o = wait(&luna, &tree, &|o| {
+        o.hosts.contains_key(PAGE_DATA) && o.hosts.contains_key(TITLE)
+    });
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let looks = [pd::anchor_look(PAGE_DATA), pd::anchor_look(TITLE)];
+    pd::test_overlay(None);
+    for look in looks {
+        let look = look.expect("a look");
+        assert_eq!(look.opacity, Some(0.5));
+        assert_eq!(look.translate, egui::Vec2::ZERO);
+    }
+}
+
 /// The open playlist's row in the sidebar is TIDAL 2.46.0's
 /// `_contentItem_684cbbe _selected_ae83ba5`, two classes, which the cotton
 /// candy family names whole (`[class="_contentItem_684cbbe

@@ -344,7 +344,7 @@ await open(":root {{ --themer: #010203; }}");
 fn theme_pseudo_boxes_and_hashed_module_classes_reach_the_anchors() {
     use crate::ui::plugin_dom::{BoxLayer, PageLayer, box_layers};
     let css = r#"/* {"name": "Boxes"} */
-div._dataContainer_5bb6028::before { --img: none !important; background-color: rgba(10, 20, 30, 0.5) !important; }
+div._dataContainer_66f4f40::before { --img: none !important; background-color: rgba(10, 20, 30, 0.5) !important; }
 #mainHeader::before { background-color: #112233; backdrop-filter: blur(12px); }
 [id^="main"] { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, #000 100%), url("https://example.invalid/a.jpg") no-repeat; background-size: cover; }
 ._sidebarWrapper_0000000 { background-color: #445566; }
@@ -362,6 +362,9 @@ div._dataContainer_5bb6028::before { --img: none !important; background-color: r
     let luna = Luna::start(config(&data), Arc::new(MockHost::default())).unwrap();
     let mut frame = dom_anchors::sample_frame();
     if let Some(page) = frame.page.as_mut() {
+        // An album's header: TIDAL 2.46.0's `_dataContainer_66f4f40`, a
+        // module whose hash the anchor carries exactly.
+        page.page_id = Some("album".into());
         page.data = Some([240.0, 92.0, 1040.0, 180.0]);
     }
     let tree = dom_anchors::build(&frame);
