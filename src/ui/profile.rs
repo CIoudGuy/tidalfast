@@ -43,10 +43,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
     };
     let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), size), Sense::hover());
     let picture = Rect::from_min_size(row.min, Vec2::splat(size));
-    let image = pick_image(&profile.images, app.art_px(size)).map(str::to_string);
     // A theme's rules for the picture (the cotton candy family's tinted
     // rounded square) restyle it; without them it is the round picture.
     let themed = super::plugin_dom::profile_picture(picture);
+    // A picture a plugin put in its `img` is the one shown.
+    let image = super::plugin_dom::picture(|| crate::luna::dom_anchors::keys::PROFILE_PIC_IMG)
+        .or_else(|| pick_image(&profile.images, app.art_px(size)).map(str::to_string));
     widgets::paint_themed_cover(
         ui,
         &palette,

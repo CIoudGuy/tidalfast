@@ -394,7 +394,28 @@ fn hero_cover(
         ui.painter()
             .add(shadow.as_shape(rect, egui::CornerRadius::same(radius as u8)));
     }
-    if hero.liked && !art_hidden {
+    // A picture a plugin put in the art's `img` is the one shown; TIDAL's
+    // stays until it has loaded.
+    let plugin_art = super::plugin_dom::picture(|| crate::luna::dom_anchors::keys::HERO_COVER_IMG);
+    if let Some(src) = plugin_art.as_deref()
+        && !art_hidden
+    {
+        widgets::paint_cover_with_thumbnail(
+            ui,
+            &palette,
+            widgets::CoverSources {
+                requested: Some(src),
+                previous: hero.images.image,
+                filter: art_filter.as_ref(),
+                held: art_themed,
+                ..Default::default()
+            },
+            rect,
+            radius,
+            if hero.round { Icon::User } else { Icon::Music },
+            Some(app.backend.art()),
+        );
+    } else if hero.liked && !art_hidden {
         super::sidebar::liked_cover(ui, rect, radius);
     } else if !art_hidden {
         widgets::paint_cover_with_thumbnail(
