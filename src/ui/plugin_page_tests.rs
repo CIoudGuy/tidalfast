@@ -324,3 +324,102 @@ fn a_definite_height_holds_its_childrens_share_and_boxes_leave_out_margins() {
     assert_eq!(b["fill"], [10.0, 34.0, 150.0, 6.0], "{b:?}");
     assert_eq!(b["time"][1], 48.0, "under the bar and its margin: {b:?}");
 }
+
+/// A flex column held to its `max-height` is that tall once what it holds
+/// would run past it, and its growing item takes what is left; a growing
+/// item in that one with `overflow-y: auto` is held to its share and
+/// scrolls (lyrics-everywhere's full lyrics under its player). Chromium
+/// at 700 by 380: the container 348 tall at 16, the middle 240 from 100,
+/// the player 90 from 100, the lyrics 126 from 214.
+#[test]
+fn a_column_held_to_its_max_height_shares_it_and_its_scroller_scrolls() {
+    let lines: String = (0..20)
+        .map(|i| format!(r#"<div style="height:40px">line {i}</div>"#))
+        .collect();
+    let html = format!(
+        r#"<!doctype html><html><head><style>
+        *{{margin:0;padding:0;box-sizing:border-box}}
+        body{{height:100vh;display:flex;flex-direction:column;overflow:hidden}}
+        .c{{margin:16px;padding:24px;min-height:200px;max-height:calc(100vh - 32px);display:flex;flex-direction:column;width:calc(100vw - 32px)}}
+        .h{{height:40px;margin-bottom:20px}}
+        .m{{display:flex;flex-direction:column;gap:24px;flex:1;min-height:0}}
+        .p{{height:90px}}
+        .l{{flex:1;overflow-y:auto;padding:24px}}
+        </style></head><body><div class="c" id="c"><div class="h" id="h"></div><div class="m" id="m"><div class="p" id="p"></div><div class="l" id="l">{lines}</div></div></div></body></html>"#
+    );
+    let b = boxes(&html, [700.0, 380.0]);
+    assert_eq!(b["c"], [16.0, 16.0, 668.0, 348.0], "{b:?}");
+    assert_eq!(b["h"], [40.0, 40.0, 620.0, 40.0], "{b:?}");
+    assert_eq!(b["m"], [40.0, 100.0, 620.0, 240.0], "{b:?}");
+    assert_eq!(b["p"], [40.0, 100.0, 620.0, 90.0], "{b:?}");
+    assert_eq!(b["l"], [40.0, 214.0, 620.0, 126.0], "{b:?}");
+}
+
+/// A column with less than its `max-height` to hold keeps its own height:
+/// its growing item gets nothing more (Chromium: 100 tall, 16 + 24 + 20 +
+/// 40 of words).
+#[test]
+fn a_column_under_its_max_height_is_as_tall_as_what_it_holds() {
+    let b = boxes(
+        r#"<!doctype html><html><head><style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        .c{max-height:300px;display:flex;flex-direction:column;width:200px}
+        .h{height:40px}
+        .m{flex:1;min-height:0;overflow-y:auto}
+        </style></head><body><div class="c" id="c"><div class="h" id="h"></div><div class="m" id="m"><div style="height:60px"></div></div></div></body></html>"#,
+        [400.0, 400.0],
+    );
+    assert_eq!(b["c"], [0.0, 0.0, 200.0, 100.0], "{b:?}");
+    assert_eq!(b["m"], [0.0, 40.0, 200.0, 60.0], "{b:?}");
+}
+
+/// Grid tracks `auto 1fr auto`: the `auto` tracks are as wide as what they
+/// hold and the `1fr` track takes the rest (miniplayer's taskbar progress
+/// row: its bar was a third of the row).
+#[test]
+fn a_grids_auto_tracks_fit_their_items_and_its_fr_track_takes_the_rest() {
+    let b = boxes(
+        r#"<!doctype html><html><head><style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        .r{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:6px;width:250px;font-size:10px}
+        .bar{height:3px;background:#fff}
+        </style></head><body><div class="r" id="r"><span id="a">0:00</span><div class="bar" id="bar"></div><span id="z">-0:00</span></div></body></html>"#,
+        [400.0, 200.0],
+    );
+    let (a, bar, z) = (b["a"], b["bar"], b["z"]);
+    assert!(a[2] > 5.0 && a[2] < 40.0, "{b:?}");
+    assert!(
+        near(bar[0], a[2] + 6.0),
+        "the bar after the first time: {b:?}"
+    );
+    assert!(
+        near(z[0] + z[2], 250.0),
+        "the last time at the row's end: {b:?}"
+    );
+    assert!(near(bar[0] + bar[2] + 6.0, z[0]), "the bar up to it: {b:?}");
+    assert!(near(bar[3], 3.0), "{b:?}");
+}
+
+/// Grid items fill their cells and hold absolutely placed children in
+/// their own boxes: each preset is a 192 by 80 cell, 16 apart both ways,
+/// and its name sits at its foot, 12 in from each side of the padding box
+/// (lyrics-everywhere's colour presets; Chromium: name 15 to 177, its foot
+/// at 69).
+#[test]
+fn a_grids_cells_hold_their_absolutely_placed_names() {
+    let b = boxes(
+        r#"<!doctype html><html><head><style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        .g{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;width:400px}
+        .p{height:80px;position:relative;border:3px solid transparent;overflow:hidden}
+        .n{position:absolute;bottom:8px;left:12px;right:12px;text-align:center;font-size:14px}
+        </style></head><body><div class="g" id="g"><div class="p" id="p1"><div class="n" id="n1">Cosmic Purple</div></div><div class="p" id="p2"><div class="n" id="n2">Pink Passion</div></div><div class="p" id="p3"><div class="n" id="n3">Ocean Blue</div></div></div></body></html>"#,
+        [700.0, 380.0],
+    );
+    assert_eq!(b["p1"], [0.0, 0.0, 192.0, 80.0], "{b:?}");
+    assert_eq!(b["p2"], [208.0, 0.0, 192.0, 80.0], "{b:?}");
+    assert_eq!(b["p3"], [0.0, 96.0, 192.0, 80.0], "{b:?}");
+    let n = b["n1"];
+    assert!(near(n[0], 15.0) && near(n[0] + n[2], 177.0), "{b:?}");
+    assert!(near(n[1] + n[3], 69.0), "{b:?}");
+}
