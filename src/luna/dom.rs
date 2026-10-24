@@ -132,6 +132,9 @@ pub struct Style {
     pub gap: Option<String>,
     pub flex_direction: Option<String>,
     pub align_items: Option<String>,
+    /// `align-self`: where one flex item stands across its line, over its
+    /// container's `align-items` (tidal-genres' badges, `flex-start`).
+    pub align_self: Option<String>,
     pub justify_content: Option<String>,
     pub cursor: Option<String>,
     pub transform: Option<String>,
@@ -497,6 +500,7 @@ impl Style {
             gap,
             flex_direction,
             align_items,
+            align_self,
             justify_content,
             position,
             top,
