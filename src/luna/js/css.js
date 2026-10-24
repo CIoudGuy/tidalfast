@@ -539,7 +539,7 @@
 					if (readsStyle && /[+~]/.test(r._sel)) styleSiblings = true;
 					if (!structural && /[+~]|:(nth-|first-child|last-child|only-child|empty|first-of-type|last-of-type|only-of-type)/i.test(r._sel)) structural = true;
 					for (const m of r._sel.matchAll(/\[\s*([\w-]+)/g)) attrNames.add(m[1].toLowerCase());
-					const decls = [...r._decl._m].map(([name, d]) => ({ name, value: d.value, important: d.important }));
+					const decls = [...r._decl._m].filter(([name, d]) => !invalidDecl(name, d.value)).map(([name, d]) => ({ name, value: d.value, important: d.important }));
 					if (!decls.length) continue;
 					if (!userSelect && decls.some((d) => /^(-webkit-)?user-select$/.test(d.name))) userSelect = true;
 					if (r._sel.includes(":has("))
@@ -631,6 +631,10 @@
 		}
 		return out.sort((a, b) => a[0] - b[0]);
 	};
+	// A declaration the browser drops as it parses, so that the one before it
+	// stays: a negative padding (the cotton candy family's `padding-bottom:
+	// -3em` on the album's list panel, which TIDAL 2.46.0 ignores).
+	const invalidDecl = (name, value) => /^padding(-(top|right|bottom|left))?$/.test(name) && /(^|\s)-(\d|\.\d)/.test(String(value)) && !/var\(|calc\(|min\(|max\(|clamp\(/i.test(String(value));
 	const usesHover = () => !!buildIndex().hover;
 	const candidates = (ix, el) => {
 		const out = [...ix.any];
