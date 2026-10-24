@@ -78,6 +78,8 @@ mod theme_round36_tests;
 mod theme_round37_tests;
 #[path = "theme_round38_tests.rs"]
 mod theme_round38_tests;
+#[path = "theme_round39_tests.rs"]
+mod theme_round39_tests;
 #[path = "theme_tests.rs"]
 mod theme_tests;
 

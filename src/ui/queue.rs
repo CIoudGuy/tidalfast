@@ -1195,10 +1195,32 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
         Some(title) => super::plugin_dom::text(&title, app.row_title(item)),
         None => std::borrow::Cow::Borrowed(app.row_title(item)),
     };
+    // The size and weight a theme's rules give TIDAL's row title and artist
+    // line (`p._titleText_6563d98`, `span._artistText_73966a1` and its
+    // links), else the queue's own.
+    let title_font = match part("title") {
+        Some(title) => super::plugin_dom::themed_font(&title, theme::semibold(14.0), 600),
+        None => theme::semibold(14.0),
+    };
+    let artist_font = match part("artists") {
+        Some(line) => {
+            let link = part("artist:0").unwrap_or_default();
+            let size =
+                super::plugin_dom::font_size(&link).or_else(|| super::plugin_dom::font_size(&line));
+            let weight = super::plugin_dom::font_weight(&link)
+                .or_else(|| super::plugin_dom::font_weight(&line));
+            if size.is_none() && weight.is_none() {
+                theme::medium(13.0)
+            } else {
+                super::plugin_dom::font_at(size.unwrap_or(13.0), weight.unwrap_or(500))
+            }
+        }
+        None => theme::medium(13.0),
+    };
     let title = widgets::ellipsized(
         ui,
         &words,
-        theme::semibold(14.0),
+        title_font,
         if current {
             palette.accent
         } else {
@@ -1230,7 +1252,7 @@ fn floating_row(app: &mut App, ui: &mut egui::Ui, item: &PlayableItem, kind: Flo
     );
     if drawn(part("artists")) {
         let colors = super::now_playing::queue_name_colors(&app.palette);
-        super::now_playing::names_in(app, &mut artists_ui, &artists, theme::medium(13.0), colors);
+        super::now_playing::names_in(app, &mut artists_ui, &artists, artist_font, colors);
     }
     let mut right = ui.new_child(
         egui::UiBuilder::new()
@@ -1873,6 +1895,96 @@ mod one_scroll_tests {
             rows.iter().any(|r| r.id == "next:0"),
             "the hidden row is still described"
         );
+    }
+
+    /// The size and weight a theme's rules give a queue row's title and
+    /// artist line are the ones its words are painted in (TIDAL 2.46.0 under
+    /// the cotton candy family: 94 % of 14 at weight 600); the queue's own
+    /// fonts otherwise.
+    #[test]
+    fn a_queue_rows_words_take_the_themes_size() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::keys;
+        let mut app = local_app();
+        if let Loadable::Loaded(queue) = &mut app.queue
+            && let Some(PlayableItem::Track(track)) = &mut queue.currently_playing
+        {
+            track.artists = vec![crate::api::models::ArtistRef {
+                id: Some("5".into()),
+                name: "Artist Five".into(),
+                ..Default::default()
+            }];
+        }
+        let mut frames = Frames::new();
+        super::super::plugin_dom::test_overlay(Some(DomOverlay::default()));
+        frames.open(&mut app);
+        let rows = super::super::plugin_dom::test_take_queue_rows();
+        let current = rows
+            .iter()
+            .find(|r| r.now_playing)
+            .expect("the playing song's row is described")
+            .clone();
+        let mut o = DomOverlay {
+            version: 2,
+            ..DomOverlay::default()
+        };
+        let sized = |size: &str, weight: Option<&str>| HostOverride {
+            style: Style {
+                font_size: Some(size.into()),
+                font_weight: weight.map(Into::into),
+                ..Style::default()
+            },
+            ..HostOverride::default()
+        };
+        let row = keys::queue_item("current");
+        o.hosts
+            .insert(format!("{row}:title"), sized("9px", Some("700")));
+        o.hosts
+            .insert(format!("{row}:artists"), sized("8px", Some("700")));
+        o.hosts
+            .insert(format!("{row}:artist:0"), sized("7px", None));
+        super::super::plugin_dom::test_overlay(Some(o));
+        frames.time += 0.05;
+        let mut output = frames.ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::pos2(0.0, 0.0),
+                    egui::vec2(400.0, 600.0),
+                )),
+                time: Some(frames.time),
+                ..Default::default()
+            },
+            |ui| {
+                ui.set_max_size(egui::vec2(368.0, 568.0));
+                floating_contents(&mut app, ui);
+            },
+        );
+        super::super::plugin_dom::test_overlay(None);
+        output.textures_delta.clear();
+        fn sizes(shape: &egui::Shape, out: &mut Vec<(String, f32)>) {
+            match shape {
+                egui::Shape::Text(text) => {
+                    if let Some(s) = text.galley.job.sections.first() {
+                        out.push((text.galley.text().to_string(), s.format.font_id.size));
+                    }
+                }
+                egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| sizes(shape, out)),
+                _ => {}
+            }
+        }
+        let mut found = Vec::new();
+        for clipped in &output.shapes {
+            sizes(&clipped.shape, &mut found);
+        }
+        let size_of = |words: &str| {
+            found
+                .iter()
+                .find(|(t, _)| t == words)
+                .map(|(_, s)| *s)
+                .unwrap_or_else(|| panic!("{words:?} not painted: {found:?}"))
+        };
+        assert_eq!(size_of(&current.title), 9.0);
+        assert_eq!(size_of("Artist Five"), 7.0);
     }
 
     /// A list of songs (a search's, a shelf's) has no name: its rows sit
