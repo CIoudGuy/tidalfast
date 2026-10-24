@@ -85,6 +85,93 @@ pub fn looks_report(tree: &HostTree) -> Value {
     })
 }
 
+/// What the window paints this pass, for comparing pixels with TIDAL's page:
+/// each row of words (its line box and ink box in window points, cut to its
+/// clip, its colour and its text) and each picture (a textured shape's box),
+/// in paint order. Called at the end of the pass the shot is taken of.
+pub fn paint_runs(ctx: &egui::Context) -> Value {
+    let mut layers = vec![egui::LayerId::background()];
+    ctx.memory(|m| layers.extend(m.layer_ids()));
+    let mut seen = std::collections::HashSet::new();
+    layers.retain(|l| seen.insert(*l));
+    let mut runs = Runs::default();
+    ctx.graphics(|g| {
+        for layer in &layers {
+            for clipped in g.get(*layer).into_iter().flat_map(|l| l.all_entries()) {
+                runs.collect(&clipped.shape, clipped.clip_rect);
+            }
+        }
+    });
+    json!({
+        "pixels_per_point": ctx.pixels_per_point(),
+        "text": runs.text,
+        "images": runs.images,
+    })
+}
+
+#[derive(Default)]
+struct Runs {
+    text: Vec<Value>,
+    images: Vec<Value>,
+}
+
+impl Runs {
+    fn collect(&mut self, shape: &egui::Shape, clip: egui::Rect) {
+        match shape {
+            egui::Shape::Vec(shapes) => {
+                for s in shapes {
+                    self.collect(s, clip);
+                }
+            }
+            egui::Shape::Text(t) => {
+                for row in &t.galley.rows {
+                    let Some(first) = row.row.glyphs.first() else {
+                        continue;
+                    };
+                    let at = t.pos.to_vec2();
+                    let line = row.rect().translate(at).intersect(clip);
+                    if !line.is_positive() {
+                        continue;
+                    }
+                    let ink = row
+                        .row
+                        .visuals
+                        .mesh_bounds
+                        .translate(at + row.pos.to_vec2())
+                        .intersect(clip);
+                    let vertex = row
+                        .row
+                        .visuals
+                        .mesh
+                        .vertices
+                        .get(first.first_vertex as usize);
+                    let mut colour = vertex.map_or(t.fallback_color, |v| v.color);
+                    if colour == Color32::PLACEHOLDER {
+                        colour = t.fallback_color;
+                    }
+                    if let Some(c) = t.override_text_color {
+                        colour = c;
+                    }
+                    self.text.push(json!({
+                        "line": [line.min.x, line.min.y, line.max.x, line.max.y],
+                        "ink": [ink.min.x, ink.min.y, ink.max.x, ink.max.y],
+                        "color": rgba(colour.gamma_multiply(t.opacity_factor)),
+                        "text": row.row.text(),
+                    }));
+                }
+            }
+            _ if shape.texture_id() != egui::TextureId::default() => {
+                let r = shape.visual_bounding_rect().intersect(clip);
+                if r.is_positive() {
+                    self.images
+                        .push(json!([r.min.x, r.min.y, r.max.x, r.max.y]));
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 /// A style's set properties only.
 fn set_only(style: &crate::luna::dom::Style) -> Value {
     match json!(style) {
@@ -212,5 +299,42 @@ mod tests {
             "only the properties a rule sets"
         );
         assert!(node(keys::PLAY).get("look").is_none());
+    }
+
+    /// The paint report holds each row of words where it is painted, with
+    /// its colour and text, and pictures by their box.
+    #[test]
+    fn the_paint_report_holds_rows_of_words_and_pictures() {
+        let ctx = egui::Context::default();
+        let mut report = Value::Null;
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            ui.painter().text(
+                egui::pos2(40.0, 30.0),
+                egui::Align2::LEFT_TOP,
+                "Shuffle",
+                egui::FontId::proportional(14.0),
+                Color32::from_rgb(250, 20, 30),
+            );
+            ui.painter().image(
+                egui::TextureId::User(7),
+                egui::Rect::from_min_size(egui::pos2(100.0, 100.0), egui::vec2(48.0, 48.0)),
+                egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                Color32::WHITE,
+            );
+            report = paint_runs(ui.ctx());
+        });
+        output.textures_delta.clear();
+        let text = report["text"].as_array().expect("text");
+        let run = text
+            .iter()
+            .find(|t| t["text"] == json!("Shuffle"))
+            .expect("the words' row");
+        assert_eq!(run["color"], json!([250, 20, 30, 255]));
+        let line = run["line"].as_array().expect("line");
+        assert_eq!(line[0], json!(40.0));
+        assert_eq!(line[1], json!(30.0));
+        let ink = run["ink"].as_array().expect("ink");
+        assert!(ink[2].as_f64() > Some(41.0) && ink[3].as_f64() > Some(31.0));
+        assert_eq!(report["images"], json!([[100.0, 100.0, 148.0, 148.0]]));
     }
 }
