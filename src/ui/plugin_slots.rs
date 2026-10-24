@@ -6296,7 +6296,8 @@ fn events(ui: &egui::Ui, node: &VNode, response: &egui::Response) {
     if response.double_clicked() && listens("dblclick") {
         plugin_dom::send(target.clone(), "dblclick", data(ui));
     }
-    if response.secondary_clicked() && listens("contextmenu") {
+    // Unless it went with the press (`plugin_dom::filter_raw_input`).
+    if response.secondary_clicked() && listens("contextmenu") && !plugin_dom::contextmenu_sent() {
         let mut d = data(ui);
         d["button"] = json!(2);
         plugin_dom::send(target.clone(), "contextmenu", d);

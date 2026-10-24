@@ -4388,3 +4388,47 @@ setTimeout(() => {
     assert_eq!(calls, 1, "{:#?}", hog.logs);
     finish(luna, dir);
 }
+
+// ---------------------------------------------------------------- right-click verdicts (plugin round 8)
+
+/// A right-click's `contextmenu` says whether a listener cancelled it:
+/// `preventDefault()` anywhere, or `stopPropagation()` before it bubbled to
+/// TIDAL's root (`#wimp`, where React runs TIDAL's menu handlers). A
+/// listener that only watches (element-hider's document capture) cancels
+/// nothing.
+#[test]
+fn a_right_click_says_whether_a_listener_cancelled_it() {
+    let (luna, _host, dir) = start(
+        r##"
+const wait = setInterval(() => {
+	const title = document.querySelector('[data-test="footer-track-title"]');
+	const play = document.querySelector('[data-test="play"], [data-test="pause"]');
+	const next = document.querySelector('[data-test="next"]');
+	if (!title || !play || !next) return;
+	clearInterval(wait);
+	document.addEventListener("contextmenu", () => (R.watched = (R.watched ?? 0) + 1), true);
+	title.addEventListener("contextmenu", (e) => e.preventDefault());
+	play.addEventListener("contextmenu", (e) => e.stopPropagation());
+	R.ready = true;
+}, 20);
+"##,
+    );
+    luna.sync_dom(tree());
+    results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
+    let click = |key: &str| {
+        luna.dom_event_verdict(
+            DomEvent {
+                target: DomTarget::Host(key.into()),
+                kind: "contextmenu".into(),
+                data: json!({ "clientX": 10, "clientY": 10, "button": 2 }),
+            },
+            Duration::from_secs(5),
+        )
+    };
+    assert_eq!(click(keys::TITLE_SPAN), Some(true), "preventDefault");
+    assert_eq!(click(keys::PLAY), Some(true), "stopped before the root");
+    assert_eq!(click(keys::NEXT), Some(false), "only watched");
+    let r = results_until(&luna, &dir, 10, |r| r["watched"] == json!(3));
+    assert_eq!(r["watched"], json!(3));
+    finish(luna, dir);
+}

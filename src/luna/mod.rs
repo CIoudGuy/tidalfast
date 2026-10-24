@@ -1064,9 +1064,10 @@ pub(crate) enum Msg {
     /// The UI's anchor tree changed (DOM bridge).
     /// A new host tree is in [`runtime::TreeCell`].
     DomSync,
-    /// User input on a host widget or a plugin element, and how many host
-    /// trees the UI had sent when it happened.
-    DomEvent(dom::DomEvent, u64),
+    /// User input on a host widget or a plugin element, how many host trees
+    /// the UI had sent when it happened, and where to say whether a listener
+    /// cancelled it (see [`Luna::dom_event_verdict`]).
+    DomEvent(dom::DomEvent, u64, Option<Sender<bool>>),
     /// The window was hidden (minimized, closed to the tray) or shown again.
     Hidden(bool),
     /// The window gained or lost the keyboard focus.
@@ -1181,7 +1182,19 @@ impl Luna {
     /// in Chromium changes only once the event it dispatched is handled.
     pub fn dom_event(&self, event: dom::DomEvent) {
         let seen = self.trees.0.lock().map_or(0, |slot| slot.sent);
-        let _ = self.tx.send(Msg::DomEvent(event, seen));
+        let _ = self.tx.send(Msg::DomEvent(event, seen, None));
+    }
+
+    /// [`Luna::dom_event`], waiting at most `wait` for the listeners to
+    /// run: `Some(true)` when one cancelled the event (`preventDefault()`,
+    /// or `stopPropagation()` before it reached TIDAL's root, where React's
+    /// handlers run), `None` when the answer did not come in time (the
+    /// event still goes to the listeners).
+    pub fn dom_event_verdict(&self, event: dom::DomEvent, wait: Duration) -> Option<bool> {
+        let seen = self.trees.0.lock().map_or(0, |slot| slot.sent);
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.tx.send(Msg::DomEvent(event, seen, Some(tx))).ok()?;
+        rx.recv_timeout(wait).ok()
     }
 
     /// Plugins the background check updated after `seq` (cheap: no full

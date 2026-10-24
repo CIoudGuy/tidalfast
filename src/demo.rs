@@ -8867,6 +8867,111 @@ mod tests {
         assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 
+    /// A right-click a plugin cancels (`preventDefault()` on `contextmenu`,
+    /// downloadmanager's own menus) opens none of the app's menus, as TIDAL
+    /// opens none of its own; one the plugins let through opens the row's
+    /// menu as before. The event goes to the plugins with the press, once.
+    #[test]
+    fn a_right_click_a_plugin_cancels_opens_no_app_menu() {
+        use crate::luna::dom::{DomOverlay, HostOverride};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("plugin-rclick");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.open(Page::Home);
+        // A document-level `contextmenu` listener (the runtime's answer is
+        // set by the test).
+        let listening = DomOverlay {
+            version: 1,
+            hosts: [(
+                String::new(),
+                HostOverride {
+                    listens: vec!["contextmenu".into()],
+                    ..HostOverride::default()
+                },
+            )]
+            .into_iter()
+            .collect(),
+            ..DomOverlay::default()
+        };
+        let frame = |ctx: &egui::Context, app: &mut App, events: Vec<egui::Event>| {
+            let mut input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1280.0, 800.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            plugin_dom::filter_raw_input(&mut input);
+            let mut right_click = false;
+            let mut out = ctx.run_ui(input, |ui| {
+                crate::ui::plugin_dom::test_page_frame();
+                crate::ui::show(app, ui);
+                right_click =
+                    ui.input(|i| i.pointer.button_clicked(egui::PointerButton::Secondary));
+            });
+            out.textures_delta.clear();
+            crate::ui::plugin_dom::end_frame(ctx);
+            right_click
+        };
+        let mut results = Vec::new();
+        for cancelled in [true, false] {
+            plugin_dom::test_overlay(Some(listening.clone()));
+            plugin_dom::test_contextmenu_verdict(Some(cancelled));
+            for _ in 0..3 {
+                frame(&ctx, &mut app, Vec::new());
+            }
+            let tree = plugin_dom::test_sent_tree().expect("a tree was sent");
+            let card = tree
+                .nodes
+                .iter()
+                .find(|n| n.key == keys::card_title_link(5))
+                .and_then(|n| n.rect)
+                .expect("a card's title is laid out");
+            let pos = egui::pos2(card[0] + 20.0, card[1] + card[3] / 2.0);
+            plugin_dom::take_test_events();
+            let button = |pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Secondary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            // Hovered first, as a user does; the press and the release come
+            // in frames of their own, as a window's events do.
+            frame(&ctx, &mut app, vec![egui::Event::PointerMoved(pos)]);
+            frame(&ctx, &mut app, Vec::new());
+            let mut clicked = frame(&ctx, &mut app, vec![button(true)]);
+            clicked |= frame(&ctx, &mut app, vec![button(false)]);
+            let sent = plugin_dom::take_test_events()
+                .iter()
+                .filter(|e| e.kind == "contextmenu")
+                .count();
+            results.push((cancelled, clicked, sent));
+            // Close what opened before the next round.
+            frame(
+                &ctx,
+                &mut app,
+                vec![egui::Event::Key {
+                    key: egui::Key::Escape,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                }],
+            );
+            frame(&ctx, &mut app, Vec::new());
+        }
+        plugin_dom::test_contextmenu_verdict(None);
+        plugin_dom::test_overlay(None);
+        app.backend.shutdown();
+        // Cancelled: the app never sees the right-click (no widget's
+        // `secondary_clicked`, so no menu), one event. Let through: the
+        // app's right-click, one event.
+        assert_eq!(results, vec![(true, false, 1), (false, true, 1)]);
+    }
+
     /// A header button's icon and caption are each their own element in
     /// TIDAL (`div.tidal-ui__v-stack > svg._icon_ + span`, the 20-point icon
     /// over the caption): a right-click on the icon reaches the `svg`, so
