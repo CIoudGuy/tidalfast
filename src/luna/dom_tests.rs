@@ -582,6 +582,88 @@ lib.observe(unloads, "._utilityButtons_4d7aaf9", (el) => {
     finish(luna, dir);
 }
 
+/// TIDAL 2.46.0's track rows, player bar and header as a plugin reads them
+/// (captured): a row's index column first, with its number and its Play
+/// button, its "…", add to playlist and heart buttons with their words and
+/// the heart's state, an explicit song's badge and an album row's track
+/// number; the player bar's heart and its shuffle switch; the header's Back
+/// and Next and its search field's label; the tab bar's links. Translators
+/// (korean-translation) rewrite exactly these words: the index column, the
+/// add and heart buttons, the badge and the tab bar's links were missing,
+/// the "…" read "More", the hearts "favorites" and the arrows "Forward".
+#[test]
+fn rows_player_bar_and_header_carry_tidals_buttons_and_words() {
+    let (luna, _host, dir) = start(
+        r##"
+const q = (s) => document.querySelector(s);
+const qa = (s) => [...document.querySelectorAll(s)];
+const a = (el, n) => (el ? el.getAttribute(n) : null);
+const look = () => {
+	const rows = qa('[data-test="tracklist-row"]');
+	if (rows.length < 3) return false;
+	const first = rows[0];
+	const play = first.querySelector('[data-test="mt-index-col"] [data-test="play-button"]');
+	const heart = q('[data-test="footer-favorite-button"]');
+	const shuffle = q('[data-test="shuffle"]');
+	R.found = {
+		index: rows.map((r) => r.querySelector('[data-test="mt-index-col"] > span')?.textContent ?? null),
+		firstCell: first.firstElementChild?.className ?? null,
+		play: [a(play, "aria-label"), a(play, "title")],
+		menu: rows.map((r) => a(r.querySelector('[data-test="context-menu-button"]'), "aria-label")),
+		add: rows.map((r) => a(r.querySelector('[data-test="add-to-playlist-button"]'), "title")),
+		hearts: rows.map((r) => {
+			const h = r.querySelector('[data-test="add-to-favorites-button"]');
+			return [a(h, "aria-label"), a(h, "aria-checked"), a(h, "role")];
+		}),
+		explicit: rows.map((r) => a(r.querySelector('[data-test="explicit-badge"]'), "title")),
+		number: a(first, "data-test-track-number"),
+		footerHeart: [a(heart, "aria-label"), a(heart, "role"), a(heart, "aria-checked")],
+		shuffle: [a(shuffle, "role"), a(shuffle, "aria-checked")],
+		arrows: qa('[data-test="navigation-arrows"] button').map((b) => a(b, "aria-label")),
+		search: a(q('[data-test="search-popover-search-field"]'), "aria-label"),
+		tabs: qa('[data-test="tab-bar"] a').map((l) => a(l, "aria-label")),
+	};
+	return true;
+};
+const timer = setInterval(() => {
+	if (look()) clearInterval(timer);
+}, 50);
+unloads.add(() => clearInterval(timer));
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 20, |r| !r["found"].is_null());
+    let f = &r["found"];
+    assert_eq!(f["index"], json!(["1", "2", "3"]), "{f}");
+    assert_eq!(f["firstCell"], json!("_indexColumn_3ac64ab"), "{f}");
+    assert_eq!(f["play"], json!(["Play", "Play"]), "{f}");
+    assert_eq!(
+        f["menu"],
+        json!(["Show options", "Show options", "Show options"]),
+        "{f}"
+    );
+    assert_eq!(
+        f["add"],
+        json!(["Add to playlist", "Add to playlist", "Add to playlist"]),
+        "{f}"
+    );
+    let add = json!(["Add to My Collection", "false", "switch"]);
+    let remove = json!(["Remove from My Collection", "true", "switch"]);
+    assert_eq!(f["hearts"], json!([add, remove, add]), "{f}");
+    assert_eq!(f["explicit"], json!([null, null, "Explicit"]), "{f}");
+    assert_eq!(f["number"], json!("1"), "{f}");
+    assert_eq!(
+        f["footerHeart"],
+        json!(["Add to My Collection", "switch", "false"]),
+        "{f}"
+    );
+    assert_eq!(f["shuffle"], json!(["switch", "false"]), "{f}");
+    assert_eq!(f["arrows"], json!(["Back", "Next"]), "{f}");
+    assert_eq!(f["search"], json!("Search"), "{f}");
+    assert_eq!(f["tabs"], json!(["Home", "Upload", "Search"]), "{f}");
+    finish(luna, dir);
+}
+
 /// CSS hides what is inside a hidden element: `display: none` on the
 /// sidebar (element-hider's "Hide This Element" on a box round the rows)
 /// takes its rows and what a plugin put in it out of the page, and an

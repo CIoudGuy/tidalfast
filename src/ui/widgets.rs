@@ -1578,9 +1578,15 @@ fn track_row_contents(
     // Luna's `div[data-test=tracklist-row]` for the rows on screen.
     if super::plugin_dom::on() {
         let list = super::plugin_dom::list_id(row.context);
+        // The heart's state and the index column's number (TIDAL's
+        // `add-to-favorites-button`, `mt-index-col`).
+        let saved = app.is_saved(row.item.uri());
+        let number = row.numbered.then(|| row.number.unwrap_or(row.index + 1));
         super::plugin_dom::row(ui, &list, row.index, rect, |r| {
             super::plugin_dom::fill_row(r, row.item, row.picked, is_current);
             r.title_rect = super::plugin_dom::rect(rect);
+            r.saved = saved;
+            r.number = number;
         });
         if let Some(fill) =
             super::plugin_dom::fill(&crate::luna::dom_anchors::keys::row(&list, row.index))
@@ -2983,8 +2989,11 @@ pub(crate) fn row_fill_corners(list: &str, index: usize) -> CornerRadius {
         return CornerRadius::same(5);
     }
     let corner = |r: Option<f32>| r.map_or(5, |r| r.clamp(0.0, 255.0).round() as u8);
+    // The row's first cell: the index column where the row has one (TIDAL
+    // 2.46.0), else the thumbnail's or the title's.
     let first = corner(
-        radius(&row_cell(list, index, "image-col"))
+        radius(&row_cell(list, index, "index-col"))
+            .or_else(|| radius(&row_cell(list, index, "image-col")))
             .or_else(|| radius(&row_cell(list, index, "title"))),
     );
     let last = corner(radius(&row_cell(list, index, "context")));
@@ -3061,8 +3070,18 @@ fn tidal_row_cells(
         Rect::from_min_size(pos2(x, rect.center().y - 21.0), Vec2::splat(42.0))
     };
     let pending = app.play_pending(row.item.uri());
-    if cols.number == 0.0 {
-        // Painted over the cover below.
+    // The row's own anchors a plugin hid (`mt-index-col`, its number and
+    // Play button, the "…", add and heart buttons) are not painted.
+    let list = super::plugin_dom::on().then(|| super::plugin_dom::list_id(row.context));
+    let drawn = |cell: &str| {
+        list.as_deref().is_none_or(|l| {
+            super::plugin_dom::shown(&crate::luna::dom_anchors::keys::row_cell(
+                l, row.index, cell,
+            )) == super::plugin_dom::Shown::Drawn
+        })
+    };
+    if cols.number == 0.0 || !drawn("index-col") || !drawn("index") {
+        // Painted over the cover below, or hidden.
     } else if pending {
         let mut child = ui.new_child(
             UiBuilder::new()
@@ -3070,7 +3089,7 @@ fn tidal_row_cells(
                 .layout(Layout::centered_and_justified(egui::Direction::LeftToRight)),
         );
         theme::spinner(&mut child, 16.0, palette.accent);
-    } else if hovered && !unavailable {
+    } else if hovered && !unavailable && drawn("play") {
         let icon = if playing {
             Icon::PauseFilled
         } else {
@@ -3079,7 +3098,7 @@ fn tidal_row_cells(
         theme::paint_icon(ui, icon, number, 16.0, palette.text);
     } else if playing {
         theme::paint_icon(ui, Icon::AudioLines, number, 16.0, palette.accent);
-    } else {
+    } else if drawn("index-number") {
         painter.text(
             number.center(),
             egui::Align2::CENTER_CENTER,
@@ -3446,8 +3465,21 @@ fn tidal_row_cells(
         };
         Rect::from_min_size(pos2(left, rect.center().y - 12.0), Vec2::splat(24.0))
     };
+    // The index column and the buttons, for the row's anchors.
+    if super::plugin_dom::on() {
+        super::plugin_dom::row_controls(
+            &super::plugin_dom::list_id(row.context),
+            row.index,
+            (cols.number > 0.0).then_some(number),
+            [
+                Some(button(0.0)),
+                cols.buttons.then(|| button(1.0)),
+                cols.buttons.then(|| button(2.0)),
+            ],
+        );
+    }
     let quiet = palette.text.gamma_multiply(0.6);
-    {
+    if drawn("menu") {
         let mut child = ui.new_child(
             UiBuilder::new()
                 .max_rect(button(0.0))
@@ -3474,23 +3506,30 @@ fn tidal_row_cells(
     if !cols.buttons {
         return number;
     }
-    let add_id = ui.id().with(("row-add", row.index));
-    let mut child = ui.new_child(
-        UiBuilder::new()
-            .max_rect(button(1.0))
-            .layout(Layout::centered_and_justified(egui::Direction::LeftToRight)),
-    );
-    let add = row_icon_button(
-        &mut child,
-        Icon::Plus,
-        quiet,
-        palette.text,
-        &gettext(app.locale, "Add to playlist"),
-    );
-    egui::Popup::menu(&add)
-        .id(add_id)
-        .frame(menu_frame(&palette))
-        .show(|ui| super::menus::add_to_playlist_menu(ui, app, std::slice::from_ref(row.item)));
+    if drawn("add") {
+        let add_id = ui.id().with(("row-add", row.index));
+        let mut child = ui.new_child(
+            UiBuilder::new()
+                .max_rect(button(1.0))
+                .layout(Layout::centered_and_justified(egui::Direction::LeftToRight)),
+        );
+        let add = row_icon_button(
+            &mut child,
+            Icon::Plus,
+            quiet,
+            palette.text,
+            &gettext(app.locale, "Add to playlist"),
+        );
+        egui::Popup::menu(&add)
+            .id(add_id)
+            .frame(menu_frame(&palette))
+            .show(|ui| {
+                super::menus::add_to_playlist_menu(ui, app, std::slice::from_ref(row.item));
+            });
+    }
+    if !drawn("favorite") {
+        return number;
+    }
     let saved = app.is_saved(row.item.uri()) == Some(true);
     let mut child = ui.new_child(
         UiBuilder::new()
