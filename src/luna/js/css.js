@@ -402,6 +402,9 @@
 	// quality classes (TIDAL 2.46.0, captured under Meteor Night's `* {
 	// color }`), which a rule with more weight still beats (Blur's
 	// `[class*="_marketText_"] { color: ... !important }`).
+	// A track list's playing title has TIDAL's own rule as it is
+	// (`._textHigh_bbc1075 { color: var(--wave-color-solid-accent-fill) }`,
+	// TIDAL 2.46.0): a theme's accent colours it, a catch-all does not.
 	// A context menu's title is in TIDAL's contrast token as it stands at
 	// the menu: Cotton Candy Nights sets the token to black on
 	// `._contextMenu_` alone, and TIDAL 2.46.0 draws the title black there
@@ -421,6 +424,7 @@
 					":where(._navigationItem_4e9deae) > svg { color: initial; }\n" +
 					"._qualityHigh_39ef787:is(._textContent_462c76e ._title_8b245d1, ._textContent_462c76e ._subtitle_c0fd197) { color: initial; }\n" +
 					"._textHigh_ee6a2ff, ._textHigh_ee6a2ff span { color: initial; }\n" +
+					"._textHigh_bbc1075 { color: var(--wave-color-solid-accent-fill); }\n" +
 					"._title_2bc5e10 { color: var(--wave-color-solid-contrast-fill); }",
 			);
 		}

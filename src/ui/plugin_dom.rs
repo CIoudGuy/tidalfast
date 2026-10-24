@@ -2017,6 +2017,26 @@ pub fn row_text(list: &str, index: usize, window: Color32) -> Option<RowText> {
     made
 }
 
+/// The colour a theme gives the playing row's title (row `index` of
+/// `list`), read off the title's own anchor only. TIDAL 2.46.0 draws it
+/// through its own rule for the song's quality class
+/// (`span._titleText_._textHigh_bbc1075`, the accent token), which a
+/// colour set on the row or its cells does not reach (Meteor Night's
+/// `* { color }` leaves it TIDAL's cyan) and a rule naming the title does
+/// (the cotton candy family's `._textHigh_bbc1075`, Mocha Blue's
+/// `[class*="active"]`). `None` while no rule names it: the accent stays.
+pub fn playing_title(list: &str, index: usize, window: Color32) -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    host(
+        &dom_anchors::keys::row_cell(list, index, "title-text"),
+        |h, vars| style_color(&h.style, |s| s.color.as_ref(), vars),
+    )
+    .filter(|c| c.a() > 0)
+    .and_then(|c| readable_text(c, Color32::TRANSPARENT, window))
+}
+
 /// What a theme made of a row the sidebar draws itself (a navigation row,
 /// a library row): its fill (`Some(transparent)` when the theme clears
 /// TIDAL's own), corner radius and the colour of its icon and words.
