@@ -2521,6 +2521,173 @@ new MutationObserver(go).observe(document.body, { childList: true, subtree: true
     finish(luna, dir);
 }
 
+/// What the speed work keeps from one overlay to the next (an app element's
+/// entry while what it is made of is the same, the looks the UI resolved
+/// from a theme while only a plugin's own element changes) never shows a
+/// state that is gone. A class, the pointer, the window's size and an
+/// inline custom property a rule reads each reach the look drawn on the
+/// first frame after the runtime has them, while a plugin's own counter
+/// ticks beside the bar (whose overlays keep the looks).
+#[test]
+fn every_change_of_an_app_element_reaches_its_drawn_look_at_once() {
+    use crate::ui::plugin_dom as pd;
+    use egui::Color32;
+    let (luna, _host, dir) = start(
+        r##"
+const st = document.createElement("style");
+st.textContent = `
+[data-test="footer-player"] { background-color: var(--fill, rgb(10, 20, 30)); }
+@media (max-width: 1000px) { [data-test="footer-player"] { background-color: rgb(100, 110, 120); } }
+[data-test="footer-player"].lit { background-color: rgb(40, 50, 60); }
+[data-test="footer-player"]:hover { background-color: rgb(70, 80, 90); }
+`;
+document.head.append(st);
+const tick = document.createElement("div");
+tick.textContent = "0";
+document.body.append(tick);
+let n = 0;
+const id = setInterval(() => (tick.textContent = String(++n)), 40);
+unloads.add(() => clearInterval(id));
+"##,
+    );
+    let ctx = egui::Context::default();
+    // One UI frame as the app draws it: the newest overlay taken, then the
+    // bar's look and the counter the frame's overlay holds.
+    let frame = |t: &HostTree| {
+        let [w, h] = t.viewport;
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h));
+        let input = egui::RawInput {
+            screen_rect: Some(rect),
+            ..Default::default()
+        };
+        let mut out = (None, None);
+        let mut output = ctx.run_ui(input, |ui| {
+            pd::begin_frame(ui.ctx(), Some(&luna), rect, &crate::model::Page::Home);
+            out = (
+                pd::anchor_look(keys::FOOTER),
+                pd::overlay().map(|o| o.version),
+            );
+        });
+        output.textures_delta.clear();
+        out
+    };
+    let fill_of = |o: &DomOverlay| {
+        o.hosts
+            .get(keys::FOOTER)
+            .and_then(|h| h.style.background_color.as_deref())
+            .map(|c| c.replace(' ', ""))
+    };
+    let mut t = tree();
+    t.viewport = [1280.0, 800.0];
+    luna.sync_dom(t.clone());
+    // Frames kept the looks while only the counter changed.
+    let mut kept = 0;
+    let mut last: Option<(u64, Arc<pd::AnchorLook>)> = None;
+    let mut step = |name: &str, t: &HostTree, want: [u8; 3]| {
+        let css = format!("rgb({},{},{})", want[0], want[1], want[2]);
+        let end = Instant::now() + Duration::from_secs(15);
+        loop {
+            luna.sync(Duration::from_secs(5));
+            let has = fill_of(&luna.dom_overlay());
+            let (look, version) = frame(t);
+            if let (Some((v, before)), Some(look), Some(version)) = (&last, &look, version)
+                && *v != version
+                && Arc::ptr_eq(before, look)
+            {
+                kept += 1;
+            }
+            if let (Some(look), Some(version)) = (&look, version) {
+                last = Some((version, Arc::clone(look)));
+            }
+            let fill = Color32::from_rgb(want[0], want[1], want[2]);
+            if has.as_deref() == Some(css.as_str()) {
+                assert_eq!(
+                    look.and_then(|l| l.fill),
+                    Some(fill),
+                    "{name}: the runtime has {css}, the frame after drew another look"
+                );
+                // It stays while the counter ticks (each tick a new overlay
+                // that keeps the looks).
+                let end = Instant::now() + Duration::from_millis(300);
+                while Instant::now() < end {
+                    std::thread::sleep(Duration::from_millis(15));
+                    let (look, version) = frame(t);
+                    assert_eq!(look.as_ref().and_then(|l| l.fill), Some(fill), "{name}");
+                    if let (Some((v, before)), Some(look), Some(version)) = (&last, &look, version)
+                        && *v != version
+                        && Arc::ptr_eq(before, look)
+                    {
+                        kept += 1;
+                    }
+                    if let (Some(look), Some(version)) = (look, version) {
+                        last = Some((version, look));
+                    }
+                }
+                return;
+            }
+            assert!(
+                Instant::now() < end,
+                "{name}: {css} never reached the overlay ({has:?})"
+            );
+            std::thread::sleep(Duration::from_millis(15));
+        }
+    };
+    step("start", &t, [10, 20, 30]);
+    let class = |t: &mut HostTree, lit: bool| {
+        let bar = node(t, keys::FOOTER);
+        for (k, v) in bar.attrs.iter_mut() {
+            if k == "class" {
+                *v = v
+                    .split_whitespace()
+                    .filter(|c| *c != "lit")
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if lit {
+                    v.push_str(" lit");
+                }
+            }
+        }
+    };
+    class(&mut t, true);
+    luna.sync_dom(t.clone());
+    step("a class the app sets", &t, [40, 50, 60]);
+    class(&mut t, false);
+    luna.sync_dom(t.clone());
+    step("the class taken away", &t, [10, 20, 30]);
+    let hover = |key: &str| DomEvent {
+        target: DomTarget::Host(key.into()),
+        kind: "hover".into(),
+        data: Value::Null,
+    };
+    luna.dom_event(hover(keys::FOOTER));
+    step("the pointer over the bar", &t, [70, 80, 90]);
+    luna.dom_event(hover(""));
+    step("the pointer gone", &t, [10, 20, 30]);
+    t.viewport = [900.0, 800.0];
+    luna.sync_dom(t.clone());
+    step("a narrow window", &t, [100, 110, 120]);
+    t.viewport = [1280.0, 800.0];
+    luna.sync_dom(t.clone());
+    step("the window wide again", &t, [10, 20, 30]);
+    for fill in [[130, 140, 150], [150, 160, 170]] {
+        let bar = node(&mut t, keys::FOOTER);
+        bar.attrs.retain(|(k, _)| k != "style");
+        bar.attrs.push((
+            "style".into(),
+            format!("--fill: rgb({}, {}, {})", fill[0], fill[1], fill[2]),
+        ));
+        luna.sync_dom(t.clone());
+        step("an inline custom property a rule reads", &t, fill);
+    }
+    assert!(kept > 0, "no frame kept the looks while the counter ticked");
+    // Luna off: the window's state starts over.
+    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        pd::begin_frame(ui.ctx(), None, ui.max_rect(), &crate::model::Page::Home);
+    });
+    output.textures_delta.clear();
+    finish(luna, dir);
+}
+
 /// A theme with `::before` rules, root variables and keyframes costs nothing
 /// per overlay build while none of them change (the page's clock rewrites the
 /// tree every second, and Cotton Candy declares hundreds of variables), and
