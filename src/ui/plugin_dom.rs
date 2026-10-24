@@ -347,7 +347,22 @@ pub fn window_fullscreen(ctx: &egui::Context) -> bool {
     if std::env::var_os("TIDALFAST_DEMO_LUNA_FULLSCREEN").is_some() {
         return true;
     }
-    ctx.input(|i| i.viewport().fullscreen.unwrap_or(false))
+    fullscreen_emulated() || ctx.input(|i| i.viewport().fullscreen.unwrap_or(false))
+}
+
+thread_local! {
+    static EMULATED_FULLSCREEN: Cell<bool> = const { Cell::new(false) };
+}
+
+/// A window that keeps its mode (an off-screen test window) shows plugins
+/// the fullscreen one of them asked for, or leaves it.
+pub fn emulate_fullscreen(on: bool) {
+    EMULATED_FULLSCREEN.with(|f| f.set(on));
+}
+
+/// Whether plugins see an emulated fullscreen ([`emulate_fullscreen`]).
+pub fn fullscreen_emulated() -> bool {
+    EMULATED_FULLSCREEN.with(Cell::get)
 }
 
 pub fn on() -> bool {

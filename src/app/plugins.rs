@@ -40,6 +40,22 @@ pub(super) fn demo_luna() -> Option<&'static [String]> {
     None
 }
 
+/// Whether the window must keep its mode: the off-screen development
+/// window (`TIDALFAST_WINDOW_POS`) and the Luna harness
+/// (`TIDALFAST_DEMO_LUNA`) never fill a real display, whatever a test, a
+/// scripted click or a plugin asks. A plugin's request for fullscreen is
+/// emulated there instead (plugins see the window fullscreen in the window
+/// as it is) and logged, so its fullscreen view can be checked off the
+/// screen. Always false in release builds.
+pub(super) fn window_held() -> bool {
+    #[cfg(feature = "demo")]
+    {
+        demo_luna().is_some() || std::env::var_os("TIDALFAST_WINDOW_POS").is_some()
+    }
+    #[cfg(not(feature = "demo"))]
+    false
+}
+
 fn tidal_id(uri: &str, kind: &str) -> Option<String> {
     let mut parts = uri.split(':');
     (parts.next()? == "tidal" && parts.next()? == kind)
@@ -476,7 +492,8 @@ impl App {
             let window = ctx.input(|i| {
                 let v = i.viewport();
                 WindowState {
-                    fullscreen: v.fullscreen.unwrap_or(false),
+                    fullscreen: v.fullscreen.unwrap_or(false)
+                        || crate::ui::plugin_dom::fullscreen_emulated(),
                     maximized: v.maximized.unwrap_or(false),
                     minimized: v.minimized.unwrap_or(false),
                     focused: v.focused.unwrap_or(true),
@@ -1095,9 +1112,18 @@ impl App {
     /// `true` when `command` was one.
     fn window_command(&mut self, command: &HostCommand, ctx: &egui::Context) -> bool {
         match command {
-            // The off-screen plugin harness never fills a real display.
-            HostCommand::SetFullscreen(_) | HostCommand::SetMaximized(_)
-                if demo_luna().is_some() => {}
+            // An off-screen test window never fills a real display: the
+            // fullscreen a plugin asks for is emulated in the window as it is.
+            HostCommand::SetFullscreen(on) if self.window_held => {
+                log::info!(
+                    "a plugin asked for fullscreen {on}: emulated, the window keeps its mode"
+                );
+                crate::ui::plugin_dom::emulate_fullscreen(*on);
+                ctx.request_repaint();
+            }
+            HostCommand::SetMaximized(on) if self.window_held => {
+                log::info!("a plugin asked for maximized {on}: the window keeps its mode");
+            }
             HostCommand::SetFullscreen(on) => {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(*on));
             }
@@ -1486,6 +1512,50 @@ mod tests {
                 tray: false,
             },
         )
+    }
+
+    /// A window that keeps its mode (the off-screen test window) never
+    /// goes fullscreen or maximized for a plugin: betterFullscreen's button
+    /// (`view/REQUEST_FULLSCREEN`) took the off-screen window onto the
+    /// owner's display. The fullscreen is emulated instead, so plugins see
+    /// the window fullscreen (`.is-fullscreen`) and draw their view in the
+    /// window as it is, and leaving it ends the emulation.
+    #[test]
+    fn a_held_window_emulates_the_fullscreen_a_plugin_asks_for() {
+        let mut app = app("held-window");
+        app.window_held = true;
+        let ctx = egui::Context::default();
+        let mut sent = Vec::new();
+        for (command, fullscreen) in [
+            (HostCommand::SetFullscreen(true), true),
+            (HostCommand::SetMaximized(true), true),
+            (HostCommand::SetFullscreen(false), false),
+        ] {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                assert!(app.window_command(&command, ui.ctx()));
+            });
+            output.textures_delta.clear();
+            sent.extend(
+                output.viewport_output[&egui::ViewportId::ROOT]
+                    .commands
+                    .iter()
+                    .filter(|c| {
+                        matches!(
+                            c,
+                            egui::ViewportCommand::Fullscreen(_)
+                                | egui::ViewportCommand::Maximized(_)
+                        )
+                    })
+                    .cloned(),
+            );
+            assert_eq!(
+                crate::ui::plugin_dom::window_fullscreen(&ctx),
+                fullscreen,
+                "after {command:?}"
+            );
+        }
+        assert!(sent.is_empty(), "the window was asked to change: {sent:?}");
+        app.backend.shutdown();
     }
 
     /// A song just started is shown at once while the engine still reports
