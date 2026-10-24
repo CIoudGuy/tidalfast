@@ -147,8 +147,6 @@ struct State {
     fullscreen: Option<bool>,
     /// `main`'s scrollTop last frame, for `scroll` events.
     main_top: Option<f32>,
-    /// The height of `main`'s scrolled content last frame.
-    main_height: Option<f32>,
     /// TIDAL's `--wave-*` tokens from the palette, then plugin variables.
     vars: Arc<BTreeMap<String, String>>,
     /// The deepest plugin element under the pointer this frame: its id, its
@@ -3908,7 +3906,6 @@ pub fn main_scroll(ui: &egui::Ui, top: f32, height: f32, viewport: Rect) {
         s.frame.main_scroll = Some([top, height.max(viewport.height())]);
         let moved = s.main_top.is_some_and(|t| (t - top).abs() > 0.5);
         s.main_top = Some(top);
-        s.main_height = Some(height.max(viewport.height()));
         moved
     });
     if moved && listens(dom_anchors::keys::MAIN, "scroll") {
@@ -3987,18 +3984,10 @@ fn host<R>(
     with(|s| s.overlay.hosts.get(key).and_then(|h| f(h, &s.vars)))
 }
 
-/// The page's scrolled content height as last drawn, with a theme on.
-pub fn main_content_height() -> Option<f32> {
-    if !on() {
-        return None;
-    }
-    with(|s| s.main_height)
-}
-
 /// The height a theme gives the anchor's `::before` box, in points: a
-/// percentage of `reference` (the anchor's own height), else a length
+/// percentage of `reference` (its containing block's height), else a length
 /// (Sunken Tidal's `[class*="dataContainer"]:before { height: 100% }`
-/// stretches TIDAL's 450-point header art over the whole page).
+/// stretches TIDAL's 450-point header art down the page's box).
 pub fn before_height(key: &str, reference: f32) -> Option<f32> {
     let viewport = viewport();
     host(key, |h, _| {

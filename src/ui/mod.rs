@@ -511,16 +511,16 @@ const ALBUM_VEIL: f32 = 0.6;
 const BLURRED_VEIL: f32 = 0.4;
 
 /// The box of TIDAL's `._dataContainer::before` in `page`: its top 450
-/// points, or the height a theme gives the box. The header's box holds the
-/// whole page under it, its songs included, so a percentage is of the
-/// page's content (Sunken Tidal's `height: 100%` lays the dimmed cover,
-/// fading to black, behind every row).
+/// points, or the height a theme gives the box. Its containing block is
+/// `main`, the scroll container, so a percentage is of the page's own box,
+/// not of its content: TIDAL 2.46.0 draws Sunken Tidal's, Giorgeous' and
+/// Lunallena's `height: 100%` as tall as `main` (captured, 1153 points in a
+/// 1183-point window), the cover fading to black at its foot and the rows
+/// further down on the page's own black.
 pub(crate) fn cover_backdrop_rect(page: Rect) -> Rect {
-    let content = plugin_dom::main_content_height()
-        .unwrap_or(0.0)
-        .max(page.height());
-    let height = plugin_dom::before_height(crate::luna::dom_anchors::keys::PAGE_DATA, content)
-        .unwrap_or(COVER_BACKDROP_HEIGHT);
+    let height =
+        plugin_dom::before_height(crate::luna::dom_anchors::keys::PAGE_DATA, page.height())
+            .unwrap_or(COVER_BACKDROP_HEIGHT);
     Rect::from_min_size(page.min, vec2(page.width(), height))
 }
 
