@@ -220,3 +220,55 @@ fn the_navigation_arrows_are_tidals_pill() {
         Some(egui::Color32::from_rgb(1, 2, 3))
     );
 }
+
+fn page_frame(page_id: &str) -> dom_anchors::Frame {
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(page) = frame.page.as_mut() {
+        page.page_id = Some(page_id.into());
+        page.actions = vec![dom_anchors::HeaderAction {
+            test: "share-button".into(),
+            label: "Share".into(),
+            rect: Some([600.0, 220.0, 48.0, 48.0]),
+            icon: Some([614.0, 224.0, 20.0, 20.0]),
+            caption: Some([600.0, 250.0, 48.0, 14.0]),
+            checked: None,
+        }];
+    }
+    frame
+}
+
+/// The header's controls are each page's own modules in TIDAL 2.46.0: an
+/// album's captioned buttons sit in `div._smallButtons_5c1ea50`, a
+/// playlist's in `div._smallButtons_1da13ba._actionSmallButtons_6ce346a`,
+/// and the pills in a box of their own (`div._container_84abbc3`,
+/// `_container_5a08754`). A theme's rule for the album's box (the cotton
+/// candy family's dark captions) coloured a playlist's captions too, which
+/// stay TIDAL's there.
+#[test]
+fn the_header_controls_are_each_pages_own() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{PAGE_HEADER_CONTROLS, PAGE_PLAY};
+    let css = r#"/* {"name": "Page captions"} */
+[class="_smallButtons_5c1ea50"] { & [data-wave-color="textDefault"] { color: rgb(9, 8, 7) !important; } }
+._actionContainer_334aa3b ._container_5a08754 > [data-test="play-all"] { color: rgb(1, 2, 3); }
+[data-test="header-controls"] { opacity: 0.99; }
+"#;
+    let label = dom_anchors::keys::page_action_label("share-button");
+    let looks = |page: &str| {
+        let o = overlay(
+            &format!("page-captions-{page}.css"),
+            css,
+            &page_frame(page),
+            PAGE_HEADER_CONTROLS,
+        );
+        pd::test_overlay(Some((*o).clone()));
+        let caption = pd::anchor_look(&label).and_then(|l| l.text);
+        let play = pd::anchor_look(PAGE_PLAY).and_then(|l| l.text);
+        pd::test_overlay(None);
+        (caption, play)
+    };
+    let album = looks("album");
+    let playlist = looks("playlist");
+    assert_eq!(album, (Some(egui::Color32::from_rgb(9, 8, 7)), None));
+    assert_eq!(playlist, (None, Some(egui::Color32::from_rgb(1, 2, 3))));
+}

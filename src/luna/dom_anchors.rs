@@ -66,6 +66,9 @@ pub mod keys {
     /// their labels.
     /// `div[data-test=header-controls]` around the header's pills.
     pub const PAGE_HEADER_CONTROLS: &str = "page-header-controls";
+    /// The box round the Play and Shuffle pills in it (TIDAL 2.46.0: an
+    /// album's `div._container_84abbc3`, a playlist's `_container_5a08754`).
+    pub const PAGE_PILLS: &str = "page-pills";
     pub const PAGE_PLAY: &str = "page-play-button";
     pub const PAGE_PLAY_LABEL: &str = "page-play-button:label";
     pub const PAGE_SHUFFLE: &str = "page-shuffle-button";
@@ -599,7 +602,55 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
 
 /// Module names whose anchors carry TIDAL's exact hash, which differs by
 /// page (see [`page_data_class`]).
-const PAGE_LITERALS: &[&str] = &["dataContainer"];
+const PAGE_LITERALS: &[&str] = &[
+    "dataContainer",
+    "actionContainer",
+    "smallButtons",
+    "actionSmallButtons",
+    "overflowButtons",
+];
+
+/// TIDAL 2.46.0's header controls on an album and on a playlist (captured):
+/// the controls box, the box round the Play and Shuffle pills, the pills'
+/// own class, the captioned buttons' box and its overflow box. Each is the
+/// page's own module, which themes name by hash (the cotton candy family's
+/// `[class="_smallButtons_5c1ea50"] { [data-wave-color="textDefault"] {
+/// color } }` colours an album's captions, not a playlist's, whose box is
+/// `_smallButtons_1da13ba _actionSmallButtons_6ce346a`). Other pages keep
+/// the album's captioned buttons and no class of their own.
+struct HeaderMarkup {
+    controls: Option<&'static str>,
+    pills: Option<&'static str>,
+    pill: Option<&'static str>,
+    small: &'static [&'static str],
+    overflow: &'static str,
+}
+
+fn header_markup(page_id: Option<&str>) -> HeaderMarkup {
+    match page_id {
+        Some("album") => HeaderMarkup {
+            controls: Some("_actionContainer_5bb1c14"),
+            pills: Some("_container_84abbc3"),
+            pill: Some("_button_f1c7fcb"),
+            small: &["_smallButtons_5c1ea50"],
+            overflow: "_overflowButtons_246e699",
+        },
+        Some("playlist") => HeaderMarkup {
+            controls: Some("_actionContainer_334aa3b"),
+            pills: Some("_container_5a08754"),
+            pill: Some("_button_d5e0865"),
+            small: &["_smallButtons_1da13ba", "_actionSmallButtons_6ce346a"],
+            overflow: "_overflowButtons_aee4e69",
+        },
+        _ => HeaderMarkup {
+            controls: None,
+            pills: None,
+            pill: None,
+            small: &["_smallButtons_5c1ea50"],
+            overflow: "_overflowButtons_246e699",
+        },
+    }
+}
 
 /// Module names whose anchors carry TIDAL's exact hash: a theme's class
 /// for one of them must name that hash (the selector engine matches other
@@ -2328,27 +2379,48 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     // rules naming it match nothing in TIDAL either). They sit in the
     // header's `div[data-test=header-controls]`, under which the cotton
     // candy family nests its rules for them.
-    let pills: Vec<Rect> = [&page.play, &page.shuffle]
-        .into_iter()
-        .flatten()
-        .filter_map(|b| b.rect)
-        .chain(page.actions.iter().filter_map(|a| a.rect))
-        .collect();
-    if page.play.is_some() || page.shuffle.is_some() || !page.actions.is_empty() {
-        let around = pills.iter().copied().reduce(|a, b| {
+    let markup = header_markup(page.page_id.as_deref());
+    let around = |rects: &mut dyn Iterator<Item = Rect>| {
+        rects.reduce(|a, b| {
             let (x0, y0) = (a[0].min(b[0]), a[1].min(b[1]));
             let (x1, y1) = (
                 (a[0] + a[2]).max(b[0] + b[2]),
                 (a[1] + a[3]).max(b[1] + b[3]),
             );
             [x0, y0, x1 - x0, y1 - y0]
-        });
-        out.push(
-            el(PAGE_HEADER_CONTROLS, Some(PAGE), "div")
-                .test("header-controls")
-                .at(around),
-        );
+        })
+    };
+    let mut pill_rects = [&page.play, &page.shuffle]
+        .into_iter()
+        .flatten()
+        .filter_map(|b| b.rect);
+    let pills_rect = around(&mut pill_rects);
+    if page.play.is_some() || page.shuffle.is_some() || !page.actions.is_empty() {
+        let mut all = [&page.play, &page.shuffle]
+            .into_iter()
+            .flatten()
+            .filter_map(|b| b.rect)
+            .chain(page.actions.iter().filter_map(|a| a.rect));
+        let mut controls = el(PAGE_HEADER_CONTROLS, Some(PAGE), "div")
+            .test("header-controls")
+            .at(around(&mut all));
+        if let Some(class) = markup.controls {
+            controls = controls.class(class);
+        }
+        out.push(controls);
     }
+    // The pills' own box (`div._container_84abbc3` on an album).
+    let pills_parent = match markup.pills {
+        Some(class) if page.play.is_some() || page.shuffle.is_some() => {
+            out.push(
+                el(PAGE_PILLS, Some(PAGE_HEADER_CONTROLS), "div")
+                    .class(class)
+                    .at(pills_rect),
+            );
+            PAGE_PILLS
+        }
+        _ => PAGE_HEADER_CONTROLS,
+    };
     for (key, label_key, (icon, icon_use), button, primary) in [
         (
             PAGE_PLAY,
@@ -2366,7 +2438,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         ),
     ] {
         let Some(button) = button else { continue };
-        let node = el(key, Some(PAGE_HEADER_CONTROLS), "button")
+        let mut node = el(key, Some(pills_parent), "button")
             .class("_marketButton_1d16h_1")
             .class("_medium_1d16h_4")
             .class(if primary {
@@ -2377,6 +2449,9 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
             .test(if primary { "play-all" } else { "shuffle-all" })
             .attr("aria-label", button.label.clone())
             .at(button.rect);
+        if let Some(class) = markup.pill {
+            node = node.class(class);
+        }
         out.push(node);
         // The icon before the label: TIDAL's `svg._icon_77f3f89` with its
         // sprite `use`.
@@ -2389,7 +2464,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 .at(button.rect),
         );
     }
-    header_actions(out, &page.actions);
+    header_actions(out, &page.actions, &markup);
     if let Some(rect) = page.profile_picture {
         out.push(
             el(keys::PROFILE_PIC, Some(PAGE), "div")
@@ -2499,7 +2574,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
 /// More, which follows the overflow box; each button holds `div.tidal-ui__
 /// v-stack > svg + span.wave-text-caption-demi._buttonTextOffset_` with its
 /// caption as the span's text (captured on an album and a playlist).
-fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction]) {
+fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction], markup: &HeaderMarkup) {
     use keys::{PAGE_HEADER_CONTROLS, PAGE_OVERFLOW_BUTTONS, PAGE_SMALL_BUTTONS};
     if actions.is_empty() {
         return;
@@ -2531,18 +2606,18 @@ fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction]) {
             [x0, y0, x1 - x0, y1 - y0]
         })
     };
-    out.push(
-        el(PAGE_SMALL_BUTTONS, Some(PAGE_HEADER_CONTROLS), "div")
-            .class("_smallButtons_5c1ea50")
-            .at(around(&sorted)),
-    );
+    let mut small = el(PAGE_SMALL_BUTTONS, Some(PAGE_HEADER_CONTROLS), "div").at(around(&sorted));
+    for class in markup.small {
+        small = small.class(class);
+    }
+    out.push(small);
     let outside =
         |a: &&HeaderAction| a.test == "show-context-menu-button" || a.test == "report-button";
     let overflow: Vec<&HeaderAction> = sorted.iter().copied().filter(|a| !outside(a)).collect();
     if !overflow.is_empty() {
         out.push(
             el(PAGE_OVERFLOW_BUTTONS, Some(PAGE_SMALL_BUTTONS), "div")
-                .class("_overflowButtons_246e699")
+                .class(markup.overflow)
                 .at(around(&overflow)),
         );
     }
