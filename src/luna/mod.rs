@@ -668,7 +668,7 @@ const COMPAT: &[CompatRow] = &[
         name: "Avatar",
         note: CompatNote {
             level: Compat::PartlySupported,
-            reason: "A picture address you set replaces your account picture; its Gravatar fallback does nothing, as plugins get no email.",
+            reason: "As in TIDAL 2.46.0, its picture rule matches nothing, so your account picture stays; plugins get no email for its Gravatar.",
         },
     },
     CompatRow {

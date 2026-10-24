@@ -145,7 +145,10 @@ Where TIDAL's element has exactly two classes the anchor carries those two
 since themes match the class list whole (`[class="..."]`).
 A built-in sheet before the plugins' carries what TIDAL's own CSS does to
 containers plugins take over by copying their class:
-`[class^="_fullscreen_"]` covers the view. `background` without an image
+`[class^="_fullscreen_"]` covers the window, black, shown under
+`.is-fullscreen`; TIDAL 2.46.0's root variables plugins build on
+(`--z-index-low` to `--z-index-high`, `--user-profile-linear-gradient`) are
+set. `background` without an image
 gives its colour, or `transparent` (`background: 0 0`). Cascades are cached
 per element until the document changes, so `getComputedStyle` over every
 element (uwu-ifier) stays cheap.
@@ -287,7 +290,7 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 
 | Key | Element | Native widget | Slots drawn |
 |---|---|---|---|
-| `footer-player` | `div#footerPlayer[data-test=footer-player]._player_8c80ae6` (+ `nowPlayingVisible`; `_notFullscreen_60c5a14` outside fullscreen) | the bar; background and opacity restyled; a theme's `width`/`max-width`, `bottom`, `border-radius` and `box-shadow` float it (see Theme); clicks forwarded | |
+| `footer-player` | `div#footerPlayer[data-test=footer-player][data-test-playback-state=PLAYING\|NOT_PLAYING]._player_8c80ae6` (+ `nowPlayingVisible` over the view; `_notFullscreen_60c5a14` outside fullscreen: TIDAL 2.46.0's exact class list) | the bar; background and opacity restyled; a theme's `width`/`max-width`, `bottom`, `border-radius` and `box-shadow` float it (see Theme); clicks forwarded | |
 | `player-content` | `div._playerContent_` | | |
 | `track-info` | `div[data-test=track-info]._trackInfo_` | left cluster | Append (past the "..." button) |
 | `track-content` | `div._trackContent_` | title, artists and source line; a theme's `background-color` with its `border-radius`, `padding` and `border` is a card behind them, the heart and the "..." (the cotton candy family's) | Append (after the heart row and the "...": tidal-genres' badge) |
@@ -323,7 +326,8 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 
 | Key | Element | Native widget | Slots drawn |
 |---|---|---|---|
-| `now-playing` | `div#nowPlaying[data-test=new-now-playing]._nowPlayingContainer_` with `now-playing-header` (`header`), `now-playing-background` (`._background_`), `now-playing-content` (`._innerContainer_._content_`) | the now-playing view | Append (under the cover) |
+| `now-playing-fullscreen` > `now-playing-fullscreen-view` | `section._fullscreen_236d61b > section#nowPlaying[data-test=new-now-playing]._container_ad3e54e._nowPlaying_5cd5533`, a child of the root after the main container, always there (TIDAL 2.46.0); while the view is fullscreen the view's parts are in it and it covers the window | the fullscreen view; a plugin's element that takes the section's place (betterFullscreen) is drawn against the window | `now-playing-fullscreen` Append |
+| `now-playing` | `section#nowPlaying[data-test=new-now-playing]._container_ad3e54e._nowPlayingContainer_`, the docked view, a child of the root before the player bar: `._nowPlayingHidden_7e74506` and empty while closed, taken out of the root while the view is fullscreen (that change to the root's children is what `observe` reports with the root, as in TIDAL), else holding `now-playing-header` (`header`), `now-playing-background` (`._background_`), `now-playing-content` (`._innerContainer_._content_`) | the now-playing view | Append (under the cover) |
 | `now-playing-buttons` > `now-playing-content-buttons` > `now-playing-tab:<name>` > `:span` | `header > div._buttons_ > div._contentButtons_ > button[data-test=toggle-similar-tracks\|toggle-credits\|toggle-lyrics][aria-pressed]._tabButton_ > span`, the tabs shown, before the close button; it comes before the player bar in the document, so `querySelector('[data-test^=toggle-lyrics]')` finds it first, as in TIDAL | the header's tab pills; `.click()` opens a tab | tab Before/After, tab box Prepend/Append (LangRomanizer after Lyrics), a tab's `padding-right` and `min-width` widen its pill and what is positioned inside the tab is drawn in it (radiant-lyrics' sparkle), `now-playing-buttons` After (left of the close button) |
 | `now-playing-artwork` > `now-playing-artwork-tilt` > `now-playing-artwork-img` + `now-playing-artwork-glare` | `div._artworkWrapper_ > div._tilt_._artworkTilt_[style="transform: perspective(1000px) rotateX(..deg) rotateY(..deg)"] > img[data-test=now-playing-artwork][src] + div._glare_` (TIDAL's; the `img` is a `video` while an animated cover plays; the style follows the native tilt every frame it moves) | big cover | positioned elements after the `img` or appended to the tilt box are drawn in the cover's tilt and lean with it, a WebGL canvas too (3d-cover) |
 | `lyrics-container` > `lyrics` > `lyrics-lines` | `div._lyricsContainer_ > div[data-test=now-playing-lyrics]._lyricsText_ > div` | Lyrics tab; `lyrics` hidden hides the native lines (radiant-lyrics) | container, lyrics and lines Prepend/Append (radiant-lyrics appends its lines to `lyrics-lines`) |
@@ -555,7 +559,7 @@ exact `Range` (`selectBetween`). The selected words keep their colour.
   follows it; `._title_a453dad` is the title bar's name (`bar-title`), as in TIDAL.
 - Now playing: `button[data-test=new-now-playing-close]` in the header
   (header Prepend/Append), `button[data-test=new-now-playing-expand]` (the
-  full screen button; hidden by a plugin, as radiant-lyrics does), `div._footer_` (Append), `div._fullscreen_` while fullscreen (Append),
+  full screen button; hidden by a plugin, as radiant-lyrics does), `div._footer_` (Append), `section._fullscreen_` (Append; positioned elements in its place are drawn against the window),
   `progress-indicator` in the progress bar.
 - Rows: `button[data-type=contextmenu-open]` in each row's actions (its
   `.click()` opens the native menu); cells plugins insert before a row's
