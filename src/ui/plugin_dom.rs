@@ -6289,7 +6289,9 @@ fn see_through() -> bool {
 fn nested(key: &str) -> &'static [&'static str] {
     use dom_anchors::keys::*;
     match key {
-        SIDEBAR => &[SIDEBAR_NAV, SIDEBAR_CONTENT],
+        // `#sidebar-content` is the navigation block alone (TIDAL 2.46.0),
+        // not a box the size of the sidebar.
+        SIDEBAR => &[SIDEBAR_NAV],
         MAIN => &[MAIN_CONTENT],
         _ => &[],
     }

@@ -1843,6 +1843,15 @@ fn collection_flyout(app: &mut App, ui: &mut egui::Ui, row: &egui::Response, anc
     ui.data_mut(|data| data.insert_temp(rect_id, area.response.rect));
 }
 
+/// [`navigation`] moved by a theme's `translate` on its box
+/// (`div#sidebar-content._fixedNavigation_`: the cotton candy family lifts
+/// the rows 7 points), its room kept.
+fn navigation_moved(app: &mut App, ui: &mut egui::Ui) {
+    let shift = super::plugin_dom::anchor_look(crate::luna::dom_anchors::keys::SIDEBAR_CONTENT)
+        .map_or(Vec2::ZERO, |l| l.translate);
+    super::topbar::moved(ui, shift, |ui| navigation(app, ui));
+}
+
 /// The navigation group: Music, Explore, Feed, Upload and the Collection
 /// (its flyout, or with TIDAL's "Show collection in sidebar" its pages as rows).
 fn navigation(app: &mut App, ui: &mut egui::Ui) {
@@ -2012,12 +2021,10 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
                 crate::luna::dom_anchors::keys::sidebar_item("sidebar-collection-menu"),
                 crate::luna::dom::Position::After,
             ),
+            // `div#sidebar-content._fixedNavigation_` (one element in
+            // TIDAL 2.46.0).
             (
                 crate::luna::dom_anchors::keys::FIXED_NAV.to_string(),
-                crate::luna::dom::Position::Append,
-            ),
-            (
-                crate::luna::dom_anchors::keys::SIDEBAR_CONTENT.to_string(),
                 crate::luna::dom::Position::Append,
             ),
         ];
@@ -2189,7 +2196,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
     // navigation scroll with them, so that every row stays reachable.
     let scrolls_with_list = ui.available_height() - beside_art - nav_height < MIN_LIST_HEIGHT;
     if !scrolls_with_list {
-        navigation(app, ui);
+        navigation_moved(app, ui);
     }
     let filter = Filter::Playlists;
     let sort = selected_sort(app, filter);
@@ -2368,7 +2375,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
         egui::Vec2b::new(false, true),
         |ui| {
             if scrolls_with_list {
-                navigation(app, ui);
+                navigation_moved(app, ui);
                 list_header(app, ui, filter, sort);
             }
             if dragging_item(ui.ctx())

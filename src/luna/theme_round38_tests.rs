@@ -350,3 +350,48 @@ fn the_queue_words_sit_in_tidals_scrolling_list() {
     assert_eq!(look.translate, egui::vec2(0.0, -7.0));
     assert_eq!(look.text, Some(egui::Color32::from_rgb(3, 4, 5)));
 }
+
+/// TIDAL 2.46.0's navigation block is `div#sidebar-content.
+/// _fixedNavigation_00842ee` holding the navigation links themselves, and
+/// the playlists sit apart in `div._listSection_26d6dae > div._container_
+/// 4454af7 > ... > nav[data-test=sidebar-scrollable-nav]`. The cotton candy
+/// family's `[class="_fixedNavigation_00842ee"] { transform: translateY(
+/// -.5em) }` lifts the rows, TidalCustomTheme's `#sidebar-content >
+/// a[data-test="sidebar-feed"] > span` reaches the Feed link's badge;
+/// neither reached the anchors, which nested a second box in the content.
+#[test]
+fn the_sidebar_content_is_tidals_navigation_block() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{LIB_NAV, SIDEBAR_CONTENT, lib_row, sidebar_item};
+    let css = r#"/* {"name": "Nav block"} */
+[class="_fixedNavigation_00842ee"] { transform: translateY(-.5em); }
+#sidebar-content > a[data-test="sidebar-music"] { color: rgb(7, 8, 9); }
+#sidebar > ._listSection_26d6dae nav[data-test="sidebar-scrollable-nav"] > a { color: rgb(9, 8, 7); }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.rows = vec![(Some([16.0, 400.0, 208.0, 56.0]), false)];
+    let tree = dom_anchors::build(&frame);
+    let parent = |key: &str| {
+        tree.nodes
+            .iter()
+            .find(|n| n.key == key)
+            .and_then(|n| n.parent.clone())
+    };
+    assert_eq!(parent(&lib_row(0)).as_deref(), Some(LIB_NAV));
+    let music = sidebar_item("sidebar-music");
+    let o = overlay("nav-block.css", css, &frame, &lib_row(0));
+    pd::test_overlay(Some((*o).clone()));
+    let content = pd::anchor_look(SIDEBAR_CONTENT);
+    let link = pd::anchor_look(&music);
+    let row = pd::anchor_look(&lib_row(0));
+    pd::test_overlay(None);
+    assert_eq!(content.map(|l| l.translate), Some(egui::vec2(0.0, -7.0)));
+    assert_eq!(
+        link.and_then(|l| l.text),
+        Some(egui::Color32::from_rgb(7, 8, 9))
+    );
+    assert_eq!(
+        row.and_then(|l| l.text),
+        Some(egui::Color32::from_rgb(9, 8, 7))
+    );
+}
