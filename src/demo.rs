@@ -8974,8 +8974,9 @@ mod tests {
 
     /// TIDAL 2.46.0 keeps `aside#playQueueSidebar` in the page whether the
     /// play queue is open or not, `_isOpen_` saying which, empty while
-    /// closed: a plugin finds it to watch the queue open. Tidalfast's came
-    /// and went with the panel.
+    /// closed: a plugin finds it to watch the queue open. Tidalfast's was
+    /// missing until the queue first opened, and from then on stayed open
+    /// in the page, panel and title, after the queue closed.
     #[test]
     fn the_play_queue_sidebar_stays_in_the_page_when_closed() {
         use crate::luna::dom::DomOverlay;
@@ -9013,6 +9014,14 @@ mod tests {
             painted_frame(&ctx, &mut app);
         }
         let (open, open_holds) = sidebar(&ctx, &mut app);
+        // Closed again: the panel and its title go, the aside stays.
+        app.show_queue_panel = false;
+        for _ in 0..30 {
+            painted_frame(&ctx, &mut app);
+        }
+        let (again, again_holds) = sidebar(&ctx, &mut app);
+        let title_left = plugin_dom::test_sent_tree()
+            .is_some_and(|t| t.nodes.iter().any(|n| n.key == keys::QUEUE_TITLE));
         plugin_dom::test_overlay(None);
         app.backend.shutdown();
         let closed = closed.expect("the closed queue's aside is in the page");
@@ -9029,6 +9038,14 @@ mod tests {
                 .contains("_isOpen_869124d")
         );
         assert!(open_holds, "the open queue's aside holds the queue");
+        let again = again.expect("the aside stays once the queue closed");
+        assert!(
+            !attr(&again, "class")
+                .unwrap_or_default()
+                .contains("_isOpen_")
+        );
+        assert!(!again_holds, "a closed queue's panel left the page");
+        assert!(!title_left, "a closed queue's title left the page");
     }
 
     /// A header button's icon and caption are each their own element in
