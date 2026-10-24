@@ -52,6 +52,8 @@ mod onnx_run;
 #[cfg(test)]
 mod onnx_tests;
 mod permits;
+#[cfg(feature = "demo")]
+pub mod plugrec;
 mod pool;
 pub mod redux;
 mod runtime;
@@ -288,6 +290,10 @@ pub struct LunaConfig {
     /// does for Luna (uwu-ifier walks the document's text once at load).
     /// Zero starts them at once.
     pub wait_for_dom: Duration,
+    /// Development only: write the plugin record to this file (see
+    /// [`plugrec`]).
+    #[cfg(feature = "demo")]
+    pub plugin_record: Option<PathBuf>,
 }
 
 impl LunaConfig {
@@ -307,6 +313,8 @@ impl LunaConfig {
             memory_limit: 256 * 1024 * 1024,
             wasm_memory_limit: 128 * 1024 * 1024,
             wait_for_dom: Duration::ZERO,
+            #[cfg(feature = "demo")]
+            plugin_record: None,
         }
     }
 }

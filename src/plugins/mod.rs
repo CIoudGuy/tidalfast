@@ -186,6 +186,11 @@ impl Plugins {
         let host: Arc<dyn crate::luna::LunaHost> = self.host.clone();
         let mut config = crate::luna::LunaConfig::new(data_dir);
         config.wait_for_dom = std::time::Duration::from_secs(3);
+        #[cfg(feature = "demo")]
+        {
+            config.plugin_record =
+                std::env::var_os("TIDALFAST_DEMO_PLUGREC").map(std::path::PathBuf::from);
+        }
         match Luna::start(config, host) {
             Ok(luna) => {
                 self.luna = Some(luna);

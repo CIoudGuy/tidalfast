@@ -43,6 +43,9 @@ mod parity_tests;
 mod picked_path_tests;
 #[path = "plugin_batch4_tests.rs"]
 mod plugin_batch4_tests;
+#[cfg(feature = "demo")]
+#[path = "plugrec_tests.rs"]
+mod plugrec_tests;
 #[path = "settings_tests.rs"]
 mod settings_tests;
 #[path = "store_default_tests.rs"]

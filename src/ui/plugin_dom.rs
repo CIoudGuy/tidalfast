@@ -302,6 +302,8 @@ pub fn node_drawn(id: u64, r: Rect) {
     if !on() {
         return;
     }
+    #[cfg(feature = "demo")]
+    crate::luna::plugrec::note_drawn(id);
     with(|s| {
         if s.overlay.measure.binary_search(&id).is_ok()
             && let Some(r) = rect(r)
