@@ -1057,6 +1057,120 @@ the first layout itself (126 ms on Home in the run above), which the first
 session: the album opened from the Albums grid is rewritten and the plugin
 keeps running.
 
+## egui fork, round 1: where time goes (2026-10-24)
+
+Release builds with the `demo` feature, Windows 11, a 16-core desktop CPU,
+NVIDIA GPU with OpenGL, the demo window off-screen and repainting
+continuously (the bench asks for every pass), BelowNormal priority on a
+machine busy with other builds. Where a pass goes inside egui, epaint,
+egui_glow and eframe was read from their own `profiling` scopes, recorded
+with puffin in a measurement build (not committed) and summed per scope on
+the main thread: microseconds a frame of each scope's own time, without the
+scopes inside it.
+
+| Main thread, us a frame | Scroll 2,000 songs | Home | Album, playlist, Home | Now playing, lyrics | Cotton candy, Home | Cotton candy, scroll |
+| --- | --- | --- | --- | --- | --- | --- |
+| All scopes | 1,585 | 903 | 898 | 501 | 1,778 | 20,540 |
+| eframe making the GL context not current and current again (two a frame) | 610 | 409 | 421 | 288 | 444 | 853 |
+| `App::ui`: the app's pass and egui's widgets in it | 470 | 223 | 212 | 79 | 773 | 2,659 |
+| `App::logic` (Luna's overlay with a theme) | 21 | 14 | 16 | 14 | 86 | 15,890 |
+| egui_glow painting: buffer uploads and draws | 131 | 95 | 95 | 33 | 126, and 88 in backdrop callbacks | 251, and 138 |
+| Tessellation | 71 | 70 | 58 | 17 | 132 | 236 |
+| Image loading (`try_load_image`, `try_load_texture`) | 144 | 18 | 17 | 5 | 19 | 79 |
+| egui-winit reading the window's state | 19 | 15 | 16 | 17 | 19 | 25 |
+| Text layout (galley cache misses) | 25 | under 1 | under 1 | under 1 | under 1 | 107 |
+| `swap_buffers` (no vsync off-screen) | 18 | 13 | 14 | 12 | 19 | 36 |
+
+What it showed:
+
+- The largest cost egui itself added was eframe's GL context switch on
+  Windows: 38 to 57% of the main thread's time a frame without a theme
+  (25% on Home with cotton candy), outside the frame time eframe reports. glutin's WGL `is_current` compares only the context,
+  which every window shares, so eframe turned its early-out off on Windows
+  and made the context not current (which flushes) and current again twice
+  a frame (emilk/egui#4173).
+- Painting re-specified the vertex and index buffers for every mesh: two
+  `glBufferData` calls per mesh, 33 to 131 us a frame.
+- Not costs: font atlas uploads (1 us a frame or less), text layout
+  outside fast scrolling (the galley cache), repaint scheduling.
+  The rest of a pass is the app's own and egui's widget work in `App::ui`;
+  with a theme, Luna's per-pass work in `App::logic` dwarfs everything
+  egui does (16 ms a frame while scrolling with cotton candy).
+- Startup (process start to first frame presented, 224 to 259 ms) is the
+  window and GL context (154 to 172 ms, the driver), the first frame 8 to
+  10 ms, fonts and loaders 0 ms. Idle on Home the window makes no passes and
+  the process uses 0.25 to 0.38% of a core.
+
+Changes in the fork (CIoudGuy/egui, branch `tidalfast`), each measured on
+its own with the same profile:
+
+| Commit | Change | Measured |
+| --- | --- | --- |
+| 406ad072 | eframe remembers which window surface the context was last made current with and switches only when another one is painted | context switching 400 to 690 us a frame before, under 1 us after; main thread a frame on Home 895 to 486 us, scrolling 1,259 to 740 us |
+| 052d8172 | egui_glow uploads a frame's meshes in one vertex and one index upload, binds a texture only when it changes | painting 77 to 21 us a frame on Home, 103 to 18 us scrolling; eframe's frame CPU scrolling p50 0.67 to 0.56 ms, p95 0.98 to 0.81 ms |
+| 36760640 | `FontColorTransferFunction::PerColor`: glyph coverage adjusted per text colour in egui_glow's shader, as Chromium's Skia does | see "Text" below |
+
+Before (466a177a) against after (36760640 and the app using it), release
+builds, interleaved, three runs each unless two are given:
+
+| Measure | Before | After |
+| --- | --- | --- |
+| Scroll, eframe's frame CPU p50 | 0.67, 0.80, 1.05 ms | 0.57, 0.58, 0.59 ms |
+| Scroll, p95 | 1.00, 1.20, 2.10 ms | 0.83, 0.89, 1.01 ms |
+| Scroll, p99 | 1.27, 1.54, 2.62 ms | 1.08, 1.17, 1.53 ms |
+| Allocations a frame while scrolling, p50 | 2,407 to 2,410 | 2,407 to 2,410 |
+| Main thread a frame, profile build: scroll / Home / now playing | 1,259 to 1,716 / 895 to 1,102 / 501 to 538 us | 627 to 742 / 413 to 433 / 243 us |
+| Now playing with lyrics, CPU over 20 s (two runs) | 11.5, 11.7% of a core | 11.2, 11.2% |
+| Idle on Home, CPU over 20 s (two runs) | 0.36, 0.38% | 0.25, 0.27% |
+| First frame presented | 224, 235, 248 ms | 235, 247, 259 ms |
+| Private memory: idle on Home / after scrolling / after the browse pages | 114 to 118 / 128 to 135 / 129 to 130 MB | 116 to 122 / 132 to 137 / 131 to 132 MB |
+
+The context switch is not in eframe's frame time, so the scroll numbers
+show the upload change; the switch shows in the main thread's time a
+frame. Whole-process CPU in the now-playing view moves less than the main
+thread: at 30 passes a second the switch cost about 0.9% of a core, and
+most of the view's CPU is the GL driver's own threads. First-frame times
+and memory move within the run-to-run range.
+
+### Text
+
+TIDAL draws its text with Chromium, which on Windows turns a glyph's
+coverage into ink with Skia's mask gamma: a curve for the text's luminance,
+heavier for light text on dark and close to linear for dark text on light.
+egui applies one curve to every colour (2c - c² in the dark theme, linear
+in the light one). Headless Chrome 155 drew seven lines of Hanken Grotesk
+(the app's own font) at 1.5x with grayscale antialiasing, and the same lines
+were drawn with epaint's glyphs and egui_glow's blending; ink is the sum of
+the text's normalised pixel values against Chrome's, difference the mean
+absolute difference in levels of 255 at the best whole-pixel alignment:
+
+| Line | Before: ink, difference | After: ink, difference |
+| --- | --- | --- |
+| 14 px 600 white on black | 0.93, 0.88 | 0.96, 0.64 |
+| 14 px 600 #8c8c8c on black | 1.08, 0.81 | 0.98, 0.58 |
+| 14 px 700 white | 0.95, 0.76 | 0.97, 0.54 |
+| 12 px 600 #b0b0b0 | 1.04, 0.54 | 0.98, 0.41 |
+| 16 px 700 white | 0.95, 0.75 | 0.97, 0.56 |
+| 32 px 800 white | 0.98, 0.59 | 0.99, 0.43 |
+| 14 px 600 black on white (linear before) | 1.01, 0.55 | 0.99, 0.55 |
+
+Chrome's curve was read off these lines (contrast 1.0 and gamma 2.2 fit
+best; Chromium's old defaults, 0.2 and 1.2, fit worse than egui's own), and
+on Windows the app now uses it in both themes
+(`theme::chromium_text_coverage`). The demo's Home, an album, a playlist and
+the now-playing view at 1440 by 900 change in 1.5 to 2.1% of their pixels,
+94 to 98% of them grey text on black or grey (grey text is a little lighter,
+white text's edges a little heavier); covers, icons and shapes are
+unchanged, and the now-playing view's moving background differs between any
+two shots.
+
+Seen and left for a next round: TIDAL's own text (Square Sans) has no
+vertical antialiasing, because its `gasp` table asks DirectWrite for its
+natural mode (rows snap to pixels, edges spread over two pixels
+horizontally), while Chromium draws Hanken Grotesk, whose `gasp` asks for
+symmetric smoothing, antialiased both ways as egui does. Matching TIDAL's
+crisper rows would need a rasterizer mode of its own in epaint.
+
 ## Findings and decisions
 
 - **Long lists are already virtualised.** Track tables, card grids and the

@@ -45,6 +45,9 @@ These instructions add implementation constraints for coding agents.
   they appear. On Wayland, eframe from that fork paces frames by the
   compositor's frame callbacks instead of a vsync swap, so a hidden window
   cannot freeze the app (#266). Do not add a vsync decision of our own.
+  On Windows text coverage becomes ink per text colour as Chromium draws
+  it (`FontColorTransferFunction::PerColor`, applied in egui_glow's
+  shader); keep it when visuals are replaced (`theme::apply_to_style`).
 - The egui fork shapes right-to-left runs in their own direction but leaves
   them in logical order. Pass logical text to `crate::bidi`, which reorders
   the laid-out runs; never reorder the string before layout.
