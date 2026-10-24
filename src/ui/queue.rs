@@ -793,12 +793,17 @@ fn floating_fill(palette: &theme::Palette, over_now_playing: bool) -> egui::Colo
         // rgba(70,70,70,.35))` with a backdrop blur) over the theme's page,
         // or over its root base colour (TIDAL 2.46.0, captured: Tidalify's
         // grey 18 page gives 33, Tidal Amoled's black 21, Meteor Night's
-        // blue page a blue grey).
+        // blue page a blue grey). The page is `main`'s fill as the theme
+        // paints it.
         super::plugin_dom::token_queue_fill().unwrap_or_else(|| {
-            if palette.window.to_opaque() == egui::Color32::BLACK {
+            // What lies under the panel is the page's own fill.
+            let page =
+                super::plugin_dom::surface(crate::luna::dom_anchors::keys::MAIN, palette.window)
+                    .to_opaque();
+            if page == egui::Color32::BLACK {
                 egui::Color32::from_gray(23)
             } else {
-                super::plugin_dom::queue_fill_from(palette.window)
+                super::plugin_dom::queue_fill_from(page)
             }
         })
     } else {
