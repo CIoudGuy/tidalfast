@@ -193,10 +193,7 @@ pub fn mix(app: &mut App, ui: &mut egui::Ui, id: &str) {
             mix.name.clone(),
             mix.subtitle.clone(),
             mix.images.clone(),
-            // TIDAL colours the title by `--track-vibrant-color`, which a
-            // theme may set itself (Abyss Neptune's white).
-            super::plugin_dom::theme_var_color("--track-vibrant-color")
-                .or_else(|| mix.title_color.as_deref().and_then(hex_color)),
+            mix_title_color(mix.title_color.as_deref()),
         ),
         None => (gettext(locale, "Mix").into_owned(), None, Vec::new(), None),
     };
@@ -301,6 +298,15 @@ pub fn mix(app: &mut App, ui: &mut egui::Ui, id: &str) {
 }
 
 /// A `#rrggbb` colour from TIDAL.
+/// A mix title's colour: the mix's own, which TIDAL 2.46.0 writes on the
+/// title itself (`h2._titleText_e186d6e[style="color: ..."]`, captured), so
+/// a theme's root `--track-vibrant-color` (Abyss Neptune's white) no longer
+/// reaches it; only a rule naming the title does, which the header's
+/// anchor carries.
+pub(crate) fn mix_title_color(own: Option<&str>) -> Option<egui::Color32> {
+    own.and_then(hex_color)
+}
+
 fn hex_color(text: &str) -> Option<egui::Color32> {
     let hex = text.strip_prefix('#')?;
     if hex.len() != 6 {

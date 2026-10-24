@@ -156,3 +156,22 @@ fn a_themes_panel_colour_lies_under_tidals_queue_glass() {
         "/* {\"name\": \"No image\"} */\n#playQueueSidebar { background-color: rgb(240, 120, 200); background-image: none; }\n"
     ));
 }
+
+/// TIDAL 2.46.0 writes a mix's colour on its title itself
+/// (`h2._titleText_e186d6e[style="color: rgb(168, 247, 194)"]`, captured),
+/// so a theme's root `--track-vibrant-color` (Abyss Neptune's `white
+/// !important`) leaves the title in the mix's colour. Tidalfast drew it in
+/// the theme's variable, as TIDAL 2.43.2 did.
+#[test]
+fn a_themes_vibrant_variable_leaves_the_mix_title_its_colour() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Vibrant"} */
+:root { --track-vibrant-color: white !important; }
+[data-test=tracklist-row] { padding-top: 1px; }
+"#;
+    let o = overlay_for("vibrant.css", css, &dom_anchors::keys::row("album:55", 1));
+    pd::test_overlay(Some((*o).clone()));
+    let title = crate::ui::radio::mix_title_color(Some("#a8f7c2"));
+    pd::test_overlay(None);
+    assert_eq!(title, Some(egui::Color32::from_rgb(0xa8, 0xf7, 0xc2)));
+}
