@@ -1613,11 +1613,12 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             .at(item.rect);
         if item.selected {
             // `selected` is too generic a module for a theme's class to
-            // match whatever its hash: the navigation row's is TIDAL's own.
-            node = node
-                .modules(&["selected"])
-                .class("_selected_29027d1")
-                .attr("aria-current", "page");
+            // match whatever its hash: the navigation row's is TIDAL's own,
+            // and the row's class list is TIDAL's exactly (TIDAL 2.46.0:
+            // `_navigationItem_4e9deae _selected_29027d1`), which the cotton
+            // candy family names whole (`[class="_navigationItem_4e9deae
+            // _selected_29027d1"] { ._icon_77f3f89 { fill } }`).
+            node = node.class("_selected_29027d1").attr("aria-current", "page");
         }
         if let Some(href) = &item.href {
             node = node.attr("href", href.clone());
@@ -1698,7 +1699,11 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             .modules(&["contentItem"])
             .at(*rect);
         if *selected {
-            node = node.modules(&["selected"]).class("_selected_ae83ba5");
+            // TIDAL 2.46.0's open playlist is `_contentItem_684cbbe
+            // _selected_ae83ba5` exactly, which the cotton candy family
+            // names whole (`[class="_contentItem_684cbbe _selected_ae83ba5"]
+            // { padding-bottom: 6px }`).
+            node = node.class("_selected_ae83ba5");
         }
         out.push(node);
         // TIDAL's words in the row, which themes colour by their market

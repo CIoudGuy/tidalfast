@@ -106,3 +106,62 @@ fn tidals_own_dark_base_steps_are_its_tokens() {
     );
     assert!((i32::from(a) - 64).abs() <= 1, "{fill:?}");
 }
+
+/// TIDAL 2.46.0's selected navigation row has exactly two classes
+/// (`_navigationItem_4e9deae _selected_29027d1`, captured on the Collection
+/// page), which the cotton candy family names whole: `[class=
+/// "_navigationItem_4e9deae _selected_29027d1"] { ._icon_77f3f89 { fill } }`
+/// colours the open row's icons. The anchor carried a third class, so the
+/// rule missed it.
+#[test]
+fn the_selected_navigation_rows_class_list_is_tidals() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{sidebar_item, sidebar_item_arrow, sidebar_item_icon};
+    let css = r#"/* {"name": "Whole class"} */
+._navigationItem_4e9deae { opacity: 0.99; }
+[class="_navigationItem_4e9deae _selected_29027d1"] { ._icon_77f3f89 { fill: rgb(10, 200, 100); } }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    for item in &mut frame.sidebar.items {
+        item.selected = false;
+    }
+    frame.sidebar.items.push(dom_anchors::SidebarItem {
+        test: "sidebar-collection-menu".into(),
+        label: "Collection".into(),
+        href: Some("/my-collection".into()),
+        selected: true,
+        rect: Some([16.0, 248.0, 208.0, 40.0]),
+    });
+    let row = sidebar_item("sidebar-collection-menu");
+    let o = overlay("whole-class.css", css, &frame, &row);
+    pd::test_overlay(Some((*o).clone()));
+    let inks = [
+        pd::sidebar_icon(&sidebar_item_arrow("sidebar-collection-menu")),
+        pd::sidebar_icon(&sidebar_item_icon("sidebar-collection-menu")),
+    ];
+    pd::test_overlay(None);
+    assert_eq!(inks, [Some(egui::Color32::from_rgb(10, 200, 100)); 2]);
+}
+
+/// The open playlist's row in the sidebar is TIDAL 2.46.0's
+/// `_contentItem_684cbbe _selected_ae83ba5`, two classes, which the cotton
+/// candy family names whole (`[class="_contentItem_684cbbe
+/// _selected_ae83ba5"] { padding-bottom: 6px }`); the anchor carried a
+/// third.
+#[test]
+fn the_open_playlists_row_class_list_is_tidals() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::lib_row;
+    let css = r#"/* {"name": "Whole row class"} */
+._contentItem_684cbbe { opacity: 0.99; }
+[class="_contentItem_684cbbe _selected_ae83ba5"] { padding-bottom: 6px; }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.rows = vec![(Some([16.0, 400.0, 208.0, 56.0]), true)];
+    let o = overlay("whole-row-class.css", css, &frame, &lib_row(0));
+    pd::test_overlay(Some((*o).clone()));
+    let look = pd::anchor_look(&lib_row(0));
+    pd::test_overlay(None);
+    let padding = look.and_then(|l| l.padding).expect("the row's padding");
+    assert_eq!(padding[2], 6.0, "{padding:?}");
+}
