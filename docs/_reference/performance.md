@@ -1171,6 +1171,27 @@ horizontally), while Chromium draws Hanken Grotesk, whose `gasp` asks for
 symmetric smoothing, antialiased both ways as egui does. Matching TIDAL's
 crisper rows would need a rasterizer mode of its own in epaint.
 
+### TIDAL's elements on Home and in My Collection (plugin round 9)
+
+Home's title and vibe tabs, the cards' play and favourite buttons and My
+Collection's cells with their words are anchors the window notes while Luna
+runs (with Luna off nothing is noted). Browse bench, debug demo build, Luna on
+with no plugin, BelowNormal priority, two runs each, the commit before the
+round against the round's last (the page's part of a window pass, first visit
+of each page):
+
+| Page | Before | After |
+| --- | --- | --- |
+| Home | 1,113 allocations, 823 and 835 µs | 1,154 allocations, 894 and 896 µs |
+| My Collection's Albums | 380 allocations, 164 µs (both runs) | 492 allocations, 203 and 219 µs |
+| An album | 1,871 allocations, 1,013 to 1,204 µs | 1,876 allocations, 1,209 to 1,233 µs (within the runs' spread) |
+
+Memory after the 20-page walk is the same (Rust heap 6.8 MB in every run,
+private 152 to 161 MB either way). The cost is the words and boxes noted per
+visible card while Luna runs; layout itself (the flex alignment of plugin
+elements) costs a lookup of last frame's height per item, only in rows that
+centre or end their items.
+
 ## Findings and decisions
 
 - **Long lists are already virtualised.** Track tables, card grids and the

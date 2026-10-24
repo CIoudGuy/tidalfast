@@ -1206,9 +1206,12 @@ its container; a flex row's items are as wide as what they hold unless
 they grow (`flex: 1` takes the rest); a column that centres its items is
 as wide as its widest one; `justify-content: space-between`, `-around` and
 `-evenly` share the free room out round the items; a row that centres its
-items puts a shorter one in its middle by last frame's heights. A box of a
-definite height lays out what it holds in that height (a child's
-`height: 100%` is the box's, as a progress bar's fill), and what scripts read
+items puts a shorter one in its middle by last frame's heights (since
+plugin round 9 the last two hold for plugin elements in the app too, where
+an item of a flex column that centres its items is as wide as what it
+holds). A box
+of a definite height lays out what it holds in that height (a child's
+`height: 100%` is the box's, as a progress bar's fill, however tall), and what scripts read
 of an element (`getBoundingClientRect`) and a drag region are its border
 box, without its margins. A flex column held to its `max-height` is that
 tall once what it holds would run past it (measured as if nothing held
@@ -1318,3 +1321,70 @@ once the taskbar is clicked).
   the press (`plugin_dom::filter_raw_input`, waiting at most 150 ms for
   `Luna::dom_event_verdict`); when a listener cancels it, egui never sees
   the press or its release.
+
+### Plugin round 9 (2026-10-24)
+
+- Spooled bodies (`downloads.rs`) belong to a plugin of one runtime
+  (`downloads::Runtime`): a runtime stopping a plugin, or itself, touches
+  only its own downloads and bodies (a Luna restart overlaps the old
+  runtime's shutdown with the new one's plugins). A body waits for its
+  reader as long as it takes; it goes when read, when its `Response` is
+  collected unread (a `FinalizationRegistry` entry that only `fetch` makes,
+  `__fetch_drop`), when its fetch was aborted before it arrived, or when its
+  plugin or runtime stops. A stop during a download's last read leaves no
+  body behind.
+- Plugin element layout (`plugin_slots.rs`): a flex row that centres or
+  ends its items (`align-items: center`, `flex-end`; in a plugin window's
+  page also when it says nothing) places every element item by its height
+  last frame, whether the items all grow, some grow or none do
+  (`draw_across`); an item of a flex column that centres or ends its items
+  is as wide as what it holds unless that was wider than the column
+  (`FIT_ITEM`), and `flex-end` puts it at the column's right;
+  `justify-content: space-between`, `-around` and `-evenly` share a row's
+  free room in the app too. A `%` height or max-height is a share of the
+  containing box's definite height (its own, or the share its flex
+  container gave it; `CONTAINER_HEIGHT`), else of the room left, at most
+  400 points, as before.
+- Home: `home-header` (`div._pageHeader_1d2b3ad`, before the feed in the
+  main content, no box: TIDAL's CSS shows it only up to 576 points) >
+  `home-title` (`h1.wave-text-headline-bold._title_2d8da11`, "Home"), and
+  `vibe-switcher` (`div._vibeSwitcher_2728673`, first in the feed) >
+  `vibe-tabs` (`div._marketPagingTabList_mibfb_1._small_mibfb_19[role=tablist]`)
+  > `vibe-tab:<name>` (`div[data-test=vibe-tab-<static|editorial|uploads>]
+  ._marketPagingTab_wl3o7_1._small_wl3o7_73`, `._selected_wl3o7_125` on the
+  tab shown) > `vibe-tab:<name>:button` (`button._button_wl3o7_17` with the
+  words). The tabs draw a plugin's words and honour its `display` and
+  `visibility`.
+- Cards: `card-overlay:<i>` in the cover box holds the controls. A shelf
+  card (`div._overlay_91ba65b`): `card-play:<i>`
+  (`button._noPadding_9cb3eea._iconButton_4b3ed40`, titled Play,
+  `play-button-<id>` for an album or artist, `playlist-play-button-<uuid>`,
+  `mix-card-<id>-play-button`) with the box of the app's play button, and
+  but for an artist `card-favorite:<i>`
+  (`button[data-test=favorite-button-<id>]._button_c372e89`, Add to or
+  Remove from My Collection). A collection cell
+  (`div.fx-hover-controls._fxHoverControls_cb86dc6`): `play-button`,
+  `card-menu:<i>` (`context-menu-button`, Show options) and
+  `favorite-button` (a switch, checked). A play button a plugin hides is
+  not drawn.
+- Collection cells: `grid-item-<kind>` with `data-test-element-id`, and
+  their words as TIDAL's captured cell has them: `card-title:<i>`
+  (`a[data-test=grid-item-detail-text-title-link]._header_c7b694c`) >
+  `card-title-text:<i>` (`div._titleContainer_7908df3`) >
+  `card-title-link:<i>` (`span._title_e58df15`, the title);
+  `card-subtitle:<i>` (`span._descriptionText_f6de630`) >
+  `card-subtitle-inner:<i>` (`span`) > `card-subtitle-link:<i>:<n>`
+  (`span.artist-link`) > `card-subtitle-part:<i>:<n>` (the artist's `a`),
+  or a `span` part; `card-meta:<i>` (`div._metaContainer_3980a6e.meta`) >
+  `card-meta-text:<i>` (`span.meta-title`, `[data-test=meta-release-date]`
+  on an album). The cell draws the words of the title, the parts and the
+  meta line.
+- Track list headings: `list:<l>:<col>` (`span._<name>Column_[role=columnheader]`)
+  > `list:<l>:<col>:sort` (`span._headerColumn_fed0322._trackcells-sort_ecf19dd
+  ._overline_70ce5b5`) > `list:<l>:<col>:label` (`span`, the words). A
+  playlist's headings sort: `tabindex=0`, `_headerColumnSortable_8d4c2d3`,
+  the title `_titleAndCoverColumn_cc5a4dd`; Date added is
+  `_ellipsisText_9e99400` too. TIDAL 2.46.0 gives no heading an id; the
+  Album and Date added ones have none here either, while Title, Artist and
+  Time keep the `headerColumn-*` ids of an earlier TIDAL that themes colour.
+  `aria-label="Tracklist"` is on the table, not on its header row.
