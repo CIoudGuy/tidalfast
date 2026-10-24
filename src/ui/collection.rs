@@ -216,6 +216,13 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
     let metas: Vec<_> = (0..lines)
         .map(|index| {
             let text = hero.meta.get(index).map(String::as_str).unwrap_or("");
+            // The release date's line is TIDAL's meta line: a plugin's words.
+            let text = if index + 1 == hero.meta.len() {
+                super::plugin_dom::text(crate::luna::dom_anchors::keys::PAGE_RELEASE, text)
+            } else {
+                std::borrow::Cow::Borrowed(text)
+            };
+            let text = text.as_ref();
             if narrow {
                 caps_galley_wrapped(ui, text, meta_color, meta_weight, width)
             } else {
@@ -272,19 +279,29 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
         y += height + 12.0;
     }
     let mut meta_top = y;
+    let mut meta_text = None;
     for (index, galley) in metas.into_iter().enumerate() {
         let text = hero.meta.get(index).map(String::as_str).unwrap_or("");
         let text_width = galley.size().x;
         let extra = meta_extra(&galley);
         let row_height = galley.size().y - extra;
         meta_top = y;
-        ui.painter().galley(
-            pos2(left, y + (16.0 - row_height) / 2.0),
-            galley,
-            meta_color,
-        );
+        // A meta line a plugin hid paints nothing (its words, its badge).
+        let release = index + 1 == hero.meta.len();
+        let hidden =
+            release && super::plugin_dom::hidden(crate::luna::dom_anchors::keys::PAGE_RELEASE);
+        let pos = pos2(left, y + (16.0 - row_height) / 2.0);
+        if release {
+            meta_text = Some(Rect::from_min_size(pos, galley.size()));
+        }
+        if !hidden {
+            ui.painter().galley(pos, galley, meta_color);
+        }
         // The quality badge closes the last line, 8 after its text.
         if index + 1 == lines
+            && !(hidden
+                || hero.meta.len() == lines
+                    && super::plugin_dom::hidden(crate::luna::dom_anchors::keys::PAGE_META))
             && let Some(badge) = hero.badge
         {
             let x = if text.is_empty() {
@@ -300,7 +317,7 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
         let data = Rect::from_min_max(pos2(left, block_top), pos2(left + width, y.max(block_top)));
         let meta = hero.meta.last().map(|date| {
             let line = Rect::from_min_size(pos2(left, meta_top), vec2(width, 16.0));
-            (line, date.as_str())
+            (line, meta_text.unwrap_or(line), date.as_str())
         });
         super::plugin_dom::page_header(data, meta);
         super::plugin_slots::at(
@@ -647,21 +664,28 @@ fn stacked_hero(
     }
     let data_top = cover.bottom() + 20.0;
     let mut meta_top = y;
-    for galley in metas {
+    let mut meta_text = None;
+    let count = metas.len();
+    for (index, galley) in metas.into_iter().enumerate() {
         meta_top = y;
         let size = galley.size();
-        ui.painter().galley(
-            pos2(center - size.x / 2.0, y + (16.0 - size.y) / 2.0),
-            galley,
-            meta_color,
-        );
+        let pos = pos2(center - size.x / 2.0, y + (16.0 - size.y) / 2.0);
+        // The release date's line is TIDAL's meta line: hidden by a plugin,
+        // it paints nothing.
+        let release = index + 1 == count && count == hero.meta.len();
+        if release {
+            meta_text = Some(Rect::from_min_size(pos, size));
+        }
+        if !(release && super::plugin_dom::hidden(crate::luna::dom_anchors::keys::PAGE_RELEASE)) {
+            ui.painter().galley(pos, galley, meta_color);
+        }
         y += 31.0;
     }
     if super::plugin_dom::on() {
         let data = Rect::from_min_max(pos2(block.left(), data_top), pos2(block.right(), y));
         let meta = hero.meta.last().map(|date| {
             let line = Rect::from_min_size(pos2(block.left(), meta_top), vec2(width, 16.0));
-            (line, date.as_str())
+            (line, meta_text.unwrap_or(line), date.as_str())
         });
         super::plugin_dom::page_header(data, meta);
         super::plugin_slots::at(

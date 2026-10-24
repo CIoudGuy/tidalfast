@@ -562,6 +562,29 @@ fn card_page(item: &ShelfItem) -> Option<Page> {
     }
 }
 
+/// What a [`tidal_card`] shows, as its anchor carries it.
+fn card_item(item: &ShelfItem) -> crate::luna::dom_anchors::CardItem {
+    use crate::luna::dom_anchors::{CardItem, CardKind};
+    let artists = |list: &[crate::api::models::ArtistRef]| -> Vec<(String, String)> {
+        list.iter()
+            .map(|a| (a.id.clone().unwrap_or_default(), a.name.clone()))
+            .collect()
+    };
+    let (kind, id, artists) = match item {
+        ShelfItem::Album(album) => (CardKind::Album, album.id.clone(), artists(&album.artists)),
+        ShelfItem::Playlist(playlist) => (CardKind::Playlist, playlist.id.clone(), Vec::new()),
+        ShelfItem::Mix(mix) => (CardKind::Mix, mix.id.clone(), Vec::new()),
+        ShelfItem::Artist(artist) => (CardKind::Artist, artist.id.clone(), Vec::new()),
+        ShelfItem::Track(track) => (
+            CardKind::Track,
+            track.id.clone().unwrap_or_default(),
+            artists(&track.artists),
+        ),
+        ShelfItem::Video(video) => (CardKind::Track, video.id.clone(), Vec::new()),
+    };
+    CardItem { kind, id, artists }
+}
+
 /// The height of a detailed card's text: title, subtitle and meta lines.
 pub(super) const DETAILED_CARD_TEXT: f32 = 102.0;
 
@@ -651,6 +674,9 @@ pub(super) fn tidal_card_marked<'a>(
         ShelfItem::Album(album) => mark.with_album(album),
         _ => mark,
     };
+    // What the card shows, for its anchor: TIDAL's card id and the links
+    // in its subtitle.
+    super::plugin_dom::next_card(card_item(item));
     let card = if detailed {
         let width = widgets::card_width(ui);
         let height = width
@@ -668,6 +694,8 @@ pub(super) fn tidal_card_marked<'a>(
     } else {
         widgets::card(ui, app, image, title, &subtitle, cover)
     };
+    // A card not drawn (scrolled out of its shelf) took nothing.
+    super::plugin_dom::drop_next_card();
     if card.play {
         if context_here {
             app.actions.push(Action::TogglePlay);

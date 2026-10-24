@@ -8336,10 +8336,6 @@ mod tests {
             .collect()
     }
 
-    /// Native parts that still draw while hidden: the album header's meta
-    /// line (its year and quality are painted as one run of galleys).
-    const STILL_DRAWN: &[&str] = &["page-meta-line", "page-release-date"];
-
     /// Element-hider's "Hide This Element" (`display: none` on the element
     /// under the pointer) and a theme's `visibility: hidden` work on every
     /// native part that is one of TIDAL's elements: with the anchor hidden,
@@ -8503,7 +8499,7 @@ mod tests {
                     } else {
                         !inside.is_empty()
                     };
-                    if (kept && !STILL_DRAWN.contains(&key.as_str())) || !described {
+                    if kept || !described {
                         failed.push(format!(
                             "{page:?} {key} {hide}: still {inside:?} of {before}, shared {shared}, described {described}"
                         ));
@@ -8632,6 +8628,243 @@ mod tests {
 "
             )
         );
+    }
+
+    /// TIDAL 2.46.0's home cards and shelf headers are elements with their
+    /// words and ids: `album-card-<id>`, `playlist-card-<uuid>`,
+    /// `mix-card-<id>` and `artist-card-<id>` with the title link and the
+    /// subtitle's artist links, `horizontal-list--<MODULE>-header` with its
+    /// `h2` and View all; the player's Previous, Play and Next carry titles,
+    /// the cover toggle reads "Now Playing", the library's rows sit in
+    /// `nav[data-test=sidebar-scrollable-nav]` and the player ends with
+    /// `nav[data-test=tab-bar]`. A plugin's words over the card titles and
+    /// artists, the shelf titles, View all, the album's release date and a
+    /// playlist's Album heading are the words drawn. Home had no words at
+    /// all (uwu-ifier and the translators found none), and those headings
+    /// and the release date were drawn from Tidalfast's strings.
+    #[test]
+    fn home_cards_and_shelf_headers_carry_tidals_ids_and_words() {
+        use crate::luna::dom::{DomOverlay, HostOverride, HostTree};
+        use crate::luna::dom_anchors::{attr, keys};
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("plugin-cards");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        let words = |shapes: &[egui::epaint::ClippedShape]| -> Vec<String> {
+            shapes
+                .iter()
+                .filter_map(|s| match &s.shape {
+                    egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+                    _ => None,
+                })
+                .collect()
+        };
+        // A tall window: every shelf of Home and its cards are in view.
+        let tall = |ctx: &egui::Context, app: &mut App| -> Vec<egui::epaint::ClippedShape> {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1280.0, 4000.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                crate::ui::plugin_dom::test_page_frame();
+                crate::ui::show(app, ui);
+            });
+            out.textures_delta.clear();
+            crate::ui::plugin_dom::end_frame(ctx);
+            out.shapes
+        };
+        let sent = |ctx: &egui::Context, app: &mut App| -> HostTree {
+            plugin_dom::test_overlay(Some(DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            }));
+            for _ in 0..3 {
+                tall(ctx, app);
+            }
+            plugin_dom::test_sent_tree().expect("a tree was sent")
+        };
+        let rewrite = |ctx: &egui::Context, app: &mut App, keys: &[(String, &str)]| {
+            plugin_dom::test_overlay(Some(DomOverlay {
+                version: 2,
+                hosts: keys
+                    .iter()
+                    .map(|(k, w)| {
+                        (
+                            k.clone(),
+                            HostOverride {
+                                text: Some((*w).to_string()),
+                                ..HostOverride::default()
+                            },
+                        )
+                    })
+                    .collect(),
+                ..DomOverlay::default()
+            }));
+            let mut shapes = Vec::new();
+            for _ in 0..3 {
+                shapes = tall(ctx, app);
+            }
+            plugin_dom::test_overlay(None);
+            words(&shapes)
+        };
+        let node = |tree: &HostTree, key: &str| tree.nodes.iter().find(|n| n.key == key).cloned();
+        let mut checks: Vec<(String, bool)> = Vec::new();
+
+        app.open(Page::Home);
+        let tree = sent(&ctx, &mut app);
+        // Cards: TIDAL's ids, the title in the link, artists as links.
+        let cards: Vec<(usize, String)> = tree
+            .nodes
+            .iter()
+            .filter_map(|n| {
+                let i = n.key.strip_prefix("card:")?.parse::<usize>().ok()?;
+                Some((i, attr(n, "data-test")?.to_string()))
+            })
+            .collect();
+        for kind in ["album-card-", "playlist-card-", "mix-card-", "artist-card-"] {
+            checks.push((
+                format!("a card is {kind}<id>"),
+                cards.iter().any(|(_, t)| t.starts_with(kind)),
+            ));
+        }
+        let titled = cards.iter().find(|(i, t)| {
+            t.starts_with("album-card-")
+                && node(&tree, &keys::card_title_link(*i)).is_some_and(|n| n.text.is_some())
+        });
+        checks.push((
+            "an album card's title link holds its title".into(),
+            titled.is_some(),
+        ));
+        let card = titled.map_or(0, |(i, _)| *i);
+        let artist = node(&tree, &keys::card_subtitle_part(card, 0));
+        checks.push((
+            "the album card's artist is a grid-item-detail-text-title-artist link".into(),
+            artist.as_ref().is_some_and(|n| {
+                n.tag == "a" && attr(n, "data-test") == Some("grid-item-detail-text-title-artist")
+            }),
+        ));
+        // Shelf headers: TIDAL's id and the title in the h2.
+        let header = node(&tree, &keys::shelf_header(0));
+        checks.push((
+            "shelf 0's header is horizontal-list--<MODULE>-header".into(),
+            header.as_ref().is_some_and(|h| {
+                attr(h, "data-test")
+                    .is_some_and(|t| t.starts_with("horizontal-list--") && t.ends_with("-header"))
+            }),
+        ));
+        let shelf_title = node(&tree, &keys::shelf_title(0));
+        checks.push((
+            "shelf 0's title is an h2 with its words".into(),
+            shelf_title
+                .as_ref()
+                .is_some_and(|n| n.tag == "h2" && n.text.as_deref().is_some_and(|t| !t.is_empty())),
+        ));
+        // The player's titles and labels, the sidebar's nav, the tab bar.
+        let footer = |test: &str| {
+            tree.nodes
+                .iter()
+                .find(|n| attr(n, "data-test") == Some(test))
+                .cloned()
+        };
+        for (test, title) in [("previous", "Previous"), ("play", "Play"), ("next", "Next")] {
+            checks.push((
+                format!("{test} has the title {title}"),
+                footer(test).is_some_and(|n| attr(&n, "title") == Some(title)),
+            ));
+        }
+        checks.push((
+            "the cover toggle reads Now Playing".into(),
+            footer("player-details-toggle-now-playing")
+                .is_some_and(|n| attr(&n, "aria-label") == Some("Now Playing")),
+        ));
+        checks.push((
+            "the library's rows are in nav[sidebar-scrollable-nav]".into(),
+            footer("sidebar-scrollable-nav").is_some_and(|n| {
+                n.tag == "nav"
+                    && attr(&n, "aria-label") == Some("Playlists")
+                    && node(&tree, &keys::lib_row(0)).and_then(|r| r.parent) == Some(n.key.clone())
+            }),
+        ));
+        checks.push((
+            "the player ends with nav[tab-bar]".into(),
+            footer("tab-bar")
+                .is_some_and(|n| n.tag == "nav" && n.parent.as_deref() == Some(keys::FOOTER)),
+        ));
+        let rewrites = [
+            (keys::card_title_link(card), "Fwagments uwu"),
+            (keys::card_subtitle_part(card, 0), "Bonyobo uwu"),
+            (keys::shelf_title(0), "Shewf uwu"),
+        ];
+        let drawn = rewrite(&ctx, &mut app, &rewrites);
+        for (key, w) in &rewrites {
+            // Shelf titles are drawn in the theme's case (TIDAL's own).
+            checks.push((
+                format!("{key} draws {w:?}"),
+                drawn.iter().any(|d| d.eq_ignore_ascii_case(w)),
+            ));
+        }
+
+        // The album's release date, and View all on its shelves.
+        app.open(Page::Album("alb0".into()));
+        let tree = sent(&ctx, &mut app);
+        checks.push((
+            "the album has its release date".into(),
+            node(&tree, keys::PAGE_RELEASE).is_some_and(|n| n.text.is_some()),
+        ));
+        let view_all = node(&tree, &keys::shelf_view_all(0));
+        checks.push((
+            "a shelf's View all is a[data-test=view-all-link] with its words".into(),
+            view_all
+                .is_some_and(|n| n.tag == "a" && attr(&n, "data-test") == Some("view-all-link"))
+                && node(&tree, &keys::shelf_view_all_label(0)).is_some_and(|n| n.text.is_some()),
+        ));
+        let rewrites = [
+            (keys::PAGE_RELEASE.to_string(), "2O22 uwu"),
+            (keys::shelf_view_all_label(0), "View aww"),
+        ];
+        let drawn = rewrite(&ctx, &mut app, &rewrites);
+        for (key, w) in &rewrites {
+            checks.push((
+                format!("{key} draws {w:?}"),
+                drawn.iter().any(|d| d.eq_ignore_ascii_case(w)),
+            ));
+        }
+
+        // A playlist's Album and Date added headings.
+        app.open(Page::Playlist("pl0".into()));
+        let tree = sent(&ctx, &mut app);
+        let album_col = tree
+            .nodes
+            .iter()
+            .find(|n| n.key.ends_with(":album-col:label"))
+            .map(|n| n.key.clone());
+        checks.push((
+            "the playlist has an Album heading".into(),
+            album_col.is_some(),
+        ));
+        checks.push((
+            "the playlist has a Date added heading".into(),
+            tree.nodes
+                .iter()
+                .any(|n| n.key.ends_with(":added-col:label")),
+        ));
+        if let Some(key) = album_col {
+            let drawn = rewrite(&ctx, &mut app, &[(key, "Awbum")]);
+            checks.push((
+                "the Album heading draws AWBUM".into(),
+                drawn.iter().any(|d| d == "AWBUM"),
+            ));
+        }
+        app.backend.shutdown();
+        let failed: Vec<_> = checks
+            .iter()
+            .filter(|(_, ok)| !ok)
+            .map(|(c, _)| c.as_str())
+            .collect();
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 
     /// A header button's icon and caption are each their own element in

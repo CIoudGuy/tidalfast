@@ -203,6 +203,7 @@ fn a_headers_meta_words_take_the_rules_for_tidals_meta_items() {
         page.meta = Some(dom_anchors::MetaLine {
             rect: Some([240.0, 300.0, 400.0, 16.0]),
             release_date: "2019".into(),
+            ..dom_anchors::MetaLine::default()
         });
     }
     let tree = dom_anchors::build(&frame);

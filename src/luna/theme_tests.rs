@@ -626,12 +626,14 @@ fn theme_rules_on_tidals_cards_and_artist_header_reach_them() {
                 artist: false,
                 cover: None,
                 shelf: None,
+                ..dom_anchors::GridCard::default()
             },
             dom_anchors::GridCard {
                 rect: Some([429.0, 300.0, 173.0, 218.0]),
                 artist: true,
                 cover: None,
                 shelf: None,
+                ..dom_anchors::GridCard::default()
             },
         ];
         page.artist_header = Some([240.0, 64.0, 1100.0, 480.0]);
@@ -882,6 +884,7 @@ img,
             artist: false,
             cover: Some([240.0, 300.0, 173.0, 173.0]),
             shelf: None,
+            ..dom_anchors::GridCard::default()
         }];
     }
     let tree = dom_anchors::build(&frame);
@@ -942,6 +945,7 @@ fn a_cards_cover_grows_under_the_pointer() {
             artist: false,
             cover: Some([240.0, 300.0, 173.0, 173.0]),
             shelf: Some(0),
+            ..dom_anchors::GridCard::default()
         }];
     }
     let tree = dom_anchors::build(&frame);
@@ -1034,6 +1038,7 @@ fn theme_rules_on_the_home_tiles_and_shelves_reach_them() {
             artist: false,
             cover: Some([240.0, 300.0, 173.0, 173.0]),
             shelf,
+            ..dom_anchors::GridCard::default()
         };
         page.cards = vec![card(Some(0)), card(None)];
     }
@@ -1161,6 +1166,7 @@ fn theme_rules_reach_the_filter_pill_list_panel_row_thumbnails_and_tall_artist_c
             artist: true,
             cover: Some([240.0, 300.0, 173.0, 173.0]),
             shelf: Some(0),
+            ..dom_anchors::GridCard::default()
         }];
     }
     let tree = dom_anchors::build(&frame);

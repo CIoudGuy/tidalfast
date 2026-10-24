@@ -146,6 +146,9 @@ pub mod keys {
     pub const COLLECTION_WRAPPER: &str = "sidebar-collection-wrapper";
 
     pub const FOOTER: &str = "footer-player";
+    /// `nav._mobileTabBar_b6e8ee2[data-test=tab-bar]`, the narrow layout's
+    /// tabs, last in the player (not shown on the desktop).
+    pub const TAB_BAR: &str = "tab-bar";
     pub const PLAYER_CONTENT: &str = "player-content";
     pub const TRACK_INFO: &str = "track-info";
     pub const NOW_PLAYING_TOGGLE: &str = "now-playing-toggle";
@@ -504,6 +507,59 @@ pub mod keys {
     pub fn card_cover_img(index: usize) -> String {
         format!("card-cover-img:{index}")
     }
+    /// A card's words, as TIDAL's card holds them: `card-content:<index>`
+    /// (`div._contentContainer_`), its title (`card-title:<index>`,
+    /// `div._title_`) with the title's text (`card-title-text:<index>`,
+    /// `span._titleText_`) and link (`card-title-link:<index>`, `a._titleLink_`,
+    /// the title's words), and its subtitle (`card-subtitle:<index>`) with
+    /// its parts (`card-subtitle-part:<index>:<n>`: each artist's link, a
+    /// playlist's creator or a mix's line).
+    pub fn card_content(index: usize) -> String {
+        format!("card-content:{index}")
+    }
+    pub fn card_title(index: usize) -> String {
+        format!("card-title:{index}")
+    }
+    pub fn card_title_text(index: usize) -> String {
+        format!("card-title-text:{index}")
+    }
+    pub fn card_title_link(index: usize) -> String {
+        format!("card-title-link:{index}")
+    }
+    pub fn card_subtitle(index: usize) -> String {
+        format!("card-subtitle:{index}")
+    }
+    pub fn card_subtitle_part(index: usize, part: usize) -> String {
+        format!("card-subtitle-part:{index}:{part}")
+    }
+    /// A shelf's header (`shelf-header:<index>`,
+    /// `div._headerContainer_[data-test=horizontal-list--<MODULE>-header]`)
+    /// with its title (`shelf-title:<index>`, `h2._headerText_`), its
+    /// buttons (`shelf-buttons:<index>`): Previous (`shelf-previous:<index>`),
+    /// Next (`shelf-next:<index>`) and View all (`shelf-view-all:<index>`,
+    /// `a[data-test=view-all-link]`, with its words in
+    /// `shelf-view-all-label:<index>`).
+    pub fn shelf_header(index: usize) -> String {
+        format!("shelf-header:{index}")
+    }
+    pub fn shelf_title(index: usize) -> String {
+        format!("shelf-title:{index}")
+    }
+    pub fn shelf_buttons(index: usize) -> String {
+        format!("shelf-buttons:{index}")
+    }
+    pub fn shelf_previous(index: usize) -> String {
+        format!("shelf-previous:{index}")
+    }
+    pub fn shelf_next(index: usize) -> String {
+        format!("shelf-next:{index}")
+    }
+    pub fn shelf_view_all(index: usize) -> String {
+        format!("shelf-view-all:{index}")
+    }
+    pub fn shelf_view_all_label(index: usize) -> String {
+        format!("shelf-view-all-label:{index}")
+    }
     /// The artist page's header, behind which the portrait is painted.
     pub const PAGE_ARTIST_HEADER: &str = "page-artist-header";
     /// `row:<list>:<index>`
@@ -727,6 +783,168 @@ pub fn module_class(name: &str) -> String {
         hash = hash.wrapping_mul(0x0100_0193);
     }
     format!("_{name}_{:07x}", hash & 0x0fff_ffff)
+}
+
+/// The smallest box holding both.
+fn union(a: Rect, b: Rect) -> Rect {
+    let (x0, y0) = (a[0].min(b[0]), a[1].min(b[1]));
+    let (x1, y1) = (
+        (a[0] + a[2]).max(b[0] + b[2]),
+        (a[1] + a[3]).max(b[1] + b[3]),
+    );
+    [x0, y0, x1 - x0, y1 - y0]
+}
+
+/// A shelf's header as TIDAL 2.46.0's horizontal list has it:
+/// `div._headerContainer_5618a8d[data-test=horizontal-list--<MODULE>-header] >
+/// h2._headerText_9398ec6` with the title, then `div._buttonContainer_a07db07`
+/// with Previous and Next (`button._scrollingButton_6c853a9[title]`) and
+/// View all (`a._viewAllButton_4b4f90c[data-test=view-all-link] > span`).
+fn shelf_header_nodes(
+    out: &mut Vec<HostNode>,
+    i: usize,
+    wrap: &str,
+    module: Option<&str>,
+    header: &ShelfHeader,
+) {
+    let key = keys::shelf_header(i);
+    let mut node = el(key.clone(), Some(wrap), "div")
+        .class("_headerContainer_5618a8d")
+        .at(header.rect);
+    if let Some(module) = module {
+        node = node.test(&format!("horizontal-list--{module}-header"));
+    }
+    out.push(node);
+    out.push(
+        el(keys::shelf_title(i), Some(&key), "h2")
+            .class("_marketText_1lyag_1 _heading20_1lyag_75 _headerText_9398ec6")
+            .text(header.title.clone())
+            .at(header.title_rect),
+    );
+    let span = [header.previous, header.next]
+        .iter()
+        .filter_map(|b| b.and_then(|(r, _)| r))
+        .chain(header.view_all.as_ref().and_then(|(_, r)| *r))
+        .reduce(union);
+    out.push(
+        el(keys::shelf_buttons(i), Some(&key), "div")
+            .class("_buttonContainer_a07db07")
+            .at(span),
+    );
+    for (button, part, title) in [
+        (header.previous, keys::shelf_previous(i), "Previous"),
+        (header.next, keys::shelf_next(i), "Next"),
+    ] {
+        let Some((rect, enabled)) = button else {
+            continue;
+        };
+        let mut node = el(part, Some(&keys::shelf_buttons(i)), "button")
+            .class("_scrollingButton_6c853a9")
+            .attr("title", title)
+            .attr("type", "button")
+            .at(rect);
+        if !enabled {
+            node = node.attr("disabled", "");
+        }
+        out.push(node);
+    }
+    if let Some((label, rect)) = &header.view_all {
+        out.push(
+            el(keys::shelf_view_all(i), Some(&keys::shelf_buttons(i)), "a")
+                .class("_viewAllButton_4b4f90c")
+                .test("view-all-link")
+                .at(*rect),
+        );
+        out.push(
+            el(
+                keys::shelf_view_all_label(i),
+                Some(&keys::shelf_view_all(i)),
+                "span",
+            )
+            .class("_marketText_1lyag_1 _semibold20_1lyag_246 _text20_1lyag_291")
+            .text(label.clone())
+            .at(*rect),
+        );
+    }
+}
+
+/// A card's words as TIDAL 2.46.0's card has them:
+/// `div._contentContainer_6f8427a > div._title_3b8740e > span._titleText_9e9bb51
+/// > a._titleLink_3c0fcd3` with the title, then `div._subtitle_8f7e568` with
+/// a link for each artist (`a[data-test=grid-item-detail-text-title-artist]`),
+/// a playlist's creator (`span[data-test=playlist-creator-text]`) or a mix's
+/// line (`span`).
+fn card_word_nodes(out: &mut Vec<HostNode>, i: usize, card: &GridCard, words: &CardWords) {
+    let content = keys::card_content(i);
+    let span = match (words.title_rect, words.subtitle_rect) {
+        (Some(a), Some(b)) => Some(union(a, b)),
+        (a, b) => a.or(b),
+    };
+    out.push(
+        el(content.clone(), Some(&keys::card(i)), "div")
+            .class("_contentContainer_6f8427a")
+            .at(span),
+    );
+    out.push(
+        el(keys::card_title(i), Some(&content), "div")
+            .class("_title_3b8740e")
+            .at(words.title_rect),
+    );
+    out.push(
+        el(keys::card_title_text(i), Some(&keys::card_title(i)), "span")
+            .class("_marketText_1lyag_1 _medium20_1lyag_192 _titleText_9e9bb51")
+            .attr("data-title-lines", "1")
+            .at(words.title_rect),
+    );
+    let mut link = el(
+        keys::card_title_link(i),
+        Some(&keys::card_title_text(i)),
+        "a",
+    )
+    .class("_titleLink_3c0fcd3")
+    .text(words.title.clone())
+    .at(words.title_rect);
+    if let Some(item) = &card.item
+        && let Some(word) = item.kind.word()
+    {
+        link = link.attr("href", format!("/{word}/{}", item.id));
+    }
+    out.push(link);
+    if words.subtitle.is_empty() {
+        return;
+    }
+    let subtitle = keys::card_subtitle(i);
+    out.push(
+        el(subtitle.clone(), Some(&content), "div")
+            .class("_marketText_1lyag_1 _paragraph20_1lyag_138 _text20_1lyag_291 _subtitle_8f7e568")
+            .at(words.subtitle_rect),
+    );
+    match card.item.as_ref() {
+        Some(item) if !item.artists.is_empty() => {
+            for (n, (id, name)) in item.artists.iter().enumerate() {
+                out.push(
+                    el(keys::card_subtitle_part(i, n), Some(&subtitle), "a")
+                        .class("_item_39605ae _link_6a45a19")
+                        .test("grid-item-detail-text-title-artist")
+                        .attr("href", format!("/artist/{id}"))
+                        .attr("title", name.clone())
+                        .text(name.clone())
+                        .at(words.subtitle_rect),
+                );
+            }
+        }
+        Some(item) if item.kind == CardKind::Playlist => out.push(
+            el(keys::card_subtitle_part(i, 0), Some(&subtitle), "span")
+                .test("playlist-creator-text")
+                .text(words.subtitle.clone())
+                .at(words.subtitle_rect),
+        ),
+        _ => out.push(
+            el(keys::card_subtitle_part(i, 0), Some(&subtitle), "span")
+                .text(words.subtitle.clone())
+                .at(words.subtitle_rect),
+        ),
+    }
 }
 
 /// A new host node.
@@ -980,6 +1198,13 @@ pub struct Page {
     pub shelf_modules: Vec<String>,
     /// The module id of the shelf about to be drawn.
     pub next_shelf_module: Option<String>,
+    /// Each shelf's header (its title, buttons and View all), when drawn.
+    pub shelf_headers: Vec<Option<ShelfHeader>>,
+    /// The header of the shelf about to be registered.
+    pub next_shelf_header: Option<ShelfHeader>,
+    /// What the card about to be drawn shows (its kind and id, its
+    /// artists), when its page says so.
+    pub next_card: Option<CardItem>,
     /// The shelf being drawn (its cards take it as their parent).
     pub open_shelf: Option<usize>,
     /// The artist page's header (`div._artistHeader_`): the portrait's box.
@@ -1022,7 +1247,10 @@ pub enum TileKind {
 }
 
 /// A card of a shelf or grid: `div[data-test=grid-item]._card_38c6c04`
-/// (`+ ._artistVariant_63c8c96` for an artist), the classes themes name.
+/// (`+ ._artistVariant_63c8c96` for an artist), the classes themes name;
+/// a shelf card whose item is known carries TIDAL 2.46.0's own id
+/// (`album-card-<id>`, `playlist-card-<uuid>`, `mix-card-<id>`,
+/// `artist-card-<id>`).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct GridCard {
     pub rect: Option<Rect>,
@@ -1032,12 +1260,76 @@ pub struct GridCard {
     /// The shelf (index into [`Page::shelves`]) whose row holds the card;
     /// none for a card of a grid.
     pub shelf: Option<usize>,
+    /// What the card shows, when its page said so.
+    pub item: Option<CardItem>,
+    /// Its title and subtitle as drawn.
+    pub words: Option<CardWords>,
+}
+
+/// What a card shows: TIDAL's card id is `<kind>-card-<id>`, and its
+/// subtitle holds a link for each artist (an album's, a track's) or a
+/// playlist's creator.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CardItem {
+    pub kind: CardKind,
+    pub id: String,
+    /// `(id, name)` of each artist the subtitle names.
+    pub artists: Vec<(String, String)>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CardKind {
+    #[default]
+    Album,
+    Playlist,
+    Mix,
+    Artist,
+    Track,
+}
+
+impl CardKind {
+    /// The word TIDAL's card id and link start with (`album-card-<id>`,
+    /// `/album/<id>`); a track's card is no card of TIDAL's.
+    fn word(self) -> Option<&'static str> {
+        match self {
+            CardKind::Album => Some("album"),
+            CardKind::Playlist => Some("playlist"),
+            CardKind::Mix => Some("mix"),
+            CardKind::Artist => Some("artist"),
+            CardKind::Track => None,
+        }
+    }
+}
+
+/// A card's words as drawn: the title and the subtitle, each with the box
+/// of its line.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CardWords {
+    pub title: String,
+    pub title_rect: Option<Rect>,
+    pub subtitle: String,
+    pub subtitle_rect: Option<Rect>,
+}
+
+/// A shelf's header as drawn: its title, the Previous and Next buttons
+/// (each with whether it can be used) and View all.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ShelfHeader {
+    pub rect: Option<Rect>,
+    pub title: String,
+    pub title_rect: Option<Rect>,
+    pub previous: Option<(Option<Rect>, bool)>,
+    pub next: Option<(Option<Rect>, bool)>,
+    /// View all's words and box.
+    pub view_all: Option<(String, Option<Rect>)>,
 }
 
 /// `div._metaLine_ > span[data-test=meta-release-date]`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct MetaLine {
     pub rect: Option<Rect>,
+    /// The box of the release date's words.
+    pub words: Option<Rect>,
     pub release_date: String,
 }
 
@@ -1107,6 +1399,10 @@ pub struct TrackList {
     pub header_rect: Option<Rect>,
     /// The header's time column (Tidal Tags inserts columns before it).
     pub time_header_rect: Option<Rect>,
+    /// The album and date-added headings, where the list has them (a
+    /// playlist's, the collection's songs).
+    pub album_header_rect: Option<Rect>,
+    pub added_header_rect: Option<Rect>,
     pub rows: Vec<TrackRow>,
 }
 
@@ -2058,6 +2354,7 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
     }
     out.push(
         el(LIB_NAV, Some(LIST_INNER), "nav")
+            .attr("aria-label", "Playlists")
             .test("sidebar-scrollable-nav")
             .at(side.rows.iter().filter_map(|(r, _)| *r).reduce(union)),
     );
@@ -2279,11 +2576,20 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     };
     for (i, rect) in page.shelves.iter().enumerate() {
         let wrap = format!("shelf-wrap:{i}");
-        out.push(el(wrap.clone(), Some(PAGE), "div").at(*rect));
+        let module = page.shelf_modules.get(i).filter(|m| !m.is_empty());
+        let header = page.shelf_headers.get(i).and_then(Option::as_ref);
+        let span = match (header.and_then(|h| h.rect), *rect) {
+            (Some(h), Some(r)) => Some(union(h, r)),
+            (h, r) => r.or(h),
+        };
+        out.push(el(wrap.clone(), Some(PAGE), "div").at(span));
+        if let Some(header) = header {
+            shelf_header_nodes(out, i, &wrap, module.map(String::as_str), header);
+        }
         let mut row = el(keys::shelf(i), Some(&wrap), "div")
             .class(container(page.feed))
             .at(*rect);
-        if let Some(module) = page.shelf_modules.get(i).filter(|m| !m.is_empty()) {
+        if let Some(module) = module {
             row = row.test(&format!("horizontal-list--{module}-scroll"));
         }
         out.push(row);
@@ -2322,10 +2628,18 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
             .shelf
             .filter(|s| *s < page.shelves.len())
             .map_or_else(|| keys::CARD_GRID.to_string(), keys::shelf);
+        // A shelf card whose item is known is TIDAL 2.46.0's
+        // `<kind>-card-<id>` (`album-card-1234`, `playlist-card-<uuid>`).
+        let id = card
+            .item
+            .as_ref()
+            .filter(|_| card.shelf.is_some())
+            .and_then(|item| Some(format!("{}-card-{}", item.kind.word()?, item.id)));
         out.push(
             el(keys::card(i), Some(&parent), "div")
-                .test("grid-item")
+                .test(id.as_deref().unwrap_or("grid-item"))
                 .modules(modules)
+                .attr("role", "presentation")
                 .at(card.rect),
         );
         if let Some(cover) = card.cover {
@@ -2359,6 +2673,9 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 )
                 .at(Some(cover)),
             );
+        }
+        if let Some(words) = &card.words {
+            card_word_nodes(out, i, card, words);
         }
     }
     // The home page's shortcut tiles: `._feed_412931c > ._list_eaac7af >
@@ -2674,7 +2991,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 .test("meta-release-date")
                 .attr("data-wave-color", "textSecondary")
                 .text(meta.release_date.clone())
-                .at(meta.rect),
+                .at(meta.words.or(meta.rect)),
         );
     }
     // The header's art: `._coverArtContainer_2eafdf9 > ._coverArt_79d862c > img`.
@@ -2856,24 +3173,44 @@ pub fn track_list(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
             .modules(&["tableHeader"])
             .at(list.header_rect),
     );
-    for (cell, module, test, label) in [
-        ("title-col", "titleColumn", "header-title", "Title"),
-        ("artist-col", "artistColumn", "header-artist", "Artist"),
-        ("time-col", "timeColumn", "header-duration", "Time"),
-    ] {
-        let rect = if cell == "time-col" {
-            list.time_header_rect
-        } else {
-            None
-        };
-        out.push(
-            el(format!("{table}:{cell}"), Some(&header), "span")
-                .modules(&[module])
-                .attr("id", format!("headerColumn-{test}"))
-                .attr("role", "columnheader")
-                .test(test)
-                .at(rect),
-        );
+    // The album and date-added headings only where the list shows those
+    // columns; TIDAL's ids for them are not known, so they carry none.
+    let columns = [
+        Some((
+            "title-col",
+            "titleColumn",
+            Some("header-title"),
+            "Title",
+            None,
+        )),
+        Some((
+            "artist-col",
+            "artistColumn",
+            Some("header-artist"),
+            "Artist",
+            None,
+        )),
+        list.album_header_rect
+            .map(|r| ("album-col", "albumColumn", None, "Album", Some(r))),
+        list.added_header_rect
+            .map(|r| ("added-col", "dateAddedColumn", None, "Date added", Some(r))),
+        Some((
+            "time-col",
+            "timeColumn",
+            Some("header-duration"),
+            "Time",
+            list.time_header_rect,
+        )),
+    ];
+    for (cell, module, test, label, rect) in columns.into_iter().flatten() {
+        let mut node = el(format!("{table}:{cell}"), Some(&header), "span")
+            .modules(&[module])
+            .attr("role", "columnheader")
+            .at(rect);
+        if let Some(test) = test {
+            node = node.attr("id", format!("headerColumn-{test}")).test(test);
+        }
+        out.push(node);
         // TIDAL's heading holds its label one level down (`span > div >
         // "Time"`, a sort arrow beside it when sorted): Tidal Tags clones
         // the time heading and writes its own title into
@@ -3130,7 +3467,7 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     out.push(
         el(NOW_PLAYING_TOGGLE, Some(TRACK_INFO), "button")
             .test("player-details-toggle-now-playing")
-            .attr("aria-label", "Toggle now playing")
+            .attr("aria-label", "Now Playing")
             .at(p.rect(P::Cover)),
     );
     out.push(
@@ -3245,16 +3582,17 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .modules(&["button"])
             .at(rect)
     };
+    // TIDAL 2.46.0's previous, play or pause and next carry their words as
+    // a title too.
+    let titled = |node: HostNode, label: &str| node.attr("title", label);
     out.push(
         button(SHUFFLE, "shuffle", "Shuffle", p.rect(P::Shuffle))
             .modules(&["shuffleButton"])
             .attr("aria-pressed", p.shuffle.to_string()),
     );
-    out.push(button(
-        PREVIOUS,
-        "previous",
+    out.push(titled(
+        button(PREVIOUS, "previous", "Previous", p.rect(P::Previous)),
         "Previous",
-        p.rect(P::Previous),
     ));
     out.push(
         el(PLAY_WRAP, Some(CONTROLS), "div")
@@ -3262,15 +3600,18 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .at(p.rect(P::Play)),
     );
     let play = if p.playing {
-        button(PLAY, "pause", "Pause", p.rect(P::Play))
+        titled(button(PLAY, "pause", "Pause", p.rect(P::Play)), "Pause")
     } else {
-        button(PLAY, "play", "Play", p.rect(P::Play))
+        titled(button(PLAY, "play", "Play", p.rect(P::Play)), "Play")
     };
     out.push(HostNode {
         parent: Some(PLAY_WRAP.to_string()),
         ..play
     });
-    out.push(button(NEXT, "next", "Next", p.rect(P::Next)));
+    out.push(titled(
+        button(NEXT, "next", "Next", p.rect(P::Next)),
+        "Next",
+    ));
     out.push(
         button(REPEAT, "repeat", "Repeat", p.rect(P::Repeat))
             .modules(&["repeatButton"])
@@ -3474,6 +3815,11 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
                 .at(p.rect(P::Quality)),
         );
     }
+    out.push(
+        el(TAB_BAR, Some(FOOTER), "nav")
+            .class("_mobileTabBar_b6e8ee2")
+            .test("tab-bar"),
+    );
 }
 
 /// The section holding the now-playing view's parts: the docked
@@ -4454,6 +4800,7 @@ mod tests {
         page.meta = Some(MetaLine {
             rect: Some([260.0, 200.0, 300.0, 20.0]),
             release_date: "2020".into(),
+            ..MetaLine::default()
         });
         page.filter = Some(FilterInput {
             rect: Some([260.0, 240.0, 200.0, 32.0]),
