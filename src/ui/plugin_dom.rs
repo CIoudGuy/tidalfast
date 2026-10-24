@@ -43,7 +43,7 @@ pub use anchor_look::{
 #[path = "look_dump.rs"]
 mod look_dump;
 #[cfg(any(test, feature = "demo"))]
-pub use look_dump::{dump_looks, looks_report};
+pub use look_dump::{dump_looks, looks_report, paint_runs};
 
 /// A menu frame was marked for the theme's box this frame
 /// ([`MENU_BOX_MARK`]): the menu's own colour, laid under that box.

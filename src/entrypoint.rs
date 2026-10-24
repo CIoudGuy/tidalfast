@@ -674,6 +674,7 @@ pub(crate) fn run() -> eframe::Result<()> {
         due: std::time::Instant::now() + std::time::Duration::from_millis(cli.demo_shot_delay),
         asked: false,
         looks: cli.demo_dump_looks.clone(),
+        looks_due: false,
     });
     #[cfg(feature = "demo")]
     let demo_drag = cli
@@ -1353,15 +1354,21 @@ struct Shot {
     asked: bool,
     /// Where to write the anchors' looks when the shot is asked for.
     looks: Option<std::path::PathBuf>,
+    /// The looks are owed at the end of this pass, the one the shot shows.
+    looks_due: bool,
 }
 
-/// Writes the anchors' looks for `--demo-dump-looks`.
+/// Writes the anchors' looks for `--demo-dump-looks`, with what this pass
+/// paints (`paint`: rows of words and pictures).
 #[cfg(feature = "demo")]
-fn write_looks(path: &std::path::Path) {
-    let Some(report) = tidalfast::ui::plugin_dom::dump_looks() else {
+fn write_looks(path: &std::path::Path, ctx: &egui::Context) {
+    let Some(mut report) = tidalfast::ui::plugin_dom::dump_looks() else {
         log::error!("no anchor tree yet, {} not written", path.display());
         return;
     };
+    if let Some(o) = report.as_object_mut() {
+        o.insert("paint".into(), tidalfast::ui::plugin_dom::paint_runs(ctx));
+    }
     let text = serde_json::to_string_pretty(&report).unwrap_or_default();
     match std::fs::write(path, text) {
         Ok(()) => log::info!("wrote the anchors' looks to {}", path.display()),
@@ -1381,9 +1388,7 @@ impl Shell {
         ctx.request_repaint();
 
         if !shot.asked && std::time::Instant::now() >= shot.due {
-            if let Some(path) = &shot.looks {
-                write_looks(path);
-            }
+            shot.looks_due = shot.looks.is_some();
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
             shot.asked = true;
         }
@@ -1550,6 +1555,13 @@ impl eframe::App for Shell {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let app = &mut *self.app;
         app.frame_ui(ui);
+        #[cfg(feature = "demo")]
+        if let Some(shot) = self.shot.as_mut()
+            && std::mem::take(&mut shot.looks_due)
+            && let Some(path) = &shot.looks
+        {
+            write_looks(path, ui.ctx());
+        }
         #[cfg(feature = "demo")]
         if let Some(bench) = self.bench.as_mut() {
             bench.after_ui();
