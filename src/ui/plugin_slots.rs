@@ -4709,6 +4709,20 @@ fn across_part(row: bool, display: &str, style: &Style, stretch_items: bool) -> 
     }
 }
 
+/// Where a flex item's own `align-self` puts it across its line, over its
+/// container's `align-items`: the part of the room it leaves that goes
+/// before it (0 the start, 0.5 the middle, 1 the end), `Some(None)` for
+/// `stretch`, and `None` where it says nothing (`auto`).
+fn self_part(child: &VNode) -> Option<Option<f32>> {
+    match child.style.align_self.as_deref().map(str::trim)? {
+        "center" => Some(Some(0.5)),
+        "flex-end" | "end" | "self-end" => Some(Some(1.0)),
+        "flex-start" | "start" | "self-start" | "baseline" | "first baseline" => Some(Some(0.0)),
+        "stretch" | "normal" => Some(None),
+        _ => None,
+    }
+}
+
 /// Draws `child`, an item of a row whose content is `row_h` points tall,
 /// `part` of the way down the room it leaves under it ([`across_part`]),
 /// by its height last frame, and notes its height for the next (an item
@@ -5777,6 +5791,25 @@ fn draw_box(
                         // height of its content: its own, or what it held
                         // last frame).
                         let across = across_part(row, display, style, stretch_items);
+                        // An item's own `align-self` over the row's
+                        // `align-items`: where it stands across, and the
+                        // height a stretched one is given.
+                        let flex_line = row && display.contains("flex") && !wraps(style);
+                        let item_part = |child: &VNode| match self_part(child) {
+                            Some(p) if flex_line && child.tag != "#text" => p,
+                            _ => across,
+                        };
+                        let item_stretched = |child: &VNode| match self_part(child) {
+                            Some(Some(_)) if flex_line => None,
+                            Some(None)
+                                if flex_line
+                                    && child.tag != "#text"
+                                    && child.style.height.is_none() =>
+                            {
+                                height
+                            }
+                            _ => stretched(child),
+                        };
                         let row_h = ui.available_height();
                         // What the children would take if nothing held
                         // them: in a column, the sum of the room each
@@ -5886,13 +5919,14 @@ fn draw_box(
                                         .or(last)
                                         .unwrap_or(h)
                                         .clamp(0.0, h);
-                                    let skip = if end {
-                                        h - own
-                                    } else if center {
-                                        (h - own) / 2.0
-                                    } else {
-                                        0.0
+                                    let part = match self_part(child) {
+                                        Some(Some(p)) => p,
+                                        Some(None) => 0.0,
+                                        None if end => 1.0,
+                                        None if center => 0.5,
+                                        None => 0.0,
                                     };
+                                    let skip = (h - own) * part;
                                     // The cell keeps the row's height (a `%`
                                     // height is of it), moved down by `skip`.
                                     let at = ui.cursor().min;
@@ -5904,8 +5938,13 @@ fn draw_box(
                                             ))
                                             .layout(Layout::top_down(Align::Min)),
                                     );
-                                    drawn |=
-                                        draw_given(&mut cell, child, stretched(child), inherit, cx);
+                                    drawn |= draw_given(
+                                        &mut cell,
+                                        child,
+                                        item_stretched(child),
+                                        inherit,
+                                        cx,
+                                    );
                                     let took = cell.min_rect().height();
                                     if last.is_none_or(|l| (l - took).abs() > 0.5) {
                                         ui.data_mut(|d| d.insert_temp(cross_id, took));
@@ -5933,7 +5972,7 @@ fn draw_box(
                                 let free = (ui.available_width() - others - gaps).max(0.0);
                                 for (child, g) in flow.iter().zip(&grows) {
                                     if *g > 0.0
-                                        && let Some(part) = across
+                                        && let Some(part) = item_part(child)
                                     {
                                         let w = free * g / total;
                                         let (shown, took) = draw_across(
@@ -5958,7 +5997,7 @@ fn draw_box(
                                                 drawn |= draw_given(
                                                     ui,
                                                     child,
-                                                    stretched(child),
+                                                    item_stretched(child),
                                                     inherit,
                                                     cx,
                                                 );
@@ -5976,7 +6015,7 @@ fn draw_box(
                                         // middle or at its foot, by the heights
                                         // of last frame (miniplayer's cover
                                         // beside its taller song details).
-                                        let r = ui.scope(|ui| match across {
+                                        let r = ui.scope(|ui| match item_part(child) {
                                             Some(part) => draw_across(
                                                 ui, child, row_h, part, None, inherit, cx,
                                             ),
@@ -5985,7 +6024,7 @@ fn draw_box(
                                                 let shown = draw_given(
                                                     ui,
                                                     child,
-                                                    stretched(child),
+                                                    item_stretched(child),
                                                     inherit,
                                                     cx,
                                                 );
@@ -6054,7 +6093,7 @@ fn draw_box(
                                         }
                                         continue;
                                     }
-                                    if let Some(part) = across
+                                    if let Some(part) = item_part(child)
                                         && child.tag != "#text"
                                     {
                                         let (shown, _) =
@@ -6062,7 +6101,7 @@ fn draw_box(
                                         drawn |= shown;
                                         continue;
                                     }
-                                    if cross && child.tag != "#text" {
+                                    if cross && child.tag != "#text" && self_part(child).is_none() {
                                         let full = ui.available_height();
                                         let hid = egui::Id::new(("luna-cross", child.id));
                                         let last: Option<f32> = ui.data(|d| d.get_temp(hid));
@@ -6087,59 +6126,81 @@ fn draw_box(
                                     }
                                     // A centring column's items, and in a page
                                     // a flex row's, are as wide as what they
-                                    // hold.
+                                    // hold; a flex column's item may say where
+                                    // it stands itself (`align-self`).
+                                    let own = (!row && display.contains("flex"))
+                                        .then(|| self_part(child))
+                                        .flatten();
+                                    let (fit, stretch) = match own {
+                                        Some(Some(_)) => (true, false),
+                                        Some(None) => (false, true),
+                                        None => (
+                                            cross_center || column_end,
+                                            !cross_center && !column_end,
+                                        ),
+                                    };
                                     SHRINK.with(|s| {
                                         s.set(
-                                            (!row && (cross_center || column_end))
+                                            (!row && fit)
                                                 || (row
                                                     && plugin_dom::drawing_page()
                                                     && display.contains("flex")),
                                         )
                                     });
-                                    FIT_ITEM.with(|s| {
-                                        s.set(
-                                            !row && (cross_center || column_end)
-                                                && display.contains("flex"),
-                                        )
-                                    });
-                                    IN_COLUMN.with(|s| s.set(!row && !cross_center && !column_end));
+                                    FIT_ITEM
+                                        .with(|s| s.set(!row && fit && display.contains("flex")));
+                                    IN_COLUMN.with(|s| s.set(!row && stretch));
                                     FLEX_COLUMN.with(|s| {
-                                        s.set(
-                                            !row && !cross_center
-                                                && !column_end
-                                                && display.contains("flex"),
-                                        )
+                                        s.set(!row && stretch && display.contains("flex"))
                                     });
                                     let top = ui.cursor().min.y;
-                                    match column_free {
-                                        Some(free) if *g > 0.0 => {
-                                            let share = free * g / total;
-                                            drawn |=
-                                                draw_given(ui, child, Some(share), inherit, cx);
-                                        }
-                                        Some(_) => {
-                                            let r = ui.scope(|ui| draw(ui, child, inherit, cx));
-                                            drawn |= r.inner;
-                                            let used = r.response.rect.height();
-                                            let last: Option<f32> =
-                                                ui.data(|d| d.get_temp(height_id(child)));
-                                            if last.is_none_or(|l| (l - used).abs() > 0.5) {
-                                                ui.data_mut(|d| {
-                                                    d.insert_temp(height_id(child), used)
-                                                });
-                                                plugin_dom::request_frame(ui.ctx());
+                                    let item = |ui: &mut egui::Ui| -> bool {
+                                        match column_free {
+                                            Some(free) if *g > 0.0 => {
+                                                let share = free * g / total;
+                                                draw_given(ui, child, Some(share), inherit, cx)
                                             }
-                                        }
-                                        None => {
-                                            drawn |= draw_given(
+                                            Some(_) => {
+                                                let r = ui.scope(|ui| draw(ui, child, inherit, cx));
+                                                let used = r.response.rect.height();
+                                                let last: Option<f32> =
+                                                    ui.data(|d| d.get_temp(height_id(child)));
+                                                if last.is_none_or(|l| (l - used).abs() > 0.5) {
+                                                    ui.data_mut(|d| {
+                                                        d.insert_temp(height_id(child), used)
+                                                    });
+                                                    plugin_dom::request_frame(ui.ctx());
+                                                }
+                                                r.inner
+                                            }
+                                            None => draw_given(
                                                 ui,
                                                 child,
-                                                stretched(child),
+                                                item_stretched(child),
                                                 inherit,
                                                 cx,
-                                            );
+                                            ),
                                         }
-                                    }
+                                    };
+                                    // An item that stands elsewhere across the
+                                    // column than its siblings is laid out in a
+                                    // run of its own, placed so.
+                                    drawn |= match own {
+                                        Some(part) => {
+                                            let align = match part {
+                                                Some(p) if p >= 0.75 => Align::Max,
+                                                Some(p) if p >= 0.25 => Align::Center,
+                                                _ => Align::Min,
+                                            };
+                                            ui.allocate_ui_with_layout(
+                                                vec2(ui.available_width(), 0.0),
+                                                Layout::top_down(align),
+                                                item,
+                                            )
+                                            .inner
+                                        }
+                                        None => item(ui),
+                                    };
                                     if let Some(n) = natural_of(ui, child.id) {
                                         if row {
                                             natural_row = Some(natural_row.map_or(n, |r| r.max(n)));
@@ -10435,6 +10496,127 @@ mod tests {
         assert!(
             (before - after).abs() < 3.0 && before > 50.0,
             "the room shared out between them: {first:?} {middle:?} {last:?}"
+        );
+    }
+
+    /// `align-self` places one flex item across its line against its
+    /// container's `align-items`, as CSS does: in a row that starts its
+    /// items, one in the row's middle and one at its foot; in a row that
+    /// centres them, one at its top; in a column that stretches its items,
+    /// one in the middle of the column's width and one at its right. Every
+    /// item followed its container (`align-self` never reached the layout).
+    #[test]
+    fn align_self_places_an_item_against_its_containers_alignment() {
+        let own = |id: u64, align: &str, text: &str| {
+            block_of(
+                id,
+                "div",
+                Style {
+                    align_self: Some(align.into()),
+                    ..Style::default()
+                },
+                text,
+            )
+        };
+        let tall = |id: u64, colour: &str| {
+            filled(
+                id,
+                colour,
+                Style {
+                    width: Some("100px".into()),
+                    height: Some("120px".into()),
+                    ..Style::default()
+                },
+                vec![],
+            )
+        };
+        let starts = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                align_items: Some("flex-start".into()),
+                width: Some("500px".into()),
+                ..Style::default()
+            },
+            children: vec![
+                tall(2, "#ff0000"),
+                own(3, "center", "In the middle"),
+                own(4, "flex-end", "At the foot"),
+            ],
+            ..VNode::default()
+        };
+        let centres = VNode {
+            id: 5,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                align_items: Some("center".into()),
+                width: Some("500px".into()),
+                ..Style::default()
+            },
+            children: vec![tall(6, "#0000ff"), own(7, "flex-start", "At the top")],
+            ..VNode::default()
+        };
+        let column = filled(
+            8,
+            "#00ff00",
+            Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                width: Some("500px".into()),
+                ..Style::default()
+            },
+            vec![
+                own(9, "center", "Centred"),
+                own(10, "flex-end", "On the right"),
+            ],
+        );
+        let page = VNode {
+            id: 100,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                gap: Some("30px".into()),
+                ..Style::default()
+            },
+            children: vec![starts, centres, column],
+            ..VNode::default()
+        };
+        let (words, boxes) = drawn_parts(page);
+        let red = filled_rect(&boxes, Color32::from_rgb(255, 0, 0));
+        let middle = words_at(&words, "In the middle");
+        assert!(
+            (middle.center().y - red.center().y).abs() < 3.0,
+            "in the row's middle ({}): {middle:?}",
+            red.center().y
+        );
+        let foot = words_at(&words, "At the foot");
+        assert!(
+            (foot.bottom() - red.bottom()).abs() < 3.0,
+            "at the row's foot ({}): {foot:?}",
+            red.bottom()
+        );
+        let blue = filled_rect(&boxes, Color32::from_rgb(0, 0, 255));
+        let top = words_at(&words, "At the top");
+        assert!(
+            (top.top() - blue.top()).abs() < 3.0,
+            "at the centring row's top ({}): {top:?}",
+            blue.top()
+        );
+        let green = filled_rect(&boxes, Color32::from_rgb(0, 255, 0));
+        let centred = words_at(&words, "Centred");
+        assert!(
+            (centred.center().x - green.center().x).abs() < 3.0,
+            "in the column's middle ({}): {centred:?}",
+            green.center().x
+        );
+        let right = words_at(&words, "On the right");
+        assert!(
+            (right.right() - green.right()).abs() < 3.0,
+            "at the column's right ({}): {right:?}",
+            green.right()
         );
     }
 

@@ -57,6 +57,7 @@ const NOT_ANIMATED: &[&str] = &[
     "flex-wrap",
     "justify-content",
     "align-items",
+    "align-self",
     "object-fit",
     "image-rendering",
     "list-style-type",
