@@ -193,3 +193,44 @@ exports.near = () => [screen.getDisplayNearestPoint({ x: 3000, y: 10 }).id, scre
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Plugins and their windows' pages see the browser TIDAL's Electron is on
+/// the same system: its default user agent (the system as Chromium names
+/// it, then the app, Chrome and Electron versions `process.versions`
+/// gives) and the user-agent client hints.
+#[test]
+fn plugins_see_the_browser_identity_of_electron() {
+    let body = r#"
+await check("ua", () => [navigator.userAgent, navigator.platform, navigator.vendor, navigator.appVersion.startsWith("5.0 ("), process.versions.chrome, process.versions.electron]);
+await check("hints", async () => [navigator.userAgentData.brands, navigator.userAgentData.mobile, navigator.userAgentData.platform, await navigator.userAgentData.getHighEntropyValues(["uaFullVersion", "bitness", "nope"])]);
+R.done = true;
+"#;
+    let (r, luna, _host, dir) = run("Probe", body);
+    let (system, platform, hint) = if cfg!(windows) {
+        ("Windows NT 10.0; Win64; x64", "Win32", "Windows")
+    } else if cfg!(target_os = "macos") {
+        ("Macintosh; Intel Mac OS X 10_15_7", "MacIntel", "macOS")
+    } else {
+        ("X11; Linux x86_64", "Linux x86_64", "Linux")
+    };
+    let chrome = crate::luna::versions::CHROME;
+    let electron = crate::luna::versions::ELECTRON;
+    let ua = format!(
+        "Mozilla/5.0 ({system}) AppleWebKit/537.36 (KHTML, like Gecko) Tidalfast/{} Chrome/{chrome} Electron/{electron} Safari/537.36",
+        crate::luna::versions::TIDAL_APP
+    );
+    assert_eq!(
+        r["ua"],
+        json!([ua, platform, "Google Inc.", true, chrome, electron]),
+        "{r}"
+    );
+    let major = chrome.split('.').next().unwrap();
+    let brands = json!([{ "brand": "Not/A)Brand", "version": "8" }, { "brand": "Chromium", "version": major }]);
+    assert_eq!(
+        r["hints"],
+        json!([brands, false, hint, { "brands": brands, "mobile": false, "platform": hint, "uaFullVersion": chrome, "bitness": "64" }]),
+        "{r}"
+    );
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
