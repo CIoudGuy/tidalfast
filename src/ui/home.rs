@@ -320,8 +320,14 @@ fn quick_access(app: &mut App, ui: &mut egui::Ui) {
                     );
                     // A theme's box for the tile (the cotton candy family's
                     // gradient tiles) replaces the grey one.
-                    let themed =
-                        super::plugin_dom::home_tile(rect, cover, owned_playlist.is_some(), *kind);
+                    let themed = super::plugin_dom::home_tile(
+                        rect,
+                        cover,
+                        owned_playlist.is_some(),
+                        *kind,
+                        name,
+                        subtitle,
+                    );
                     // A plugin hid the tile (`display: none`): its cell stays, empty.
                     if themed.as_deref().is_some_and(super::plugin_dom::hidden) {
                         continue;
@@ -381,35 +387,44 @@ fn quick_access(app: &mut App, ui: &mut egui::Ui) {
                     } else {
                         (rect.center().y - 9.0, rect.center().y + 9.0)
                     };
-                    crate::bidi::paint_line(
-                        &painter,
-                        text_rect.left(),
-                        text_rect.right(),
-                        title_y,
-                        name,
-                        theme::semibold(12.0),
-                        title_ink,
-                    );
-                    if !subtitle.is_empty() {
+                    // The words a plugin left in the tile's elements.
+                    let (shown_name, shown_subtitle) =
+                        super::plugin_dom::tile_words(themed.as_deref(), *kind, name, subtitle);
+                    if let Some(shown) = shown_name {
+                        crate::bidi::paint_line(
+                            &painter,
+                            text_rect.left(),
+                            text_rect.right(),
+                            title_y,
+                            &shown,
+                            theme::semibold(12.0),
+                            title_ink,
+                        );
+                    }
+                    if let Some(shown) = shown_subtitle.filter(|s| !s.is_empty()) {
                         crate::bidi::paint_line(
                             &painter,
                             text_rect.left(),
                             text_rect.right(),
                             subtitle_y,
-                            subtitle,
+                            &shown,
                             theme::regular(12.0),
                             subtitle_ink,
                         );
                     }
+                    let play_rect = Rect::from_center_size(
+                        pos2(rect.right() - 12.0 - 16.0, rect.center().y),
+                        Vec2::splat(32.0),
+                    );
+                    let play_shown =
+                        uri.is_some() && super::plugin_dom::tile_play(themed.as_deref(), play_rect);
                     if overlay > 0.0
+                        && play_shown
                         && let Some(uri) = uri
                     {
                         let context_here = app.playing_context_is(uri.as_str());
                         let playing_here = context_here && app.believed_playing();
-                        let button = Rect::from_center_size(
-                            pos2(rect.right() - 12.0 - 16.0, rect.center().y),
-                            Vec2::splat(32.0),
-                        );
+                        let button = play_rect;
                         let mut child =
                             ui.new_child(egui::UiBuilder::new().max_rect(button).layout(
                                 egui::Layout::centered_and_justified(egui::Direction::LeftToRight),

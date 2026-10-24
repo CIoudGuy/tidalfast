@@ -463,9 +463,23 @@ pub mod keys {
     pub fn tile_img(index: usize) -> String {
         format!("tile-img:{index}")
     }
-    /// A tile's words (`span._marketText_1lyag_1`), in its box.
+    /// A tile's words: an artist's name (`div._marketText_1lyag_1`), or
+    /// the box round another tile's name and second line
+    /// (`div._textWrapper_da25926`).
     pub fn tile_text(index: usize) -> String {
         format!("tile-text:{index}")
+    }
+    /// A playlist's, mix's or album's tile name.
+    pub fn tile_title(index: usize) -> String {
+        format!("tile-text:{index}:title")
+    }
+    /// Its second line ("Created by me").
+    pub fn tile_subtitle(index: usize) -> String {
+        format!("tile-text:{index}:subtitle")
+    }
+    /// A tile's play button (`button[data-test=shortcut-play-button]`).
+    pub fn tile_play(index: usize) -> String {
+        format!("tile-play:{index}")
     }
     /// A library row's art (`thumb:<index>`) and its picture.
     /// A library row (`lib-row:<index>`).
@@ -1482,6 +1496,12 @@ pub struct Tile {
     /// What the tile opens: TIDAL's link and tile carry it in their class
     /// and id.
     pub kind: TileKind,
+    /// Its words as the app has them: the name, and the line under it
+    /// ("Created by me"; empty for none).
+    pub title: String,
+    pub subtitle: String,
+    /// Where its play button shows under the pointer.
+    pub play: Option<Rect>,
 }
 
 /// What a shortcut tile opens. TIDAL gives each kind its own `_link_`
@@ -3094,10 +3114,42 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                     .at(tile.rect),
             );
             out.push(el(keys::tile_img(i), Some(&keys::tile_item(i)), "img").at(tile.image));
+            // The tile's words, as TIDAL 2.46.0 has them (the plugin
+            // checker's TIDAL records): an artist's name alone, another
+            // tile's name and second line in `div._textWrapper_da25926`.
+            let name = |key: String, parent: &str| {
+                el(key, Some(parent), "div")
+                    .class("_marketText_1lyag_1 _medium10_1lyag_210")
+                    .text(tile.title.clone())
+                    .at(tile.rect)
+            };
+            if tile.kind == TileKind::Artist {
+                out.push(name(keys::tile_text(i), &keys::tile_item(i)));
+            } else {
+                out.push(
+                    el(keys::tile_text(i), Some(&keys::tile_item(i)), "div")
+                        .class("_textWrapper_da25926")
+                        .at(tile.rect),
+                );
+                out.push(name(keys::tile_title(i), &keys::tile_text(i)));
+                if !tile.subtitle.is_empty() {
+                    out.push(
+                        el(keys::tile_subtitle(i), Some(&keys::tile_text(i)), "div")
+                            .class("_marketText_1lyag_1 _paragraph10_1lyag_156 _text20_1lyag_291")
+                            .text(tile.subtitle.clone())
+                            .at(tile.rect),
+                    );
+                }
+            }
+            // Its play button (shown under the pointer), titled Play.
             out.push(
-                el(keys::tile_text(i), Some(&keys::tile_item(i)), "span")
-                    .class("_marketText_1lyag_1")
-                    .at(tile.rect),
+                el(keys::tile_play(i), Some(&keys::tile_item(i)), "button")
+                    .class("_playButton_19e2b1e _noPadding_9cb3eea _iconButton_4b3ed40 _notCircleIcon_dad7d82")
+                    .test("shortcut-play-button")
+                    .attr("aria-label", "Play")
+                    .attr("title", "Play")
+                    .attr("type", "button")
+                    .at(tile.play),
             );
         }
     }
@@ -5024,6 +5076,65 @@ mod tests {
             .iter()
             .find(|n| n.key == key)
             .unwrap_or_else(|| panic!("no node {key}"))
+    }
+
+    /// Home's shortcut tiles as TIDAL 2.46.0 has them: an artist's name in
+    /// `div._marketText_1lyag_1._medium10_1lyag_210` under the tile, another
+    /// tile's name and second line in `div._textWrapper_da25926`, and each
+    /// tile's `shortcut-play-button` titled Play.
+    #[test]
+    fn home_tiles_hold_their_words_and_play_button() {
+        let mut frame = sample_frame();
+        if let Some(page) = frame.page.as_mut() {
+            page.feed = true;
+            page.tiles = vec![
+                Tile {
+                    rect: Some([240.0, 100.0, 300.0, 60.0]),
+                    kind: TileKind::Playlist,
+                    title: "e2".into(),
+                    subtitle: "Created by me".into(),
+                    play: Some([500.0, 114.0, 32.0, 32.0]),
+                    ..Tile::default()
+                },
+                Tile {
+                    rect: Some([548.0, 100.0, 300.0, 60.0]),
+                    kind: TileKind::Artist,
+                    title: "Lana Del Rey".into(),
+                    subtitle: "Artist".into(),
+                    ..Tile::default()
+                },
+            ];
+        }
+        let tree = build(&frame);
+        let wrapper = find(&tree, &keys::tile_text(0));
+        assert_eq!(attr(wrapper, "class"), Some("_textWrapper_da25926"));
+        assert_eq!(wrapper.parent.as_deref(), Some(keys::tile_item(0).as_str()));
+        let title = find(&tree, &keys::tile_title(0));
+        assert_eq!(title.text.as_deref(), Some("e2"));
+        assert_eq!(
+            attr(title, "class"),
+            Some("_marketText_1lyag_1 _medium10_1lyag_210")
+        );
+        let second = find(&tree, &keys::tile_subtitle(0));
+        assert_eq!(second.text.as_deref(), Some("Created by me"));
+        assert_eq!(second.parent.as_deref(), Some(keys::tile_text(0).as_str()));
+        let artist = find(&tree, &keys::tile_text(1));
+        assert_eq!(artist.text.as_deref(), Some("Lana Del Rey"));
+        assert_eq!(
+            attr(artist, "class"),
+            Some("_marketText_1lyag_1 _medium10_1lyag_210")
+        );
+        assert_eq!(artist.parent.as_deref(), Some(keys::tile_item(1).as_str()));
+        assert!(tree.nodes.iter().all(|n| n.key != keys::tile_subtitle(1)));
+        for i in 0..2 {
+            let play = find(&tree, &keys::tile_play(i));
+            assert_eq!(attr(play, "data-test"), Some("shortcut-play-button"));
+            assert_eq!(attr(play, "title"), Some("Play"));
+        }
+        assert_eq!(
+            find(&tree, &keys::tile_play(0)).rect,
+            Some([500.0, 114.0, 32.0, 32.0])
+        );
     }
 
     #[test]

@@ -3376,9 +3376,17 @@ pub fn shelf_header(header: dom_anchors::ShelfHeader) {
 }
 
 /// A shortcut tile of the home page drawn at `r` with its picture at
-/// `image`: its box's key, for [`grid_card_style`] and
-/// [`paint_host_layers`]. `None` while Luna is off.
-pub fn home_tile(r: Rect, image: Rect, owned: bool, kind: dom_anchors::TileKind) -> Option<String> {
+/// `image` and the app's words `title` and `subtitle`: its box's key, for
+/// [`grid_card_style`], [`paint_host_layers`] and [`tile_words`]. `None`
+/// while Luna is off.
+pub fn home_tile(
+    r: Rect,
+    image: Rect,
+    owned: bool,
+    kind: dom_anchors::TileKind,
+    title: &str,
+    subtitle: &str,
+) -> Option<String> {
     if !on() {
         return None;
     }
@@ -3391,10 +3399,57 @@ pub fn home_tile(r: Rect, image: Rect, owned: bool, kind: dom_anchors::TileKind)
                 image: rect(image),
                 owned,
                 kind,
+                title: title.to_string(),
+                subtitle: subtitle.to_string(),
+                play: None,
             });
         }
     });
     key
+}
+
+/// The words to draw for the tile `key` (from [`home_tile`]): its name and
+/// second line as the app has them, what a plugin wrote over them, or
+/// nothing where a plugin hid them. An artist's tile has no second line in
+/// TIDAL's page: the app's own is drawn as it is.
+pub fn tile_words<'a>(
+    key: Option<&str>,
+    kind: dom_anchors::TileKind,
+    title: &'a str,
+    subtitle: &'a str,
+) -> (Option<Cow<'a, str>>, Option<Cow<'a, str>>) {
+    use dom_anchors::keys;
+    let Some(i) = key.and_then(|k| k.strip_prefix("tile-item:")?.parse::<usize>().ok()) else {
+        return (Some(Cow::Borrowed(title)), Some(Cow::Borrowed(subtitle)));
+    };
+    let words = keys::tile_text(i);
+    if hidden(&words) {
+        return (None, None);
+    }
+    if kind == dom_anchors::TileKind::Artist {
+        return (Some(text(&words, title)), Some(Cow::Borrowed(subtitle)));
+    }
+    let name = keys::tile_title(i);
+    let second = keys::tile_subtitle(i);
+    (
+        (!hidden(&name)).then(|| text(&name, title)),
+        (!hidden(&second)).then(|| text(&second, subtitle)),
+    )
+}
+
+/// The tile whose anchor is `key` shows its play button at `r` under the
+/// pointer: notes where, and says whether it may be drawn (a plugin did
+/// not hide it).
+pub fn tile_play(key: Option<&str>, r: Rect) -> bool {
+    let Some(i) = key.and_then(|k| k.strip_prefix("tile-item:")?.parse::<usize>().ok()) else {
+        return true;
+    };
+    note(|f| {
+        if let Some(tile) = f.page.as_mut().and_then(|p| p.tiles.get_mut(i)) {
+            tile.play = rect(r);
+        }
+    });
+    !hidden(&dom_anchors::keys::tile_play(i))
 }
 
 /// The picture a plugin put in the `img` of the tile `key` (from
@@ -3416,7 +3471,10 @@ pub fn card_picture(key: &str) -> Option<String> {
 /// nested in its tile rule.
 pub fn home_tile_text_color(key: &str) -> Option<Color32> {
     let index = key.strip_prefix("tile-item:")?;
-    color(&format!("tile-text:{index}")).filter(|c| c.a() > 0)
+    color(&format!("tile-text:{index}:title"))
+        .filter(|c| c.a() > 0)
+        .or_else(|| color(&format!("tile-text:{index}")))
+        .filter(|c| c.a() > 0)
 }
 
 /// Whether a theme paints the box `key` (gradients, borders, glass).

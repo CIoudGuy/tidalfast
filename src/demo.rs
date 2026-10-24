@@ -9246,6 +9246,107 @@ mod tests {
         assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 
+    /// Home's shortcut tiles carry their words as TIDAL 2.46.0's do (the
+    /// plugin checker's TIDAL records): an artist's name in
+    /// `div._marketText_1lyag_1._medium10_1lyag_210`, another tile's name
+    /// and second line in `div._textWrapper_da25926`, and each tile has its
+    /// `shortcut-play-button` titled Play. The words a plugin writes over
+    /// them are the words drawn (uwu-ifier's "Cweated by me" in TIDAL).
+    /// The tiles held one empty span, and drew the app's words whatever a
+    /// plugin did.
+    #[test]
+    fn home_tiles_carry_their_words_and_play_button() {
+        use crate::luna::dom::{DomOverlay, HostOverride};
+        use crate::luna::dom_anchors::{attr, keys};
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("plugin-tiles");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.open(Page::Home);
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let node = |key: &str| tree.nodes.iter().find(|n| n.key == key).cloned();
+        let tiles: Vec<usize> = tree
+            .nodes
+            .iter()
+            .filter_map(|n| n.key.strip_prefix("tile-item:")?.parse().ok())
+            .collect();
+        let mut checks: Vec<(String, bool)> = vec![("Home has tiles".into(), !tiles.is_empty())];
+        let mut rewrites: Vec<(String, String)> = Vec::new();
+        for i in &tiles {
+            let artist = node(&keys::tile_item(*i))
+                .is_some_and(|n| attr(&n, "id") == Some("artist-shortcut"));
+            let name_key = if artist {
+                keys::tile_text(*i)
+            } else {
+                keys::tile_title(*i)
+            };
+            checks.push((
+                format!("tile {i}'s name is its own element with its words"),
+                node(&name_key).is_some_and(|n| {
+                    n.text.as_deref().is_some_and(|t| !t.is_empty())
+                        && attr(&n, "class").is_some_and(|c| c.contains("_medium10_1lyag_210"))
+                }),
+            ));
+            if !artist {
+                checks.push((
+                    format!("tile {i}'s words are in TIDAL's text wrapper"),
+                    node(&keys::tile_text(*i))
+                        .is_some_and(|n| attr(&n, "class") == Some("_textWrapper_da25926")),
+                ));
+            }
+            checks.push((
+                format!("tile {i} has its play button, titled Play"),
+                node(&keys::tile_play(*i)).is_some_and(|n| {
+                    attr(&n, "data-test") == Some("shortcut-play-button")
+                        && attr(&n, "title") == Some("Play")
+                        && attr(&n, "aria-label") == Some("Play")
+                }),
+            ));
+            rewrites.push((name_key, format!("Uwu tiwe {i}")));
+            if !artist && node(&keys::tile_subtitle(*i)).is_some() {
+                rewrites.push((keys::tile_subtitle(*i), format!("Cweated by me {i}")));
+            }
+        }
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 2,
+            hosts: rewrites
+                .iter()
+                .map(|(k, w)| {
+                    (
+                        k.clone(),
+                        HostOverride {
+                            text: Some(w.clone()),
+                            ..HostOverride::default()
+                        },
+                    )
+                })
+                .collect(),
+            ..DomOverlay::default()
+        }));
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            shapes = painted_frame(&ctx, &mut app);
+        }
+        plugin_dom::test_overlay(None);
+        let drawn: Vec<String> = shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+                _ => None,
+            })
+            .collect();
+        for (_, w) in &rewrites {
+            checks.push((format!("draws {w:?}"), drawn.iter().any(|d| d == w)));
+        }
+        app.backend.shutdown();
+        let failed: Vec<_> = checks
+            .iter()
+            .filter(|(_, ok)| !ok)
+            .map(|(c, _)| c.as_str())
+            .collect();
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
+    }
+
     /// My Collection's cells carry their words as TIDAL 2.46.0's do
     /// (captured): the cell is `grid-item-album` with the album's id, its
     /// title is in `a[data-test=grid-item-detail-text-title-link] >
