@@ -1663,12 +1663,18 @@ pub fn build(frame: &Frame) -> HostTree {
     } else {
         keys::MAIN_CONTAINER
     };
-    out.push(
-        el(keys::QUEUE_ROLES, Some(roles_parent), "div")
-            .class("_playQueueItemsContainer_01c88fe")
-            .test("playqueue")
-            .attr("aria-hidden", "true"),
-    );
+    // In the open panel it is TIDAL's container round the queue's list too
+    // ([`queue_rows`]), so the rules a theme nests under it reach the rows
+    // (the cotton candy family's `[class="_playQueueItemsContainer_
+    // 01c88fe"] { ._marketText_1lyag_1._medium20_1lyag_192, ._artistText_
+    // 73966a1 { font-weight: 600; font-size: 94% } }`).
+    let mut roles = el(keys::QUEUE_ROLES, Some(roles_parent), "div")
+        .class("_playQueueItemsContainer_01c88fe")
+        .test("playqueue");
+    if frame.queue_panel.is_none() {
+        roles = roles.attr("aria-hidden", "true");
+    }
+    out.push(roles);
     out.push(
         el(keys::QUEUE_ROLE_ITEMS, Some(keys::QUEUE_ROLES), "div").class("_playQueueItems_84488b2"),
     );
@@ -4096,7 +4102,7 @@ pub fn queue_rows(out: &mut Vec<HostNode>, rows: &[QueueRow]) {
         [x0, y0, x1 - x0, y1 - y0]
     });
     out.push(
-        el(QUEUE_LIST, Some(QUEUE_WRAPPER), "div")
+        el(QUEUE_LIST, Some(QUEUE_ROLES), "div")
             .class("_playQueueItems_84488b2")
             .test("playqueue-scroll")
             .attr("aria-label", "Play queue")
