@@ -4667,6 +4667,12 @@ thread_local! {
     /// whatever their tag (DownloadManager's nav buttons, each a full-width
     /// row with its highlight across the nav).
     static FLEX_COLUMN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The element about to be drawn is an item of a flex column that
+    /// centres or ends its items (`align-items: center`, `flex-end`): as in
+    /// CSS it is as wide as what it holds (up to the column's width), so it
+    /// can stand in the middle or at the end (betterFullscreen's "No lyrics
+    /// available" sat at the column's left edge).
+    static FIT_ITEM: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// The next box is a positioned element [`positioned`] placed, whose
     /// position and transform it took off the style: whether it forms a
     /// stacking context, read before they went.
@@ -4679,6 +4685,71 @@ thread_local! {
     static GIVEN_HEIGHT: std::cell::Cell<Option<f32>> = const { std::cell::Cell::new(None) };
     /// Set while a plugin box draws what it holds.
     static NESTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The definite content height of the box whose children are being
+    /// drawn: what their `%` heights are a share of, as in CSS (a fullscreen
+    /// view's `height: 100%` column in its `100vh` player). Without one a
+    /// `%` height is a share of the room left, at most 400 points.
+    static CONTAINER_HEIGHT: std::cell::Cell<Option<f32>> = const { std::cell::Cell::new(None) };
+}
+
+/// Where a flex row (`row`, `display`, `style`) puts its items across:
+/// the part of the room an item leaves under it that goes above it (0.5
+/// for `align-items: center`, 1 for `flex-end`), or `None` where egui's row
+/// places them (a stretching or wrapping row, or `flex-start`). In a
+/// plugin window's page a row that says nothing centres its items too.
+fn across_part(row: bool, display: &str, style: &Style, stretch_items: bool) -> Option<f32> {
+    if !row || stretch_items || wraps(style) || !display.contains("flex") {
+        return None;
+    }
+    match style.align_items.as_deref().map(str::trim) {
+        Some(a) if a.contains("center") => Some(0.5),
+        Some("flex-end" | "end" | "self-end") => Some(1.0),
+        None => plugin_dom::drawing_page().then_some(0.5),
+        _ => None,
+    }
+}
+
+/// Draws `child`, an item of a row whose content is `row_h` points tall,
+/// `part` of the way down the room it leaves under it ([`across_part`]),
+/// by its height last frame, and notes its height for the next (an item
+/// beside a taller one: betterFullscreen's song words beside the cover,
+/// miniplayer's cover beside its song details). With `width` the item is
+/// that wide (a growing item's share). Such a row stretches no item. Returns
+/// whether anything was drawn and the item's height.
+fn draw_across(
+    ui: &mut egui::Ui,
+    child: &VNode,
+    row_h: f32,
+    part: f32,
+    width: Option<f32>,
+    inherit: Inherit,
+    cx: &Cx,
+) -> (bool, f32) {
+    let id = egui::Id::new(("luna-cross", child.id));
+    let last: Option<f32> = ui.data(|d| d.get_temp(id));
+    let skip = last.map_or(0.0, |h| ((row_h - h) * part).max(0.0));
+    let at = ui.cursor().min;
+    let room = vec2(width.unwrap_or(ui.available_width()), ui.available_height());
+    let mut cell = ui.new_child(
+        UiBuilder::new()
+            .max_rect(Rect::from_min_size(egui::pos2(at.x, at.y + skip), room))
+            .layout(Layout::top_down(Align::Min)),
+    );
+    if let Some(w) = width {
+        cell.set_width(w);
+    }
+    let shown = draw(&mut cell, child, inherit, cx);
+    let r = cell.min_rect();
+    let h = r.height();
+    ui.advance_cursor_after_rect(Rect::from_min_max(
+        at,
+        egui::pos2(r.max.x.max(at.x), at.y + skip + h),
+    ));
+    if last.is_none_or(|l| (l - h).abs() > 0.5) {
+        ui.data_mut(|d| d.insert_temp(id, h));
+        plugin_dom::request_frame(ui.ctx());
+    }
+    (shown, h)
 }
 
 /// Draw `child` as a flex item that is `given` points tall (margins
@@ -4754,6 +4825,11 @@ fn draw_box(
     cx: &Cx,
 ) -> bool {
     let shrink = SHRINK.with(|s| s.replace(false));
+    let fit_item = FIT_ITEM.with(|s| s.replace(false));
+    // What a `%` height or max-height is a share of.
+    let basis = CONTAINER_HEIGHT
+        .with(std::cell::Cell::get)
+        .unwrap_or_else(|| ui.available_height().min(400.0));
     let in_column = IN_COLUMN.with(|s| s.replace(false));
     let flex_item = FLEX_COLUMN.with(|s| s.replace(false));
     let placed_context = OWN_CONTEXT.with(|s| s.replace(false));
@@ -5066,7 +5142,7 @@ fn draw_box(
     // A height the flex container gives (stretched or grown) is the margin
     // box's; the element's own `height` wins over it.
     let outer_h = cx
-        .len(&style.height, font, ui.available_height().min(400.0))
+        .len(&style.height, font, basis)
         .or_else(|| given.map(|g| (g - margin.map_or(0.0, |m| m[0] + m[2])).max(0.0)));
     // A growing flex item without a width fills the share its row gave it:
     // its border box, inside its margins (DownloadManager's About body keeps
@@ -5108,6 +5184,9 @@ fn draw_box(
     } else {
         height
     };
+    // Its own height (or the share its flex container gave it) is definite:
+    // what its children's `%` heights are a share of.
+    let definite = height;
     // A radius that is a share of the box (`50%`: AltPlay's round play
     // button) is a share of its shorter side, when the box has a size.
     // The box is its content with padding and border round it, as the
@@ -5137,7 +5216,8 @@ fn draw_box(
         .map(|h| (h - block_inset).max(0.0));
     let display = style.display.as_deref().unwrap_or("");
     // A flex row that moves its items along (`justify-content: flex-end`:
-    // multipleplaylists' buttons) needs its width: a block's, all the room.
+    // multipleplaylists' buttons, `space-between`) needs its width: a
+    // block's, all the room.
     let spreads = display.trim() == "flex"
         && !style
             .flex_direction
@@ -5145,7 +5225,7 @@ fn draw_box(
             .is_some_and(|d| d.trim().starts_with("column"))
         && matches!(
             style.justify_content.as_deref().map(str::trim),
-            Some("center" | "flex-end" | "end" | "space-around" | "space-evenly")
+            Some("center" | "flex-end" | "end" | "space-between" | "space-around" | "space-evenly")
         )
         || (plugin_dom::drawing_page()
             && style.justify_content.as_deref().map(str::trim) == Some("space-between"));
@@ -5378,7 +5458,7 @@ fn draw_box(
     let scroll = scrolls
         .then(|| {
             height.map(|h| (h, true)).or_else(|| {
-                cx.len(&style.max_height, font, ui.available_height().min(400.0))
+                cx.len(&style.max_height, font, basis)
                     .map(|m| ((m - block_inset).max(0.0), false))
             })
         })
@@ -5392,10 +5472,10 @@ fn draw_box(
     // held until its content fits.
     let natural_id = egui::Id::new(("luna-natural-content", node.id));
     let max_inner = cx
-        .len(&style.max_height, font, ui.available_height().min(400.0))
+        .len(&style.max_height, font, basis)
         .map(|m| (m - block_inset).max(0.0));
     let own_inner = cx
-        .len(&style.height, font, ui.available_height().min(400.0))
+        .len(&style.height, font, basis)
         .map(|h| (h - block_inset).max(0.0));
     let held_column = display.contains("flex") && !row && scroll.is_none() && max_inner.is_some();
     let height = height.or_else(|| {
@@ -5465,6 +5545,7 @@ fn draw_box(
         drawn
     };
     let own_context = placed_context || stacking_context(style);
+    let outer_basis = CONTAINER_HEIGHT.with(|c| c.replace(definite));
     if !own_context {
         drawn |= paint_under(ui, false);
     }
@@ -5520,6 +5601,8 @@ fn draw_box(
                     .align_items
                     .as_deref()
                     .is_some_and(|a| matches!(a.trim(), "flex-end" | "end"));
+                // A flex column that ends its items puts them at its right.
+                let column_end = !row && end && display.contains("flex");
                 let layout = if row {
                     Layout::left_to_right(if stretch_items {
                         Align::Min
@@ -5533,6 +5616,8 @@ fn draw_box(
                 } else {
                     Layout::top_down(if cross_center {
                         Align::Center
+                    } else if column_end {
+                        Align::Max
                     } else {
                         Align::Min
                     })
@@ -5549,15 +5634,21 @@ fn draw_box(
                 // flex item is sized by what it holds (miniplayer's cover
                 // column sat in the middle of the row): it is placed in the
                 // room it took last frame.
-                let shrink = shrink
+                // An item of a flex column that centres or ends its items
+                // is as wide as what it holds too, unless that was wider
+                // than the column last frame: it then fills it and its words
+                // wrap (CSS's fit-content).
+                let last_used: Option<f32> = ui.data(|d| d.get_temp(shrink_id));
+                let fits = fit_item && last_used.is_none_or(|w| w <= ui.available_width() + 0.5);
+                let shrink = (shrink
                     && (row || (plugin_dom::drawing_page() && (cross_center || end)))
+                    || fits)
                     && width.is_none()
                     && !matches!(
                         node.tag.as_str(),
                         "img" | "svg" | "canvas" | "input" | "textarea" | "select"
                     );
-                let wrapped: Option<f32> =
-                    shrink.then(|| ui.data(|d| d.get_temp(shrink_id))).flatten();
+                let wrapped: Option<f32> = shrink.then_some(last_used).flatten();
                 // A row with no height of its own is as tall as what it held
                 // last frame, so it centres that: egui's 18-point row hung a
                 // taller child from its top (the audio-visualizer's panel
@@ -5632,8 +5723,7 @@ fn draw_box(
                         // does (miniplayer's header and time row); `last` is
                         // then what the items took without it.
                         let items = flow.iter().filter(|c| !c.style.hidden()).count();
-                        let spaced = plugin_dom::drawing_page()
-                            && items > 0
+                        let spaced = items > 0
                             && matches!(justify, "space-between" | "space-around" | "space-evenly");
                         let mut between = 0.0;
                         if spaced && let Some(used) = last {
@@ -5683,6 +5773,11 @@ fn draw_box(
                             }
                         }
                         let begin = ui.cursor().min;
+                        // Where a flex row puts its items across (by the
+                        // height of its content: its own, or what it held
+                        // last frame).
+                        let across = across_part(row, display, style, stretch_items);
+                        let row_h = ui.available_height();
                         // What the children would take if nothing held
                         // them: in a column, the sum of the room each
                         // would take over what it took; in a row, the
@@ -5775,7 +5870,10 @@ fn draw_box(
                                 for (child, g) in flow.iter().zip(&grows) {
                                     let share = room * g / total;
                                     // `align-items` places the item in its cell
-                                    // by the height its style gives it.
+                                    // by the height its style gives it, else by
+                                    // the height it had last frame.
+                                    let cross_id = egui::Id::new(("luna-cross", child.id));
+                                    let last: Option<f32> = ui.data(|d| d.get_temp(cross_id));
                                     let own = cx
                                         .len(&child.style.height, font, h)
                                         .map(|v| {
@@ -5785,6 +5883,7 @@ fn draw_box(
                                                 .as_deref()
                                                 .map_or(1.0, |t| axis_scale(t).y)
                                         })
+                                        .or(last)
                                         .unwrap_or(h)
                                         .clamp(0.0, h);
                                     let skip = if end {
@@ -5807,8 +5906,12 @@ fn draw_box(
                                     );
                                     drawn |=
                                         draw_given(&mut cell, child, stretched(child), inherit, cx);
-                                    let n = natural_of(ui, child.id)
-                                        .unwrap_or_else(|| cell.min_rect().height());
+                                    let took = cell.min_rect().height();
+                                    if last.is_none_or(|l| (l - took).abs() > 0.5) {
+                                        ui.data_mut(|d| d.insert_temp(cross_id, took));
+                                        plugin_dom::request_frame(ui.ctx());
+                                    }
+                                    let n = natural_of(ui, child.id).unwrap_or(took);
                                     natural_row = Some(natural_row.map_or(n, |r| r.max(n)));
                                     ui.allocate_exact_size(vec2(share, h), Sense::hover());
                                 }
@@ -5829,7 +5932,23 @@ fn draw_box(
                                 let gaps = gap * flow.len().saturating_sub(1) as f32;
                                 let free = (ui.available_width() - others - gaps).max(0.0);
                                 for (child, g) in flow.iter().zip(&grows) {
-                                    if *g > 0.0 {
+                                    if *g > 0.0
+                                        && let Some(part) = across
+                                    {
+                                        let w = free * g / total;
+                                        let (shown, took) = draw_across(
+                                            ui,
+                                            child,
+                                            row_h,
+                                            part,
+                                            Some(w),
+                                            inherit,
+                                            cx,
+                                        );
+                                        drawn |= shown;
+                                        let n = natural_of(ui, child.id).unwrap_or(took);
+                                        natural_row = Some(natural_row.map_or(n, |r| r.max(n)));
+                                    } else if *g > 0.0 {
                                         let w = free * g / total;
                                         let r = ui.allocate_ui_with_layout(
                                             vec2(w, ui.available_height()),
@@ -5852,51 +5971,16 @@ fn draw_box(
                                         // In a page an item that does not grow
                                         // is as wide as what it holds.
                                         SHRINK.with(|s| s.set(plugin_dom::drawing_page()));
-                                        // In a page a row that centres its items
+                                        // A row that centres or ends its items
                                         // puts one shorter than the row in its
-                                        // middle, by the heights of last frame
-                                        // (miniplayer's cover beside its taller
-                                        // song details).
-                                        let hid = egui::Id::new(("luna-cross", child.id));
-                                        let skip = if plugin_dom::drawing_page()
-                                            && center
-                                            && !stretch_items
-                                        {
-                                            let own: Option<f32> = ui.data(|d| d.get_temp(hid));
-                                            held.zip(own).map_or(0.0, |(row_h, own)| {
-                                                ((row_h - own) / 2.0).max(0.0)
-                                            })
-                                        } else {
-                                            0.0
-                                        };
-                                        let r = ui.scope(|ui| {
-                                            if skip > 0.0 {
-                                                let at = ui.cursor().min;
-                                                let mut cell = ui.new_child(
-                                                    UiBuilder::new()
-                                                        .max_rect(Rect::from_min_size(
-                                                            egui::pos2(at.x, at.y + skip),
-                                                            vec2(
-                                                                ui.available_width(),
-                                                                ui.available_height(),
-                                                            ),
-                                                        ))
-                                                        .layout(Layout::top_down(Align::Min)),
-                                                );
-                                                let shown = draw_given(
-                                                    &mut cell,
-                                                    child,
-                                                    stretched(child),
-                                                    inherit,
-                                                    cx,
-                                                );
-                                                let r = cell.min_rect();
-                                                ui.allocate_exact_size(
-                                                    vec2(r.width(), r.height() + skip),
-                                                    Sense::hover(),
-                                                );
-                                                (shown, r.height())
-                                            } else {
+                                        // middle or at its foot, by the heights
+                                        // of last frame (miniplayer's cover
+                                        // beside its taller song details).
+                                        let r = ui.scope(|ui| match across {
+                                            Some(part) => draw_across(
+                                                ui, child, row_h, part, None, inherit, cx,
+                                            ),
+                                            None => {
                                                 let top = ui.cursor().min.y;
                                                 let shown = draw_given(
                                                     ui,
@@ -5913,13 +5997,6 @@ fn draw_box(
                                         drawn |= shown;
                                         let n = natural_of(ui, child.id).unwrap_or(own_h);
                                         natural_row = Some(natural_row.map_or(n, |r| r.max(n)));
-                                        if plugin_dom::drawing_page() {
-                                            let last: Option<f32> = ui.data(|d| d.get_temp(hid));
-                                            if last.is_none_or(|l| (l - own_h).abs() > 0.5) {
-                                                ui.data_mut(|d| d.insert_temp(hid, own_h));
-                                                plugin_dom::request_frame(ui.ctx());
-                                            }
-                                        }
                                         let used = r.response.rect.width();
                                         let last: Option<f32> =
                                             ui.data(|d| d.get_temp(width_id(child)));
@@ -5934,7 +6011,9 @@ fn draw_box(
                             } else {
                                 // A row of a set height that centres its items
                                 // (a backdrop holding a dialog) puts each box in
-                                // the middle by the height it had last frame.
+                                // the middle by the height it had last frame,
+                                // and so does a flex row that centres or ends
+                                // them, whatever its height.
                                 let cross = !stretch_items
                                     && row
                                     && center
@@ -5975,6 +6054,14 @@ fn draw_box(
                                         }
                                         continue;
                                     }
+                                    if let Some(part) = across
+                                        && child.tag != "#text"
+                                    {
+                                        let (shown, _) =
+                                            draw_across(ui, child, row_h, part, None, inherit, cx);
+                                        drawn |= shown;
+                                        continue;
+                                    }
                                     if cross && child.tag != "#text" {
                                         let full = ui.available_height();
                                         let hid = egui::Id::new(("luna-cross", child.id));
@@ -6003,15 +6090,25 @@ fn draw_box(
                                     // hold.
                                     SHRINK.with(|s| {
                                         s.set(
-                                            (!row && cross_center)
+                                            (!row && (cross_center || column_end))
                                                 || (row
                                                     && plugin_dom::drawing_page()
                                                     && display.contains("flex")),
                                         )
                                     });
-                                    IN_COLUMN.with(|s| s.set(!row && !cross_center));
+                                    FIT_ITEM.with(|s| {
+                                        s.set(
+                                            !row && (cross_center || column_end)
+                                                && display.contains("flex"),
+                                        )
+                                    });
+                                    IN_COLUMN.with(|s| s.set(!row && !cross_center && !column_end));
                                     FLEX_COLUMN.with(|s| {
-                                        s.set(!row && !cross_center && display.contains("flex"))
+                                        s.set(
+                                            !row && !cross_center
+                                                && !column_end
+                                                && display.contains("flex"),
+                                        )
                                     });
                                     let top = ui.cursor().min.y;
                                     match column_free {
@@ -6052,6 +6149,7 @@ fn draw_box(
                                         }
                                     }
                                     SHRINK.with(|s| s.set(false));
+                                    FIT_ITEM.with(|s| s.set(false));
                                     IN_COLUMN.with(|s| s.set(false));
                                     FLEX_COLUMN.with(|s| s.set(false));
                                 }
@@ -6187,6 +6285,7 @@ fn draw_box(
         );
     }
     NESTED.with(|n| n.set(nested));
+    CONTAINER_HEIGHT.with(|c| c.set(outer_basis));
     if list {
         LIST_ITEMS.with(|l| l.borrow_mut().pop());
     }
@@ -9923,6 +10022,419 @@ mod tests {
         assert!(
             (words.center().x - 200.0).abs() < 2.0,
             "centred in the 400-point column: {words:?}"
+        );
+    }
+
+    /// Words drawn and where, and filled boxes and where.
+    type Parts = (Vec<(String, Rect)>, Vec<(Color32, Rect)>);
+
+    /// The words and the filled boxes `node` draws in the app's `main`
+    /// (1200 x 800), after a few frames for sizes kept from the last one.
+    fn drawn_parts(node: VNode) -> Parts {
+        plugin_dom::test_viewport([1200.0, 800.0]);
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![Injected {
+                anchor: "main".into(),
+                position: Position::Prepend,
+                nodes: vec![node],
+            }],
+            ..DomOverlay::default()
+        }));
+        let ctx = app_fonts_ctx();
+        let (mut words, mut boxes) = (Vec::new(), Vec::new());
+        for _ in 0..6 {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(1200.0, 800.0))),
+                ..egui::RawInput::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                inline(ui, "main", Position::Prepend);
+            });
+            out.textures_delta.clear();
+            fn walk(shape: &egui::Shape, out: &mut Parts) {
+                match shape {
+                    egui::Shape::Text(t) => out.0.push((
+                        t.galley.text().to_string(),
+                        t.galley.rect.translate(t.pos.to_vec2()),
+                    )),
+                    egui::Shape::Rect(r) if r.fill.a() > 0 => out.1.push((r.fill, r.rect)),
+                    egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+                    _ => {}
+                }
+            }
+            let mut parts = (Vec::new(), Vec::new());
+            for s in &out.shapes {
+                walk(&s.shape, &mut parts);
+            }
+            (words, boxes) = parts;
+        }
+        plugin_dom::test_overlay(None);
+        (words, boxes)
+    }
+
+    fn words_at(words: &[(String, Rect)], text: &str) -> Rect {
+        words
+            .iter()
+            .find(|(t, _)| t == text)
+            .map(|(_, r)| *r)
+            .unwrap_or_else(|| panic!("{text:?} not drawn: {words:?}"))
+    }
+
+    fn block_of(id: u64, tag: &str, style: Style, text: &str) -> VNode {
+        VNode {
+            id,
+            tag: tag.into(),
+            style,
+            children: vec![text_node(id * 10, text)],
+            ..VNode::default()
+        }
+    }
+
+    /// A flex row that centres its items (`align-items: center`) puts the
+    /// shorter ones in its middle, beside a tall one, as Chromium does: a
+    /// growing column of words beside a 200-point picture (betterFullscreen's
+    /// header, whose song words hung from the picture's top), and a plain
+    /// block of words that does not grow.
+    #[test]
+    fn a_centring_row_puts_its_shorter_items_in_its_middle() {
+        let art = |id: u64, colour: &str| {
+            filled(
+                id,
+                colour,
+                Style {
+                    width: Some("200px".into()),
+                    height: Some("200px".into()),
+                    ..Style::default()
+                },
+                vec![],
+            )
+        };
+        let row = |id: u64, children: Vec<VNode>| VNode {
+            id,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                align_items: Some("center".into()),
+                gap: Some("24px".into()),
+                width: Some("900px".into()),
+                ..Style::default()
+            },
+            children,
+            ..VNode::default()
+        };
+        let info = VNode {
+            id: 3,
+            tag: "div".into(),
+            style: Style {
+                flex: Some("1".into()),
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                min_width: Some("0".into()),
+                ..Style::default()
+            },
+            children: vec![
+                block_of(4, "h1", Style::default(), "Song title"),
+                block_of(5, "div", Style::default(), "Artist name"),
+            ],
+            ..VNode::default()
+        };
+        let plain = block_of(7, "div", Style::default(), "Plain words");
+        let page = VNode {
+            id: 100,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                gap: Some("40px".into()),
+                ..Style::default()
+            },
+            children: vec![
+                row(1, vec![art(2, "#ff0000"), info]),
+                row(6, vec![art(8, "#0000ff"), plain]),
+            ],
+            ..VNode::default()
+        };
+        let (words, boxes) = drawn_parts(page);
+        let red = filled_rect(&boxes, Color32::from_rgb(255, 0, 0));
+        let title = words_at(&words, "Song title");
+        let artist = words_at(&words, "Artist name");
+        let middle = (title.top() + artist.bottom()) / 2.0;
+        assert!(
+            (middle - red.center().y).abs() < 3.0,
+            "the growing column's words in the row's middle ({}): {title:?} {artist:?}",
+            red.center().y
+        );
+        let blue = filled_rect(&boxes, Color32::from_rgb(0, 0, 255));
+        let plain = words_at(&words, "Plain words");
+        assert!(
+            (plain.center().y - blue.center().y).abs() < 3.0,
+            "the plain block's words in the row's middle ({}): {plain:?}",
+            blue.center().y
+        );
+    }
+
+    /// A flex column that centres its items (`align-items: center`) puts
+    /// each block, as wide as what it holds, in its middle, and
+    /// `justify-content: center` puts them all in the middle of its height:
+    /// betterFullscreen's "No lyrics available" under its note symbol, in
+    /// the middle of the lyrics area (the words sat at the column's left
+    /// edge).
+    #[test]
+    fn a_centring_column_puts_its_blocks_in_its_middle() {
+        let note = VNode {
+            id: 2,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                align_items: Some("center".into()),
+                justify_content: Some("center".into()),
+                flex: Some("1".into()),
+                gap: Some("24px".into()),
+                ..Style::default()
+            },
+            children: vec![
+                block_of(
+                    3,
+                    "div",
+                    Style {
+                        font_size: Some("40px".into()),
+                        ..Style::default()
+                    },
+                    "♪",
+                ),
+                block_of(4, "div", Style::default(), "No lyrics available"),
+            ],
+            ..VNode::default()
+        };
+        let area = filled(
+            1,
+            "#00ff00",
+            Style {
+                display: Some("flex".into()),
+                align_items: Some("center".into()),
+                justify_content: Some("center".into()),
+                width: Some("600px".into()),
+                height: Some("300px".into()),
+                ..Style::default()
+            },
+            vec![note],
+        );
+        let (words, boxes) = drawn_parts(area);
+        let area = filled_rect(&boxes, Color32::from_rgb(0, 255, 0));
+        let symbol = words_at(&words, "♪");
+        let line = words_at(&words, "No lyrics available");
+        for w in [symbol, line] {
+            assert!(
+                (w.center().x - area.center().x).abs() < 3.0,
+                "in the middle of the 600-point area ({}): {w:?}",
+                area.center().x
+            );
+        }
+        let middle = (symbol.top() + line.bottom()) / 2.0;
+        assert!(
+            (middle - area.center().y).abs() < 4.0,
+            "the pair in the middle of its height ({}): {symbol:?} {line:?}",
+            area.center().y
+        );
+    }
+
+    /// A `height: 100%` is a share of its containing box's definite height,
+    /// however tall (it was a share of at most 400 points): a fullscreen
+    /// view's column fills its 600-point player, and the growing lyrics
+    /// area under its header puts its note in its own middle
+    /// (betterFullscreen's "No lyrics available" sat under the header).
+    #[test]
+    fn a_percent_height_is_a_share_of_its_containers_height() {
+        let note = VNode {
+            id: 5,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                align_items: Some("center".into()),
+                justify_content: Some("center".into()),
+                flex: Some("1".into()),
+                ..Style::default()
+            },
+            children: vec![block_of(6, "div", Style::default(), "Nothing here")],
+            ..VNode::default()
+        };
+        let lyrics = filled(
+            4,
+            "#00ff00",
+            Style {
+                flex: Some("1".into()),
+                display: Some("flex".into()),
+                align_items: Some("center".into()),
+                justify_content: Some("center".into()),
+                min_height: Some("0".into()),
+                ..Style::default()
+            },
+            vec![note],
+        );
+        let header = filled(
+            3,
+            "#ff0000",
+            Style {
+                width: Some("100px".into()),
+                height: Some("100px".into()),
+                ..Style::default()
+            },
+            vec![],
+        );
+        let content = filled(
+            2,
+            "#0000ff",
+            Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                height: Some("100%".into()),
+                padding: Some("20px".into()),
+                gap: Some("20px".into()),
+                ..Style::default()
+            },
+            vec![header, lyrics],
+        );
+        let player = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                width: Some("800px".into()),
+                height: Some("600px".into()),
+                ..Style::default()
+            },
+            children: vec![content],
+            ..VNode::default()
+        };
+        let (words, boxes) = drawn_parts(player);
+        let content = filled_rect(&boxes, Color32::from_rgb(0, 0, 255));
+        assert!(
+            (content.height() - 600.0).abs() < 2.0,
+            "the column fills the player: {content:?}"
+        );
+        let area = filled_rect(&boxes, Color32::from_rgb(0, 255, 0));
+        assert!(
+            (area.bottom() - 580.0).abs() < 2.0,
+            "the lyrics area runs to the column's padding: {area:?}"
+        );
+        let line = words_at(&words, "Nothing here");
+        assert!(
+            (line.center().y - area.center().y).abs() < 3.0,
+            "in the middle of the lyrics area ({}): {line:?}",
+            area.center().y
+        );
+        assert!(
+            (line.center().x - area.center().x).abs() < 3.0,
+            "and of its width ({}): {line:?}",
+            area.center().x
+        );
+    }
+
+    /// `align-items: flex-end` puts a row's shorter items at its foot and a
+    /// column's items at its right; `justify-content: space-between` puts a
+    /// row's first item at its start, its last at its end and shares the
+    /// rest between them, in the app as in a plugin window.
+    #[test]
+    fn flex_end_and_space_between_place_items_as_css_does() {
+        let tall = filled(
+            2,
+            "#ff0000",
+            Style {
+                width: Some("100px".into()),
+                height: Some("120px".into()),
+                ..Style::default()
+            },
+            vec![],
+        );
+        let foot = VNode {
+            id: 1,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                align_items: Some("flex-end".into()),
+                width: Some("500px".into()),
+                ..Style::default()
+            },
+            children: vec![tall, block_of(3, "div", Style::default(), "At the foot")],
+            ..VNode::default()
+        };
+        let right = filled(
+            4,
+            "#00ff00",
+            Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                align_items: Some("flex-end".into()),
+                width: Some("500px".into()),
+                ..Style::default()
+            },
+            vec![block_of(5, "div", Style::default(), "At the right")],
+        );
+        let spread = filled(
+            6,
+            "#0000ff",
+            Style {
+                display: Some("flex".into()),
+                justify_content: Some("space-between".into()),
+                width: Some("500px".into()),
+                ..Style::default()
+            },
+            vec![
+                block_of(7, "span", Style::default(), "First"),
+                block_of(8, "span", Style::default(), "Middle"),
+                block_of(9, "span", Style::default(), "Last"),
+            ],
+        );
+        let page = VNode {
+            id: 100,
+            tag: "div".into(),
+            style: Style {
+                display: Some("flex".into()),
+                flex_direction: Some("column".into()),
+                gap: Some("30px".into()),
+                ..Style::default()
+            },
+            children: vec![foot, right, spread],
+            ..VNode::default()
+        };
+        let (words, boxes) = drawn_parts(page);
+        let red = filled_rect(&boxes, Color32::from_rgb(255, 0, 0));
+        let at_foot = words_at(&words, "At the foot");
+        assert!(
+            (at_foot.bottom() - red.bottom()).abs() < 3.0,
+            "at the row's foot ({}): {at_foot:?}",
+            red.bottom()
+        );
+        let green = filled_rect(&boxes, Color32::from_rgb(0, 255, 0));
+        let at_right = words_at(&words, "At the right");
+        assert!(
+            (at_right.right() - green.right()).abs() < 3.0,
+            "at the column's right ({}): {at_right:?}",
+            green.right()
+        );
+        let blue = filled_rect(&boxes, Color32::from_rgb(0, 0, 255));
+        let (first, middle, last) = (
+            words_at(&words, "First"),
+            words_at(&words, "Middle"),
+            words_at(&words, "Last"),
+        );
+        assert!(
+            (first.left() - blue.left()).abs() < 3.0,
+            "{first:?} {blue:?}"
+        );
+        assert!(
+            (last.right() - blue.right()).abs() < 3.0,
+            "{last:?} {blue:?}"
+        );
+        let before = middle.left() - first.right();
+        let after = last.left() - middle.right();
+        assert!(
+            (before - after).abs() < 3.0 && before > 50.0,
+            "the room shared out between them: {first:?} {middle:?} {last:?}"
         );
     }
 
