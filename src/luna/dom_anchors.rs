@@ -1601,20 +1601,24 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
             .test("header")
             .at(s.header),
     );
+    // TIDAL 2.46.0's `div._container_bb78f1d[data-test=navigation-arrows]`
+    // (the cotton candy family's `[class="_container_bb78f1d"] {
+    // transform: translateY(-7em) }` lifts it out of the window).
     out.push(
         el(NAV_ARROWS, Some(HEADER_BAR), "div")
             .test("navigation-arrows")
-            .modules(&["navigationArrows"])
+            .class("_container_bb78f1d")
             .at(s.nav_arrows),
     );
     // Its two 32-point buttons, 2 in and 2 apart (Abyss Neptune's
     // `[data-test="navigation-arrows"] > button` light boxes, grey when
-    // `:disabled`).
+    // `:disabled`), `button._button_6808704` in TIDAL 2.46.0.
     for (i, (key, label)) in [(NAV_BACK, "Back"), (NAV_FORWARD, "Forward")]
         .into_iter()
         .enumerate()
     {
         let mut button = el(key, Some(NAV_ARROWS), "button")
+            .class("_button_6808704")
             .attr("aria-label", label)
             .at(s
                 .nav_arrows

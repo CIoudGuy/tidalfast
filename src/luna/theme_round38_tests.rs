@@ -185,3 +185,38 @@ fn a_see_through_box_shows_the_filtered_window() {
         "{stand_in:?}"
     );
 }
+
+/// TIDAL 2.46.0's back and forward pill is `div._container_bb78f1d
+/// [data-test=navigation-arrows]` with `button._button_6808704` buttons.
+/// A theme naming it exactly (the cotton candy family's
+/// `[class="_container_bb78f1d"] { transform: translateY(-7em) }`, which
+/// lifts it out of TIDAL's window) reached nothing: the anchor carried an
+/// older build's `_navigationArrows_` class.
+#[test]
+fn the_navigation_arrows_are_tidals_pill() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{NAV_ARROWS, NAV_BACK};
+    let css = r#"/* {"name": "Lifted arrows"} */
+[class="_container_bb78f1d"] { transform: translateY(-5em); }
+[data-test="navigation-arrows"] > button._button_6808704 { color: rgb(1, 2, 3); }
+"#;
+    let o = overlay(
+        "lifted-arrows.css",
+        css,
+        &dom_anchors::sample_frame(),
+        NAV_BACK,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let pill = pd::anchor_look(NAV_ARROWS);
+    let back = pd::anchor_look(NAV_BACK);
+    pd::test_overlay(None);
+    assert_eq!(
+        pill.map(|l| l.translate),
+        Some(egui::vec2(0.0, -70.0)),
+        "the pill moves up 5em"
+    );
+    assert_eq!(
+        back.and_then(|l| l.text),
+        Some(egui::Color32::from_rgb(1, 2, 3))
+    );
+}

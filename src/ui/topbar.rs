@@ -272,15 +272,21 @@ fn bar_contents(
     let arrows_left = ui.cursor().left();
     // Arrows a plugin hid are left out or keep their room empty, as in
     // TIDAL.
+    // A theme's `transform: translate()` on the pill moves it and keeps its
+    // room (the cotton candy family lifts it out of the window).
+    let shift =
+        super::plugin_dom::anchor_look(keys::NAV_ARROWS).map_or(Vec2::ZERO, |l| l.translate);
     let (back, forward) = super::plugin_dom::anchored(ui, keys::NAV_ARROWS, |ui| {
-        nav_arrows(
-            ui,
-            &palette,
-            app.can_go_back(),
-            app.can_go_forward(),
-            &gettext(locale, "Back"),
-            &gettext(locale, "Forward"),
-        )
+        moved(ui, shift, |ui| {
+            nav_arrows(
+                ui,
+                &palette,
+                app.can_go_back(),
+                app.can_go_forward(),
+                &gettext(locale, "Back"),
+                &gettext(locale, "Forward"),
+            )
+        })
     })
     .unwrap_or_default();
     if back {
@@ -606,6 +612,24 @@ pub fn show_tab(
         });
 }
 
+/// Lays `add` out where it sits and draws it moved by `shift` (a theme's
+/// `transform: translate()`): the room it takes stays where it was, as a
+/// browser keeps a moved box's room, and the clicks follow it.
+fn moved<R>(ui: &mut egui::Ui, shift: Vec2, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    if shift == Vec2::ZERO {
+        return add(ui);
+    }
+    let at = ui.available_rect_before_wrap();
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(at.translate(shift))
+            .layout(*ui.layout()),
+    );
+    let out = add(&mut child);
+    ui.advance_cursor_after_rect(child.min_rect().translate(-shift));
+    out
+}
+
 /// TIDAL's back/forward pill: 70 x 36, two 32-point round buttons 2 apart
 /// on the frosted chip, chevrons white at 15 % while there is nowhere to go.
 fn nav_arrows(
@@ -888,6 +912,29 @@ mod topbar_fit_tests {
     /// The narrowest bar the app can produce: a 760 px window, its sidebar,
     /// and the navigation buttons all taken out.
     const NARROWEST_BAR: f32 = 330.0;
+
+    /// A moved pill (the theme's `translate`) is drawn moved, and what
+    /// follows it in the bar keeps its place.
+    #[test]
+    fn a_moved_part_is_drawn_moved_and_keeps_its_room() {
+        let ctx = egui::Context::default();
+        let mut drawn = None;
+        let mut after = None;
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            ui.horizontal(|ui| {
+                let start = ui.cursor().min;
+                drawn = Some(moved(ui, vec2(0.0, -70.0), |ui| {
+                    ui.allocate_exact_size(vec2(70.0, 36.0), Sense::hover()).0
+                }));
+                after = Some(ui.cursor().min.x - start.x);
+            });
+        });
+        out.textures_delta.clear();
+        let drawn = drawn.expect("the pill");
+        assert_eq!(drawn.size(), vec2(70.0, 36.0));
+        assert!(drawn.top() < -30.0, "drawn 70 up: {drawn:?}");
+        assert!(after.expect("the cursor") >= 70.0, "its room stays");
+    }
 
     #[test]
     fn the_headers_box_covers_the_points_above_its_controls() {
