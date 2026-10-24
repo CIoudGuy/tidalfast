@@ -1646,6 +1646,17 @@ pub struct TrackRow {
     /// The Date added cell's text ("Feb 22, 2025"), while the row shows
     /// that column.
     pub added: Option<String>,
+    /// The number the row's index column shows (an album's track number, a
+    /// playlist's position), when the row has that column.
+    pub number: Option<usize>,
+    /// The index column, where the number and its play button are drawn.
+    pub number_rect: Option<Rect>,
+    /// Whether the song is in the collection, when known (the row's heart).
+    pub saved: Option<bool>,
+    /// The song is explicit (TIDAL's `explicit-badge` after the title).
+    pub explicit: bool,
+    /// Where the row's "…", add to playlist and heart buttons are drawn.
+    pub buttons: [Option<Rect>; 3],
 }
 
 /// One track table; only the rows on screen.
@@ -2325,8 +2336,9 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     );
     // Its two 32-point buttons, 2 in and 2 apart (Abyss Neptune's
     // `[data-test="navigation-arrows"] > button` light boxes, grey when
-    // `:disabled`), `button._button_6808704` in TIDAL 2.46.0.
-    for (i, (key, label)) in [(NAV_BACK, "Back"), (NAV_FORWARD, "Forward")]
+    // `:disabled`), `button._button_6808704` in TIDAL 2.46.0, "Back" and
+    // "Next" (captured).
+    for (i, (key, label)) in [(NAV_BACK, "Back"), (NAV_FORWARD, "Next")]
         .into_iter()
         .enumerate()
     {
@@ -2362,8 +2374,11 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     out.push(
         el(SEARCH_INPUT, Some(SEARCH_FIELD), "input")
             .attr("type", "search")
+            .attr("autocomplete", "off")
             .test("search-popover-search-field")
             .attr("data-type", "search-field__input")
+            .attr("aria-label", "Search")
+            .attr("data-trigger-search", "true")
             .attr("placeholder", "Search")
             .class("_searchField_4b7fbda")
             .value(s.search_text.clone())
@@ -3640,12 +3655,20 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
         .class("_rowContainer_ebb4cfc")
         .test("tracklist-row")
         .attr("role", "row")
+        .attr("tabindex", "0")
+        .attr("data-type", "media-table__row")
         .attr("data-track-id", row.track_id.clone())
         .attr("data-track--content-id", row.track_id.clone())
         .attr("data-item-id", row.track_id.clone())
         .attr("data-index", row.index.to_string())
         .attr("aria-rowindex", (row.index + 1).to_string())
+        .attr("data-test-is-playing", row.playing.to_string())
         .at(row.rect);
+    // An album's rows carry their track number (TIDAL 2.46.0, captured; a
+    // playlist's do not).
+    if let Some(number) = row.number.filter(|_| list.starts_with("album:")) {
+        node = node.attr("data-test-track-number", number.to_string());
+    }
     if row.selected {
         node = node
             .modules(&["tableRowSelected"])
@@ -3656,10 +3679,52 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
         // (captured; TidalCustomTheme's `[class*=_tableRowIsPlaying_]`).
         node = node
             .class("_tableRowIsPlaying_a59b9fa")
-            .attr("data-playing", "true")
-            .attr("data-test-is-playing", "true");
+            .attr("data-playing", "true");
     }
     out.push(node);
+    // The index column first: `div._indexColumn_3ac64ab[role=cell] >
+    // span[data-test=mt-index-col] > span._indexNumber_de640b9` with the
+    // number, then `div._overlayIconWrapper_6331eb1 > button._playButton_
+    // [data-test=play-button]`, titled Play (TIDAL 2.46.0, captured).
+    if let Some(number) = row.number {
+        let column = cell("index-col");
+        let index = cell("index");
+        let overlay = cell("index-overlay");
+        out.push(
+            el(column.clone(), Some(&key), "div")
+                .class("_indexColumn_3ac64ab")
+                .attr("role", "cell")
+                .attr("tabindex", "0")
+                .at(row.number_rect),
+        );
+        out.push(
+            el(index.clone(), Some(&column), "span")
+                .test("mt-index-col")
+                .at(row.number_rect),
+        );
+        out.push(
+            el(cell("index-number"), Some(&index), "span")
+                .class("_indexNumber_de640b9")
+                .attr("data-test-is-playing", row.playing.to_string())
+                .text(number.to_string())
+                .at(row.number_rect),
+        );
+        out.push(
+            el(overlay.clone(), Some(&index), "div")
+                .class("_overlayIconWrapper_6331eb1")
+                .at(row.number_rect),
+        );
+        out.push(
+            el(cell("play"), Some(&overlay), "button")
+                .class("_playButton_4942431 _noPadding_9cb3eea _iconButton_4b3ed40 _notCircleIcon_dad7d82")
+                .test("play-button")
+                .attr("data-type", "button__play")
+                .attr("aria-label", "Play")
+                .attr("title", "Play")
+                .attr("type", "button")
+                .at(row.number_rect),
+        );
+    }
     // The thumbnail: `._rowContainer_ > ._imageColumn_ > ._imageContainer_
     // > img`, the classes themes name (Cotton Candy Nights' 8px corners).
     if row.image_rect.is_some() {
@@ -3718,6 +3783,17 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
             .text(row.title.clone())
             .at(row.title_rect),
     );
+    // An explicit song's badge follows the title in its wrapper (TIDAL
+    // 2.46.0: `i._badge_57d1ccb._explicitBadge_b93510b[data-test=
+    // explicit-badge][title=Explicit]`, captured).
+    if row.explicit {
+        out.push(
+            el(cell("explicit"), Some(&title_wrap), "i")
+                .class("_badge_57d1ccb _explicitBadge_b93510b")
+                .test("explicit-badge")
+                .attr("title", "Explicit"),
+        );
+    }
     let artist = cell("artist");
     out.push(
         el(artist.clone(), Some(&key), "div")
@@ -3788,13 +3864,56 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
             .modules(&["flexWrapper"])
             .at(row.actions_rect),
     );
-    // The "..." button; `.click()` on it opens the row's menu.
+    // TIDAL 2.46.0's row buttons (captured), in its order: "…" (`.click()`
+    // on it opens the row's menu), add to playlist and the heart.
+    let [menu, add, heart] = row.buttons;
     out.push(
         el(cell("menu"), Some(&cell("actions")), "button")
+            .class("_contextMenuButton_4c9ff38")
+            .test("context-menu-button")
+            .attr("data-id", row.track_id.clone())
+            .attr("aria-label", "Show options")
+            .attr("title", "Show options")
+            .attr("type", "button")
             .attr("data-type", "contextmenu-open")
-            .attr("aria-label", "More")
-            .modules(&["moreButton"])
-            .at(row.actions_rect),
+            .at(menu.or(row.actions_rect)),
+    );
+    out.push(
+        el(cell("add"), Some(&cell("actions")), "button")
+            .class("_button_c25ce4d _addToPlaylistButton_066d0f8")
+            .test("add-to-playlist-button")
+            .attr("aria-label", "Add to playlist")
+            .attr("title", "Add to playlist")
+            .attr("type", "button")
+            .attr("data-type", "media-table__row--add-to-playlist")
+            .at(add),
+    );
+    // The heart says whether the song is in the collection; liked, it takes
+    // the liked class the player bar's heart has (`_favorite_e54272d`).
+    let saved = row.saved == Some(true);
+    out.push(
+        el(cell("favorite"), Some(&cell("actions")), "button")
+            .class("_button_c372e89")
+            .class(if saved {
+                "_favorite_e54272d"
+            } else {
+                "_gray_c82f8e6"
+            })
+            .class("_favoriteButton_499c518")
+            .test("add-to-favorites-button")
+            .attr("role", "switch")
+            .attr("aria-checked", saved.to_string())
+            .attr(
+                "aria-label",
+                if saved {
+                    "Remove from My Collection"
+                } else {
+                    "Add to My Collection"
+                },
+            )
+            .attr("type", "button")
+            .attr("data-status", "closed")
+            .at(heart),
     );
 }
 
@@ -3917,19 +4036,27 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     // { ._contextMenuButton_9741d3a, ._button_c372e89 svg }`, which TIDAL
     // draws dark on its light bar.
     out.push(el(ACTIONS, Some(TRACK_CONTENT), "div").modules(&["actions"]));
+    // TIDAL 2.46.0's heart (captured): `button._button_c372e89.
+    // _favoriteButton_27f1fac[data-test=footer-favorite-button][role=switch]
+    // [aria-checked]`, "Add to My Collection" or "Remove from My Collection".
     out.push(
         el(FAVORITE, Some(ACTIONS), "button")
             .test("footer-favorite-button")
+            .attr("role", "switch")
+            .attr("aria-checked", p.favorite.to_string())
             .attr(
                 "aria-label",
                 if p.favorite {
-                    "Remove from favorites"
+                    "Remove from My Collection"
                 } else {
-                    "Add to favorites"
+                    "Add to My Collection"
                 },
             )
             .attr("aria-pressed", p.favorite.to_string())
+            .attr("type", "button")
+            .attr("data-status", "closed")
             .modules(&["favoriteButton"])
+            .class("_favoriteButton_27f1fac")
             // TIDAL 2.43.2's heart: `._favoriteButton_499c518._button_c372e89`,
             // `._favorite_e54272d` once liked, else `._gray_c82f8e6`, with its
             // sprite in `svg._icon_77f3f89 > use` (the cotton candy family
@@ -3952,7 +4079,10 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .class("_contextMenuButton_9741d3a")
             .test("footer-context-menu")
             .attr("aria-label", "Show options")
-            .attr("title", "Show options"),
+            .attr("title", "Show options")
+            .attr("type", "button")
+            .attr("aria-haspopup", "true")
+            .attr("data-type", "contextmenu-open"),
     );
 
     // Centre: transport and progress.
@@ -3973,11 +4103,14 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .at(rect)
     };
     // TIDAL 2.46.0's previous, play or pause and next carry their words as
-    // a title too.
+    // a title too; shuffle and repeat are switches (`role=switch`,
+    // `aria-checked`, captured).
     let titled = |node: HostNode, label: &str| node.attr("title", label);
     out.push(
         button(SHUFFLE, "shuffle", "Shuffle", p.rect(P::Shuffle))
             .modules(&["shuffleButton"])
+            .attr("role", "switch")
+            .attr("aria-checked", p.shuffle.to_string())
             .attr("aria-pressed", p.shuffle.to_string()),
     );
     out.push(titled(
@@ -4015,6 +4148,11 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
                         &p.repeat
                     }
                 ),
+            )
+            .attr("role", "switch")
+            .attr(
+                "aria-checked",
+                (!p.repeat.is_empty() && p.repeat != "off").to_string(),
             )
             .attr(
                 "aria-pressed",
@@ -4210,6 +4348,23 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .class("_mobileTabBar_b6e8ee2")
             .test("tab-bar"),
     );
+    // Its links, which TIDAL shows only in a narrow window (captured: Home,
+    // Upload, Search, each `a._link_ce56174[aria-label]`).
+    for (i, (label, href)) in [
+        ("Home", "/"),
+        ("Upload", "/your-uploads"),
+        ("Search", "/view/pages/explore"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        out.push(
+            el(format!("{TAB_BAR}:{i}"), Some(TAB_BAR), "a")
+                .class("_link_ce56174")
+                .attr("aria-label", label)
+                .attr("href", href),
+        );
+    }
 }
 
 /// The section holding the now-playing view's parts: the docked
@@ -4757,6 +4912,11 @@ pub fn sample_frame() -> Frame {
         duration: Some(200.0),
         playing: i == 0,
         rect: r(260.0, 300.0 + i as f32 * 48.0, 1000.0, 48.0),
+        number: Some(i + 1),
+        number_rect: r(260.0, 300.0 + i as f32 * 48.0, 40.0, 48.0),
+        saved: Some(i == 1),
+        explicit: i == 2,
+        buttons: [1180.0, 1212.0, 1244.0].map(|x| r(x, 312.0 + i as f32 * 48.0, 24.0, 24.0)),
         ..TrackRow::default()
     };
     Frame {

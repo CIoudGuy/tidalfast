@@ -4350,6 +4350,26 @@ pub fn row_title_rect(list: &str, index: usize, r: Rect) {
     });
 }
 
+/// Where a row [`row`] described drew its index column (`None`: it has
+/// none) and its "…", add to playlist and heart buttons.
+pub fn row_controls(list: &str, index: usize, number: Option<Rect>, buttons: [Option<Rect>; 3]) {
+    if !on() {
+        return;
+    }
+    with(|s| {
+        if let Some(row) = s
+            .frame
+            .lists
+            .iter_mut()
+            .find(|l| l.id == list)
+            .and_then(|l| l.rows.iter_mut().rev().find(|row| row.index == index))
+        {
+            row.number_rect = number.and_then(rect);
+            row.buttons = buttons.map(|b| b.and_then(rect));
+        }
+    });
+}
+
 /// The Added by and Date added cells a row [`row`] described shows (each
 /// `None` while its column is not drawn), as the words the cells hold.
 pub fn row_added(list: &str, index: usize, added_by: Option<&str>, added: Option<&str>) {
@@ -4415,6 +4435,7 @@ pub fn fill_row(
     row.selected = selected;
     row.playing = playing;
     let crate::api::models::PlayableItem::Track(t) = item;
+    row.explicit = t.explicit;
     row.artists = artist_links(&t.artists);
     row.album = t.album.as_ref().map(|a| dom_anchors::Link {
         id: a.id.clone(),
