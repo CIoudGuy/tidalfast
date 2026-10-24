@@ -86,7 +86,8 @@ fn navigation_rows_take_their_states_whole_look() {
     assert_eq!(selected.fill, Some(egui::Color32::from_rgb(230, 250, 255)));
     let (glow, blur, _) = selected.glow.expect("the selected row's glow");
     assert!(glow.b() > glow.r(), "the theme's colour: {glow:?}");
-    assert!((blur - 14.4).abs() < 0.5, ".9em: {blur}");
+    // `.9em` of TIDAL's 14-point text (TIDAL 2.46.0: 12.6 px).
+    assert!((blur - 12.6).abs() < 0.5, ".9em: {blur}");
     assert!(idle.glow.is_none(), "only the selected row glows");
     assert_eq!(idle.corners, None);
     // The pointer on the idle row: its `:hover` look.

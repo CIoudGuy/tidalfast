@@ -216,7 +216,8 @@ fn a_themed_panels_shadows_are_drawn() {
         color,
         egui::Color32::from_rgba_unmultiplied(255, 255, 255, 102)
     );
-    assert_eq!((blur, spread), (96.0, 0.0));
+    // `6em` of TIDAL's 14-point text (TIDAL 2.46.0: 84 px).
+    assert_eq!((blur, spread), (84.0, 0.0));
     assert!(shadow(Some(both), &vars, viewport).is_some());
     assert!(inset_shadow(Some("0 0 2em black"), &vars, viewport).is_none());
 
