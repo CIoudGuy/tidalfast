@@ -74,6 +74,22 @@ pub mod keys {
     pub const PAGE_PLAY_ICON_USE: &str = "page-play-button:icon:use";
     pub const PAGE_SHUFFLE_ICON: &str = "page-shuffle-button:icon";
     pub const PAGE_SHUFFLE_ICON_USE: &str = "page-shuffle-button:icon:use";
+    /// The header's captioned buttons after the pills: TIDAL 2.46.0's
+    /// `div._smallButtons_` holding `div._overflowButtons_` (Add, Credits,
+    /// Share; Edit, Private, Share) and then More.
+    pub const PAGE_SMALL_BUTTONS: &str = "page-small-buttons";
+    pub const PAGE_OVERFLOW_BUTTONS: &str = "page-overflow-buttons";
+    /// One captioned header button, by TIDAL's `data-test`
+    /// (`favorite-button`, `credits-button`, `share-button`,
+    /// `show-context-menu-button`, `edit-button`, `public-toggle-button`).
+    pub fn page_action(test: &str) -> String {
+        format!("page-action:{test}")
+    }
+    /// Its caption, `span.wave-text-caption-demi._buttonTextOffset_`, the
+    /// words plugins read and rewrite.
+    pub fn page_action_label(test: &str) -> String {
+        format!("page-action:{test}:label")
+    }
     pub const PROFILE: &str = "profile-picture";
     pub const PROFILE_SVG: &str = "profile-picture:svg";
     pub const FIXED_NAV: &str = "sidebar-fixed-nav";
@@ -711,6 +727,9 @@ pub struct Sidebar {
     /// The library rows themselves (`._contentItem_`, `_selected_` for the
     /// open page), in drawing order.
     pub rows: Vec<(Option<Rect>, bool)>,
+    /// Each library row's name and second line, by row (the texts of its
+    /// `_title_` and `_subtitle_` spans, which plugins read and rewrite).
+    pub row_words: Vec<(String, String)>,
     /// The library row whose playlist is playing: its name carries the
     /// playing song's quality class, whose TIDAL rule makes it teal.
     pub playing: Option<usize>,
@@ -745,6 +764,9 @@ pub struct Page {
     pub play: Option<HeaderButton>,
     /// The header's Shuffle pill.
     pub shuffle: Option<HeaderButton>,
+    /// The header's captioned buttons (Add, Credits, Share, More, ...), as
+    /// drawn; a hidden one keeps its place with no box.
+    pub actions: Vec<HeaderAction>,
     /// The visible cards (albums, playlists, mixes, artists) of shelves
     /// and grids, in drawing order.
     pub cards: Vec<GridCard>,
@@ -835,6 +857,17 @@ pub struct MetaLine {
 pub struct HeaderButton {
     pub rect: Option<Rect>,
     pub label: String,
+}
+
+/// A captioned button in a page header (`button._buttonStates_` with its
+/// caption): `test` is TIDAL's `data-test`, `label` the caption shown, and
+/// `checked` the switch state of Add and Private (`role=switch`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct HeaderAction {
+    pub test: String,
+    pub label: String,
+    pub rect: Option<Rect>,
+    pub checked: Option<bool>,
 }
 
 /// A page's native filter text field.
@@ -1605,7 +1638,10 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
                 "span",
             )
             .class("_marketText_1lyag_1 _semibold20_1lyag_246 _title_f46b277")
-            .at(item.rect),
+            // The words' box, after the 24-point icon box and its gap.
+            .at(item
+                .rect
+                .map(|[x, y, w, h]| [x + 40.0, y, (w - 40.0).max(0.0), h])),
         );
         // Collection opens its menu: TIDAL's `svg._icon_77f3f89._icon_b8b52c1
         // ._arrowRight_f57b400`, an icon like the row's.
@@ -1616,7 +1652,11 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
                     Some(&keys::sidebar_item(&item.test)),
                     "svg",
                 )
-                .class("_icon_77f3f89 _icon_b8b52c1 _arrowRight_f57b400"),
+                .class("_icon_77f3f89 _icon_b8b52c1 _arrowRight_f57b400")
+                // 16 points, centred 16 in from the row's right end.
+                .at(item
+                    .rect
+                    .map(|[x, y, w, h]| [x + w - 24.0, y + h / 2.0 - 8.0, 16.0, 16.0])),
             );
         }
     }
@@ -1679,19 +1719,24 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar) {
             // catch-all `* { color }` (Meteor Night's white).
             title = title.class("_qualityHigh_39ef787");
         }
+        if let Some((name, _)) = side.row_words.get(i).filter(|(name, _)| !name.is_empty()) {
+            title = title.text(name.clone());
+        }
         out.push(title.class("_title_8b245d1").at(*rect));
         // The second line is a paragraph of market text: TidalCustomTheme's
         // `[class^="_marketText_"][class*="_paragraph"]` makes it its blue
         // `#6f9bfb` in TIDAL. Not `_paragraph20_`: Cotton Candy Nights'
         // rule for that leaves TIDAL's second lines alone.
-        out.push(
-            el(keys::lib_row_subtitle(i), Some(&words), "span")
-                .class("_marketText_1lyag_1")
-                .class("_paragraph10_1lyag_156")
-                .class("_text20_1lyag_291")
-                .class("_subtitle_c0fd197")
-                .at(*rect),
-        );
+        let mut subtitle = el(keys::lib_row_subtitle(i), Some(&words), "span")
+            .class("_marketText_1lyag_1")
+            .class("_paragraph10_1lyag_156")
+            .class("_text20_1lyag_291")
+            .class("_subtitle_c0fd197")
+            .at(*rect);
+        if let Some((_, second)) = side.row_words.get(i).filter(|(_, s)| !s.is_empty()) {
+            subtitle = subtitle.text(second.clone());
+        }
+        out.push(subtitle);
     }
     for (i, rect) in side.thumbs.iter().enumerate() {
         out.push(
@@ -2037,8 +2082,9 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         .into_iter()
         .flatten()
         .filter_map(|b| b.rect)
+        .chain(page.actions.iter().filter_map(|a| a.rect))
         .collect();
-    if page.play.is_some() || page.shuffle.is_some() {
+    if page.play.is_some() || page.shuffle.is_some() || !page.actions.is_empty() {
         let around = pills.iter().copied().reduce(|a, b| {
             let (x0, y0) = (a[0].min(b[0]), a[1].min(b[1]));
             let (x1, y1) = (
@@ -2093,6 +2139,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 .at(button.rect),
         );
     }
+    header_actions(out, &page.actions);
     if let Some(rect) = page.profile_picture {
         out.push(
             el(keys::PROFILE_PIC, Some(PAGE), "div")
@@ -2149,6 +2196,100 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         };
         out.push(art_box);
         out.push(el(keys::HERO_COVER_IMG, Some(keys::HERO_COVER_ART), "img").at(Some(art)));
+    }
+}
+
+/// The header's captioned buttons as TIDAL 2.46.0 builds them, after the
+/// pills in `div[data-test=header-controls]`: `div._smallButtons_ >
+/// div._overflowButtons_ > button._buttonStates_[data-test]` for all but
+/// More, which follows the overflow box; each button holds `div.tidal-ui__
+/// v-stack > svg + span.wave-text-caption-demi._buttonTextOffset_` with its
+/// caption as the span's text (captured on an album and a playlist).
+fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction]) {
+    use keys::{PAGE_HEADER_CONTROLS, PAGE_OVERFLOW_BUTTONS, PAGE_SMALL_BUTTONS};
+    if actions.is_empty() {
+        return;
+    }
+    // TIDAL's order, whatever order the header drew them in.
+    const ORDER: [&str; 7] = [
+        "edit-button",
+        "public-toggle-button",
+        "favorite-button",
+        "credits-button",
+        "share-button",
+        "report-button",
+        "show-context-menu-button",
+    ];
+    let mut sorted: Vec<&HeaderAction> = actions.iter().collect();
+    sorted.sort_by_key(|a| {
+        ORDER
+            .iter()
+            .position(|t| *t == a.test)
+            .unwrap_or(ORDER.len())
+    });
+    let around = |list: &[&HeaderAction]| {
+        list.iter().filter_map(|a| a.rect).reduce(|a, b| {
+            let (x0, y0) = (a[0].min(b[0]), a[1].min(b[1]));
+            let (x1, y1) = (
+                (a[0] + a[2]).max(b[0] + b[2]),
+                (a[1] + a[3]).max(b[1] + b[3]),
+            );
+            [x0, y0, x1 - x0, y1 - y0]
+        })
+    };
+    out.push(
+        el(PAGE_SMALL_BUTTONS, Some(PAGE_HEADER_CONTROLS), "div")
+            .class("_smallButtons_5c1ea50")
+            .at(around(&sorted)),
+    );
+    let outside =
+        |a: &&HeaderAction| a.test == "show-context-menu-button" || a.test == "report-button";
+    let overflow: Vec<&HeaderAction> = sorted.iter().copied().filter(|a| !outside(a)).collect();
+    if !overflow.is_empty() {
+        out.push(
+            el(PAGE_OVERFLOW_BUTTONS, Some(PAGE_SMALL_BUTTONS), "div")
+                .class("_overflowButtons_246e699")
+                .at(around(&overflow)),
+        );
+    }
+    for a in sorted {
+        let key = keys::page_action(&a.test);
+        let parent = if outside(&a) {
+            PAGE_SMALL_BUTTONS
+        } else {
+            PAGE_OVERFLOW_BUTTONS
+        };
+        let mut button = el(key.clone(), Some(parent), "button")
+            .class("_buttonStates_91bed47")
+            .test(&a.test)
+            .attr("type", "button")
+            .attr("data-type", "button")
+            .at(a.rect);
+        if a.test == "credits-button" {
+            button = button.class("_creditsButton_7354af1");
+        }
+        if let Some(checked) = a.checked {
+            button = button
+                .attr("role", "switch")
+                .attr("aria-checked", if checked { "true" } else { "false" });
+        }
+        out.push(button);
+        let stack = format!("{key}:stack");
+        out.push(
+            el(stack.clone(), Some(&key), "div")
+                .class("tidal-ui__v-stack")
+                .class("css-j3v5ag")
+                .at(a.rect),
+        );
+        out.push(el(format!("{key}:icon"), Some(&stack), "svg"));
+        out.push(
+            el(keys::page_action_label(&a.test), Some(&stack), "span")
+                .class("wave-text-caption-demi")
+                .class("_buttonTextOffset_a700b81")
+                .attr("data-wave-color", "textDefault")
+                .text(a.label.clone())
+                .at(a.rect),
+        );
     }
 }
 
@@ -3115,6 +3256,7 @@ pub fn sample_frame() -> Frame {
             }],
             thumbs: Vec::new(),
             rows: Vec::new(),
+            row_words: Vec::new(),
             playing: None,
             heading: None,
         },

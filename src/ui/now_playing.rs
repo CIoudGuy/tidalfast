@@ -476,8 +476,20 @@ fn header(
             .map_or((None, None), super::plugin_dom::padding_right_and_min_width);
         let extra = pad.map_or(0.0, |p| p - 11.0);
         let corners = key.as_deref().and_then(super::plugin_dom::corners);
-        let response = pill_holding(&mut ui, label, selected, extra, min, corners);
-        if let Some(key) = &key {
+        // The tab's words are its span's text, which plugins rewrite
+        // (uwu-ifier, translators); a tab a plugin hid is left out or keeps
+        // its room empty, as in TIDAL.
+        let words = match &key {
+            Some(key) => super::plugin_dom::text(&format!("{key}:span"), label.as_ref()),
+            None => std::borrow::Cow::Borrowed(label.as_ref()),
+        };
+        let response = match &key {
+            Some(key) => super::plugin_dom::anchored(&mut ui, key, |ui| {
+                pill_holding(ui, &words, selected, extra, min, corners)
+            }),
+            None => Some(pill_holding(&mut ui, &words, selected, extra, min, corners)),
+        };
+        if let (Some(key), Some(response)) = (&key, &response) {
             // On the open tab's white pill what the plugin drew in it is
             // read against white (radiant-lyrics' dark sparkle).
             super::plugin_slots::positioned_over_on(
@@ -489,17 +501,21 @@ fn header(
             );
         }
         let by_plugin = key.as_deref().is_some_and(super::plugin_dom::take_click);
-        if response.clicked() || by_plugin {
+        if response.as_ref().is_some_and(egui::Response::clicked) || by_plugin {
             app.actions
                 .push(Action::SetNowPlayingTab((!selected).then_some(*shown)));
         }
         if let Some(key) = &key {
-            super::plugin_dom::host_clicks(&ui, key, &response);
+            if let Some(response) = &response {
+                super::plugin_dom::host_clicks(&ui, key, response);
+            }
             let entry = crate::luna::dom_anchors::NowPlayingTab {
                 name: tab_name(*shown),
                 label: label.to_string(),
                 pressed: selected,
-                rect: super::plugin_dom::rect(response.rect),
+                rect: response
+                    .as_ref()
+                    .and_then(|r| super::plugin_dom::rect(r.rect)),
             };
             super::plugin_dom::note(|f| {
                 if let Some(np) = f.now_playing.as_mut() {

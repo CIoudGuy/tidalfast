@@ -1010,37 +1010,58 @@ fn actions_row_contents(
         let (icon, label, context_here) = play_face(app, uri);
         let is_filtered = filtered;
         let can_start = actions.view.as_ref().is_none_or(|uris| !uris.is_empty());
-        if ui
-            .add_enabled_ui(context_here || can_start, |ui| {
-                if fit.round {
-                    header_round_pill(ui, &palette, icon, &label, true)
-                } else {
-                    header_pill_width(ui, &palette, icon, &label, true, fit.pill_w)
-                }
-            })
-            .inner
-            .on_disabled_hover_text(gettext(locale, "No playable tracks in this view").as_ref())
-            .clicked()
-            && !app.play_pending(uri)
+        // A pill a plugin hid is left out or kept as empty room, as in
+        // TIDAL; it stays described with no box.
+        let play =
+            super::plugin_dom::anchored(ui, crate::luna::dom_anchors::keys::PAGE_PLAY, |ui| {
+                ui.add_enabled_ui(context_here || can_start, |ui| {
+                    if fit.round {
+                        header_round_pill(ui, &palette, icon, &label, true)
+                    } else {
+                        header_pill_width(ui, &palette, icon, &label, true, fit.pill_w)
+                    }
+                })
+                .inner
+            });
+        if play.is_none() {
+            super::plugin_dom::page_button(true, None, &label);
+        }
+        if play.is_some_and(|r| {
+            r.on_disabled_hover_text(gettext(locale, "No playable tracks in this view").as_ref())
+                .clicked()
+        }) && !app.play_pending(uri)
         {
             press_play(app, uri, &actions, filtered, context_here);
         }
         // TIDAL's Shuffle starts this page afresh in shuffled order and
         // turns shuffle on for that play; the player bar's shuffle icon is
         // the switch for the mode itself.
-        if ui
-            .add_enabled_ui(can_start, |ui| {
-                let label = gettext(locale, "Shuffle");
-                if fit.round {
-                    header_round_pill(ui, &palette, Icon::Shuffle, &label, false)
-                } else {
-                    header_pill_width(ui, &palette, Icon::Shuffle, &label, false, fit.pill_w)
-                }
-            })
-            .inner
-            .on_disabled_hover_text(gettext(locale, "No playable songs in this view").as_ref())
-            .clicked()
-            && !app.play_pending(uri)
+        let shuffle_label = gettext(locale, "Shuffle");
+        let shuffle =
+            super::plugin_dom::anchored(ui, crate::luna::dom_anchors::keys::PAGE_SHUFFLE, |ui| {
+                ui.add_enabled_ui(can_start, |ui| {
+                    if fit.round {
+                        header_round_pill(ui, &palette, Icon::Shuffle, &shuffle_label, false)
+                    } else {
+                        header_pill_width(
+                            ui,
+                            &palette,
+                            Icon::Shuffle,
+                            &shuffle_label,
+                            false,
+                            fit.pill_w,
+                        )
+                    }
+                })
+                .inner
+            });
+        if shuffle.is_none() {
+            super::plugin_dom::page_button(false, None, &shuffle_label);
+        }
+        if shuffle.is_some_and(|r| {
+            r.on_disabled_hover_text(gettext(locale, "No playable songs in this view").as_ref())
+                .clicked()
+        }) && !app.play_pending(uri)
         {
             press_shuffle(app, uri, &actions, is_filtered);
         }
@@ -1057,16 +1078,33 @@ fn actions_row_contents(
         if let Some(uri) = &actions.play_uri
             && !pills_only(&actions)
         {
-            if fit.keeps_more() {
-                let more = captioned_button(ui, &palette, Icon::Ellipsis, &gettext(locale, "More"));
+            if fit.keeps_more()
+                && let Some(more) = header_action(
+                    ui,
+                    "show-context-menu-button",
+                    Icon::Ellipsis,
+                    &gettext(locale, "More"),
+                    palette.text,
+                    None,
+                )
+            {
                 egui::Popup::menu(&more)
                     .frame(widgets::menu_frame(&palette))
                     .show(|ui| more_menu(ui, app, uri, &actions));
             }
-            if actions.save_radio.is_none() && fit.share {
+            if actions.save_radio.is_none()
+                && fit.share
+                && let Some(share) = header_action(
+                    ui,
+                    "share-button",
+                    Icon::Share,
+                    &gettext(locale, "Share"),
+                    palette.text,
+                    None,
+                )
+            {
                 // TIDAL's Share opens its menu: an own playlist offers an
                 // invite and the link, everything else the link and embed.
-                let share = captioned_button(ui, &palette, Icon::Share, &gettext(locale, "Share"));
                 let opts = super::menus::ShareOpts::for_uri(uri, actions.owned_playlist.is_some())
                     .named(actions.name, "", 0);
                 egui::Popup::menu(&share)
@@ -1077,7 +1115,15 @@ fn actions_row_contents(
         // TIDAL's album header lists Credits between Add and Share.
         if let Some(id) = credits_shown(ui, &actions)
             && fit.keeps_credits()
-            && captioned_button(ui, &palette, Icon::Info, &gettext(locale, "Credits")).clicked()
+            && header_action(
+                ui,
+                "credits-button",
+                Icon::Info,
+                &gettext(locale, "Credits"),
+                palette.text,
+                None,
+            )
+            .is_some_and(|r| r.clicked())
         {
             app.actions.push(Action::ShowAlbumCredits(id.to_string()));
         }
@@ -1117,9 +1163,15 @@ fn actions_row_contents(
                     &actions.saved_tooltips.0,
                 )
             };
-            if captioned_button_tinted(ui, icon, &caption, palette.text)
-                .on_hover_text(tooltip.as_ref())
-                .clicked()
+            if header_action(
+                ui,
+                "favorite-button",
+                icon,
+                &caption,
+                palette.text,
+                Some(*saved),
+            )
+            .is_some_and(|r| r.on_hover_text(tooltip.as_ref()).clicked())
             {
                 app.actions.push(Action::ToggleSaved(uri.clone()));
             }
@@ -1134,7 +1186,16 @@ fn actions_row_contents(
                 } else {
                     (Icon::Lock, gettext(locale, "Private"))
                 };
-                if captioned_button(ui, &palette, icon, &caption).clicked() {
+                if header_action(
+                    ui,
+                    "public-toggle-button",
+                    icon,
+                    &caption,
+                    palette.text,
+                    Some(public),
+                )
+                .is_some_and(|r| r.clicked())
+                {
                     app.actions.push(Action::SetPlaylistPublic {
                         id: playlist.id.clone(),
                         public: !public,
@@ -1142,7 +1203,15 @@ fn actions_row_contents(
                 }
             }
             if keeps(FirstButton::Edit)
-                && captioned_button(ui, &palette, Icon::Pencil, &gettext(locale, "Edit")).clicked()
+                && header_action(
+                    ui,
+                    "edit-button",
+                    Icon::Pencil,
+                    &gettext(locale, "Edit"),
+                    palette.text,
+                    None,
+                )
+                .is_some_and(|r| r.clicked())
             {
                 playlist_dialog(app, playlist);
             }
@@ -1413,7 +1482,7 @@ pub(super) fn header_pill_width(
         1.0,
         crate::motion::tidal::PILL_PRESS_SCALE,
     );
-    super::plugin_dom::page_button(primary, rect, label);
+    super::plugin_dom::page_button(primary, Some(rect), label);
     let rect = Rect::from_center_size(rect.center(), rect.size() * scale);
     let (fill, ink) = native_pill(palette, primary, hovered);
     // A theme that styles TIDAL's header pills (`_marketButton_`) paints
@@ -1522,7 +1591,7 @@ pub(super) fn header_round_pill(
         1.0,
         crate::motion::tidal::PILL_PRESS_SCALE,
     );
-    super::plugin_dom::page_button(primary, rect, label);
+    super::plugin_dom::page_button(primary, Some(rect), label);
     let (fill, ink) = native_pill(palette, primary, hovered);
     let fill = if ui.is_enabled() {
         fill
@@ -1581,6 +1650,50 @@ pub(crate) fn native_pill(
 /// TIDAL's captioned header button: 80 x 48, a 20-point icon over a
 /// 12-point semibold caption, white. Where the row is too narrow for the
 /// captions it is the icon alone, the caption in its tooltip.
+/// A captioned header button that is one of TIDAL's header buttons
+/// (`button._buttonStates_[data-test=<test>]`): its caption is the DOM
+/// text plugins read and rewrite (uwu-ifier, translators), and a plugin
+/// that hides it leaves it out (`display: none`) or keeps its room empty
+/// (`visibility: hidden`), as in TIDAL. `None` while it is left out.
+pub(super) fn header_action(
+    ui: &mut egui::Ui,
+    test: &str,
+    icon: Icon,
+    caption: &str,
+    tint: egui::Color32,
+    checked: Option<bool>,
+) -> Option<egui::Response> {
+    use super::plugin_dom::Shown;
+    use crate::luna::dom_anchors::keys;
+    let label = keys::page_action_label(test);
+    // Its caption and icon sit in `div.tidal-ui__v-stack`: a stack a plugin
+    // hid hides both, a hidden caption leaves the icon.
+    let stack = super::plugin_dom::shown(&format!("{}:stack", keys::page_action(test)));
+    let shown = if super::plugin_dom::shown(&label) == Shown::Drawn {
+        super::plugin_dom::text(&label, caption)
+    } else {
+        std::borrow::Cow::Borrowed("")
+    };
+    let response = super::plugin_dom::anchored(ui, &keys::page_action(test), |ui| {
+        let response = if stack == Shown::Drawn {
+            captioned_button_tinted(ui, icon, &shown, tint)
+        } else {
+            ui.scope(|ui| {
+                ui.set_invisible();
+                captioned_button_tinted(ui, icon, &shown, tint)
+            })
+            .inner
+        };
+        if icon_only(ui) {
+            response.on_hover_text(shown.as_ref())
+        } else {
+            response
+        }
+    });
+    super::plugin_dom::page_action(test, caption, response.as_ref().map(|r| r.rect), checked);
+    response
+}
+
 pub(super) fn captioned_button(
     ui: &mut egui::Ui,
     palette: &Palette,

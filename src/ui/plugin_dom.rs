@@ -81,6 +81,9 @@ type FontsDone = (LoadedFonts, Option<String>, HashMap<String, String>);
 #[derive(Default)]
 struct State {
     frame: Frame,
+    /// The navigation rows drawn this frame (`data-test`, box), `None` for
+    /// one a plugin keeps out of the page.
+    nav_rows: Vec<(String, Option<Rect>)>,
     last_frame: Option<Frame>,
     sent: Option<HostTree>,
     sent_at: Option<Instant>,
@@ -406,6 +409,7 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
         s.fullscreen = Some(fullscreen);
         s.frame.path = tidal_path(page);
         s.frame.page = Some(page_root(page));
+        s.nav_rows.clear();
     });
     fonts_tick(ctx);
     forward_keys(ctx);
@@ -616,6 +620,7 @@ pub fn end_frame(ctx: &egui::Context) {
         next.sidebar.items.clear();
         next.sidebar.thumbs.clear();
         next.sidebar.rows.clear();
+        next.sidebar.row_words.clear();
         next.sidebar.playing = None;
         next.sidebar.heading = None;
         next.player = None;
@@ -1408,6 +1413,10 @@ pub fn artist_names<'a>(
 /// The page's `h1` as a plugin left it (a translation, uwu-ifier), else
 /// `native`. The anchor keeps the native title ([`page_title`]).
 pub fn page_title_text(native: &str) -> Cow<'_, str> {
+    // A title a plugin hid shows no words.
+    if shown(dom_anchors::keys::PAGE_TITLE) != Shown::Drawn {
+        return Cow::Borrowed("");
+    }
     text(dom_anchors::keys::PAGE_TITLE, native)
 }
 
@@ -2282,6 +2291,49 @@ pub fn library_row(r: Rect, selected: bool, playing: bool) -> Option<NavStyle> {
     (style != NavStyle::default()).then_some(style)
 }
 
+/// How the library row about to be noted shows (a plugin's `display: none`
+/// or `visibility: hidden` on its `._contentItem_`).
+pub fn next_library_row_shown() -> Shown {
+    if !on() {
+        return Shown::Drawn;
+    }
+    let index = with(|s| s.frame.sidebar.rows.len());
+    shown(&dom_anchors::keys::lib_row(index))
+}
+
+/// The words of the library row [`library_row`] noted last: notes the
+/// native name and second line as its spans' text, and returns what to
+/// draw: a plugin's text for each (uwu-ifier, translators), nothing for one
+/// it hid.
+pub fn library_row_words<'a>(title: &'a str, subtitle: &'a str) -> (Cow<'a, str>, Cow<'a, str>) {
+    if !on() {
+        return (Cow::Borrowed(title), Cow::Borrowed(subtitle));
+    }
+    let index = with(|s| {
+        let i = s.frame.sidebar.rows.len().checked_sub(1)?;
+        let words = &mut s.frame.sidebar.row_words;
+        if words.len() <= i {
+            words.resize(i + 1, Default::default());
+        }
+        words[i] = (title.to_string(), subtitle.to_string());
+        Some(i)
+    });
+    let Some(i) = index else {
+        return (Cow::Borrowed(title), Cow::Borrowed(subtitle));
+    };
+    let words = |key: String, native: &'a str| {
+        if shown(&key) == Shown::Drawn {
+            text(&key, native)
+        } else {
+            Cow::Borrowed("")
+        }
+    };
+    (
+        words(dom_anchors::keys::lib_row_title(i), title),
+        words(dom_anchors::keys::lib_row_subtitle(i), subtitle),
+    )
+}
+
 /// Paints the library row [`library_row`] noted last in `r`: the theme's
 /// whole box for its anchor (fill, gradients, corners, borders, shadows,
 /// in its `:hover` and `_selected_` states), else the row's `native_fill`
@@ -2515,12 +2567,13 @@ pub fn paint_search_pill(ui: &egui::Ui, r: Rect, corner: f32, fill: Color32) {
     }
 }
 
-/// A header pill: Play (`primary`) or Shuffle, with the label it shows.
-pub fn page_button(primary: bool, r: Rect, label: &str) {
+/// A header pill: Play (`primary`) or Shuffle, with the label it shows;
+/// `r` is `None` while a plugin keeps it out of the page.
+pub fn page_button(primary: bool, r: Option<Rect>, label: &str) {
     note(|f| {
         if let Some(p) = f.page.as_mut() {
             let button = Some(dom_anchors::HeaderButton {
-                rect: rect(r),
+                rect: r.and_then(rect),
                 label: label.to_string(),
             });
             if primary {
@@ -2532,17 +2585,54 @@ pub fn page_button(primary: bool, r: Rect, label: &str) {
     });
 }
 
+/// A navigation row (`a[data-test=<test>]`) was drawn in `r`, or left out
+/// (`None`).
+pub fn nav_row_drawn(test: &str, r: Option<Rect>) {
+    if on() {
+        with(|s| s.nav_rows.push((test.to_string(), r)));
+    }
+}
+
+/// Where the navigation row `test` was drawn this frame: `Some(None)` when
+/// a plugin left it out, `None` when it was not drawn by the row code.
+pub fn nav_row_rect(test: &str) -> Option<Option<Rect>> {
+    with(|s| {
+        s.nav_rows
+            .iter()
+            .rev()
+            .find(|(t, _)| t == test)
+            .map(|(_, r)| *r)
+    })
+}
+
+/// A captioned header button (TIDAL's `data-test` `test`) with the caption
+/// it shows; `r` is `None` while a plugin keeps it out of the page.
+pub fn page_action(test: &str, label: &str, r: Option<Rect>, checked: Option<bool>) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.actions.push(dom_anchors::HeaderAction {
+                test: test.to_string(),
+                label: label.to_string(),
+                rect: r.and_then(rect),
+                checked,
+            });
+        }
+    });
+}
+
 /// The label of a header pill as a plugin left it on the pill's DOM label
 /// (a translation plugin), else `native`.
 pub fn pill_label<'a>(primary: bool, native: &'a str) -> Cow<'a, str> {
-    text(
-        if primary {
-            dom_anchors::keys::PAGE_PLAY_LABEL
-        } else {
-            dom_anchors::keys::PAGE_SHUFFLE_LABEL
-        },
-        native,
-    )
+    let key = if primary {
+        dom_anchors::keys::PAGE_PLAY_LABEL
+    } else {
+        dom_anchors::keys::PAGE_SHUFFLE_LABEL
+    };
+    // A label a plugin hid leaves the pill and its icon.
+    if shown(key) != Shown::Drawn {
+        return Cow::Borrowed("");
+    }
+    text(key, native)
 }
 
 /// What the applied theme paints on a header pill: its fill, its label's
@@ -4030,6 +4120,61 @@ pub fn class_removed(key: &str, prefix: &str) -> bool {
 #[inline]
 pub fn hidden(key: &str) -> bool {
     host(key, |h, _| h.hidden().then_some(())).is_some()
+}
+
+/// How plugins' CSS lets a native part show, as CSS defines it. The runtime
+/// hides an anchor with the element round it (`display: none` on an
+/// ancestor, an inherited `visibility: hidden`), so the part's own key says
+/// it all.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Shown {
+    /// Drawn as usual.
+    Drawn,
+    /// `visibility: hidden`: keeps its room, paints nothing, takes no input.
+    Invisible,
+    /// `display: none`: takes no room at all.
+    Gone,
+}
+
+/// How the native part for anchor `key` shows. One check of a bool while
+/// Luna is off.
+#[inline]
+pub fn shown(key: &str) -> Shown {
+    host(key, |h, _| {
+        let s = &h.style;
+        if s.display.as_deref().is_some_and(|d| d.trim() == "none") {
+            Some(Shown::Gone)
+        } else if h.hidden() {
+            Some(Shown::Invisible)
+        } else {
+            None
+        }
+    })
+    .unwrap_or(Shown::Drawn)
+}
+
+/// Draws the native part for anchor `key` with `add`, as plugins' CSS lets
+/// it show: not at all when it is gone (no room, no input; `None`), with its
+/// room kept but nothing painted and no input when it is invisible. Every
+/// native part that is one of TIDAL's elements goes through here (or
+/// [`shown`] where its room is laid out by hand), so element-hider's "Hide
+/// This Element" works on any of them.
+pub fn anchored<R>(
+    ui: &mut egui::Ui,
+    key: &str,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> Option<R> {
+    match shown(key) {
+        Shown::Drawn => Some(add(ui)),
+        Shown::Gone => None,
+        Shown::Invisible => Some(
+            ui.scope(|ui| {
+                ui.set_invisible();
+                add(ui)
+            })
+            .inner,
+        ),
+    }
 }
 
 /// The text a plugin wrote over an anchor's, else `native`.
