@@ -45,9 +45,7 @@
 :where(a){color:#0000ee;text-decoration:underline;cursor:pointer}
 :where([hidden]){display:none}
 `;
-	const ua = doc.createElement("style");
-	ua.textContent = UA;
-	head.appendChild(ua);
+	L.css.setUserAgentSheet(UA);
 	doc.title = "";
 
 	// ---------------------------------------------------------------- location
@@ -449,6 +447,69 @@
 		return r;
 	};
 
+	// ---------------------------------------------------------------- linked stylesheets
+	// `<link rel="stylesheet" href>` loads its sheet through the host (an
+	// https GET answered as text/css, src/luna/page.rs) and applies it in
+	// document order (css.js reads `_linkText`). As in Chromium, the page is
+	// not drawn while a sheet its parser met is still loading, and `load`
+	// waits for its sheets. `url()`s in the sheet are of the sheet's
+	// address, not the page's.
+	const isSheet = (el) => el.localName === "link" && /(^|\s)stylesheet(\s|$)/i.test(el.getAttribute("rel") ?? "") && !!el.getAttribute("href");
+	const absolute = (text, base) =>
+		text.replace(/url\(\s*(["']?)([^"')]*)\s*\)/gi, (all, q, u) => {
+			const raw = u.trim();
+			if (!raw || /^(data|blob|about):|^#/i.test(raw)) return all;
+			try {
+				return `url(${q}${new URL(raw, base).href}${q})`;
+			} catch {
+				return all;
+			}
+		});
+	let pending = 0;
+	let settled = [];
+	let holdUntil = 0;
+	const sheetSettled = () => {
+		pending--;
+		if (pending > 0) return;
+		D.holdPaint = null;
+		const done = settled;
+		settled = [];
+		for (const f of done) f();
+	};
+	const loadLink = (el) => {
+		if (el._linkState !== undefined || !isSheet(el)) return;
+		let href;
+		try {
+			href = new URL(el.getAttribute("href"), g.location.href).href;
+		} catch {
+			el._linkState = "error";
+			return;
+		}
+		el._linkState = "loading";
+		pending++;
+		holdUntil = Date.now() + 5000;
+		D.holdPaint = () => pending > 0 && Date.now() < holdUntil;
+		// The page shows anyway once the sheet took 5 s.
+		L.internalTimeout(() => D.markDirty(), 5000);
+		callOpAsync("page.stylesheet", { url: href }).then(
+			(text) => {
+				el._linkText = absolute(String(text ?? ""), href);
+				el._linkState = "loaded";
+				D.markDirty();
+				sheetSettled();
+				el.dispatchEvent(new g.Event("load"));
+			},
+			() => {
+				el._linkState = "error";
+				D.markDirty();
+				sheetSettled();
+				el.dispatchEvent(new g.Event("error"));
+			},
+		);
+	};
+	L.pageLink = loadLink;
+	const sheetsLoaded = () => (pending > 0 ? new Promise((r) => settled.push(r)) : Promise.resolve());
+
 	// ---------------------------------------------------------------- scripts
 	const runScript = (el) => {
 		const type = (el.getAttribute("type") ?? "").trim().toLowerCase();
@@ -478,6 +539,7 @@
 		parent.appendChild(node);
 		if (node instanceof g.Element) {
 			compileAll(node);
+			loadLink(node);
 			if (node.localName === "script") {
 				for (const k of kids) node.appendChild(k);
 				runScript(node);
@@ -531,12 +593,14 @@
 		} catch (err) {
 			L.reportError(err);
 		}
-		setReady("complete");
-		try {
-			g.dispatchEvent(new g.Event("load"));
-		} catch (err) {
-			L.reportError(err);
-		}
-		callOp("page.loaded", { title: String(doc.title ?? "") });
+		sheetsLoaded().then(() => {
+			setReady("complete");
+			try {
+				g.dispatchEvent(new g.Event("load"));
+			} catch (err) {
+				L.reportError(err);
+			}
+			callOp("page.loaded", { title: String(doc.title ?? "") });
+		});
 	};
 })();

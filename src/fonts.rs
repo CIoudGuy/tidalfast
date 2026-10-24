@@ -441,6 +441,54 @@ pub fn pick_weight(cuts: &[CutSpec], target: f32) -> Option<(usize, Option<f32>)
         .find_map(|(at, (_, range))| range.map(|(lo, hi)| (at, Some(target.clamp(lo, hi)))))
 }
 
+/// Which of a web font's declared faces (`@font-face` rules of one family)
+/// draws `target`, by CSS's font matching (CSS Fonts 4, 5.2): a variable
+/// face whose range holds the weight, else the declared weight itself; for
+/// 400 to 500, heavier ones up to 500, then lighter, then heavier; below
+/// 400, lighter then heavier; above 500, heavier then lighter. Unlike
+/// [`pick_weight`] for installed families, a black face is as good as any:
+/// Font Awesome's bold icons are its 900 face, beside its 400 one.
+pub fn css_pick_weight(cuts: &[CutSpec], target: f32) -> Option<(usize, Option<f32>)> {
+    if let Some(at) = cuts
+        .iter()
+        .position(|(_, range)| range.is_some_and(|(lo, hi)| lo <= target && target <= hi))
+    {
+        return Some((at, Some(target)));
+    }
+    // Each face at the weight nearest the target it can draw.
+    let at_weight = |(w, range): &CutSpec| match range {
+        Some((lo, hi)) => target.clamp(*lo, *hi),
+        None => *w,
+    };
+    let pick = |keep: &dyn Fn(f32) -> bool, heavier_first: bool| {
+        cuts.iter()
+            .enumerate()
+            .map(|(at, c)| (at, at_weight(c)))
+            .filter(|(_, w)| keep(*w))
+            .min_by(|(_, a), (_, b)| {
+                if heavier_first {
+                    a.total_cmp(b)
+                } else {
+                    b.total_cmp(a)
+                }
+            })
+    };
+    let lighter = |w: f32| w < target;
+    let heavier = |w: f32| w > target;
+    let found = if let Some(at) = cuts.iter().position(|c| at_weight(c) == target) {
+        Some((at, at_weight(&cuts[at])))
+    } else if (400.0..=500.0).contains(&target) {
+        pick(&|w| heavier(w) && w <= 500.0, true)
+            .or_else(|| pick(&lighter, false))
+            .or_else(|| pick(&heavier, true))
+    } else if target < 400.0 {
+        pick(&lighter, false).or_else(|| pick(&heavier, true))
+    } else {
+        pick(&heavier, true).or_else(|| pick(&lighter, false))
+    };
+    found.map(|(at, w)| (at, cuts[at].1.map(|_| w)))
+}
+
 /// An installed family at the interface's four weights, each a mapped face
 /// (mapped for the life of the process, like the fallbacks): the family's
 /// own regular, medium, semibold and bold cuts, or its variable face set to
@@ -720,6 +768,35 @@ mod tests {
         // The only cut is a bold one: it draws every weight.
         assert_eq!(pick_weight(&[(700.0, None)], 400.0), Some((0, None)));
         assert_eq!(pick_weight(&[], 400.0), None);
+    }
+
+    /// A web font's faces are matched as CSS matches them: bold asks for
+    /// the heavier face first, even a black one (Font Awesome's 400 and 900
+    /// faces: its icons are in the 900 one), regular for the lighter.
+    #[test]
+    fn declared_faces_are_matched_as_css_matches_them() {
+        let fa: Vec<CutSpec> = vec![(400.0, None), (900.0, None)];
+        assert_eq!(css_pick_weight(&fa, 700.0), Some((1, None)));
+        assert_eq!(css_pick_weight(&fa, 600.0), Some((1, None)));
+        assert_eq!(css_pick_weight(&fa, 400.0), Some((0, None)));
+        assert_eq!(
+            css_pick_weight(&fa, 500.0),
+            Some((0, None)),
+            "lighter before heavier past 500"
+        );
+        let light: Vec<CutSpec> = vec![(300.0, None), (500.0, None), (700.0, None)];
+        assert_eq!(
+            css_pick_weight(&light, 400.0),
+            Some((1, None)),
+            "up to 500 first"
+        );
+        assert_eq!(css_pick_weight(&light, 200.0), Some((0, None)));
+        assert_eq!(css_pick_weight(&[(700.0, None)], 400.0), Some((0, None)));
+        let variable: Vec<CutSpec> = vec![(400.0, Some((100.0, 900.0)))];
+        assert_eq!(css_pick_weight(&variable, 700.0), Some((0, Some(700.0))));
+        let short: Vec<CutSpec> = vec![(300.0, Some((200.0, 500.0)))];
+        assert_eq!(css_pick_weight(&short, 700.0), Some((0, Some(500.0))));
+        assert_eq!(css_pick_weight(&[], 400.0), None);
     }
 
     #[test]

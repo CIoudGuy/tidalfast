@@ -327,3 +327,92 @@ fn window_options_and_changes() {
     hub.stop_all();
     assert_eq!(windows.count(), 0);
 }
+
+/// Serves `files` (path, content type, body) on this computer; the base
+/// address.
+fn serve_typed(files: Vec<(&'static str, &'static str, String)>) -> String {
+    use std::io::{Read, Write};
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", l.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for s in l.incoming() {
+            let Ok(mut s) = s else { continue };
+            let mut buf = [0u8; 4096];
+            let n = s.read(&mut buf).unwrap_or(0);
+            let req = String::from_utf8_lossy(&buf[..n]).to_string();
+            let path = req.split_whitespace().nth(1).unwrap_or("").to_string();
+            let resp = match files.iter().find(|(p, _, _)| *p == path) {
+                Some((_, ty, body)) => format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: {ty}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                ),
+                None => "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    .into(),
+            };
+            let _ = s.write_all(resp.as_bytes());
+        }
+    });
+    base
+}
+
+/// `<link rel="stylesheet">` loads its sheet and applies it in document
+/// order; `url()`s in it are of the sheet's address (an icon font's
+/// `@font-face`), a sheet not served as text/css is refused as Chromium
+/// refuses it, `load` waits for the sheets, and the page has none of
+/// TIDAL's own sheets.
+#[test]
+fn a_linked_stylesheet_loads_and_applies() {
+    let base = serve_typed(vec![
+        (
+            "/css/all.css",
+            "text/css; charset=utf-8",
+            r#".x{width:123px;font-family:"Icons"}@font-face{font-family:"Icons";font-weight:900;src:url(../fonts/i.woff2) format("woff2"),url("../fonts/i.ttf")}"#.into(),
+        ),
+        ("/plain.txt", "text/plain", ".x{height:9px}".into()),
+    ]);
+    let page = open(
+        &format!(
+            r#"<!doctype html><html><head><link rel="stylesheet" href="{base}/css/all.css"><link rel="stylesheet" href="{base}/plain.txt"><style>.x{{min-height:4px}}</style></head><body><div class="x" id="x">i</div><p id="v"></p><script>addEventListener("load", () => {{ document.getElementById("v").textContent = "loaded " + getComputedStyle(document.getElementById("x")).width + " [" + getComputedStyle(document.documentElement).getPropertyValue("--sidebarWidth") + "] " + document.styleSheets.length; }});</script></body></html>"#
+        ),
+        "data:text/html,x",
+        None,
+    );
+    page.next(|m| matches!(m, FromPage::Loaded { .. }).then_some(()));
+    let root = page.overlay_until(|r| find(r, &id_is("v")).is_some_and(|v| !text(v).is_empty()));
+    let x = find(&root, &id_is("x")).unwrap();
+    assert_eq!(x.style.width.as_deref(), Some("123px"));
+    assert_eq!(x.style.min_height.as_deref(), Some("4px"));
+    assert_eq!(x.style.height, None, "the text/plain sheet is not applied");
+    assert_eq!(
+        text(find(&root, &id_is("v")).unwrap()),
+        "loaded 123px [] 2",
+        "load came after the sheet; no TIDAL variables; the loaded sheet and the style element"
+    );
+    let fonts = &page.window().overlay().fonts;
+    assert!(
+        fonts.iter().any(|f| f.family == "Icons"
+            && f.src.starts_with(&format!("{base}/fonts/i.woff2"))
+            && f.weight.as_deref() == Some("900")),
+        "{fonts:?}"
+    );
+}
+
+/// A pseudo-element's `content` is read with CSS's escapes: `"\f001"` is
+/// the code point an icon font draws (Font Awesome's), a hex escape eats
+/// one white space after it, and `\"` is the quote.
+#[test]
+fn pseudo_content_reads_css_escapes() {
+    let page = open(
+        r#"<!doctype html><html><head><style>.a:before{content:"\f001"}.b:before{content:"\41 x\"y\\"}</style></head><body><i class="a" id="a"></i><i class="b" id="b"></i></body></html>"#,
+        "data:text/html,x",
+        None,
+    );
+    let root = page.overlay_until(|r| find(r, &id_is("b")).is_some_and(|b| !b.children.is_empty()));
+    let before = |id: &str| {
+        let n = find(&root, &id_is(id)).unwrap();
+        assert_eq!(n.children[0].tag, "::before", "{n:?}");
+        text(&n.children[0])
+    };
+    assert_eq!(before("a"), "\u{f001}");
+    assert_eq!(before("b"), "Ax\"y\\");
+}

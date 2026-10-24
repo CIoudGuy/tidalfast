@@ -855,9 +855,46 @@ fn op(s: &State, name: &str, a: &Value) -> Result<Value, String> {
     }
 }
 
-/// A page's asynchronous host operation: only `ipcRenderer.invoke`; the
-/// rest fail as a page without the app's privileges fails them.
+/// A page's asynchronous host operation: `ipcRenderer.invoke` and the
+/// stylesheets its `<link>`s name; the rest fail as a page without the
+/// app's privileges fails them.
 fn op_async(s: &State, name: &str, arg: &str, id: f64) {
+    if name == "page.stylesheet" {
+        let a: Value = serde_json::from_str(arg).unwrap_or(Value::Null);
+        let url = a["url"].as_str().unwrap_or_default().to_string();
+        let own = s.own.clone();
+        let window = s.window.id;
+        let luna = s.luna.clone();
+        let spawned = std::thread::Builder::new()
+            .name("luna-page-sheet".into())
+            .spawn(move || {
+                let r = stylesheet(&url);
+                if let Err(e) = &r {
+                    let _ = luna.send(Msg::Page(FromPage::Log {
+                        window,
+                        level: "warn".into(),
+                        msg: format!("the stylesheet {url} was not loaded: {e}"),
+                    }));
+                }
+                let (ok, v) = match r {
+                    Ok(text) => (true, json!(text)),
+                    Err(e) => (false, json!(e)),
+                };
+                let _ = own.send(ToPage::OpDone {
+                    id,
+                    ok,
+                    json: v.to_string(),
+                });
+            });
+        if spawned.is_err() {
+            let _ = s.own.send(ToPage::OpDone {
+                id,
+                ok: false,
+                json: json!("no thread to load it on").to_string(),
+            });
+        }
+        return;
+    }
     if name == "page.invoke" {
         let a: Value = serde_json::from_str(arg).unwrap_or(Value::Null);
         let str_of = |k: &str| a.get(k).and_then(Value::as_str).unwrap_or_default();
@@ -874,6 +911,66 @@ fn op_async(s: &State, name: &str, arg: &str, id: f64) {
         ok: false,
         json: json!(format!("{name} is not available in a plugin window")).to_string(),
     });
+}
+
+/// The largest stylesheet a page may load.
+const MAX_SHEET: usize = 8 << 20;
+
+/// A stylesheet a page's `<link rel="stylesheet">` names, as Chromium loads
+/// one for a page from a `data:` URL: a plain GET (no cookies, no
+/// credentials) of an `https:` address (plain `http:` only from this
+/// computer), every redirect held to that, answered as `text/css` (a
+/// cross-origin sheet of another type is refused, as Chromium refuses it).
+/// Each address is fetched once per run once it loaded.
+pub(crate) fn stylesheet(url: &str) -> Result<String, String> {
+    type Fetched = Mutex<std::collections::HashMap<String, Result<String, String>>>;
+    static FETCHED: std::sync::LazyLock<Fetched> = std::sync::LazyLock::new(Default::default);
+    if !super::runtime::is_secure_source(url) {
+        return Err("only https: addresses load in a plugin window".into());
+    }
+    if let Some(hit) = FETCHED.lock().ok().and_then(|c| c.get(url).cloned()) {
+        return hit;
+    }
+    let fetched = (|| {
+        let client = reqwest::blocking::Client::builder()
+            .user_agent(concat!("Tidalfast-Luna/", env!("CARGO_PKG_VERSION")))
+            .timeout(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                if attempt.previous().len() >= 10 {
+                    attempt.error("too many redirects")
+                } else if super::runtime::is_secure_source(attempt.url().as_str()) {
+                    attempt.follow()
+                } else {
+                    attempt.error("not https")
+                }
+            }))
+            .build()
+            .map_err(|e| e.to_string())?;
+        let response = client
+            .get(url)
+            .send()
+            .and_then(reqwest::blocking::Response::error_for_status)
+            .map_err(|e| e.to_string())?;
+        let css = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.split(';').next())
+            .is_some_and(|v| v.trim().eq_ignore_ascii_case("text/css"));
+        if !css {
+            return Err("it is not served as text/css".to_string());
+        }
+        let bytes = super::runtime::read_capped(response, MAX_SHEET, "the stylesheet")?;
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
+    })();
+    // A failure is tried again by the next page that names it.
+    if fetched.is_ok()
+        && let Ok(mut cache) = FETCHED.lock()
+    {
+        cache.insert(url.to_string(), fetched.clone());
+    }
+    fetched
 }
 
 fn eval_as<'js>(

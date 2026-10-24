@@ -274,6 +274,35 @@ thread_local! {
     /// The plugin window whose page is being drawn ([`with_page`]).
     static PAGE: RefCell<Option<PageScope>> = const { RefCell::new(None) };
     static IN_PAGE: Cell<bool> = const { Cell::new(false) };
+    /// The open plugin windows (their `BrowserWindow` ids) with the page
+    /// overlay each drew last, for the fonts they need ([`fonts_tick`]).
+    static PAGES: RefCell<Vec<(u32, Arc<DomOverlay>)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// The plugin windows open now (`plugin_windows::show`, once per pass of
+/// the app's window): a window no longer listed is let go.
+pub fn keep_pages(open: &[u32]) {
+    PAGES.with(|p| {
+        let mut p = p.borrow_mut();
+        if p.iter().any(|(id, _)| !open.contains(id)) {
+            p.retain(|(id, _)| open.contains(id));
+        }
+    });
+}
+
+/// Plugin window `id` draws `overlay` (each pass of the window).
+pub fn page_overlay(id: u32, overlay: &Arc<DomOverlay>) {
+    PAGES.with(|p| {
+        let mut p = p.borrow_mut();
+        match p.iter_mut().find(|(i, _)| *i == id) {
+            Some((_, o)) => {
+                if !Arc::ptr_eq(o, overlay) {
+                    *o = overlay.clone();
+                }
+            }
+            None => p.push((id, overlay.clone())),
+        }
+    });
 }
 
 /// A plugin window's page while it is drawn (`plugin_windows.rs`): what
@@ -7436,7 +7465,11 @@ pub(crate) fn page_font_family(o: &DomOverlay) -> Option<&str> {
 
 /// Load the fonts plugins declared (custom-fonts) off the UI thread and
 /// install them once per change; put the user's fonts back when they go.
-fn fonts_tick(ctx: &egui::Context) {
+/// The fonts of plugin windows' pages (their `@font-face` rules, an icon
+/// font a linked sheet declares, the families their elements name) are
+/// loaded with them: every window draws with the same fonts. Called by the
+/// app's pass and by each plugin window's.
+pub(crate) fn fonts_tick(ctx: &egui::Context) {
     let installed = crate::theme::plugin_families(ctx);
     with(|s| {
         if let Some((names, element_fonts)) = s.fonts_next.take() {
@@ -7465,7 +7498,22 @@ fn fonts_tick(ctx: &egui::Context) {
         // overlay version and kept while Luna runs: elements that come and
         // go (radiant-lyrics' lines) must not reload the fonts each time; a
         // family is loaded once, when it is first named.
-        let version = s.overlay.version;
+        // The open plugin windows' pages, as of their overlay versions.
+        let pages: Vec<Arc<DomOverlay>> =
+            PAGES.with(|p| p.borrow().iter().map(|(_, o)| o.clone()).collect());
+        let version = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            s.overlay.version.hash(&mut h);
+            for p in &pages {
+                p.version.hash(&mut h);
+            }
+            if pages.is_empty() {
+                s.overlay.version
+            } else {
+                h.finish()
+            }
+        };
         let elements = match &s.element_families {
             Some((v, list)) if *v == version => list.clone(),
             _ => {
@@ -7488,7 +7536,12 @@ fn fonts_tick(ctx: &egui::Context) {
                     .as_ref()
                     .map(|(_, list)| list.iter().cloned().collect())
                     .unwrap_or_default();
-                for i in &s.overlay.injected {
+                for i in s
+                    .overlay
+                    .injected
+                    .iter()
+                    .chain(pages.iter().flat_map(|p| &p.injected))
+                {
                     for n in &i.nodes {
                         walk(n, &mut seen);
                     }
@@ -7510,15 +7563,23 @@ fn fonts_tick(ctx: &egui::Context) {
             elements
         };
         let o = &s.overlay;
+        // The fonts plugins declared, then those plugin windows' pages
+        // declared (each source once).
+        let mut fonts = o.fonts.clone();
+        for f in pages.iter().flat_map(|p| &p.fonts) {
+            if !fonts.iter().any(|g| g.family == f.family && g.src == f.src) {
+                fonts.push(f.clone());
+            }
+        }
         // Hashed as written, so nothing is parsed per frame: the page's
         // families are read below only once the fonts change.
         let family = page_font_family(o).map(str::trim).unwrap_or("");
-        let key = if o.fonts.is_empty() && family.is_empty() && elements.is_empty() {
+        let key = if fonts.is_empty() && family.is_empty() && elements.is_empty() {
             0
         } else {
             use std::hash::{Hash, Hasher};
             let mut h = std::collections::hash_map::DefaultHasher::new();
-            for f in &o.fonts {
+            for f in &fonts {
                 f.family.hash(&mut h);
                 f.src.hash(&mut h);
             }
@@ -7533,7 +7594,6 @@ fn fonts_tick(ctx: &egui::Context) {
         if key == 0 {
             return Some((Vec::new(), None, HashMap::new()));
         }
-        let fonts = o.fonts.clone();
         let primary = page_font_family(o).and_then(css::first_family);
         // The families the page lists, in order, for installed fonts no
         // `@font-face` declares (a theme's `font-family: "Comic Sans MS"`).
@@ -7636,6 +7696,10 @@ fn fonts_tick(ctx: &egui::Context) {
             s.fonts_next = Some((names, element_fonts));
         });
         crate::theme::install_plugin_fonts(ctx, &fonts, primary.as_deref());
+        // Plugin windows draw with them from their next pass.
+        for id in PAGES.with(|p| p.borrow().iter().map(|(id, _)| *id).collect::<Vec<_>>()) {
+            ctx.request_repaint_of(super::plugin_windows::viewport_id(id));
+        }
     }
 }
 
@@ -7691,7 +7755,7 @@ fn faces_at_weights(
     let mut out: Vec<Arc<egui::FontData>> = Vec::new();
     let mut made: Vec<(usize, Option<u32>, Arc<egui::FontData>)> = Vec::new();
     for weight in fastframe_fonts::Weight::ALL {
-        let (at, wght) = crate::fonts::pick_weight(&specs, weight.value())?;
+        let (at, wght) = crate::fonts::css_pick_weight(&specs, weight.value())?;
         let same = (at, wght.map(f32::to_bits));
         if let Some((_, _, held)) = made.iter().find(|(a, w, _)| (*a, *w) == same) {
             out.push(held.clone());
@@ -8444,6 +8508,26 @@ mod tests {
         // The named family is the regular face.
         let named = &fonts.families[&egui::FontFamily::Name("Theme Sans".into())][0];
         assert_eq!(fonts.font_data[named].font.as_ref(), &regular[..]);
+    }
+
+    /// A family a page declares with a 400 and a 900 face (Font Awesome
+    /// Free: its solid icons are only in the 900 one) draws bold text in
+    /// the 900 face, as CSS matches weights; the regular stays the 400.
+    #[test]
+    fn a_declared_black_face_draws_the_bold() {
+        let regular = fastframe_fonts::INTER.to_vec();
+        let black = include_bytes!("../../assets/fonts/NotoEmoji.ttf").to_vec();
+        let faces = faces_at_weights(vec![
+            ((400.0, None), regular.clone()),
+            ((900.0, None), black.clone()),
+        ])
+        .unwrap();
+        assert_eq!(
+            faces[3].font.as_ref(),
+            black.as_slice(),
+            "bold is the 900 face"
+        );
+        assert_eq!(faces[0].font.as_ref(), regular.as_slice());
     }
 
     /// `font-weight` as an `@font-face` writes it: a number, a keyword, or a

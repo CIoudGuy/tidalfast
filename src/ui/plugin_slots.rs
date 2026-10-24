@@ -4928,7 +4928,9 @@ fn draw_box(
         && matches!(
             style.justify_content.as_deref().map(str::trim),
             Some("center" | "flex-end" | "end" | "space-around" | "space-evenly")
-        );
+        )
+        || (plugin_dom::drawing_page()
+            && style.justify_content.as_deref().map(str::trim) == Some("space-between"));
     // A block that places its words by `text-align` (DownloadManager's
     // empty-queue note, centred) needs its width, as every block in a
     // column has in CSS: shrunk to its words it had no room to centre in.
@@ -5254,8 +5256,13 @@ fn draw_box(
                 let shrink_id = egui::Id::new(("luna-row-width", node.id));
                 // Only boxes sized by what they hold: an image or a form
                 // control sizes itself from the room it is given.
+                // In a page a column that centres or ends its items and has
+                // no width of its own is as wide as its widest item, as a
+                // flex item is sized by what it holds (miniplayer's cover
+                // column sat in the middle of the row): it is placed in the
+                // room it took last frame.
                 let shrink = shrink
-                    && row
+                    && (row || (plugin_dom::drawing_page() && (cross_center || end)))
                     && width.is_none()
                     && !matches!(
                         node.tag.as_str(),
@@ -5306,6 +5313,13 @@ fn draw_box(
                             })
                             .min(ui.available_height()),
                     )
+                } else if shrink {
+                    vec2(
+                        wrapped
+                            .unwrap_or(ui.available_width())
+                            .min(ui.available_width()),
+                        ui.available_height(),
+                    )
                 } else {
                     ui.available_size()
                 };
@@ -5324,7 +5338,41 @@ fn draw_box(
                         // `justify-content` centre/end: shift by the free room
                         // left last frame.
                         let last: Option<Vec2> = ui.data(|d| d.get_temp(content_id));
+                        // In a page `space-between`, `-around` and `-evenly`
+                        // share the free room out round the items, as CSS
+                        // does (miniplayer's header and time row); `last` is
+                        // then what the items took without it.
+                        let items = flow.iter().filter(|c| !c.style.hidden()).count();
+                        let spaced = plugin_dom::drawing_page()
+                            && items > 0
+                            && matches!(justify, "space-between" | "space-around" | "space-evenly");
+                        let mut between = 0.0;
+                        if spaced && let Some(used) = last {
+                            let free = if row {
+                                width.or(min_width).map_or(0.0, |w| w - used.x)
+                            } else {
+                                height.or(min_height).map_or(0.0, |h| h - used.y)
+                            }
+                            .max(0.0);
+                            let n = items as f32;
+                            let (lead, more) = match justify {
+                                "space-between" if items > 1 => (0.0, free / (n - 1.0)),
+                                "space-between" => (0.0, 0.0),
+                                "space-around" => (free / (2.0 * n), free / n),
+                                _ => (free / (n + 1.0), free / (n + 1.0)),
+                            };
+                            if lead > 0.5 {
+                                ui.add_space(lead);
+                            }
+                            between = more;
+                            if row {
+                                ui.spacing_mut().item_spacing.x += between;
+                            } else {
+                                ui.spacing_mut().item_spacing.y += between;
+                            }
+                        }
                         if let Some(used) = last
+                            && !spaced
                             && matches!(
                                 justify,
                                 "center" | "flex-end" | "end" | "space-around" | "space-evenly"
@@ -5478,10 +5526,75 @@ fn draw_box(
                                             },
                                         );
                                     } else {
+                                        // In a page an item that does not grow
+                                        // is as wide as what it holds.
+                                        SHRINK.with(|s| s.set(plugin_dom::drawing_page()));
+                                        // In a page a row that centres its items
+                                        // puts one shorter than the row in its
+                                        // middle, by the heights of last frame
+                                        // (miniplayer's cover beside its taller
+                                        // song details).
+                                        let hid = egui::Id::new(("luna-cross", child.id));
+                                        let skip = if plugin_dom::drawing_page()
+                                            && center
+                                            && !stretch_items
+                                        {
+                                            let own: Option<f32> = ui.data(|d| d.get_temp(hid));
+                                            held.zip(own).map_or(0.0, |(row_h, own)| {
+                                                ((row_h - own) / 2.0).max(0.0)
+                                            })
+                                        } else {
+                                            0.0
+                                        };
                                         let r = ui.scope(|ui| {
-                                            draw_given(ui, child, stretched(child), inherit, cx)
+                                            if skip > 0.0 {
+                                                let at = ui.cursor().min;
+                                                let mut cell = ui.new_child(
+                                                    UiBuilder::new()
+                                                        .max_rect(Rect::from_min_size(
+                                                            egui::pos2(at.x, at.y + skip),
+                                                            vec2(
+                                                                ui.available_width(),
+                                                                ui.available_height(),
+                                                            ),
+                                                        ))
+                                                        .layout(Layout::top_down(Align::Min)),
+                                                );
+                                                let shown = draw_given(
+                                                    &mut cell,
+                                                    child,
+                                                    stretched(child),
+                                                    inherit,
+                                                    cx,
+                                                );
+                                                let r = cell.min_rect();
+                                                ui.allocate_exact_size(
+                                                    vec2(r.width(), r.height() + skip),
+                                                    Sense::hover(),
+                                                );
+                                                (shown, r.height())
+                                            } else {
+                                                let top = ui.cursor().min.y;
+                                                let shown = draw_given(
+                                                    ui,
+                                                    child,
+                                                    stretched(child),
+                                                    inherit,
+                                                    cx,
+                                                );
+                                                (shown, ui.min_rect().max.y - top)
+                                            }
                                         });
-                                        drawn |= r.inner;
+                                        SHRINK.with(|s| s.set(false));
+                                        let (shown, own_h) = r.inner;
+                                        drawn |= shown;
+                                        if plugin_dom::drawing_page() {
+                                            let last: Option<f32> = ui.data(|d| d.get_temp(hid));
+                                            if last.is_none_or(|l| (l - own_h).abs() > 0.5) {
+                                                ui.data_mut(|d| d.insert_temp(hid, own_h));
+                                                ui.ctx().request_repaint();
+                                            }
+                                        }
                                         let used = r.response.rect.width();
                                         let last: Option<f32> =
                                             ui.data(|d| d.get_temp(width_id(child)));
@@ -5560,7 +5673,17 @@ fn draw_box(
                                         }
                                         continue;
                                     }
-                                    SHRINK.with(|s| s.set(!row && cross_center));
+                                    // A centring column's items, and in a page
+                                    // a flex row's, are as wide as what they
+                                    // hold.
+                                    SHRINK.with(|s| {
+                                        s.set(
+                                            (!row && cross_center)
+                                                || (row
+                                                    && plugin_dom::drawing_page()
+                                                    && display.contains("flex")),
+                                        )
+                                    });
                                     IN_COLUMN.with(|s| s.set(!row && !cross_center));
                                     FLEX_COLUMN.with(|s| {
                                         s.set(!row && !cross_center && display.contains("flex"))
@@ -5616,6 +5739,14 @@ fn draw_box(
                         }
                         if !justify.is_empty() {
                             let used = ui.min_rect().max - begin;
+                            // The items' own room, without what was shared
+                            // out between them.
+                            let shared = between * items.saturating_sub(1) as f32;
+                            let used = if row {
+                                vec2(used.x - shared, used.y)
+                            } else {
+                                vec2(used.x, used.y - shared)
+                            };
                             let used = vec2(used.x.max(0.0), used.y.max(0.0));
                             if last.is_none_or(|l| (l - used).length() > 0.5) {
                                 ui.data_mut(|d| d.insert_temp(content_id, used));
