@@ -347,6 +347,15 @@ pub fn bold(size: f32) -> egui::FontId {
     fastframe_fonts::Weight::Bold.font_id(size)
 }
 
+/// How Chromium on Windows turns glyph coverage into ink: Skia's mask gamma
+/// for each text colour (contrast 1, gamma 2.2), applied by the renderer.
+/// Against Chrome drawing the same lines of Hanken Grotesk, white, grey and
+/// black text come within 1 to 4% of Chrome's ink (egui's own curves: up to
+/// 8%); see "egui fork, round 1" in docs/_reference/performance.md.
+pub const fn chromium_text_coverage() -> egui::epaint::FontColorTransferFunction {
+    egui::epaint::FontColorTransferFunction::CHROMIUM_WINDOWS
+}
+
 /// How the desktop renders text, read once per process.
 ///
 /// Tests use the platform's default instead of asking the desktop, so they
@@ -399,6 +408,12 @@ fn apply_to_style(style: &mut egui::Style, palette: &Palette) {
     // them: linear coverage in both themes on Linux, where egui's dark curve
     // (2c - c²) made text heavier than GTK's.
     text_rendering().apply_to_visuals(visuals);
+    // On Windows, coverage becomes ink per text colour as Chromium draws it
+    // there (TIDAL is Chromium): light text on dark heavier, dark text on
+    // light close to linear, measured against Chrome drawing Hanken Grotesk.
+    if cfg!(target_os = "windows") {
+        visuals.text_options.color_transfer_function = chromium_text_coverage();
+    }
     visuals.panel_fill = palette.panel;
     // egui draws submenus, select popups and tooltips from `window_fill`;
     // dialogs and toasts paint `overlay` themselves, so this is the menu colour.
@@ -1582,16 +1597,21 @@ mod tests {
     }
 
     /// A palette replaces egui's visuals, which must not take back the
-    /// desktop's text rendering: on Linux, linear coverage in both themes.
+    /// desktop's text rendering: on Linux, linear coverage in both themes;
+    /// on Windows, Chromium's coverage per text colour in both.
     #[test]
     fn palettes_keep_the_desktops_text_rendering() {
         for palette in [Palette::dark(), Palette::light()] {
             let ctx = egui::Context::default();
             apply(&ctx, &palette);
             let options = ctx.global_style().visuals.text_options;
+            let expected = if cfg!(target_os = "windows") {
+                chromium_text_coverage()
+            } else {
+                text_rendering().color_transfer_function(palette.dark)
+            };
             assert_eq!(
-                options.color_transfer_function,
-                text_rendering().color_transfer_function(palette.dark),
+                options.color_transfer_function, expected,
                 "dark: {}",
                 palette.dark
             );
