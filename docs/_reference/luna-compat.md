@@ -525,9 +525,19 @@ test (`src/luna/harden_tests.rs` unless named).
   While it downloads, the plugin's card on the Plugins page shows
   "Downloading 45 of 102 MB (model.onnx)"; when the plugin stops (disabled,
   reloaded, uninstalled, Luna off) the download is cut off and its files
-  deleted, and leftovers of a run that ended abruptly go when Luna starts
+  deleted, and leftovers of a run that ended abruptly go when Luna starts.
+  A body waits for its reader as long as it takes (another download
+  finishing meanwhile no longer deletes one older than two minutes); as in
+  Chromium, a response collected unread, or a fetch aborted before its body
+  arrived, takes its file with it. Downloads belong to a plugin of one
+  runtime: when Luna restarts, the old runtime stopping its plugins no
+  longer deletes the bodies, or cuts off the downloads, of the new
+  runtime's plugins of the same names (the cause of a body "gone" at its
+  first read in busy test runs)
   (`downloads::tests`,
-  `compat_tests::a_large_download_is_spooled_and_cached_without_base64`).
+  `compat_tests::a_large_download_is_spooled_and_cached_without_base64`,
+  `compat_tests::a_spooled_body_outlives_another_runtimes_plugin_of_the_same_name`,
+  `compat_tests::a_large_body_nobody_reads_goes_with_its_response`).
 - Page. The overlay carries at most 10000 plugin elements and 4 MB of plugin
   and theme CSS; the rest is left out with a log line, and a single sheet
   over 4 MB is not parsed (`dom_tests::the_overlay_is_capped`). The runtime

@@ -7,6 +7,7 @@
 //   __utf8_enc(str) -> ArrayBuffer, __utf8_dec(ArrayBuffer, offset, length) -> string
 //   __b64_enc(ArrayBuffer, offset, length) -> string, __b64_dec(string) -> ArrayBuffer
 //   __fetch_take(token) -> ArrayBuffer   a large fetched body, read once from its file
+//   __fetch_drop(token)                  a large fetched body nobody will read: its file goes
 //   __fs_bytes(json, plugin, ArrayBuffer?) -> ArrayBuffer | undefined   fs read/write without base64
 // The shims keep them (and `__lunaInternal`) in closures; Rust deletes the
 // globals before any plugin code runs, so plugins reach the host only
@@ -120,6 +121,7 @@
 		b64enc: g.__b64_enc,
 		b64dec: g.__b64_dec,
 		fetchTake: g.__fetch_take,
+		fetchDrop: g.__fetch_drop,
 		fsBytes: g.__fs_bytes,
 	};
 	const stringify = JSON.stringify;
@@ -993,11 +995,23 @@
 		if (body instanceof Blob) return body._bytes;
 		return toU8(body);
 	};
+	// A large fetched body waits in its file for its reader; when its
+	// Response is collected unread, the file goes (Chromium drops an
+	// unread body with its response). Only `fetch` makes such a Response
+	// (`spooled`, which plugins cannot name). The registry holds an
+	// unregister token strongly, so the token is an object of its own.
+	const unreadBodies = typeof g.FinalizationRegistry === "function" ? new g.FinalizationRegistry((token) => native.fetchDrop?.(token)) : null;
+	const spooled = Symbol("spooled");
 	class Response {
+		#unread;
 		constructor(body, init = {}) {
 			this._bytes = bodyBytes(body) ?? new Uint8Array(0);
 			// A large fetched body waits in a file until it is read.
 			this._file = init._file;
+			if (init[spooled] === true && typeof this._file === "string" && unreadBodies) {
+				this.#unread = {};
+				unreadBodies.register(this, this._file, this.#unread);
+			}
 			this.status = init.status ?? 200;
 			this.statusText = init.statusText ?? "";
 			this.headers = new Headers(init.headers);
@@ -1018,6 +1032,8 @@
 			if (this._file !== undefined) {
 				const token = this._file;
 				this._file = undefined;
+				if (this.#unread) unreadBodies.unregister(this.#unread);
+				this.#unread = undefined;
 				this._bytes = new Uint8Array(native.fetchTake(token));
 			}
 			return this._bytes;
@@ -1107,11 +1123,13 @@
 			body: body === undefined ? null : lunaInternal.b64enc(body),
 			redirect: init.redirect ?? "follow",
 		});
+		// Aborted before it arrived: nobody gets its body.
+		if (signal) work.then((res) => signal.aborted && typeof res.file === "string" && native.fetchDrop?.(res.file), () => {});
 		const res = await (signal
 			? Promise.race([work, new Promise((_, rej) => signal.addEventListener("abort", () => rej(signal.reason)))])
 			: work);
 		if (typeof res.file === "string") {
-			const r = new Response(null, { status: res.status, statusText: res.statusText, headers: res.headers, url: res.url, _file: res.file });
+			const r = new Response(null, { status: res.status, statusText: res.statusText, headers: res.headers, url: res.url, _file: res.file, [spooled]: true });
 			r._fromFile = true;
 			return r;
 		}
