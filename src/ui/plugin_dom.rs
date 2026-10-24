@@ -4911,8 +4911,19 @@ pub fn opacity(key: &str) -> Option<f32> {
 pub fn radius(key: &str) -> Option<f32> {
     host(key, |h, vars| {
         let v = css::resolve_vars(h.style.border_radius.as_deref()?, vars);
-        css::length(&v, 14.0, 0.0, [0.0, 0.0])
+        css::length(&v, own_em(&h.style, vars), 0.0, [0.0, 0.0])
     })
+}
+
+/// The text size `em` in a box's own lengths means: its own `font-size`
+/// (`em` and `%` of TIDAL's 14-point text), else that 14.
+fn own_em(style: &Style, vars: &BTreeMap<String, String>) -> f32 {
+    style
+        .font_size
+        .as_deref()
+        .and_then(|v| css::length(&css::resolve_vars(v, vars), 14.0, 14.0, [0.0, 0.0]))
+        .filter(|n| *n > 0.0)
+        .unwrap_or(14.0)
 }
 
 /// What a theme does to the box of TIDAL's context menus, besides its

@@ -464,6 +464,10 @@
 					"._textHigh_ee6a2ff, ._textHigh_ee6a2ff span { color: initial; }\n" +
 					"._textHigh_bbc1075 { color: var(--wave-color-solid-accent-fill); }\n" +
 					"._title_2bc5e10 { color: var(--wave-color-solid-contrast-fill); }\n" +
+					// TIDAL's medium market buttons (the header's Play and
+					// Shuffle) set their text in 16 points, so `em` in a
+					// theme's corners for them is 16 (TIDAL 2.46.0, computed).
+					":where(._marketButton_1d16h_1._medium_1d16h_4) { font-size: 16px; }\n" +
 					`._container_b3e8f28 { background: ${PANEL_GLASS}; }`,
 			);
 		}

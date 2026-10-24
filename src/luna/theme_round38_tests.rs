@@ -272,3 +272,25 @@ fn the_header_controls_are_each_pages_own() {
     assert_eq!(album, (Some(egui::Color32::from_rgb(9, 8, 7)), None));
     assert_eq!(playlist, (None, Some(egui::Color32::from_rgb(1, 2, 3))));
 }
+
+/// `em` in a box's corners is the box's own text size: TIDAL's medium
+/// market buttons (the header's Play and Shuffle) are 16 points, so the
+/// cotton candy family's `.9em` corners are 14.4 there, not 12.6.
+#[test]
+fn em_corners_follow_the_boxs_own_text_size() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::PAGE_PLAY;
+    let css = r#"/* {"name": "Em pills"} */
+[data-test="header-controls"] [data-test="play-all"] { border-radius: .5em; background-color: rgb(200, 0, 100); }
+"#;
+    let o = overlay("em-pills.css", css, &dom_anchors::sample_frame(), PAGE_PLAY);
+    pd::test_overlay(Some((*o).clone()));
+    let look = pd::anchor_look(PAGE_PLAY);
+    let radius = pd::radius(PAGE_PLAY);
+    pd::test_overlay(None);
+    assert_eq!(
+        look.and_then(|l| l.corners),
+        Some(egui::CornerRadius::same(8))
+    );
+    assert_eq!(radius, Some(8.0));
+}
