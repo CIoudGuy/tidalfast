@@ -625,8 +625,10 @@ mod tests {
             rects.contains(&(103, [8.0, 8.0, 80.0, 30.0])),
             "the button sits in the body's margin, the body fills the width: {rects:?}"
         );
+        // The body's border box: the window's width less its 8-pixel
+        // margins, as `getBoundingClientRect` gives it.
         assert!(
-            rects.iter().any(|(id, r)| *id == 102 && r[2] >= 290.0),
+            rects.contains(&(102, [8.0, 8.0, 284.0, 100.0])),
             "{rects:?}"
         );
         assert!(

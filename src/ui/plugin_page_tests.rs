@@ -307,3 +307,20 @@ fn a_pages_web_font_draws_its_text() {
         "{families:?}"
     );
 }
+
+/// A box of a definite height lays out what it holds in that height: a
+/// child's `height: 100%` is the box's 6 pixels (a progress bar's fill),
+/// not the window's, and the bar stays 6 pixels tall (it grew to the
+/// window's 380). What scripts read of a box is its border box, without
+/// its margins, as `getBoundingClientRect` gives it.
+#[test]
+fn a_definite_height_holds_its_childrens_share_and_boxes_leave_out_margins() {
+    let b = boxes(
+        r#"<body style="margin:0"><div id="col" style="display:flex;flex-direction:column;gap:12px;width:300px"><div id="t" style="height:18px">T</div><div id="pc"><div id="bar" style="width:100%;height:6px;overflow:hidden;margin:4px 0 8px 10px;background:#000"><div id="fill" style="height:100%;width:50%;background:red"></div></div><div id="time" style="height:14px">0:00</div></div></div></body>"#,
+        [700.0, 380.0],
+    );
+    // `width: 100%` is the column's 300 pixels, after the 10-pixel margin.
+    assert_eq!(b["bar"], [10.0, 34.0, 300.0, 6.0], "{b:?}");
+    assert_eq!(b["fill"], [10.0, 34.0, 150.0, 6.0], "{b:?}");
+    assert_eq!(b["time"][1], 48.0, "under the bar and its margin: {b:?}");
+}

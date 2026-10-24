@@ -5272,6 +5272,12 @@ fn draw_box(
                 if let Some(h) = height.or(min_height) {
                     ui.set_min_height(h);
                 }
+                // A definite height is the box's own: what it holds is laid
+                // out in it, so a child's `height: 100%` is that height
+                // (a 6-pixel progress bar's fill), not the window's.
+                if let Some(h) = height {
+                    ui.set_max_height(h.max(1.0));
+                }
                 let end = style
                     .align_items
                     .as_deref()
@@ -5930,9 +5936,12 @@ fn draw_box(
         }
     }
     if node.id & MEASURE_ID == 0 {
-        plugin_dom::node_drawn(node.id, rect);
+        // Scripts read the border box (`getBoundingClientRect`), and a drag
+        // region is the border box too: the margins are outside both.
+        let border_box = rect - margin.map_or(Margin::ZERO, margin_of);
+        plugin_dom::node_drawn(node.id, border_box);
         if let Some(region) = style.app_region.as_deref() {
-            plugin_dom::app_region(rect, region.trim() == "drag");
+            plugin_dom::app_region(border_box, region.trim() == "drag");
         }
     }
     // Absolutely positioned children sit in this element's box.
