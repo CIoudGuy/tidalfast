@@ -477,6 +477,11 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("timeColumn", "_timeColumn_3cd7564"),
     ("dateAddedColumn", "_dateAddedColumn_87dfbd3"),
     ("titleCell", "_titleCell_e18305f"),
+    // TIDAL 2.46.0 has a `_titleText_` module per place, each its own hash
+    // (the queue's `_titleText_6563d98`, the mini header's
+    // `_titleText_e186d6e`), which themes colour apart: the track list's
+    // title is this one.
+    ("titleText", "_titleText_51cccae"),
     ("trackContent", "_trackContent_7b758a9"),
     ("utilityButtons", "_utilityButtons_4d7aaf9"),
     ("moreContainer", "_moreContainer_f6162c8"),

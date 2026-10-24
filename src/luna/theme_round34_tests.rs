@@ -178,3 +178,34 @@ a { color: rgb(216, 218, 255); }
     assert_eq!(artist, Some(egui::Color32::from_rgb(216, 218, 255)));
     assert_eq!(playing, Some(egui::Color32::from_rgb(216, 218, 255)));
 }
+
+/// TIDAL 2.46.0 has many `_titleText_` modules, one hash each (the track
+/// list's `_titleText_51cccae`, the queue's `_titleText_6563d98`, the
+/// sidebar heading's `_titleText_1d0e44e`, the mini header's
+/// `_titleText_e186d6e`, ...), which themes colour apart: Cotton Candy
+/// Nights' colourways make the mini header's their text colour with
+/// `!important`, and TIDAL draws the queue's playing title white all the
+/// same (captured under all eight). Tidalfast matched any `_titleText_`
+/// rule to all of them, so the queue's playing title took the mini header's
+/// colour.
+#[test]
+fn one_titletext_module_does_not_take_anothers_rules() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Mini header"} */
+._titleText_e186d6e { color: rgb(255, 221, 244) !important; }
+._playQueueItemsContainer_01c88fe ._marketText_1lyag_1._medium20_1lyag_192 { color: rgb(255, 255, 255); }
+._titleText_51cccae { color: rgb(200, 210, 250); }
+"#;
+    let list = "album:55";
+    let title = dom_anchors::keys::row_cell(list, 1, "title-text");
+    let o = overlay_for("mini-header.css", css, &title);
+    let color = |key: &str| o.hosts.get(key).and_then(|h| h.style.color.clone());
+    assert_eq!(
+        color(dom_anchors::keys::QUEUE_ROLE_PLAYING).as_deref(),
+        Some("rgb(255, 255, 255)")
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let idle = pd::row_text(list, 1, WINDOW).and_then(|t| t.title);
+    pd::test_overlay(None);
+    assert_eq!(idle, Some(egui::Color32::from_rgb(200, 210, 250)));
+}
