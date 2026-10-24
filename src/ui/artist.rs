@@ -150,7 +150,16 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                     let draw_table = |ui: &mut egui::Ui, app: &mut App| {
                         // TIDAL's Top Tracks have no # column; the cover plays.
                         widgets::table_header(
-                            ui, &palette, locale, true, false, false, true, false, None,
+                            ui,
+                            &palette,
+                            locale,
+                            true,
+                            false,
+                            false,
+                            true,
+                            false,
+                            None,
+                            Some(&super::plugin_dom::list_id(&context)),
                         );
                         if !app.network_reachable {
                             ui.add_enabled_ui(false, |ui| {
@@ -1838,7 +1847,18 @@ fn track_table(
         });
     };
     let draw = |ui: &mut egui::Ui, app: &mut App| {
-        widgets::table_header(ui, &palette, locale, true, false, false, true, false, None);
+        widgets::table_header(
+            ui,
+            &palette,
+            locale,
+            true,
+            false,
+            false,
+            true,
+            false,
+            None,
+            Some(&super::plugin_dom::list_id(&context)),
+        );
         if !app.network_reachable {
             ui.add_enabled_ui(false, |ui| {
                 ui.multiply_opacity(0.55);

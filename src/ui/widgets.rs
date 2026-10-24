@@ -2616,11 +2616,17 @@ pub fn table_header(
     show_cover: bool,
     numbered: bool,
     sort: Option<crate::model::TableSort>,
+    list: Option<&str>,
 ) -> Option<crate::model::SortColumn> {
     use crate::model::SortColumn;
     let width = ui.available_width();
     // TIDAL: 36 high, 12-point semibold capitals in white at 60 %.
     let (rect, _) = ui.allocate_exact_size(vec2(width, 36.0), Sense::hover());
+    // Luna: the list's heading row (`list:<l>:header`) and its column
+    // headings, whose words a plugin may rewrite or hide (uwu-ifier's
+    // "Titwe"); drawn in TIDAL's capitals.
+    let list_key = list.map(crate::luna::dom_anchors::keys::list);
+    let mut time_rect = None;
     let font = theme::semibold(12.0);
     let color = palette.text.gamma_multiply(0.6);
     let cols = tidal_columns(
@@ -2632,52 +2638,74 @@ pub fn table_header(
         show_added_by,
     );
     let mut clicked = None;
-    let mut heading = |ui: &mut Ui, x: f32, text: &str, column: SortColumn, label: String| {
-        let active = sort.filter(|sort| sort.column == column);
-        let galley =
-            ui.painter()
-                .layout_no_wrap(text.to_string(), font.clone(), egui::Color32::PLACEHOLDER);
-        let size = galley.size();
-        let arrow_room = if active.is_some() { 13.0 } else { 0.0 };
-        let top_left = pos2(x, rect.center().y - size.y / 2.0);
-        let head =
-            Rect::from_min_size(top_left, size + vec2(arrow_room, 0.0)).expand2(vec2(4.0, 8.0));
-        let response = ui.interact(head, ui.id().with(("table-header", text)), Sense::click());
-        response.widget_info(|| {
-            egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label.clone())
-        });
-        theme::focus_ring(ui, &response);
-        let color = if active.is_some() {
-            palette.accent
-        } else if response.hovered() {
-            palette.text
-        } else {
-            color
-        };
-        ui.painter().galley(top_left, galley, color);
-        if let Some(sort) = active {
-            // Drawn, not typed: an arrow glyph relies on the loaded fonts
-            // and rendered as a hollow box on some machines.
-            let center = pos2(top_left.x + size.x + 8.0, rect.center().y);
-            let (wing, tip) = if sort.ascending {
-                (2.8, -3.2)
+    let mut heading =
+        |ui: &mut Ui, x: f32, text: &str, column: SortColumn, label: String, cell: Option<&str>| {
+            let anchor = list_key.as_ref().zip(cell).map(|(l, c)| format!("{l}:{c}"));
+            let label_key = anchor.as_ref().map(|a| format!("{a}:label"));
+            if anchor
+                .iter()
+                .chain(label_key.iter())
+                .any(|k| super::plugin_dom::hidden(k))
+            {
+                return;
+            }
+            let own = label_key
+                .as_deref()
+                .and_then(|k| match super::plugin_dom::text(k, "") {
+                    std::borrow::Cow::Owned(t) => Some(t.to_uppercase()),
+                    std::borrow::Cow::Borrowed(_) => None,
+                });
+            let text = own.as_deref().unwrap_or(text);
+            let active = sort.filter(|sort| sort.column == column);
+            let galley = ui.painter().layout_no_wrap(
+                text.to_string(),
+                font.clone(),
+                egui::Color32::PLACEHOLDER,
+            );
+            let size = galley.size();
+            let arrow_room = if active.is_some() { 13.0 } else { 0.0 };
+            let top_left = pos2(x, rect.center().y - size.y / 2.0);
+            let head =
+                Rect::from_min_size(top_left, size + vec2(arrow_room, 0.0)).expand2(vec2(4.0, 8.0));
+            let response = ui.interact(head, ui.id().with(("table-header", text)), Sense::click());
+            response.widget_info(|| {
+                egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label.clone())
+            });
+            theme::focus_ring(ui, &response);
+            if cell == Some("time-col") {
+                time_rect = Some(head);
+            }
+            let color = if active.is_some() {
+                palette.accent
+            } else if response.hovered() {
+                palette.text
             } else {
-                (-2.8, 3.2)
+                color
             };
-            ui.painter().add(egui::Shape::convex_polygon(
-                vec![
-                    center + vec2(-4.0, wing),
-                    center + vec2(4.0, wing),
-                    center + vec2(0.0, tip),
-                ],
-                color,
-                egui::Stroke::NONE,
-            ));
-        }
-        if response.clicked() {
-            clicked = Some(column);
-        }
-    };
+            ui.painter().galley(top_left, galley, color);
+            if let Some(sort) = active {
+                // Drawn, not typed: an arrow glyph relies on the loaded fonts
+                // and rendered as a hollow box on some machines.
+                let center = pos2(top_left.x + size.x + 8.0, rect.center().y);
+                let (wing, tip) = if sort.ascending {
+                    (2.8, -3.2)
+                } else {
+                    (-2.8, 3.2)
+                };
+                ui.painter().add(egui::Shape::convex_polygon(
+                    vec![
+                        center + vec2(-4.0, wing),
+                        center + vec2(4.0, wing),
+                        center + vec2(0.0, tip),
+                    ],
+                    color,
+                    egui::Stroke::NONE,
+                ));
+            }
+            if response.clicked() {
+                clicked = Some(column);
+            }
+        };
     let sort_by = |text: &str| {
         gettext(
             locale,
@@ -2695,10 +2723,18 @@ pub fn table_header(
             "#",
             SortColumn::Index,
             gettext(locale, "Sort by playlist order").into_owned(),
+            None,
         );
         // TITLE heads the cover cell too.
         x += cols.number;
-        heading(ui, x, &title, SortColumn::Title, sort_by(&title));
+        heading(
+            ui,
+            x,
+            &title,
+            SortColumn::Title,
+            sort_by(&title),
+            Some("title-col"),
+        );
     } else {
         // Without the #, TITLE heads its own column.
         heading(
@@ -2707,27 +2743,42 @@ pub fn table_header(
             &title,
             SortColumn::Title,
             sort_by(&title),
+            Some("title-col"),
         );
     }
     x += cols.cover + cols.title;
     if cols.artist > 0.0 {
         let artist = pgettext(locale, "column heading", "ARTIST");
-        heading(ui, x, &artist, SortColumn::Artist, sort_by(&artist));
+        heading(
+            ui,
+            x,
+            &artist,
+            SortColumn::Artist,
+            sort_by(&artist),
+            Some("artist-col"),
+        );
         x += cols.artist;
     }
     if cols.album > 0.0 {
         let album = pgettext(locale, "column heading", "ALBUM");
-        heading(ui, x, &album, SortColumn::Album, sort_by(&album));
+        heading(ui, x, &album, SortColumn::Album, sort_by(&album), None);
         x += cols.album;
     }
     if cols.added_by > 0.0 {
         let added_by = pgettext(locale, "column heading", "ADDED BY");
-        heading(ui, x, &added_by, SortColumn::AddedBy, sort_by(&added_by));
+        heading(
+            ui,
+            x,
+            &added_by,
+            SortColumn::AddedBy,
+            sort_by(&added_by),
+            None,
+        );
         x += cols.added_by;
     }
     if cols.added > 0.0 {
         let added = pgettext(locale, "column heading", "DATE ADDED");
-        heading(ui, x, &added, SortColumn::Added, sort_by(&added));
+        heading(ui, x, &added, SortColumn::Added, sort_by(&added), None);
         x += cols.added;
     }
     if cols.extra > 0.0 {
@@ -2754,6 +2805,7 @@ pub fn table_header(
             &time,
             SortColumn::Duration,
             gettext(locale, "Sort by duration").into_owned(),
+            Some("time-col"),
         );
         x += cols.time;
     }
@@ -2770,6 +2822,9 @@ pub fn table_header(
                 color,
             );
         }
+    }
+    if let Some(list) = list {
+        super::plugin_dom::list_header(list, rect, time_rect);
     }
     clicked
 }
@@ -6198,6 +6253,7 @@ mod tests {
                     false,
                     true,
                     true,
+                    None,
                     None,
                 );
             },
