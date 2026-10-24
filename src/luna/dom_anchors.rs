@@ -1572,6 +1572,9 @@ pub struct Frame {
     /// The open play queue panel's box, and whether it is over the
     /// now-playing view.
     pub queue_panel: Option<(Option<Rect>, bool)>,
+    /// The window has the play queue's side panel (open or not), and
+    /// whether it is open.
+    pub queue_sidebar: Option<bool>,
     /// The rows the open queue drew.
     pub queue_rows: Vec<QueueRow>,
     pub context_menu: Option<ContextMenu>,
@@ -1611,15 +1614,34 @@ pub fn build(frame: &Frame) -> HostTree {
         now_playing(&mut out, np, frame.shell.fullscreen);
     }
     let mut title_parent = keys::SHELL;
+    // TIDAL 2.46.0 keeps `aside#playQueueSidebar._container_` in the page
+    // whether the queue is open or not: `_isOpen_` says which, and what it
+    // holds is there while it shows (a closed one is empty).
+    let open = frame.queue_sidebar.unwrap_or(frame.queue_panel.is_some());
+    if frame.queue_sidebar.is_some() && frame.queue_panel.is_none() {
+        let mut panel = el(keys::QUEUE_PANEL, Some(keys::MAIN_CONTAINER), "aside")
+            .modules(&["container"])
+            .id("playQueueSidebar");
+        if open {
+            panel = panel.modules(&["isOpen"]);
+        }
+        if frame.now_playing.is_some() {
+            panel = panel.modules(&["nowPlayingVisible"]);
+        }
+        out.push(panel);
+    }
     if let Some((rect, over_now_playing)) = &frame.queue_panel {
         // TIDAL 2.46.0's `aside#playQueueSidebar[data-type=module]` (a
         // theme's `div`-chain rule, the cotton candy family's `div:nth-child(1)
         // > div > div { border-style: none }`, leaves it alone).
         let mut panel = el(keys::QUEUE_PANEL, Some(keys::MAIN_CONTAINER), "aside")
-            .modules(&["container", "isOpen"])
+            .modules(&["container"])
             .id("playQueueSidebar")
             .attr("data-type", "module")
             .at(*rect);
+        if open {
+            panel = panel.modules(&["isOpen"]);
+        }
         if *over_now_playing {
             panel = panel.modules(&["nowPlayingVisible"]);
         }
@@ -4443,6 +4465,7 @@ pub fn sample_frame() -> Frame {
         }),
         queue_title: None,
         queue_panel: None,
+        queue_sidebar: None,
         queue_rows: Vec::new(),
         context_menu: Some(ContextMenu {
             rect: r(400.0, 300.0, 220.0, 120.0),

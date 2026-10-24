@@ -668,6 +668,9 @@ pub fn floating_layer() -> egui::LayerId {
 
 pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
     let ctx = ui.ctx().clone();
+    // TIDAL's side panel is in its page open or not.
+    let open = app.show_queue_panel;
+    super::plugin_dom::note(|f| f.queue_sidebar = Some(open));
     let shown = crate::motion::progress(
         &ctx,
         egui::Id::new("floating-queue-shown"),

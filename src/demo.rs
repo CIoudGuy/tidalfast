@@ -8972,6 +8972,65 @@ mod tests {
         assert_eq!(results, vec![(true, false, 1), (false, true, 1)]);
     }
 
+    /// TIDAL 2.46.0 keeps `aside#playQueueSidebar` in the page whether the
+    /// play queue is open or not, `_isOpen_` saying which, empty while
+    /// closed: a plugin finds it to watch the queue open. Tidalfast's came
+    /// and went with the panel.
+    #[test]
+    fn the_play_queue_sidebar_stays_in_the_page_when_closed() {
+        use crate::luna::dom::DomOverlay;
+        use crate::luna::dom_anchors::{attr, keys};
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("plugin-queue-aside");
+        apply_flags(&mut app, Some("home"), Some("playing-local"));
+        app.local.playback = crate::player::Playback::Paused;
+        app.open(Page::Home);
+        let sidebar = |ctx: &egui::Context, app: &mut App| {
+            plugin_dom::test_overlay(Some(DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            }));
+            for _ in 0..3 {
+                painted_frame(ctx, app);
+            }
+            let tree = plugin_dom::test_sent_tree().expect("a tree was sent");
+            let aside = tree
+                .nodes
+                .iter()
+                .find(|n| attr(n, "id") == Some("playQueueSidebar"))
+                .cloned();
+            let holds = tree
+                .nodes
+                .iter()
+                .any(|n| n.parent.as_deref() == Some(keys::QUEUE_PANEL));
+            (aside, holds)
+        };
+        app.show_queue_panel = false;
+        let (closed, closed_holds) = sidebar(&ctx, &mut app);
+        app.show_queue_panel = true;
+        // The panel slides in.
+        for _ in 0..30 {
+            painted_frame(&ctx, &mut app);
+        }
+        let (open, open_holds) = sidebar(&ctx, &mut app);
+        plugin_dom::test_overlay(None);
+        app.backend.shutdown();
+        let closed = closed.expect("the closed queue's aside is in the page");
+        assert_eq!(closed.tag, "aside");
+        let class = attr(&closed, "class").unwrap_or_default().to_string();
+        assert!(class.contains("_container_b3e8f28"), "{class}");
+        assert!(!class.contains("_isOpen_"), "{class}");
+        assert!(!closed_holds, "a closed queue's aside is empty");
+        let open = open.expect("the open queue's aside");
+        assert_eq!(open.tag, "aside");
+        assert!(
+            attr(&open, "class")
+                .unwrap_or_default()
+                .contains("_isOpen_869124d")
+        );
+        assert!(open_holds, "the open queue's aside holds the queue");
+    }
+
     /// A header button's icon and caption are each their own element in
     /// TIDAL (`div.tidal-ui__v-stack > svg._icon_ + span`, the 20-point icon
     /// over the caption): a right-click on the icon reaches the `svg`, so
