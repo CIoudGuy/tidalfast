@@ -1175,6 +1175,15 @@ Supporters, only lists TidaLuna's GitHub sponsors and contributors and is left o
   `TIDALFAST_DEMO_COVER=<TIDAL image id as a/b/c/d/e>` makes every demo
   cover that TIDAL cover, for plugins that act only on TIDAL's image server
   (3d-cover was checked with `7e58f111/5b1a/492a/aaf1/88fb55ce8a44`).
+  `TIDALFAST_DEMO_PLUGREC=<file>` writes a record of what the plugins do to
+  that file every second (`src/luna/plugrec.rs`, `src/luna/js/plugrec.js`):
+  the DOM changes their own calls make, the redux actions they dispatch,
+  the requests they start (addresses without query values), the errors
+  they log, the elements they leave in the page with their computed style,
+  and which of those elements the UI drew. The same script records a
+  plugin in TIDAL's page in a browser, so a plugin's work in TIDAL and in
+  Tidalfast can be compared item by item; what the host tree itself
+  changes is not counted (`plugrec_tests`).
 
 - `src/luna/depth_tests.rs` and `src/luna/onnx_tests.rs`: module blobs and
   a module Worker running transformers.js's depth pipeline on a tiny model

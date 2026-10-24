@@ -1945,7 +1945,7 @@ It is installed and switched on; what it may do is asked when it does it, and it
             Ok(Value::Null)
         }
         "context_menu.items" => {
-            let items = a["items"]
+            let items: Vec<ContextMenuItem> = a["items"]
                 .as_array()
                 .map(|v| {
                     v.iter()
@@ -1959,6 +1959,8 @@ It is installed and switched on; what it may do is asked when it does it, and it
                         .collect()
                 })
                 .unwrap_or_default();
+            #[cfg(feature = "demo")]
+            super::plugrec::note_menu(&items);
             let mut i = inner.borrow_mut();
             i.context_menu = items;
             i.dirty = true;
@@ -5615,6 +5617,16 @@ fn setup_with(
             ctx.eval_with_options::<(), _>(*src, opts)
                 .catch(&ctx)
                 .map_err(|e| anyhow::anyhow!("{file}: {e}"))?;
+        }
+        // Development only: the plugin record, before the shims' internals go.
+        #[cfg(feature = "demo")]
+        {
+            let record = inner.borrow().cfg.plugin_record.clone();
+            if let Some(path) = record {
+                super::plugrec::install(&ctx, path)
+                    .catch(&ctx)
+                    .map_err(|e| anyhow::anyhow!("plugin record: {e}"))?;
+            }
         }
         // Rust keeps the shims' entry points; then the globals go, before
         // any plugin code runs: plugins can neither call the host's natives
