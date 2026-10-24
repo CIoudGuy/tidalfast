@@ -17,7 +17,7 @@ ones, and each row says which round last verified it. How a round worked is unde
 
 | | ✅ live | ✅ tests only | 🔑 your permission | ⛔ by design | ⚠️ external | ❌ open | total |
 |---|---|---|---|---|---|---|---|
-| Plugins | 73 | 1 | 7 | 5 | 1 | 0 | 87 |
+| Plugins | 74 | 1 | 7 | 4 | 1 | 0 | 87 |
 | Catalogue themes | 52 | 0 | 0 | 0 | 0 | 0 | 52 |
 
 Since 2026-10-20 (a project decision) seven plugins that were refused by design
@@ -45,8 +45,10 @@ by-design refusal (it needs TIDAL's closed remote-desktop code).
 
 Nothing is open in the plugin rows; the by-design refusals are
 DesktopConnect (TIDAL's closed remote-desktop controller), TidalMediaControls' native addon,
-ScrobbleFix's Last.fm credentials, miniplayer's browser-engine window and
-playlist-indicator's TIDAL web modal.
+ScrobbleFix's Last.fm credentials and playlist-indicator's TIDAL web modal.
+Since 2026-10-24 a plugin's own `BrowserWindow` opens as a native window
+showing its page (miniplayer, partly; see "Plugin windows" in
+`luna-dom-bridge.md`).
 
 ## Status key
 
@@ -123,7 +125,7 @@ Notes that apply to every plugin:
 | @jxnxsdev/custom-fonts | jxnxsdev/luna-plugins | ✅ live r21 | A chosen font (Comic Sans MS checked r21, Impact r13) draws every text. Its title rewrite and Comic Sans tag land in the title bar as in TIDAL (`._title_a453dad` is the app's name there), drawn once, since r21 as TIDAL draws it: at the title's 12 pixels, tilted 3 degrees with its words, its gold and pink text shadows, and its 2-pixel pink dashed border over the pink-to-blue gradient. Differs: the `skew(-3deg)` is not drawn, and the tilted tag's top pixel is cut by the 28-point bar (TIDAL's is 30). Its settings are drawn in `@luna/ui`'s look (see "Plugin settings"). The font file must be inside the plugin's data folder (a path like `C:\Windows\Fonts\...` is refused with EACCES, by design). |
 | @jxnxsdev/discord-utils | jxnxsdev/luna-plugins | 🔑 permission | Connects to its author's bridge server and hands it TIDAL's access token (`getCredentials`): asks for the TIDAL sign-in first; the prompt says the plugin can act as the user on TIDAL and send the sign-in anywhere. Its bridge itself was not run. r20: with no Discord ID it adds nothing, as in TIDAL (its socket's `window` listeners used to hide the playlist filter's outline). |
 | @jxnxsdev/lyrics-everywhere | jxnxsdev/luna-plugins | ✅ live r28 | The pill above the player bar shows the current line and follows the song (r28, signed in: in step with the Lyrics tab, from the heard position; also for songs whose words come from LRCLIB, where TIDAL has none): 1:1 since r20 (Segoe UI 14 from its `system-ui`, its shadow). Since r21 the CatJam speech bubble has its tail (its `::before` and `::after` CSS triangles, drawn from their per-side border widths, in the bubble's padding box). Differs: opacity is applied per shape, not to the bubble as one layer, so where the white inner triangle lies over the bubble a 2-pixel strip shows lighter; its separate lyrics window is a page of HTML in a second BrowserWindow: needs a browser engine (by design, as miniplayer). |
-| @jxnxsdev/miniplayer | jxnxsdev/luna-plugins | ⛔ by design | Its Open Miniplayer button shows as in TIDAL (r20: under Collection at 24 points, its 8-point margin and hover grey). The mini-player is a second transparent, always-on-top BrowserWindow with HTML, CSS and a preload bridge, plus a taskbar widget window: a browser engine, which Tidalfast does not include. |
+| @jxnxsdev/miniplayer | jxnxsdev/luna-plugins | ✅ live (demo) pw1, Partly supported | Its Open Miniplayer button shows as in TIDAL (r20: under Collection at 24 points, its 8-point margin and hover grey). Since plugin windows round 1 (2026-10-24, demo, unmodified plugin from the store) the button opens the mini player as a native frameless, always-on-top 700x380 window with its page: the rounded panel with its shadow, the round cover with its glow, title, album and year, the volume slider, time and progress, and the lyrics box with the current line, all following the song from the plugin's messages; its lyrics button runs the page's own script (the lyrics hide and the cover grows) and its close button closes the window through the plugin, which saves the window's place. Not yet: the buttons' Font Awesome icons (a linked stylesheet from cdnjs and its web font), the header's and the time row's `justify-content: space-between` and the player row's start alignment (the cover sits mid-window), see-through edges on Windows (black there; eframe's GL config), the theme colours taken from the cover (not checked), the artist line ("Unknown artist" in the demo), and its Windows taskbar widget (the plugin opens it only when `navigator.userAgent` names Windows, which Tidalfast's does not). |
 | @jxnxsdev/spinny-cover | jxnxsdev/luna-plugins | ✅ live r28 | The blurred, spinning cover shows behind the panels (r28: turned 30 times a second, 15 out of focus, none while the window is not seen, as the app's own endless animations; it redrew the window at every display refresh); the helicopter easter egg's audio does not play. Since r21 its 30 % see-through fill stacks as in TIDAL: `#wimp`'s own fill and the main container's paint over the cover, the sidebar wrapper's and the aside's stack, and the header's paints in the top bar, so the cover shows as darkened behind the page as in TIDAL (sidebar and header 4 layers, page 3). Its settings are drawn in `@luna/ui`'s look. Whole-app walk (2026-10-21, every main view and the narrow window, against TidaLuna's): every view see-through over the blurred, turning cover, as in TIDAL. Differs in the narrow window only: there Tidalfast lays the play queue panel over the page, so the page shows through the see-through panel; TIDAL narrows the page beside it. |
 | @jxnxsdev/total-play-time | jxnxsdev/luna-plugins | ✅ live r9 | Round 34 (TIDAL 2.46.0 + TidaLuna, the same Next measured): TIDAL moves the queue's index at once but sends the new song's transition and its first time signal only once the stream has loaded, about 0.8 s later, so the pill there would keep the old figure that long too; Tidalfast's half second is the same behaviour. TIDAL 2.46.0 itself shows no pill: the plugin waits for `._moreContainer_f6162c8`, which 2.46.0 no longer has. Pill with the time left in the queue counting down each second, on one line in a crowded bar. Paused right after a restart it shows the full length until playback starts. The queue it sums is the engine's from the first second of each song (the app asks for it at every song change while Luna runs, and the queue's own rows give the store every song's length): before, a new context or autoplay left the previous rows (or none) for up to a minute, and lengths fetched from TIDAL one song at a time arrived late, so the time left froze and jumped (00:02:56 to 02:56:37), or alternated between two sums. Differs from TIDAL 2.43.2 (r20): there the plugin draws nothing, as the player bar class it waits for (._moreContainer_f6162c8) is gone; Tidalfast still gives that class, so the pill shows (from the first change of the page after it loads). |
 | @jxnxsdev/uwu-ifier | jxnxsdev/luna-plugins | ✅ live r13 | Track rows and covers added after its observer starts are uwuified; plugins enabled at start now wait up to 3 s for the first host tree. Text that changes in place (the player bar's title) is not revisited, as in TIDAL. r21 (from its code, not installed: see the reference spec): it rewrites every text node; of the texts Tidalfast gives plugins, page titles, the play queue's heading, context menu labels and the artist and album links of rows and the player bar were drawn native and now show its words, as the sidebar rows, header pills, player-bar title, lyrics and track titles already did. Plugin round 3 (tests, not yet seen live): the album and playlist header's captions (Add/Added, Credits, Share, More, Edit, Private) are TIDAL 2.46.0's `button._buttonStates_ > div.tidal-ui__v-stack > span._buttonTextOffset_` with their words, and they, the library rows' names and second lines, the "All playlists" heading and the now-playing tabs show its words (`text_a_plugin_rewrites_reaches_the_native_labels`). Not drawn: text Tidalfast draws without a DOM element (shelf and card titles, "View all", the album header's meta line, settings, dialogs' texts) and the track list's column headings (in the document, but the heading row does not know its list). Plugin round 3 live (2026-10-24): its page observer never started. It installs it only once a hundred nekos.life pictures it preloads have loaded, and loads failed once their pixels passed the canvas budget or a picture had more than 16M pixels; an image now loads as in Chromium, its pixels taking memory only when drawn (`images_load_whatever_their_size_and_number`). Live after the fix (p3-uwu-album-fixed.png): the album title, header captions (Cwedits, Shawe, M-Mowe), Play and Shuffle, track titles and artists show its words and the player bar's cover is a neko. The sidebar rows (Music, Explore, Feed, Upload, Collection, All playlists, Rated) and "Add" stay as they are: its seeded uwuifier leaves those words unchanged, in TIDAL too. Still differs: the column headings keep TIDAL's words (its words are in the document), and the album header's cover was not replaced. Plugin round 4 (from the code): it sets `src` on every `<img>`; of Tidalfast's picture elements only the player bar's cover draws the `src` a plugin sets, so the album header's cover, cards, tiles, row covers and library thumbnails keep TIDAL's pictures. Open, with the column headings, shelf and card titles, "View all" and the meta line. |
@@ -671,7 +673,10 @@ them is ignored (logged for the unknown ones).
 `maximize`/`unmaximize`/`restore`/`isMaximized`, `minimize`/`isMinimized`,
 `close` and `isFocused` reach the real window (`HostCommand::SetFullscreen`,
 `SetMaximized`, `Minimize`, `CloseWindow`; state in
-`PlaybackSnapshot::window`). Windows plugins create stay inert. Host op
+`PlaybackSnapshot::window`). Windows plugins create are native windows of
+their own showing their page (see "Plugin windows" in
+`luna-dom-bridge.md`); a Monaco editor page (Themer's) is shown as
+Tidalfast's own editor instead. Host op
 `window.fullscreen({ value })` is what `document.requestFullscreen` /
 `exitFullscreen` call (NativeFullscreen's F11). `shell.openExternal` opens
 http(s) links only. `clipboard.writeText` works within 5 s of a user action
@@ -791,8 +796,10 @@ real this round; what each would take, through the generic layer only:
   `blur()` on background images and `brightness()`, `::before`/`::after`,
   `display: grid`, `<video>` clips other than VP9 WebM (VP8, AV1 and
   H.264 fail with an `error` event, as in a browser without the codec),
-  visible BrowserWindows (Themer's editor, miniplayer, lyrics-everywhere's
-  window), selections by character (a drag selects whole elements, copy-lyrics), and exact cross-axis centring in
+  what plugin windows do not show yet (linked stylesheets and scripts, web
+  pages, see-through edges on Windows and X11; see "Plugin windows" in
+  `luna-dom-bridge.md`; lyrics-everywhere's window is not checked yet),
+  selections by character (a drag selects whole elements, copy-lyrics), and exact cross-axis centring in
   flex rows of mixed heights (betterFullscreen's header).
 - DesktopConnect (TIDAL Connect receiver): a receiver would need (1) the
   mDNS advertisement `_tidalconnect._tcp` on port 2019 (real UDP multicast;
@@ -879,7 +886,7 @@ real this round; what each would take, through the generic layer only:
   - Not covered: Windows job objects. The mpv plugin's IPC pipe is its own
     permission (see "Permissions a plugin asks for").
 - Refused by design: TLS servers, real UDP (`dgram` sockets error on
-  bind/send), visible BrowserWindows. `MediaItem.download`,
+  bind/send). `MediaItem.download`,
   `fetchMediaItemStream` and system-wide `globalShortcut` need the user's
   permission (see "Permissions a plugin asks for").
 - `zlib` Brotli: compression writes valid streams of stored (uncompressed)
@@ -1275,6 +1282,21 @@ review pass of the compatibility audit.
 
 ### Plugin rounds
 
+- **Plugin windows, round 1 (2026-10-24).** A plugin's `BrowserWindow` is
+  a native window (an egui deferred viewport) showing its page: the page
+  runs in a QuickJS runtime and document of its own (`src/luna/page.rs`,
+  `js/page.js`), with the preload bridge, IPC both ways and the window
+  options, drawn by the plugin-element renderer from the page's root (see
+  "Plugin windows" in `luna-dom-bridge.md`). Tests: a made-up plugin opens
+  a frameless, see-through, always-on-top window whose button sends a
+  message back, `invoke` gets the plugin's answer, `webContents.send`
+  changes the page and the user's close emits `close` and `closed`
+  (`page_flow_tests`), the page alone (`page_tests`) and the window's
+  drawing and input (`plugin_windows::tests`). miniplayer (unmodified, in
+  the demo) opens, shows the song and lyrics, and its lyrics and close
+  buttons work; see its row for what is missing. With no plugin window
+  open the app's frame time and idle CPU are unchanged (see
+  `performance.md`).
 - **Round 27 (2026-10-22), DownloadManager's About window and transition
   events.** Words beside phrasing elements in a block flow in lines (a
   `<strong>`, `<code>` or `<a>` broke the line before and after it), lines

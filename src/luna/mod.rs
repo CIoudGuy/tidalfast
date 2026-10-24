@@ -508,10 +508,6 @@ impl CompatNote {
                 locale,
                 "It sends your TIDAL sign-in to its author's server, which it does only after you allow it.",
             ),
-            "Its mini player is a separate browser window, which Tidalfast does not include." => gettext(
-                locale,
-                "Its mini player is a separate browser window, which Tidalfast does not include.",
-            ),
             "It takes the media keys across the whole computer, which it does only after you allow it (Windows only)." => gettext(
                 locale,
                 "It takes the media keys across the whole computer, which it does only after you allow it (Windows only).",
@@ -626,11 +622,14 @@ const COMPAT: &[CompatRow] = &[
         "@jxnxsdev/discord-utils",
         "It sends your TIDAL sign-in to its author's server, which it does only after you allow it.",
     ),
-    not_supported(
-        "jxnxsdev/luna-plugins",
-        "@jxnxsdev/miniplayer",
-        "Its mini player is a separate browser window, which Tidalfast does not include.",
-    ),
+    CompatRow {
+        repo: "jxnxsdev/luna-plugins",
+        name: "@jxnxsdev/miniplayer",
+        note: CompatNote {
+            level: Compat::PartlySupported,
+            reason: "Its mini player opens in a window of its own, but its buttons have no icons yet and parts of its look differ from TIDAL.",
+        },
+    },
     needs_permission(
         "Aztup/luna-plugins",
         "MediaKeysFixer",
