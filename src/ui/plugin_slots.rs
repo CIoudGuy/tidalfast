@@ -554,10 +554,14 @@ pub(crate) mod css {
         out
     }
 
-    /// A length in points: `px`, `em` (of `font`), `rem` (16), `%` (of
+    /// A length in points: `px`, `em` (of `font`), `rem` (TIDAL's root
+    /// font, 14: `html { font-size: calc(var(--baseFontSize) * 1px) }` with
+    /// `:root { --baseFontSize: 14 }`, measured in TIDAL 2.46.0), `%` (of
     /// `reference`), `vw`/`vh` (of `viewport`), plain numbers and simple
     /// `calc(a ± b)`. `auto` and unknown units give `None`.
     pub fn length(value: &str, font: f32, reference: f32, viewport: [f32; 2]) -> Option<f32> {
+        /// TIDAL's root font size in points, what `1rem` is.
+        const ROOT_FONT: f32 = 14.0;
         let v = strip_important(value).to_ascii_lowercase();
         let v = v.trim();
         if ["calc(", "min(", "max(", "clamp("]
@@ -579,7 +583,7 @@ pub(crate) mod css {
             ("vmax", viewport[0].max(viewport[1]) / 100.0),
             ("vmin", viewport[0].min(viewport[1]) / 100.0),
             ("px", 1.0),
-            ("rem", 16.0),
+            ("rem", ROOT_FONT),
             ("em", font),
             ("%", reference / 100.0),
             ("vw", viewport[0] / 100.0),
@@ -1046,7 +1050,7 @@ pub(crate) mod css {
             let vp = [1000.0, 800.0];
             assert_eq!(length("12px", 14.0, 0.0, vp), Some(12.0));
             assert_eq!(length("2em", 14.0, 0.0, vp), Some(28.0));
-            assert_eq!(length("1.5rem", 14.0, 0.0, vp), Some(24.0));
+            assert_eq!(length("1.5rem", 14.0, 0.0, vp), Some(21.0));
             assert_eq!(length("50%", 14.0, 200.0, vp), Some(100.0));
             assert_eq!(length("10vh", 14.0, 0.0, vp), Some(80.0));
             assert_eq!(length("calc(100vh - 126px)", 14.0, 0.0, vp), Some(674.0));
@@ -1058,9 +1062,9 @@ pub(crate) mod css {
                     0.0,
                     vp
                 ),
-                Some(48.0)
+                Some(42.0)
             );
-            assert_eq!(length("clamp(1rem, 1vw, 3rem)", 14.0, 0.0, vp), Some(16.0));
+            assert_eq!(length("clamp(1rem, 1vw, 3rem)", 14.0, 0.0, vp), Some(14.0));
             assert_eq!(length("min(90%, 80px)", 14.0, 200.0, vp), Some(80.0));
             assert_eq!(length("max(10px, 2em)", 14.0, 0.0, vp), Some(28.0));
             assert_eq!(

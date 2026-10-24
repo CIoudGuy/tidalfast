@@ -1105,7 +1105,8 @@
 				if (m[2] === "%") return (base * v) / 100;
 				if (m[2] === "vw") return (g.innerWidth * v) / 100;
 				if (m[2] === "vh") return (g.innerHeight * v) / 100;
-				return m[2] === "em" || m[2] === "rem" ? v * 16 : v;
+				// TIDAL's root font is 14 px (`:root { --baseFontSize: 14 }`).
+				return m[2] === "rem" ? v * 14 : m[2] === "em" ? v * 16 : v;
 			};
 			const w = len("width", g.innerWidth) ?? len("min-width", g.innerWidth);
 			const h = len("height", g.innerHeight) ?? len("min-height", g.innerHeight);

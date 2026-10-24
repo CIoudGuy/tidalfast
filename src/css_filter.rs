@@ -385,12 +385,13 @@ fn amount(arg: &str) -> Option<f32> {
     n.is_finite().then_some(n)
 }
 
-/// A blur radius in points: `4px`, `.2em` and `1rem` (TIDAL's text is
-/// 14 points, the root 16), or a bare `0`.
+/// A blur radius in points: `4px`, `.2em` and `1rem` (TIDAL's text and
+/// its root font are both 14 points, measured in TIDAL 2.46.0), or a bare
+/// `0`.
 fn blur_length(arg: &str) -> Option<f32> {
     let number = |suffix: &str| arg.strip_suffix(suffix)?.trim().parse::<f32>().ok();
     let r = number("px")
-        .or_else(|| number("rem").map(|v| v * 16.0))
+        .or_else(|| number("rem").map(|v| v * 14.0))
         .or_else(|| number("em").map(|v| v * 14.0))
         .or_else(|| arg.parse::<f32>().ok().filter(|v| *v == 0.0))?;
     (r.is_finite() && r >= 0.0).then_some(r)
