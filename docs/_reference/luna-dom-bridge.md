@@ -250,8 +250,7 @@ are left out, as TIDAL's virtualised lists leave them out.
 
 Class names are CSS-module classes `_name_<7 hex>`, the module class first,
 so `[class^="_name"]` and `[class*="_name_"]` match. Hashes plugins
-hard-code are emitted literally: `_moreContainer_f6162c8`,
-`_nativeRange_7e12413`, `_title_a453dad`, `_icon_77f3f89`, `_link_ce56174`,
+hard-code are emitted literally: `_nativeRange_7e12413`, `_title_a453dad`, `_icon_77f3f89`, `_link_ce56174`,
 and radiant-lyrics' list (`_player_8c80ae6`, `_badge_7b2911e`,
 `_badgeText_1c9dd30`, `_gradientMax_9111fba`, `_max_894bc7c`,
 `_gradientHigh_87f2c3b`, `_high_4b5525b`, `_gradientLow_3f9bc0d`,
@@ -305,10 +304,10 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | `utility-container` | `div._utilityContainer_` | right cluster | Prepend, Append |
 | `utility-buttons` | `div._utilityButtons_` | right cluster; a theme's card behind the buttons, as for `track-content` (the quality pill stays outside it); a theme's colour for its buttons colours the queue and sound output buttons too, which sit in it in TIDAL 2.43.2 and 2.46.0 | Prepend, Append |
 | `queue-button` | the utility buttons' first: `button.withBackground[data-test=play-queue-button][aria-pressed][data-status]`, `._activeButton_122ab25` while the queue is open (TIDAL 2.46.0) | queue button; TIDAL's own disc stays unless a theme fills it | |
-| `toggle-lyrics` | `button[data-test=toggle-lyrics][aria-pressed]` | lyrics button; hidden; clicks forwarded | Before, After |
-| `slider-container` > `mute`, `volume-range` | `div._sliderContainer_ > button[data-test=volume] + input[type=range]._nativeRange_7e12413` (value 0-100) | volume; wheel goes to plugins when they listen (VolumeScroll) and the native wheel step is off; `_nativeRange_` hidden hides the native slider (HorizontalVolumeSlider) | Before (OneClickLyrics, MusicVideoButton), After (HorizontalVolumeSlider, between the speaker and the mini player button) |
-| `mini-player-button` | `button._miniPlayerButton_` after the slider container, TIDAL's last utility button | compact mode button | |
-| `more-container` > `fullscreen-button` | `div._moreContainer_f6162c8 > button[data-test=request-fullscreen]` (TIDAL 2.43.2's container, kept for the plugins that add their buttons to it) | | Prepend (total-play-time), Append |
+| `slider-container` > `volume-range`, `mute` | `div._sliderContainer_ > input[type=range].native-range._nativeRange_7e12413` (value 0-100) `+ button[data-test=volume][role=switch][aria-label=Volume]` | volume; wheel goes to plugins when they listen (VolumeScroll) and the native wheel step is off; `_nativeRange_` hidden hides the native slider (HorizontalVolumeSlider) | Before (OneClickLyrics, MusicVideoButton), After (HorizontalVolumeSlider, between the speaker and the mini player button) |
+| `mini-player-button` | `button[data-test=enter-compact-mode][aria-label="Compact mode"]` after the slider container, TIDAL 2.46.0's last utility button | compact mode button | |
+| `quality` (in `utility-container`) | TIDAL 2.46.0's badge box is the utility container's second child, after `utility-buttons`; TIDAL 2.46.0 has no `_moreContainer_`, full screen or lyrics button in the bar (plugin round 7: total-play-time draws no pill, as in TIDAL) | | `utility-buttons` After (between the buttons and the pill) |
+| `sound-output` | `button._soundOutputButton_a6d011c.withBackground[data-test=select-device]` after the queue button (`._activeButton_122ab25` while its list is open) | sound output button; hidden | After (OneClickLyrics' `sliderContainer.before()`, left of the speaker) |
 
 ### Track lists (`widgets.rs` track rows: albums, playlists, collection, queue)
 
@@ -329,7 +328,7 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 |---|---|---|---|
 | `now-playing-fullscreen` > `now-playing-fullscreen-view` | `section._fullscreen_236d61b > section#nowPlaying[data-test=new-now-playing]._container_ad3e54e._nowPlaying_5cd5533`, a child of the root after the main container, always there (TIDAL 2.46.0); while the view is fullscreen the view's parts are in it and it covers the window | the fullscreen view; a plugin's element that takes the section's place (betterFullscreen) is drawn against the window | `now-playing-fullscreen` Append |
 | `now-playing` | `section#nowPlaying[data-test=new-now-playing]._container_ad3e54e._nowPlayingContainer_`, the docked view, a child of the root before the player bar: `._nowPlayingHidden_7e74506` and empty while closed, taken out of the root while the view is fullscreen (that change to the root's children is what `observe` reports with the root, as in TIDAL), else holding `now-playing-header` (`header`), `now-playing-background` (`._background_`), `now-playing-content` (`._innerContainer_._content_`) | the now-playing view | Append (under the cover) |
-| `now-playing-buttons` > `now-playing-content-buttons` > `now-playing-tab:<name>` > `:span` | `header > div._buttons_ > div._contentButtons_ > button[data-test=toggle-similar-tracks\|toggle-credits\|toggle-lyrics][aria-pressed]._tabButton_ > span`, the tabs shown, before the close button; it comes before the player bar in the document, so `querySelector('[data-test^=toggle-lyrics]')` finds it first, as in TIDAL | the header's tab pills; `.click()` opens a tab | tab Before/After, tab box Prepend/Append (LangRomanizer after Lyrics), a tab's `padding-right` and `min-width` widen its pill and what is positioned inside the tab is drawn in it (radiant-lyrics' sparkle), `now-playing-buttons` After (left of the close button) |
+| `now-playing-buttons` > `now-playing-content-buttons` > `now-playing-tab:<name>` > `:span` | `header > div._buttons_ > div._contentButtons_ > button[data-test=toggle-similar-tracks\|toggle-credits\|toggle-lyrics][aria-pressed]._marketButton_1d16h_1._tertiary_1d16h_8._small_1d16h_3._toggleButton_934359e > span._label_1d16h_1`, then `div._actionButtons_ > button[data-test=new-now-playing-expand], button[data-test=new-now-playing-close]` (TIDAL 2.46.0's icon market buttons, `now-playing-action-buttons`), the tabs shown, before the close button; it comes before the player bar in the document, so `querySelector('[data-test^=toggle-lyrics]')` finds it first, as in TIDAL | the header's tab pills; `.click()` opens a tab | tab Before/After, tab box Prepend/Append (LangRomanizer after Lyrics), a tab's `padding-right` and `min-width` widen its pill and what is positioned inside the tab is drawn in it (radiant-lyrics' sparkle), `now-playing-buttons` After (left of the close button) |
 | `now-playing-artwork` > `now-playing-artwork-tilt` > `now-playing-artwork-img` + `now-playing-artwork-glare` | `div._artworkWrapper_ > div._tilt_._artworkTilt_[style="transform: perspective(1000px) rotateX(..deg) rotateY(..deg)"] > img[data-test=now-playing-artwork][src] + div._glare_` (TIDAL's; the `img` is a `video` while an animated cover plays; the style follows the native tilt every frame it moves) | big cover | positioned elements after the `img` or appended to the tilt box are drawn in the cover's tilt and lean with it, a WebGL canvas too (3d-cover) |
 | `lyrics-container` > `lyrics` > `lyrics-lines` | `div._lyricsContainer_ > div[data-test=now-playing-lyrics]._lyricsText_ > div` | Lyrics tab; `lyrics` hidden hides the native lines (radiant-lyrics) | container, lyrics and lines Prepend/Append (radiant-lyrics appends its lines to `lyrics-lines`) |
 | `lyric:<i>` | `span[data-test=lyrics-line][data-current]` (+ `_current_`, `aria-current`) | one line; text override (translators), colour (colorama), hidden; clicks forwarded | Append, After (under the line) |
@@ -536,8 +535,7 @@ exact `Range` (`selectBetween`). The selected words keep their colour.
 
 ### More anchors (2026-10-14)
 
-- Spans TIDAL has: `button[toggle-lyrics] > span`, `request-fullscreen >
-  span`, `div[footer-track-title] > a > span` (holds the title text).
+- Spans TIDAL has: `div[footer-track-title] > a > span` (holds the title text).
 - Sidebar: `div._fixedNavigation_` around the nav items (Append),
   `button[data-test=sidebar-collection-menu]` (After) inside TIDAL's
   `div._collectionWrapper_` (After: AltPlay's link). Rows plugins add there
@@ -962,7 +960,7 @@ rows, go to their host keys when listened.
   (radiant-lyrics' lines) do not reload the fonts.
 - The built-in TIDAL sheet gives a button among the player bar's utility
   buttons TIDAL's look: transparent, 32 by 32, its SVG 16 by 16.
-- Plugin nodes after `toggle-lyrics` (before the speaker) are drawn between
+- Plugin nodes after `select-device` (before the speaker) are drawn between
   the sound output and the speaker.
 - `overlay.clicks` lists the last host clicks with sequence numbers, so two
   in one turn both arrive; `#footerPlayer.click()` toggles now playing and
@@ -1147,3 +1145,32 @@ window, `ipcRenderer.sendSync`, a separate isolated world for the preload
 `screen` displays (work area, scale), `center()`, `setOpacity`,
 `setIgnoreMouseEvents`, and moving a window to the top without focusing
 it (`moveTop` does nothing).
+
+### Plugin round 7 (2026-10-24)
+
+- Collection pages (`mycollection_*`) are TIDAL 2.46.0's
+  `div._defaultStyles_a1b9da9._container_d43f21d[data-type=page][data-test=page-title-container]`;
+  their title is `page-title-header` (`div._header_d2e600f`) > `page-title`
+  (`h1.wave-text-headline-bold._title_d3f5c62`), slots Append of the header
+  beside the title (LuckyLP).
+- Context menu rows carry TIDAL 2.46.0's `data-test` (`play-next`,
+  `add-to-queue`, `add-to-playlist`, `add-to-remove-from-collection`,
+  `save-for-later`, `track-radio`, `go-to-album`, `show-track-info` /
+  `show-album-info`, `go-to-artist`, `share`, ...); Tidalfast's own rows
+  (Download) carry none. Submenu rows (Add to playlist, Share) are rows.
+- `queue-list` > `queue-table` > per drawn row `queue-item:<id>:slot`
+  (`div[data-index]`) > `:fx` (`div._fxContainer_c9d502b`) > `queue-item:<id>`
+  (`div[data-test=playqueue-item][role=row][data-test-priority]`,
+  `_containerPriorityHistory_` for history), with `:cell` > `:cover-box` >
+  `:cover` (`div[data-test=cell-cover]`) > `:img` (`img._cellImage_`),
+  `:playing-icon` for the playing song, `:group` > `:title-box` >
+  `:title-link` (`a[data-test=playqueue-item-title]`) > `:title`
+  (`p._titleText_6563d98`), `:artists` > `:artist:<i>`, `:actions` >
+  `:remove` or `:menu`. `<id>` is `history:<i>`, `current` or `next:<i>`.
+  Text overrides, hiding and pictures are drawn by the floating queue.
+- `byline-pic` > `:images` > `:avatar` > `byline-pic-img`: the header byline's
+  picture (`span._creatorImageContainer_274e19d > div._creatorImages_6cd6b4e >
+  div._avatar_7c6d39c > img._cellImage_`).
+- Input events carry the number of host trees sent before them; a tree sent
+  after the event is reconciled once the listeners ran (a right-click's
+  `contextmenu` before the menu it opens, as in Chromium).
