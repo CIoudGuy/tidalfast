@@ -468,6 +468,10 @@
 					// Shuffle) set their text in 16 points, so `em` in a
 					// theme's corners for them is 16 (TIDAL 2.46.0, computed).
 					":where(._marketButton_1d16h_1._medium_1d16h_4) { font-size: 16px; }\n" +
+					// An album's and playlist's title is TIDAL's 32-point
+					// title text: `em` in a theme's lengths for it is 32
+					// (the cotton candy family's `translateY(-.4em)` is 12.8).
+					":where(.wave-text-title-bold) { font-size: 32px; }\n" +
 					`._container_b3e8f28 { background: ${PANEL_GLASS}; }`,
 			);
 		}

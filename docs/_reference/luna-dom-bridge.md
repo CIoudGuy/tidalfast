@@ -721,7 +721,12 @@ background gives menus (see-through when a theme leaves it, its `::before`
 and its popover without a fill), `span._actionTextInner_` in it the menu
 rows' size and weight, `span.wave-text-headline-bold` the page titles' size,
 weight and letter spacing and `span.wave-text-subheadline-bold` the section
-titles'. A themed palette (`Palette::themed`) drops TIDAL
+titles'. An album's and a playlist's title is its own anchor first, TIDAL
+2.46.0's `h2.wave-text-title-bold` (`_titleText_7494646` in `div.
+_detailContainer_5b36b6c` on an album, `_title_c9bc1b1` in `_detailContainer_
+105eeff` on a playlist, in the header box), 32-point text: its colour, size,
+case and `translate` (`em` of its 32 points) come from the theme's rules for
+it, the rest from the stand-ins. A themed palette (`Palette::themed`) drops TIDAL
 Dark's fixed shades (menu grey, chips, hairlines, the player bar's #1e1e1e,
 artist and time greys) for ones made from its colours. Text, secondary and
 dim text and the accent keep a minimum contrast with the themed window (3,
