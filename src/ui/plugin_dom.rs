@@ -1712,6 +1712,21 @@ fn paint_outer_shadow(
     corner: egui::CornerRadius,
     shadow: egui::epaint::Shadow,
 ) {
+    if let egui::Shape::Vec(rings) = outer_shadow_shape(r, corner, shadow) {
+        for ring in rings {
+            painter.add(ring);
+        }
+    }
+}
+
+/// [`paint_outer_shadow`]'s shape, for a panel that lays it under itself
+/// (egui's own frame shadow also lies under the panel's inside, which
+/// shows through a see-through card).
+pub(crate) fn outer_shadow_shape(
+    r: Rect,
+    corner: egui::CornerRadius,
+    shadow: egui::epaint::Shadow,
+) -> egui::Shape {
     let r = r.translate(egui::vec2(
         f32::from(shadow.offset[0]),
         f32::from(shadow.offset[1]),
@@ -1719,8 +1734,9 @@ fn paint_outer_shadow(
     let (blur, spread) = (f32::from(shadow.blur), f32::from(shadow.spread));
     let depth = spread + blur;
     if depth <= 0.0 || shadow.color.a() == 0 {
-        return;
+        return egui::Shape::Noop;
     }
+    let mut rings = Vec::new();
     let steps = (depth / 2.0).ceil().clamp(1.0, 48.0);
     let width = depth / steps;
     for i in 0..steps as usize {
@@ -1741,13 +1757,14 @@ fn paint_outer_shadow(
             sw: grow(corner.sw),
             se: grow(corner.se),
         };
-        painter.rect_stroke(
+        rings.push(egui::Shape::rect_stroke(
             r.expand(d + width / 2.0),
             radius,
             egui::Stroke::new(width, shadow.color.gamma_multiply(coverage)),
             egui::StrokeKind::Middle,
-        );
+        ));
     }
+    egui::Shape::Vec(rings)
 }
 
 /// An inset `box-shadow` inside `r`: full `color` over its `spread`, then
