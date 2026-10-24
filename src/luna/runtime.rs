@@ -198,6 +198,8 @@ struct Inner {
     permits: Arc<super::permits::Permits>,
     /// Plugins' system-wide shortcuts (see [`super::hotkeys`]).
     hotkeys: super::hotkeys::Hotkeys,
+    /// Whose this runtime's large downloads are (see [`super::downloads`]).
+    downloads: super::downloads::Runtime,
     /// Message boxes plugins wait on, and the next id.
     boxes: Vec<super::MessageBox>,
     next_box: u64,
@@ -455,7 +457,7 @@ impl Inner {
     /// it had open outside the sandbox goes, and calls waiting for a
     /// permission answer fail.
     fn close_plugin_io(&mut self, name: &str) {
-        super::downloads::stop_plugin(name);
+        super::downloads::stop_plugin(self.downloads, name);
         self.net.close_plugin(name);
         self.children.close_plugin(name);
         self.forks.close_plugin(name);
@@ -1167,16 +1169,35 @@ fn op_sync(inner: &S, who: Who, name: &str, arg: &str) -> String {
 thread_local! {
     /// The runtime `__fs_bytes` works for (one per Luna thread).
     static FS_INNER: RefCell<Option<std::rc::Weak<RefCell<Inner>>>> = const { RefCell::new(None) };
+    /// Whose this thread's runtime's large downloads are.
+    static DOWNLOADS: Cell<Option<super::downloads::Runtime>> = const { Cell::new(None) };
+}
+
+/// This thread's runtime's downloads, for `__fetch_take` and `__fetch_drop`.
+fn downloads_here<'js>(c: &Ctx<'js>) -> rquickjs::Result<super::downloads::Runtime> {
+    DOWNLOADS
+        .with(Cell::get)
+        .ok_or_else(|| rquickjs::Exception::throw_message(c, "EIO: the runtime is gone"))
 }
 
 /// `__fetch_take(token)`: a large fetched body, read from its file into one
 /// `ArrayBuffer` (see [`super::downloads`]); only the plugin that fetched it
 /// gets it.
 fn fetch_take<'js>(c: Ctx<'js>, token: String) -> rquickjs::Result<ArrayBuffer<'js>> {
+    let runtime = downloads_here(&c)?;
     let caller = super::caller::caller(&c);
-    let bytes = super::downloads::take(caller.plugin(), &token)
+    let bytes = super::downloads::take(runtime, caller.plugin(), &token)
         .map_err(|e| rquickjs::Exception::throw_message(&c, &e))?;
     ArrayBuffer::new(c, bytes)
+}
+
+/// `__fetch_drop(token)`: the response holding a large fetched body went
+/// unread (collected, or its fetch aborted); its file goes.
+fn fetch_drop(c: Ctx<'_>, token: String) -> rquickjs::Result<()> {
+    let runtime = downloads_here(&c)?;
+    let caller = super::caller::caller(&c);
+    super::downloads::release(runtime, caller.plugin(), &token);
+    Ok(())
 }
 
 /// `__fs_bytes(json, plugin, ArrayBuffer?)`: [`fs_bytes`] from the shim.
@@ -2415,6 +2436,7 @@ fn fork_start(inner: &S, plugin: &str, a: &Value) -> Result<Value, String> {
     };
     let spawn = super::fork::Spawn {
         plugin: plugin.to_string(),
+        downloads: inner.borrow().downloads,
         file,
         code,
         args: strings("args"),
@@ -2689,7 +2711,11 @@ fn op_async(inner: &S, who: Who, name: String, arg: String, id: f64) {
             if let Some(p) = &plugin {
                 i.used(p, Permission::Network);
             }
-            Some((i.plugin_http(), i.storage.spool_dir()))
+            Some(FetchCtx {
+                client: i.plugin_http(),
+                spool: i.storage.spool_dir(),
+                runtime: i.downloads,
+            })
         } else {
             None
         };
@@ -2821,14 +2847,19 @@ fn file_dialog(a: &Value, host: &dyn LunaHost) -> Result<Value, String> {
     })
 }
 
+/// What a `fetch` takes from its runtime: the client, where a large body
+/// goes and whose it is.
+struct FetchCtx {
+    client: Result<reqwest::blocking::Client, String>,
+    spool: std::path::PathBuf,
+    runtime: super::downloads::Runtime,
+}
+
 fn op_async_run(
     name: &str,
     a: &Value,
     host: &dyn LunaHost,
-    http: Option<(
-        Result<reqwest::blocking::Client, String>,
-        std::path::PathBuf,
-    )>,
+    http: Option<FetchCtx>,
     writes: &super::writes::Grants,
 ) -> Result<Value, String> {
     let id = str_of(a, "id");
@@ -2855,8 +2886,8 @@ fn op_async_run(
                     verdict => verdict,
                 }
             };
-            let (client, spool) = http.ok_or("no http client")?;
-            fetch(client?, a, &ask, &spool)
+            let http = http.ok_or("no http client")?;
+            fetch(http.client?, a, &ask, &http.spool, http.runtime)
         }
         // `dns.lookup` of a name: asked like a connection to it, then the
         // system resolver answers.
@@ -3190,6 +3221,7 @@ fn fetch(
     a: &Value,
     ask: &AskHop<'_>,
     spool: &std::path::Path,
+    runtime: super::downloads::Runtime,
 ) -> Result<Value, String> {
     let mut url = url::Url::parse(str_of(a, "url")).map_err(|e| format!("Invalid URL: {e}"))?;
     let mut method =
@@ -3280,7 +3312,7 @@ fn fetch(
         "headers": headers,
         "url": final_url,
     });
-    match super::downloads::read_body(resp, total, plugin, &final_url, spool)? {
+    match super::downloads::read_body(resp, total, runtime, plugin, &final_url, spool)? {
         super::downloads::Body::Memory(body) => out["body"] = json!(B64.encode(body)),
         super::downloads::Body::File { token, size } => {
             out["file"] = json!(token);
@@ -4265,7 +4297,8 @@ impl Engine {
         let home = self.inner.borrow().storage.data_dir(name);
         let _ = std::fs::remove_dir_all(&home);
         super::fsops::forget_plugin(name, &home);
-        super::downloads::stop_plugin(name);
+        let downloads = self.inner.borrow().downloads;
+        super::downloads::stop_plugin(downloads, name);
         super::depth::drop_plugin(name);
     }
 
@@ -5124,6 +5157,7 @@ impl Engine {
         for n in names {
             i.close_plugin_io(&n);
         }
+        super::downloads::stop_runtime(i.downloads);
         i.children.stop_all();
         i.forks.stop_all();
         i.pages.stop_all();
@@ -5624,6 +5658,7 @@ fn setup_with(
         writes,
         permits,
         hotkeys,
+        downloads: super::downloads::Runtime::unique(),
         boxes: Vec::new(),
         next_box: 1,
         gesture_at: None,
@@ -5773,7 +5808,9 @@ fn setup_with(
         g.set("__utf8_dec", Function::new(ctx.clone(), utf8_dec)?)?;
         g.set("__b64_enc", Function::new(ctx.clone(), b64_enc)?)?;
         g.set("__b64_dec", Function::new(ctx.clone(), b64_dec)?)?;
+        DOWNLOADS.with(|d| d.set(Some(inner.borrow().downloads)));
         g.set("__fetch_take", Function::new(ctx.clone(), fetch_take)?)?;
+        g.set("__fetch_drop", Function::new(ctx.clone(), fetch_drop)?)?;
         FS_INNER.with(|f| *f.borrow_mut() = Some(Rc::downgrade(&inner)));
         g.set("__fs_bytes", Function::new(ctx.clone(), fs_bytes_js)?)?;
         {
@@ -5869,7 +5906,7 @@ const ENTRY_POINTS: &[&str] = &[
 
 /// Removes the natives and entry points from the global object once the
 /// shims hold them.
-const LOCKDOWN: &str = r#"for (const k of ["__op", "__op_async", "__caller", "__eval", "__utf8_enc", "__utf8_dec", "__b64_enc", "__b64_dec", "__fetch_take", "__fs_bytes", "__canvas", "__wasm", "__video", "__depth", "__luna_module", "__lunaInternal", "__luna_host", "__luna_tick", "__luna_resolve", "__luna_dispatch", "__luna_dom", "__luna_net", "__luna_ipc", "__luna_child", "__luna_fork"]) delete globalThis[k];"#;
+const LOCKDOWN: &str = r#"for (const k of ["__op", "__op_async", "__caller", "__eval", "__utf8_enc", "__utf8_dec", "__b64_enc", "__b64_dec", "__fetch_take", "__fetch_drop", "__fs_bytes", "__canvas", "__wasm", "__video", "__depth", "__luna_module", "__lunaInternal", "__luna_host", "__luna_tick", "__luna_resolve", "__luna_dispatch", "__luna_dom", "__luna_net", "__luna_ipc", "__luna_child", "__luna_fork"]) delete globalThis[k];"#;
 
 fn run(
     cfg: LunaConfig,

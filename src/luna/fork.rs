@@ -138,6 +138,8 @@ impl Killer {
 /// What a fork runs, read by the Luna thread through the plugin's `fs`.
 pub struct Spawn {
     pub plugin: String,
+    /// Whose the fork's large downloads are: its plugin's runtime's.
+    pub downloads: super::downloads::Runtime,
     /// The plugin's data folder (its `fs` sandbox).
     pub home: PathBuf,
     /// The module's path, as Node gives it to the script (`__filename`).
@@ -338,6 +340,7 @@ impl ForkHub {
 struct State {
     handle: u32,
     plugin: String,
+    downloads: super::downloads::Runtime,
     home: PathBuf,
     luna: Sender<Msg>,
     killer: Arc<Killer>,
@@ -471,7 +474,7 @@ const ENTRIES: &[&str] = &[
     "__fork_idle",
 ];
 
-const LOCKDOWN: &str = r#"for (const k of ["__op", "__op_async", "__caller", "__eval", "__utf8_enc", "__utf8_dec", "__b64_enc", "__b64_dec", "__fetch_take", "__fs_bytes", "__fork", "__lunaInternal", "__luna_tick", "__luna_resolve", "__luna_child", "__luna_net", "__luna_fork", "__fork_start", "__fork_event", "__fork_idle"]) delete globalThis[k];"#;
+const LOCKDOWN: &str = r#"for (const k of ["__op", "__op_async", "__caller", "__eval", "__utf8_enc", "__utf8_dec", "__b64_enc", "__b64_dec", "__fetch_take", "__fetch_drop", "__fs_bytes", "__fork", "__lunaInternal", "__luna_tick", "__luna_resolve", "__luna_child", "__luna_net", "__luna_fork", "__fork_start", "__fork_event", "__fork_idle"]) delete globalThis[k];"#;
 
 fn child_main(
     handle: u32,
@@ -483,6 +486,7 @@ fn child_main(
     let state = Rc::new(State {
         handle,
         plugin: spawn.plugin.clone(),
+        downloads: spawn.downloads,
         home: spawn.home.clone(),
         luna,
         killer,
@@ -698,6 +702,11 @@ fn install(ctx: &Context, state: &Rc<State>) -> Result<Entries, String> {
         )
         .map_err(js)?;
         g.set(
+            "__fetch_drop",
+            Function::new(ctx.clone(), fetch_drop).map_err(js)?,
+        )
+        .map_err(js)?;
+        g.set(
             "__fs_bytes",
             Function::new(ctx.clone(), fs_bytes_js).map_err(js)?,
         )
@@ -799,9 +808,17 @@ fn current<'js>(c: &Ctx<'js>) -> rquickjs::Result<Rc<State>> {
 /// `__fetch_take(token)`: a large fetched body, for the fork's plugin only.
 fn fetch_take<'js>(c: Ctx<'js>, token: String) -> rquickjs::Result<ArrayBuffer<'js>> {
     let state = current(&c)?;
-    let bytes = super::downloads::take(Some(&state.plugin), &token)
+    let bytes = super::downloads::take(state.downloads, Some(&state.plugin), &token)
         .map_err(|e| rquickjs::Exception::throw_message(&c, &e))?;
     ArrayBuffer::new(c, bytes)
+}
+
+/// `__fetch_drop(token)`: a large fetched body the fork's plugin left
+/// unread; its file goes.
+fn fetch_drop(c: Ctx<'_>, token: String) -> rquickjs::Result<()> {
+    let state = current(&c)?;
+    super::downloads::release(state.downloads, Some(&state.plugin), &token);
+    Ok(())
 }
 
 /// `__fs_bytes(json, plugin, ArrayBuffer?)`: file bytes in and out without

@@ -1002,6 +1002,93 @@ R.done = true;
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A plugin's name is unique only within one runtime. When Luna restarts
+/// (the master switch, going offline and back), the old runtime stops its
+/// plugins on a thread of its own while the new one already runs them: a
+/// large body the new run fetched stays until it reads it, whatever the old
+/// run of the same plugin does (stopping it took every body of that name,
+/// and the first read found the body gone).
+#[test]
+fn a_spooled_body_outlives_another_runtimes_plugin_of_the_same_name() {
+    let size = super::downloads::SPOOL_AT + (1 << 20);
+    let model: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+    let files: Files = Arc::default();
+    files.lock().unwrap().insert("/model.onnx".into(), model);
+    let base = serve(files.clone());
+    // The plugin holds its response until the test says go.
+    let body = r#"
+const r = await fetch("__BASE__/model.onnx");
+R.ready = true;
+while ((await fetch("__BASE__/go")).status !== 200) await new Promise((res) => setTimeout(res, 20));
+await check("page", async () => {
+	const b = new Uint8Array(await r.arrayBuffer());
+	return [b.length, b[0], b[b.length - 1]].join(",");
+});
+R.done = true;
+"#
+    .replace("__BASE__", &base);
+    let (r, luna, _host, dir) = run_with(
+        "Compat",
+        &body,
+        Some(&|_| {
+            // Another runtime starts a plugin of the same name and stops.
+            let (_, other, _, other_dir) = run("Compat", "R.done = true;");
+            other.shutdown();
+            let _ = std::fs::remove_dir_all(&other_dir);
+            files.lock().unwrap().insert("/go".into(), b"go".to_vec());
+        }),
+    );
+    let last = ((size - 1) % 251) as u8;
+    assert_eq!(r["page"], format!("{size},0,{last}"), "{r}");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A large body waits for its reader as long as it takes, and goes with its
+/// response when nobody will read it, as Chromium drops an unread body with
+/// its response: a response collected unread, or a fetch aborted before it
+/// arrived, leaves no file behind while the plugin runs on.
+#[test]
+fn a_large_body_nobody_reads_goes_with_its_response() {
+    let size = super::downloads::SPOOL_AT + (1 << 20);
+    let files: Files = Arc::default();
+    files
+        .lock()
+        .unwrap()
+        .insert("/model.onnx".into(), vec![7; size]);
+    let base = serve(files);
+    let body = r#"
+const url = "__BASE__/model.onnx";
+await check("dropped", async () => {
+	const r = await fetch(url);
+	return r.status;
+});
+await check("aborted", async () => {
+	const c = new AbortController();
+	const p = fetch(url, { signal: c.signal });
+	c.abort();
+	return p.then(() => "fetched", (e) => e.name);
+});
+R.done = true;
+"#
+    .replace("__BASE__", &base);
+    let (r, luna, _host, dir) = run("Compat", &body);
+    assert_eq!(r["dropped"], json!(200), "{r}");
+    assert_eq!(r["aborted"], json!("AbortError"), "{r}");
+    let spool = dir.join("spool");
+    let count = || std::fs::read_dir(&spool).map(|d| d.count()).unwrap_or(0);
+    // The aborted download ends, and the collected response's cleanup
+    // runs, on the runtime's next turns.
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while count() > 0 && std::time::Instant::now() < end {
+        luna.sync(std::time::Duration::from_secs(1));
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert_eq!(count(), 0, "no body is kept for nobody");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A `localStorage` write past the store's limit throws what Chromium
 /// throws, a `DOMException` named `QuotaExceededError` (code 22), so a
 /// plugin that makes room when it sees that error can (the
