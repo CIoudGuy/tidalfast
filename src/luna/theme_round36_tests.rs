@@ -69,3 +69,52 @@ fn em_in_a_themes_shadows_and_corners_is_tidals_text_size() {
         egui::CornerRadius::same(14)
     );
 }
+
+/// TIDAL 2.46.0 marks the navigation rows' icons up as icons: `svg.
+/// _icon_77f3f89._icon_b8b52c1`, and Collection's chevron `svg._icon_77f3f89
+/// ._icon_b8b52c1._arrowRight_f57b400` (captured). Rules for TIDAL's icons
+/// (the cotton candy family's nested `._navigationItem_ { ._icon_77f3f89 {
+/// fill } }`) reached neither: the chevron carried `_arrowRight_` alone and
+/// the row's icon no class.
+#[test]
+fn rules_for_tidals_icons_reach_the_navigation_rows_icons() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{sidebar_item_arrow, sidebar_item_icon};
+    let css = r#"/* {"name": "Nested icons"} */
+._navigationItem_4e9deae {
+  background-color: rgb(30, 40, 50);
+  ._icon_77f3f89 { fill: rgb(10, 200, 100); }
+}
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.items.push(dom_anchors::SidebarItem {
+        test: "sidebar-collection-menu".into(),
+        label: "Collection".into(),
+        href: Some("/my-collection".into()),
+        selected: false,
+        rect: Some([16.0, 248.0, 208.0, 40.0]),
+    });
+    let arrow = sidebar_item_arrow("sidebar-collection-menu");
+    let icon = sidebar_item_icon("sidebar-collection-menu");
+    let tree = dom_anchors::build(&frame);
+    let luna = themed_luna("nested-icons.css", css);
+    let end = Instant::now() + Duration::from_secs(20);
+    let o = loop {
+        luna.sync_dom(tree.clone());
+        luna.sync(Duration::from_secs(5));
+        let o = luna.dom_overlay();
+        if o.css_bytes > 0
+            && o.hosts
+                .contains_key(&dom_anchors::keys::sidebar_item("sidebar-collection-menu"))
+        {
+            break o;
+        }
+        assert!(Instant::now() < end, "the overlay never got there");
+        std::thread::sleep(Duration::from_millis(30));
+    };
+    luna.shutdown();
+    pd::test_overlay(Some((*o).clone()));
+    let inks = [pd::sidebar_icon(&arrow), pd::sidebar_icon(&icon)];
+    pd::test_overlay(None);
+    assert_eq!(inks, [Some(egui::Color32::from_rgb(10, 200, 100)); 2]);
+}
