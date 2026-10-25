@@ -328,19 +328,25 @@ opt-level = 2
 # makes the GL context current only when another window's surface is
 # (emilk/egui#4173), egui_glow uploads a frame's meshes in one buffer upload
 # each, and FontColorTransferFunction::PerColor adjusts glyph coverage per
-# text colour in egui_glow's shader, as Chromium's Skia does. Every egui
-# crate comes from the same revision so they share one emath and epaint.
+# text colour in egui_glow's shader, as Chromium's Skia does. Round 2 adds
+# GlyphRasterization::HorizontalOnly (glyphs antialiased across only, as
+# DirectWrite's natural mode draws TIDAL's text), shadows blurred as a
+# Gaussian as CSS draws a box-shadow, rounded corners at the radius asked
+# for, each viewport's meshes filled again from frame to frame, the window's
+# state read for ViewportInfo only when it can have changed, textures found
+# without allocating, and the crmne/winit pin below. Every egui crate comes
+# from the same revision so they share one emath and epaint.
 # Move to crmne/egui again once it carries these changes.
-ecolor = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
-eframe = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
-egui = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
-egui-wgpu = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
-egui-winit = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
-egui_extras = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
-egui_glow = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
-emath = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
-epaint = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
-epaint_default_fonts = { git = "https://github.com/CIoudGuy/egui", rev = "36760640cdc3db4614c5b3c530cc93f8ea06aa48" }
+ecolor = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
+eframe = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
+egui = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
+egui-wgpu = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
+egui-winit = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
+egui_extras = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
+egui_glow = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
+emath = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
+epaint = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
+epaint_default_fonts = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
 # crmne/winit apps-0.30, shared with the same apps: winit 0.30.13 plus Wayland
 # `Occluded` for the xdg-shell suspended state with commits on the app's behalf
 # while it isn't presenting (rust-windowing/winit#4709, #4710), macOS Quit
