@@ -488,6 +488,8 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
         if luna {
             super::plugin_slots::inline(ui, keys::LYRICS_CONTAINER, Position::Prepend);
             super::plugin_slots::inline(ui, keys::LYRICS, Position::Prepend);
+            super::plugin_slots::inline(ui, keys::LYRICS_VIEWPORT, Position::Prepend);
+            super::plugin_slots::inline(ui, keys::LYRICS_CONTENT, Position::Prepend);
             super::plugin_slots::inline(ui, keys::LYRICS_LINES, Position::Prepend);
         }
         for (index, line) in lyrics.lines.iter().enumerate() {
@@ -692,6 +694,8 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
                 }
             });
             super::plugin_slots::inline(ui, keys::LYRICS_LINES, Position::Append);
+            super::plugin_slots::inline(ui, keys::LYRICS_CONTENT, Position::Append);
+            super::plugin_slots::inline(ui, keys::LYRICS_VIEWPORT, Position::Append);
             super::plugin_slots::inline(ui, keys::LYRICS, Position::Append);
             super::plugin_slots::inline(ui, keys::LYRICS_CONTAINER, Position::Append);
         }

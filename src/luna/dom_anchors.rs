@@ -320,6 +320,12 @@ pub mod keys {
     pub const NP_ARTWORK_GLARE: &str = "now-playing-artwork-glare";
     pub const LYRICS_CONTAINER: &str = "lyrics-container";
     pub const LYRICS: &str = "lyrics";
+    /// The scroll area's viewport in [`LYRICS`] (TIDAL 2.46.0's
+    /// `[data-test=now-playing-lyrics] > div`).
+    pub const LYRICS_VIEWPORT: &str = "lyrics-viewport";
+    /// `div._content_fef19e8` in the viewport, round the lines' box.
+    pub const LYRICS_CONTENT: &str = "lyrics-content";
+    /// The lines' box, `div[data-test=lyrics-text]`.
     pub const LYRICS_LINES: &str = "lyrics-lines";
     pub const LYRICS_SYNC_WRAP: &str = "lyrics-sync-wrap";
     pub const LYRICS_SYNC: &str = "lyrics-sync";
@@ -4881,7 +4887,22 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying, fullscreen: bool) {
         .at(np.lyrics_rect);
     lyrics.scroll = np.lyrics_scroll;
     out.push(lyrics);
-    out.push(el(LYRICS_LINES, Some(LYRICS), "div").at(np.lyrics_rect));
+    // TIDAL 2.46.0 (its bundle): the scroll area's viewport, in it the
+    // content box `div._content_fef19e8`, and in that the lines' box
+    // `div[data-test=lyrics-text]`. Lyrics plugins find the box from a line
+    // (its parent's parent, then that box's first `div`) or from the
+    // scroll area (its first `div`, then the child named `_content_`).
+    out.push(el(LYRICS_VIEWPORT, Some(LYRICS), "div").at(np.lyrics_rect));
+    out.push(
+        el(LYRICS_CONTENT, Some(LYRICS_VIEWPORT), "div")
+            .class("_content_fef19e8")
+            .at(np.lyrics_rect),
+    );
+    out.push(
+        el(LYRICS_LINES, Some(LYRICS_CONTENT), "div")
+            .test("lyrics-text")
+            .at(np.lyrics_rect),
+    );
     for (i, line) in np.lines.iter().enumerate() {
         let mut node = el(keys::lyric(i), Some(LYRICS_LINES), "span")
             .modules(&["lyricsLine"])
