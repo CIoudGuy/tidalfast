@@ -1827,8 +1827,17 @@
 	// now-playing header's icon buttons (`._iconButton_fe68160`: the
 	// tertiary icon colour is `--market-core-text-20-color`, #ffffff8c; a
 	// plugin's copy of the full screen button reads 55 % white at 600 in
-	// TIDAL). The view's tabs keep the look the sheet above gives them.
-	const TIDAL_LOOK_TOKENS = [["_iconButton_fe68160", ["_tertiary_1d16h_8", "_iconOnly_1d16h_1"], { color: "rgba(255, 255, 255, 0.55)" }]];
+	// TIDAL). The view's tabs, TIDAL's toggle buttons (`._toggleButton_
+	// 934359e`): medium type (`--market-core-type-medium-weight`, 500) in
+	// the tertiary grey (text-20), and while pressed (`._toggleButtonActive_
+	// b595428`) black (`--market-core-fill-black-color`, #000000e6) on white;
+	// what a plugin puts in a tab inherits that. A plugin's copy of a tab
+	// keeps the look the sheet above gives it.
+	const TIDAL_LOOK_TOKENS = [
+		["_iconButton_fe68160", ["_tertiary_1d16h_8", "_iconOnly_1d16h_1"], { color: "rgba(255, 255, 255, 0.55)" }],
+		["_toggleButton_934359e", ["_small_1d16h_3"], { "font-weight": "500", color: "rgba(255, 255, 255, 0.55)" }],
+		["_toggleButtonActive_b595428", ["_toggleButton_934359e", "_tertiary_1d16h_8"], { color: "rgba(0, 0, 0, 0.9)", "background-color": "rgb(255, 255, 255)" }],
+	];
 	// A form control's own font, from Chromium's sheet (`font:
 	// -webkit-small-control`, which TIDAL's normalize sizes back to its
 	// parent's): weight 400 whatever its parent's, normal line height, and

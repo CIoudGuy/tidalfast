@@ -774,6 +774,67 @@ lib.observe(unloads, '[data-test="footer-track-title"]', () => {
     finish(luna, dir);
 }
 
+/// The now-playing header's tabs are TIDAL's toggle buttons, which re-set
+/// their market button's tokens (`._toggleButton_934359e`): medium type
+/// (500, not the small size's 600) in the tertiary grey, black on white
+/// while pressed (`._toggleButtonActive_b595428`). What a plugin puts in a
+/// tab (radiant-lyrics' menu trigger in the Lyrics tab) inherits that.
+#[test]
+fn the_now_playing_tabs_compute_tidals_toggle_look() {
+    let (luna, _host, dir) = start(
+        r##"
+const cs = (el) => getComputedStyle(el);
+const go = () => {
+	const lyrics = document.querySelector('[data-test="toggle-lyrics"]');
+	const credits = document.querySelector('[data-test="toggle-credits"]');
+	if (!lyrics || !credits || R.found) return;
+	const mine = document.createElement("div");
+	lyrics.appendChild(mine);
+	const look = (b) => [cs(b).color, cs(b).fontWeight, cs(b).fontSize];
+	R.found = {
+		pressed: [...look(lyrics), cs(lyrics).backgroundColor],
+		other: look(credits),
+		child: cs(mine).fontWeight,
+	};
+};
+new MutationObserver(go).observe(document.body, { childList: true, subtree: true });
+go();
+"##,
+    );
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(np) = frame.now_playing.as_mut() {
+        np.tabs = vec![
+            dom_anchors::NowPlayingTab {
+                name: "lyrics",
+                label: "Lyrics".into(),
+                pressed: true,
+                rect: Some([600.0, 20.0, 80.0, 30.0]),
+            },
+            dom_anchors::NowPlayingTab {
+                name: "credits",
+                label: "Credits".into(),
+                pressed: false,
+                rect: Some([690.0, 20.0, 80.0, 30.0]),
+            },
+        ];
+    }
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = results_until(&luna, &dir, 20, |r| !r["found"].is_null());
+    let f = &r["found"];
+    assert_eq!(
+        f["pressed"],
+        json!(["rgba(0, 0, 0, 0.9)", "500", "14px", "rgb(255, 255, 255)"]),
+        "{r}"
+    );
+    assert_eq!(
+        f["other"],
+        json!(["rgba(255, 255, 255, 0.55)", "500", "14px"]),
+        "{r}"
+    );
+    assert_eq!(f["child"], json!("500"), "{r}");
+    finish(luna, dir);
+}
+
 /// `display` as Chromium computes it on TIDAL's page: a flex or grid item,
 /// an absolutely positioned or floated box is blockified (SongReleaseDate's
 /// `inline-flex` date in the player bar's title, a flex box in TIDAL's
