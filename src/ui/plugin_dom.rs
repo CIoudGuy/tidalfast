@@ -844,7 +844,9 @@ pub fn end_frame(ctx: &egui::Context) {
                 if let Some(luna) = &s.luna {
                     luna.sync_dom(Arc::clone(&tree));
                 }
-                s.sent = Some(tree);
+                if let Some(old) = s.sent.replace(tree) {
+                    free_later(old);
+                }
                 s.sent_at = Some(Instant::now());
                 s.last_frame = Some(frame.clone());
                 if rehover {
@@ -890,6 +892,27 @@ pub fn end_frame(ctx: &egui::Context) {
         next.shell = Default::default();
         s.frame = next;
     });
+}
+
+/// Frees a tree the window sent and no longer needs on a thread of its
+/// own (when the runtime is done with it too). Freeing it on the window's
+/// thread took about 0.15 ms of every frame while a list scrolled under
+/// Luna: a tree is a few hundred elements of a few strings each.
+fn free_later(tree: Arc<HostTree>) {
+    static FREER: std::sync::OnceLock<Option<std::sync::mpsc::Sender<Arc<HostTree>>>> =
+        std::sync::OnceLock::new();
+    let freer = FREER.get_or_init(|| {
+        let (tx, rx) = channel::<Arc<HostTree>>();
+        std::thread::Builder::new()
+            .name("luna-free".into())
+            .spawn(move || rx.into_iter().for_each(drop))
+            .ok()
+            .map(|_| tx)
+    });
+    // Without the thread (or with it gone), the tree is freed here.
+    if let Some(tx) = freer {
+        let _ = tx.send(tree);
+    }
 }
 
 /// How far the pointer must travel between press and release to be a drag.
@@ -9172,6 +9195,20 @@ mod tests {
         let resized = anchor_look(key).expect("a look");
         assert!(!Arc::ptr_eq(&changed, &resized));
         test_overlay(None);
+    }
+
+    /// A sent tree the window is done with is freed on the freeing thread,
+    /// not kept: the last reference goes within a moment.
+    #[test]
+    fn a_tree_handed_to_the_freeing_thread_is_freed() {
+        let tree = Arc::new(dom_anchors::sample_tree());
+        let weak = Arc::downgrade(&tree);
+        free_later(tree);
+        let end = Instant::now() + Duration::from_secs(5);
+        while weak.upgrade().is_some() {
+            assert!(Instant::now() < end, "the tree was never freed");
+            std::thread::sleep(Duration::from_millis(5));
+        }
     }
 
     /// An outline's corners and a box label's margins in `vw` follow the
