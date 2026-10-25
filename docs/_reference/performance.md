@@ -1297,6 +1297,181 @@ bench scrolls 2,000 songs, before (the commit before it) against after:
 Still about 6 ms a frame more than with the demo's 12-song queue: not yet
 found (a probe build is round 3's first step).
 
+## egui fork, round 2 (2026-10-25)
+
+Release builds with the `demo` feature, the same machine and method as the
+fork's round 1 (off-screen, BelowNormal, other builds running at times).
+Where a frame goes was read from egui's `profiling` scopes with puffin and
+from a sampling profiler of the window's thread (its stack every
+millisecond, named from the build's line tables), both in a measurement
+build that is not committed. Each change was then measured on its own,
+switched off and on at run time in that build, in interleaved runs.
+
+### Where a frame goes
+
+The window's thread, microseconds a frame, before the round and after it
+(measurement builds; both scroll columns compare the round's first profile
+build with the last, the others the same build with the changes off and
+on):
+
+| | Scroll 2,000 songs | Home | Album, playlist, Home | Now playing, lyrics | A plugin's element on Home | Cotton candy, Home | Cotton candy, scroll |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| All scopes | 718 / 566 | 480 / 440 | 456 / 414 | 279 / 255 | 626 / 591 | 1,281 / 1,174 | 2,580 / 2,073 |
+| `App::ui`: the app's pass and egui's widgets in it | 426 / 300 | 230 / 228 | 225 / 220 | 84 / 86 | 344 / 348 | 784 / 772 | 1,789 / 1,444 |
+| Tessellation | 61 / 41 | 67 / 45 | 54 / 36 | 17 / 13 | 73 / 51 | 161 / 102 | 220 / 132 |
+| egui_glow's buffer upload | 12 / 12 | 17 / 17 | 12 / 13 | 4 / 5 | 19 / 19 | 54 / 55 | 64 / 57 |
+| Image loading (`try_load_texture`, 15 to 104 images) | 27 / 23 | 15 / 15 | 15 / 15 | 4 / 4 | 16 / 16 | 18 / 18 | 47 / 37 |
+| egui-winit reading the window's state | 16 / 0 | 14 / 0 | 15 / 0 | 17 / 0 | 16 / 0 | 21 / 0 | 22 / 0 |
+| eframe's own, freeing the frame's meshes among it | 18 / 14 | 14 / 11 | 14 / 11 | 9 / 8 | 15 / 12 | 21 / 14 | 41 / 25 |
+| `swap_buffers` (no vsync off-screen) | 24 / 30 | 23 / 24 | 22 / 22 | 26 / 35 | 23 / 24 | 31 / 32 | 32 / 35 |
+
+The plugin is a probe that keeps a fixed element's text changing ten times
+a second. What it showed:
+
+- **egui's widgets are a small share of `App::ui`.** In the samples taken
+  inside it while scrolling, egui's own functions are about 15% of the time
+  (the largest, `Context::get_response`, 2%); the rest is the app's work,
+  the heap and hashing. The largest single cost was the app's: an editable
+  playlist's page collected every song's link into a set every pass, to
+  leave them out of its recommendations, 130 us a pass on the 2,000-song
+  playlist (27% of `App::ui`). The set is now kept until the playlist's
+  songs change.
+- **The heap**: allocating and freeing were about 12% of the window's
+  thread while scrolling. Tessellation grew every frame's meshes from
+  nothing, and eframe freed them after painting.
+- **The window's state**: egui-winit asked winit for it every frame, 14 to
+  22 us, most of it two messages to the window for its title. On the
+  machine measured those messages pass through another program's title-bar
+  hook in `DefWindowProc`, which also costs about 35 us a frame in winit's
+  own handling of its paint message: that part is the machine's, not
+  Tidalfast's.
+- **Image loading** costs about 0.3 us an image a frame: egui's loader made
+  the image's address into a new string to look it up, and Tidalfast's
+  `texture_fit` loader, asked first, hashes it with the standard (SipHash)
+  hasher.
+- Not costs worth a change: the GL buffer upload (one copy of the frame's
+  vertices), text layout outside fast scrolling, the plugin hooks (4 to 5
+  us). fastframe-emoji's output hook builds its map of the frame's text
+  again every frame (fastframe's, not changed here).
+
+Changes in the fork (CIoudGuy/egui, branch `tidalfast`, 36760640 to
+ab59df76), each measured on its own with the same profile:
+
+| Commit | Change | Measured |
+| --- | --- | --- |
+| f9b6cafd | crmne/winit 0bed9dc0 (two macOS fixes) | no change on Windows |
+| 000c1eed | `GlyphRasterization::HorizontalOnly`: glyphs antialiased across only, each row sampled once, as DirectWrite's natural mode draws them | see "Text" below |
+| 3bb2799f | egui-winit reads the window's state for `ViewportInfo` only after a window event that changes it (size, position, scale, focus, occlusion), after viewport commands, when the zoom changes, and at least every half second | 14 to 22 us a frame to under 0.2 |
+| 35b4e0ee | a viewport's next frame is tessellated into the meshes of its last one, each mesh back in the place its primitive had (`TessellatorBuffers`) | tessellation 67 to 77 to 43 to 52 us a frame scrolling, 158 to 167 to 102 to 117 with cotton candy on Home; eframe's own time (freeing the meshes) 20 to 22 to 15 to 17 us; allocations a frame 4,352 to 3,942 scrolling |
+| 81b3c975 | egui's texture loader finds a loaded texture by the borrowed address, and `has_extension` reads the name's last dot instead of parsing a path | image loading 27 to 21 to 25 us a frame scrolling (80 images) |
+| d45c9a3e | a blurred fill (a shadow, a glow) fades as a Gaussian with half the blur as standard deviation, as CSS draws a box-shadow; its mesh is kept with the buffers above while its size stays | see "Shadows and rounded corners" below; tessellation with cotton candy within the runs' spread (cached) |
+| ab59df76 | rounded rectangles keep the corner radius asked for (egui added 0.4) | see below |
+
+Before (tidal 56024542) against after (the eguiperf2 branch: the fork at
+ab59df76, the playlist set kept, glyphs antialiased across only on
+Windows), ordinary release builds, interleaved, three runs each unless two
+are given:
+
+| Measure | Before | After |
+| --- | --- | --- |
+| Scroll, eframe's frame CPU p50 | 0.58, 0.59, 0.63 ms | 0.39, 0.42, 0.43 ms |
+| Scroll, p95 | 0.89, 0.89, 0.99 ms | 0.60, 0.64, 0.67 ms |
+| Scroll, p99 | 1.18, 1.20, 1.37 ms | 0.75, 0.82, 0.88 ms |
+| Scroll, allocations a frame p50 | 2,415 | 1,917 |
+| Cotton candy scroll, frame CPU p50 | 2.20, 2.35, 2.46 ms | 1.39, 1.40, 1.51 ms |
+| Cotton candy scroll, p99 | 4.31, 4.45, 4.77 ms | 3.64, 3.71, 3.77 ms |
+| Cotton candy scroll, allocations a frame p50 | 18,073 to 18,103 | 15,055 to 15,792 |
+| Browse, the app's part of a pass over 20 pages (two runs) | 4.46, 4.59 ms | 4.42, 4.47 ms |
+| Now playing with lyrics, CPU over 20 s (two runs) | 17.0, 17.8% of a core | 17.6, 17.8% |
+| Idle on Home, CPU over 20 s (two runs) | under 0.1% | under 0.1% |
+| First frame presented | 234, 237, 260 ms | 224, 228, 251 ms |
+| Private memory: idle on Home / after scrolling / after the browse pages | 117 to 119 / 130 to 133 / 135 to 138 MB | 116 to 120 / 132 to 133 / 130 to 136 MB |
+
+The scroll numbers include the playlist set, which the frame CPU counts
+(it is in `App::ui`); the window's state and freeing the meshes are
+outside eframe's frame CPU and show in the table above. The now-playing
+view moves less than the window's thread: most of its CPU is the GL
+driver's threads. Memory stays within the runs' range: the kept meshes
+hold about as much as one frame's.
+
+### Text
+
+TIDAL's text looks sharper than Tidalfast's because its rows are crisp:
+Chromium on Windows draws a font in DirectWrite's natural mode unless the
+font's `gasp` table asks for symmetric smoothing, and TIDAL's font does not
+ask for it. In that mode a glyph is antialiased across only: each pixel
+row samples the outline once, along its middle, and its coverage is spread
+a little sideways by ClearType's filter (Skia averages the three
+sub-pixels to gray). Hanken Grotesk asks for symmetric smoothing, so
+Chrome draws it antialiased both ways, as egui does. In TIDAL's capture of
+the album page and queue (1.5x), 7.6% of the horizontal steps between
+neighbouring text pixels are full jumps, against 20.5% in Tidalfast's
+before; its rows have no partly covered row above the round letters.
+
+The oracle was Chrome 155 drawing Hanken Grotesk with its `gasp` table
+changed to leave symmetric smoothing out, so it draws the app's own font
+the way it draws TIDAL's. epaint's new mode was fitted to it: a row sampled
+at its middle and sub-pixels weighted 1, 2, 3, 2, 1 came closest (other
+row offsets and filters were further off). Seven lines (12 to 32 px, 600 to
+800, white, grey and black on white), mean difference in levels of 255:
+
+| Scale | Chrome natural against egui before (both ways) | against egui after (across only) | Chrome both ways against egui before |
+| --- | --- | --- | --- |
+| 1x | 1.92 | 0.60 | 1.23 |
+| 1.25x | 1.44 | 0.50 | 0.96 |
+| 1.5x | 1.23 | 0.35 | 0.79 |
+
+The ink stays the same (0.99 to 1.01 of Chrome's per line at 1.5x).
+`theme::chromium_text_rasterization` sets the mode on Windows in both
+themes, with the per-colour coverage of round 1. On the demo's album page
+at 1.5x the share of full horizontal jumps goes from 20.5% to 10.7%
+(TIDAL 7.6%), and the tops and bottoms of round letters sit on whole rows.
+
+### Shadows and rounded corners
+
+Chrome 155 drew boxes with CSS box-shadows (blur 8 to 32 px, spread,
+offsets, a pink glow) and rounded corners, and epaint drew the same as
+egui shapes, rasterized the way egui_glow does. egui's blur was a linear
+ramp as wide as the blur radius; a browser's is a Gaussian with half the
+radius as standard deviation, which fades over about three times that
+width. Mean difference in levels, and pixels more than 4 levels off, at
+1.5x:
+
+| Box | Before | After |
+| --- | --- | --- |
+| Menu, 0 6px 24px #0009 on #121212 | 0.36, 27 | 0.18, 0 |
+| Card, 0 4px 16px #000c on #3a3a3a | 0.60, 7,131 | 0.06, 0 |
+| White card, 0 4px 16px #0008 on white | 1.48, 15,739 | 0.17, 19 |
+| Pink glow, 0 0 20px on #101010 | 1.32, 18,778 | 0.42, 12 |
+| Square box, 0 2px 8px 4px spread | 0.53, 7,166 | 0.12, 0 |
+| Radius 24, 0 8px 32px #000c | 1.66, 21,488 | 0.11, 0 |
+| White box, radius 12, no shadow (largest pixel difference) | 87 levels | 32 levels |
+| White box, radius 4, no shadow (largest pixel difference) | 114 levels | 61 levels |
+
+A blurred fill is now a mesh of rings round the box, each vertex carrying
+the Gaussian coverage at its place (exact across the box, integrated along
+it), so corners and boxes smaller than their blur fade as Chrome's do.
+About 500 vertices a shadow instead of about 100; the mesh is kept while
+the shadow keeps its size, so a frame only copies it. Chrome's glow tail
+is a little shorter than a Gaussian's; that remains (0.42). The pill
+(radius 50) differs by a few levels along its curve, as both are
+antialiased differently. Tidalfast's own see-through boxes keep their
+outside-only shadow rings (`plugin_dom::outer_shadow_shape`), and a tilted
+cover's shadow is now egui's blur projected.
+
+### Demo shots
+
+The demo's Home, album, playlist, now-playing view and album with the
+queue at 1440 by 900, before against after (two before runs are identical
+to the pixel): 1.6 to 2.5% of the pixels change, nearly all of them text
+(rows crisper, horizontal edges a little softer). Outside text, the album
+cover's shadow changes by 1 to 3 levels (softer and wider) and the cover's
+and buttons' rounded corners by a few pixels each (0.4 px less radius).
+Icons, covers and the layout do not move. A dialog (the sign-in permission
+prompt over Home) changes in 3.1% of the pixels: its text, and its shadow,
+which now darkens what is behind it further out, as a CSS shadow of the
+same blur does.
+
 ## Findings and decisions
 
 - **Luna's work follows changes, not the page.** With Luna on, a pass made
