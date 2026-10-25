@@ -679,6 +679,13 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("artistName", "_artistName_a1d1fe6"),
     ("artworkContainer", "_artworkContainer_3cdbf46"),
     ("bar", "_bar_5b9ac59"),
+    // A collection card's cell (`article._cellContainer_19b23ad`). TIDAL
+    // 2.46.0 has two more `_cellContainer_` modules, the queue song's cell
+    // (`_cellContainer_182d240`) and its cover (`_cellContainer_c39825b`),
+    // which carry those exact hashes here: a theme's rule for one of the
+    // three reaches that one alone (the cotton candy family rounds the
+    // queue's cells, not their covers).
+    ("cellContainer", "_cellContainer_19b23ad"),
     ("cellImage", "_cellImage_0ef8dd3"),
     ("closeButton", "_closeButton_560a9f3"),
     ("contentArea", "_contentArea_cf918f9"),
