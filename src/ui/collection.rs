@@ -3602,8 +3602,12 @@ pub fn playlist(app: &mut App, ui: &mut egui::Ui, id: &str) {
             );
             // TIDAL suggests songs under a playlist the user can edit.
             if app.can_edit_playlist(playlist) {
-                let members =
-                    super::album_extras::member_uris(&page.items.items, &page.local_additions);
+                let members = super::album_extras::cached_member_uris(
+                    ui.ctx(),
+                    id,
+                    &page.items,
+                    &page.local_additions,
+                );
                 super::album_extras::recommended_songs(
                     app,
                     ui,
