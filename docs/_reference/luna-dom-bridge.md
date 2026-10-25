@@ -1559,7 +1559,10 @@ once the taskbar is clicked).
   navigation rows with TIDAL's `data-test` in
   `div._collectionSection_d0e664b` under its heading, first in the
   list's scroll area, and the rows and the heading draw the words
-  plugins wrote there.
+  plugins wrote there. The collapsed sidebar's rail has no navigation
+  rows in the page (older than this round), so no submenu either:
+  nothing of it is built there, and its flyout shows the pages' own
+  names.
 - The player bar's quality badge, while no stream here says, names the
   quality TIDAL 2.46.0's selector gives every song then (its bundle,
   `fZ`): the playback context's (for a song playing here, the quality it
