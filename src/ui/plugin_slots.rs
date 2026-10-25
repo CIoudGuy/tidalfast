@@ -5324,12 +5324,11 @@ fn draw_box(
         ));
     }
     // The first outer `box-shadow` layer (lyrics-everywhere's bubble, the
-    // audio-visualizer's panels, colorama's colour dialog).
-    if let Some(shadow) =
-        super::theme_layout::shadow(style.box_shadow.as_deref(), cx.vars, cx.viewport)
-    {
-        frame = frame.shadow(shadow);
-    }
+    // audio-visualizer's panels, colorama's colour dialog), painted under
+    // the box once it is placed: outside it only, as a browser draws one
+    // (egui's frame shadow also lies under the box's inside, which a
+    // see-through box showed darkened).
+    let shadow = super::theme_layout::shadow(style.box_shadow.as_deref(), cx.vars, cx.viewport);
     frame = frame.corner_radius(CornerRadius::same(radius.clamp(0.0, 255.0) as u8));
 
     let row = if display.contains("flex") {
@@ -5571,6 +5570,7 @@ fn draw_box(
         if let Some(o) = opacity {
             ui.multiply_opacity(o);
         }
+        let shadow_slot = shadow.map(|_| ui.painter().add(egui::Shape::Noop));
         let hand = by_hand.then(|| ui.painter().add(egui::Shape::Noop));
         let bg = (has_url || gradient.is_some()).then(|| ui.painter().add(egui::Shape::Noop));
         // A border goes over the background picture (custom-fonts' dashed
@@ -6257,6 +6257,17 @@ fn draw_box(
                 });
             })
             .response;
+        if let (Some(idx), Some(shadow)) = (shadow_slot, shadow) {
+            let r = shown.rect - margin.map_or(Margin::ZERO, margin_of);
+            ui.painter().set(
+                idx,
+                plugin_dom::outer_shadow_shape(
+                    r,
+                    CornerRadius::same(radius.clamp(0.0, 255.0) as u8),
+                    shadow,
+                ),
+            );
+        }
         if let Some(idx) = hand {
             let r = shown.rect - margin.map_or(Margin::ZERO, margin_of);
             let edges = border.map(|(_, c)| Edges {
@@ -8152,6 +8163,57 @@ mod tests {
             }],
             ..DomOverlay::default()
         }
+    }
+
+    /// A plugin box's `box-shadow` lies outside the box only, as a browser
+    /// draws one: a see-through box (a 30 % white card over a white page)
+    /// shows what is under it, not its own shadow. The box took the shadow
+    /// as egui's frame shadow, which also lies under the box's inside: the
+    /// card's middle was grey 94 instead of white (the bug round 40 fixed
+    /// for the sidebar's card and the player bar).
+    #[test]
+    fn a_see_through_boxs_shadow_stays_outside_it() {
+        let ctx = egui::Context::default();
+        let style = Style {
+            width: Some("120px".into()),
+            height: Some("80px".into()),
+            background_color: Some("rgba(255, 255, 255, 0.3)".into()),
+            box_shadow: Some("0 0 20px 6px rgba(0, 0, 0, 0.9)".into()),
+            ..Style::default()
+        };
+        let shapes = frames_at(&ctx, &one_box(42, style), &[1.0, 1.1])
+            .pop()
+            .expect("drawn");
+        let card = shapes
+            .iter()
+            .find_map(|s| match &s.shape {
+                egui::Shape::Rect(r) if r.fill == Color32::from_white_alpha(77) => Some(r.rect),
+                _ => None,
+            })
+            .expect("the card's fill");
+        let at = |p: egui::Pos2| plugin_dom::test_colour_at(&shapes, p, Color32::WHITE);
+        assert_eq!(at(card.center()), Color32::WHITE, "inside the card");
+        // The shadow is still drawn, round the card.
+        let rings = shapes
+            .iter()
+            .filter(|s| {
+                let mut found = false;
+                fn walk(shape: &egui::Shape, card: Rect, found: &mut bool) {
+                    match shape {
+                        egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, card, found)),
+                        egui::Shape::Rect(r) => {
+                            *found |= r.stroke.width > 0.0
+                                && r.stroke.color.a() > 0
+                                && r.rect.contains_rect(card.expand(1.0));
+                        }
+                        _ => {}
+                    }
+                }
+                walk(&s.shape, card, &mut found);
+                found
+            })
+            .count();
+        assert!(rings > 0, "no shadow round the card");
     }
 
     /// The alpha of the red box painted in `shapes`.
