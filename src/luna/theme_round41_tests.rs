@@ -328,6 +328,46 @@ fn a_navigation_rows_margin_spaces_the_rows() {
     assert!(near(gap(&spaced), 48.4), "spaced {}", gap(&spaced));
 }
 
+/// The cotton candy singles' `._grid_97562f5 { padding: 1.3em .8em .9em
+/// 1em }` on a collection page: TIDAL 2.46.0's grid keeps its width (its
+/// `box-sizing: border-box`) and lays its six cards inside the padding,
+/// 227.6 points wide and 14 in from the grid's left. Tidalfast laid the
+/// cards as with no padding (232 wide, at the grid's edge) and grew the
+/// theme's panel round them instead.
+#[test]
+fn a_card_grids_padding_lies_inside_it() {
+    let css = r#"/* {"name": "Grid padding"} */
+._grid_97562f5 { padding: 1.3em .8em .9em 1em; background-color: rgba(255, 255, 255, .2); }
+"#;
+    let (plain, padded) = plain_and_themed_on("albums", None, "grid.css", css, keys::CARD_GRID);
+    let card = |b: &BTreeMap<String, [f32; 4]>, i: usize| {
+        *b.get(&format!("card:{i}"))
+            .unwrap_or_else(|| panic!("no card {i}"))
+    };
+    let grid = |b: &BTreeMap<String, [f32; 4]>| *b.get(keys::CARD_GRID).expect("the grid");
+    assert!(
+        near(card(&plain, 0)[2], 232.0),
+        "plain {:?}",
+        card(&plain, 0)
+    );
+    let [gx, gy, gw, _] = grid(&padded);
+    assert!(near(gw, grid(&plain)[2]), "the grid keeps its width");
+    let first = card(&padded, 0);
+    assert!(
+        near(first[0], gx + 14.0),
+        "card {first:?} in grid {:?}",
+        grid(&padded)
+    );
+    assert!(
+        near(first[1], gy + 18.2),
+        "card {first:?} in grid {:?}",
+        grid(&padded)
+    );
+    // Six across what the padding leaves: (1472 - 25.2 - 5 x 16) / 6.
+    let want = (gw - 14.0 - 11.2 - 5.0 * 16.0) / 6.0;
+    assert!(near(first[2], want), "width {} want {want}", first[2]);
+}
+
 /// Blur's `[class^="_sidebar_"] { padding-top: 30px }` holds the
 /// navigation 30 points down inside `aside#sidebar` (TIDAL 2.46.0: the
 /// sidebar's box from the window's top under its bar taken out of the
@@ -377,4 +417,31 @@ fn a_sidebar_cards_own_height_ends_it() {
     let red = |c: egui::Color32| c.r() > 200 && c.g() < 60 && c.b() < 60;
     assert!(red(colours[0]), "inside the card's foot: {:?}", colours[0]);
     assert!(!red(colours[1]), "under it: {:?}", colours[1]);
+}
+
+/// TIDAL 2.46.0's track list panel is the list's module box (`.is-
+/// intersecting...ALBUM_ITEMS`): the cotton candy family's `padding:
+/// 11.2px 12.6px 0` and 2-point border lie round the songs, the glass 14.6
+/// points out at the sides and 13.2 above them. Tidalfast laid the panel on
+/// the list's own box.
+#[test]
+fn a_list_panels_padding_and_border_lie_round_the_list() {
+    let css = r#"/* {"name": "List panel"} */
+.is-intersecting._occlusion_de6b9d3._defaultStyles_a1b9da9.ALBUM_ITEMS.tidal-ui__occlusion { padding: 11.2px 12.6px 0; border-style: solid; border-width: 2px; border-color: rgb(255, 255, 255); background-color: rgba(255, 0, 0, .2); }
+"#;
+    let (plain, padded) = plain_and_themed("list-panel.css", css, keys::LIST_PANEL);
+    let list = *plain.get(keys::LIST_PANEL).expect("the list's panel");
+    let panel = *padded.get(keys::LIST_PANEL).expect("the list's panel");
+    assert!(
+        near(panel[0], list[0] - 14.6),
+        "left {panel:?} round {list:?}"
+    );
+    assert!(
+        near(panel[1], list[1] - 13.2),
+        "top {panel:?} round {list:?}"
+    );
+    assert!(
+        near(panel[2], list[2] + 29.2),
+        "width {panel:?} round {list:?}"
+    );
 }
