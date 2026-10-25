@@ -312,6 +312,11 @@ fn page(app: &mut App, ui: &mut Ui) {
         }
     }
     let out = draw(ui, &palette, locale, &snapshot, &index, now, &mut page);
+    // The plugins' Settings are mounted while this tab is drawn (see
+    // `Luna::set_settings_open`).
+    if page.tab == Tab::Plugins {
+        app.plugins.settings_drawn = true;
+    }
     drop(page);
     apply(app, &runtime, out);
 }
@@ -1043,7 +1048,7 @@ fn plugin_card(
     } else {
         info.version.clone()
     };
-    let has_settings = info.settings.is_some();
+    let has_settings = info.has_settings;
     card(ui, palette, error.is_some(), |ui| {
         let h = Header {
             locale,
@@ -1160,7 +1165,7 @@ fn reset_row(
 ) {
     let t = |s: &'static str| gettext(locale, s).into_owned();
     let asking = matches!(confirm, Some(Confirm::ResetPlugin(n)) if *n == info.name);
-    if !asking && (!info.has_stored || (info.hide_settings && info.settings.is_some())) {
+    if !asking && (!info.has_stored || (info.hide_settings && info.has_settings)) {
         return;
     }
     ui.add_space(8.0);

@@ -84,10 +84,13 @@ fn the_template_build_runs_as_a_dev_install_with_its_settings() {
     });
     let p = plugin(&s, "@luna/example").unwrap();
     assert!(p.dev.is_some());
-    assert!(
-        p.settings.is_some(),
-        "the template's Settings component is drawn like a store plugin's"
-    );
+    assert!(p.has_settings, "{:?}", p.status);
+    // The Plugins tab opens: the template's Settings component is drawn
+    // like a store plugin's.
+    luna.set_settings_open(true);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "@luna/example").is_some_and(|p| p.settings.is_some())
+    });
     let log = log_text(p);
     // The template greets `user.meta.profileName`.
     assert!(

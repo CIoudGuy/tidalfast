@@ -426,6 +426,7 @@ fn capture_keybind(code: &str, name: &str) {
     let base = serve(files);
     let dir = temp_dir("keys");
     let luna = Luna::start(config(&dir), Arc::new(MockHost::default())).unwrap();
+    luna.set_settings_open(true);
     luna.install(&format!("{base}/Q"));
     let s = wait_until(&luna, 30, |s| {
         plugin(s, name).is_some_and(|p| p.settings.is_some())
@@ -505,6 +506,7 @@ export function Settings() {
     let base = serve(files);
     let dir = temp_dir("crash");
     let luna = Luna::start(config(&dir), Arc::new(MockHost::default())).unwrap();
+    luna.set_settings_open(true);
     luna.install(&format!("{base}/C"));
     let crashed = |s: &LunaSnapshot| {
         let mut e = None;

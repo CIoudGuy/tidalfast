@@ -13251,6 +13251,7 @@ impl App {
         } else {
             crate::ui::show(self, ui);
         }
+        self.luna_settings_view();
         crate::ui::plugin_dom::end_frame(ctx);
         crate::ui::plugin_windows::show(ctx, self.plugins.luna.as_ref());
         self.apply_actions(ctx);
