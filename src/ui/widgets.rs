@@ -4308,7 +4308,11 @@ pub fn virtual_collection_cards(
     if count == 0 {
         return;
     }
-    let row_width = ui.available_width();
+    // A theme's padding on TIDAL's grid lies inside its box, round the
+    // cards.
+    let [pad_top, pad_right, pad_bottom, pad_left] = super::plugin_dom::collection_grid_padding();
+    let box_width = ui.available_width();
+    let row_width = (box_width - pad_left - pad_right).max(1.0);
     let columns =
         (((row_width + CARD_GAP) / (COLLECTION_CARD_MIN + CARD_GAP)).floor() as usize).max(1);
     let width = ((row_width - CARD_GAP * (columns as f32 - 1.0)) / columns as f32).max(1.0);
@@ -4319,13 +4323,22 @@ pub fn virtual_collection_cards(
     let rows_height = row_count as f32 * (width + text_height + CARD_GAP) - CARD_GAP;
     super::plugin_dom::collection_grid(
         ui,
-        Rect::from_min_size(ui.cursor().min, vec2(row_width, rows_height.max(0.0))),
+        Rect::from_min_size(
+            ui.cursor().min,
+            vec2(box_width, rows_height.max(0.0) + pad_top + pad_bottom),
+        ),
     );
     let previous_spacing = ui.spacing().item_spacing;
     ui.spacing_mut().item_spacing.y = 0.0;
+    if pad_top > 0.0 {
+        ui.add_space(pad_top);
+    }
     let grid_id = ui.unique_id().with("collection-card");
     virtual_rows(ui, row_count, width + text_height + CARD_GAP, |ui, row| {
         ui.horizontal(|ui| {
+            if pad_left > 0.0 {
+                ui.add_space(pad_left);
+            }
             ui.spacing_mut().item_spacing = vec2(CARD_GAP, 0.0);
             let start = row * columns;
             let end = (start + columns).min(count);
@@ -4339,6 +4352,9 @@ pub fn virtual_collection_cards(
         });
         ui.allocate_space(vec2(row_width, CARD_GAP));
     });
+    if pad_bottom > 0.0 {
+        ui.add_space(pad_bottom);
+    }
     ui.spacing_mut().item_spacing = previous_spacing;
 }
 

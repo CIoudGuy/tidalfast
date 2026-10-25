@@ -2241,19 +2241,25 @@ pub fn list_panel(ui: &egui::Ui, r: Rect) {
                 && f.layer == ui.layer_id()
                 && f.rect.bottom() <= r.top() + 1.0
         });
+    // TIDAL's panel is the list's module box: its padding and border lie
+    // round the list (the cotton candy family's 11.2 and 12.6 inside a
+    // 2-point border: the glass 15 points out from the album's songs).
+    let key = dom_anchors::keys::LIST_PANEL;
+    let pad = anchor_look(key)
+        .and_then(|l| l.padding)
+        .unwrap_or([0.0; 4])
+        .map(|p| p.clamp(0.0, 32.0));
+    let border = outline_sides(key, Color32::TRANSPARENT)
+        .map_or([0.0; 4], |(sides, _)| sides.map(|w| w.clamp(0.0, 8.0)));
+    let round = |inner: Rect| {
+        Rect::from_min_max(
+            inner.min - egui::vec2(pad[3] + border[3], pad[0] + border[0]),
+            inner.max + egui::vec2(pad[1] + border[1], pad[2] + border[2]),
+        )
+    };
     let panel = match &filter {
-        Some(f) => {
-            let both = f.rect.union(r);
-            let pad = anchor_look(dom_anchors::keys::LIST_PANEL)
-                .and_then(|l| l.padding)
-                .unwrap_or([0.0; 4])
-                .map(|p| p.clamp(0.0, 32.0));
-            Rect::from_min_max(
-                both.min - egui::vec2(pad[3], pad[0]),
-                both.max + egui::vec2(pad[1], pad[2]),
-            )
-        }
-        None => r,
+        Some(f) => round(f.rect.union(r)),
+        None => round(r),
     };
     note(|f| {
         if let Some(p) = f.page.as_mut() {
@@ -2345,11 +2351,10 @@ fn paint_box_into(ui: &egui::Ui, slot: egui::layers::ShapeIdx, key: &str, r: Rec
     ui.painter().set(slot, egui::Shape::Vec(shapes));
 }
 
-/// A collection page's grid of cards takes `r` (all its rows): gives it
-/// TIDAL's `section._grid_97562f5` anchor and paints the theme's box for it
-/// under the cards (the cotton candy family's glass panel), grown by the
-/// box's padding round the cards as TIDAL's section is. Nothing without a
-/// theme rule for it.
+/// A collection page's grid of cards is the box `r` (all its rows, its
+/// padding included): gives it TIDAL's `section._grid_97562f5` anchor and
+/// paints the theme's box for it under the cards (the cotton candy
+/// family's glass panel). Nothing without a theme rule for it.
 pub fn collection_grid(ui: &egui::Ui, r: Rect) {
     if !on() {
         return;
@@ -2361,10 +2366,20 @@ pub fn collection_grid(ui: &egui::Ui, r: Rect) {
     });
     let key = dom_anchors::keys::CARD_GRID;
     if let Some(look) = anchor_look(key) {
-        let [t, right, b, l] = look.padding.unwrap_or([0.0; 4]).map(|p| p.clamp(0.0, 32.0));
-        let outer = Rect::from_min_max(r.min - egui::vec2(l, t), r.max + egui::vec2(right, b));
-        paint_look(ui, key, &look, outer, egui::CornerRadius::ZERO);
+        paint_look(ui, key, &look, r, egui::CornerRadius::ZERO);
     }
+}
+
+/// The padding a theme gives a collection page's grid of cards, top right
+/// bottom left: room inside the grid's box, round the cards, which narrows
+/// them as TIDAL's `box-sizing: border-box` grid does (the cotton candy
+/// singles' `padding: 1.3em .8em .9em 1em`: six 228-point cards across
+/// TIDAL 2.46.0's 1475-point grid, not 232).
+pub fn collection_grid_padding() -> [f32; 4] {
+    anchor_look(dom_anchors::keys::CARD_GRID)
+        .and_then(|look| look.padding)
+        .unwrap_or([0.0; 4])
+        .map(|p| p.clamp(0.0, 64.0))
 }
 
 /// The thumbnail of track row `index` of `list` is drawn in `r`: gives it
