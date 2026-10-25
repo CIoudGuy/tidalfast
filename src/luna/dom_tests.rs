@@ -727,6 +727,53 @@ R.found = {
     finish(luna, dir);
 }
 
+/// TIDAL's market buttons compute their type and colour from its sheet:
+/// a size class sets the type (small 14 px at 600, medium 16 px), a class
+/// that sets the button's own tokens wins whatever the class order (a
+/// plugin's copy of the now-playing header's full screen button reads
+/// 55 % white at 600, as TidalLyricsTranslate's in TIDAL), and Play's
+/// primary pill is TIDAL's dark grey, a secondary one white.
+#[test]
+fn market_buttons_compute_tidals_type_and_colour() {
+    let (luna, _host, dir) = start(
+        r##"
+const cs = (el) => getComputedStyle(el);
+lib.observe(unloads, '[data-test="footer-track-title"]', () => {
+	if (R.found) return;
+	const btn = (cls) => {
+		const b = document.createElement("button");
+		b.className = cls;
+		document.body.appendChild(b);
+		return b;
+	};
+	const look = (b) => [cs(b).color, cs(b).fontWeight, cs(b).fontSize];
+	R.found = {
+		icon: look(btn("_marketButton_1d16h_1 _tertiary_1d16h_8 _small_1d16h_3 _iconOnly_1d16h_1 _iconButton_fe68160 _fullscreenButton_109e50d")),
+		iconReordered: look(btn("_iconButton_fe68160 _small_1d16h_3 _iconOnly_1d16h_1 _tertiary_1d16h_8 _marketButton_1d16h_1")),
+		play: look(btn("_marketButton_1d16h_1 _primary_1d16h_6 _medium_1d16h_4")),
+		shuffle: look(btn("_marketButton_1d16h_1 _secondary_1d16h_7 _medium_1d16h_4")),
+	};
+});
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 20, |r| !r["found"].is_null());
+    let f = &r["found"];
+    assert_eq!(
+        f["icon"],
+        json!(["rgba(255, 255, 255, 0.55)", "600", "14px"]),
+        "{r}"
+    );
+    assert_eq!(f["iconReordered"], f["icon"], "{r}");
+    assert_eq!(f["play"], json!(["rgb(16, 16, 16)", "600", "16px"]), "{r}");
+    assert_eq!(
+        f["shuffle"],
+        json!(["rgb(255, 255, 255)", "600", "16px"]),
+        "{r}"
+    );
+    finish(luna, dir);
+}
+
 /// `display` as Chromium computes it on TIDAL's page: a flex or grid item,
 /// an absolutely positioned or floated box is blockified (SongReleaseDate's
 /// `inline-flex` date in the player bar's title, a flex box in TIDAL's
