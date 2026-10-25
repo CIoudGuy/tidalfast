@@ -4528,6 +4528,78 @@ fn until_layout_waiting(luna: &Luna, mut cond: impl FnMut(Option<Instant>) -> bo
     }
 }
 
+/// A layout read answers with boxes; the page it was laid out from (TIDAL
+/// left the album for Home) reaches the document after the running task,
+/// as Chromium never runs TIDAL's render inside a read. A walk that reads
+/// each of its elements' boxes (a recorder's snapshot, a plugin's measure
+/// loop) found a badge in a row's title wrapper cut from its row: the
+/// plugin child outlived its row as a root of its own.
+#[test]
+fn a_layout_read_does_not_take_the_page_apart_under_the_running_task() {
+    let (luna, _host, dir) = start(
+        r#"
+const go = () => {
+	const titles = [...document.querySelectorAll('[data-test="table-cell-title"]')];
+	if (titles.length < 2) return setTimeout(go, 20);
+	for (const t of titles) {
+		const b = document.createElement("span");
+		b.className = "probe-badge";
+		b.textContent = "Electronic";
+		t.after(b);
+	}
+	document.querySelector('[data-test="footer-player"]').style.minWidth = "900px";
+	const during = [];
+	for (const b of document.querySelectorAll(".probe-badge")) {
+		b.getBoundingClientRect();
+		const wrap = b.parentElement;
+		during.push(!!wrap?.closest('[data-test="tracklist-row"]') && b.isConnected);
+	}
+	R.badges = titles.length;
+	R.during = during;
+	setTimeout(() => {
+		R.after = document.querySelectorAll(".probe-badge").length;
+		R.rows = document.querySelectorAll('[data-test="tracklist-row"]').length;
+	}, 300);
+};
+setTimeout(go, 300);
+"#,
+    );
+    let mut t = tree();
+    node(&mut t, keys::FOOTER).rect = Some([0.0, 700.0, 800.0, 90.0]);
+    assert!(t.nodes.iter().any(|n| n.key.starts_with("row:")));
+    luna.sync_dom(t.clone());
+    // The change is drawn: the tree laid out with it has left the page.
+    let end = Instant::now() + Duration::from_secs(10);
+    loop {
+        let o = luna.dom_overlay();
+        if o.hosts
+            .get(keys::FOOTER)
+            .is_some_and(|h| h.style.min_width.as_deref() == Some("900px"))
+        {
+            luna.drawing_boxes(o.version);
+            let mut home = t.clone();
+            home.nodes.retain(|n| !n.key.starts_with("row:"));
+            home.laid_out = o.version;
+            luna.sync_dom(home);
+            break;
+        }
+        assert!(Instant::now() < end, "the change never reached the overlay");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    let r = results_until(&luna, &dir, 10, |r| !r["after"].is_null());
+    let badges = r["badges"].as_u64().unwrap();
+    assert!(badges >= 2, "{r}");
+    assert_eq!(
+        r["during"],
+        json!(vec![true; badges as usize]),
+        "every badge in its row for the whole task: {r}"
+    );
+    // After the task the page is Home: the rows went with their badges.
+    assert_eq!(r["after"], json!(0), "{r}");
+    assert_eq!(r["rows"], json!(0), "{r}");
+    finish(luna, dir);
+}
+
 /// A read never stalls the runtime for a window that does not lay the
 /// change out: it gives up when the UI did not start drawing it in time,
 /// or, drawing it, did not send its tree, and reads the boxes it has.
