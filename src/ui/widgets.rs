@@ -4503,7 +4503,7 @@ pub fn collection_card(
     let mut play = false;
     if ui.is_rect_visible(rect) {
         let hovered = ui.rect_contains_pointer(rect);
-        let (rect, width, card_key) = themed_card(ui, rect, width, circular);
+        let card_key = super::plugin_dom::grid_card(rect, circular);
         // A plugin hid the card (`display: none`): its cell stays, empty.
         if card_key.as_deref().is_some_and(super::plugin_dom::hidden) {
             return CardResponse {
@@ -4512,6 +4512,59 @@ pub fn collection_card(
                 play: false,
             };
         }
+        let style = card_key
+            .as_deref()
+            .and_then(super::plugin_dom::grid_card_style);
+        let [pad_top, pad_right, pad_bottom, pad_left] = style.map_or([0.0; 4], |s| s.padding);
+        let cell = rect;
+        let width = if style.is_some() {
+            (cell.width() - pad_left - pad_right).max(1.0)
+        } else {
+            width
+        };
+        let shown = super::plugin_dom::card_text(card_key.as_deref(), title, subtitle);
+        let subtitle_galley = (!subtitle.is_empty()).then(|| {
+            ellipsized(
+                ui,
+                shown.subtitle.as_deref().unwrap_or(subtitle),
+                theme::semibold(14.0),
+                secondary,
+                width,
+                subtitle_lines.max(1),
+            )
+        });
+        let subtitle_rows = subtitle_galley
+            .as_ref()
+            .map_or(0.0, |g| (g.size().y / 17.0).round().max(1.0));
+        // TIDAL's card is as tall as what it holds (the cover, then the
+        // title, subtitle and meta lines below it) with its padding round
+        // them; the grid's row runs on below it, empty. A theme's fill
+        // and pictures for the card cover that box, not the row.
+        let content = width
+            + 14.0
+            + 21.0
+            + if subtitle_galley.is_some() {
+                20.0 * subtitle_rows + 3.0
+            } else {
+                0.0
+            }
+            + if meta.is_empty() { 0.0 } else { 16.0 };
+        let card_box =
+            Rect::from_min_size(cell.min, vec2(cell.width(), pad_top + content + pad_bottom));
+        if let Some(key) = &card_key {
+            super::plugin_dom::grid_card_box(key, card_box);
+        }
+        if let (Some(style), Some(key)) = (style, &card_key) {
+            let radius = CornerRadius::same(style.radius.clamp(0.0, 255.0).round() as u8);
+            if let Some(fill) = style.fill {
+                ui.painter().rect_filled(card_box, radius, fill);
+            }
+            super::plugin_dom::paint_host_layers(ui, key, card_box);
+        }
+        let rect = Rect::from_min_max(
+            card_box.min + vec2(pad_left, pad_top),
+            pos2(card_box.right() - pad_right, card_box.bottom() - pad_bottom),
+        );
         let image_rect = Rect::from_min_size(rect.min, Vec2::splat(width));
         let radius = if circular { width / 2.0 } else { 3.0 };
         let (drawn, _) = paint_card_cover(
@@ -4545,7 +4598,6 @@ pub fn collection_card(
         // Text lines: 20 high, the title's 14 under the cover. The words
         // drawn are the app's, what a plugin wrote over them, or none where
         // a plugin hid them; the app's own are noted where they sit.
-        let shown = super::plugin_dom::card_text(card_key.as_deref(), title, subtitle);
         let mut top = image_rect.bottom() + 14.0;
         // Where a line's galley goes: centred under a portrait, else at the
         // start of the card (its end for right-to-left words).
@@ -4576,21 +4628,12 @@ pub fn collection_card(
         }
         top += 21.0;
         let mut subtitle_rect = Rect::NOTHING;
-        if !subtitle.is_empty() {
-            let galley = ellipsized(
-                ui,
-                shown.subtitle.as_deref().unwrap_or(subtitle),
-                theme::semibold(14.0),
-                secondary,
-                width,
-                subtitle_lines.max(1),
-            );
-            let lines = (galley.size().y / 17.0).round().max(1.0);
+        if let Some(galley) = subtitle_galley {
             subtitle_rect = place(&galley, top + 1.0);
             if shown.subtitle.as_deref().is_some_and(|s| !s.is_empty()) {
                 ui.painter().galley(subtitle_rect.min, galley, secondary);
             }
-            top += 20.0 * lines + 3.0;
+            top += 20.0 * subtitle_rows + 3.0;
         }
         super::plugin_dom::card_words(
             card_key.as_deref(),

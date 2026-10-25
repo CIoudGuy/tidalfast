@@ -200,3 +200,62 @@ fn a_theme_switched_to_leaves_nothing_of_the_one_before() {
     assert_eq!(look(&cleared), look(&none_alone));
     assert!(installed.is_empty(), "themes left installed: {installed:?}");
 }
+/// TIDAL's My Collection card is as tall as what it holds: its cover, its
+/// lines (title, subtitle, meta) and its padding round them. TIDAL 2.46.0's
+/// grid row (`div._staticCell_d3a8e6a`) is 334 points tall under a
+/// 232-point cover, the card in it 305.5 with no theme and 301 under the
+/// cotton candy family's `padding: .6em` (Chromium, the parity checker's
+/// replay). Tidalfast's card filled the row, so a theme's fill for the card
+/// (the cotton candy family's glass cards) ran 29 points below TIDAL's.
+#[test]
+fn a_collection_cards_box_ends_with_what_it_holds() {
+    use super::theme_round41_tests as r41;
+    use dom_anchors::keys;
+    let fill = egui::Color32::from_rgb(250, 160, 200);
+    let css = "/* {\"name\": \"Padded cards\"} */\n[data-test^=\"grid-item\"] { background-color: rgb(250, 160, 200); padding: 8px; }\n";
+    let (ctx, mut app) = r41::demo_app("albums", Some("many-albums"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let rect = |tree: &super::dom::HostTree, key: &str| {
+        tree.nodes
+            .iter()
+            .find(|n| n.key == key)
+            .and_then(|n| n.rect)
+            .unwrap_or_else(|| panic!("no box for {key}"))
+    };
+    // With no theme: the cover, then 74 points of lines (TIDAL: 305.5
+    // under a 232-point cover).
+    let card = rect(&plain, &keys::card(0));
+    let cover = rect(&plain, &keys::card_cover(0));
+    let plain_lines = card[3] - cover[3];
+    let mut o = r41::styled("padded-cards.css", css, &plain, &keys::card(0));
+    o.version = 2;
+    let padded = r41::drawn(&ctx, &mut app, o.clone());
+    let card = rect(&padded, &keys::card(0));
+    let cover = rect(&padded, &keys::card_cover(0));
+    // Below the card's foot, inside its grid row: the page, not the fill.
+    let x = card[0] + 20.0;
+    let colours = r41::painted_at(
+        &ctx,
+        &mut app,
+        o,
+        &[[x, card[1] + card[3] - 3.0], [x, card[1] + card[3] + 6.0]],
+    );
+    app.backend.shutdown();
+    assert!(
+        (plain_lines - 74.0).abs() < 0.5,
+        "lines under the cover: {plain_lines}"
+    );
+    assert!(
+        (card[3] - (8.0 + cover[3] + 74.0 + 8.0)).abs() < 0.5,
+        "card {card:?}, cover {cover:?}"
+    );
+    assert_eq!(colours[0], fill, "the card's foot is filled");
+    assert_ne!(colours[1], fill, "the row below the card is not");
+}
