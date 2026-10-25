@@ -739,6 +739,9 @@
 		speech: { command: null, recognitionActive: false, recognitionSupported: false },
 		player: { activeDeviceId: "default", activeDeviceMode: "shared", activeDeviceType: "default", desiredDeviceMode: {}, forceVolume: {}, hasPreloadedNextProduct: false, devices: [systemDevice], availableDevices: [systemDevice], preloadedItem: null, isConnected: true },
 		settings: {
+			// The now-playing view's tab TIDAL opens on (`lyrics`, `credits`,
+			// `similar`; null: none), as the app last showed it.
+			nowPlayingActiveView: null,
 			autoPlay: true,
 			audioNormalization: "ALBUM",
 			audioSpectrumEnabled: false,
@@ -821,6 +824,8 @@
 				for (const old of [...lyricsKnown.keys()].slice(0, Math.max(0, lyricsKnown.size - 20))) lyricsKnown.delete(old);
 				return;
 			}
+			case "settings/SET_NOW_PLAYING_ACTIVE_VIEW":
+				return set("settings", { nowPlayingActiveView: typeof p === "string" ? p : null });
 			case "settings/TOGGLE_AUTOPLAY":
 				return set("settings", { autoPlay: !local.settings.autoPlay });
 			case "settings/SET_AUTOPLAY":

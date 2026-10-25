@@ -242,6 +242,10 @@ pub enum HostCommand {
     RetitleTracks(Vec<(String, String)>),
     /// Open a TIDAL web path (`/album/1`, `/playlist/uuid`, ...).
     Navigate(String),
+    /// The now-playing view's tab (`lyrics`, `credits`, `similar`; `None`:
+    /// none), as TIDAL's `settings/SET_NOW_PLAYING_ACTIVE_VIEW`; the view
+    /// itself stays open or closed.
+    SetNowPlayingView(Option<String>),
     /// The main window to or from full screen.
     SetFullscreen(bool),
     /// Switch the output between the shared mode (`false`) and exclusive,
