@@ -2031,6 +2031,35 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                 play_here(app);
                 app.local.playback = crate::player::Playback::Playing;
             }
+            // A folder of eleven playlists first in the library, closed, as
+            // in the theme parity checker's capture of TIDAL ("Rated"): the
+            // playlist the checker opens is then the list's second row, as
+            // the one open in the capture is.
+            "folder-first" => {
+                app.library.folders = vec![crate::api::models::PlaylistFolder {
+                    id: "fold0".into(),
+                    name: "Rated".into(),
+                    parent_id: None,
+                    playlist_ids: (0..11).map(|i| format!("rated{i}")).collect(),
+                }];
+                app.settings.collapsed_folders = vec!["fold0".into()];
+            }
+            // The song in the player bar is on none of the demo's album and
+            // playlist pages, as in the theme parity checker's capture of
+            // TIDAL (its bar's song is from another album): no row of the
+            // page shown is the playing one. Before `quality-pill`.
+            "playing-elsewhere" => {
+                let elsewhere = track(45);
+                if let Loadable::Loaded(queue) = &mut app.queue {
+                    queue.currently_playing = Some(PlayableItem::Track(elsewhere.clone()));
+                }
+                if let Some(remote) = &mut app.remote {
+                    remote.state.item = Some(PlayableItem::Track(elsewhere.clone()));
+                }
+                if let Some(id) = &elsewhere.id {
+                    app.track_cache.insert(id.clone(), elsewhere);
+                }
+            }
             // This computer playing CD-quality FLAC: the player bar's
             // quality pill.
             "quality-pill" | "quality-pill-max" => {
@@ -2510,6 +2539,7 @@ pub fn control(app: &mut App, ctx: &egui::Context, control: crate::dev_script::D
             app.selection = None;
             egui::Popup::close_all(ctx);
             crate::motion::set_still(false);
+            app.library.folders.clear();
             populate(app);
             apply_flags(app, Some(&page), show.as_deref());
         }
@@ -2939,6 +2969,64 @@ mod tests {
         let long = songs(&app);
         assert_eq!(long.len(), 20);
         assert_eq!(long[..12], own[..]);
+        app.backend.shutdown();
+    }
+
+    /// `--demo-show folder-first` (the parity checker's pages): a closed
+    /// folder heads the library's playlists, as "Rated" does in the
+    /// checker's capture of TIDAL (the sidebar lays folders before the
+    /// playlists in none), so the playlist the checker opens is the list's
+    /// second row, as the open one is in the capture.
+    #[test]
+    fn a_folder_can_head_the_library_as_in_tidals_capture() {
+        let (_ctx, mut app) = accessible_app("folder-first");
+        apply_flags(&mut app, Some("playlist:pl0"), Some("folder-first"));
+        let top: Vec<_> = app
+            .library
+            .folders
+            .iter()
+            .filter(|f| f.parent_id.is_none())
+            .collect();
+        assert_eq!(top.len(), 1, "one folder");
+        let Loadable::Loaded(listed) = &app.library.playlists else {
+            panic!("the demo's playlists");
+        };
+        assert!(
+            top[0]
+                .playlist_ids
+                .iter()
+                .all(|id| listed.iter().all(|p| &p.id != id)),
+            "it holds none of the listed playlists"
+        );
+        assert!(app.settings.collapsed_folders.contains(&top[0].id));
+        app.backend.shutdown();
+    }
+
+    /// `--demo-show playing-elsewhere` (the parity checker's pages): the
+    /// player bar's song is on none of the pages the checker shoots, as in
+    /// its capture of TIDAL, where no row of the album or the playlist is
+    /// the playing one; the bar still shows it, paused, with its quality.
+    #[test]
+    fn the_playing_song_can_be_one_no_page_shows() {
+        let (_ctx, mut app) = accessible_app("playing-elsewhere");
+        apply_flags(
+            &mut app,
+            Some("album:alb0"),
+            Some("playing-elsewhere,quality-pill,long-album"),
+        );
+        let now = app.now_playing().expect("a song in the bar");
+        let on_album = app.album_pages["alb0"]
+            .tracks
+            .items
+            .iter()
+            .any(|t| t.uri == now.uri);
+        let on_playlist = app.playlist_pages["pl0"]
+            .items
+            .items
+            .iter()
+            .any(|i| matches!(&i.item, Some(PlayableItem::Track(t)) if t.uri == now.uri));
+        assert!(!on_album && !on_playlist, "{} is on a page", now.uri);
+        assert!(app.local.format.is_some(), "the bar's quality pill");
         app.backend.shutdown();
     }
 
