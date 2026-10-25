@@ -274,21 +274,25 @@ fn bar_contents(
         f.shell.header = super::plugin_dom::rect(header.unwrap_or(ui.max_rect()));
     });
     if header.is_none() {
-        // Over a plugin layer behind the page, `#mainHeader`'s own
-        // background is one more layer on `main`'s (spinny-cover's 30 %).
-        let key = crate::luna::dom_anchors::keys::HEADER;
-        if super::plugin_dom::on()
-            && super::plugin_slots::has_backdrop()
-            && let Some(fill) = super::plugin_dom::fill(key)
-        {
-            ui.painter()
-                .rect_filled(header_box(ui.max_rect()), 0.0, fill);
+        // `#mainHeader` as a theme draws it over the page's top: its own
+        // background (Giorgeous' dark glass band, TidalCustomTheme's pink,
+        // spinny-cover's 30 % over its layer behind the page) over its
+        // backdrop filter, its `::before` (Blur's glass band) and borders.
+        // Its first box's top margin moved the controls, not the box (the
+        // cotton candy family's `#mainHeader > * { margin-top: 2em }`), and
+        // a height of its own is the box's (Cotton Candy Nights' `2em`).
+        let mut boxed = header_box(ui.max_rect());
+        let inner = super::plugin_dom::margins(keys::HEADER_BAR)[0].unwrap_or(0.0);
+        boxed = boxed.translate(Vec2::new(0.0, -inner));
+        if let Some(height) = super::plugin_dom::own_height(keys::HEADER) {
+            boxed.max.y = boxed.min.y + height;
         }
-        // `#mainHeader` and its `::before` (blur's glass band).
-        super::plugin_dom::paint_host_layers(
+        super::plugin_dom::paint_part(
             ui,
-            crate::luna::dom_anchors::keys::HEADER,
-            header_box(ui.max_rect()),
+            keys::HEADER,
+            boxed,
+            CornerRadius::ZERO,
+            egui::Color32::TRANSPARENT,
         );
     }
     ui.add_space(HEADER_LEFT);

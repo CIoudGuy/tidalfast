@@ -199,3 +199,39 @@ fn a_playlists_header_box_fades_out_below_its_foot() {
         "the foot fades out from {hard} to {blurred}"
     );
 }
+
+/// A theme's background on `#mainHeader` fills TIDAL's header box over the
+/// page's top on every page (Giorgeous' dark glass band, TidalCustomTheme's
+/// pink: TIDAL 2.46.0 under them, the parity checker's replay). Tidalfast
+/// painted it only over a plugin's layer behind the page, so a page with no
+/// header art showed no band.
+#[test]
+fn a_themes_header_fill_lies_over_the_pages_top() {
+    use super::theme_round41_tests as r41;
+    let green = egui::Color32::from_rgb(10, 200, 30);
+    let css =
+        "/* {\"name\": \"Green header\"} */\n#mainHeader { background-color: rgb(10, 200, 30); }\n";
+    let (ctx, mut app) = r41::demo_app("albums", None);
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let mut o = r41::styled("green-header.css", css, &plain, dom_anchors::keys::HEADER);
+    o.version = 2;
+    let header = plain
+        .nodes
+        .iter()
+        .find(|n| n.key == dom_anchors::keys::HEADER)
+        .and_then(|n| n.rect)
+        .expect("the header's box");
+    let middle = [header[0] + header[2] / 2.0, header[1] + header[3] / 2.0];
+    let below = [middle[0], header[1] + header[3] + 40.0];
+    let got = r41::painted_at(&ctx, &mut app, o, &[middle, below]);
+    app.backend.shutdown();
+    assert_eq!(got[0], green, "the header's box");
+    assert_ne!(got[1], green, "the page under it");
+}
