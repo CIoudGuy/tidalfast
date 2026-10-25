@@ -1472,6 +1472,99 @@ prompt over Home) changes in 3.1% of the pixels: its text, and its shadow,
 which now darkens what is behind it further out, as a CSS shadow of the
 same blur does.
 
+## Themes, speed round 3 (2026-10-25)
+
+Release builds with the `demo` feature, the same machine and method as
+round 1 (off-screen, BelowNormal, before and after run one after the
+other): tidal f21a6706 against the five commits below on it. Scroll:
+three runs each, with the demo's 12-song queue and with 2,000 liked
+songs queued (`--demo-show big-playlist,long-queue`); browse two, idle
+three (the first run before filled the artwork cache and is left out).
+
+On this base the bench's window is paced at the display's 144 Hz even
+off-screen. Round 1's and round 2's runs, and the commits' own numbers
+below, were not paced (800 frames a second and more, which reach the
+list's end in about a second, so their p50 was mostly a frame at rest).
+Now every frame of the five seconds down scrolls: p50 is a scrolling
+frame, p95 and p99 sit at the 6.9 ms frame interval, and the frames
+drawn in the ten seconds show the frames missed. Compare within the
+table, not with round 1's.
+
+**Where the long queue's 6 ms went.** A probe build put 4.7 ms of
+every pass in one place: the host kept its old snapshot of what plugins
+read when the app's new one compared equal, so once the app had made
+the queue's songs again (the song cache grows when a page opens), every
+pass compared 2,000 songs element by element instead of by pointer.
+
+| Commit | Change | Measured on its own (round 3's builds, on tidal 56024542, not paced) |
+| --- | --- | --- |
+| a56524ae | the snapshot plugins read is replaced even when it is equal | 2,000 queued, scroll p50 no theme 7.64-9.00 to 0.85-1.29 ms, cotton candy 8.07-9.24 to 2.29-3.09 |
+| edde7eb8 | a theme's lengths in `vw` and `vh` follow the window's size (they kept the size they were resolved at until the overlay changed, a bug) | no cost |
+| 2e9c599d | the saved flags count their changes; a queued song's id is read without a `split` | 2,000 queued, p50 no theme 0.95-1.43 to 0.83-0.94 ms, cotton candy 2.73-2.81 to 1.68-2.52 |
+| 4a6553d8 | a read of the store gets only the large parts that changed | below |
+| fa64685d | a tree the window sent is freed on a thread of its own (0.13 to 0.17 ms a tree) | p95 cotton candy, median of six, 3.39 to 3.14 ms |
+
+Before against after, the five together:
+
+| Measure | Luna off | No theme | Blur | Meteor Night | Tidal TUI | Cotton candy (animated) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Scroll, frame CPU p50, ms | 1.52-1.88 / 1.57-1.69 | 2.70-2.88 / 2.44-2.63 | 2.86-2.98 / 2.74-3.08 | 2.88-3.04 / 2.71-2.84 | 2.30-3.21 / 2.75-3.17 | 3.69-3.90 / 3.26-3.73 |
+| Scroll, p99, ms | 6.82-6.87 / 6.80-6.84 | 6.85-6.93 / 6.86-6.92 | 6.80-6.90 / 4.25-6.89 | 6.88-6.98 / 6.81-6.97 | 6.88-7.00 / 6.78-6.92 | 6.95-7.16 / 6.86-6.94 |
+| 2,000 queued: scroll p50, ms | 1.33-1.76 / 1.47-1.67 | 7.47-8.74 / 2.16-2.92 | 7.48-9.54 / 2.52-2.93 | 7.91-8.46 / 2.66-2.94 | 6.99-8.25 / 2.67-3.07 | 8.76-9.02 / 3.77-4.00 |
+| 2,000 queued: p99, ms | 6.81-6.86 / 6.79-6.85 | 10.73-12.52 / 6.80-6.89 | 10.99-13.60 / 6.85-6.91 | 11.09-14.25 / 6.88-6.91 | 9.93-14.37 / 6.89-6.95 | 12.33-14.01 / 6.78-6.87 |
+| 2,000 queued: frames in the 10 s (1,440 at 144 Hz) | 1,440-1,442 / 1,441-1,442 | 1,067-1,249 / 1,441-1,442 | 1,017-1,272 / 1,436-1,441 | 1,099-1,222 / 1,441 | 1,122-1,328 / 1,441 | 1,024-1,087 / 1,404-1,436 |
+| Browse, a pass summed over the 20 pages, ms | 13.1-14.2 / 12.7-14.2 | 13.3-15.2 / 14.2-15.3 | 17.4-17.9 / 17.8-17.9 | 18.7-20.1 / 14.6-17.7 | 15.5-17.0 / 16.4-16.6 | 20.4-26.2 / 26.3-27.0 |
+| Idle on Home, process, M cycles in 20 s | 415-1,778 / 313-2,493 | 2,189-4,569 / 2,104-3,809 | 4,280-5,119 / 3,829-4,761 | 3,609-4,365 / 3,613-4,837 | 4,210-4,590 / 3,339-4,107 | 4,674-5,572 / 4,528-5,827 |
+| of it the runtime's (`luna`) threads | 0 / 0 | 1,659-1,953 / 1,646-1,898 | 3,744-3,837 / 3,358-3,678 | 1,974-1,983 / 1,763-1,939 | 2,493-2,921 / 2,273-2,778 | 2,334-2,754 / 2,214-2,514 |
+
+With 2,000 songs queued a scrolling frame now costs what it costs with
+12, and every theme holds the display's rate. The round changed no
+drawing, so the 12-song rows, the browse pages and rest on Home are the
+same within the runs' spread. Idle on the playlist page with 2,000 songs
+queued and a probe plugin reading the store every second (as Total Play
+Time does), the runtime's thread over 20 s: 16,935-17,033 / 186-195 M
+cycles (the process 17,025-17,148 / 341-370). Private memory after
+scrolling is 211-232 / 189-190 MB with no theme; with cotton candy it
+varies from 340 to 490 MB between runs of either build (the script
+runtime's heap; Rust's own is 45 to 62 MB).
+
+**Nothing drawn changed.** The theme parity checker on the same two
+commits (debug builds), no theme, Blur, Meteor Night, Sugarcoat, cotton
+candy and Cotton Candy Nights: the style reports are identical item for
+item and the pixel numbers the same (cotton candy's theme-touched share
+4.32 against 4.33 %, its animation). The demo's shots of the four pages
+are pixel-identical with no theme, Blur and Meteor Night; with the three
+animated themes they differ only in the boxes that animate (the album's
+list panel, the playlist's title, Sugarcoat's bar button), within 12
+levels, where two runs of one build differ as much.
+
+### Round 4
+
+Measured against the commit before each, release builds interleaved,
+three scroll runs each (the 2,000-song playlist, both queues), with the
+anchor tree's build timed in a probe build. While a list scrolls the
+window builds and sends a tree on every frame: 630 elements and 7,700
+allocations a build with no theme, 680 and 8,500 with cotton candy,
+0.45 to 0.6 ms of the window's thread.
+
+| Commit | Change | Measured |
+| --- | --- | --- |
+| addbe9d0 | a track row's list id is borrowed and its anchor key made once | allocations a frame 12,327 to 11,966 (no theme), 17,951-17,977 to 17,532-17,538 (cotton candy); frame time the same |
+| 839aa55a | the demo's `luna-dump.json` (5 MB with cotton candy, every two seconds) is made and written on a thread of its own | cotton candy: the scroll bench's slowest frame 23.3-26.8 to 7.2-12.9 ms; idle on Home, the window's thread 2,131-3,837 to 524-568 M cycles in 20 s |
+| 0b04f94f | a tree's CSS-module classes are found in a map and written straight into the element's class | allocations a tree 7,711-7,723 to 7,361-7,377 (no theme), 8,496-8,500 to 8,111-8,117 (cotton candy); the build's time the same |
+
+The demo's dump was in every idle number above with Luna on: at rest
+with cotton candy most of the window's thread was that dump, and what
+is left (524 to 568 M cycles in 20 s, the theme's endless animations at
+15 frames a second out of focus) is about 0.45 ms a frame.
+
+What is left of Luna's cost, found here: while a list scrolls, the
+runtime's thread is busy all the time (one core, 4.5 G cycles a second,
+with or without a theme, both builds) reconciling a tree a frame, each
+sent whole as JSON; and at rest, while a song plays, one tree a second
+(the player bar's time) costs the runtime about 18 ms (no theme) to
+20 ms (cotton candy), 2% of a core (`TIDALFAST_LUNA_STATS=1`).
+
 ## Findings and decisions
 
 - **Luna's work follows changes, not the page.** With Luna on, a pass made
@@ -1479,6 +1572,11 @@ same blur does.
   runtime built the overlay for an inline variable no rule reads: 16 to 20 ms
   of every frame while scrolling a long list. Each is now made when what it is
   made of changes ("Themes, speed round 1" above).
+- **A long queue costs a scrolling frame nothing more.** With 2,000 songs
+  queued every pass compared the queue's songs element by element, about
+  6 ms a frame; it compares them by pointer now ("Themes, speed round 3").
+  What Luna still costs is the anchor tree: built and sent whole on every
+  frame a list scrolls, and reconciled by the runtime as fast as it can.
 - **Long lists are already virtualised.** Track tables, card grids and the
   downloads list lay out only the rows in view, and playlist rows come
   from a cached table rebuilt only when the playlist changes. Scrolling
