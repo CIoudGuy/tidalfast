@@ -201,9 +201,14 @@ pub mod keys {
     /// The span inside the badge text that holds the label, as in TIDAL
     /// (`span > span`; Tidal Tags writes the stream's format into it).
     pub const QUALITY_LABEL: &str = "quality-badge-text:span";
-    /// The badge's tier gradient layer (`._gradientMax_`), which themes
-    /// fill and round (cotton candy, radiant-lyrics, Tidal Light).
-    pub const QUALITY_GRADIENT: &str = "quality-badge-gradient";
+    /// The badge's three gradient layers, as TIDAL 2.46.0 renders them
+    /// for every quality (`._gradientLow_`, `._gradientHigh_`,
+    /// `._gradientMax_`; its sheet shows the one for the badge's tier,
+    /// [`super::shown_quality_gradient`]), which themes fill and round
+    /// (cotton candy, radiant-lyrics, Tidal Light).
+    pub const QUALITY_GRADIENT_LOW: &str = "quality-badge-gradient-low";
+    pub const QUALITY_GRADIENT_HIGH: &str = "quality-badge-gradient-high";
+    pub const QUALITY_GRADIENT_MAX: &str = "quality-badge-gradient-max";
     /// The badge's glow (`._glowEffect_`), which themes hide.
     pub const QUALITY_GLOW: &str = "quality-badge-glow";
     pub const ACTIONS: &str = "track-actions";
@@ -4101,21 +4106,28 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
     );
 }
 
-/// The quality badge tier for a TIDAL quality: (`data-test` suffix,
-/// gradient module, tier modules on the badge, text). The lowest tier's
-/// badge carries `_badge_` alone, as in TIDAL.
-fn badge(
-    quality: &str,
-) -> (
-    &'static str,
-    &'static str,
-    &'static [&'static str],
-    &'static str,
-) {
+/// The player's quality badge for a TIDAL quality: (the modules on the
+/// badge, text). As TIDAL 2.46.0's (its bundle, `m1e`): `_max_` for HI_RES
+/// and HI_RES_LOSSLESS, `_high_` for LOSSLESS alone, and `_badge_` alone
+/// for the lossy HIGH and LOW.
+fn badge(quality: &str) -> (&'static [&'static str], &'static str) {
     match quality.to_ascii_uppercase().as_str() {
-        "HI_RES_LOSSLESS" | "HI_RES" | "MAX" => ("max", "gradientMax", &["badge", "max"], "MAX"),
-        "LOSSLESS" | "HIGH" => ("high", "gradientHigh", &["badge", "high"], "HIGH"),
-        _ => ("low", "gradientLow", &["badge"], "LOW"),
+        "HI_RES_LOSSLESS" | "HI_RES" | "MAX" => (&["badge", "max"], "MAX"),
+        "LOSSLESS" => (&["badge", "high"], "HIGH"),
+        "HIGH" => (&["badge"], "HIGH"),
+        _ => (&["badge"], "LOW"),
+    }
+}
+
+/// The badge's gradient layer TIDAL 2.46.0's index sheet shows for
+/// `quality` (its key): the low one, `._high_ ._gradientHigh_` for LOSSLESS
+/// and `._max_ ._gradientMax_` for HI_RES and HI_RES_LOSSLESS; the other
+/// two are there at `opacity: 0`.
+pub fn shown_quality_gradient(quality: &str) -> &'static str {
+    match badge(quality).0 {
+        [_, "max"] => keys::QUALITY_GRADIENT_MAX,
+        [_, "high"] => keys::QUALITY_GRADIENT_HIGH,
+        _ => keys::QUALITY_GRADIENT_LOW,
     }
 }
 
@@ -4605,18 +4617,26 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     let pending = p.quality.is_none() && p.track_id.is_some();
     let expected = pending.then(|| p.expected_quality.as_deref().unwrap_or(""));
     if let Some(q) = p.quality.as_deref().or(expected) {
-        let (tier, gradient, classes, text) = if q.is_empty() {
-            ("low", "gradientLow", &["badge"][..], "")
+        let (classes, text) = if q.is_empty() {
+            (&["badge"][..], "")
         } else if pending {
-            let (tier, gradient, classes, _) = badge(q);
+            let (classes, _) = badge(q);
             let text = match q {
                 "HIGH" => "320 kbps",
                 "LOW" => "96 kbps",
                 _ => "LOW",
             };
-            (tier, gradient, classes, text)
+            (classes, text)
         } else {
             badge(q)
+        };
+        // TIDAL's `data-test` names the quality itself
+        // (`quality-badge-LOSSLESS`); a badge with no quality keeps the
+        // lowest tier's name.
+        let test = if q.is_empty() {
+            "quality-badge-low".to_string()
+        } else {
+            format!("quality-badge-{q}")
         };
         out.push(
             el(QUALITY, Some(UTILITY), "div")
@@ -4624,16 +4644,28 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
                 .at(p.rect(P::Quality)),
         );
         // TIDAL's badge: exactly `_badge_ _max_` (themes match the class
-        // list whole, `[class="_badge_7b2911e _max_894bc7c"] span`), the
-        // tier's gradient and the glow as layers inside it.
+        // list whole, `[class="_badge_7b2911e _max_894bc7c"] span`). In it,
+        // as TIDAL 2.46.0's `m1e` renders it for every quality: the three
+        // gradient layers, the words, then the glow.
         out.push(
             el(QUALITY_BADGE, Some(QUALITY), "a")
                 .modules(classes)
-                .test(&format!("quality-badge-{tier}"))
+                .test(&test)
                 .attr("data-test-media-state-indicator-streaming-quality", q)
                 .attr("data-test-quality-badge-streaming-quality", q)
                 .at(p.rect(P::Quality)),
         );
+        for (key, module) in [
+            (QUALITY_GRADIENT_LOW, "gradientLow"),
+            (QUALITY_GRADIENT_HIGH, "gradientHigh"),
+            (QUALITY_GRADIENT_MAX, "gradientMax"),
+        ] {
+            out.push(
+                el(key, Some(QUALITY_BADGE), "div")
+                    .modules(&[module])
+                    .at(p.rect(P::Quality)),
+            );
+        }
         out.push(
             el(QUALITY_TEXT, Some(QUALITY_BADGE), "span")
                 .modules(&["badgeText"])
@@ -4643,11 +4675,6 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             el(QUALITY_LABEL, Some(QUALITY_TEXT), "span")
                 .text(text)
                 .at(p.rect(P::QualityLabel)),
-        );
-        out.push(
-            el(QUALITY_GRADIENT, Some(QUALITY_BADGE), "div")
-                .modules(&[gradient])
-                .at(p.rect(P::Quality)),
         );
         out.push(
             el(QUALITY_GLOW, Some(QUALITY_BADGE), "div")
@@ -5554,9 +5581,9 @@ mod tests {
         let item = find(&tree, "contextmenu:0:a");
         assert_eq!(attr(item, "data-test"), Some("track-radio"));
         let badge = find(&tree, keys::QUALITY_BADGE);
-        assert_eq!(attr(badge, "data-test"), Some("quality-badge-high"));
+        assert_eq!(attr(badge, "data-test"), Some("quality-badge-LOSSLESS"));
         assert_eq!(attr(badge, "class"), Some("_badge_7b2911e _high_4b5525b"));
-        let gradient = find(&tree, keys::QUALITY_GRADIENT);
+        let gradient = find(&tree, keys::QUALITY_GRADIENT_HIGH);
         assert_eq!(gradient.parent.as_deref(), Some(keys::QUALITY_BADGE));
         assert_eq!(attr(gradient, "class"), Some("_gradientHigh_87f2c3b"));
     }
@@ -5766,7 +5793,7 @@ mod tests {
             badge_of(None, Some("LOSSLESS")),
             (
                 s("LOSSLESS"),
-                s("quality-badge-high"),
+                s("quality-badge-LOSSLESS"),
                 s("_badge_7b2911e _high_4b5525b"),
                 s("LOW")
             )
@@ -5783,11 +5810,115 @@ mod tests {
             badge_of(Some("LOSSLESS"), Some("HI_RES_LOSSLESS")),
             (
                 s("LOSSLESS"),
-                s("quality-badge-high"),
+                s("quality-badge-LOSSLESS"),
                 s("_badge_7b2911e _high_4b5525b"),
                 s("HIGH")
             )
         );
+    }
+
+    /// TIDAL 2.46.0's player badge (its bundle, `m1e`) holds, for every
+    /// quality, its three gradient layers (low, high, max), then the words
+    /// (`span._badgeText_ > span`), then the glow; its sheet shows one
+    /// gradient by the badge's tier.
+    #[test]
+    fn the_badge_holds_tidals_three_gradients_before_its_words() {
+        for quality in ["HI_RES_LOSSLESS", "LOSSLESS", "HIGH", "LOW"] {
+            for (stream, expected) in [(Some(quality), None), (None, Some(quality))] {
+                let mut frame = sample_frame();
+                let p = frame.player.as_mut().unwrap();
+                p.quality = stream.map(str::to_string);
+                p.expected_quality = expected.map(str::to_string);
+                let tree = build(&frame);
+                let children: Vec<_> = tree
+                    .nodes
+                    .iter()
+                    .filter(|n| n.parent.as_deref() == Some(keys::QUALITY_BADGE))
+                    .map(|n| (n.tag.as_str(), attr(n, "class").unwrap_or_default()))
+                    .collect();
+                assert_eq!(
+                    children,
+                    [
+                        ("div", "_gradientLow_3f9bc0d"),
+                        ("div", "_gradientHigh_87f2c3b"),
+                        ("div", "_gradientMax_9111fba"),
+                        ("span", "_badgeText_1c9dd30"),
+                        ("div", "_glowEffect_74c5e85"),
+                    ],
+                    "{quality}"
+                );
+            }
+        }
+    }
+
+    /// TIDAL 2.46.0's player badge (its bundle, `m1e`) names the quality
+    /// itself in its `data-test` (`quality-badge-LOSSLESS`, captured) and is
+    /// `_high_` for LOSSLESS alone, `_max_` for HI_RES_LOSSLESS, and
+    /// `_badge_` alone for the lossy HIGH and LOW, whose badge shows the
+    /// low gradient; the same whether the stream said or the song waits for
+    /// it. A theme matching `[class="_badge_7b2911e"]` reaches a High badge.
+    #[test]
+    fn the_player_badge_is_tidals_for_each_quality() {
+        let badge_of = |quality: Option<&str>, expected: Option<&str>| {
+            let mut frame = sample_frame();
+            let p = frame.player.as_mut().unwrap();
+            p.quality = quality.map(str::to_string);
+            p.expected_quality = expected.map(str::to_string);
+            let tree = build(&frame);
+            let badge = find(&tree, keys::QUALITY_BADGE);
+            let shown = shown_quality_gradient(quality.or(expected).unwrap_or_default());
+            (
+                attr(badge, "data-test").unwrap_or_default().to_string(),
+                attr(badge, "class").unwrap_or_default().to_string(),
+                attr(find(&tree, shown), "class")
+                    .unwrap_or_default()
+                    .to_string(),
+            )
+        };
+        let want = |test: &str, class: &str, gradient: &str| {
+            (test.to_string(), class.to_string(), gradient.to_string())
+        };
+        for (quality, expected) in [
+            (
+                "HI_RES_LOSSLESS",
+                want(
+                    "quality-badge-HI_RES_LOSSLESS",
+                    "_badge_7b2911e _max_894bc7c",
+                    "_gradientMax_9111fba",
+                ),
+            ),
+            (
+                "LOSSLESS",
+                want(
+                    "quality-badge-LOSSLESS",
+                    "_badge_7b2911e _high_4b5525b",
+                    "_gradientHigh_87f2c3b",
+                ),
+            ),
+            (
+                "HIGH",
+                want(
+                    "quality-badge-HIGH",
+                    "_badge_7b2911e",
+                    "_gradientLow_3f9bc0d",
+                ),
+            ),
+            (
+                "LOW",
+                want(
+                    "quality-badge-LOW",
+                    "_badge_7b2911e",
+                    "_gradientLow_3f9bc0d",
+                ),
+            ),
+        ] {
+            assert_eq!(badge_of(Some(quality), None), expected, "{quality}");
+            assert_eq!(
+                badge_of(None, Some(quality)),
+                expected,
+                "{quality} expected"
+            );
+        }
     }
 
     /// AltPlay sizes the quality badge from the label span's `offsetWidth`

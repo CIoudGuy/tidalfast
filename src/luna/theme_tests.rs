@@ -555,11 +555,12 @@ span { color: #00010f; }
     };
     luna.install_theme(&format!("{base}/badge.css"));
     let o = styled("HI_RES_LOSSLESS", &|o| {
-        o.hosts.contains_key(QUALITY_GRADIENT)
+        o.hosts.contains_key(QUALITY_GRADIENT_MAX)
     });
     assert!(o.hosts[QUALITY_GLOW].hidden(), "the theme hides the glow");
     crate::ui::plugin_dom::test_overlay(Some((*o).clone()));
-    let themed = crate::ui::plugin_dom::quality_badge().expect("the badge is themed");
+    let themed =
+        crate::ui::plugin_dom::quality_badge("HI_RES_LOSSLESS").expect("the badge is themed");
     assert_eq!(themed.fill, None, "the badge itself is see-through");
     let layer = themed.layer.expect("the gradient's fill");
     let [r, g, b, a] = layer.to_srgba_unmultiplied();
@@ -568,6 +569,9 @@ span { color: #00010f; }
         "{layer:?}"
     );
     assert_eq!(themed.radius, Some(0.65 * 14.0));
+    // A Lossless badge shows its high gradient, which the theme leaves
+    // alone (its max one is there, unseen, with the theme's fill).
+    assert!(crate::ui::plugin_dom::quality_badge("LOSSLESS").is_none());
     let ink = crate::ui::plugin_dom::color(QUALITY_LABEL).expect("the label's colour");
     let [r, g, b, _] = ink.to_srgba_unmultiplied();
     assert!(
@@ -583,7 +587,7 @@ span { color: #00010f; }
     let ink = crate::ui::plugin_dom::color(QUALITY_LABEL).expect("the low label's colour");
     assert_eq!(ink.to_srgba_unmultiplied()[..3], [255, 255, 255]);
     crate::ui::plugin_dom::test_overlay(None);
-    assert!(crate::ui::plugin_dom::quality_badge().is_none());
+    assert!(crate::ui::plugin_dom::quality_badge("HI_RES_LOSSLESS").is_none());
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&data);
 }
