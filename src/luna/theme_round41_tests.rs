@@ -391,11 +391,16 @@ fn a_sidebars_top_padding_holds_its_rows_down() {
 /// The cotton candy family's sidebar card is `top: 2.25em; height:
 /// calc(100% - (var(--miniPlayerHeight) * 1.234))` of TIDAL's content
 /// row (the window less its 30-point title bar): 1044.4 points tall in a
-/// 1183-point window, its foot 1075.9 under the row's top. Tidalfast ended
-/// the card as far off the column's foot as its top is off the top.
+/// 1183-point TIDAL window, its foot 1075.9 under the row's top. Tidalfast
+/// ended the card as far off the column's foot as its top is off the top.
+/// Round 43: Tidalfast's window is TIDAL's content row (it shows TIDAL's
+/// page from the title bar's foot down; the parity checker shoots it 1153
+/// tall for TIDAL's 1183), so `100%` is the whole window here: the card
+/// ended 30 points above TIDAL's.
 #[test]
 fn a_sidebar_cards_own_height_ends_it() {
     let css = r#"/* {"name": "Card height"} */
+[class*="_bar_"] { margin-bottom: -2.5em; }
 [class*="_sidebarWrapper_"] { top: 2.25em; height: calc(100% - (var(--miniPlayerHeight) * 1.234)); border-radius: 0 19px 19px 0; background-color: rgb(255, 0, 0); }
 "#;
     let (ctx, mut app) = demo_app("album:alb0", Some("queue"));
@@ -410,8 +415,9 @@ fn a_sidebar_cards_own_height_ends_it() {
     let mut o = styled("card-height.css", css, &plain, keys::SIDEBAR);
     o.version = 2;
     let row = top(&boxes(&plain), keys::CONTAINER_ROW);
-    // TIDAL's `--miniPlayerHeight` is 88.
-    let foot = row + 31.5 + (1183.0 - 30.0 - 88.0 * 1.234);
+    // TIDAL's `--miniPlayerHeight` is 88; the row, pulled 30 up under the
+    // title bar as the cotton candy family's is, is the 1183-point window.
+    let foot = row - 30.0 + 31.5 + (1183.0 - 88.0 * 1.234);
     let colours = painted_at(
         &ctx,
         &mut app,
