@@ -375,6 +375,17 @@ fn header(
     );
     ui.spacing_mut().item_spacing.x = 6.0;
     let fullscreen = app.lyrics_fullscreen.is_some();
+    // TIDAL 2.46.0's `div._actionButtons_` holds the full screen button and
+    // the close chevron: what plugins put after the chevron is drawn to its
+    // right (this row is laid out from the right).
+    let luna = super::plugin_dom::on();
+    if luna {
+        super::plugin_slots::inline(
+            &mut ui,
+            crate::luna::dom_anchors::keys::NP_ACTION_BUTTONS,
+            crate::luna::dom::Position::Append,
+        );
+    }
     let close = theme::icon_button(
         &mut ui,
         Icon::ChevronDown,
@@ -413,6 +424,13 @@ fn header(
             crate::luna::dom_anchors::keys::NP_BUTTONS,
             crate::luna::dom::Position::After,
         );
+        // Between the full screen button and the chevron
+        // (TidalLyricsTranslate's Translate, after the full screen button).
+        super::plugin_slots::inline(
+            &mut ui,
+            crate::luna::dom_anchors::keys::NP_EXPAND,
+            crate::luna::dom::Position::After,
+        );
     }
     ui.add_space(6.0);
     // TIDAL's `button[data-test=new-now-playing-expand]`; a plugin that
@@ -448,10 +466,17 @@ fn header(
         }
         ui.add_space(12.0);
     }
+    // Before the full screen button, at the start of the action buttons.
+    if luna {
+        super::plugin_slots::inline(
+            &mut ui,
+            crate::luna::dom_anchors::keys::NP_ACTION_BUTTONS,
+            crate::luna::dom::Position::Prepend,
+        );
+    }
     // Luna: TIDAL's `button[data-test=toggle-lyrics]` and its siblings; what
     // plugins put after a tab is drawn to its right (LangRomanizer's
     // Romanize Lyrics after Lyrics), and `.click()` on one opens it.
-    let luna = super::plugin_dom::on();
     if luna {
         super::plugin_slots::inline(
             &mut ui,
