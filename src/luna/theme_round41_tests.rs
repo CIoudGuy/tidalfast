@@ -36,7 +36,7 @@ fn themed_luna(name: &str, css: &str) -> Luna {
 
 /// The overlay a theme's `css` gives the anchors of `tree`, once it styles
 /// the anchor `key`.
-fn styled(name: &str, css: &str, tree: &HostTree, key: &str) -> DomOverlay {
+pub(super) fn styled(name: &str, css: &str, tree: &HostTree, key: &str) -> DomOverlay {
     let luna = themed_luna(name, css);
     let end = Instant::now() + Duration::from_secs(20);
     let o = loop {
@@ -55,7 +55,7 @@ fn styled(name: &str, css: &str, tree: &HostTree, key: &str) -> DomOverlay {
 
 /// The demo's `page` with `show` (the album with the play queue open, as
 /// the parity checker shoots it).
-fn demo_app(page: &str, show: Option<&str>) -> (egui::Context, crate::app::App) {
+pub(super) fn demo_app(page: &str, show: Option<&str>) -> (egui::Context, crate::app::App) {
     let root = crate::paths::unique_test_dir("round41-flow");
     let _ = std::fs::remove_dir_all(&root);
     let mut app = crate::app::App::new(
@@ -85,7 +85,11 @@ fn demo_app(page: &str, show: Option<&str>) -> (egui::Context, crate::app::App) 
 
 /// The tree the app sends once it has drawn the page under `overlay` a
 /// few times.
-fn drawn(ctx: &egui::Context, app: &mut crate::app::App, overlay: DomOverlay) -> HostTree {
+pub(super) fn drawn(
+    ctx: &egui::Context,
+    app: &mut crate::app::App,
+    overlay: DomOverlay,
+) -> HostTree {
     pd::test_overlay(None);
     pd::test_overlay(Some(overlay));
     for _ in 0..4 {
@@ -117,7 +121,7 @@ fn drawn(ctx: &egui::Context, app: &mut crate::app::App, overlay: DomOverlay) ->
 
 /// The colours the app paints at `points` (over black) once it has drawn
 /// the page under `overlay` a few times.
-fn painted_at(
+pub(super) fn painted_at(
     ctx: &egui::Context,
     app: &mut crate::app::App,
     overlay: DomOverlay,

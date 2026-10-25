@@ -88,3 +88,56 @@ fn a_hashed_cell_rule_reaches_its_own_module_only() {
     pd::test_overlay(None);
     assert_eq!(got, [Some(egui::CornerRadius::same(9)), None]);
 }
+
+/// TIDAL's open menu, `div._contextMenu_8606b2d[data-test=contextmenu]`,
+/// is the whole box: the song's cover and title at the top, then the rows,
+/// inside its 4-point padding (TIDAL 2.46.0, captured). Its anchor's box
+/// was the rows' alone, so a plugin reading the menu's box, and the parity
+/// checker laying TIDAL's menu where Tidalfast's is, missed the header.
+#[test]
+fn an_open_menus_box_holds_its_header_and_rows() {
+    use super::theme_round41_tests as r41;
+    let (ctx, mut app) = r41::demo_app("album:alb0", Some("row-menu"));
+    let tree = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    app.backend.shutdown();
+    let rect = |key: &str| {
+        tree.nodes
+            .iter()
+            .find(|n| n.key == key)
+            .and_then(|n| n.rect)
+            .unwrap_or_else(|| panic!("no box for {key}"))
+    };
+    let menu = rect(dom_anchors::keys::CONTEXT_MENU);
+    let first = rect(&dom_anchors::keys::menu_item(0));
+    let rows: Vec<[f32; 4]> = (0..)
+        .map(dom_anchors::keys::menu_item)
+        .map_while(|k| tree.nodes.iter().find(|n| n.key == k).and_then(|n| n.rect))
+        .collect();
+    let last = rows.last().copied().expect("rows");
+    // The header (a 38-point cover in 16 points of padding) above the rows.
+    assert!(
+        first[1] - menu[1] >= 60.0,
+        "header: menu {menu:?}, first row {first:?}"
+    );
+    // The frame's padding round the rows' sides and foot.
+    assert!(
+        (first[0] - menu[0] - 4.0).abs() < 0.5,
+        "left: {menu:?} {first:?}"
+    );
+    assert!(
+        ((menu[0] + menu[2]) - (first[0] + first[2]) - 4.0).abs() < 0.5,
+        "right: {menu:?} {first:?}"
+    );
+    assert!(
+        ((menu[1] + menu[3]) - (last[1] + last[3]) - 4.0).abs() < 0.5,
+        "foot: {menu:?} {last:?}"
+    );
+    assert_eq!(rect(dom_anchors::keys::CONTEXT_MENU_BOX), menu);
+}

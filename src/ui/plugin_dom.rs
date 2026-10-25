@@ -115,6 +115,9 @@ struct State {
     modal_open: bool,
     /// The next menu row is an Add to playlist entry for this uuid.
     next_playlist: Option<String>,
+    /// The layer of the open context menu's first row: its box grows with
+    /// the rows drawn there, not a submenu's (a popup of its own).
+    menu_layer: Option<egui::LayerId>,
     /// What the open context menu is about (`track`, `album`, `artist`,
     /// `playlist`, `mix`), for its rows' TIDAL ids.
     menu_subject: Option<&'static str>,
@@ -766,6 +769,7 @@ pub fn end_frame(ctx: &egui::Context) {
         paint_host_labels(ctx, s);
         s.modal_open = s.frame.modal.is_some();
         s.next_playlist = None;
+        s.menu_layer = None;
         s.menu_subject = None;
         let mut frame = std::mem::take(&mut s.frame);
         let mut unchanged = s.last_frame.as_ref() == Some(&frame);
@@ -4767,21 +4771,27 @@ pub fn menu_item(ui: &mut egui::Ui, label: &str, enabled: bool, response: &egui:
         return;
     }
     let r = response.rect;
+    // The menu's box is TIDAL's `div._contextMenu_`: everything drawn in the
+    // menu so far (the header with the song's cover and title, the rows)
+    // inside the frame's 4-point padding. A submenu's rows, a popup of
+    // their own, leave it as it is.
+    let layer = ui.layer_id();
+    let content = ui
+        .min_rect()
+        .union(r)
+        .expand(f32::from(super::widgets::MENU_INSET));
     let index = with(|s| {
         let playlist = s.next_playlist.take();
         let menu = s.frame.context_menu.get_or_insert_with(Default::default);
-        menu.rect = Some(match menu.rect {
-            Some([x, y, w, h]) => {
-                let bottom = (y + h).max(r.bottom());
-                [
-                    x.min(r.left()),
-                    y.min(r.top()),
-                    w.max(r.width()),
-                    bottom - y.min(r.top()),
-                ]
-            }
-            None => [r.left(), r.top(), r.width(), r.height()],
-        });
+        if *s.menu_layer.get_or_insert(layer) == layer {
+            let grown = match menu.rect {
+                Some([x, y, w, h]) => {
+                    content.union(Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h)))
+                }
+                None => content,
+            };
+            menu.rect = rect(grown).or(menu.rect);
+        }
         let action = tidal_menu_id(s.locale, s.menu_subject, label).unwrap_or_default();
         menu.items.push(dom_anchors::MenuItem {
             action: action.to_string(),
