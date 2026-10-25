@@ -177,13 +177,20 @@ impl AppHost {
     }
 
     /// Replace the state plugins read. Returns whether it changed.
+    ///
+    /// The new snapshot is kept even when it is equal: its shared parts (the
+    /// queue's rows and songs, the favourites) are the app's newest, so the
+    /// next pass compares them by pointer. Keeping the old one made every
+    /// later pass compare an equal part the app had made again (the queue's
+    /// songs, when its song cache grew) element by element: 4.7 ms a pass
+    /// with 2,000 songs queued.
     pub fn set_snapshot(&self, snapshot: PlaybackSnapshot) -> bool {
         let mut current = self.snapshot.lock().unwrap_or_else(|l| l.into_inner());
-        if *current == snapshot {
-            return false;
-        }
-        *current = snapshot;
-        true
+        let changed = *current != snapshot;
+        let old = std::mem::replace(&mut *current, snapshot);
+        drop(current);
+        drop(old);
+        changed
     }
 
     /// A loaded list the next actions name (`content.trackLists[name]`),
@@ -1391,6 +1398,35 @@ mod tests {
         assert_eq!(playlist_changed("users/7/playlists"), Some(None));
         assert_eq!(playlist_changed("users/7/favorites/tracks"), None);
         assert_eq!(playlist_changed("sessions/x"), None);
+    }
+
+    /// The app makes the queue's songs again (its song cache grew) equal to
+    /// the ones plugins have: the host keeps the newest snapshot all the same,
+    /// whose shared parts are the app's newest, so the next pass compares
+    /// them by pointer. It kept the old one, and every later pass compared
+    /// 2,000 queued songs' JSON element by element (4.7 ms a pass).
+    #[test]
+    fn an_equal_snapshot_is_kept_so_the_next_pass_compares_by_pointer() {
+        use std::sync::Arc;
+        let host = AppHost::new(None, None);
+        let songs = || {
+            Arc::new(
+                (0..3)
+                    .map(|i| (i.to_string(), serde_json::json!({ "id": i })))
+                    .collect::<BTreeMap<String, Value>>(),
+            )
+        };
+        let snap = |items: &Arc<BTreeMap<String, Value>>| PlaybackSnapshot {
+            known_items: Arc::clone(items),
+            ..PlaybackSnapshot::default()
+        };
+        let first = songs();
+        assert!(host.set_snapshot(snap(&first)));
+        let again = songs();
+        assert!(!Arc::ptr_eq(&first, &again));
+        assert!(!host.set_snapshot(snap(&again)), "equal: no change");
+        let kept = host.snapshot.lock().unwrap().known_items.clone();
+        assert!(Arc::ptr_eq(&kept, &again), "the newest copy is kept");
     }
 
     #[test]
