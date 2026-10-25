@@ -2379,6 +2379,49 @@ pub fn list_panel(ui: &egui::Ui, r: Rect) {
     );
 }
 
+/// How far TIDAL's flow moves a page's song list for a theme's rules on
+/// the list's module box (`.ALBUM_ITEMS`, `.TRACK_LIST`): the box's own top
+/// padding and border lie above the list, and its `transform` moves the box
+/// and the list together. Sugarcoat's `translateY(-1.1em)` over
+/// `padding-top: 1.4em` and a 2-point border lays its songs 6.2 lower in
+/// TIDAL 2.46.0 than with no theme (the parity checker's replay); the
+/// cotton candy family's own 11.2 padding under the same move, 2.2 higher.
+/// [`list_panel`] lays the box round the list so moved. On a playlist the
+/// box also holds the filter field above the list: the field moves so
+/// (`above_filter`, asked where the field is laid), and the list with it.
+pub fn list_panel_push(above_filter: bool) -> f32 {
+    let filtered = with(|s| {
+        s.frame
+            .page
+            .as_ref()
+            .is_some_and(|p| p.page_id.as_deref() == Some("playlist"))
+    });
+    if !on() || filtered != above_filter {
+        return 0.0;
+    }
+    let key = dom_anchors::keys::LIST_PANEL;
+    let Some(look) = anchor_look(key) else {
+        return 0.0;
+    };
+    let pad = look.padding.map_or(0.0, |p| p[0].clamp(0.0, 32.0));
+    let border =
+        outline_sides(key, Color32::TRANSPARENT).map_or(0.0, |(s, _)| s[0].clamp(0.0, 8.0));
+    (pad + border + look.translate.y).clamp(-64.0, 64.0)
+}
+
+/// How far a theme's `transform` moves the songs' table in its module box
+/// (`div._tableContainer_556e9aa`, the box's child): the table moves, the
+/// box stays (the cotton candy family's `translateY(-1.6em)` on a
+/// playlist's table: its header 22.4 nearer the filter field in TIDAL
+/// 2.46.0 than the field's 40-point margin keeps it).
+pub fn list_inner_shift() -> f32 {
+    if !on() {
+        return 0.0;
+    }
+    anchor_look(dom_anchors::keys::LIST_PANEL_INNER)
+        .map_or(0.0, |l| l.translate.y.clamp(-64.0, 64.0))
+}
+
 const FILTER_SLOT: &str = "plugin-dom-filter-panel-slot";
 
 /// The paint slot a page's filter kept under itself this pass.

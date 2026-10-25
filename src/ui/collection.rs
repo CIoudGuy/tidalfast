@@ -935,8 +935,9 @@ pub fn actions_row(
     actions_row_contents(app, &mut child, actions, filtered, &fit, btn_rect);
     if let Some(filter) = filter {
         // TIDAL: a full-width filter field 40 under the controls and 40
-        // above the table.
-        ui.add_space(to_filter);
+        // above the table, both in the list's box: moved by its padding,
+        // border and `transform` (see `plugin_dom::list_panel_push`).
+        ui.add_space(to_filter + super::plugin_dom::list_panel_push(true));
         // TIDAL's Tracks page (no cover) says "Filter tracks".
         let placeholder = if compact {
             gettext(app.locale, "Filter tracks")
@@ -2618,6 +2619,12 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
         && rows == table.items.len();
     let volume_layout = grouped.then(|| volume_layout(table.volumes, row_height));
     if rows > 0 {
+        // The list where TIDAL's flow puts it under a theme's padding,
+        // border and move for its box (see `plugin_dom::list_panel_push`).
+        let push = super::plugin_dom::list_panel_push(false);
+        if push != 0.0 {
+            ui.add_space(push);
+        }
         // A theme's panel behind the whole list, its header row included
         // (TIDAL's `.TRACK_LIST` holds both), painted before them.
         let header = if grouped { 0.0 } else { 36.0 };
@@ -2633,6 +2640,11 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
             ),
         );
         super::plugin_dom::list_panel(ui, panel);
+        // The table in the box, moved by its own `transform`.
+        let shift = super::plugin_dom::list_inner_shift();
+        if shift != 0.0 {
+            ui.add_space(shift);
+        }
     }
     let header_clicked = if rows > 0 && !grouped {
         widgets::table_header(
