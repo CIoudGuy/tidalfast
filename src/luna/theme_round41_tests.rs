@@ -433,7 +433,9 @@ fn a_sidebar_cards_own_height_ends_it() {
 /// intersecting...ALBUM_ITEMS`): the cotton candy family's `padding:
 /// 11.2px 12.6px 0` and 2-point border lie round the songs, the glass 14.6
 /// points out at the sides and 13.2 above them. Tidalfast laid the panel on
-/// the list's own box.
+/// the list's own box. Round 43: the box stays where the list was and the
+/// padding and border move the songs down in it, as in TIDAL's flow (see
+/// `theme_round43_tests::a_song_lists_box_moves_the_list_as_tidals_flow_does`).
 #[test]
 fn a_list_panels_padding_and_border_lie_round_the_list() {
     let css = r#"/* {"name": "List panel"} */
@@ -446,10 +448,7 @@ fn a_list_panels_padding_and_border_lie_round_the_list() {
         near(panel[0], list[0] - 14.6),
         "left {panel:?} round {list:?}"
     );
-    assert!(
-        near(panel[1], list[1] - 13.2),
-        "top {panel:?} round {list:?}"
-    );
+    assert!(near(panel[1], list[1]), "top {panel:?} round {list:?}");
     assert!(
         near(panel[2], list[2] + 29.2),
         "width {panel:?} round {list:?}"

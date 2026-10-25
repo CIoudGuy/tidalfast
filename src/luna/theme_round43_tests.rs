@@ -200,6 +200,7 @@ fn a_theme_switched_to_leaves_nothing_of_the_one_before() {
     assert_eq!(look(&cleared), look(&none_alone));
     assert!(installed.is_empty(), "themes left installed: {installed:?}");
 }
+
 /// TIDAL's My Collection card is as tall as what it holds: its cover, its
 /// lines (title, subtitle, meta) and its padding round them. TIDAL 2.46.0's
 /// grid row (`div._staticCell_d3a8e6a`) is 334 points tall under a
@@ -259,6 +260,7 @@ fn a_collection_cards_box_ends_with_what_it_holds() {
     assert_eq!(colours[0], fill, "the card's foot is filled");
     assert_ne!(colours[1], fill, "the row below the card is not");
 }
+
 /// TIDAL's player bar card (`._trackContent_`: Sugarcoat's and the cotton
 /// candy singles' rounded box round the song's words, heart and "…") is a
 /// flex row's box: it starts where the words do with no theme, its padding
@@ -329,6 +331,7 @@ fn a_bar_cards_box_holds_tidals_lines_in_its_padding_and_border() {
         "the words move in by the padding and border: {title:?} against {title_plain:?}"
     );
 }
+
 /// A theme's inset `box-shadow` on TIDAL's sidebar card (the cotton candy
 /// family's white `inset 0 0 6em` glow on `div._sidebarWrapper_`) lies
 /// over the card's fill along its edges and under what it holds, as
@@ -368,6 +371,7 @@ fn a_sidebar_cards_inset_glow_lies_along_its_edges() {
         "the glow along the card's edge: {edge:?} (the fill alone is rgb(40, 0, 60))"
     );
 }
+
 /// Sunken Tidal's play queue: `[class*="_playQueueWrapper"] { margin: 0;
 /// margin-top: var(--headerHeight); height: 100% }` and `#playQueueSidebar
 /// { margin: 0; width: 100%; height: 100%; backdrop-filter: none }`. TIDAL
@@ -432,6 +436,7 @@ fn a_play_queue_a_theme_unboxes_runs_full_bleed_over_the_page() {
         "the page shows through the glass: {red:?} over red, {green:?} over green"
     );
 }
+
 /// TIDAL's play queue panel is 334 points wide (`width: 334px`) and its
 /// margins move it in its 350-point wrapper: Abyss Neptune's `margin: 2px;
 /// margin-right: -14px` lays it 2 in from the wrapper's left edge, still
@@ -472,6 +477,7 @@ fn a_queue_panels_margins_move_it_in_its_wrapper() {
     );
     assert!(colours[0].r() < 40, "beside the panel: {:?}", colours[0]);
 }
+
 /// TIDAL's page (`main`) stops at the open play queue's column, where the
 /// document's own fill shows: under a theme's base colour token
 /// (Catppuccin Frappe's `--wave-color-solid-base-fill`) the player bar's
@@ -523,6 +529,7 @@ fn the_bars_glass_lies_over_the_open_queues_column_as_tidals_does() {
         "the bar over the page {page:?}, over the queue's column {column:?}"
     );
 }
+
 /// The overlay a theme's `css` gives `tree` once it sets the variable
 /// `var`.
 fn styled_vars(name: &str, css: &str, tree: &super::dom::HostTree, var: &str) -> DomOverlay {
@@ -540,4 +547,100 @@ fn styled_vars(name: &str, css: &str, tree: &super::dom::HostTree, var: &str) ->
     let mut o = (*o).clone();
     o.version = 2;
     o
+}
+
+/// TIDAL's song list moves with its module box (`.ALBUM_ITEMS`): the box's
+/// own top padding and border lie above the list in the flow, and its
+/// `transform` moves the box and the list together. Sugarcoat's
+/// `translateY(-1.1em)` over `padding-top: 1.4em` and a 2-point border lays
+/// the album's songs 6.2 points lower than with no theme in TIDAL 2.46.0
+/// (the parity checker's replay: the list's header at 526, not 519), its
+/// box 15.4 higher. Tidalfast kept the list where it was and laid the box
+/// round it.
+#[test]
+fn a_song_lists_box_moves_the_list_as_tidals_flow_does() {
+    use super::theme_round41_tests as r41;
+    use dom_anchors::keys;
+    let css = "/* {\"name\": \"Moved list\"} */\n.is-intersecting._occlusion_de6b9d3._defaultStyles_a1b9da9.ALBUM_ITEMS.tidal-ui__occlusion { transform: translateY(-1.1em); padding-top: 1.4em; border-style: solid; border-width: 2px; border-color: rgb(255, 255, 255); background-color: rgba(255, 0, 0, 0.2); }\n";
+    let (ctx, mut app) = r41::demo_app("album:alb0", Some("queue"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let mut o = r41::styled("moved-list.css", css, &plain, keys::LIST_PANEL);
+    o.version = 2;
+    let moved = r41::drawn(&ctx, &mut app, o);
+    app.backend.shutdown();
+    let top = |tree: &super::dom::HostTree, key: &str| {
+        tree.nodes
+            .iter()
+            .find(|n| n.key == key)
+            .and_then(|n| n.rect)
+            .map(|r| r[1])
+            .unwrap_or_else(|| panic!("no box for {key}"))
+    };
+    let header = "list:album:alb0:header";
+    let (before, after) = (top(&plain, header), top(&moved, header));
+    assert!(
+        ((after - before) - (19.6 + 2.0 - 15.4)).abs() < 0.6,
+        "the list's header from {before} to {after}"
+    );
+    let panel = top(&moved, keys::LIST_PANEL);
+    assert!(
+        (panel - (before - 15.4)).abs() < 0.6,
+        "the box at {panel}, the list's place {before}"
+    );
+}
+
+/// A playlist's songs move with their box too: the filter field and the
+/// table lie in TIDAL's `div._items_8615603`, so its padding, border and
+/// `transform` move the field and the table, and the table's own
+/// `transform` (`div._tableContainer_556e9aa`) moves the table in it. The
+/// cotton candy family's box (`padding: 11.2px 12.6px 0`, a 2-point border,
+/// `translateY(-.75em)`) and table (`translateY(-1.6em)`) lay the field 2.7
+/// lower and the table's header 19.7 higher than with no theme in TIDAL
+/// 2.46.0 (the parity checker's replay: field 476.7, header 534.3).
+#[test]
+fn a_playlists_filter_and_table_move_with_their_boxes() {
+    use super::theme_round41_tests as r41;
+    use dom_anchors::keys;
+    let css = "/* {\"name\": \"Moved playlist\"} */\n._items_8615603 { padding: 11.2px 12.6px 0; border-style: solid; border-width: 2px; border-color: rgb(255, 255, 255); transform: translateY(-10.5px); background-color: rgba(255, 0, 0, 0.2); }\n._tableContainer_556e9aa { transform: translateY(-1.6em); }\n";
+    let (ctx, mut app) = r41::demo_app("playlist:pl0", None);
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let mut o = r41::styled("moved-playlist.css", css, &plain, keys::LIST_PANEL_INNER);
+    o.version = 2;
+    let moved = r41::drawn(&ctx, &mut app, o);
+    app.backend.shutdown();
+    let top = |tree: &super::dom::HostTree, key: &str| {
+        tree.nodes
+            .iter()
+            .find(|n| n.key == key)
+            .and_then(|n| n.rect)
+            .map(|r| r[1])
+            .unwrap_or_else(|| panic!("no box for {key}"))
+    };
+    let field = keys::PAGE_FILTER_BOX;
+    let header = "list:playlist:pl0:header";
+    let moved_by = |key: &str| top(&moved, key) - top(&plain, key);
+    assert!(
+        (moved_by(field) - 2.7).abs() < 0.6,
+        "the field moved {}",
+        moved_by(field)
+    );
+    assert!(
+        (moved_by(header) - (2.7 - 22.4)).abs() < 0.6,
+        "the table's header moved {}",
+        moved_by(header)
+    );
 }
