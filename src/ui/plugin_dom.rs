@@ -5020,6 +5020,21 @@ pub fn before_height(key: &str, reference: f32) -> Option<f32> {
     .filter(|h| h.is_finite() && *h >= 0.0)
 }
 
+/// The blur a theme's `filter` gives the anchor's `::before` box, in
+/// points (`blur(10px)`): `Some(0.0)` when its filter has no blur
+/// (`filter: none`), `None` when no theme sets the filter.
+pub fn before_blur(key: &str) -> Option<f32> {
+    host(key, |h, vars| {
+        let filter = css::resolve_vars(h.before.as_ref()?.filter.as_deref()?, vars);
+        Some(
+            crate::css_filter::ColorFilter::parse(&filter)
+                .and_then(|f| f.blur_sigma())
+                .filter(|s| s.is_finite())
+                .map_or(0.0, |s| s.clamp(0.0, 200.0)),
+        )
+    })
+}
+
 /// A plugin took the anchor's TIDAL class starting `prefix` away
 /// (`_selected_`: the row no longer shows as the open page).
 pub fn class_removed(key: &str, prefix: &str) -> bool {
