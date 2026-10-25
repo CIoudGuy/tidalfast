@@ -1463,3 +1463,48 @@ once the taskbar is clicked).
   % against the parent's, keywords as Chromium's), a weight keyword as its
   number, a z-index within 32 bits and an image address quoted. A plugin
   window's page keeps a browser's defaults.
+
+### Plugin round 11 (2026-10-25)
+
+- The now-playing header is TIDAL 2.46.0's plain `header._header_` (its
+  bundle's header component and its page): 2.43.2's `#nowPlayingHeader
+  [data-test=header-container]` is gone, so what a plugin adds among the
+  header's buttons is nearest to `section#nowPlaying[data-test=
+  new-now-playing]`, and a rule for the old id (the cotton candy family's
+  `#nowPlayingHeader { transform }`) matches nothing, as in TIDAL. What a
+  plugin puts in `div._actionButtons_` is drawn there: before the full
+  screen button (`now-playing-action-buttons` Prepend), between it and the
+  chevron (`now-playing-expand` After: TidalLyricsTranslate's Translate)
+  and after the chevron (Append).
+- Pictures and words where plugins read or rewrite them, as TIDAL 2.46.0
+  has them (its pages, captured): a card's picture is `img._image_145331a`,
+  a mix card's `img[data-test=mix-image]`, a shortcut tile's
+  `img._image_145331a`; a track list's heading row is
+  `div._tableHeader_ebaf366._smallText_a636ed6[role=row]`; the header's
+  Play and Shuffle pills have no `aria-label` (their words name them); the
+  collection filter field is `aria-label=Search`.
+- DOM: an image's and a source's `srcset` and `sizes` reflect their
+  attributes (uwu-ifier clears both on every picture it replaces).
+  Chromium's prefixed aliases (`-webkit-backdrop-filter`, `-webkit-transform`
+  and the like) are the standard property in a style declaration, under the
+  standard name; `-moz-`, `-ms-` and `-o-` properties are dropped, as
+  Chromium does not know them.
+- `getComputedStyle` on TIDAL's page: `display` starts from Chromium's
+  sheet and TIDAL's normalize (`video`, `canvas`, `audio` with controls
+  inline-block, `img` and `svg` inline, `li` a list item, `[hidden]` and an
+  `audio` without controls `none`) and is blockified for a flex or grid
+  item, an absolutely positioned or floated box and the root, through a
+  `display: contents` box. TIDAL's own look of its classes (`TIDAL_LOOK` in
+  `css.js`, measured in its pages for the classes the anchors carry, where
+  its sheets make the class set the property: its flex and grid boxes, text
+  sizes and weights, dark colours) is what an element carrying the class,
+  TIDAL's or a plugin's copy, computes under every rule a plugin or theme
+  declares, and what is inside inherits it. A form control has its own
+  font (weight 400, a field's text in Chromium's field colour); a button
+  among the player bar's utility buttons is TIDAL's grey. A corner radius
+  computes to pixels, written as briefly as it reads; TIDAL's
+  `--wave-border-radius--*` variables resolve. Only `getComputedStyle`
+  reads these looks: Tidalfast draws its own elements itself.
+- TIDAL's own sheet (`tidalSheet`): a disabled button in the player is at
+  half strength (`:is(._player_8c80ae6 button):disabled { opacity: .5 }`),
+  drawn and read.
