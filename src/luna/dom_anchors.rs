@@ -849,8 +849,21 @@ fn page_data_class(page_id: Option<&str>) -> String {
 /// The CSS-module class for `name`: `_name_<7 hex>`, the literal hash when a
 /// plugin hard-codes one, else a stable hash of the name.
 pub fn module_class(name: &str) -> String {
-    if let Some((_, literal)) = LITERAL_CLASSES.iter().find(|(n, _)| *n == name) {
-        return (*literal).to_string();
+    let mut class = String::new();
+    push_module_class(&mut class, name);
+    class
+}
+
+/// Appends [`module_class`]`(name)` to `out`. A tree has a few hundred of
+/// these: the literals are found in a map, not by a walk of the list, and
+/// the class is written where it goes.
+fn push_module_class(out: &mut String, name: &str) {
+    static LITERALS: std::sync::OnceLock<std::collections::HashMap<&'static str, &'static str>> =
+        std::sync::OnceLock::new();
+    let literals = LITERALS.get_or_init(|| LITERAL_CLASSES.iter().copied().collect());
+    if let Some(literal) = literals.get(name) {
+        out.push_str(literal);
+        return;
     }
     // FNV-1a: stable across builds and platforms.
     let mut hash: u32 = 0x811c_9dc5;
@@ -858,7 +871,8 @@ pub fn module_class(name: &str) -> String {
         hash ^= u32::from(byte);
         hash = hash.wrapping_mul(0x0100_0193);
     }
-    format!("_{name}_{:07x}", hash & 0x0fff_ffff)
+    use std::fmt::Write as _;
+    let _ = write!(out, "_{name}_{:07x}", hash & 0x0fff_ffff);
 }
 
 /// The smallest box holding both.
@@ -1244,10 +1258,25 @@ impl NodeBuild for HostNode {
         self
     }
 
-    fn modules(self, names: &[&str]) -> Self {
-        names
-            .iter()
-            .fold(self, |node, name| node.class(&module_class(name)))
+    fn modules(mut self, names: &[&str]) -> Self {
+        if names.is_empty() {
+            return self;
+        }
+        let at = match self.attrs.iter().position(|(n, _)| n == "class") {
+            Some(at) => at,
+            None => {
+                self.attrs.push(("class".into(), String::new()));
+                self.attrs.len() - 1
+            }
+        };
+        let class = &mut self.attrs[at].1;
+        for name in names {
+            if !class.is_empty() {
+                class.push(' ');
+            }
+            push_module_class(class, name);
+        }
+        self
     }
 
     fn class(mut self, class: &str) -> Self {
