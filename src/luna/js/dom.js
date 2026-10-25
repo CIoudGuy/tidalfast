@@ -3421,12 +3421,17 @@
 				if (!order.has(parent)) order.set(parent, []);
 				order.get(parent).push(el);
 			}
-			for (const [k, el] of [...hosts]) {
-				if (seen.has(k)) continue;
+			// What went leaves whole, as React unmounts a subtree: only its
+			// top element is taken from its parent, the rest stays inside it
+			// (a plugin holding a row that went still finds its cells, and a
+			// badge in a cell its row; an observer hears of the top alone).
+			const gone = new Map();
+			for (const [k, el] of hosts) if (!seen.has(k)) gone.set(el, k);
+			for (const [el, k] of gone) {
 				hosts.delete(k);
-				if (el.parentNode && !el._pluginMoved) el.remove();
-				el._hostKey = undefined;
+				if (el.parentNode && !el._pluginMoved && !gone.has(el.parentNode)) el.remove();
 			}
+			for (const el of gone.keys()) el._hostKey = undefined;
 			// placement: host children in tree order; plugin nodes keep their spot.
 			// The deepest parents first, as React commits a new subtree: it is
 			// put together while detached and goes in as one node, so a new
