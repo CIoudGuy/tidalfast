@@ -3231,6 +3231,23 @@ pub fn grid_card(r: Rect, artist: bool) -> Option<String> {
     key
 }
 
+/// The box of the card `key` that [`grid_card`] noted at its grid cell: a
+/// My Collection card is as tall as what it holds, as TIDAL's is in a row
+/// that runs on below it.
+pub fn grid_card_box(key: &str, r: Rect) {
+    let Some(index) = key
+        .strip_prefix("card:")
+        .and_then(|i| i.parse::<usize>().ok())
+    else {
+        return;
+    };
+    note(|f| {
+        if let Some(card) = f.page.as_mut().and_then(|p| p.cards.get_mut(index)) {
+            card.rect = rect(r);
+        }
+    });
+}
+
 /// A shelf's card laid out at `r` with its cover at `cover` but not on
 /// screen (below the fold, or scrolled out of its shelf). TIDAL's page holds
 /// every card of every shelf, so plugins find this one as they find a drawn
