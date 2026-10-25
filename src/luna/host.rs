@@ -146,8 +146,9 @@ pub struct PlaybackSnapshot {
     pub favorite_artists: Arc<Vec<String>>,
     pub favorite_playlists: Vec<String>,
     /// Item ids of loaded lists, by TIDAL's `trackListName` (what the
-    /// `ADD_TRACK_LIST_*` actions name); `content.trackLists`.
-    pub track_lists: std::collections::BTreeMap<String, Vec<String>>,
+    /// `ADD_TRACK_LIST_*` actions name); `content.trackLists`. Shared with
+    /// the host, which keeps them: a read of the state copies no list.
+    pub track_lists: std::collections::BTreeMap<String, Arc<Vec<String>>>,
     /// TIDAL v1 track JSON for the queue and loaded-list ids the app
     /// knows, by id; `content.mediaItems`.
     pub known_items: Arc<std::collections::BTreeMap<String, Value>>,

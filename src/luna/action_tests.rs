@@ -162,6 +162,230 @@ fn answer(luna: &Luna, kind: &str, payload: Value) -> bool {
         .expect("the runtime answers")
 }
 
+/// The songs, by id: `(id, title)` pairs.
+fn songs(list: &[(u64, &str)]) -> Arc<std::collections::BTreeMap<String, Value>> {
+    Arc::new(
+        list.iter()
+            .map(|(id, title)| (id.to_string(), item(*id, title)))
+            .collect(),
+    )
+}
+
+/// What the parted state reads are checked against: three queued songs,
+/// the first playing, a favourite and a loaded list.
+fn parted_snapshot() -> PlaybackSnapshot {
+    PlaybackSnapshot {
+        queue: vec![entry("1", "1:0"), entry("2", "2:0"), entry("3", "3:0")].into(),
+        current_index: Some(0),
+        current_item: Some(item(1, "A")),
+        known_items: songs(&[(1, "A"), (2, "B"), (3, "C")]),
+        favorite_tracks: vec!["1".to_string()].into(),
+        track_lists: [(
+            "album/7".to_string(),
+            Arc::new(vec!["1".to_string(), "2".to_string()]),
+        )]
+        .into_iter()
+        .collect(),
+        ..Default::default()
+    }
+}
+
+/// A read of the store names the large parts it holds (their tags, as the
+/// last answer gave them), and the answer leaves out exactly those. Each
+/// change of what a part is made of (the queue's rows or the source they
+/// name, the songs or the playing one, the favourites, a list) gives that
+/// part a new tag, so the next read gets it again; the others stay out.
+#[test]
+fn a_read_of_the_state_leaves_out_only_the_parts_the_reader_holds() {
+    use super::redux::{StateParts, redux_state_parts};
+    let mut snap = parted_snapshot();
+    let mut parts = StateParts::default();
+    let first = redux_state_parts(&snap, &Value::Null, &mut parts);
+    assert_eq!(
+        first["playQueue"]["elements"].as_array().map(Vec::len),
+        Some(3)
+    );
+    assert_eq!(first["content"]["mediaItems"]["2"]["item"]["title"], "B");
+    assert_eq!(first["favorites"]["tracks"], json!([1]));
+    assert_eq!(
+        first["content"]["trackLists"]["album/7"]["items"],
+        json!([1, 2])
+    );
+    let sent = |read: &Value, part: &str| match part {
+        "queue" => read["playQueue"].get("elements").is_some(),
+        "songs" => read["content"].get("mediaItems").is_some(),
+        "favorites" => read.get("favorites").is_some(),
+        _ => read["content"].get("trackLists").is_some(),
+    };
+    let all = ["queue", "songs", "favorites", "lists"];
+    let mut held = first["tidalfastParts"].clone();
+    let again = redux_state_parts(&snap, &held, &mut parts);
+    assert_eq!(again["tidalfastParts"], held, "nothing changed");
+    for part in all {
+        assert!(!sent(&again, part), "{part} sent again");
+    }
+    assert_eq!(again["playQueue"]["currentIndex"], json!(0));
+    type Change = Box<dyn Fn(&mut PlaybackSnapshot)>;
+    let changes: Vec<(&str, Change)> = vec![
+        (
+            "queue",
+            Box::new(|s| {
+                s.queue = vec![entry("1", "1:0"), entry("3", "3:0"), entry("2", "2:0")].into()
+            }),
+        ),
+        (
+            "queue",
+            Box::new(|s| {
+                s.source = Some(QueueSource {
+                    kind: "album".into(),
+                    id: "7".into(),
+                    ..Default::default()
+                })
+            }),
+        ),
+        (
+            "songs",
+            Box::new(|s| s.known_items = songs(&[(1, "A"), (2, "B (live)"), (3, "C")])),
+        ),
+        ("songs", Box::new(|s| s.current_item = Some(item(2, "B")))),
+        ("songs", Box::new(|s| s.current_index = Some(1))),
+        (
+            "favorites",
+            Box::new(|s| s.favorite_tracks = Vec::new().into()),
+        ),
+        (
+            "favorites",
+            Box::new(|s| s.favorite_playlists = vec!["p".to_string()]),
+        ),
+        (
+            "lists",
+            Box::new(|s| {
+                s.track_lists
+                    .insert("album/7".into(), Arc::new(vec!["2".to_string()]));
+            }),
+        ),
+        (
+            "lists",
+            Box::new(|s| {
+                s.track_lists
+                    .insert("playlist/p".into(), Arc::new(vec!["1".to_string()]));
+            }),
+        ),
+    ];
+    for (changed, change) in changes {
+        change(&mut snap);
+        let read = redux_state_parts(&snap, &held, &mut parts);
+        let now = read["tidalfastParts"].clone();
+        for part in all {
+            assert_eq!(
+                now[part] != held[part],
+                part == changed,
+                "{changed}: {part}'s tag"
+            );
+            assert_eq!(sent(&read, part), part == changed, "{changed}: {part} sent");
+        }
+        held = now;
+    }
+    // The playing row moved with the last change of songs: the small
+    // slices say so on every read.
+    let read = redux_state_parts(&snap, &held, &mut parts);
+    assert_eq!(read["playQueue"]["currentIndex"], json!(1));
+    assert_eq!(read["playbackControls"]["mediaProduct"]["productId"], "3");
+}
+
+/// What the store's reads keep between them (the large parts a read holds,
+/// the songs the content loop merged, the queue's signature) never shows a
+/// state that is gone: each change the host makes reaches the next read,
+/// and the parts it did not change are the objects the read before had.
+#[test]
+fn every_change_of_the_store_reaches_the_next_read_at_once() {
+    let (luna, host, dir) = start(
+        r#"
+let prev = null;
+lib.redux.intercept("tidalfast/TEST_READ", unloads, () => {
+	const s = lib.redux.store.getState();
+	const q = s.playQueue.elements;
+	const m = s.content.mediaItems;
+	const f = s.favorites;
+	const l = s.content.trackLists;
+	say({
+		queue: q.map((e) => `${e.mediaItemId}@${e.context?.id ?? ""}`),
+		titles: q.map((e) => m[e.mediaItemId]?.item?.title ?? null),
+		favorites: [...f.tracks, ...f.playlists],
+		lists: Object.fromEntries(Object.entries(l).map(([k, v]) => [k, v.items])),
+		same: prev ? [q === prev[0], m === prev[1], f === prev[2], l === prev[3]] : null,
+	});
+	prev = [q, m, f, l];
+});
+"#,
+        parted_snapshot(),
+    );
+    let read = || -> Value {
+        let n = host.notes().len();
+        assert!(answer(&luna, "tidalfast/TEST_READ", Value::Null));
+        host.wait(&luna, "the read", |h| h.notes().len() > n);
+        serde_json::from_str(&host.notes()[n]).unwrap()
+    };
+    let first = read();
+    assert_eq!(first["queue"], json!(["1@", "2@", "3@"]));
+    assert_eq!(first["titles"], json!(["A", "B", "C"]));
+    assert_eq!(first["favorites"], json!([1]));
+    assert_eq!(first["lists"], json!({ "album/7": [1, 2] }));
+    assert_eq!(
+        read()["same"],
+        json!([true, true, true, true]),
+        "nothing changed"
+    );
+    let change = |f: &dyn Fn(&mut PlaybackSnapshot)| f(&mut host.snap.lock().unwrap());
+    // The rows after the playing one change places.
+    change(&|s| s.queue = vec![entry("1", "1:0"), entry("3", "3:0"), entry("2", "2:0")].into());
+    let r = read();
+    assert_eq!(
+        r["queue"],
+        json!(["1@", "3@", "2@"]),
+        "the queue's new order"
+    );
+    assert_eq!(r["same"], json!([false, true, true, true]));
+    change(&|s| {
+        s.source = Some(QueueSource {
+            kind: "album".into(),
+            id: "7".into(),
+            ..Default::default()
+        })
+    });
+    assert_eq!(
+        read()["queue"],
+        json!(["1@7", "3@7", "2@7"]),
+        "the rows' source"
+    );
+    change(&|s| s.known_items = songs(&[(1, "A"), (2, "B (live)"), (3, "C")]));
+    let r = read();
+    assert_eq!(
+        r["titles"],
+        json!(["A", "C", "B (live)"]),
+        "a song's new title"
+    );
+    assert_eq!(r["same"], json!([true, false, true, true]));
+    change(&|s| s.favorite_tracks = vec!["2".to_string()].into());
+    let r = read();
+    assert_eq!(r["favorites"], json!([2]), "a new favourite");
+    assert_eq!(r["same"], json!([true, true, false, true]));
+    change(&|s| {
+        s.track_lists
+            .insert("album/7".into(), Arc::new(vec!["2".to_string()]));
+    });
+    let r = read();
+    assert_eq!(r["lists"], json!({ "album/7": [2] }), "a list's new songs");
+    assert_eq!(r["same"], json!([true, true, true, false]));
+    // The same songs made again (a new copy): the same objects.
+    change(&|s| s.known_items = songs(&[(1, "A"), (2, "B (live)"), (3, "C")]));
+    let r = read();
+    assert_eq!(r["titles"], json!(["A", "C", "B (live)"]));
+    assert_eq!(r["same"], json!([true, true, true, true]));
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// RealMAX: cancel `ADD_NOW`, dispatch it again with a track swapped. The
 /// host plays the swapped list, once (the plugin's own dispatch is not
 /// offered back to it).
@@ -343,6 +567,49 @@ lib.redux.intercept("playQueue/ADD_ALREADY_LOADED_ITEMS_TO_QUEUE", unloads, () =
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// A plugin's queue edit shows until the queue the host has changes: then
+/// the next read has the host's queue, at once (the edit gave way only when
+/// the queue's rows were read again; a kept signature of rows read before
+/// would hold it over the new queue for seconds).
+#[test]
+fn a_plugins_queue_edit_gives_way_to_the_hosts_next_queue_at_once() {
+    let snap = PlaybackSnapshot {
+        queue: vec![entry("1", "1:0"), entry("2", "2:0"), entry("3", "3:0")].into(),
+        current_index: Some(0),
+        known_items: songs(&[(1, "A"), (2, "B"), (3, "C")]),
+        ..Default::default()
+    };
+    let (luna, host, dir) = start(
+        r#"
+const left = () => lib.redux.store.getState().playQueue.elements.map((e) => e.mediaItemId);
+lib.redux.intercept("tidalfast/TEST_REMOVE", unloads, () => {
+	lib.redux.actions["playQueue/REMOVE_ELEMENT"]({ uid: "2:0" });
+	say(left());
+});
+lib.redux.intercept("tidalfast/TEST_READ", unloads, () => say(left()));
+"#,
+        snap,
+    );
+    let ask = |kind: &str| -> Value {
+        let n = host.notes().len();
+        assert!(answer(&luna, kind, Value::Null));
+        host.wait(&luna, kind, |h| h.notes().len() > n);
+        serde_json::from_str(&host.notes()[n]).unwrap()
+    };
+    assert_eq!(ask("tidalfast/TEST_READ"), json!(["1", "2", "3"]));
+    assert_eq!(
+        ask("tidalfast/TEST_REMOVE"),
+        json!(["1", "3"]),
+        "the edit shows"
+    );
+    // The app applied it and queued a song.
+    host.snap.lock().unwrap().queue =
+        vec![entry("1", "1:0"), entry("3", "3:0"), entry("4", "4:0")].into();
+    assert_eq!(ask("tidalfast/TEST_READ"), json!(["1", "3", "4"]));
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// filtered-queue-fix: `content.trackLists[name]` holds the list's ids; the
 /// plugin cancels the whole-list play and dispatches its filtered items
 /// itself, once, behind its own flag.
@@ -351,7 +618,7 @@ fn track_list_actions_see_the_list_and_can_be_replaced() {
     let snap = PlaybackSnapshot {
         track_lists: [(
             "album/7".to_string(),
-            vec!["10".into(), "11".into(), "12".into()],
+            std::sync::Arc::new(vec!["10".into(), "11".into(), "12".into()]),
         )]
         .into_iter()
         .collect(),
@@ -403,7 +670,7 @@ fn plugin_dispatches_become_host_commands() {
         current_index: Some(0),
         track_lists: [(
             "playlist/p".to_string(),
-            vec!["1".into(), "5".into(), "6".into()],
+            std::sync::Arc::new(vec!["1".into(), "5".into(), "6".into()]),
         )]
         .into_iter()
         .collect(),
@@ -704,7 +971,7 @@ fn queue_actions_translate_with_position_and_start_index() {
         queue: vec![entry("1", "1:0")].into(),
         track_lists: [(
             "album/3".to_string(),
-            vec!["1".into(), "2".into(), "3".into()],
+            std::sync::Arc::new(vec!["1".into(), "2".into(), "3".into()]),
         )]
         .into_iter()
         .collect(),

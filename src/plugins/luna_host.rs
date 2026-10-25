@@ -5,7 +5,7 @@
 //! client.
 
 use std::collections::{BTreeMap, VecDeque};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
 
@@ -46,10 +46,15 @@ pub const BACKGROUND_PASS_IDLE: std::time::Duration = std::time::Duration::from_
 
 pub struct AppHost {
     snapshot: Mutex<PlaybackSnapshot>,
-    /// `(trackListName, item ids)` of lists the app offered recently, and
-    /// the track JSON for their items.
-    lists: Mutex<VecDeque<(String, Vec<String>)>>,
-    list_items: Mutex<BTreeMap<String, Value>>,
+    /// The lists the app offered recently and the track JSON for their
+    /// items.
+    lists: Mutex<Lists>,
+    /// The snapshot's songs with the lists' merged in, as the last read of
+    /// the state made them: made again only when the snapshot's songs or
+    /// the lists change. Every read deep-copied the queue's songs and every
+    /// listed song's JSON (2,000 of each: tens of milliseconds a read of
+    /// the store).
+    merged: Mutex<Option<Merged>>,
     window: Mutex<WindowState>,
     clipboard: Mutex<Option<String>>,
     requests: Mutex<Vec<HostRequest>>,
@@ -72,6 +77,23 @@ pub struct AppHost {
 /// The app's words for a song: `None` while it looks them up, then what it
 /// found (`Some(None)`: none).
 type AppLyrics = Option<Option<Value>>;
+
+/// The lists the app offered recently: `(trackListName, item ids)`, the
+/// track JSON for their items, and a count of changes to either.
+#[derive(Default)]
+struct Lists {
+    names: VecDeque<(String, Arc<Vec<String>>)>,
+    items: BTreeMap<String, Value>,
+    version: u64,
+}
+
+/// What [`Merged::songs`] was made from: the snapshot's songs (kept, so
+/// that the pointer stays theirs) and the lists' version.
+struct Merged {
+    from: Arc<BTreeMap<String, Value>>,
+    version: u64,
+    songs: Arc<BTreeMap<String, Value>>,
+}
 
 /// How long `MediaItem.lyrics()` waits for the app's own lookup of the
 /// song's words when TIDAL has none.
@@ -114,8 +136,8 @@ impl AppHost {
     pub fn new(tidal: Option<TidalAccess>, waker: Option<Waker>) -> Self {
         AppHost {
             snapshot: Mutex::new(PlaybackSnapshot::default()),
-            lists: Mutex::new(VecDeque::new()),
-            list_items: Mutex::new(BTreeMap::new()),
+            lists: Mutex::new(Lists::default()),
+            merged: Mutex::new(None),
             window: Mutex::new(WindowState::default()),
             clipboard: Mutex::new(None),
             requests: Mutex::new(Vec::new()),
@@ -196,19 +218,17 @@ impl AppHost {
     /// A loaded list the next actions name (`content.trackLists[name]`),
     /// with the tracks' JSON for `content.mediaItems`.
     pub fn set_track_list(&self, name: &str, ids: Vec<String>, items: Vec<(String, Value)>) {
-        {
-            let mut lists = self.lists.lock().unwrap_or_else(|l| l.into_inner());
-            lists.retain(|(n, _)| n != name);
-            lists.push_back((name.to_string(), ids));
-            while lists.len() > KEPT_LISTS {
-                lists.pop_front();
-            }
+        let mut lists = self.lists.lock().unwrap_or_else(|l| l.into_inner());
+        lists.names.retain(|(n, _)| n != name);
+        lists.names.push_back((name.to_string(), Arc::new(ids)));
+        while lists.names.len() > KEPT_LISTS {
+            lists.names.pop_front();
         }
-        let mut known = self.list_items.lock().unwrap_or_else(|l| l.into_inner());
-        if known.len() > 4000 {
-            known.clear();
+        if lists.items.len() > 4000 {
+            lists.items.clear();
         }
-        known.extend(items);
+        lists.items.extend(items);
+        lists.version += 1;
     }
 
     pub fn set_window(&self, window: WindowState) {
@@ -420,20 +440,35 @@ impl LunaHost for AppHost {
             .lock()
             .unwrap_or_else(|l| l.into_inner())
             .clone();
-        for (name, ids) in self.lists.lock().unwrap_or_else(|l| l.into_inner()).iter() {
-            snap.track_lists.insert(name.clone(), ids.clone());
+        let lists = self.lists.lock().unwrap_or_else(|l| l.into_inner());
+        for (name, ids) in &lists.names {
+            snap.track_lists.insert(name.clone(), Arc::clone(ids));
         }
         if !snap.track_lists.is_empty() {
-            let known = self.list_items.lock().unwrap_or_else(|l| l.into_inner());
-            let items = std::sync::Arc::make_mut(&mut snap.known_items);
-            for ids in snap.track_lists.values() {
-                for id in ids {
-                    if let Some(item) = known.get(id) {
-                        items.entry(id.clone()).or_insert_with(|| item.clone());
+            let mut merged = self.merged.lock().unwrap_or_else(|l| l.into_inner());
+            let kept = merged
+                .as_ref()
+                .filter(|m| m.version == lists.version && Arc::ptr_eq(&m.from, &snap.known_items));
+            if let Some(m) = kept {
+                snap.known_items = Arc::clone(&m.songs);
+            } else {
+                let from = Arc::clone(&snap.known_items);
+                let items = Arc::make_mut(&mut snap.known_items);
+                for ids in snap.track_lists.values() {
+                    for id in ids.iter() {
+                        if let Some(item) = lists.items.get(id) {
+                            items.entry(id.clone()).or_insert_with(|| item.clone());
+                        }
                     }
                 }
+                *merged = Some(Merged {
+                    from,
+                    version: lists.version,
+                    songs: Arc::clone(&snap.known_items),
+                });
             }
         }
+        drop(lists);
         snap.window = *self.window.lock().unwrap_or_else(|l| l.into_inner());
         snap
     }
@@ -1427,6 +1462,58 @@ mod tests {
         assert!(!host.set_snapshot(snap(&again)), "equal: no change");
         let kept = host.snapshot.lock().unwrap().known_items.clone();
         assert!(Arc::ptr_eq(&kept, &again), "the newest copy is kept");
+    }
+
+    /// A read of the state gets the snapshot's songs with the listed ones
+    /// merged in. The merge is kept while neither changes, and made again
+    /// at once when the snapshot's songs or a list change; the snapshot the
+    /// app set keeps its own songs.
+    #[test]
+    fn the_merged_songs_follow_the_snapshot_and_the_lists() {
+        let host = AppHost::new(None, None);
+        let song = |id: &str, title: &str| (id.to_string(), json!({ "id": id, "title": title }));
+        let titles = |snap: &PlaybackSnapshot| {
+            snap.known_items
+                .iter()
+                .map(|(id, v)| format!("{id} {}", v["title"].as_str().unwrap_or("")))
+                .collect::<Vec<_>>()
+        };
+        host.set_snapshot(PlaybackSnapshot {
+            known_items: Arc::new(BTreeMap::from([song("1", "A")])),
+            ..PlaybackSnapshot::default()
+        });
+        host.set_track_list(
+            "album/7",
+            vec!["1".into(), "2".into()],
+            vec![song("2", "B")],
+        );
+        let first = host.playback();
+        assert_eq!(titles(&first), ["1 A", "2 B"]);
+        let again = host.playback();
+        assert!(Arc::ptr_eq(&first.known_items, &again.known_items), "kept");
+        assert!(Arc::ptr_eq(
+            &first.track_lists["album/7"],
+            &again.track_lists["album/7"]
+        ));
+        host.set_track_list(
+            "album/7",
+            vec!["2".into(), "3".into()],
+            vec![song("3", "C")],
+        );
+        let listed = host.playback();
+        assert_eq!(titles(&listed), ["1 A", "2 B", "3 C"], "a list changed");
+        assert_eq!(*listed.track_lists["album/7"], ["2", "3"]);
+        host.set_snapshot(PlaybackSnapshot {
+            known_items: Arc::new(BTreeMap::from([song("1", "A (live)")])),
+            ..PlaybackSnapshot::default()
+        });
+        let now = host.playback();
+        assert_eq!(
+            titles(&now),
+            ["1 A (live)", "2 B", "3 C"],
+            "the songs changed"
+        );
+        assert_eq!(host.snapshot.lock().unwrap().known_items.len(), 1);
     }
 
     #[test]

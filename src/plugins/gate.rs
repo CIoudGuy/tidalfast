@@ -912,7 +912,7 @@ unloads.add(() => input.remove());
             .lock()
             .unwrap()
             .track_lists
-            .insert(track_list_name("tidal:album:7"), list.clone());
+            .insert(track_list_name("tidal:album:7"), list.clone().into());
         host.commands.lock().unwrap().clear();
         let mut env = GateEnv::default();
         env.lists.insert("tidal:album:7".into(), list);

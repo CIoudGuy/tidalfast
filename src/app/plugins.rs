@@ -1632,7 +1632,7 @@ mod tests {
                 .playback()
                 .track_lists
                 .get(name)
-                .map(Vec::len)
+                .map(|ids| ids.len())
         };
         app.luna_sync(None, window);
         let len = listed(&app, "playlist/pl1").expect("the open playlist's list");
