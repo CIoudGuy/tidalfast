@@ -727,6 +727,47 @@ R.found = {
     finish(luna, dir);
 }
 
+/// Chromium's prefixed aliases are the standard property: radiant-lyrics
+/// sets `backdrop-filter` and `-webkit-backdrop-filter` on the player bar,
+/// which in TIDAL is one property, written once in the style attribute.
+/// A `-moz-` property is not Chromium's at all: it is dropped.
+#[test]
+fn prefixed_style_aliases_are_the_standard_property() {
+    let (luna, _host, dir) = start(
+        r##"
+const el = document.createElement("div");
+document.body.appendChild(el);
+el.style.setProperty("backdrop-filter", "blur(15px)");
+el.style.setProperty("-webkit-backdrop-filter", "blur(15px)");
+el.style.webkitTransform = "rotate(1deg)";
+el.style.setProperty("-moz-transform", "scale(2)");
+R.found = {
+	style: el.getAttribute("style"),
+	backdrop: [el.style.getPropertyValue("backdrop-filter"), el.style.getPropertyValue("-webkit-backdrop-filter")],
+	transform: [el.style.transform, el.style.webkitTransform],
+	moz: el.style.getPropertyValue("-moz-transform"),
+	length: el.style.length,
+};
+"##,
+    );
+    let r = results_until(&luna, &dir, 20, |r| !r["found"].is_null());
+    let f = &r["found"];
+    assert_eq!(
+        f["style"],
+        json!("backdrop-filter: blur(15px); transform: rotate(1deg);"),
+        "{f}"
+    );
+    assert_eq!(f["backdrop"], json!(["blur(15px)", "blur(15px)"]), "{f}");
+    assert_eq!(
+        f["transform"],
+        json!(["rotate(1deg)", "rotate(1deg)"]),
+        "{f}"
+    );
+    assert_eq!(f["moz"], json!(""), "{f}");
+    assert_eq!(f["length"], json!(2), "{f}");
+    finish(luna, dir);
+}
+
 /// CSS hides what is inside a hidden element: `display: none` on the
 /// sidebar (element-hider's "Hide This Element" on a box round the rows)
 /// takes its rows and what a plugin put in it out of the page, and an
