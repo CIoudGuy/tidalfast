@@ -141,3 +141,61 @@ fn an_open_menus_box_holds_its_header_and_rows() {
     );
     assert_eq!(rect(dom_anchors::keys::CONTEXT_MENU_BOX), menu);
 }
+/// TIDAL blurs a playlist's header art box as a whole (`._dataContainer_
+/// 9f47346::before { filter: blur(50px) }`), so the box's black foot runs
+/// on into the page below it and fades out over about 130 points (TIDAL
+/// 2.46.0 under TidalCustomTheme's pink page: the parity checker's replay
+/// and a real TIDAL screenshot). Tidalfast's ended at the box's foot. A
+/// theme's own `filter` on the box takes TIDAL's place (`none`: a hard
+/// foot, as before).
+#[test]
+fn a_playlists_header_box_fades_out_below_its_foot() {
+    use super::theme_round41_tests as r41;
+    let pink = egui::Color32::from_rgb(250, 160, 200);
+    let first_pink = |name: &str, extra: &str| -> f32 {
+        let css = format!(
+            "/* {{\"name\": \"Pink page\"}} */\n#main {{ background-color: rgb(250, 160, 200); }}\n{extra}\n"
+        );
+        let (ctx, mut app) = r41::demo_app("playlist:pl0", None);
+        let plain = r41::drawn(
+            &ctx,
+            &mut app,
+            DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            },
+        );
+        let mut o = r41::styled(name, &css, &plain, dom_anchors::keys::MAIN);
+        o.version = 2;
+        crate::ui::hold_cover_backdrop_for_test(&mut app, &ctx);
+        let points: Vec<[f32; 2]> = (0..100).map(|i| [1000.0, 300.0 + 5.0 * i as f32]).collect();
+        let colours = r41::painted_at(&ctx, &mut app, o, &points);
+        app.backend.shutdown();
+        let close = |c: egui::Color32| {
+            c.to_array()[..3]
+                .iter()
+                .zip(pink.to_array())
+                .all(|(a, b)| a.abs_diff(b) <= 2)
+        };
+        // Down the page from inside the header box: the first point that is
+        // the page's own pink.
+        let dark = colours
+            .iter()
+            .position(|c| !close(*c))
+            .expect("the header box is drawn");
+        let pink_at = colours[dark..]
+            .iter()
+            .position(|c| close(*c))
+            .expect("the page shows below the box");
+        points[dark + pink_at][1]
+    };
+    let blurred = first_pink("pink-page.css", "");
+    let hard = first_pink(
+        "pink-page-hard.css",
+        "[class^=\"_dataContainer_\"]::before { filter: none; }",
+    );
+    assert!(
+        blurred - hard >= 90.0,
+        "the foot fades out from {hard} to {blurred}"
+    );
+}

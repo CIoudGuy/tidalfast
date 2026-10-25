@@ -535,6 +535,15 @@ pub(crate) fn cover_backdrop(app: &mut App) -> Option<CoverBackdrop> {
         .map(|url| CoverBackdrop { url, sharp })
 }
 
+/// Holds the open page's header art as its blurred copy (a white pixel),
+/// as it is once made, so a test draws the header's wash.
+#[cfg(test)]
+pub(crate) fn hold_cover_backdrop_for_test(app: &mut App, ctx: &egui::Context) {
+    if let Some(backdrop) = cover_backdrop(app) {
+        app.softened_covers.hold_wash_for_test(ctx, &backdrop.url);
+    }
+}
+
 /// How much black lies over the top of an album's backdrop (TIDAL's
 /// `linear-gradient(rgba(0,0,0,.6), #000)`), and over a playlist's, mix's
 /// or radio's blurred one (`.4`).
@@ -558,6 +567,12 @@ pub(crate) fn cover_backdrop_rect(page: Rect) -> Rect {
 /// TIDAL's header art box: the page's top 450 points.
 const COVER_BACKDROP_HEIGHT: f32 = 450.0;
 
+/// The blur TIDAL 2.46.0 gives a playlist's (and a mix's or radio's)
+/// header art box, `._dataContainer_::before { filter: blur(50px) }`: the
+/// whole box, so its edges are soft and its black foot runs on into the
+/// page. An album's box is not blurred.
+const COVER_BACKDROP_BLUR: f32 = 50.0;
+
 /// TIDAL's `._dataContainer::before`: the cover scaled to cover the page's
 /// top 450 points, under black fading to solid black at the foot. An
 /// album's cover is laid as it is under 60 % black; a playlist's, mix's or
@@ -565,22 +580,30 @@ const COVER_BACKDROP_HEIGHT: f32 = 450.0;
 /// texture.
 fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: &CoverBackdrop) {
     let header = cover_backdrop_rect(page);
+    let key = crate::luna::dom_anchors::keys::PAGE_DATA;
+    // A playlist's box is blurred as a whole, a theme's own `filter` on it
+    // in TIDAL's place: its foot runs on below it, about three blurs.
+    let blur = plugin_dom::before_blur(key).unwrap_or(if backdrop.sharp.is_none() {
+        COVER_BACKDROP_BLUR
+    } else {
+        0.0
+    });
+    let reach = Rect::from_min_max(header.min, pos2(header.max.x, header.max.y + 3.0 * blur));
     let mut layer = ui.new_child(egui::UiBuilder::new().max_rect(header));
     let clip = ui.clip_rect();
     layer.set_clip_rect(if header.height() > COVER_BACKDROP_HEIGHT {
         // A box taller than the page moves up with it: what scrolls into
         // view from below is clipped to the page once the page's scroll is
         // known (`scroll_backdrop`).
-        header.intersect(Rect::from_min_max(
+        reach.intersect(Rect::from_min_max(
             clip.min,
             pos2(clip.max.x, f32::INFINITY),
         ))
     } else {
-        header.intersect(clip)
+        reach.intersect(clip)
     });
     // Themes restyle that box (`[class^=_dataContainer_]::before`): drop
     // the art, tint it, frost it.
-    let key = crate::luna::dom_anchors::keys::PAGE_DATA;
     if !plugin_dom::before_image_removed(key) {
         let art = app.backend.art().clone();
         let sharp = backdrop
@@ -601,7 +624,7 @@ fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: 
             } else {
                 BLURRED_VEIL
             };
-            widgets::paint_cover_wash(&layer, &texture, header, veil);
+            widgets::paint_cover_wash_blurred(&layer, &texture, header, veil, blur);
         }
     }
     plugin_dom::paint_host_layers(&layer, key, header);

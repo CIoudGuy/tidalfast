@@ -141,7 +141,38 @@ pub(super) fn paint_avatar_image(
 /// by a gradient from black at `veil` strength at the top to solid black at
 /// the bottom. One textured quad; the gradient is its vertex colours.
 pub(super) fn paint_cover_wash(ui: &Ui, texture: &egui::TextureHandle, rect: Rect, veil: f32) {
-    let size = texture.size_vec2();
+    paint_cover_wash_blurred(ui, texture, rect, veil, 0.0);
+}
+
+/// [`paint_cover_wash`] for a box under `filter: blur(<blur>)` (TIDAL's
+/// playlist header art, `._dataContainer_::before { filter: blur(50px) }`):
+/// the whole box is blurred, so its edges soften as a Gaussian of that
+/// standard deviation softens them: half strength on each edge, fading in
+/// over about two `blur` inside, and its black foot running on as far below
+/// the box, fading into the page. What lies past the page's own edges is
+/// cut off by the clip, as TIDAL's scroll container cuts it.
+pub(super) fn paint_cover_wash_blurred(
+    ui: &Ui,
+    texture: &egui::TextureHandle,
+    rect: Rect,
+    veil: f32,
+    blur: f32,
+) {
+    for mesh in cover_wash_meshes(texture.id(), texture.size_vec2(), rect, veil, blur) {
+        ui.painter().add(egui::Shape::mesh(mesh));
+    }
+}
+
+/// The meshes [`paint_cover_wash_blurred`] paints: the cover in its box,
+/// then (blurred) its foot's black running on below the box, a plain mesh
+/// with no picture.
+pub(super) fn cover_wash_meshes(
+    texture: egui::TextureId,
+    size: egui::Vec2,
+    rect: Rect,
+    veil: f32,
+    blur: f32,
+) -> Vec<egui::Mesh> {
     let aspect = size.x / size.y;
     let rect_aspect = rect.width() / rect.height();
     let uv = if aspect > rect_aspect {
@@ -152,17 +183,85 @@ pub(super) fn paint_cover_wash(ui: &Ui, texture: &egui::TextureHandle, rect: Rec
         Rect::from_min_max(pos2(0.0, inset), pos2(1.0, 1.0 - inset))
     };
     let top = Color32::from_gray(((1.0 - veil) * 255.0) as u8);
-    let mut mesh = egui::Mesh::with_texture(texture.id());
+    let mut mesh = egui::Mesh::with_texture(texture);
     let vertex = |pos, uv, color| egui::epaint::Vertex { pos, uv, color };
-    mesh.vertices.extend([
-        vertex(rect.left_top(), uv.left_top(), top),
-        vertex(rect.right_top(), uv.right_top(), top),
-        vertex(rect.right_bottom(), uv.right_bottom(), Color32::BLACK),
-        vertex(rect.left_bottom(), uv.left_bottom(), Color32::BLACK),
-    ]);
-    mesh.add_triangle(0, 1, 2);
-    mesh.add_triangle(0, 2, 3);
-    ui.painter().add(egui::Shape::mesh(mesh));
+    if !(blur > 0.5 && blur.is_finite()) || rect.width() <= 0.0 || rect.height() <= 0.0 {
+        mesh.vertices.extend([
+            vertex(rect.left_top(), uv.left_top(), top),
+            vertex(rect.right_top(), uv.right_top(), top),
+            vertex(rect.right_bottom(), uv.right_bottom(), Color32::BLACK),
+            vertex(rect.left_bottom(), uv.left_bottom(), Color32::BLACK),
+        ]);
+        mesh.add_triangle(0, 1, 2);
+        mesh.add_triangle(0, 2, 3);
+        return vec![mesh];
+    }
+    // A grid fine where the blur ramps (three standard deviations in from
+    // each edge), coarse in between; each vertex carries the blurred box's
+    // coverage there, the product of the two axes' Gaussian edges. What
+    // lies past the box's sides and top is past the page's edges, cut off.
+    let reach = 3.0 * blur;
+    let steps = |lo: f32, hi: f32| {
+        let mut at: Vec<f32> = Vec::new();
+        for edge in [lo, hi] {
+            at.extend((-8..=8).map(|i| edge + reach * i as f32 / 8.0));
+        }
+        at.retain(|v| *v >= lo && *v <= hi);
+        at.sort_by(f32::total_cmp);
+        at.dedup_by(|a, b| (*a - *b).abs() < 0.25);
+        at
+    };
+    let xs = steps(rect.left(), rect.right());
+    let inside = steps(rect.top(), rect.bottom());
+    let below: Vec<f32> = (0..=8)
+        .map(|i| rect.bottom() + reach * i as f32 / 8.0)
+        .collect();
+    let edge = |v: f32, lo: f32, hi: f32| gauss_cdf((v - lo) / blur) - gauss_cdf((v - hi) / blur);
+    let grid = |mut mesh: egui::Mesh, ys: &[f32]| {
+        for &y in ys {
+            let fy = ((y - rect.top()) / rect.height()).clamp(0.0, 1.0);
+            let grey = f32::from(top.r()) * (1.0 - fy);
+            let cover_y = edge(y, rect.top(), rect.bottom());
+            for &x in &xs {
+                let fx = ((x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                let alpha = (cover_y * edge(x, rect.left(), rect.right())).clamp(0.0, 1.0);
+                let g = (grey * alpha).round() as u8;
+                let color =
+                    Color32::from_rgba_premultiplied(g, g, g, (alpha * 255.0).round() as u8);
+                // The foot is plain colour: egui's white texel.
+                let at = if mesh.texture_id == egui::TextureId::default() {
+                    egui::epaint::WHITE_UV
+                } else {
+                    pos2(uv.min.x + uv.width() * fx, uv.min.y + uv.height() * fy)
+                };
+                mesh.vertices.push(vertex(pos2(x, y), at, color));
+            }
+        }
+        let row = xs.len() as u32;
+        for j in 0..(ys.len() as u32).saturating_sub(1) {
+            for i in 0..row.saturating_sub(1) {
+                let a = j * row + i;
+                mesh.add_triangle(a, a + 1, a + row + 1);
+                mesh.add_triangle(a, a + row + 1, a + row);
+            }
+        }
+        mesh
+    };
+    vec![grid(mesh, &inside), grid(egui::Mesh::default(), &below)]
+}
+
+/// The standard normal distribution's cumulative function (Abramowitz and
+/// Stegun 7.1.26: within 1.5e-7).
+fn gauss_cdf(z: f32) -> f32 {
+    let x = f64::from(z) / std::f64::consts::SQRT_2;
+    let t = 1.0 / (1.0 + 0.327_591_1 * x.abs());
+    let poly = t
+        * (0.254_829_592
+            + t * (-0.284_496_736
+                + t * (1.421_413_741 + t * (-1.453_152_027 + t * 1.061_405_429))));
+    let erf = 1.0 - poly * (-x * x).exp();
+    let erf = if x < 0.0 { -erf } else { erf };
+    (0.5 * (1.0 + erf)) as f32
 }
 
 /// Paints the requested cover, keeping a softened thumbnail visible until it

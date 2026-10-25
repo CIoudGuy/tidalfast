@@ -911,6 +911,21 @@ impl SoftenedCovers {
         self.textures.len()
     }
 
+    /// Holds a one-pixel white page-header wash for `uri` (as [`Self::wash`]
+    /// returns once the cover is blurred), made in `ctx`.
+    #[cfg(test)]
+    pub(crate) fn hold_wash_for_test(&mut self, ctx: &egui::Context, uri: &str) {
+        let image = egui::ColorImage::filled([1, 1], egui::Color32::WHITE);
+        let texture = ctx.load_texture("softened-cover", image, egui::TextureOptions::LINEAR);
+        self.textures.insert(
+            format!("{WASH_PREFIX}{uri}"),
+            SoftenedCover {
+                texture,
+                last_used: Instant::now(),
+            },
+        );
+    }
+
     /// Holds a one-pixel blurred cover made in `ctx`.
     #[cfg(test)]
     pub(crate) fn hold_for_test(&mut self, ctx: &egui::Context) {
