@@ -193,6 +193,34 @@ fn expected_quality(
     own.map_or(asked, |own| own.min(asked))
 }
 
+/// TIDAL's name of a now-playing tab (`settings.nowPlayingActiveView`).
+fn tidal_view(tab: Option<crate::model::NowPlayingTab>) -> Value {
+    use crate::model::NowPlayingTab as T;
+    match tab {
+        Some(T::Lyrics) => json!("lyrics"),
+        Some(T::Credits) => json!("credits"),
+        Some(T::SimilarTracks) => json!("similar"),
+        None => Value::Null,
+    }
+}
+
+/// TIDAL's `settings/SET_NOW_PLAYING_ACTIVE_VIEW` when the now-playing tab
+/// is not the one plugins were last `told` of (none until one is chosen).
+fn view_event(
+    told: &mut Option<Option<crate::model::NowPlayingTab>>,
+    tab: Option<crate::model::NowPlayingTab>,
+) -> Option<LunaEvent> {
+    if *told == Some(tab) {
+        return None;
+    }
+    let first = told.is_none();
+    *told = Some(tab);
+    (!first || tab.is_some()).then(|| LunaEvent::Action {
+        kind: "settings/SET_NOW_PLAYING_ACTIVE_VIEW".into(),
+        payload: tidal_view(tab),
+    })
+}
+
 fn luna_repeat(mode: RepeatMode) -> LunaRepeat {
     match mode {
         RepeatMode::Off => LunaRepeat::Off,
@@ -950,6 +978,7 @@ impl App {
         // until they change ([`Self::luna_shared`]).
         let snap = self.luna_playback(now);
         let now_playing_view = self.now_playing_view;
+        let now_playing_tab = self.now_playing_tab;
         let lyrics_state = {
             let id = now.and_then(|n| n.id.clone());
             // The words the app holds are the playing song's only when it
@@ -1082,6 +1111,7 @@ impl App {
             }
             seen.now_playing_view = Some(now_playing_view);
         }
+        events.extend(view_event(&mut seen.now_playing_tab, now_playing_tab));
         if seen.fullscreen != Some(window.fullscreen) {
             if seen.fullscreen.is_none() {
                 // Once, as TIDAL's player reports it when it starts.
@@ -1165,6 +1195,23 @@ impl App {
                 }
                 if let HostCommand::RetitleTracks(titles) = command {
                     self.retitle_tracks(titles);
+                    ctx.request_repaint();
+                    return;
+                }
+                if let HostCommand::SetNowPlayingView(view) = command {
+                    use crate::model::NowPlayingTab as T;
+                    let tab = match view.as_deref() {
+                        Some("lyrics") => Some(T::Lyrics),
+                        Some("credits") => Some(T::Credits),
+                        Some("similar") => Some(T::SimilarTracks),
+                        _ => None,
+                    };
+                    self.now_playing_tab = tab;
+                    if tab == Some(T::Lyrics) {
+                        self.lyrics_following = true;
+                    }
+                    // The plugin's own dispatch is not told back to it.
+                    self.plugins.seen.now_playing_tab = Some(tab);
                     ctx.request_repaint();
                     return;
                 }
@@ -1507,7 +1554,7 @@ impl App {
             }
             HostCommand::PlayNowFrom { .. } => Vec::new(),
             HostCommand::Search(phrase) => vec![Action::Search(phrase)],
-            HostCommand::RetitleTracks(_) => Vec::new(),
+            HostCommand::RetitleTracks(_) | HostCommand::SetNowPlayingView(_) => Vec::new(),
             // Luna's `Page.open()`: TIDAL's not-found route with the page's
             // name as its search.
             HostCommand::Navigate(path) if path.starts_with("/not-found?") => {
@@ -2173,6 +2220,42 @@ mod tests {
             None,
             "the song before's words are not this song's"
         );
+        app.backend.shutdown();
+    }
+
+    /// The now-playing tab is TIDAL's `settings.nowPlayingActiveView`: the
+    /// user's switch is told to plugins; a plugin's switch changes the tab
+    /// without opening the view, and is not told back to it.
+    #[test]
+    fn the_now_playing_tab_and_tidals_active_view_follow_each_other() {
+        use crate::model::NowPlayingTab;
+        let mut app = app("plugin-np-view");
+        let ctx = egui::Context::default();
+        let views = |app: &mut App| -> Vec<Value> {
+            view_event(&mut app.plugins.seen.now_playing_tab, app.now_playing_tab)
+                .into_iter()
+                .map(|e| match e {
+                    LunaEvent::Action { kind, payload } => {
+                        assert_eq!(kind, "settings/SET_NOW_PLAYING_ACTIVE_VIEW");
+                        payload
+                    }
+                    other => panic!("{other:?}"),
+                })
+                .collect()
+        };
+        assert!(views(&mut app).is_empty(), "no tab chosen yet");
+        app.now_playing_tab = Some(NowPlayingTab::Credits);
+        assert_eq!(views(&mut app), [json!("credits")]);
+        assert!(views(&mut app).is_empty());
+        app.handle_host_request(
+            HostRequest::Command(HostCommand::SetNowPlayingView(Some("lyrics".into()))),
+            &ctx,
+        );
+        assert_eq!(app.now_playing_tab, Some(NowPlayingTab::Lyrics));
+        assert!(!app.now_playing_view, "the view stays closed");
+        assert!(views(&mut app).is_empty(), "not told back");
+        app.now_playing_tab = Some(NowPlayingTab::SimilarTracks);
+        assert_eq!(views(&mut app), [json!("similar")]);
         app.backend.shutdown();
     }
 

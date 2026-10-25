@@ -355,6 +355,7 @@
       "downloadQuality",
       "explicitContentEnabled",
       "language",
+      "nowPlayingActiveView",
       "openLinksInDesktopApp",
       "quality",
       "startMinimized",

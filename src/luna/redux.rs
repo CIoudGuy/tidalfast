@@ -59,6 +59,7 @@ pub const EMITTED_ACTIONS: &[&str] = &[
     "content/LOAD_ITEM_LYRICS_FAIL",
     "view/ENTERED_NOWPLAYING",
     "view/EXIT_NOWPLAYING",
+    "settings/SET_NOW_PLAYING_ACTIVE_VIEW",
     "view/REQUEST_FULLSCREEN",
     "view/EXIT_FULLSCREEN",
     "view/FULLSCREEN_ALLOWED",
@@ -349,6 +350,11 @@ pub fn action_outcome(kind: &str, payload: &Value, snap: &PlaybackSnapshot) -> A
                 (Some("shared"), Some(_)) => one(C::SetExclusiveMode(false)),
                 _ => Ignored,
             }
+        }
+        // The now-playing view's tab (TIDAL's header switches it so; a
+        // plugin switching it refreshes what TIDAL draws there).
+        "settings/SET_NOW_PLAYING_ACTIVE_VIEW" => {
+            one(C::SetNowPlayingView(payload.as_str().map(str::to_string)))
         }
         "view/REQUEST_FULLSCREEN" => one(C::SetFullscreen(true)),
         "view/EXIT_FULLSCREEN" => one(C::SetFullscreen(false)),

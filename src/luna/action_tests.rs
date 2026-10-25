@@ -879,6 +879,49 @@ lib.redux.intercept("view/ENTERED_NOWPLAYING", unloads, () => {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// TIDAL's `settings.nowPlayingActiveView`: the tab the now-playing view
+/// shows, which TIDAL's header switches with
+/// `settings/SET_NOW_PLAYING_ACTIVE_VIEW` (radiant-lyrics reads it, and
+/// switches it to refresh what TIDAL draws). The app's switch reaches the
+/// store and the plugins that intercept it; a plugin's switch reaches the
+/// app and its own store.
+#[test]
+fn the_now_playing_tab_is_tidals_active_view_both_ways() {
+    let (luna, host, dir) = start(
+        r#"
+const store = luna.core.modules["@luna/core"].reduxStore;
+lib.redux.intercept("settings/SET_NOW_PLAYING_ACTIVE_VIEW", unloads, (v) => {
+	const before = store.getState().settings.nowPlayingActiveView;
+	setTimeout(() => {
+		say("heard " + v + " over " + before + ", now " + store.getState().settings.nowPlayingActiveView);
+		if (v === "lyrics") lib.redux.actions["settings/SET_NOW_PLAYING_ACTIVE_VIEW"]("credits");
+	}, 0);
+});
+say("at load " + store.getState().settings.nowPlayingActiveView);
+"#,
+        PlaybackSnapshot::default(),
+    );
+    host.wait(&luna, "the load", |h| !h.notes().is_empty());
+    assert_eq!(host.notes()[0], "at load null");
+    luna.event(LunaEvent::Action {
+        kind: "settings/SET_NOW_PLAYING_ACTIVE_VIEW".into(),
+        payload: json!("lyrics"),
+    });
+    host.wait(&luna, "the plugin's switch", |h| !h.commands().is_empty());
+    assert!(
+        host.notes()
+            .contains(&"heard lyrics over null, now lyrics".to_string()),
+        "{:?}",
+        host.notes()
+    );
+    assert_eq!(
+        host.commands(),
+        vec![HostCommand::SetNowPlayingView(Some("credits".into()))]
+    );
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// The Electron surface plugins call: window controls reach the host,
 /// openExternal takes only web links, the clipboard reads what was written
 /// (after a click),

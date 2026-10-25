@@ -34,6 +34,9 @@ pub(crate) struct Seen {
     pub favorites: Option<usize>,
     pub page: Option<String>,
     pub now_playing_view: Option<bool>,
+    /// The now-playing tab plugins were last told of
+    /// (`settings/SET_NOW_PLAYING_ACTIVE_VIEW`).
+    pub now_playing_tab: Option<Option<crate::model::NowPlayingTab>>,
     pub fullscreen: Option<bool>,
     /// The output mode last announced as `player.activeDeviceMode`.
     pub exclusive: Option<bool>,
