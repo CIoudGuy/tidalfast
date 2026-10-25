@@ -93,6 +93,14 @@ const RETRY_FIRST: Duration = Duration::from_secs(2);
 /// the network is back without asking TIDAL over and over while it is not.
 const RETRY_MAX: Duration = Duration::from_secs(15);
 
+/// How long a queued song whose details TIDAL did not give (it was busy,
+/// or could not be reached) waits before they are asked once more.
+const LOOK_UP_AGAIN: Duration = if cfg!(test) {
+    Duration::from_millis(100)
+} else {
+    Duration::from_secs(3)
+};
+
 /// The wait before try `tries` (from 0) to reach TIDAL again.
 fn retry_pause(tries: u32) -> Duration {
     RETRY_FIRST.saturating_mul(1 << tries.min(8)).min(RETRY_MAX)
@@ -147,7 +155,13 @@ enum Msg {
         id: u64,
         result: Result<Vec<LocalTrack>>,
     },
-    Tracks(Result<Vec<LocalTrack>>),
+    /// The details of queued songs: `uris` as asked, `again` for the second
+    /// and last ask.
+    Tracks {
+        uris: Vec<String>,
+        again: bool,
+        result: Result<Vec<LocalTrack>>,
+    },
     Restore(Arc<Snapshot>),
     /// The system says the network is back: whatever waits for it tries
     /// again now.
@@ -307,6 +321,8 @@ impl Engine {
                         .adaptive
                         .then(|| adaptive::Adaptive::new(config.quality)),
                     config,
+                    looking_up: Default::default(),
+                    look_up_again: None,
                     #[cfg(test)]
                     wakes: core_wakes,
                 }
@@ -577,6 +593,11 @@ struct Core {
     replaced_at: Option<Instant>,
     /// The quality the next song streams at, with adaptive streaming on.
     adaptive: Option<adaptive::Adaptive>,
+    /// Queued songs whose details are being asked of TIDAL: a song queued
+    /// again meanwhile is not asked twice.
+    looking_up: std::collections::HashSet<String>,
+    /// Queued songs TIDAL gave no details for, asked once more then.
+    look_up_again: Option<(Instant, Vec<String>)>,
     #[cfg(test)]
     wakes: Arc<AtomicU64>,
 }
@@ -631,6 +652,16 @@ impl Core {
     /// `None` while nothing can change without one: no song, or a paused
     /// song whose sound is ready ([`Self::step`] does nothing then).
     fn idle_time(&mut self) -> Option<Duration> {
+        let audio = self.audio_idle_time();
+        let Some((at, _)) = &self.look_up_again else {
+            return audio;
+        };
+        let look_up = at.saturating_duration_since(Instant::now());
+        Some(audio.map_or(look_up, |audio| audio.min(look_up)))
+    }
+
+    /// [`Self::idle_time`] for the playing song alone.
+    fn audio_idle_time(&mut self) -> Option<Duration> {
         // Waiting for the network: nothing to do until the next try.
         if let Some(at) = self.retry_at.or(self.autoplay_retry_at) {
             return Some(at.saturating_duration_since(Instant::now()));
@@ -809,25 +840,11 @@ impl Core {
                 }
             }
             Msg::Autoplay { id, result } => self.autoplay_answered(id, result),
-            Msg::Tracks(result) => match result {
-                Ok(tracks) => {
-                    lock(&self.queue).fill(&tracks);
-                    if let Some(current) = &self.current
-                        && let Some(track) = tracks.iter().find(|t| t.uri == current.track.uri)
-                    {
-                        let track = track.clone();
-                        self.update(|state| {
-                            if state.track.as_ref().is_some_and(|t| t.title.is_empty()) {
-                                state.track = Some(track);
-                                true
-                            } else {
-                                false
-                            }
-                        });
-                    }
-                }
-                Err(error) => log::warn!("queued track metadata: {error:#}"),
-            },
+            Msg::Tracks {
+                uris,
+                again,
+                result,
+            } => self.tracks_found(uris, again, result),
             Msg::Restore(snapshot) => self.restore(&snapshot),
             Msg::NetworkBack => {
                 let now = Instant::now();
@@ -863,21 +880,19 @@ impl Core {
                 self.check_preload();
             }
             PlayerCommand::AddToQueue(uri) => {
-                lock(&self.queue).add(LocalTrack {
+                // A song the queue holds already (one the app cleared to
+                // reorder Playing next, or one of the context) keeps its
+                // details; only a new one is looked up.
+                let known = lock(&self.queue).known(&uri);
+                let look_up = known.is_none();
+                lock(&self.queue).add(known.unwrap_or_else(|| LocalTrack {
                     uri: uri.clone(),
                     ..LocalTrack::default()
-                });
+                }));
                 self.check_preload();
-                let catalog = Arc::clone(&self.catalog);
-                let offline = self.offline.clone();
-                let sender = self.sender.clone();
-                spawn_worker(move || {
-                    let uris = [uri];
-                    let tracks = catalog
-                        .tracks(&uris)
-                        .or_else(|error| offline_tracks(offline.as_deref(), &uris).ok_or(error));
-                    let _ = sender.send(Msg::Tracks(tracks));
-                });
+                if look_up {
+                    self.look_up(vec![uri], false);
+                }
             }
             PlayerCommand::SkipContext { uri, occurrence } => {
                 lock(&self.queue).skip_context(&uri, occurrence);
@@ -908,6 +923,75 @@ impl Core {
                 carrier,
             } => self.replace_audio(uri, url.map(|u| u.0), own, carrier.map(|track| *track)),
             PlayerCommand::Transfer => {}
+        }
+    }
+
+    /// Asks TIDAL, on a worker, for the details of queued songs added by
+    /// their address alone, unless an ask for them is on its way already.
+    fn look_up(&mut self, uris: Vec<String>, again: bool) {
+        let uris: Vec<String> = uris
+            .into_iter()
+            .filter(|uri| self.looking_up.insert(uri.clone()))
+            .collect();
+        if uris.is_empty() {
+            return;
+        }
+        let catalog = Arc::clone(&self.catalog);
+        let offline = self.offline.clone();
+        let sender = self.sender.clone();
+        spawn_worker(move || {
+            let result = catalog
+                .tracks(&uris)
+                .or_else(|error| offline_tracks(offline.as_deref(), &uris).ok_or(error));
+            let _ = sender.send(Msg::Tracks {
+                uris,
+                again,
+                result,
+            });
+        });
+    }
+
+    /// TIDAL's answer for queued songs fills their slots. A song it gave
+    /// nothing for (a busy moment, the network away) is asked once more a
+    /// little later, so its slot does not stay bare.
+    fn tracks_found(&mut self, uris: Vec<String>, again: bool, result: Result<Vec<LocalTrack>>) {
+        for uri in &uris {
+            self.looking_up.remove(uri);
+        }
+        let tracks = result.unwrap_or_else(|error| {
+            log::warn!("queued track metadata: {error:#}");
+            Vec::new()
+        });
+        lock(&self.queue).fill(&tracks);
+        if let Some(current) = &self.current
+            && let Some(track) = tracks.iter().find(|t| t.uri == current.track.uri)
+        {
+            let track = track.clone();
+            self.update(|state| {
+                if state.track.as_ref().is_some_and(|t| t.title.is_empty()) {
+                    state.track = Some(track);
+                    true
+                } else {
+                    false
+                }
+            });
+        }
+        let missing: Vec<String> = {
+            let queue = lock(&self.queue);
+            uris.into_iter()
+                .filter(|uri| !tracks.iter().any(|track| &track.uri == uri) && queue.lacks(uri))
+                .collect()
+        };
+        if missing.is_empty() {
+            return;
+        }
+        if again {
+            log::warn!("no details for queued songs {missing:?}");
+            return;
+        }
+        match &mut self.look_up_again {
+            Some((_, later)) => later.extend(missing),
+            None => self.look_up_again = Some((Instant::now() + LOOK_UP_AGAIN, missing)),
         }
     }
 
@@ -1367,6 +1451,18 @@ impl Core {
     /// Moves the audio along: starts a loaded track, writes one packet,
     /// handles the end, preloads, and reports the position.
     fn step(&mut self) {
+        if self
+            .look_up_again
+            .as_ref()
+            .is_some_and(|(at, _)| Instant::now() >= *at)
+            && let Some((_, uris)) = self.look_up_again.take()
+        {
+            let uris: Vec<String> = {
+                let queue = lock(&self.queue);
+                uris.into_iter().filter(|uri| queue.lacks(uri)).collect()
+            };
+            self.look_up(uris, true);
+        }
         if let Some(at) = self.autoplay_retry_at
             && Instant::now() >= at
         {
