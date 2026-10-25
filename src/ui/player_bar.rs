@@ -90,6 +90,24 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     } else {
         fill
     };
+    // TIDAL's page (`main`) stops at the open play queue's column, where the
+    // document's own fill shows, a theme's base colour (Catppuccin's, lighter
+    // than its page): the bar's glass lies over that there.
+    let page = if palette.tidal_dark() {
+        Color32::BLACK
+    } else {
+        palette.window
+    };
+    let column = (app.show_queue_panel
+        && over_view <= 0.0
+        && backdrop.is_none()
+        && floating.is_none()
+        && !glass
+        && palette.dark
+        && plugin_dom::surface(keys::FOOTER, Color32::TRANSPARENT) == Color32::TRANSPARENT)
+        .then(|| plugin_dom::queue_column_fill(page))
+        .flatten()
+        .map(|behind| plugin_dom::tidal_bar_glass(Color32::TRANSPARENT, behind));
     let mut frame = Frame::new()
         .fill(fill)
         .inner_margin(Margin::symmetric(18, 0));
@@ -119,6 +137,14 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     .map_or(egui::CornerRadius::ZERO, |f| f.radius);
                 super::backdrop::paint(ui.painter(), behind, corners, backdrop);
                 ui.painter().rect_filled(behind, corners, *own);
+            }
+            if let Some(over_body) = column {
+                let left = super::queue::wrapper_left(ui.ctx().content_rect());
+                ui.painter().rect_filled(
+                    Rect::from_min_max(pos2(left.max(behind.left()), behind.top()), behind.max),
+                    0.0,
+                    over_body,
+                );
             }
             // The bar itself, away from its buttons, links and sliders,
             // slides the now-playing view up and closes it again, as TIDAL's
