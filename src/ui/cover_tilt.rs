@@ -335,37 +335,30 @@ fn rect_mesh(rect: &RectShape, projection: &Projection) -> Shape {
     Shape::Vec(shapes)
 }
 
-/// A soft shadow (a blurred rectangle) following the tilted cover: the
-/// rectangle's solid core and its faded rim are projected corner by corner,
-/// so the shadow leans with the cover instead of staying flat behind it.
+/// A soft shadow (a blurred rectangle) following the tilted cover: the blur
+/// egui draws for it flat (a Gaussian, as CSS blurs a box-shadow), with each
+/// vertex projected, so the shadow leans with the cover instead of staying
+/// flat behind it and looks the same when the cover is at rest.
 fn shadow_mesh(rect: &RectShape, projection: &Projection) -> Shape {
-    let half = rect.blur_width / 2.0;
-    let rings = [rect.rect.shrink(half), rect.rect.expand(half)];
+    let blurred = blurred_shadow(rect);
+    let center = rect.rect.center();
     let mut mesh = Mesh::default();
-    for (ring, area) in rings.iter().enumerate() {
-        let color = if ring == 0 {
-            rect.fill
-        } else {
-            Color32::TRANSPARENT
-        };
-        for corner in [
-            area.left_top(),
-            area.right_top(),
-            area.right_bottom(),
-            area.left_bottom(),
-        ] {
-            mesh.colored_vertex(projection.apply(corner), color);
-        }
+    for (position, coverage) in blurred.positions().iter().zip(blurred.coverage()) {
+        mesh.colored_vertex(
+            projection.apply(center + *position),
+            rect.fill.gamma_multiply(*coverage),
+        );
     }
-    // The core, then the rim as four quads between the rings.
-    mesh.add_triangle(0, 1, 2);
-    mesh.add_triangle(0, 2, 3);
-    for side in 0..4u32 {
-        let next = (side + 1) % 4;
-        mesh.add_triangle(side, next, 4 + next);
-        mesh.add_triangle(side, 4 + next, 4 + side);
-    }
+    mesh.indices.extend_from_slice(blurred.indices());
     Shape::mesh(mesh)
+}
+
+fn blurred_shadow(rect: &RectShape) -> egui::epaint::BlurredRectMesh {
+    egui::epaint::BlurredRectMesh::new(
+        rect.rect.size(),
+        rect.corner_radius.into(),
+        rect.blur_width / 2.0,
+    )
 }
 
 fn grid_triangles(mesh: &mut Mesh, grid: usize) {
@@ -498,15 +491,23 @@ mod tests {
         let Shape::Mesh(mesh) = shape else {
             panic!("a tilted shadow is a mesh");
         };
-        // The solid core's corners are the projected corners of the shadow.
-        let core = shadow.rect.shrink(shadow.blur_width / 2.0);
-        assert_eq!(mesh.vertices[0].pos, projection.apply(core.left_top()));
-        assert_eq!(mesh.vertices[2].pos, projection.apply(core.right_bottom()));
-        assert_ne!(mesh.vertices[2].pos, core.right_bottom());
-        assert_eq!(mesh.vertices[4].color, Color32::TRANSPARENT);
-        // Flat, the same projection leaves the corners where they were.
+        // egui's blurred shadow, every vertex projected.
+        let blurred = blurred_shadow(&shadow);
+        let center = shadow.rect.center();
+        assert_eq!(mesh.vertices.len(), blurred.positions().len());
+        assert_eq!(mesh.indices, blurred.indices());
+        for (vertex, position) in mesh.vertices.iter().zip(blurred.positions()) {
+            assert_eq!(vertex.pos, projection.apply(center + *position));
+        }
+        assert_ne!(mesh.vertices[0].pos, center + blurred.positions()[0]);
+        // Dark in the middle, faded out at the rim.
+        let alpha = |i: usize| mesh.vertices[i].color.a();
+        assert_eq!(alpha(mesh.vertices.len() - 1), 77);
+        assert!(alpha(mesh.vertices.len() - 2) < 2);
+        // Flat, the same projection leaves the vertices where they were.
         let flat = Projection::new(rect, 0.0, 0.0);
-        assert_eq!(flat.apply(core.right_bottom()), core.right_bottom());
+        let corner = center + blurred.positions()[0];
+        assert_eq!(flat.apply(corner), corner);
     }
 
     #[test]
