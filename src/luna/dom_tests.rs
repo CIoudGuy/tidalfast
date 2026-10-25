@@ -4674,6 +4674,63 @@ setTimeout(go, 300);
     finish(luna, dir);
 }
 
+/// What went from the page leaves it whole, as React unmounts it: a row
+/// TIDAL took away is taken out of its list in one record, with its cells
+/// and a plugin's badge in its title cell still inside it. Nothing of it is
+/// taken apart piece by piece, so a plugin holding the row finds its cells,
+/// a badge still finds its row, and an observer hears of the row alone.
+#[test]
+fn a_subtree_that_went_leaves_whole() {
+    let (luna, _host, dir) = start(
+        r#"
+const go = () => {
+	const titles = [...document.querySelectorAll('[data-test="table-cell-title"]')];
+	if (titles.length < 2) return setTimeout(go, 20);
+	const badges = titles.map((t) => {
+		const b = document.createElement("span");
+		b.className = "probe-badge";
+		t.after(b);
+		return b;
+	});
+	const rows = badges.map((b) => b.closest('[data-test="tracklist-row"]'));
+	const recs = [];
+	new MutationObserver((list) => {
+		for (const r of list) for (const n of r.removedNodes) recs.push([r.target.isConnected, !!(n.matches?.('[data-test="tracklist-row"]') || n.querySelector?.('[data-test="tracklist-row"]'))]);
+		R.recs = recs;
+		R.connected = badges.map((b) => b.isConnected);
+		R.inRow = badges.map((b, i) => !!rows[i] && b.closest('[data-test="tracklist-row"]') === rows[i]);
+		R.cells = rows.map((r) => !!r?.querySelector('[data-test="table-cell-title"]'));
+	}).observe(document.body, { childList: true, subtree: true });
+	R.badges = badges.length;
+};
+setTimeout(go, 300);
+"#,
+    );
+    let t = tree();
+    luna.sync_dom(t.clone());
+    let r = results_until(&luna, &dir, 10, |r| !r["badges"].is_null());
+    let badges = r["badges"].as_u64().unwrap() as usize;
+    assert!(badges >= 2, "{r}");
+    // TIDAL left the album: its rows went.
+    let mut home = t;
+    home.nodes.retain(|n| !n.key.starts_with("row:"));
+    luna.sync_dom(home);
+    let r = results_until(&luna, &dir, 10, |r| {
+        r["connected"] == json!(vec![false; badges])
+    });
+    assert_eq!(r["inRow"], json!(vec![true; badges]), "{r}");
+    assert_eq!(r["cells"], json!(vec![true; badges]), "{r}");
+    let recs = r["recs"].as_array().unwrap();
+    assert!(
+        recs.iter().all(|x| x[0] == json!(true)),
+        "only what left the page is a removal: {r}"
+    );
+    // Each record is a row leaving with what is in it.
+    assert!(recs.len() >= badges, "{r}");
+    assert!(recs.iter().all(|x| x[1] == json!(true)), "{r}");
+    finish(luna, dir);
+}
+
 /// A read never stalls the runtime for a window that does not lay the
 /// change out: it gives up when the UI did not start drawing it in time,
 /// or, drawing it, did not send its tree, and reads the boxes it has.
