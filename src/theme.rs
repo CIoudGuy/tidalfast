@@ -356,6 +356,16 @@ pub const fn chromium_text_coverage() -> egui::epaint::FontColorTransferFunction
     egui::epaint::FontColorTransferFunction::CHROMIUM_WINDOWS
 }
 
+/// How Chromium on Windows rasterizes TIDAL's text: DirectWrite's natural
+/// mode, which TIDAL's font asks for in its `gasp` table, antialiased across
+/// only, with each pixel row sampled once, so rows and the tops of round
+/// letters are crisp. Against Chrome drawing Hanken Grotesk in that mode the
+/// glyphs differ by 0.35 levels a pixel on average at 1.5x (antialiased both
+/// ways: 1.23); see "egui fork, round 2" in docs/_reference/performance.md.
+pub const fn chromium_text_rasterization() -> egui::epaint::text::GlyphRasterization {
+    egui::epaint::text::GlyphRasterization::HorizontalOnly
+}
+
 /// How the desktop renders text, read once per process.
 ///
 /// Tests use the platform's default instead of asking the desktop, so they
@@ -411,8 +421,10 @@ fn apply_to_style(style: &mut egui::Style, palette: &Palette) {
     // On Windows, coverage becomes ink per text colour as Chromium draws it
     // there (TIDAL is Chromium): light text on dark heavier, dark text on
     // light close to linear, measured against Chrome drawing Hanken Grotesk.
+    // And glyphs are antialiased across only, as DirectWrite draws TIDAL's.
     if cfg!(target_os = "windows") {
         visuals.text_options.color_transfer_function = chromium_text_coverage();
+        visuals.text_options.glyph_rasterization = chromium_text_rasterization();
     }
     visuals.panel_fill = palette.panel;
     // egui draws submenus, select popups and tooltips from `window_fill`;
@@ -1622,6 +1634,12 @@ mod tests {
                 );
             }
             assert!(options.subpixel_binning);
+            let rasterization = if cfg!(target_os = "windows") {
+                chromium_text_rasterization()
+            } else {
+                egui::epaint::text::GlyphRasterization::Symmetric
+            };
+            assert_eq!(options.glyph_rasterization, rasterization);
         }
     }
 
