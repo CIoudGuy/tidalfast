@@ -554,7 +554,7 @@ pub struct App {
     pub history: Vec<Page>,
     pub history_index: usize,
 
-    pub saved: HashMap<String, bool>,
+    pub saved: crate::model::SavedFlags,
     pub(crate) saved_pending: HashSet<String>,
     /// TIDAL may expose one recording under several market-specific track
     /// URIs. Map those URIs to the recording identity returned by the API.
@@ -1173,7 +1173,7 @@ impl App {
             track_used: HashMap::new(),
             history: vec![first_page],
             history_index: 0,
-            saved: HashMap::new(),
+            saved: crate::model::SavedFlags::default(),
             saved_pending: HashSet::new(),
             track_recordings: HashMap::new(),
             recording_uris: HashMap::new(),
