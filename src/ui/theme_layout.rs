@@ -645,12 +645,14 @@ fn side_card(
     }
     // Themes shorten the box (`height: 76vh`, `calc(100% - ...)`) to end
     // above TIDAL's floating bar: `%` of TIDAL's content row, the window
-    // less its title bar ([`Floating::fitted`]). Without a height, a card
-    // as far off the bottom as the top.
+    // less its title bar ([`Floating::fitted`]), which is Tidalfast's
+    // whole window: it shows TIDAL's page from the title bar's foot down
+    // (see [`Flow::row`]). Without a height, a card as far off the bottom
+    // as the top.
     let height = len(
         style.height.as_deref(),
         vars,
-        (viewport[1] - TITLE_BAR).max(0.0),
+        viewport[1].max(0.0),
         viewport,
     )
     .filter(|h| *h > 0.0);
