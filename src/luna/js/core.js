@@ -687,6 +687,35 @@
 	let cachedAt = 0;
 	let lastState = null;
 	const invalidate = () => (cached = null);
+	// The store's large parts (the queue's rows, the songs, the favourites,
+	// the loaded lists) come from the host only when they changed: each
+	// answer tags them, a read names the tags it holds, and the answer
+	// leaves those parts out. A 2,000-song queue made every read about 4 MB
+	// of JSON to parse and compare.
+	const held = { tags: {}, queue: undefined, songs: undefined, favorites: undefined, lists: undefined };
+	// What the content loop merged last, by map: a map the host left as it
+	// was is not walked again.
+	const contentIn = {};
+	const readState = () => {
+		const s = callOp("state", { have: held.tags }) ?? {};
+		const tags = s.tidalfastParts;
+		delete s.tidalfastParts;
+		if (!tags) return s;
+		const q = (s.playQueue ??= {});
+		const c = (s.content ??= {});
+		if ("elements" in q) held.queue = q.elements;
+		else q.elements = held.queue;
+		if ("mediaItems" in c) held.songs = c.mediaItems;
+		else c.mediaItems = held.songs;
+		if ("trackLists" in c) held.lists = c.trackLists;
+		else c.trackLists = held.lists;
+		if ("favorites" in s) held.favorites = s.favorites;
+		else s.favorites = held.favorites;
+		held.tags = tags;
+		return s;
+	};
+	let sigOf = null;
+	let sigWas = "";
 	// TIDAL UI state Tidalfast does not own (device mode, app settings,
 	// feature flags, router, search, ...). Plugins read it, and the UI actions
 	// they dispatch update it here, so code that "corrects" a setting on a
@@ -843,7 +872,14 @@
 	// the edit shows until the real queue changes (or a moment passes).
 	let queueOverlay = null;
 	let realQueueSig = "";
-	const queueSig = (q) => `${q?.currentIndex}|${(q?.elements ?? []).map((e) => e.uid).join(",")}`;
+	const queueSig = (q) => {
+		const els = q?.elements ?? [];
+		if (els !== sigOf) {
+			sigOf = els;
+			sigWas = els.map((e) => e.uid).join(",");
+		}
+		return `${q?.currentIndex}|${sigWas}`;
+	};
 	const editQueue = (type, p) => {
 		const q = getState().playQueue;
 		if (!q || !Array.isArray(q.elements)) return;
@@ -894,7 +930,7 @@
 	const getState = () => {
 		const now = Date.now();
 		if (cached === null || now - cachedAt > 50) {
-			const s = callOp("state", null) ?? {};
+			const s = readState();
 			realQueueSig = queueSig(s.playQueue);
 			if (queueOverlay && (queueOverlay.sig !== realQueueSig || now - queueOverlay.at > 2500)) queueOverlay = null;
 			if (queueOverlay && s.playQueue) s.playQueue = { ...s.playQueue, ...queueOverlay.patch };
@@ -904,6 +940,8 @@
 			// a fresh copy on every read, so what did not change keeps the
 			// object the plugin saw before.
 			for (const k of Object.keys(c)) {
+				if (c[k] === contentIn[k] && content[k] !== undefined) continue;
+				contentIn[k] = c[k];
 				const old = content[k] ?? {};
 				let merged = null;
 				for (const id of Object.keys(c[k] ?? {})) {

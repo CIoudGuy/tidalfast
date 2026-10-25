@@ -20,7 +20,7 @@ fn every_tidal_action_acts_or_says_why_it_does_not() {
         queue: Default::default(),
         track_lists: [(
             "album/3".to_string(),
-            vec!["1".to_string(), "2".to_string()],
+            std::sync::Arc::new(vec!["1".to_string(), "2".to_string()]),
         )]
         .into_iter()
         .collect(),

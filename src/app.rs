@@ -13994,7 +13994,7 @@ mod tests {
             .get("playlist/pl1")
             .unwrap_or_else(|| panic!("the open playlist's list: {lists:?}"));
         let (expected, _) = app.context_list("tidal:playlist:pl1").expect("loaded");
-        assert_eq!(ids, &expected);
+        assert_eq!(**ids, expected);
         assert!(ids.len() > 5, "{ids:?}");
         // Another page: the list stays for plugins that kept a reference,
         // and the next list page is given as it opens.

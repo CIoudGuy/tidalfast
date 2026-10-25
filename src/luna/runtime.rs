@@ -35,7 +35,7 @@ use super::host::{HostCommand, LunaEvent, LunaHost, NetRequest, NetVerdict, Noti
 use super::net::{NetHub, Target};
 use super::redux::{
     ActionOutcome, EXCLUSIVE_ASKED, EXCLUSIVE_DENIED, EXCLUSIVE_UNSUPPORTED, action_outcome,
-    event_action, is_tidal_action, redux_state,
+    event_action, is_tidal_action, redux_state_parts,
 };
 use super::settings::{SettingValue, SettingsNode};
 use super::storage::{self, LOCAL_STORAGE, PLUGIN_STORAGE, Storage, StoredClaims};
@@ -254,6 +254,9 @@ struct Inner {
     /// reconciled boxes were laid out with ([`super::dom::HostTree::laid_out`]).
     boxes_version: u64,
     laid_out: u64,
+    /// The store's large parts as reads of the state last had them
+    /// (`getState` leaves out the ones the reader already holds).
+    state_parts: super::redux::StateParts,
     /// Plugins with live reload on (never saved: Luna resets it on start),
     /// dev plugins the user turned it off for, and checks in flight.
     live: HashSet<String>,
@@ -1688,7 +1691,13 @@ It is installed and switched on; what it may do is asked when it does it, and it
         }
         "state" => {
             let host = inner.borrow().host.clone();
-            Ok(redux_state(&host.playback()))
+            let snap = host.playback();
+            let have = a.get("have").unwrap_or(&Value::Null);
+            Ok(redux_state_parts(
+                &snap,
+                have,
+                &mut inner.borrow_mut().state_parts,
+            ))
         }
         "redux.dispatch" => {
             let kind = str_of(a, "type");
@@ -5715,6 +5724,7 @@ fn setup_with(
         overlay,
         trees,
         boxes_version: 0,
+        state_parts: super::redux::StateParts::default(),
         laid_out: 0,
         live: HashSet::new(),
         live_off_dev: HashSet::new(),

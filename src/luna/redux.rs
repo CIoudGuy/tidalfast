@@ -3,9 +3,12 @@
 //! and dispatches, [`LunaEvent`] -> action for `redux.intercept(...)`, and
 //! the `redux.store.getState()` slices built from a [`PlaybackSnapshot`].
 
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
 use serde_json::{Value, json};
 
-use super::host::{HostCommand, LunaEvent, NotifyLevel, PlaybackSnapshot, RepeatMode};
+use super::host::{HostCommand, LunaEvent, NotifyLevel, PlaybackSnapshot, QueueSource, RepeatMode};
 
 /// Every action type Tidalfast itself dispatches (from [`LunaEvent`]s and
 /// context menus). Plugins intercepting anything else wait for an action
@@ -257,7 +260,7 @@ pub fn action_outcome(kind: &str, payload: &Value, snap: &PlaybackSnapshot) -> A
                     one(C::AddToQueue(more))
                 };
             }
-            place(payload, list.clone(), index("fromIndex").unwrap_or(0))
+            place(payload, list.to_vec(), index("fromIndex").unwrap_or(0))
         }
         "playQueue/ADD_NEXT" => one(C::PlayNext(ids(&payload["mediaItemIds"]))),
         "playQueue/ADD_LAST" | "playQueue/ADD_MEDIA_ITEMS_TO_QUEUE" => {
@@ -704,49 +707,184 @@ fn source_type(snap: &PlaybackSnapshot) -> String {
         .unwrap_or_default()
 }
 
+/// The store's large parts: the queue's rows (`playQueue.elements`), the
+/// songs (`content.mediaItems`), the favourites and the loaded lists
+/// (`content.trackLists`). A read of the state leaves out each one the
+/// reader already has ([`StateParts`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Part {
+    Queue,
+    Songs,
+    Favorites,
+    Lists,
+}
+
+impl Part {
+    const ALL: [Part; 4] = [Part::Queue, Part::Songs, Part::Favorites, Part::Lists];
+
+    fn name(self) -> &'static str {
+        match self {
+            Part::Queue => "queue",
+            Part::Songs => "songs",
+            Part::Favorites => "favorites",
+            Part::Lists => "lists",
+        }
+    }
+}
+
+/// What each large part of the state was made of when it was last given
+/// out, and its tag: a number that changes whenever what the part says
+/// may have changed. The parts' own `Arc`s are kept, so a pointer is never
+/// taken for another's while its tag stands. With 2,000 songs queued and a
+/// 2,000-song playlist open, every read of the store (Total Play Time's,
+/// once a second) built, copied, parsed and compared about 4 MB of JSON.
+#[derive(Default)]
+pub struct StateParts {
+    next: u64,
+    queue: Option<(QueuePart, u64)>,
+    songs: Option<(SongsPart, u64)>,
+    favorites: Option<(FavoritesPart, u64)>,
+    lists: Option<(ListsPart, u64)>,
+}
+
+/// The queue's rows and the source each row names.
+struct QueuePart(Arc<Vec<super::host::QueueEntry>>, Option<QueueSource>);
+/// The songs, and the playing one with its kind.
+struct SongsPart(
+    Arc<BTreeMap<String, Value>>,
+    Option<(String, String, Value)>,
+);
+/// Favourite tracks, albums, artists and playlists.
+struct FavoritesPart([Arc<Vec<String>>; 3], Vec<String>);
+/// The loaded lists' ids by name.
+struct ListsPart(BTreeMap<String, Arc<Vec<String>>>);
+
+impl StateParts {
+    /// The tags of the parts as `snap` has them.
+    fn tags(&mut self, snap: &PlaybackSnapshot) -> [u64; 4] {
+        fn tag<K>(
+            next: &mut u64,
+            slot: &mut Option<(K, u64)>,
+            key: K,
+            same: impl Fn(&K, &K) -> bool,
+        ) -> u64 {
+            match slot {
+                Some((k, t)) if same(k, &key) => *t,
+                _ => {
+                    *next += 1;
+                    *slot = Some((key, *next));
+                    *next
+                }
+            }
+        }
+        let queue = QueuePart(Arc::clone(&snap.queue), snap.source.clone());
+        let songs = SongsPart(Arc::clone(&snap.known_items), playing_item(snap));
+        let favorites = FavoritesPart(
+            [
+                Arc::clone(&snap.favorite_tracks),
+                Arc::clone(&snap.favorite_albums),
+                Arc::clone(&snap.favorite_artists),
+            ],
+            snap.favorite_playlists.clone(),
+        );
+        let lists = ListsPart(snap.track_lists.clone());
+        [
+            tag(&mut self.next, &mut self.queue, queue, |a, b| {
+                Arc::ptr_eq(&a.0, &b.0) && a.1 == b.1
+            }),
+            tag(&mut self.next, &mut self.songs, songs, |a, b| {
+                Arc::ptr_eq(&a.0, &b.0) && a.1 == b.1
+            }),
+            tag(&mut self.next, &mut self.favorites, favorites, |a, b| {
+                a.0.iter().zip(&b.0).all(|(x, y)| Arc::ptr_eq(x, y)) && a.1 == b.1
+            }),
+            tag(&mut self.next, &mut self.lists, lists, |a, b| {
+                a.0.len() == b.0.len()
+                    && a.0
+                        .iter()
+                        .zip(&b.0)
+                        .all(|((n, x), (m, y))| n == m && Arc::ptr_eq(x, y))
+            }),
+        ]
+    }
+}
+
+/// The playing song's id, kind and JSON, as `content.mediaItems` holds it.
+fn playing_item(snap: &PlaybackSnapshot) -> Option<(String, String, Value)> {
+    let entry = snap.current_index.and_then(|i| snap.queue.get(i))?;
+    let item = snap.current_item.clone()?;
+    Some((entry.id.clone(), entry.kind.clone(), item))
+}
+
+/// The state for a read that already has the large parts tagged in `have`
+/// (`{ "queue": 3, ... }`, as the last answer gave them): those are left
+/// out, and the answer's `tidalfastParts` tags the parts as they are now.
+pub fn redux_state_parts(snap: &PlaybackSnapshot, have: &Value, parts: &mut StateParts) -> Value {
+    let tags = parts.tags(snap);
+    let held = |p: Part| {
+        let i = Part::ALL.iter().position(|q| *q == p).unwrap_or(0);
+        have.get(p.name()).and_then(Value::as_u64) == Some(tags[i])
+    };
+    let mut state = redux_state_with(snap, |p| !held(p));
+    if let Some(o) = state.as_object_mut() {
+        let tags: serde_json::Map<String, Value> = Part::ALL
+            .iter()
+            .zip(tags)
+            .map(|(p, t)| (p.name().to_string(), json!(t)))
+            .collect();
+        o.insert("tidalfastParts".into(), Value::Object(tags));
+    }
+    state
+}
+
 /// The redux store slices plugins read (`playbackControls`, `playQueue`,
 /// `favorites`, `session`, `user`, and the current item in `content`).
 pub fn redux_state(snap: &PlaybackSnapshot) -> Value {
+    redux_state_with(snap, |_| true)
+}
+
+/// [`redux_state`] with only the large parts `include` keeps.
+fn redux_state_with(snap: &PlaybackSnapshot, include: impl Fn(Part) -> bool) -> Value {
     let current_id = snap
         .current_index
         .and_then(|i| snap.queue.get(i))
         .map(|e| e.id.clone());
-    let elements: Vec<Value> = snap
-        .queue
-        .iter()
-        .map(|e| json!({ "mediaItemId": e.id, "uid": e.uid, "priority": "priority_none", "context": { "type": source_type(snap), "id": snap.source.as_ref().map(|s| s.id.clone()) } }))
-        .collect();
-    let mut media_items = serde_json::Map::new();
-    if let (Some(id), Some(item)) = (&current_id, &snap.current_item) {
-        let kind = snap
-            .current_index
-            .and_then(|i| snap.queue.get(i))
-            .map(|e| e.kind.clone())
-            .unwrap_or_else(|| "track".into());
-        media_items.insert(id.clone(), json!({ "item": item, "type": kind }));
-    }
-    for (id, item) in snap.known_items.iter() {
+    let elements: Option<Vec<Value>> = include(Part::Queue).then(|| {
+        snap.queue
+            .iter()
+            .map(|e| json!({ "mediaItemId": e.id, "uid": e.uid, "priority": "priority_none", "context": { "type": source_type(snap), "id": snap.source.as_ref().map(|s| s.id.clone()) } }))
+            .collect()
+    });
+    let media_items = include(Part::Songs).then(|| {
+        let mut media_items = serde_json::Map::new();
+        if let Some((id, kind, item)) = playing_item(snap) {
+            media_items.insert(id, json!({ "item": item, "type": kind }));
+        }
+        for (id, item) in snap.known_items.iter() {
+            media_items
+                .entry(id.clone())
+                .or_insert_with(|| json!({ "item": item, "type": "track" }));
+        }
         media_items
-            .entry(id.clone())
-            .or_insert_with(|| json!({ "item": item, "type": "track" }));
-    }
-    let track_lists: serde_json::Map<String, Value> = snap
-        .track_lists
-        .iter()
-        .map(|(name, list)| {
-            let items: Vec<Value> = list.iter().map(|s| id_value(s)).collect();
-            (
-                name.clone(),
-                json!({ "items": items, "sorted": { "defaultSort": { "items": items } } }),
-            )
-        })
-        .collect();
+    });
+    let track_lists = include(Part::Lists).then(|| {
+        snap.track_lists
+            .iter()
+            .map(|(name, list)| {
+                let items: Vec<Value> = list.iter().map(|s| id_value(s)).collect();
+                (
+                    name.clone(),
+                    json!({ "items": items, "sorted": { "defaultSort": { "items": items } } }),
+                )
+            })
+            .collect::<serde_json::Map<String, Value>>()
+    });
     let src = snap.source.clone().unwrap_or_default();
     let user_id = snap.user_id.as_deref().map(|id| {
         id.parse::<u64>()
             .map_or_else(|_| Value::from(id), Value::from)
     });
-    json!({
+    let mut state = json!({
         "playbackControls": {
             "playbackState": snap.state.as_tidal(),
             "desiredPlaybackState": snap.desired_state.as_tidal(),
@@ -772,7 +910,6 @@ pub fn redux_state(snap: &PlaybackSnapshot) -> Value {
             "tidalfastReplacedDuration": snap.replaced_duration,
         },
         "playQueue": {
-            "elements": elements,
             "currentIndex": snap.current_index.map(|i| i as i64).unwrap_or(-1),
             // Not TIDAL's: the rows after the playing one a plugin can remove
             // (null: all), so core.js shows only removals the app will do.
@@ -792,15 +929,6 @@ pub fn redux_state(snap: &PlaybackSnapshot) -> Value {
             "type": "",
             "uniqueIdCounter": snap.queue.len(),
         },
-        "favorites": {
-            "tracks": snap.favorite_tracks.iter().map(|s| s.parse::<i64>().map(Value::from).unwrap_or_else(|_| Value::from(s.clone()))).collect::<Vec<_>>(),
-            "albums": snap.favorite_albums.iter().map(|s| s.parse::<i64>().map(Value::from).unwrap_or_else(|_| Value::from(s.clone()))).collect::<Vec<_>>(),
-            "artists": snap.favorite_artists.iter().map(|s| s.parse::<i64>().map(Value::from).unwrap_or_else(|_| Value::from(s.clone()))).collect::<Vec<_>>(),
-            "playlists": snap.favorite_playlists,
-            "mixes": [],
-            "users": [],
-            "videos": [],
-        },
         // TIDAL keeps the account id as a number: plugins compare it with the
         // API's `creator.id` (multipleplaylists lists the user's own playlists).
         "session": { "countryCode": snap.country_code, "userId": user_id },
@@ -813,9 +941,40 @@ pub fn redux_state(snap: &PlaybackSnapshot) -> Value {
         // (`user.meta.profileName`); an account without a public name has an
         // empty one.
         "user": { "meta": { "id": user_id, "countryCode": snap.country_code, "profileName": snap.profile_name.clone().unwrap_or_default() } },
-        "content": { "mediaItems": media_items, "trackLists": track_lists },
         "remotePlayback": { "isConnected": false },
-    })
+    });
+    let favorites = include(Part::Favorites).then(|| {
+        json!({
+            "tracks": snap.favorite_tracks.iter().map(|s| s.parse::<i64>().map(Value::from).unwrap_or_else(|_| Value::from(s.clone()))).collect::<Vec<_>>(),
+            "albums": snap.favorite_albums.iter().map(|s| s.parse::<i64>().map(Value::from).unwrap_or_else(|_| Value::from(s.clone()))).collect::<Vec<_>>(),
+            "artists": snap.favorite_artists.iter().map(|s| s.parse::<i64>().map(Value::from).unwrap_or_else(|_| Value::from(s.clone()))).collect::<Vec<_>>(),
+            "playlists": snap.favorite_playlists,
+            "mixes": [],
+            "users": [],
+            "videos": [],
+        })
+    });
+    // The parts left out are absent (not `null`): the reader keeps its own.
+    if let Some(o) = state.as_object_mut() {
+        if let (Some(elements), Some(q)) = (
+            elements,
+            o.get_mut("playQueue").and_then(Value::as_object_mut),
+        ) {
+            q.insert("elements".into(), Value::Array(elements));
+        }
+        if let Some(favorites) = favorites {
+            o.insert("favorites".into(), favorites);
+        }
+        let mut content = serde_json::Map::new();
+        if let Some(media_items) = media_items {
+            content.insert("mediaItems".into(), Value::Object(media_items));
+        }
+        if let Some(track_lists) = track_lists {
+            content.insert("trackLists".into(), Value::Object(track_lists));
+        }
+        o.insert("content".into(), Value::Object(content));
+    }
+    state
 }
 
 /// The redux action an event becomes, `(type, payload)`. `None` for events
@@ -853,10 +1012,13 @@ pub fn event_action(event: &LunaEvent, snap: &PlaybackSnapshot) -> Option<(Strin
             }),
             Value::Null,
         ),
-        LunaEvent::QueueChanged => (s("playQueue/RESET"), redux_state(snap)["playQueue"].clone()),
+        LunaEvent::QueueChanged => (
+            s("playQueue/RESET"),
+            redux_state_with(snap, |p| p == Part::Queue)["playQueue"].take(),
+        ),
         LunaEvent::FavoritesChanged => (
             s("favorites/SET_FAVORITE_IDS"),
-            redux_state(snap)["favorites"].clone(),
+            redux_state_with(snap, |p| p == Part::Favorites)["favorites"].take(),
         ),
         LunaEvent::OpenUrl(_) => return None,
         LunaEvent::Action { kind, payload } => (kind.clone(), payload.clone()),
