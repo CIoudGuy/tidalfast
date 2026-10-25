@@ -141,6 +141,14 @@ Playback started on the replacement engine takes precedence over recovery.
    own player directly. Toggling shuffle rechecks the queue so the new
    playback order appears promptly without waiting for the song to finish.
 
+   A song you queue shows its whole row at once: its cover, title and
+   artists, as on the row it came from, whichever page that was. A song no
+   page holds (one a plugin names by its id) shows what is known and fills
+   in once TIDAL describes it. A later read of the queue only ever
+   completes a row; it never blanks one or takes its cover or artists away,
+   also while the player is still looking the song up. Reordering
+   *Playing next* keeps every row as it was.
+
 9. **Closing the app keeps the queue.** Tidalfast saves it locally. When you
    resume the last song, it restores your queued songs and playlist position.
 

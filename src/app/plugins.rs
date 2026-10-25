@@ -1418,13 +1418,20 @@ impl App {
             .cloned()
     }
 
+    /// The row a plugin's song takes (queued, or added to a playlist):
+    /// TIDAL's row where the app holds one ([`App::known_track`]), else the
+    /// fullest copy it holds ([`App::known_item`]), else its address alone,
+    /// which the queue then asks TIDAL to complete.
     fn queue_item(&self, id: &str) -> PlayableItem {
         let uri = track_uri(id);
-        let track = self.known_track(id).unwrap_or_else(|| Track {
-            id: Some(id.to_string()),
-            uri: uri.clone(),
-            ..Track::default()
-        });
+        let track = self
+            .known_track(id)
+            .or_else(|| self.known_item(&uri))
+            .unwrap_or_else(|| Track {
+                id: Some(id.to_string()),
+                uri: uri.clone(),
+                ..Track::default()
+            });
         PlayableItem::Track(track)
     }
 
@@ -2210,6 +2217,122 @@ mod tests {
             panic!("{actions:?}");
         };
         assert_eq!(songs[0].1, "Happily Losing My Mind");
+        app.backend.shutdown();
+    }
+
+    /// A song a plugin queues takes TIDAL's row from the page the app holds
+    /// it on, with its explicit mark, album and ISRC, not the player's copy
+    /// of it in Next up, which has none of those.
+    #[test]
+    fn a_song_a_plugin_queues_keeps_tidals_row_over_the_players_copy() {
+        let mut app = app("plugin-queue-tidal-row");
+        let row = Track {
+            id: Some("9".into()),
+            name: "Song 9".into(),
+            uri: "tidal:track:9".into(),
+            explicit: true,
+            external_ids: crate::api::models::ExternalIds {
+                isrc: Some("USRC10009".into()),
+            },
+            artists: vec![crate::api::models::ArtistRef {
+                name: "Artist".into(),
+                ..Default::default()
+            }],
+            album: Some(crate::api::models::Album {
+                id: "A9".into(),
+                uri: "tidal:album:A9".into(),
+                images: vec![crate::api::models::Image {
+                    url: "https://resources.tidal.com/images/9.jpg".into(),
+                    width: Some(640),
+                    height: Some(640),
+                }],
+                ..Default::default()
+            }),
+            ..Track::default()
+        };
+        app.album_pages.insert(
+            "A9".into(),
+            crate::model::AlbumPage {
+                tracks: crate::model::PagedList {
+                    items: vec![row.clone()],
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        let players_copy = PlayableItem::Track(crate::backend::track_from_local(
+            &crate::api::tidal_catalog::local_track(row.clone()),
+        ));
+        app.queue = crate::model::Loadable::Loaded(crate::api::models::Queue {
+            currently_playing: None,
+            queue: vec![players_copy],
+        });
+        let actions = app.host_command_actions(HostCommand::PlayNext(vec!["9".into()]));
+        let Some(Action::InsertInQueue { items, .. }) = actions.first() else {
+            panic!("{actions:?}");
+        };
+        assert_eq!(items.as_slice(), [PlayableItem::Track(row)]);
+        app.backend.shutdown();
+    }
+
+    /// A song a plugin queues by its id has the row of wherever the app
+    /// holds it (an artist's Popular tracks here, which the plugins' own
+    /// lookup used to miss), and one the app holds nothing of is asked of
+    /// TIDAL, whose answer completes its row.
+    #[test]
+    fn a_song_a_plugin_queues_has_its_whole_row() {
+        let mut app = app("plugin-queue-rows");
+        let song = |id: &str| Track {
+            id: Some(id.into()),
+            name: format!("Song {id}"),
+            uri: format!("tidal:track:{id}"),
+            artists: vec![crate::api::models::ArtistRef {
+                name: "Artist".into(),
+                ..Default::default()
+            }],
+            album: Some(crate::api::models::Album {
+                images: vec![crate::api::models::Image {
+                    url: format!("https://resources.tidal.com/images/{id}.jpg"),
+                    width: Some(640),
+                    height: Some(640),
+                }],
+                ..Default::default()
+            }),
+            ..Track::default()
+        };
+        app.artist_pages.insert(
+            "1".into(),
+            crate::model::ArtistPage {
+                top_tracks: crate::model::Loadable::Loaded(Arc::new(vec![song("7")])),
+                ..Default::default()
+            },
+        );
+        app.queue = crate::model::Loadable::Loaded(crate::api::models::Queue::default());
+        let actions = app.host_command_actions(HostCommand::PlayNext(vec!["7".into(), "8".into()]));
+        let Some(Action::InsertInQueue { items, .. }) = actions.first() else {
+            panic!("{actions:?}");
+        };
+        assert_eq!(items[0], PlayableItem::Track(song("7")));
+        let ctx = egui::Context::default();
+        for action in actions {
+            app.apply(action, &ctx);
+        }
+        assert!(
+            app.track_requests.contains("8"),
+            "the unknown song is asked for"
+        );
+        app.handle_api(crate::backend::ApiResponse::Track {
+            id: "8".into(),
+            result: Ok(song("8")),
+        });
+        let rows = &app.queue.get().unwrap().queue;
+        assert_eq!(
+            rows.as_slice(),
+            [
+                PlayableItem::Track(song("7")),
+                PlayableItem::Track(song("8"))
+            ]
+        );
         app.backend.shutdown();
     }
 

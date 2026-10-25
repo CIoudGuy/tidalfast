@@ -546,6 +546,9 @@ pub struct App {
     pub radio_pages: HashMap<String, RadioPage>,
     pub track_cache: HashMap<String, Track>,
     track_requests: HashSet<String>,
+    /// Songs and videos (keyed as in `track_requests`) whose details TIDAL
+    /// turned down: a read of the queue does not ask for them again.
+    details_refused: HashSet<String>,
     /// Built table rows, keyed by page. Capped; dropped on reset and eviction.
     pub table_rows: HashMap<Page, TableRowsCache>,
     page_used: HashMap<Page, Instant>,
@@ -1168,6 +1171,7 @@ impl App {
             radio_pages: HashMap::new(),
             track_cache: HashMap::new(),
             track_requests: HashSet::new(),
+            details_refused: HashSet::new(),
             table_rows: HashMap::new(),
             page_used: HashMap::new(),
             track_used: HashMap::new(),
@@ -6837,6 +6841,10 @@ impl App {
                     self.queue_removed = None;
                     self.context_removed = None;
                 }
+                let mut result = result;
+                if let Ok(fetched) = &mut result {
+                    self.complete_fetched_queue(fetched);
+                }
                 self.queue = Loadable::from_result(result);
                 self.reconcile_pending_queue();
                 if let Some(queue) = self.queue.get() {
@@ -8323,6 +8331,11 @@ impl App {
             }
             ApiResponse::Track { id, result } => {
                 self.track_requests.remove(&id);
+                if result.is_ok() {
+                    self.details_refused.remove(&id);
+                } else {
+                    self.details_refused.insert(id.clone());
+                }
                 match result {
                     Ok(track) => {
                         if track.is_playable == Some(false) {
@@ -8337,6 +8350,7 @@ impl App {
                             &format!("tidal:track:{id}"),
                             Some(PlayableItem::Track(track.clone())),
                         );
+                        self.complete_queue_rows(&track);
                         self.track_cache.insert(id.clone(), track);
                         self.track_used.insert(id, Instant::now());
                     }
@@ -8361,9 +8375,16 @@ impl App {
             ApiResponse::Video { id, result } => {
                 let key = format!("video:{id}");
                 self.track_requests.remove(&key);
+                if result.is_ok() {
+                    self.details_refused.remove(&key);
+                } else {
+                    self.details_refused.insert(key.clone());
+                }
                 match result {
                     Ok(video) => {
-                        self.track_cache.insert(key.clone(), video.as_track());
+                        let track = video.as_track();
+                        self.complete_queue_rows(&track);
+                        self.track_cache.insert(key.clone(), track);
                         self.track_used.insert(key, Instant::now());
                     }
                     Err(crate::api::ApiError::Status { status: 404, .. }) => {
@@ -10038,6 +10059,9 @@ impl App {
 
     fn show_queued_song(&mut self, uri: &str, label: &str) {
         let item = self.optimistic_queue_item(uri, label);
+        if known::lacks_details(&item) {
+            self.ask_row_details(uri, true);
+        }
         self.pending_queue_adds.push(PendingQueueAdd {
             item: item.clone(),
             at: Instant::now(),
@@ -10152,45 +10176,12 @@ impl App {
         at
     }
 
-    /// Queue row built from cached details or a temporary label.
+    /// The row a queued song shows at once: what the app knows of it from
+    /// any page or list it holds, else its title alone until TIDAL's
+    /// answer completes it.
     fn optimistic_queue_item(&self, uri: &str, label: &str) -> PlayableItem {
-        let cached = self.cached_item(uri).cloned();
-        if let Some(track) = cached {
+        if let Some(track) = self.known_item(uri) {
             return PlayableItem::Track(track);
-        }
-        if let Some(item) = self.queue.get().and_then(|queue| {
-            queue
-                .currently_playing
-                .iter()
-                .chain(&queue.queue)
-                .find(|item| item.uri() == uri)
-        }) {
-            return item.clone();
-        }
-        if let Some(item) = self
-            .playlist_pages
-            .values()
-            .flat_map(|page| &page.items.items)
-            .filter_map(PlaylistItem::playable)
-            .find(|item| item.uri() == uri)
-        {
-            return item.clone();
-        }
-        let known = self
-            .album_pages
-            .values()
-            .flat_map(|page| &page.tracks.items)
-            .chain(self.library.liked.items.iter().map(|saved| &saved.track))
-            .chain(
-                self.search
-                    .results
-                    .get()
-                    .into_iter()
-                    .flat_map(|results| results.tracks.iter().flat_map(|page| &page.items)),
-            )
-            .find(|track| track.uri == uri);
-        if let Some(track) = known {
-            return PlayableItem::Track(track.clone());
         }
         PlayableItem::Track(crate::api::models::Track {
             uri: uri.to_string(),
@@ -11124,6 +11115,9 @@ impl App {
                     if repeat {
                         continue;
                     }
+                    // A plugin names a song by its id alone: its row is what
+                    // the app knows of it, completed by TIDAL if need be.
+                    let item = self.queue_row(item);
                     let uri = item.uri().to_string();
                     let at = (position + inserted).min(self.manual_queue.len());
                     // Inserting here shifts every later manual_queue row
@@ -13965,6 +13959,7 @@ fn next_clock_tick(position_ms: u32) -> Duration {
 
 mod downloads;
 mod feed_badge;
+mod known;
 mod plugins;
 mod radio;
 mod repaint_trace;
@@ -17758,6 +17753,132 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// The clicked row's details are TIDAL's copy of the song (the page it
+    /// is on), never a copy the engine or the app made of it: the engine's
+    /// in *Next up* or the downloads, History's entry, a play made here, a
+    /// song liked here before TIDAL described it, a Home card. Those lack the
+    /// album, the ISRC or the content flags, so the song would start without
+    /// them (its listen without its album) and an explicit song the settings
+    /// now refuse would start at once; such a song starts from its context.
+    #[test]
+    fn a_clicked_row_goes_with_tidals_details_not_a_copy_made_here() {
+        let mut app = headless_app();
+        app.backend.set_offline(true);
+        let song = |id: &str| Track {
+            id: Some(id.into()),
+            uri: format!("tidal:track:{id}"),
+            name: format!("Row {id}"),
+            explicit: true,
+            external_ids: crate::api::models::ExternalIds {
+                isrc: Some(format!("USRC1{id}")),
+            },
+            artists: vec![ArtistRef {
+                name: "Rick Ross".into(),
+                ..Default::default()
+            }],
+            album: Some(Album {
+                id: "A1".into(),
+                uri: "tidal:album:A1".into(),
+                name: "Teflon Don".into(),
+                images: vec![Image {
+                    url: "https://resources.tidal.com/images/a1/640x640.jpg".into(),
+                    width: Some(640),
+                    height: Some(640),
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let engine_copy = |track: Track| {
+            PlayableItem::Track(crate::backend::track_from_local(
+                &crate::api::tidal_catalog::local_track(track),
+            ))
+        };
+        app.album_pages.insert(
+            "A1".into(),
+            AlbumPage {
+                tracks: PagedList {
+                    items: vec![song("553")],
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        app.queue = Loadable::Loaded(Queue {
+            currently_playing: Some(queued_song("tidal:track:552")),
+            queue: vec![engine_copy(song("553")), engine_copy(song("554"))],
+        });
+        app.downloads.items = vec![(engine_copy(song("555")), 1)];
+        // The song as the player showed it, once TIDAL's answer for it is
+        // gone (it is not kept across a restart).
+        let shown = |app: &mut App, id: &str| {
+            app.track_cache.insert(id.into(), song(id));
+            let now = app
+                .cached_track_preview(&format!("tidal:track:{id}"), 0)
+                .expect("the song as shown");
+            app.track_cache.remove(id);
+            now
+        };
+        // History's entry for 901, which played before 902.
+        let (first, second) = (shown(&mut app, "901"), shown(&mut app, "902"));
+        app.note_history_track(Some(&first));
+        app.note_history_track(Some(&second));
+        assert_eq!(app.queue_history.len(), 1, "History lists 901");
+        // A play of 905 made here, in Recent.
+        let played = shown(&mut app, "905");
+        app.plays.record(
+            crate::history::played_track(&played),
+            jiff::Timestamp::now(),
+        );
+        app.rebuild_recents();
+        // 906, liked here and not described by TIDAL yet.
+        assert!(app.change_liked_song("tidal:track:906", true));
+        app.sync_liked_songs();
+        // 907, only on a Home shelf, whose card names the song and no more.
+        app.home.shelves = Loadable::Loaded(std::sync::Arc::new(vec![crate::api::models::Shelf {
+            title: "For you".into(),
+            items: vec![crate::api::models::ShelfItem::Track(Track {
+                id: Some("907".into()),
+                uri: "tidal:track:907".into(),
+                name: "Row 907".into(),
+                ..Default::default()
+            })],
+            ..Default::default()
+        }]));
+        let load = |uri: &str| {
+            local_load(
+                &PlayRequest::context("tidal:album:A1").starting_at_uri(uri),
+                false,
+            )
+        };
+        let track = app
+            .offset_track(&load("tidal:track:553"))
+            .expect("the row's details");
+        assert_eq!(track.album_uri.as_deref(), Some("tidal:album:A1"));
+        assert_eq!(track.isrc.as_deref(), Some("USRC1553"));
+        let started: Vec<&str> = [
+            "tidal:track:554",
+            "tidal:track:555",
+            "tidal:track:901",
+            "tidal:track:905",
+            "tidal:track:906",
+            "tidal:track:907",
+        ]
+        .into_iter()
+        .filter(|uri| app.offset_track(&load(uri)).is_some())
+        .collect();
+        assert!(
+            started.is_empty(),
+            "{started:?}: held only as a copy made here, each starts from its context, as before"
+        );
+        app.settings.allow_explicit = false;
+        assert!(
+            app.offset_track(&load("tidal:track:553")).is_none(),
+            "an explicit song the settings refuse waits for its context"
+        );
+        app.backend.shutdown();
+    }
+
     /// A double-clicked playlist row hands the engine its own entry, so a
     /// song listed twice starts at the row clicked (row 9), not at its
     /// first entry (row 3). A sorted view starts its own place in the list
@@ -18481,6 +18602,443 @@ mod tests {
         let toasts = app.toasts.len();
         app.apply(Action::QueueMany { songs: vec![] }, &ctx);
         assert_eq!(app.toasts.len(), toasts, "an empty batch adds nothing");
+    }
+
+    /// A song with everything its row shows: a title, an artist, a cover.
+    fn whole_song(id: &str, name: &str) -> Track {
+        Track {
+            id: Some(id.into()),
+            uri: format!("tidal:track:{id}"),
+            name: name.into(),
+            artists: vec![ArtistRef {
+                name: "Rick Ross".into(),
+                ..Default::default()
+            }],
+            album: Some(Album {
+                name: "Teflon Don".into(),
+                images: vec![Image {
+                    url: format!("https://resources.tidal.com/images/{id}/640x640.jpg"),
+                    width: Some(640),
+                    height: Some(640),
+                }],
+                ..Default::default()
+            }),
+            duration_ms: 240_000,
+            ..Default::default()
+        }
+    }
+
+    /// The song as the engine lists it before its lookup has answered: the
+    /// address alone.
+    fn bare_song(uri: &str) -> PlayableItem {
+        queued_song(uri)
+    }
+
+    /// Local playback of one song with one context row after it, nothing
+    /// queued yet.
+    fn app_playing_locally() -> App {
+        let mut app = headless_app();
+        app.auth = AuthStatus::Connected {
+            username: "alice".into(),
+        };
+        app.local_ready = true;
+        app.local.track = Some(crate::player::LocalTrack {
+            uri: "tidal:track:playing".into(),
+            title: "Playing".into(),
+            ..Default::default()
+        });
+        app.local.playback = Playback::Playing;
+        app.queue = loaded_queue("tidal:track:playing", &["tidal:track:ctx"]);
+        app
+    }
+
+    /// The engine's read of the queue: the playing song, then `rows`.
+    fn engine_reads(app: &mut App, rows: Vec<PlayableItem>) {
+        app.refresh_queue(true);
+        let seq = app.queue_seq;
+        app.handle_api(ApiResponse::Queue {
+            seq,
+            result: Ok(Queue {
+                currently_playing: Some(queued_song("tidal:track:playing")),
+                queue: rows,
+            }),
+        });
+    }
+
+    fn shown_rows(app: &App) -> Vec<PlayableItem> {
+        app.queue
+            .get()
+            .expect("the queue stays loaded")
+            .queue
+            .clone()
+    }
+
+    /// The owner's report: songs added from an artist's Popular tracks
+    /// showed their title alone, with no cover and no artists, while a song
+    /// played next after them had its whole row. Every one shows the row it
+    /// was queued from, at once.
+    #[test]
+    fn songs_queued_from_an_artists_popular_tracks_show_their_whole_row() {
+        let ctx = egui::Context::default();
+        let mut app = app_playing_locally();
+        let diced = whole_song("103", "Diced Pineapples");
+        let stay = whole_song("101", "Stay Schemin");
+        let aston = whole_song("102", "Aston Martin Music");
+        app.artist_pages.insert(
+            "rr".into(),
+            ArtistPage {
+                top_tracks: Loadable::Loaded(Arc::new(vec![
+                    diced.clone(),
+                    stay.clone(),
+                    aston.clone(),
+                ])),
+                ..Default::default()
+            },
+        );
+        for song in [&stay, &aston] {
+            app.apply(
+                Action::AddToQueue {
+                    uri: song.uri.clone(),
+                    label: song.name.clone(),
+                },
+                &ctx,
+            );
+        }
+        app.apply(
+            Action::InsertInQueue {
+                items: vec![PlayableItem::Track(diced.clone())],
+                position: 0,
+            },
+            &ctx,
+        );
+        let want = vec![
+            PlayableItem::Track(diced),
+            PlayableItem::Track(stay),
+            PlayableItem::Track(aston),
+            queued_song("tidal:track:ctx"),
+        ];
+        assert_eq!(shown_rows(&app), want, "every row is whole at once");
+        // Play next made the engine add the three again; it reads them back
+        // before its lookups have answered.
+        engine_reads(
+            &mut app,
+            vec![
+                bare_song("tidal:track:103"),
+                bare_song("tidal:track:101"),
+                bare_song("tidal:track:102"),
+                queued_song("tidal:track:ctx"),
+            ],
+        );
+        assert_eq!(
+            shown_rows(&app),
+            want,
+            "a read that knows less never blanks a row"
+        );
+    }
+
+    /// Every page a song row is on gives its queued row: a mix, an artist's
+    /// full list of top tracks, a radio (the now playing view's
+    /// suggestions), Home's lists and shelves, an artist's credits, the
+    /// history, a far page of a long playlist, search's top hit and its
+    /// dropdown, Save for Later, Purchases. Each showed the song's title
+    /// alone.
+    #[test]
+    fn a_song_queued_from_any_page_shows_its_whole_row() {
+        type Place = fn(&mut App, Track);
+        let places: [(&str, Place); 12] = [
+            ("mix", |app, song| {
+                app.mix_pages.insert(
+                    "m".into(),
+                    MixPage {
+                        tracks: PagedList {
+                            items: vec![song],
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    },
+                );
+            }),
+            ("artist top tracks", |app, song| {
+                app.artist_top_pages.insert(
+                    "a".into(),
+                    ArtistTopPage {
+                        tracks: PagedList {
+                            items: vec![song],
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    },
+                );
+            }),
+            ("radio", |app, song| {
+                app.radio_pages.insert(
+                    "tidal:track:seed".into(),
+                    RadioPage {
+                        songs: Loadable::Loaded(vec![song]),
+                        ..Default::default()
+                    },
+                );
+            }),
+            ("home top tracks", |app, song| {
+                app.home.top_tracks = Loadable::Loaded(Arc::new(vec![song]));
+            }),
+            ("home shelf", |app, song| {
+                app.home.shelves = Loadable::Loaded(Arc::new(vec![crate::api::models::Shelf {
+                    title: "For you".into(),
+                    items: vec![crate::api::models::ShelfItem::Track(song)],
+                    ..Default::default()
+                }]));
+            }),
+            ("artist credits", |app, song| {
+                app.artist_pages.insert(
+                    "a".into(),
+                    ArtistPage {
+                        credits_all: Loadable::Loaded(vec![song]),
+                        ..Default::default()
+                    },
+                );
+            }),
+            ("recently played", |app, song| {
+                app.recents_view = vec![crate::api::models::PlayHistory {
+                    track: song,
+                    played_at: None,
+                    context: None,
+                }];
+            }),
+            ("a far page of a long playlist", |app, song| {
+                let mut items = PagedList::default();
+                items.windows.insert(
+                    900,
+                    vec![PlaylistItem {
+                        item: Some(PlayableItem::Track(song)),
+                        ..Default::default()
+                    }],
+                );
+                app.playlist_pages.insert(
+                    "p".into(),
+                    PlaylistPage {
+                        items,
+                        ..Default::default()
+                    },
+                );
+            }),
+            ("search's top hit", |app, song| {
+                app.search.results =
+                    Loadable::Loaded(Arc::new(crate::api::models::SearchResults {
+                        top_hit: Some(crate::api::models::TopHit::Track(song)),
+                        ..Default::default()
+                    }));
+            }),
+            ("search's dropdown", |app, song| {
+                app.search.suggestions = Some(crate::api::models::SearchSuggestions {
+                    query: "song".into(),
+                    direct_hits: vec![crate::api::models::TopHit::Track(song)],
+                    ..Default::default()
+                });
+            }),
+            ("Save for Later", |app, song| {
+                app.save_later
+                    .details
+                    .insert(song.uri.clone(), crate::save_later::Saved::Track(song));
+            }),
+            ("Purchases", |app, song| {
+                app.purchases =
+                    Loadable::Loaded(Arc::new(crate::api::tidal::save_later::Purchases {
+                        tracks: vec![song],
+                        ..Default::default()
+                    }));
+            }),
+        ];
+        let ctx = egui::Context::default();
+        let mut bare = Vec::new();
+        for (place, put) in places {
+            let mut app = app_playing_locally();
+            let song = whole_song("7", "Song");
+            put(&mut app, song.clone());
+            app.apply(
+                Action::AddToQueue {
+                    uri: song.uri.clone(),
+                    label: song.name.clone(),
+                },
+                &ctx,
+            );
+            if shown_rows(&app)[0] != PlayableItem::Track(song) {
+                bare.push(place);
+            }
+        }
+        assert!(bare.is_empty(), "songs queued from {bare:?} lack their row");
+    }
+
+    /// A song the app holds nothing of (a plugin named it by its id, say)
+    /// shows what it has, is asked of TIDAL, and TIDAL's answer completes
+    /// its row and its pending addition in place. The engine reading the
+    /// song bare meanwhile does not take its title away.
+    #[test]
+    fn a_queued_song_the_app_does_not_know_is_completed_from_tidal() {
+        let ctx = egui::Context::default();
+        let mut app = app_playing_locally();
+        app.apply(
+            Action::AddToQueue {
+                uri: "tidal:track:55".into(),
+                label: "Hustlin'".into(),
+            },
+            &ctx,
+        );
+        app.apply(
+            Action::AddToQueue {
+                uri: "tidal:track:56".into(),
+                label: "B.M.F.".into(),
+            },
+            &ctx,
+        );
+        assert!(
+            app.track_requests.contains("55"),
+            "the song's details are asked of TIDAL"
+        );
+        engine_reads(
+            &mut app,
+            vec![
+                bare_song("tidal:track:55"),
+                bare_song("tidal:track:56"),
+                queued_song("tidal:track:ctx"),
+            ],
+        );
+        assert_eq!(
+            shown_rows(&app)[0].name(),
+            "Hustlin'",
+            "a bare read keeps the title on show"
+        );
+        let answer = whole_song("55", "Hustlin'");
+        app.handle_api(ApiResponse::Track {
+            id: "55".into(),
+            result: Ok(answer.clone()),
+        });
+        let rows = shown_rows(&app);
+        assert_eq!(rows[0], PlayableItem::Track(answer));
+        assert_eq!(
+            rows.iter().map(PlayableItem::uri).collect::<Vec<_>>(),
+            ["tidal:track:55", "tidal:track:56", "tidal:track:ctx"],
+            "nothing moves"
+        );
+    }
+
+    /// A queued song or music video TIDAL turns down is asked for once per
+    /// time it is queued, not again on each of the queue's reads (every
+    /// 20 s with the panel open, every minute while playing).
+    #[test]
+    fn a_queued_song_tidal_turns_down_is_not_asked_for_on_every_read() {
+        let ctx = egui::Context::default();
+        let mut app = app_playing_locally();
+        let add = |app: &mut App| {
+            app.apply(
+                Action::AddToQueue {
+                    uri: "tidal:track:404".into(),
+                    label: "Gone".into(),
+                },
+                &ctx,
+            );
+        };
+        add(&mut app);
+        app.apply(
+            Action::InsertInQueue {
+                items: vec![PlayableItem::Track(Track {
+                    uri: "tidal:video:77".into(),
+                    name: "Clip".into(),
+                    ..Default::default()
+                })],
+                position: 0,
+            },
+            &ctx,
+        );
+        assert!(app.track_requests.contains("404"), "asked once");
+        assert!(app.track_requests.contains("video:77"), "asked once");
+        fn refused<T>() -> Result<T, crate::api::ApiError> {
+            Err(crate::api::ApiError::Status {
+                status: 404,
+                message: "not found".into(),
+            })
+        }
+        app.handle_api(ApiResponse::Track {
+            id: "404".into(),
+            result: refused(),
+        });
+        app.handle_api(ApiResponse::Video {
+            id: "77".into(),
+            result: refused(),
+        });
+        for _ in 0..3 {
+            engine_reads(
+                &mut app,
+                vec![
+                    bare_song("tidal:video:77"),
+                    bare_song("tidal:track:404"),
+                    queued_song("tidal:track:ctx"),
+                ],
+            );
+            assert!(
+                !app.track_requests.contains("404"),
+                "a read does not ask again"
+            );
+            assert!(
+                !app.track_requests.contains("video:77"),
+                "a read does not ask again"
+            );
+        }
+        assert_eq!(
+            shown_rows(&app)
+                .iter()
+                .map(PlayableItem::name)
+                .collect::<Vec<_>>(),
+            ["Clip", "Gone", ""],
+            "the rows keep their titles"
+        );
+        add(&mut app);
+        assert!(
+            app.track_requests.contains("404"),
+            "queued again, it is asked for again"
+        );
+    }
+
+    /// The engine's read completes a row the app had only a title for, but
+    /// a read with less never shortens one.
+    #[test]
+    fn a_queue_read_only_ever_completes_a_row() {
+        let ctx = egui::Context::default();
+        let mut app = app_playing_locally();
+        let known = whole_song("101", "Stay Schemin");
+        app.apply(
+            Action::InsertInQueue {
+                items: vec![PlayableItem::Track(known.clone())],
+                position: 0,
+            },
+            &ctx,
+        );
+        app.apply(
+            Action::AddToQueue {
+                uri: "tidal:track:57".into(),
+                label: "Maybach Music".into(),
+            },
+            &ctx,
+        );
+        let engine_full = whole_song("57", "Maybach Music");
+        // The engine has looked the second song up; it lists the first
+        // with its title only.
+        let title_only = PlayableItem::Track(Track {
+            uri: known.uri.clone(),
+            name: known.name.clone(),
+            ..Default::default()
+        });
+        engine_reads(
+            &mut app,
+            vec![
+                title_only,
+                PlayableItem::Track(engine_full.clone()),
+                queued_song("tidal:track:ctx"),
+            ],
+        );
+        let rows = shown_rows(&app);
+        assert_eq!(rows[0], PlayableItem::Track(known));
+        assert_eq!(rows[1], PlayableItem::Track(engine_full));
     }
 
     /// A response superseded by a newer request is ignored.
