@@ -1994,6 +1994,9 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                 });
             }
             "row-menu" => app.demo_open_menu = true,
+            // The theme parity checker's shots: CSS animations as its
+            // browser settles TIDAL's page (see `crate::motion::still`).
+            "still" => crate::motion::set_still(true),
             // The album with 20 songs, as many as the album the parity
             // checker's capture of TIDAL shows: its list runs on under the
             // player bar as TIDAL's does, where the demo's 12 end above it.
@@ -2506,6 +2509,7 @@ pub fn control(app: &mut App, ctx: &egui::Context, control: crate::dev_script::D
             app.settings = fresh.settings.clone();
             app.selection = None;
             egui::Popup::close_all(ctx);
+            crate::motion::set_still(false);
             populate(app);
             apply_flags(app, Some(&page), show.as_deref());
         }
