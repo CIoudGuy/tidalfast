@@ -47,7 +47,11 @@ These instructions add implementation constraints for coding agents.
   cannot freeze the app (#266). Do not add a vsync decision of our own.
   On Windows text coverage becomes ink per text colour as Chromium draws
   it (`FontColorTransferFunction::PerColor`, applied in egui_glow's
-  shader); keep it when visuals are replaced (`theme::apply_to_style`).
+  shader) and glyphs are antialiased across only, as DirectWrite draws
+  TIDAL's text (`GlyphRasterization::HorizontalOnly`); keep both when
+  visuals are replaced (`theme::apply_to_style`). The fork blurs a shadow
+  (`Shadow::blur`, a fill's `RectShape::blur_width`) as CSS blurs a
+  box-shadow, so give it the theme's or TIDAL's CSS blur radius as it is.
 - The egui fork shapes right-to-left runs in their own direction but leaves
   them in logical order. Pass logical text to `crate::bidi`, which reorders
   the laid-out runs; never reorder the string before layout.
