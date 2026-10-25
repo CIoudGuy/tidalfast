@@ -5020,6 +5020,18 @@ pub fn before_height(key: &str, reference: f32) -> Option<f32> {
     .filter(|h| h.is_finite() && *h >= 0.0)
 }
 
+/// The height a theme gives the anchor's own box when it is a length, in
+/// points (`em` of TIDAL's 14-point words; Cotton Candy Nights' `#mainHeader
+/// { height: 2em }`); `None` for a percentage or none.
+pub fn own_height(key: &str) -> Option<f32> {
+    let viewport = viewport();
+    host(key, |h, vars| {
+        let v = css::resolve_vars(h.style.height.as_deref()?, vars);
+        css::length(&v, super::theme_layout::EM, f32::NAN, viewport)
+    })
+    .filter(|h| h.is_finite() && *h >= 0.0)
+}
+
 /// The blur a theme's `filter` gives the anchor's `::before` box, in
 /// points (`blur(10px)`): `Some(0.0)` when its filter has no blur
 /// (`filter: none`), `None` when no theme sets the filter.
