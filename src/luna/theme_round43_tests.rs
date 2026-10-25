@@ -472,3 +472,72 @@ fn a_queue_panels_margins_move_it_in_its_wrapper() {
     );
     assert!(colours[0].r() < 40, "beside the panel: {:?}", colours[0]);
 }
+/// TIDAL's page (`main`) stops at the open play queue's column, where the
+/// document's own fill shows: under a theme's base colour token
+/// (Catppuccin Frappe's `--wave-color-solid-base-fill`) the player bar's
+/// glass lies over the page's colour beside the column and over the lighter
+/// base colour under it (TIDAL 2.46.0, the parity checker's replay of
+/// Catppuccin Frappe and Macchiato: the bar lighter right of x 1787 with
+/// the queue open). Tidalfast's bar was one colour across.
+#[test]
+fn the_bars_glass_lies_over_the_open_queues_column_as_tidals_does() {
+    use super::theme_round41_tests as r41;
+    use dom_anchors::keys;
+    let css = "/* {\"name\": \"Base colour\"} */\n:root { --wave-color-solid-base-fill: rgb(48, 52, 70); }\n";
+    let (ctx, mut app) = r41::demo_app("album:alb0", Some("queue"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let footer = plain
+        .nodes
+        .iter()
+        .find(|n| n.key == keys::FOOTER)
+        .and_then(|n| n.rect)
+        .expect("the bar's box");
+    let o = styled_vars(
+        "base-colour.css",
+        css,
+        &plain,
+        "--wave-color-solid-base-fill",
+    );
+    // The palette the app makes of the theme's tokens: a themed dark one,
+    // Catppuccin Frappe's page.
+    app.palette = crate::theme::Palette {
+        themed: true,
+        own_surfaces: false,
+        window: egui::Color32::from_rgb(35, 38, 52),
+        ..crate::theme::Palette::dark()
+    };
+    // Low in the bar, clear of its words and buttons.
+    let y = footer[1] + footer[3] - 4.0;
+    let colours = r41::painted_at(&ctx, &mut app, o, &[[1000.0, y], [2120.0, y]]);
+    app.backend.shutdown();
+    let [page, column] = [colours[0], colours[1]];
+    assert!(
+        column.r() > page.r() && column.b() >= page.b() + 3,
+        "the bar over the page {page:?}, over the queue's column {column:?}"
+    );
+}
+/// The overlay a theme's `css` gives `tree` once it sets the variable
+/// `var`.
+fn styled_vars(name: &str, css: &str, tree: &super::dom::HostTree, var: &str) -> DomOverlay {
+    let files: Files = Arc::default();
+    files
+        .lock()
+        .unwrap()
+        .insert(format!("/{name}"), css.as_bytes().to_vec());
+    let base = serve(files);
+    let luna = Luna::start(config(&temp_dir(name)), Arc::new(MockHost::default())).unwrap();
+    luna.install_theme(&format!("{base}/{name}"));
+    let mut none = crate::demo::DemoThemes::default();
+    let o = until(&luna, &mut none, tree, |o| o.vars.contains_key(var));
+    luna.shutdown();
+    let mut o = (*o).clone();
+    o.version = 2;
+    o
+}
