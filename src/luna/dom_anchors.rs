@@ -699,6 +699,10 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("syncButton", "_syncButton_8b33227"),
     ("tableRow", "_tableRow_299a426"),
     ("tableRowSelected", "_tableRowSelected_fb04c2a"),
+    // TIDAL 2.46.0's track list heading row, `[class="_tableHeader_ebaf366
+    // _smallText_a636ed6"]` (the cotton candy family's and Sugarcoat's
+    // heading colours).
+    ("tableHeader", "_tableHeader_ebaf366"),
     ("timeColumn", "_timeColumn_3cd7564"),
     ("dateAddedColumn", "_dateAddedColumn_87dfbd3"),
     ("titleCell", "_titleCell_e18305f"),
@@ -3062,14 +3066,20 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 wrapper = wrapper.class("_round_5776dee");
             }
             out.push(wrapper.at(Some(cover)));
-            out.push(
-                el(
-                    keys::card_cover_img(i),
-                    Some(&keys::card_cover_wrapper(i)),
-                    "img",
-                )
-                .at(Some(cover)),
+            // TIDAL 2.46.0's card picture is `img._image_145331a`, a mix's
+            // `img[data-test=mix-image]` (uwu-ifier sets `object-fit` on
+            // each picture it replaces).
+            let img = el(
+                keys::card_cover_img(i),
+                Some(&keys::card_cover_wrapper(i)),
+                "img",
             );
+            let img = if item.is_some_and(|item| item.kind == CardKind::Mix) {
+                img.test("mix-image")
+            } else {
+                img.class("_image_145331a")
+            };
+            out.push(img.at(Some(cover)));
             card_buttons(out, i, card, collection, cover);
         }
         if let Some(words) = &card.words {
@@ -3128,7 +3138,11 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                     })
                     .at(tile.rect),
             );
-            out.push(el(keys::tile_img(i), Some(&keys::tile_item(i)), "img").at(tile.image));
+            out.push(
+                el(keys::tile_img(i), Some(&keys::tile_item(i)), "img")
+                    .class("_image_145331a")
+                    .at(tile.image),
+            );
             // The tile's words, as TIDAL 2.46.0 has them (the plugin
             // checker's TIDAL records): an artist's name alone, another
             // tile's name and second line in `div._textWrapper_da25926`.
@@ -3254,8 +3268,11 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 .at(filter.rect),
         );
         out.push(
+            // TIDAL 2.46.0's filter field is named Search
+            // (korean-translation translates it).
             el(PAGE_FILTER, Some(PAGE_FILTER_BOX), "input")
                 .attr("type", "search")
+                .attr("aria-label", "Search")
                 .test("playlist-filter-input")
                 .class("_searchField_d9ef617")
                 .class("_searchFieldFilter_0f926aa")
@@ -3270,7 +3287,10 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     // and `[data-test=shuffle-all]` (the older `_1l1bl_` build is gone, so
     // rules naming it match nothing in TIDAL either). They sit in the
     // header's `div[data-test=header-controls]`, under which the cotton
-    // candy family nests its rules for them.
+    // candy family nests its rules for them. TIDAL 2.46.0 gives them no
+    // `aria-label` (their label's words name them), so a rule for the
+    // player bar's `[aria-label="Shuffle"]` (Lunallena's corners) leaves
+    // the pill round there.
     let markup = header_markup(page.page_id.as_deref());
     let around = |rects: &mut dyn Iterator<Item = Rect>| {
         rects.reduce(|a, b| {
@@ -3339,7 +3359,6 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 "_secondary_1d16h_7"
             })
             .test(if primary { "play-all" } else { "shuffle-all" })
-            .attr("aria-label", button.label.clone())
             .at(button.rect);
         if let Some(class) = markup.pill {
             node = node.class(class);
@@ -3591,7 +3610,9 @@ fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction], markup: &He
 /// `div[data-type=media-table]` with its header row and visible rows.
 pub fn track_list(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
     // TIDAL 2.46.0 (captured): the table is `div[aria-label=Tracklist]
-    // [role=table]`, its header row `div._tableHeader_[role=row]`.
+    // [role=table]`, its header row `div._tableHeader_._smallText_a636ed6
+    // [role=row]` (its 12-point small text: Tidal Tags' own headings there
+    // read 12 px).
     let table = keys::list(&list.id);
     out.push(
         el(table.clone(), Some(parent), "div")
@@ -3607,6 +3628,7 @@ pub fn track_list(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
         el(header.clone(), Some(&table), "div")
             .attr("role", "row")
             .modules(&["tableHeader"])
+            .class("_smallText_a636ed6")
             .at(list.header_rect),
     );
     // TIDAL 2.46.0's headings (captured, a playlist's and an album's):

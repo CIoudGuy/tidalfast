@@ -2156,6 +2156,84 @@ lib.observe(unloads, "[class*='_sliderContainer']", (slider) => {
     finish(luna, dir);
 }
 
+/// TIDAL 2.46.0's markup where plugins read or rewrite it: a card's picture
+/// is `img._image_145331a` and a mix card's `img[data-test=mix-image]`, a
+/// shortcut tile's picture `img._image_145331a` (uwu-ifier replaces each and
+/// sets its `object-fit`); a track list's heading row is
+/// `div._tableHeader_ebaf366._smallText_a636ed6` (Tidal Tags' headings there
+/// read 12 px); the header's Play and Shuffle pills have no `aria-label`
+/// and the collection filter field is named Search (korean-translation
+/// translates what it finds).
+#[test]
+fn pictures_headings_pills_and_the_filter_carry_tidals_markup() {
+    let (luna, _host, dir) = start(
+        r##"
+setInterval(() => {
+	const q = (s) => document.querySelector(s);
+	R.found = {
+		album: q('[data-test^="album-card-"] img')?.className ?? null,
+		mix: q('[data-test^="mix-card-"] img')?.getAttribute("data-test") ?? null,
+		tile: q("#playlist-shortcut > img")?.className ?? null,
+		heading: q('[data-test="media-table"] > [role="row"]')?.className ?? null,
+		play: q('[data-test="play-all"]')?.getAttribute("aria-label") ?? "none",
+		shuffle: q('[data-test="shuffle-all"]')?.getAttribute("aria-label") ?? "none",
+		filter: q('[data-test="playlist-filter-input"]')?.getAttribute("aria-label") ?? null,
+	};
+}, 40);
+"##,
+    );
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(page) = frame.page.as_mut() {
+        let card = |kind, id: &str, x: f32| dom_anchors::GridCard {
+            rect: Some([x, 300.0, 173.0, 240.0]),
+            cover: Some([x, 300.0, 173.0, 173.0]),
+            shelf: Some(0),
+            item: Some(dom_anchors::CardItem {
+                kind,
+                id: id.into(),
+                ..dom_anchors::CardItem::default()
+            }),
+            ..dom_anchors::GridCard::default()
+        };
+        page.shelves = vec![Some([240.0, 300.0, 900.0, 240.0])];
+        page.shelf_modules = vec!["NEW_ALBUM_SUGGESTIONS".into()];
+        page.cards = vec![
+            card(dom_anchors::CardKind::Album, "alb1", 240.0),
+            card(dom_anchors::CardKind::Mix, "mix1", 430.0),
+        ];
+        page.tiles = vec![dom_anchors::Tile {
+            rect: Some([240.0, 100.0, 300.0, 56.0]),
+            image: Some([240.0, 100.0, 56.0, 56.0]),
+            title: "Mine".into(),
+            ..dom_anchors::Tile::default()
+        }];
+        page.filter = Some(dom_anchors::FilterInput {
+            rect: Some([900.0, 200.0, 200.0, 32.0]),
+            value: String::new(),
+        });
+    }
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = results_until(&luna, &dir, 10, |r| {
+        r["found"]["album"].is_string() && r["found"]["filter"].is_string()
+    });
+    let f = &r["found"];
+    assert_eq!(f["album"], json!("_image_145331a"), "{f}");
+    assert_eq!(f["mix"], json!("mix-image"), "{f}");
+    assert_eq!(f["tile"], json!("_image_145331a"), "{f}");
+    assert_eq!(
+        f["heading"],
+        json!("_tableHeader_ebaf366 _smallText_a636ed6"),
+        "{f}"
+    );
+    assert_eq!(
+        (&f["play"], &f["shuffle"]),
+        (&json!("none"), &json!("none")),
+        "{f}"
+    );
+    assert_eq!(f["filter"], json!("Search"), "{f}");
+    finish(luna, dir);
+}
+
 /// An image's and a source's `srcset` and `sizes` reflect their attributes,
 /// as in Chromium: uwu-ifier sets `img.srcset = ""` and `img.sizes = ""` on
 /// every picture it replaces, which TIDAL's page sees as attribute changes.
