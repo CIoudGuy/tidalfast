@@ -1844,8 +1844,9 @@ pub struct PlayerBar {
     pub cover_url: Option<String>,
     /// TIDAL's audio quality (`HI_RES_LOSSLESS`, `LOSSLESS`, `HIGH`, ...).
     pub quality: Option<String>,
-    /// The quality the song is expected at before its stream says (the
-    /// user's streaming quality, capped by the song's own).
+    /// The quality TIDAL's badge names while no stream here says one (its
+    /// selector: the playback context's, else the user's streaming quality
+    /// capped by the song's), for every song.
     pub expected_quality: Option<String>,
     pub favorite: bool,
     pub playing: bool,
