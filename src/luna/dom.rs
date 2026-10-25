@@ -192,6 +192,8 @@ pub struct Style {
     pub pointer_events: Option<String>,
     pub background_position: Option<String>,
     pub background_size: Option<String>,
+    /// `no-repeat`, `repeat-x`: how a gradient smaller than its box tiles.
+    pub background_repeat: Option<String>,
     /// `text`: the background shows only through the element's words
     /// (`-webkit-background-clip: text` with `color: transparent`, a
     /// gradient wiping across a sung word).

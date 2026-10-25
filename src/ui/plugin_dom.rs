@@ -7168,6 +7168,198 @@ pub enum BoxLayer {
         scale: f32,
         start: f32,
     },
+    /// A gradient on a `background-size` smaller than the box on a side, or
+    /// set in points (the now-playing view's `800px 800px` glows): the
+    /// gradient fills one tile, repeated over the box from where
+    /// `background-position` puts one.
+    Tiled(Box<Tile>),
+}
+
+/// A gradient layer drawn as tiles ([`BoxLayer::Tiled`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Tile {
+    /// The gradient, as it fills one tile.
+    pub layer: PageLayer,
+    /// The tile's width and height.
+    pub size: [TileLen; 2],
+    /// Where one tile's top left corner lies: points from the box's, or a
+    /// fraction of the room the tile leaves (CSS `background-position`).
+    pub at: [TileLen; 2],
+    /// `background-repeat` across and down (CSS's `repeat` by default).
+    pub repeat: [bool; 2],
+}
+
+/// One side of a tile's size or place.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TileLen {
+    /// Points.
+    Px(f32),
+    /// A fraction: of the box (a size), of the room the tile leaves (a
+    /// place).
+    Frac(f32),
+    /// `auto`: the box's own (a size).
+    Auto,
+}
+
+impl TileLen {
+    /// A size word (`450px`, `50%`, `auto`, `0`).
+    fn size(word: &str) -> Option<Self> {
+        let w = word.trim().to_ascii_lowercase();
+        let number = |v: &str| v.trim().parse::<f32>().ok().filter(|n| n.is_finite());
+        if w == "auto" {
+            Some(Self::Auto)
+        } else if let Some(p) = w.strip_suffix('%') {
+            number(p)
+                .filter(|n| *n >= 0.0)
+                .map(|n| Self::Frac(n / 100.0))
+        } else if let Some(p) = w.strip_suffix("px") {
+            number(p).filter(|n| *n >= 0.0).map(Self::Px)
+        } else {
+            (w == "0").then_some(Self::Px(0.0))
+        }
+    }
+
+    /// The length on a side `room` long (the box's for a size, the room
+    /// left for a place).
+    fn of(self, room: f32) -> f32 {
+        match self {
+            Self::Px(v) => v,
+            Self::Frac(f) => room * f,
+            Self::Auto => room,
+        }
+    }
+}
+
+/// The tile of a box's `index`th gradient layer when its `background-size`
+/// entry makes it smaller than the box on a side or sets it in points; `None`
+/// for one the box's size or larger (`auto`, `cover`, `100%`, `350%`), which
+/// the layer's own painting handles. One value is the width, the height
+/// `auto`, as in CSS.
+fn tile_of(layer: &PageLayer, size: Option<&str>, index: usize) -> Option<[TileLen; 2]> {
+    if !matches!(
+        layer,
+        PageLayer::Linear { .. } | PageLayer::Angled(_) | PageLayer::Radial { .. }
+    ) {
+        return None;
+    }
+    let list = css::split_top(size?, ',');
+    let entry = list.get(index % list.len().max(1))?;
+    let mut words = entry.split_whitespace();
+    let w = TileLen::size(words.next()?)?;
+    let h = match words.next() {
+        Some(word) => TileLen::size(word)?,
+        None => TileLen::Auto,
+    };
+    let small = |l: TileLen| match l {
+        TileLen::Px(_) => true,
+        TileLen::Frac(f) => f < 1.0,
+        TileLen::Auto => false,
+    };
+    (small(w) || small(h)).then_some([w, h])
+}
+
+/// Where the `index`th layer's tile lies (`background-position`: `0 0`,
+/// `400px 400px`, `center`, `right 20%`): the top left by default.
+fn tile_at(position: Option<&str>, index: usize) -> [TileLen; 2] {
+    let start = [TileLen::Frac(0.0), TileLen::Frac(0.0)];
+    let Some(list) = position.map(|p| css::split_top(p, ',')) else {
+        return start;
+    };
+    let Some(entry) = list.get(index % list.len().max(1)) else {
+        return start;
+    };
+    let lower = entry.to_ascii_lowercase();
+    let words: Vec<&str> = lower.split_whitespace().collect();
+    let place = |w: &str| match w {
+        "left" | "top" => Some(TileLen::Frac(0.0)),
+        "center" => Some(TileLen::Frac(0.5)),
+        "right" | "bottom" => Some(TileLen::Frac(1.0)),
+        w => TileLen::size(w).filter(|l| *l != TileLen::Auto),
+    };
+    match words.as_slice() {
+        [one] => match (*one, place(one)) {
+            ("top" | "bottom", Some(y)) => [TileLen::Frac(0.5), y],
+            (_, Some(x)) => [x, TileLen::Frac(0.5)],
+            _ => start,
+        },
+        [first, second] => match (place(first), place(second)) {
+            // `top left`: the keywords in either order.
+            (Some(a), Some(b))
+                if matches!(*first, "top" | "bottom") || matches!(*second, "left" | "right") =>
+            {
+                [b, a]
+            }
+            (Some(a), Some(b)) => [a, b],
+            _ => start,
+        },
+        _ => start,
+    }
+}
+
+/// `background-repeat` for the `index`th layer, across and down.
+fn tile_repeat(repeat: Option<&str>, index: usize) -> [bool; 2] {
+    let Some(list) = repeat.map(|r| css::split_top(r, ',')) else {
+        return [true, true];
+    };
+    let Some(entry) = list.get(index % list.len().max(1)) else {
+        return [true, true];
+    };
+    let lower = entry.to_ascii_lowercase();
+    let words: Vec<&str> = lower.split_whitespace().collect();
+    let one = |w: &str| !matches!(w, "no-repeat");
+    match words.as_slice() {
+        ["repeat-x"] => [true, false],
+        ["repeat-y"] => [false, true],
+        [w] => [one(w), one(w)],
+        [x, y] => [one(x), one(y)],
+        _ => [true, true],
+    }
+}
+
+/// The most tiles one layer is drawn as; a finer pattern keeps the layer
+/// stretched over the box, as before.
+const MAX_TILES: usize = 64;
+
+/// Paints `tile` over `rect`: its gradient once per tile, the tiles cut at
+/// the box's edges.
+fn paint_tiled(ui: &egui::Ui, rect: Rect, tile: &Tile) {
+    let (w, h) = (
+        tile.size[0].of(rect.width()),
+        tile.size[1].of(rect.height()),
+    );
+    if !(w >= 1.0 && h >= 1.0 && w.is_finite() && h.is_finite()) {
+        return;
+    }
+    let x0 = rect.left() + tile.at[0].of(rect.width() - w);
+    let y0 = rect.top() + tile.at[1].of(rect.height() - h);
+    // The tiles' starts on one axis: from the first that reaches into the
+    // box to the last that starts inside it, or the one tile.
+    let starts = |origin: f32, size: f32, lo: f32, hi: f32, repeat: bool| -> Vec<f32> {
+        if !repeat {
+            return vec![origin];
+        }
+        let first = origin - ((origin - lo) / size).ceil() * size;
+        let n = ((hi - first) / size).ceil().max(0.0) as usize;
+        (0..n.min(MAX_TILES + 1))
+            .map(|i| first + size * i as f32)
+            .collect()
+    };
+    let xs = starts(x0, w, rect.left(), rect.right(), tile.repeat[0]);
+    let ys = starts(y0, h, rect.top(), rect.bottom(), tile.repeat[1]);
+    let clip = rect.intersect(ui.clip_rect());
+    if xs.len() * ys.len() > MAX_TILES {
+        paint_layer(ui, rect, &tile.layer);
+        return;
+    }
+    let painter = ui.painter().with_clip_rect(clip);
+    for &y in &ys {
+        for &x in &xs {
+            let one = Rect::from_min_size(egui::pos2(x, y), egui::vec2(w, h));
+            if one.intersects(clip) {
+                paint_layer_on(&painter, one, &tile.layer);
+            }
+        }
+    }
 }
 
 /// The product of the `brightness()` functions in a `backdrop-filter`
@@ -7335,6 +7527,7 @@ fn paint_layers(
         match layer {
             BoxLayer::Window { .. } => {}
             BoxLayer::Corners(_) => {}
+            BoxLayer::Tiled(tile) => paint_tiled(ui, rect, tile),
             BoxLayer::Paint(PageLayer::Angled(g)) => {
                 let angle = with(|s| {
                     let name = g.spin.as_deref()?;
@@ -7532,6 +7725,15 @@ fn image_layers(style: &Style, vars: &BTreeMap<String, String>, out: &mut Vec<Bo
         } else if let Some(l) = page_layer(layer)
             && l != PageLayer::Color(Color32::TRANSPARENT)
         {
+            if let Some(size) = tile_of(&l, style.background_size.as_deref(), index) {
+                out.push(BoxLayer::Tiled(Box::new(Tile {
+                    layer: l,
+                    size,
+                    at: tile_at(style.background_position.as_deref(), index),
+                    repeat: tile_repeat(style.background_repeat.as_deref(), index),
+                })));
+                continue;
+            }
             let l = sized(
                 l,
                 index,
@@ -8196,7 +8398,6 @@ fn page_layer(layer: &str) -> Option<PageLayer> {
 
 /// Paint one parsed background layer over the page.
 pub(crate) fn paint_layer(ui: &egui::Ui, r: Rect, layer: &PageLayer) {
-    let painter = ui.painter();
     match layer {
         PageLayer::Url(url) => {
             egui::Image::new(url.clone())
@@ -8204,6 +8405,14 @@ pub(crate) fn paint_layer(ui: &egui::Ui, r: Rect, layer: &PageLayer) {
                 .maintain_aspect_ratio(false)
                 .paint_at(ui, r);
         }
+        other => paint_layer_on(ui.painter(), r, other),
+    }
+}
+
+/// [`paint_layer`] with `painter` (its clip); a picture is left out.
+fn paint_layer_on(painter: &egui::Painter, r: Rect, layer: &PageLayer) {
+    match layer {
+        PageLayer::Url(_) => {}
         PageLayer::Color(c) => {
             painter.rect_filled(r, 0.0, *c);
         }
