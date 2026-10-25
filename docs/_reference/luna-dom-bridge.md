@@ -141,6 +141,11 @@ between builds and modules; names too generic to identify a module
 anchors carry TIDAL's exact hash (`LITERAL_CLASSES`, and the album's and
 playlist's own `_dataContainer_` of TIDAL 2.46.0) still need the exact
 class: a hash from an older TIDAL build names nothing there, as in TIDAL.
+That is also how a module name TIDAL uses for several modules stays apart
+(`_cellContainer_`: a collection card's cell `_cellContainer_19b23ad`, a
+queue song's cell `_cellContainer_182d240` and its cover
+`_cellContainer_c39825b`, each anchor with its exact hash): a theme's rule for
+one reaches that one only.
 Where TIDAL's element has exactly two classes the anchor carries those two
 (`_navigationItem_4e9deae _selected_29027d1`, `_contentItem_ _selected_ae83ba5`),
 since themes match the class list whole (`[class="..."]`).
@@ -355,7 +360,7 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 
 | Key | Element | Native widget | Slots drawn |
 |---|---|---|---|
-| `contextmenu` | `div[data-test=contextmenu][data-type=list-container__context-menu][role=menu]` | an open popup menu (`widgets::menu_row`) | Append (track row menu) |
+| `contextmenu` | `div[data-test=contextmenu][data-type=list-container__context-menu][role=menu]`, its box the whole menu (the header with the song's cover and title, the rows, the 4-point padding), as TIDAL 2.46.0's `div._contextMenu_8606b2d` | an open popup menu (`widgets::menu_row`) | Append (track row menu) |
 | `contextmenu:<i>` > `:a` > `:label` | `div[data-type=contextmenu-item] > a[data-test=<label as slug>]._actionText_ > span._actionTextInner_` (+ `_actionItemDisabled_`, `_disabled_`) | a menu row; clicks forwarded | |
 | `page-pills` | the Play and Shuffle pills' box in `div[data-test=header-controls]`, each page's own module (TIDAL 2.46.0: an album's controls `div._actionContainer_5bb1c14 > div._container_84abbc3 > button..._button_f1c7fcb`, a playlist's `_actionContainer_334aa3b > _container_5a08754 > ..._button_d5e0865`) | | |
 | `page-small-buttons` > `page-overflow-buttons` > `page-action:<test>` > `:stack` > `:icon`, `:label` | `div._smallButtons_5c1ea50 > div._overflowButtons_246e699 > button._buttonStates_91bed47[data-test=favorite-button\|credits-button\|share-button\|edit-button\|public-toggle-button] > div.tidal-ui__v-stack > svg + span.wave-text-caption-demi._buttonTextOffset_a700b81` (the caption as text; Add and Private carry `role=switch` and `aria-checked`), then `button[data-test=show-context-menu-button]` (More) after the overflow box, as TIDAL 2.46.0 on an album (a playlist's: `div._smallButtons_1da13ba._actionSmallButtons_6ce346a > div._overflowButtons_aee4e69`) | the page header's captioned buttons; caption text override, hidden | |
@@ -772,7 +777,10 @@ parsed once per overlay change and cached by anchor): the box's
 `background-image` layers (linear and radial gradients, `url()` images with
 `background-size`/`-position`; a radial gradient whose colour ends within 12
 px of its centre is a dot, drawn once per tile of its own `background-size`
-entry, as the Cotton Candy Nights family's stars), its `::before`/`::after` fill and images,
+entry, as the Cotton Candy Nights family's stars; a gradient whose
+`background-size` entry is smaller than the box on a side, or set in points,
+fills one tile repeated over the box from where its `background-position`
+entry puts one, as `background-repeat` allows, up to 64 tiles), its `::before`/`::after` fill and images,
 `border`s, and a `backdrop-filter` (see "Backdrop filter" below). A theme that removes the header
 art TIDAL paints in `[class^=_dataContainer_]::before` (`background-image:
 none`, `--img: none`, `display: none`) removes the cover wash. A theme that
@@ -781,7 +789,13 @@ over its own page colour, as TIDAL draws it (Meteor Night). That box is
 450 points of the page's top; a `height` a theme gives it takes its place,
 a percentage of the page's whole content, since the header's box holds the
 songs under it (Sunken Tidal's `height: 100%` lays the dimmed cover,
-fading to black, behind every row). The header's
+fading to black, behind every row). TIDAL blurs a playlist's, mix's or
+radio's box as a whole (`filter: blur(50px)`): its edges are soft and its
+black foot runs on into the page about three blurs below the box; a theme's
+own `filter` on the `::before` takes that place (`none`: hard edges), and an
+album's box is not blurred. `#mainHeader`'s own background, backdrop filter,
+`::before` and borders are painted over the page's top on every page (the
+anchor look's `paint_part`). The header's
 Play and Shuffle pills are TIDAL 2.43.2's market buttons
 (`button._marketButton_1d16h_1._medium_1d16h_4._primary_1d16h_6` with
 `data-test=play-all`, Shuffle `_secondary_1d16h_7` with `data-test=shuffle-all`,

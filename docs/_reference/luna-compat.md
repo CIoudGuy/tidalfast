@@ -2899,6 +2899,85 @@ Sunken Tidal's full-height, full-bleed queue panel; gradients tiled by a
 `background-size` under 100 % (only the now-playing view and an animated
 theme use them).
 
+### Round 42 (shared module names, header boxes and tiles, 2026-10-25)
+
+Found with the parity checker and fixed in the generic layer:
+
+- **A module name TIDAL uses for several modules stays apart.** TIDAL
+  2.46.0 has three `_cellContainer_` modules: a collection card's cell
+  (`_cellContainer_19b23ad`), a queue song's cell (`_cellContainer_182d240`)
+  and its cover (`_cellContainer_c39825b`). A theme's rule for one now
+  reaches that one only: the cotton candy family rounds the queue's cells,
+  while their covers and the collection cards stay square, as in TIDAL.
+  The full style checker, before and after this change alone: 60 items
+  closed (58 queue cover corners in 29 themes, 2 collection card corners),
+  every other item of every theme unchanged, the no-theme shots identical.
+- **A playlist's header art box is blurred as a whole.** TIDAL blurs the
+  box itself (`._dataContainer_9f47346::before { filter: blur(50px) }`), so
+  its edges are soft and its black foot fades into the page over about
+  130 points: on a coloured page (TidalCustomTheme's pink) a dark band runs
+  on under the header. A theme's own `filter` on that box takes TIDAL's
+  place; an album's box is not blurred.
+- **A theme's background on the header** (`#mainHeader`: Giorgeous' dark
+  glass band, TidalCustomTheme's pink) is painted over the page's top on
+  every page, at the header box's own place and height (Cotton Candy
+  Nights' `height: 2em` band); before, only over a plugin's layer behind
+  the page.
+- **An open menu's box** (`div[data-test=contextmenu]`) is the whole menu:
+  the song's cover and title, the rows and the 4-point padding, as TIDAL's
+  `_contextMenu_`; it was the rows' alone.
+- **A gradient smaller than its box tiles it** (`background-size` in points
+  or under 100 %, from where `background-position` puts a tile, as
+  `background-repeat` allows: the cotton candy family's now-playing glows).
+
+The checker changed too (private tools), so the round's start was measured
+again with the final checker on the same TIDAL capture (tidal f21a6706, the
+egui fork's second round included): Tidalfast is shot at the size TIDAL's
+page has under its own 30-point title bar and compared 30 points lower
+everywhere (it had 30 more rows, so every box that ends above the player
+bar, such as the play queue and the sidebar card, ended 30 points apart);
+TIDAL's open menu is laid where Tidalfast's is (the capture opened it in
+the window's corner, under TIDAL's title bar), and the right click that
+opens Tidalfast's follows the rows a theme moves (Lunallena macOS's page
+is 120 points lower). With `long-album` and `many-albums` the demo holds as
+many songs and albums as TIDAL's capture, so a list or grid no longer ends
+where TIDAL's runs on.
+
+Light scheme: TIDAL 2.46.0 keeps its own dark look whatever the system's
+scheme (checked live: `data-market-mode` stays `dark` with the light
+scheme emulated); only a theme's `prefers-color-scheme: light` rules
+follow the system. In Tidalfast those rules follow its Light theme, which
+is its own light look, so with no theme the two differ everywhere by
+design. Hover: a real pointer in TIDAL gives the same styles as the
+checker's forced `:hover` on the element and its ancestors (34 of 35
+parts in seven themes; the other differed by a paused animation's frame).
+
+Totals (dark-compared themes and no theme, the final checker on the
+demo's own data, start and end alike): pixels 4.48 % to 3.88 % of 229
+million compared pixels; no theme 1.62 % to 0.89 % (only its menu moved:
+3.58 % to 0.69 %; the album, menu and collection shots are identical, the
+playlist's differs only inside the header art box, its soft edges). Worst
+before: TidalCustomTheme 9.8 %, Sunken Tidal 9.4 %, Cotton Candy Nights
+(single) 8.5 %, Snowcone 7.3 %, Purple Paradise Punch 7.0 %; after: Sunken
+Tidal 8.4 %, Cotton Candy Nights (single) 8.2 %, Snowcone 7.2 %, Purple
+Paradise Punch 6.8 %, Blueberry Lemon 6.6 % (TidalCustomTheme 5.0 %,
+Giorgeous 6.6 % to 1.5 %); no theme got worse. The style comparison went
+from 954 to 719 differences over about 101,650 anchor elements (99.06 % to
+99.29 %; Cotton Candy Nights' Blueberry Cobbler animates its colours, so its
+TIDAL side varies from run to run). With the demo holding as many songs
+and albums as TIDAL's capture, the checker's reference from now on: 3.26 %
+of pixels and 719 differences over 111,418 elements (99.35 %). Light
+scheme: Tidal Light 1.80 % to 1.24 %, the two adaptive Cotton Candy themes
+unchanged (3.4 % and 1.9 %).
+
+Not done, largest first: the cotton candy family's collection grid
+(card cells and the grid's panel), the sidebar's navigation rows under
+Purple Paradise Punch, the player bar's song card under the cotton candy
+singles and Sugarcoat, a list panel's gradient under its `backdrop-filter:
+saturate()`, and Sunken Tidal's full-height, full-bleed play queue (its
+wrapper's and panel's sizes, and TIDAL's glass laid twice over the native
+card).
+
 ### Round 28 (plugins in use, 2026-10-23)
 
 Sixteen popular plugins (Tidal Tags, tidal-genres, total-play-time,
