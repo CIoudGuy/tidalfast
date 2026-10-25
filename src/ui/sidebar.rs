@@ -1060,8 +1060,14 @@ fn place_panel(app: &mut App, ui: &mut egui::Ui) -> Placed {
     let floating_art = app.settings.sidebar_grid && expanded_art;
     // The traffic lights float over the top-left of the sidebar now, so the
     // first nav row has to start below them.
+    // A theme's top padding on TIDAL's sidebar boxes keeps the rows that
+    // much further down in the box.
+    let padded = super::plugin_dom::theme_layout(ui.ctx())
+        .map_or(0.0, |l| l.flow.sidebar)
+        .round();
     let top =
-        theme::titlebar_inset(ui.ctx()) as i8 + super::linux_left_controls_inset(ui.ctx()) as i8;
+        (theme::titlebar_inset(ui.ctx()) + super::linux_left_controls_inset(ui.ctx()) + padded)
+            .clamp(0.0, 127.0) as i8;
     let beside = if app.show_lyrics_panel {
         theme::SIDE_PANEL_MIN_WIDTH
     } else {
@@ -1074,7 +1080,7 @@ fn place_panel(app: &mut App, ui: &mut egui::Ui) -> Placed {
         app.settings.sidebar_width,
         ui.available_width() - super::topbar::least_width(ui.ctx()) - beside,
     );
-    let floating = floating(ui.ctx());
+    let floating = floating(ui.ctx()).map(|f| f.fitted(ui.available_height()));
     let shift = slide(
         ui.ctx(),
         app.settings.sidebar_width.max(super::SIDEBAR_MIN_WIDTH),
@@ -1545,6 +1551,13 @@ fn nav_row(
             .allocate_exact_size(vec2(ui.available_width(), 0.0), Sense::hover())
             .1;
     }
+    // The row's own margins a theme sets keep room above and below its pill
+    // (the cotton candy family's `margin-bottom: .6em`: TIDAL's rows 48
+    // points apart, not 40).
+    let [above, _, below, _] = super::plugin_dom::margins(&key);
+    if let Some(above) = above {
+        ui.add_space(above);
+    }
     let size = vec2(ui.available_width(), 40.0);
     let (row, response) = if shown == super::plugin_dom::Shown::Drawn {
         ui.allocate_exact_size(size, Sense::click())
@@ -1553,6 +1566,9 @@ fn nav_row(
         ui.add_enabled_ui(false, |ui| ui.allocate_exact_size(size, Sense::hover()))
             .inner
     };
+    if let Some(below) = below {
+        ui.add_space(below);
+    }
     let rect = Rect::from_min_max(
         pos2(row.left() + 16.0, row.top()),
         pos2(row.right() - 16.0, row.bottom()),

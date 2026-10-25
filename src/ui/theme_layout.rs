@@ -33,12 +33,26 @@ pub struct Floating {
     pub radius: CornerRadius,
     /// The theme's outer `box-shadow` (its first non-inset one).
     pub shadow: Shadow,
+    /// The box's own `height`, in points, where the theme sets one (the
+    /// cotton candy family's sidebar `calc(100% - (var(--miniPlayerHeight)
+    /// * 1.234))` of TIDAL's content row, the window less its title bar).
+    pub height: Option<f32>,
 }
 
 impl Floating {
     /// The gaps along the panel's own axis (top and bottom).
     pub fn vertical(&self) -> f32 {
         f32::from(self.gaps.top) + f32::from(self.gaps.bottom)
+    }
+
+    /// The card in a column `column` points tall: a height of its own ends
+    /// it that far under its top; without one it ends as far off the
+    /// column's foot as its top is off the column's top.
+    pub fn fitted(mut self, column: f32) -> Self {
+        if let Some(height) = self.height {
+            self.gaps.bottom = gap(column - f32::from(self.gaps.top) - height);
+        }
+        self
     }
 }
 
@@ -67,6 +81,10 @@ pub struct ThemeLayout {
     /// `#mainHeader` lifted above the page as a tab (Snusehunden,
     /// Lunallena), which their `:hover` rules slide down.
     pub header: Option<HeaderTab>,
+    /// Where TIDAL's flow puts the content row, the header's controls and
+    /// the page's content under the theme's margins and paddings
+    /// ([`flow`]).
+    pub flow: Flow,
 }
 
 impl ThemeLayout {
@@ -77,7 +95,248 @@ impl ThemeLayout {
             && self.main_reach == 0.0
             && self.main_inset == 0.0
             && self.header.is_none()
+            && self.flow == Flow::default()
     }
+}
+
+/// TIDAL 2.46.0's title bar on Windows (`div._bar_5b9ac59`): 30 points
+/// tall, the first box of the main container's column, above the content
+/// row (`div._containerRow_`). Its words are 12 points
+/// (`._smallText_a636ed6`), what `em` is in its margins.
+pub const TITLE_BAR: f32 = 30.0;
+const TITLE_BAR_EM: f32 = 12.0;
+/// TIDAL's `--headerHeight`: `#main`'s top padding, the room the page
+/// keeps for the header, which lies over it (`position: fixed`).
+const HEADER_HEIGHT: f32 = 56.0;
+/// `#mainHeader`'s own top padding in TIDAL 2.46.0.
+const HEADER_PADDING_TOP: f32 = 14.0;
+/// The most a theme's margins move the shell's boxes, either way.
+const MAX_FLOW: f32 = 200.0;
+
+/// How a theme's margins, paddings and positions move TIDAL's flow of the
+/// shell's boxes, in points down (negative: up), against TIDAL's own.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Flow {
+    /// The content row (sidebar, header, page and play queue) from the
+    /// title bar's foot: the bar's margins and height beyond its own 30, or
+    /// the bar's whole height when the bar lies over the row (`position:
+    /// absolute` or `fixed`). The cotton candy family's `margin-bottom:
+    /// -2.5em` pulls the row 30 points up under the title bar, as Blur's
+    /// `position: absolute` does; the theme then moves the parts back down
+    /// by their own rules (the sidebar's `top`, the header's and the page's
+    /// margins). Tidalfast's window shows TIDAL's page from the title bar's
+    /// foot down, so a row pulled up starts above the window's top.
+    pub row: f32,
+    /// The header's controls from where TIDAL puts them: the content
+    /// area's top margin and padding (Blur's `padding-top: 30px` holds the
+    /// header under a title bar taken out of the flow), `#mainHeader`'s
+    /// margin and its top padding beyond TIDAL's 14, and its first box's
+    /// margin (the cotton candy family's `#mainHeader > * { margin-top:
+    /// 2em }`). The header lies over the page in TIDAL: the page keeps its
+    /// place.
+    pub header: f32,
+    /// The page's content from where TIDAL's `#main` padding puts it:
+    /// `#main`'s top margin and its top padding beyond TIDAL's
+    /// `--headerHeight`, then `.mainContent`'s top margin and padding.
+    pub page: f32,
+    /// The play queue from its place 60 under the row's top: its wrapper's
+    /// top margin beyond TIDAL's and `translateY()` (the cotton candy
+    /// family's `2.6em`), and the panel's own.
+    pub queue: f32,
+    /// The sidebar's contents from the top of its box: the wrapper's and
+    /// `aside#sidebar`'s top margins and paddings (Blur's
+    /// `[class^="_sidebar_"] { padding-top: 30px }` holds the navigation
+    /// under a title bar it takes out of the flow; Tidalify's wrapper
+    /// `margin-top: -30px; padding-top: 30px` leaves it where it was).
+    pub sidebar: f32,
+}
+
+/// The shell's boxes [`flow`] reads, as the theme's rules style them.
+#[derive(Clone, Copy, Default)]
+pub struct FlowHosts<'a> {
+    /// TIDAL's title bar (`div._bar_5b9ac59`).
+    pub bar: Option<&'a HostOverride>,
+    /// `div._contentArea_cf918f9`, the header's box in the content row.
+    pub content_area: Option<&'a HostOverride>,
+    /// `#mainHeader` and its first box (`div._container_cb5cbe4`).
+    pub header: Option<&'a HostOverride>,
+    pub header_bar: Option<&'a HostOverride>,
+    /// `#main` and `.mainContent`.
+    pub main: Option<&'a HostOverride>,
+    pub main_content: Option<&'a HostOverride>,
+    /// `div._playQueueWrapper_cbf5aaa` and `aside#playQueueSidebar` in it.
+    pub queue_wrapper: Option<&'a HostOverride>,
+    pub queue_panel: Option<&'a HostOverride>,
+    /// The sidebar's wrapper (`div._sidebarWrapper_`) and `aside#sidebar`.
+    pub sidebar: Option<&'a HostOverride>,
+    pub sidebar_nav: Option<&'a HostOverride>,
+}
+
+/// [`Flow`] from the theme's rules on the shell's boxes.
+pub fn flow(hosts: FlowHosts<'_>, vars: &BTreeMap<String, String>, viewport: [f32; 2]) -> Flow {
+    let bound = |n: f32| {
+        if n.is_finite() {
+            n.clamp(-MAX_FLOW, MAX_FLOW)
+        } else {
+            0.0
+        }
+    };
+    let top_margin =
+        |h: Option<&HostOverride>| h.map_or(0.0, |h| margins(&h.style, vars, EM, viewport)[0]);
+    let row = hosts.bar.map_or(0.0, |h| {
+        let s = &h.style;
+        // A bar that is not there at all leaves no title bar to lie under:
+        // the row starts at the window's top in TIDAL, where Tidalfast's
+        // starts already.
+        if s.display.as_deref().is_some_and(|d| d.trim() == "none") {
+            return 0.0;
+        }
+        if positioned_out(s) {
+            return -TITLE_BAR;
+        }
+        let em = len(s.font_size.as_deref(), vars, EM, viewport).unwrap_or(TITLE_BAR_EM);
+        let [top, _, bottom, _] = margins(s, vars, em, viewport);
+        // A height in `%` of the main container is not one TIDAL's column
+        // gives the bar: left as it is.
+        let height = len_em(s.height.as_deref(), vars, em, f32::NAN, viewport)
+            .map_or(0.0, |h| h.max(0.0) - TITLE_BAR);
+        top + bottom + height
+    });
+    // The header is the content area's first box in the flow (`position:
+    // fixed` at the place the flow gives it).
+    let header = top_margin(hosts.content_area)
+        + hosts
+            .content_area
+            .and_then(|h| padding_top(&h.style, vars, viewport))
+            .unwrap_or(0.0)
+        + top_margin(hosts.header)
+        + hosts
+            .header
+            .and_then(|h| padding_top(&h.style, vars, viewport))
+            .map_or(0.0, |p| p - HEADER_PADDING_TOP)
+        + top_margin(hosts.header_bar);
+    let page = top_margin(hosts.main)
+        + hosts
+            .main
+            .and_then(|h| padding_top(&h.style, vars, viewport))
+            .map_or(0.0, |p| p - HEADER_HEIGHT)
+        + top_margin(hosts.main_content)
+        + hosts
+            .main_content
+            .and_then(|h| padding_top(&h.style, vars, viewport))
+            .unwrap_or(0.0);
+    // TIDAL's wrapper keeps 60 above the panel (`--headerHeight` and 4).
+    let queue = hosts.queue_wrapper.map_or(0.0, |h| {
+        let s = &h.style;
+        let set = s.margin_top.is_some() || s.margin.is_some();
+        let margin = if set {
+            margins(s, vars, EM, viewport)[0] - QUEUE_TOP
+        } else {
+            0.0
+        };
+        margin + translate_y(s, vars, viewport)
+    }) + hosts.queue_panel.map_or(0.0, |h| {
+        margins(&h.style, vars, EM, viewport)[0] + translate_y(&h.style, vars, viewport)
+    });
+    let sidebar = top_margin(hosts.sidebar)
+        + hosts
+            .sidebar
+            .and_then(|h| padding_top(&h.style, vars, viewport))
+            .unwrap_or(0.0)
+        + top_margin(hosts.sidebar_nav)
+        + hosts
+            .sidebar_nav
+            .and_then(|h| padding_top(&h.style, vars, viewport))
+            .unwrap_or(0.0);
+    Flow {
+        row: bound(row),
+        header: bound(header),
+        page: bound(page),
+        queue: bound(queue),
+        sidebar: bound(sidebar),
+    }
+}
+
+/// The room TIDAL's play queue wrapper keeps above the panel
+/// (`margin-top: calc(var(--headerHeight) + 4px)`).
+const QUEUE_TOP: f32 = 60.0;
+
+/// The box's `transform: translateY()` (and a `translate()`'s second
+/// length), in points; a percentage of the box's own height is left out.
+fn translate_y(style: &Style, vars: &BTreeMap<String, String>, viewport: [f32; 2]) -> f32 {
+    let Some(t) = style.transform.as_deref() else {
+        return 0.0;
+    };
+    let t = css::resolve_vars(t, vars).to_ascii_lowercase();
+    let mut total = 0.0;
+    let mut rest = t.as_str();
+    while let Some(open) = rest.find('(') {
+        let name = rest[..open].trim().rsplit(' ').next().unwrap_or("");
+        let Some(close) = rest[open..].find(')') else {
+            break;
+        };
+        let args = &rest[open + 1..open + close];
+        let y = match name {
+            "translatey" => Some(args),
+            "translate" | "translate3d" => args.split(',').nth(1),
+            _ => None,
+        };
+        if let Some(y) = y.and_then(|y| css::length(y.trim(), EM, f32::NAN, viewport))
+            && y.is_finite()
+        {
+            total += y;
+        }
+        rest = &rest[open + close + 1..];
+    }
+    total
+}
+
+/// `position: absolute` or `fixed`: the box leaves the flow.
+fn positioned_out(style: &Style) -> bool {
+    style.position.as_deref().is_some_and(|p| {
+        let p = p.trim().trim_end_matches("!important").trim();
+        p.eq_ignore_ascii_case("absolute") || p.eq_ignore_ascii_case("fixed")
+    })
+}
+
+/// The box's margins a theme sets, top right bottom left: the longhands
+/// over the `margin` shorthand, `auto` and unset sides 0. `em` is the box's
+/// own font size.
+pub fn margins(
+    style: &Style,
+    vars: &BTreeMap<String, String>,
+    em: f32,
+    viewport: [f32; 2],
+) -> [f32; 4] {
+    let base = style.margin.as_deref().map_or([0.0; 4], |v| {
+        let v = css::resolve_vars(v, vars);
+        css::sides(&v, em)
+    });
+    // A margin in `%` is of the containing block's width, which these
+    // boxes' vertical margins never take in TIDAL's themes: left out.
+    let side = |v: Option<&String>, fallback: f32| {
+        v.and_then(|v| len_em(Some(v), vars, em, f32::NAN, viewport))
+            .unwrap_or(fallback)
+    };
+    [
+        side(style.margin_top.as_ref(), base[0]),
+        side(style.margin_right.as_ref(), base[1]),
+        side(style.margin_bottom.as_ref(), base[2]),
+        side(style.margin_left.as_ref(), base[3]),
+    ]
+    .map(|n| if n.is_finite() { n } else { 0.0 })
+}
+
+/// The box's top padding a theme sets (`padding-top`, else the `padding`
+/// shorthand's), or `None`.
+fn padding_top(style: &Style, vars: &BTreeMap<String, String>, viewport: [f32; 2]) -> Option<f32> {
+    // A padding in `%` (of the box's width) is left out, as for margins.
+    len_em(style.padding_top.as_deref(), vars, EM, f32::NAN, viewport)
+        .or_else(|| {
+            let v = css::resolve_vars(style.padding.as_deref()?, vars);
+            Some(css::sides(&v, EM)[0])
+        })
+        .filter(|n| n.is_finite())
 }
 
 /// `#mainHeader` as a tab over the page's top: a box `width` wide, placed
@@ -154,6 +413,7 @@ pub fn resolve(
         header: header
             .filter(|h| !h.hidden())
             .and_then(|h| header_tab(&h.style, vars, viewport)),
+        flow: Flow::default(),
     }
 }
 
@@ -301,8 +561,19 @@ fn len(
     reference: f32,
     viewport: [f32; 2],
 ) -> Option<f32> {
+    len_em(value, vars, EM, reference, viewport)
+}
+
+/// [`len`] on a box whose words are `em` points.
+fn len_em(
+    value: Option<&str>,
+    vars: &BTreeMap<String, String>,
+    em: f32,
+    reference: f32,
+    viewport: [f32; 2],
+) -> Option<f32> {
     let v = css::resolve_vars(value?, vars);
-    css::length(&v, EM, reference, viewport).filter(|n| n.is_finite())
+    css::length(&v, em, reference, viewport).filter(|n| n.is_finite())
 }
 
 /// `position` lets `top`/`bottom` move the box (TIDAL's bar and sidebar
@@ -354,6 +625,7 @@ fn player_bar(
         },
         radius,
         shadow: shadow(style.box_shadow.as_deref(), vars, viewport).unwrap_or_default(),
+        height: None,
     })
 }
 
@@ -372,8 +644,16 @@ fn side_card(
         return None;
     }
     // Themes shorten the box (`height: 76vh`, `calc(100% - ...)`) to end
-    // above TIDAL's floating bar; a card as far off the bottom as the top
-    // is what that looks like over Tidalfast's own bar.
+    // above TIDAL's floating bar: `%` of TIDAL's content row, the window
+    // less its title bar ([`Floating::fitted`]). Without a height, a card
+    // as far off the bottom as the top.
+    let height = len(
+        style.height.as_deref(),
+        vars,
+        (viewport[1] - TITLE_BAR).max(0.0),
+        viewport,
+    )
+    .filter(|h| *h > 0.0);
     let top = gap(top);
     Some(Floating {
         gaps: Margin {
@@ -384,6 +664,7 @@ fn side_card(
         },
         radius,
         shadow: shadow(style.box_shadow.as_deref(), vars, viewport).unwrap_or_default(),
+        height,
     })
 }
 

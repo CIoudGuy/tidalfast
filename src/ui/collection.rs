@@ -876,6 +876,12 @@ pub fn actions_row(
     } else {
         (HERO_CONTROLS_GAP, 40.0)
     };
+    // TIDAL's gap is the controls' own top margin
+    // (`div._actionContainer_[data-test=header-controls]`), which a theme
+    // sets (the cotton candy family's 34, TidalCustomTheme's 30).
+    let before = super::plugin_dom::margins(crate::luna::dom_anchors::keys::PAGE_HEADER_CONTROLS)
+        [0]
+    .unwrap_or(before);
     ui.add_space(before);
     let pills = actions.play_uri.is_some();
     let only_pills = pills_only(&actions);

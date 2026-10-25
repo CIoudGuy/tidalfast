@@ -215,12 +215,36 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) -> Option<super::theme_layout::Hea
     // panel) overflows it rather than pushing the page down.
     let size = vec2(width, content_height - top_padding - 4.0);
     let bar = egui::Rect::from_min_size(ui.cursor().min, size);
-    let mut child = ui.new_child(
-        egui::UiBuilder::new()
-            .max_rect(bar)
-            .layout(Layout::left_to_right(Align::Center)),
-    );
-    bar_contents(app, &mut child, width, &window_controls, None);
+    // A theme's margins and paddings move the header's controls off
+    // TIDAL's place (the cotton candy family's `#mainHeader > * {
+    // margin-top: 2em }`, Blur's padded content area). TIDAL's header lies
+    // over the page (`position: fixed`), so the moved controls are drawn
+    // over it, and the page keeps the header's room.
+    let shift = super::plugin_dom::theme_layout(ui.ctx()).map_or(0.0, |l| l.flow.header);
+    if shift == 0.0 {
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(bar)
+                .layout(Layout::left_to_right(Align::Center)),
+        );
+        bar_contents(app, &mut child, width, &window_controls, None);
+    } else {
+        let moved = bar.translate(vec2(0.0, shift));
+        let clip = ui.clip_rect();
+        egui::Area::new(egui::Id::new("theme-header-moved"))
+            .order(egui::Order::Middle)
+            .fixed_pos(moved.min)
+            .constrain(false)
+            .show(&ui.ctx().clone(), |area| {
+                area.set_clip_rect(clip);
+                let mut child = area.new_child(
+                    egui::UiBuilder::new()
+                        .max_rect(moved)
+                        .layout(Layout::left_to_right(Align::Center)),
+                );
+                bar_contents(app, &mut child, width, &window_controls, None);
+            });
+    }
     ui.advance_cursor_after_rect(bar);
     None
 }
