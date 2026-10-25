@@ -625,6 +625,15 @@ fn now_playing_block(
     } else {
         region.left() + now_playing_text_inset()
     };
+    // A theme's card round the words, the heart and the "…"
+    // (`._trackContent_`): TIDAL's flex row puts the card where the words
+    // were, and its padding and border move them in (Sugarcoat's words sit
+    // 14 points further right than with no theme).
+    let card = plugin_dom::part_card(keys::TRACK_CONTENT);
+    let card_inset = card
+        .as_deref()
+        .map_or([0.0; 4], |c| plugin_dom::card_inset(keys::TRACK_CONTENT, c));
+    let text_left = text_left + card_inset[3];
     // Plugin elements after the "…": the words give way to them, down to
     // a little. Those on the heart's row (star ratings, a genre chip) need
     // only clear the transport, as the seek row lies below them; a card at
@@ -681,8 +690,8 @@ fn now_playing_block(
     }
     // A theme's card behind the title and artists (`._trackContent_`):
     // its place is kept under the words and filled once they are laid out.
-    let card =
-        plugin_dom::part_card(keys::TRACK_CONTENT).map(|c| (c, ui.painter().add(Shape::Noop)));
+    let card = card.map(|c| (c, ui.painter().add(Shape::Noop)));
+    let has_source = source.is_some();
     let mut text_ui = ui.new_child(
         UiBuilder::new()
             .max_rect(text_rect)
@@ -888,9 +897,14 @@ fn now_playing_block(
     if let Some((card, slot)) = card {
         let words = text_ui.min_rect();
         let actions = heart_rect.union(heart_rect.translate(vec2(more_shift, 0.0)));
+        // Down the card holds TIDAL's lines, centred in the bar: the title's
+        // 22, the artists' 20 and the source's 2 + 18, 1 apart (64 in all,
+        // 43 without a source; TIDAL 2.46.0's `_titleArtistStack_`), not
+        // the glyph rows the words take here (54).
+        let stack = if has_source { 64.0 } else { 43.0 };
         let content = Rect::from_min_max(
-            pos2(words.left(), words.top()),
-            pos2(actions.right().max(words.right()), words.bottom()),
+            pos2(words.left(), cy - stack / 2.0),
+            pos2(actions.right().max(words.right()), cy + stack / 2.0),
         );
         plugin_dom::paint_card(ui, slot, keys::TRACK_CONTENT, &card, content);
     }

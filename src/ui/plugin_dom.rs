@@ -35,7 +35,7 @@ use super::plugin_slots::css;
 #[path = "anchor_look.rs"]
 mod anchor_look;
 pub use anchor_look::{
-    AnchorLook, MENU_BOX_MARK, SUBMENU_BOX_MARK, anchor_look, look_text, mark_opacity,
+    AnchorLook, MENU_BOX_MARK, SUBMENU_BOX_MARK, anchor_look, card_inset, look_text, mark_opacity,
     menu_box_looks, paint_anchor_box, paint_card, paint_look, paint_look_with_fill, paint_part,
     paint_sides, paints_beyond_fill, part_card, submenu_box_look,
 };
@@ -9362,7 +9362,26 @@ pub(crate) fn test_colour_at(
     fn lay(shape: &egui::Shape, p: egui::Pos2, out: &mut [f32; 4]) {
         match shape {
             egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| lay(s, p, out)),
-            egui::Shape::Rect(r) if r.rect.contains(p) => over(out, channels(r.fill)),
+            egui::Shape::Rect(r) => {
+                if r.rect.contains(p) {
+                    over(out, channels(r.fill));
+                }
+                // Its stroke over the fill, in the band its kind gives it
+                // (a border, an inset glow's rings).
+                let w = r.stroke.width;
+                if w > 0.0 {
+                    let (outer, inner) = match r.stroke_kind {
+                        egui::StrokeKind::Inside => (r.rect, r.rect.shrink(w)),
+                        egui::StrokeKind::Middle => {
+                            (r.rect.expand(w / 2.0), r.rect.shrink(w / 2.0))
+                        }
+                        egui::StrokeKind::Outside => (r.rect.expand(w), r.rect),
+                    };
+                    if outer.contains(p) && !inner.contains(p) {
+                        over(out, channels(r.stroke.color));
+                    }
+                }
+            }
             egui::Shape::Mesh(mesh) => {
                 let cross = |u: egui::Vec2, v: egui::Vec2| u.x * v.y - u.y * v.x;
                 for tri in mesh.indices.as_chunks::<3>().0 {
