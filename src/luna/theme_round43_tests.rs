@@ -259,3 +259,73 @@ fn a_collection_cards_box_ends_with_what_it_holds() {
     assert_eq!(colours[0], fill, "the card's foot is filled");
     assert_ne!(colours[1], fill, "the row below the card is not");
 }
+/// TIDAL's player bar card (`._trackContent_`: Sugarcoat's and the cotton
+/// candy singles' rounded box round the song's words, heart and "…") is a
+/// flex row's box: it starts where the words do with no theme, its padding
+/// and border move the words in, and down it holds TIDAL's lines (the
+/// title's 22, the artists' 20, the source's 2 + 18, 1 apart: 64) with its
+/// padding and border round them, centred in the bar. Under Sugarcoat
+/// (`padding: .28em; padding-left: .78em; border: 3px`) TIDAL 2.46.0's card
+/// is 77.8 points tall and its words 14 points right of where they are
+/// with no theme (Chromium, the parity checker's replay); Tidalfast's card
+/// was the words' glyph rows with the padding round them and the border
+/// inside it (62 tall), its words where they were.
+#[test]
+fn a_bar_cards_box_holds_tidals_lines_in_its_padding_and_border() {
+    use super::theme_round41_tests as r41;
+    use dom_anchors::keys;
+    let edge = egui::Color32::from_rgb(10, 200, 30);
+    let css = "/* {\"name\": \"Bar card\"} */\n[class*=\"_trackContent_\"] { background-color: rgb(250, 160, 200); padding: 4px 4px 4px 11px; border: 3px solid rgb(10, 200, 30); }\n";
+    let (ctx, mut app) = r41::demo_app("album:alb0", Some("queue,quality-pill"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let rect = |tree: &super::dom::HostTree, key: &str| {
+        tree.nodes
+            .iter()
+            .find(|n| n.key == key)
+            .and_then(|n| n.rect)
+            .unwrap_or_else(|| panic!("no box for {key}"))
+    };
+    let title_plain = rect(&plain, keys::TITLE);
+    let footer = rect(&plain, keys::FOOTER);
+    let mut o = r41::styled("bar-card.css", css, &plain, keys::TRACK_CONTENT);
+    o.version = 2;
+    let themed = r41::drawn(&ctx, &mut app, o.clone());
+    let title = rect(&themed, keys::TITLE);
+    // Down the card's left border, the bar's height through.
+    let x = title_plain[0] + 1.5;
+    let ys: Vec<f32> = (0..footer[3] as usize)
+        .map(|i| footer[1] + i as f32 + 0.5)
+        .collect();
+    let points: Vec<[f32; 2]> = ys.iter().map(|y| [x, *y]).collect();
+    let colours = r41::painted_at(&ctx, &mut app, o, &points);
+    app.backend.shutdown();
+    let close = |c: &egui::Color32| {
+        c.to_array()[..3]
+            .iter()
+            .zip(edge.to_array())
+            .all(|(a, b)| a.abs_diff(b) <= 3)
+    };
+    let edged: Vec<f32> = ys
+        .iter()
+        .zip(&colours)
+        .filter(|(_, c)| close(c))
+        .map(|(y, _)| *y)
+        .collect();
+    let (top, foot) = (edged.first().copied(), edged.last().copied());
+    let height = foot.zip(top).map(|(f, t)| f - t + 1.0);
+    assert!(
+        height.is_some_and(|h| (h - (64.0 + 2.0 * (4.0 + 3.0))).abs() <= 1.0),
+        "the card's height: {height:?} (from {top:?} to {foot:?}, the bar {footer:?})"
+    );
+    assert!(
+        ((title[0] - title_plain[0]) - 14.0).abs() < 0.5,
+        "the words move in by the padding and border: {title:?} against {title_plain:?}"
+    );
+}

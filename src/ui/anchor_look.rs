@@ -400,10 +400,21 @@ pub fn part_card(key: &str) -> Option<Arc<AnchorLook>> {
     anchor_look(key).filter(|l| l.paints_box())
 }
 
+/// What lies between a [`part_card`]'s edge and its contents on each side
+/// (top, right, bottom, left): its padding, and its border outside that, as
+/// CSS boxes have them (Sugarcoat's 3-point border round its bar cards).
+pub fn card_inset(key: &str, look: &AnchorLook) -> [f32; 4] {
+    let pad = look.padding.unwrap_or([0.0; 4]).map(|p| p.clamp(0.0, 64.0));
+    let border = super::outline_sides(key, Color32::TRANSPARENT)
+        .map_or([0.0; 4], |(sides, _)| sides.map(|w| w.clamp(0.0, 16.0)));
+    std::array::from_fn(|i| pad[i] + border[i])
+}
+
 /// Lays the card [`part_card`] read for anchor `key` round `content`
-/// (grown by the box's padding) into the paint slot `slot`, kept under the
-/// contents before they were drawn: its whole look (shadow, fill,
-/// gradients and pictures, borders, inset glow) in its corners.
+/// (grown by the box's padding and border, [`card_inset`]) into the paint
+/// slot `slot`, kept under the contents before they were drawn: its whole
+/// look (shadow, fill, gradients and pictures, borders, inset glow) in its
+/// corners.
 pub fn paint_card(
     ui: &egui::Ui,
     slot: egui::layers::ShapeIdx,
@@ -411,7 +422,7 @@ pub fn paint_card(
     look: &AnchorLook,
     content: Rect,
 ) {
-    let [t, right, b, l] = look.padding.unwrap_or([0.0; 4]).map(|p| p.clamp(0.0, 64.0));
+    let [t, right, b, l] = card_inset(key, look);
     let r = Rect::from_min_max(
         content.min - egui::vec2(l, t),
         content.max + egui::vec2(right, b),
