@@ -5857,6 +5857,10 @@ fn search_field_in(
     if input.is_some_and(|key| super::plugin_dom::shown(key) != super::plugin_dom::Shown::Drawn) {
         child.set_invisible();
     }
+    // Its placeholder too: the words a plugin wrote there (a translation
+    // plugin's) show instead of the app's own, as in TIDAL.
+    let written = input.and_then(|key| super::plugin_dom::attr(key, "placeholder"));
+    let hint = written.as_deref().unwrap_or(hint);
     // A right-to-left query is shown in reading order. The glyphs stay in
     // the buffer's order, flagged by direction, so the caret follows them.
     let text_color = palette.text;
@@ -6601,6 +6605,95 @@ mod tests {
         // The flag ends with the call: the next table is an ordinary one.
         let plain = tidal_columns(370.0, false, true, true, false, false);
         assert_eq!((plain.artist, plain.album), (0.0, 0.0));
+    }
+
+    /// The words a search field shows before anything is typed are its TIDAL
+    /// input's placeholder as a plugin wrote it (korean-translation's 검색 on
+    /// the header's search and the playlist chooser's), else the app's own;
+    /// a field TIDAL has no input for keeps its own.
+    #[test]
+    fn a_search_fields_placeholder_is_the_one_a_plugin_wrote() {
+        use crate::luna::dom::{DomOverlay, HostOverride};
+        use crate::luna::dom_anchors::keys;
+        let labels = || {
+            let ctx = egui::Context::default();
+            ctx.enable_accesskit();
+            theme::install(&ctx);
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(800.0, 400.0))),
+                    ..Default::default()
+                },
+                |ui| {
+                    let palette = Palette::dark();
+                    let mut q = String::new();
+                    header_search_field(
+                        ui,
+                        &palette,
+                        Locale::English,
+                        egui::Id::new("h"),
+                        &mut q,
+                        "Search",
+                        300.0,
+                    );
+                    search_field_as(
+                        ui,
+                        &palette,
+                        Locale::English,
+                        egui::Id::new("c"),
+                        &mut q,
+                        "Filter playlists",
+                        300.0,
+                        CHOOSER_SEARCH,
+                    );
+                    search_field(
+                        ui,
+                        &palette,
+                        Locale::English,
+                        egui::Id::new("p"),
+                        &mut q,
+                        "Search settings",
+                        300.0,
+                    );
+                },
+            );
+            output.textures_delta.clear();
+            let tree = output
+                .platform_output
+                .accesskit_update
+                .expect("screen-reader tree");
+            let mut out: Vec<String> = tree
+                .nodes
+                .iter()
+                .filter(|(_, n)| n.role() == egui::accesskit::Role::TextInput)
+                .filter_map(|(_, n)| n.label().map(str::to_string))
+                .collect();
+            out.sort();
+            out
+        };
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay::default()));
+        let native = labels();
+        let mut overlay = DomOverlay::default();
+        for key in [keys::SEARCH_INPUT, keys::CHOOSER_SEARCH_INPUT] {
+            overlay.hosts.insert(
+                key.into(),
+                HostOverride {
+                    attrs: vec![("placeholder".into(), format!("검색 {key}"))],
+                    ..HostOverride::default()
+                },
+            );
+        }
+        crate::ui::plugin_dom::test_overlay(Some(overlay));
+        let written = labels();
+        crate::ui::plugin_dom::test_overlay(None);
+        assert_eq!(native, ["Filter playlists", "Search", "Search settings"]);
+        let mut want = vec![
+            format!("검색 {}", keys::SEARCH_INPUT),
+            format!("검색 {}", keys::CHOOSER_SEARCH_INPUT),
+            "Search settings".to_string(),
+        ];
+        want.sort();
+        assert_eq!(written, want);
     }
 
     /// The sort headings a track table header offers at `width`.
