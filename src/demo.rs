@@ -10249,6 +10249,126 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// TidalLyricsTranslate puts its Translate button after the now-playing
+    /// header's full screen button, in TIDAL 2.46.0's `div._actionButtons_`:
+    /// it is drawn there, between the full screen button and the chevron,
+    /// which make room for it, and what a plugin puts first or last in that
+    /// box is drawn before the full screen button or after the chevron.
+    /// Nothing drew what a plugin put among the header's action buttons.
+    #[test]
+    fn a_plugin_button_among_the_header_action_buttons_is_drawn_there() {
+        use crate::luna::dom::{DomOverlay, Injected, Position, Style, VNode};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("np-action-buttons");
+        apply_flags(&mut app, Some("home"), Some("now-playing-lyrics"));
+        let button = |id: u64, colour: &str| VNode {
+            id,
+            tag: "div".into(),
+            style: Style {
+                display: Some("inline-block".into()),
+                width: Some("40px".into()),
+                height: Some("24px".into()),
+                background_color: Some(colour.into()),
+                ..Style::default()
+            },
+            ..VNode::default()
+        };
+        let at = |anchor: &str, position: Position, node: VNode| Injected {
+            anchor: anchor.into(),
+            position,
+            nodes: vec![node],
+        };
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            injected: vec![
+                at(
+                    keys::NP_ACTION_BUTTONS,
+                    Position::Prepend,
+                    button(5, "#0000ff"),
+                ),
+                at(keys::NP_EXPAND, Position::After, button(7, "#ff0000")),
+                at(
+                    keys::NP_ACTION_BUTTONS,
+                    Position::Append,
+                    button(9, "#00ff00"),
+                ),
+            ],
+            ..DomOverlay::default()
+        }));
+        let frame = |ctx: &egui::Context, app: &mut App| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280.0, 800.0),
+                    )),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(app, ui),
+            );
+            output.textures_delta.clear();
+            plugin_dom::end_frame(ctx);
+            output
+        };
+        // The row is laid out from the right with the sizes of the pass
+        // before: the buttons have their room from the second pass on.
+        for _ in 0..3 {
+            frame(&ctx, &mut app);
+        }
+        let output = frame(&ctx, &mut app);
+        plugin_dom::test_overlay(None);
+        let tree = output
+            .platform_output
+            .accesskit_update
+            .expect("screen-reader tree");
+        let all = |label: &str| -> Vec<egui::accesskit::Rect> {
+            tree.nodes
+                .iter()
+                .filter(|(_, node)| node.label() == Some(label))
+                .filter_map(|(_, node)| node.bounds())
+                .collect()
+        };
+        let full = all("Full screen")
+            .into_iter()
+            .find(|b| b.y0 < 120.0)
+            .expect("the header's full screen button");
+        // The chevron in the same row, not a window's own close button.
+        let close = all("Close")
+            .into_iter()
+            .find(|b| b.x0 >= full.x1 && b.y0 < full.y1 && b.y1 > full.y0)
+            .expect("the chevron right of full screen");
+        let painted = |colour: egui::Color32| {
+            let rect = output
+                .shapes
+                .iter()
+                .find_map(|s| match &s.shape {
+                    egui::Shape::Rect(r) if r.fill == colour => Some(r.rect),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("the plugin's {colour:?} button is not painted"));
+            let centre = f64::from(rect.center().y);
+            assert!(
+                centre > close.y0 && centre < close.y1,
+                "{rect:?} in the row of {close:?}"
+            );
+            (f64::from(rect.left()), f64::from(rect.right()))
+        };
+        let first = painted(egui::Color32::from_rgb(0, 0, 255));
+        assert!(first.1 <= full.x0 + 0.5, "{first:?} before {full:?}");
+        let between = painted(egui::Color32::from_rgb(255, 0, 0));
+        assert!(
+            between.0 >= full.x1 - 0.5 && between.1 <= close.x0 + 0.5,
+            "{between:?} between {full:?} and {close:?}"
+        );
+        let last = painted(egui::Color32::from_rgb(0, 255, 0));
+        assert!(
+            last.0 >= close.x1 - 0.5 && last.1 <= 1280.0,
+            "{last:?} after {close:?}"
+        );
+        app.backend.shutdown();
+    }
+
     fn app_lyrics_len(app: &App) -> usize {
         match &app.lyrics {
             Loadable::Loaded(Some(l)) => l.lines.len(),

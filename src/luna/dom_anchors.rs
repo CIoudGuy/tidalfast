@@ -4487,14 +4487,15 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying, fullscreen: bool) {
     if !fullscreen {
         out.push(docked_now_playing(np.rect));
     }
-    out.push(
-        el(NP_HEADER, Some(host), "header")
-            .modules(&["header"])
-            // TIDAL's `#nowPlayingHeader` and `[data-test=header-container]`
-            // (Catppuccin, Cotton Candy).
-            .id("nowPlayingHeader")
-            .test("header-container"),
-    );
+    // TIDAL 2.46.0's header is a plain `header._header_` (its bundle's
+    // now-playing header component, and its page): no id or `data-test`
+    // of its own. 2.43.2's `#nowPlayingHeader[data-test=header-container]`
+    // is gone, so a rule naming them (the cotton candy family's
+    // `#nowPlayingHeader { transform }`) matches nothing, as in TIDAL, and
+    // what a plugin adds among the header's buttons is nearest to the
+    // section's `[data-test=new-now-playing]` (TidalLyricsTranslate's
+    // button).
+    out.push(el(NP_HEADER, Some(host), "header").modules(&["header"]));
     // TIDAL 2.46.0's header (its bundle): `div._buttons_ > div.
     // _contentButtons_ > button[data-test=toggle-similar-tracks|toggle-
     // credits|toggle-lyrics] > span._label_`, then `div._actionButtons_ >

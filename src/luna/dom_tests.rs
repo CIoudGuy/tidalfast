@@ -1657,7 +1657,7 @@ R.calls = 0;
 lib.observe(unloads, ".is-fullscreen.is-now-playing", (el) => {
 	R.calls++;
 	R.root = el.matches("#wimp > div[data-market-theme] > div");
-	R.inside = !!el.querySelector('[class^="_fullscreen_"] > section[data-test="new-now-playing"] #nowPlayingHeader');
+	R.inside = !!el.querySelector('[class^="_fullscreen_"] > section[data-test="new-now-playing"] > header[class^="_header_"]');
 	R.docked = !!el.querySelector(':scope > [class*="_nowPlayingContainer_"]');
 });
 "##,
@@ -1907,8 +1907,10 @@ lib.observe(unloads, '[data-test="sidebar-music"]', () => {
 /// example colours `[id^="titleCell"]`, `[id^="albumText"]`,
 /// `[id^="timeColumn"]`, `[id^="contributionText"]` and
 /// `[id^="headerColumn"]`; Catppuccin and the cotton candy family style
-/// `#playbackControlBar button` and `#nowPlayingHeader`; Solo Luna scopes
-/// rules with `[data-test-page-name="my-collection"]`.
+/// `#playbackControlBar button`; Solo Luna scopes rules with
+/// `[data-test-page-name="my-collection"]`. The cotton candy family's
+/// `#nowPlayingHeader` (TIDAL 2.43.2's, with `[data-test=header-container]`)
+/// is in no page of TIDAL 2.46.0, nor here.
 #[test]
 fn ids_and_page_names_of_tidals_dom_reach_the_anchors() {
     let (luna, _host, dir) = start(
@@ -1916,8 +1918,8 @@ fn ids_and_page_names_of_tidals_dom_reach_the_anchors() {
 const sels = [
 	'[id^="titleCell"]', '[id^="albumText"]', '[id^="timeColumn"]', '[id^="contributionText"]',
 	'[id^="headerColumn"]', '#playbackControlBar button', '[data-test=play-controls] button',
-	'#nowPlayingHeader', '[data-test=header-container]',
 	'[data-test-page-name="album"]', '[data-test-page-name="my-collection"]',
+	'#nowPlayingHeader', '[data-test=header-container]',
 ];
 setInterval(() => { R.q = sels.map((s) => document.querySelectorAll(s).length); }, 40);
 "##,
@@ -1932,15 +1934,57 @@ setInterval(() => { R.q = sels.map((s) => document.querySelectorAll(s).length); 
         .iter()
         .map(|n| n.as_u64().unwrap())
         .collect();
-    assert!(q[..9].iter().all(|n| *n > 0), "{q:?}");
-    assert_eq!((q[9], q[10]), (1, 0), "an album page, not the collection");
+    assert!(q[..7].iter().all(|n| *n > 0), "{q:?}");
+    assert_eq!((q[7], q[8]), (1, 0), "an album page, not the collection");
+    assert_eq!(
+        (q[9], q[10]),
+        (0, 0),
+        "TIDAL 2.43.2's now-playing header ids"
+    );
     let mut frame = dom_anchors::sample_frame();
     frame.page.as_mut().unwrap().page_id = Some("mycollection_playlists".into());
     luna.sync_dom(dom_anchors::build(&frame));
     let r = results_until(&luna, &dir, 10, |r| {
-        r["q"].as_array().is_some_and(|q| q[10].as_u64() == Some(1))
+        r["q"].as_array().is_some_and(|q| q[8].as_u64() == Some(1))
     });
-    assert_eq!(r["q"][9], json!(0), "{r}");
+    assert_eq!(r["q"][7], json!(0), "{r}");
+    finish(luna, dir);
+}
+
+/// TidalLyricsTranslate puts its Translate button after the now-playing
+/// view's full screen button, in `div._actionButtons_` (here: before the
+/// close chevron, beside it there). TIDAL 2.46.0's
+/// header there is a plain `header._header_` in
+/// `section#nowPlaying[data-test=new-now-playing]`, so the nearest element
+/// above the button with an id or a `data-test` is the section; Tidalfast's
+/// header still carried TIDAL 2.43.2's `#nowPlayingHeader[data-test=
+/// header-container]`.
+#[test]
+fn the_now_playing_header_has_no_id_of_its_own_as_in_tidal_2_46() {
+    let (luna, _host, dir) = start(
+        r##"
+lib.observe(unloads, '[data-test="new-now-playing-close"]', (close) => {
+	if (R.done) return;
+	const b = document.createElement("button");
+	b.className = close.className;
+	b.textContent = "Translate";
+	close.insertAdjacentElement("beforebegin", b);
+	const header = b.closest("header");
+	R.header = header ? [header.id, header.getAttribute("data-test"), header.className] : null;
+	R.near = b.parentElement.closest("[id], [data-test]")?.getAttribute("data-test") ?? null;
+	R.done = true;
+});
+"##,
+    );
+    luna.sync_dom(dom_anchors::build(&dom_anchors::sample_frame()));
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["header"][0], json!(""), "{r}");
+    assert_eq!(r["header"][1], json!(null), "{r}");
+    assert!(
+        r["header"][2].as_str().unwrap().starts_with("_header_"),
+        "{r}"
+    );
+    assert_eq!(r["near"], json!("new-now-playing"), "{r}");
     finish(luna, dir);
 }
 
