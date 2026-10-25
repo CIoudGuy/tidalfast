@@ -159,7 +159,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                             true,
                             false,
                             None,
-                            Some(&super::plugin_dom::list_id(&context)),
+                            Some(super::plugin_dom::list_id(&context)),
                         );
                         if !app.network_reachable {
                             ui.add_enabled_ui(false, |ui| {
@@ -1857,7 +1857,7 @@ fn track_table(
             true,
             false,
             None,
-            Some(&super::plugin_dom::list_id(&context)),
+            Some(super::plugin_dom::list_id(&context)),
         );
         if !app.network_reachable {
             ui.add_enabled_ui(false, |ui| {

@@ -2645,7 +2645,7 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
             show_cover,
             table.numbered,
             sort,
-            Some(&super::plugin_dom::list_id(&table.context)),
+            Some(super::plugin_dom::list_id(&table.context)),
         )
     } else {
         None
@@ -2852,7 +2852,7 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
                             show_cover,
                             table.numbered,
                             sort,
-                            Some(&super::plugin_dom::list_id(&table.context)),
+                            Some(super::plugin_dom::list_id(&table.context)),
                         )
                     })
                     .inner;
