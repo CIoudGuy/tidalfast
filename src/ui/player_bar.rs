@@ -1515,7 +1515,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
             &badge.detail,
             badge.tone,
             color,
-            plugin_dom::quality_badge(),
+            plugin_dom::quality_badge(badge.quality.api_name()),
             super::quality_pill::Parts::of_plugins(),
         );
         if show_pill {

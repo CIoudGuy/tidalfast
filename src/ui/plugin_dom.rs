@@ -3134,20 +3134,23 @@ fn pill_fill(h: &HostOverride, vars: &BTreeMap<String, String>) -> Option<Color3
     Some(Color32::from_rgba_premultiplied(r, g, b, a))
 }
 
-/// A theme's look for the player bar's quality badge: TIDAL's badge is a
-/// box whose tier gradient (`._gradientMax_`) is a layer inside it, and
-/// themes paint either (the cotton candy family and radiant-lyrics fill
-/// and round the gradient, Tidal Light the badge). The label's colour
-/// comes through [`color`] as before. `None` keeps the native pill.
-pub fn quality_badge() -> Option<ThemedBadge> {
+/// A theme's look for the player bar's quality badge at TIDAL's `quality`:
+/// TIDAL's badge is a box with its gradient layers inside it, of which its
+/// sheet shows the tier's (`._gradientMax_` on a Max badge,
+/// [`dom_anchors::shown_quality_gradient`]), and themes paint either (the
+/// cotton candy family and radiant-lyrics fill and round the gradient,
+/// Tidal Light the badge). The label's colour comes through [`color`] as
+/// before. `None` keeps the native pill.
+pub fn quality_badge(quality: &str) -> Option<ThemedBadge> {
     if !on() {
         return None;
     }
-    if let Some(hit) = theme_boxes(|b| b.badge) {
+    let gradient = dom_anchors::shown_quality_gradient(quality);
+    if let Some(hit) = theme_boxes(|b| b.badge.get(gradient).copied()) {
         return hit;
     }
-    let made = quality_badge_uncached();
-    theme_boxes(|b| b.badge = Some(made));
+    let made = quality_badge_uncached(gradient);
+    theme_boxes(|b| b.badge.insert(gradient, made));
     made
 }
 
@@ -3156,7 +3159,8 @@ pub fn quality_badge() -> Option<ThemedBadge> {
 /// every frame).
 #[derive(Debug, Default)]
 struct ThemeBoxes {
-    badge: Option<Option<ThemedBadge>>,
+    /// By the gradient layer that shows.
+    badge: std::collections::HashMap<&'static str, Option<ThemedBadge>>,
     grid: std::collections::HashMap<String, Option<GridCardStyle>>,
     covers: std::collections::HashMap<usize, Option<CoverStyle>>,
     /// What the theme makes of a track row's thumbnail (the same for every
@@ -3185,8 +3189,8 @@ fn theme_boxes<R>(f: impl FnOnce(&mut ThemeBoxes) -> R) -> R {
     })
 }
 
-fn quality_badge_uncached() -> Option<ThemedBadge> {
-    use dom_anchors::keys::{QUALITY_BADGE, QUALITY_GRADIENT};
+fn quality_badge_uncached(gradient: &str) -> Option<ThemedBadge> {
+    use dom_anchors::keys::QUALITY_BADGE;
     let layer = |key: &str| host(key, pill_fill).filter(|c| c.a() > 0);
     let radius = |key: &str| {
         host(key, |h, vars| {
@@ -3196,8 +3200,8 @@ fn quality_badge_uncached() -> Option<ThemedBadge> {
     };
     let badge = ThemedBadge {
         fill: layer(QUALITY_BADGE),
-        layer: layer(QUALITY_GRADIENT),
-        radius: radius(QUALITY_GRADIENT).or_else(|| radius(QUALITY_BADGE)),
+        layer: layer(gradient),
+        radius: radius(gradient).or_else(|| radius(QUALITY_BADGE)),
     };
     (badge.fill.is_some() || badge.layer.is_some()).then_some(badge)
 }
