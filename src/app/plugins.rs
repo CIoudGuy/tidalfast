@@ -689,9 +689,7 @@ impl App {
                     }
                 }
                 #[cfg(any(test, feature = "demo"))]
-                {
-                    self.plugins.demo_themes = Some(themes);
-                }
+                crate::demo::themes_at_start(&mut self.plugins.demo_themes, themes);
             }
         } else if !wanted && self.plugins.luna.is_some() {
             self.plugins.stop_luna();
