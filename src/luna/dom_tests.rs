@@ -3020,6 +3020,95 @@ unloads.add(() => clearInterval(id));
     finish(luna, dir);
 }
 
+/// A theme's `vw` and `vh` are the window's: the frame drawn at a new window
+/// size has the theme's lengths at that size, in the anchor's look and in
+/// the layers painted on its box. A resize changes nothing in the overlay
+/// (its rules say `20vh` at any size), so the runtime publishes none: what
+/// the UI resolved for the old size must not stay (Lunallena's
+/// `padding-left: 20vh` on the card shelves).
+#[test]
+fn lengths_in_vw_and_vh_follow_the_window_size_at_once() {
+    use crate::ui::plugin_dom as pd;
+    let (luna, _host, dir) = start(
+        r##"
+const st = document.createElement("style");
+st.textContent = `
+[data-test="footer-player"] { background-color: rgb(10, 20, 30); padding-left: 20vh; border-radius: 1vw; border: 2px solid rgb(200, 0, 0); }
+`;
+document.head.append(st);
+"##,
+    );
+    let ctx = egui::Context::default();
+    // One UI frame at window size `[w, h]`: the bar's look, and the corners
+    // of the border its layers paint.
+    let frame = |[w, h]: [f32; 2]| {
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(w, h));
+        let input = egui::RawInput {
+            screen_rect: Some(rect),
+            ..Default::default()
+        };
+        let mut look = None;
+        let mut output = ctx.run_ui(input, |ui| {
+            pd::begin_frame(ui.ctx(), Some(&luna), rect, &crate::model::Page::Home);
+            look = pd::anchor_look(keys::FOOTER);
+            let bar = egui::Rect::from_min_size(egui::pos2(0.0, h - 90.0), egui::vec2(w, 90.0));
+            pd::paint_host_layers(ui, keys::FOOTER, bar);
+        });
+        output.textures_delta.clear();
+        let border = output.shapes.iter().find_map(|c| match &c.shape {
+            egui::Shape::Rect(r) if r.stroke.width > 0.0 => Some(r.corner_radius.nw),
+            _ => None,
+        });
+        (
+            look.as_ref().and_then(|l| l.padding.map(|p| p[3])),
+            look.as_ref().and_then(|l| l.corners.map(|c| c.nw)),
+            border,
+            pd::overlay().map(|o| o.version),
+        )
+    };
+    let mut t = tree();
+    t.viewport = [1280.0, 800.0];
+    luna.sync_dom(t.clone());
+    overlay_until(&luna, 15, |o| {
+        o.hosts
+            .get(keys::FOOTER)
+            .is_some_and(|h| h.style.padding_left.is_some())
+    });
+    let (padding, corners, border, version) = frame(t.viewport);
+    assert_eq!(
+        (padding, corners, border),
+        (Some(160.0), Some(13), Some(13)),
+        "at 1280 x 800"
+    );
+    // The window shrinks: the UI tells the runtime, whose overlay stays as
+    // it was.
+    t.viewport = [1000.0, 400.0];
+    luna.sync_dom(t.clone());
+    luna.sync(Duration::from_secs(5));
+    std::thread::sleep(Duration::from_millis(300));
+    luna.sync(Duration::from_secs(5));
+    let (padding, corners, border, now) = frame(t.viewport);
+    assert_eq!(now, version, "a resize alone publishes no new overlay");
+    assert_eq!(
+        (padding, corners, border),
+        (Some(80.0), Some(10), Some(10)),
+        "at 1000 x 400: the lengths are the new window's"
+    );
+    // And back.
+    t.viewport = [1280.0, 800.0];
+    luna.sync_dom(t.clone());
+    let (padding, corners, border, _) = frame(t.viewport);
+    assert_eq!(
+        (padding, corners, border),
+        (Some(160.0), Some(13), Some(13))
+    );
+    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        pd::begin_frame(ui.ctx(), None, ui.max_rect(), &crate::model::Page::Home);
+    });
+    output.textures_delta.clear();
+    finish(luna, dir);
+}
+
 /// A theme with `::before` rules, root variables and keyframes costs nothing
 /// per overlay build while none of them change (the page's clock rewrites the
 /// tree every second, and Cotton Candy declares hundreds of variables), and
