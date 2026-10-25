@@ -1749,6 +1749,16 @@
 		_main_a5d9f44: { display: "grid" },
 		_mainContainer_: { display: "flex" },
 		_marketButton_1d16h_1: { display: "inline-flex" },
+		// A market button's size sets its type (`._marketButton_1d16h_1.
+		// _small_1d16h_3 { font-size: var(--market-button-small-size-text-
+		// size); font-weight: ... }`: 14 px at 600, medium and large 16 px
+		// at 600), its rank its colour (Play's primary pill reads rgb(16,
+		// 16, 16), a secondary one white; measured).
+		_small_1d16h_3: { "font-size": "14px", "font-weight": "600" },
+		_medium_1d16h_4: { "font-size": "16px", "font-weight": "600" },
+		_large_1d16h_5: { "font-size": "16px", "font-weight": "600" },
+		_primary_1d16h_6: { color: "rgb(16, 16, 16)" },
+		_secondary_1d16h_7: { color: "rgb(255, 255, 255)" },
 		_marketPagingTabList_mibfb_1: { display: "flex" },
 		_metaContainer_3980a6e: { display: "grid" },
 		_navigationItem_: { display: "flex" },
@@ -1811,6 +1821,14 @@
 		"wave-text-title-bold": { "font-size": "32px", "font-weight": "700" },
 	};
 	const TIDAL_LOOK = new Map(Object.entries(TIDAL_LOOK_ENTRIES));
+	// TIDAL's classes that set a market button's own tokens (index.css),
+	// which win over its size and rank whatever the order of the classes:
+	// [class, the classes of the rule the token feeds, the look]. The
+	// now-playing header's icon buttons (`._iconButton_fe68160`: the
+	// tertiary icon colour is `--market-core-text-20-color`, #ffffff8c; a
+	// plugin's copy of the full screen button reads 55 % white at 600 in
+	// TIDAL). The view's tabs keep the look the sheet above gives them.
+	const TIDAL_LOOK_TOKENS = [["_iconButton_fe68160", ["_tertiary_1d16h_8", "_iconOnly_1d16h_1"], { color: "rgba(255, 255, 255, 0.55)" }]];
 	// A form control's own font, from Chromium's sheet (`font:
 	// -webkit-small-control`, which TIDAL's normalize sizes back to its
 	// parent's): weight 400 whatever its parent's, normal line height, and
@@ -1852,11 +1870,13 @@
 		};
 		if (tag in TAG_LOOK) put(TAG_LOOK[tag]);
 		if (utility) put(UTILITY_BUTTON);
-		for (const c of cls.split(/\s+/)) {
+		const list = cls.split(/\s+/);
+		for (const c of list) {
 			if (!c) continue;
 			const look = TIDAL_LOOK.get(c) ?? TIDAL_LOOK.get(/^(_[A-Za-z0-9]+_)[0-9a-z]{5,8}(?:_\d+)?$/.exec(c)?.[1] ?? "");
 			if (look) put(look);
 		}
+		for (const [c, needs, look] of TIDAL_LOOK_TOKENS) if (list.includes(c) && needs.every((n) => list.includes(n))) put(look);
 		if (lookCache.size > 4096) lookCache.clear();
 		lookCache.set(key, out);
 		return out;
