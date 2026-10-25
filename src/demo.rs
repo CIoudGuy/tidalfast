@@ -6926,7 +6926,7 @@ mod tests {
         // might be.
         let hidden = |index: usize| {
             (
-                crate::luna::dom_anchors::keys::row(&list, index),
+                crate::luna::dom_anchors::keys::row(list, index),
                 HostOverride {
                     style: Style {
                         display: Some("none".into()),

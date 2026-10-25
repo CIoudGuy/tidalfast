@@ -556,7 +556,7 @@ fn track_table(app: &mut App, ui: &mut egui::Ui, items: &[ShelfItem], limit: Opt
         true,
         false,
         None,
-        Some(&super::plugin_dom::list_id(&context)),
+        Some(super::plugin_dom::list_id(&context)),
     );
     for (index, item) in songs.iter().take(limit.unwrap_or(usize::MAX)).enumerate() {
         widgets::track_row(

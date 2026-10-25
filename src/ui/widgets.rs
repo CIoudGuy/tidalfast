@@ -1575,28 +1575,28 @@ fn track_row_contents(
     let is_current =
         !matches!(row.context, RowContext::Queue) && app.is_current_track(row.item.uri());
     let playing = is_current && app.believed_playing();
-    // Luna's `div[data-test=tracklist-row]` for the rows on screen.
-    if super::plugin_dom::on() {
+    // Luna's `div[data-test=tracklist-row]` for the rows on screen. The
+    // row's anchor key is made once for its lookups.
+    let row_key = super::plugin_dom::on().then(|| {
+        crate::luna::dom_anchors::keys::row(super::plugin_dom::list_id(row.context), row.index)
+    });
+    if let Some(key) = &row_key {
         let list = super::plugin_dom::list_id(row.context);
         // The heart's state and the index column's number (TIDAL's
         // `add-to-favorites-button`, `mt-index-col`).
         let saved = app.is_saved(row.item.uri());
         let number = row.numbered.then(|| row.number.unwrap_or(row.index + 1));
-        super::plugin_dom::row(ui, &list, row.index, rect, |r| {
+        super::plugin_dom::row(ui, list, row.index, rect, |r| {
             super::plugin_dom::fill_row(r, row.item, row.picked, is_current);
             r.title_rect = super::plugin_dom::rect(rect);
             r.saved = saved;
             r.number = number;
         });
-        if let Some(fill) =
-            super::plugin_dom::fill(&crate::luna::dom_anchors::keys::row(&list, row.index))
-        {
+        if let Some(fill) = super::plugin_dom::fill(key) {
             ui.painter().rect_filled(rect, 4.0, fill);
         }
         // An inset edge (scroll-to-playing's bar down the playing row).
-        if let Some((width, color)) =
-            super::plugin_dom::inset_edge(&crate::luna::dom_anchors::keys::row(&list, row.index))
-        {
+        if let Some((width, color)) = super::plugin_dom::inset_edge(key) {
             let (bar, corners) = if width > 0.0 {
                 (
                     Rect::from_min_size(rect.min, vec2(width, rect.height())),
@@ -1621,14 +1621,13 @@ fn track_row_contents(
             ui.painter().rect_filled(bar, corners, color);
         }
         // The boxes TIDAL's virtual list holds the row in, then the row's own.
-        for (sides, color, radius) in row_wrapper_borders(&list, row.index) {
+        for (sides, color, radius) in row_wrapper_borders(list, row.index) {
             paint_border(ui.painter(), rect, sides, color, radius);
         }
-        let key = crate::luna::dom_anchors::keys::row(&list, row.index);
-        if let Some((sides, color)) = super::plugin_dom::outline_sides(&key, app.palette.accent) {
+        if let Some((sides, color)) = super::plugin_dom::outline_sides(key, app.palette.accent) {
             // A `border-image` paints the border's sides in its picture
             // instead of the colour (corners take no rounding then).
-            match super::plugin_dom::border_image(&key) {
+            match super::plugin_dom::border_image(key) {
                 Some(g) => paint_border_image(ui.painter(), rect, sides, &g),
                 None => paint_border(ui.painter(), rect, sides, color, 4.0),
             }
@@ -1636,12 +1635,7 @@ fn track_row_contents(
     }
     // A plugin hid the row (`display: none`): its place stays, empty. Its
     // anchor was noted above, so the rule keeps matching it.
-    if super::plugin_dom::on()
-        && super::plugin_dom::hidden(&crate::luna::dom_anchors::keys::row(
-            &super::plugin_dom::list_id(row.context),
-            row.index,
-        ))
-    {
+    if row_key.as_deref().is_some_and(super::plugin_dom::hidden) {
         return (response, None);
     }
     // TIDAL rows have an instant hover fill and nothing for a press: a row a
@@ -1843,9 +1837,9 @@ fn classic_row_cells(
         let (themed, plugin_image) = if super::plugin_dom::on() {
             let list = super::plugin_dom::list_id(row.context);
             (
-                super::plugin_dom::row_image(&list, row.index, cover_rect),
+                super::plugin_dom::row_image(list, row.index, cover_rect),
                 super::plugin_dom::picture(|| {
-                    crate::luna::dom_anchors::keys::row_cell(&list, row.index, "image-img")
+                    crate::luna::dom_anchors::keys::row_cell(list, row.index, "image-img")
                 }),
             )
         } else {
@@ -3040,7 +3034,7 @@ fn tidal_row_cells(
         let alpha = if row.picked && lit { 38 } else { 26 };
         painter.rect_filled(
             rect,
-            row_fill_corners(&super::plugin_dom::list_id(row.context), row.index),
+            row_fill_corners(super::plugin_dom::list_id(row.context), row.index),
             Color32::from_white_alpha(alpha),
         );
     }
@@ -3051,7 +3045,7 @@ fn tidal_row_cells(
     let themed_text = (!unavailable && super::plugin_dom::on())
         .then(|| {
             super::plugin_dom::row_text(
-                &super::plugin_dom::list_id(row.context),
+                super::plugin_dom::list_id(row.context),
                 row.index,
                 palette.window,
             )
@@ -3077,7 +3071,7 @@ fn tidal_row_cells(
     // Play button, the "…", add and heart buttons) are not painted.
     let list = super::plugin_dom::on().then(|| super::plugin_dom::list_id(row.context));
     let drawn = |cell: &str| {
-        list.as_deref().is_none_or(|l| {
+        list.is_none_or(|l| {
             super::plugin_dom::shown(&crate::luna::dom_anchors::keys::row_cell(
                 l, row.index, cell,
             )) == super::plugin_dom::Shown::Drawn
@@ -3121,11 +3115,11 @@ fn tidal_row_cells(
         // painted, and a picture they put in it is the one shown.
         let (hidden, plugin_image) = if super::plugin_dom::on() {
             let list = super::plugin_dom::list_id(row.context);
-            let themed = super::plugin_dom::row_image(&list, row.index, cover);
+            let themed = super::plugin_dom::row_image(list, row.index, cover);
             (
                 themed.is_some_and(|s| s.opacity <= 0.0),
                 super::plugin_dom::picture(|| {
-                    crate::luna::dom_anchors::keys::row_cell(&list, row.index, "image-img")
+                    crate::luna::dom_anchors::keys::row_cell(list, row.index, "image-img")
                 }),
             )
         } else {
@@ -3180,7 +3174,7 @@ fn tidal_row_cells(
         let title_rect = cell(x, cols.title);
         if super::plugin_dom::on() {
             super::plugin_dom::row_title_rect(
-                &super::plugin_dom::list_id(row.context),
+                super::plugin_dom::list_id(row.context),
                 row.index,
                 title_rect,
             );
@@ -3195,7 +3189,7 @@ fn tidal_row_cells(
         // The playing title is the accent, or a theme's colour for it.
         let color = if is_current && !unavailable {
             super::plugin_dom::playing_title(
-                &super::plugin_dom::list_id(row.context),
+                super::plugin_dom::list_id(row.context),
                 row.index,
                 palette.window,
             )
@@ -3207,7 +3201,7 @@ fn tidal_row_cells(
         let cell_key = |cell: &str| {
             super::plugin_dom::on().then(|| {
                 crate::luna::dom_anchors::keys::row_cell(
-                    &super::plugin_dom::list_id(row.context),
+                    super::plugin_dom::list_id(row.context),
                     row.index,
                     cell,
                 )
@@ -3292,7 +3286,7 @@ fn tidal_row_cells(
             child.set_clip_rect(album_rect.intersect(ui.clip_rect()));
             let name = if super::plugin_dom::on() {
                 let key = crate::luna::dom_anchors::keys::row_cell(
-                    &super::plugin_dom::list_id(row.context),
+                    super::plugin_dom::list_id(row.context),
                     row.index,
                     "album-link",
                 );
@@ -3302,7 +3296,7 @@ fn tidal_row_cells(
             };
             let hidden = super::plugin_dom::on()
                 && super::plugin_dom::hidden(&crate::luna::dom_anchors::keys::row_cell(
-                    &super::plugin_dom::list_id(row.context),
+                    super::plugin_dom::list_id(row.context),
                     row.index,
                     "album-link",
                 ));
@@ -3327,7 +3321,7 @@ fn tidal_row_cells(
         .map(|added| util::format_date(app.locale, added));
     if super::plugin_dom::on() {
         super::plugin_dom::row_added(
-            &super::plugin_dom::list_id(row.context),
+            super::plugin_dom::list_id(row.context),
             row.index,
             shown_added_by,
             shown_added.as_deref(),
@@ -3367,7 +3361,7 @@ fn tidal_row_cells(
         super::plugin_dom::extra_cells(
             ui,
             &crate::luna::dom_anchors::keys::row_cell(
-                &super::plugin_dom::list_id(row.context),
+                super::plugin_dom::list_id(row.context),
                 row.index,
                 "duration",
             ),
@@ -3385,7 +3379,7 @@ fn tidal_row_cells(
     if cols.time > 0.0 {
         let hidden = super::plugin_dom::on()
             && super::plugin_dom::hidden(&crate::luna::dom_anchors::keys::row_cell(
-                &super::plugin_dom::list_id(row.context),
+                super::plugin_dom::list_id(row.context),
                 row.index,
                 "duration",
             ));
@@ -3448,7 +3442,7 @@ fn tidal_row_cells(
     // A plugin's `.click()` on the row's `[data-type=contextmenu-open]`.
     if super::plugin_dom::on()
         && super::plugin_dom::take_click(&crate::luna::dom_anchors::keys::row_cell(
-            &super::plugin_dom::list_id(row.context),
+            super::plugin_dom::list_id(row.context),
             row.index,
             "menu",
         ))
@@ -3471,7 +3465,7 @@ fn tidal_row_cells(
     // The index column and the buttons, for the row's anchors.
     if super::plugin_dom::on() {
         super::plugin_dom::row_controls(
-            &super::plugin_dom::list_id(row.context),
+            super::plugin_dom::list_id(row.context),
             row.index,
             (cols.number > 0.0).then_some(number),
             [

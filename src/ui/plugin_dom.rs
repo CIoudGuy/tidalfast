@@ -4606,16 +4606,17 @@ pub fn artist_links(artists: &[crate::api::models::ArtistRef]) -> Vec<dom_anchor
         .collect()
 }
 
-/// A stable list id for a row context (`album:<id>`, `queue`, ...).
-pub fn list_id(context: &crate::model::RowContext) -> String {
+/// A stable list id for a row context (`album:<id>`, `queue`, ...),
+/// borrowed from it: each drawn row asks for it a dozen times.
+pub fn list_id(context: &crate::model::RowContext) -> &str {
     use crate::model::RowContext;
     match context {
         RowContext::Context { uri, .. }
         | RowContext::View {
             context_uri: uri, ..
-        } => uri.strip_prefix("tidal:").unwrap_or(uri).to_string(),
-        RowContext::Uris(_) => "tracks".into(),
-        RowContext::Queue => "queue".into(),
+        } => uri.strip_prefix("tidal:").unwrap_or(uri),
+        RowContext::Uris(_) => "tracks",
+        RowContext::Queue => "queue",
     }
 }
 
