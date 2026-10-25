@@ -294,7 +294,9 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | `sidebar-nav` | `aside#sidebar._sidebar_[aria-label="Navigation sidebar"]`, the wrapper's child | sidebar | |
 | `sidebar-content` | `div#sidebar-content._fixedNavigation_00842ee` round the navigation links (TIDAL 2.46.0); a theme's `translate` on it moves the rows | sidebar | Append (after the nav rows) |
 | `sidebar-list-section` | `div._listSection_26d6dae > div._container_4454af7 > div._scrollableContent_4035207 > div` with the "All playlists" heading and `nav[data-test=sidebar-scrollable-nav]` holding the library rows (TIDAL 2.46.0) | sidebar | |
-| `sidebar:<test>` | `a._navigationItem_[data-test=sidebar-music\|sidebar-explore\|sidebar-collection-menu]` (+ `_selected_`; TIDAL 2.43.2 has no `_sidebarItem_`) | nav rows | |
+| `sidebar:<test>` | `a._navigationItem_[data-test=sidebar-music\|sidebar-explore\|sidebar-collection-menu]` (+ `_selected_`; TIDAL 2.43.2 has no `_sidebarItem_`); the Collection submenu's pages use the same key (next row) | nav rows | |
+| `sidebar-collection-submenu` > `sidebar:<test>` > `:icon`, `:label` | `div._submenu_1951fe4[role=menu][tabindex=-1]` after the Collection button in its `_collectionWrapper_` (+ `_visible_c258a15` while the flyout is open, which gives it and its pages their boxes), each page an `a._submenuItem_3d0e609[data-test=sidebar-collection-<page>][role=menuitem][href]` (`mixes-and-radio`, `playlists`, `albums`, `tracks`, `videos`, `artists`, `purchases`, `save-for-later`; + `_active_c099c70` for the page shown) holding its `svg` icon (Purchases' inside TIDAL's purchase badge `span`) and `span._label_cd5bc9e` with the page's name; in the page whether the flyout is open or not, as TIDAL 2.46.0 | My Collection's flyout; a page's words a plugin writes over its label are drawn in the flyout | |
+| `sidebar-collection-section` > `:header`, `sidebar:<test>` > `:icon`, `:label` | with the collection in the sidebar (TIDAL's `pinCollectionToSidebar`), instead of the submenu: `div._collectionSection_d0e664b`, first in the list's scroll area (`sidebar-list-section:inner`), holding `div._marketText_1lyag_1._medium20_1lyag_192._sectionHeader_f4932eb` ("Collection"; + `_collapsed_c94e713` on the rail) and each page as a navigation row, `a._navigationItem_4e9deae[data-test=sidebar-collection-<page>][href]` (+ `_selected_29027d1` for the page shown) with `svg._icon_77f3f89._icon_b8b52c1._smallIcon_e87c031` and `span._title_f46b277` holding its name; TIDAL 2.46.0 (its bundle) renders no submenu then | the collection's rows in the sidebar and their heading; words a plugin writes over a row's name or the heading are drawn there, and a row a plugin hides is left out | |
 | `sidebar:sidebar-feed:counter` | `span._marketText_1lyag_1._paragraph10_1lyag_156._badgeCounter_bd84d2f[data-test=feed-counter]` in the Feed row, after its words (+ `_collapsed_f4061d3` in the narrowed sidebar), its text the number of unseen Feed activities; absent at 0, as in TIDAL 2.46.0 | the Feed row's counter; a theme's look for it and words a plugin writes over it are drawn, hiding it hides it | |
 | `main` | `main#main[data-test=main]._main_` (`scroll` = [scrollTop, scrollHeight]) | page panel and its scroll area; background restyled; `scroll_top` scrolls it; `scroll` events go to listeners | |
 | `main-header` | `div#mainHeader[data-test=main-layout-header]._header_._solidHeader_` | top bar (`topbar.rs`); a theme's negative `margin-top` with a `width` of its own makes it a tab over the page's top, placed by `left` and `translateX()`, its controls at the theme's opacity, slid down under the pointer by the theme's `:hover` rule (Snusehunden, Lunallena; the page starts under the part of the tab that shows, as the tab stays in TIDAL's flow) | Append (left of the account button) |
@@ -352,7 +354,7 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | `now-playing` | `section#nowPlaying[data-test=new-now-playing]._container_ad3e54e._nowPlayingContainer_`, the docked view, a child of the root before the player bar: `._nowPlayingHidden_7e74506` and empty while closed, taken out of the root while the view is fullscreen (that change to the root's children is what `observe` reports with the root, as in TIDAL), else holding `now-playing-header` (`header`), `now-playing-background` (`._background_`), `now-playing-content` (`._innerContainer_._content_`) | the now-playing view | Append (under the cover) |
 | `now-playing-buttons` > `now-playing-content-buttons` > `now-playing-tab:<name>` > `:span` | `header > div._buttons_ > div._contentButtons_ > button[data-test=toggle-similar-tracks\|toggle-credits\|toggle-lyrics][aria-pressed]._marketButton_1d16h_1._tertiary_1d16h_8._small_1d16h_3._toggleButton_934359e > span._label_1d16h_1`, then `div._actionButtons_ > button[data-test=new-now-playing-expand], button[data-test=new-now-playing-close]` (TIDAL 2.46.0's icon market buttons, `now-playing-action-buttons`), the tabs shown, before the close button; it comes before the player bar in the document, so `querySelector('[data-test^=toggle-lyrics]')` finds it first, as in TIDAL | the header's tab pills; `.click()` opens a tab | tab Before/After, tab box Prepend/Append (LangRomanizer after Lyrics), a tab's `padding-right` and `min-width` widen its pill and what is positioned inside the tab is drawn in it (radiant-lyrics' sparkle), `now-playing-buttons` After (left of the close button) |
 | `now-playing-artwork` > `now-playing-artwork-tilt` > `now-playing-artwork-img` + `now-playing-artwork-glare` | `div._artworkWrapper_ > div._tilt_._artworkTilt_[style="transform: perspective(1000px) rotateX(..deg) rotateY(..deg)"] > img[data-test=now-playing-artwork][src] + div._glare_` (TIDAL's; the `img` is a `video` while an animated cover plays; the style follows the native tilt every frame it moves) | big cover | positioned elements after the `img` or appended to the tilt box are drawn in the cover's tilt and lean with it, a WebGL canvas too (3d-cover) |
-| `lyrics-container` > `lyrics` > `lyrics-lines` | `div._lyricsContainer_ > div[data-test=now-playing-lyrics]._lyricsText_ > div` | Lyrics tab; `lyrics` hidden hides the native lines (radiant-lyrics) | container, lyrics and lines Prepend/Append (radiant-lyrics appends its lines to `lyrics-lines`) |
+| `lyrics-container` > `lyrics` > `lyrics-viewport` > `lyrics-content` > `lyrics-lines` | `div._lyricsContainer_ > div[data-test=now-playing-lyrics]._lyricsText_ > div` (the scroll area's viewport) `> div._content_fef19e8 > div[data-test=lyrics-text]` (the lines' box), as TIDAL 2.46.0 | Lyrics tab; `lyrics` hidden hides the native lines (radiant-lyrics) | container, lyrics, viewport, content and lines Prepend/Append (radiant-lyrics appends its lines to `lyrics-lines`) |
 | `lyric:<i>` | `span[data-test=lyrics-line][data-current]` (+ `_current_`, `aria-current`) | one line; text override (translators), colour (colorama), hidden; clicks forwarded | Append, After (under the line) |
 | `lyrics-sync-wrap` > `lyrics-sync` | `div._syncButtonContainer_ > button[data-test=lyrics-sync-button]` | (no native rect yet) | |
 
@@ -1522,3 +1524,53 @@ once the taskbar is clicked).
 - TIDAL's own sheet (`tidalSheet`): a disabled button in the player is at
   half strength (`:is(._player_8c80ae6 button):disabled { opacity: .5 }`),
   drawn and read.
+
+### Plugin round 12 (2026-10-25)
+
+- A layout read (`getBoundingClientRect`, a computed size) that waits for
+  the tree the app laid out with the plugin's change takes the boxes of
+  the elements still there; the rest of that tree (elements that went or
+  came, attributes, words) is reconciled after the running task, unless a
+  newer tree replaces it first, as Chromium answers a read without running
+  TIDAL's render. A walk reading each element's box no longer meets the
+  page taken apart under it.
+- What went from the page leaves it whole, as React unmounts a subtree:
+  the sync takes out only the top element of each part that went, and its
+  host elements and what plugins put in them stay inside it (a plugin
+  holding a row that went finds its cells, a badge its row; an observer
+  hears of the top alone).
+- The now-playing lyrics are TIDAL 2.46.0's boxes (its bundle):
+  `[data-test=now-playing-lyrics]` holds the scroll area's viewport
+  (`lyrics-viewport`), in it the content box `div._content_fef19e8`
+  (`lyrics-content`) and in that the lines' `div[data-test=lyrics-text]`
+  (`lyrics-lines`); what plugins put in the two new boxes is drawn in the
+  lyrics. The scroll area keeps reporting the scroll. The wrapper's,
+  scroll area's and lines' TIDAL classes (`_wrapper_512d5f4`,
+  `_scrollArea_200f837`, `_marketText_... _text_4a89397`) are not carried
+  yet: themes style them (the cotton candy family sizes the wrapper), which
+  is a theme round's call.
+- TIDAL 2.46.0's Collection submenu is in the page whether it is open or
+  not: `div._submenu_1951fe4` after the Collection button
+  (`_visible_c258a15` while open), each page an
+  `a[data-test=sidebar-collection-<page>]._submenuItem_3d0e609` with its
+  icon and `span._label_cd5bc9e` (`role=menu`, `role=menuitem`); the
+  flyout draws the names plugins wrote there. With the collection in the
+  sidebar there is no submenu, as in TIDAL 2.46.0: the pages are
+  navigation rows with TIDAL's `data-test` in
+  `div._collectionSection_d0e664b` under its heading, first in the
+  list's scroll area, and the rows and the heading draw the words
+  plugins wrote there.
+- The player bar's quality badge, before the song's stream says, names
+  the quality TIDAL's selector gives it then (the user's streaming quality
+  capped by the song's), with TIDAL's words for a badge that has no bit
+  depth or sample rate yet: "320 kbps" or "96 kbps" for High or Low, else
+  "LOW".
+- `getComputedStyle`: a market button's size sets its type (small 14 px,
+  medium and large 16 px, all 600) and its rank its colour (primary
+  rgb(16, 16, 16), secondary white); the now-playing header's icon
+  buttons are the tertiary grey (55 % white); its tabs, TIDAL's toggle
+  buttons, are medium (500) in that grey and black on white while
+  pressed. These are TIDAL 2.46.0's tokens (`market` and `index` sheets);
+  a plugin's copy of a tab keeps the looks sheet's.
+- A search field shows the placeholder a plugin wrote on the TIDAL input
+  it stands for (a translation's), else its own words.
