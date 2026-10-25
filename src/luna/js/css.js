@@ -1130,9 +1130,10 @@
 			else if (name === "-webkit-filter") set("filter", v);
 			// Electron's drag regions in a frameless window.
 			else if (name === "-webkit-app-region" || name === "app-region") set("app-region", v.toLowerCase());
-			else if (name === "backdrop-filter" || name === "-webkit-backdrop-filter") {
-				if (!/^none$/i.test(v.trim())) set("backdrop-filter", v);
-			}
+			// `none` too: a theme that takes TIDAL's own backdrop blur away
+			// (Sunken Tidal's play queue) shows what is behind the box
+			// unblurred, which the UI reads ("none" parses to no filter).
+			else if (name === "backdrop-filter" || name === "-webkit-backdrop-filter") set("backdrop-filter", v);
 			else if (name === "translate" || name === "rotate" || name === "scale") {
 				if (!/^none$/i.test(v.trim())) set(`-${name}`, v);
 			}

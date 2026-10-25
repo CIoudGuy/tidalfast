@@ -1940,6 +1940,17 @@ pub fn queue_panel(ui: &egui::Ui, r: Rect, over_now_playing: bool) -> bool {
 
 /// TIDAL's own grey glass on the play queue panel survived a theme's rules
 /// (see [`HostOverride::glass`]): the theme's own fill lies under it.
+/// A theme takes the anchor's backdrop filter away (`backdrop-filter:
+/// none`): what lies behind the box shows through it unblurred.
+pub fn backdrop_cleared(key: &str) -> bool {
+    host(key, |h, vars| {
+        let v = css::resolve_vars(h.style.backdrop_filter.as_deref()?, vars);
+        let v = v.trim().trim_end_matches("!important").trim();
+        v.eq_ignore_ascii_case("none").then_some(())
+    })
+    .is_some()
+}
+
 pub fn queue_glass() -> bool {
     host(dom_anchors::keys::QUEUE_PANEL, |h, _| h.glass.then_some(())).is_some()
 }
@@ -1989,6 +2000,45 @@ pub fn body_fill() -> Option<Color32> {
         css::color(&css::resolve_vars(v, &o.vars))
     })
     .filter(|c| c.a() > 0)
+}
+
+/// What lies round the open play queue, where TIDAL's `main` (the page,
+/// filled `page` here) stops: [`body_fill`], else what lies behind `main`
+/// in TIDAL: the main container's fill, else the document's (`html`,
+/// `body`, `#wimp`), else TIDAL's black, where that is not the page's own
+/// colour (TIDAL 2.46.0 under Sunken Tidal, whose tokens make the page
+/// grey: its queue's glass lies over black there, 23, not over grey).
+/// `None` without a theme, and where the main container's picture or
+/// gradient lies under the page.
+pub fn queue_column_fill(page: Color32) -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    if let Some(body) = body_fill() {
+        return Some(body);
+    }
+    let behind = with(|s| {
+        let o = &s.overlay;
+        if let Some(h) = o.hosts.get(dom_anchors::keys::MAIN_CONTAINER) {
+            if h.style.background_image.is_some() {
+                return None;
+            }
+            if let Some(c) = style_color(&h.style, |s| s.background_color.as_ref(), &s.vars)
+                .filter(|c| c.a() > 0)
+            {
+                return Some(c);
+            }
+        }
+        if o.page.background_image.is_some() {
+            return None;
+        }
+        Some(
+            style_color(&o.page, |s| s.background_color.as_ref(), &s.vars)
+                .filter(|c| c.a() > 0)
+                .unwrap_or(Color32::BLACK),
+        )
+    })?;
+    (behind != page).then_some(behind)
 }
 
 /// The volume popup's fill under a theme: TIDAL fills it with
@@ -4998,6 +5048,12 @@ pub fn theme_layout(ctx: &egui::Context) -> Option<Arc<super::theme_layout::Them
                     sidebar: hosts.get(dom_anchors::keys::SIDEBAR),
                     sidebar_nav: hosts.get(dom_anchors::keys::SIDEBAR_NAV),
                 },
+                &s.vars,
+                [size.x, size.y],
+            );
+            layout.queue = super::theme_layout::queue_box(
+                hosts.get(dom_anchors::keys::QUEUE_WRAPPER),
+                hosts.get(dom_anchors::keys::QUEUE_PANEL),
                 &s.vars,
                 [size.x, size.y],
             );

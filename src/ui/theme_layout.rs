@@ -85,6 +85,9 @@ pub struct ThemeLayout {
     /// the page's content under the theme's margins and paddings
     /// ([`flow`]).
     pub flow: Flow,
+    /// The play queue's box across and down, where a theme sets its
+    /// panel's margins, width or height ([`queue_box`]).
+    pub queue: Option<QueueBox>,
 }
 
 impl ThemeLayout {
@@ -96,6 +99,7 @@ impl ThemeLayout {
             && self.main_inset == 0.0
             && self.header.is_none()
             && self.flow == Flow::default()
+            && self.queue.is_none()
     }
 }
 
@@ -260,6 +264,82 @@ pub fn flow(hosts: FlowHosts<'_>, vars: &BTreeMap<String, String>, viewport: [f3
 /// The room TIDAL's play queue wrapper keeps above the panel
 /// (`margin-top: calc(var(--headerHeight) + 4px)`).
 const QUEUE_TOP: f32 = 60.0;
+/// TIDAL 2.46.0's play queue wrapper (`div._playQueueWrapper_cbf5aaa`):
+/// 350 wide at the content row's right edge.
+pub const QUEUE_WRAPPER_WIDTH: f32 = 350.0;
+/// Its height: the content row's less 160 (993 in a 1153-point row).
+const QUEUE_WRAPPER_SHORT: f32 = 160.0;
+/// The panel's left margin in its wrapper (`aside#playQueueSidebar`'s
+/// `margin: 0 8px 8px`), its width the wrapper's less 16.
+const QUEUE_SIDE: f32 = 8.0;
+
+/// The play queue panel's box where a theme moves it from TIDAL's: across,
+/// its left edge in its wrapper and its width; down, its height.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct QueueBox {
+    /// The panel's left edge from the wrapper's (TIDAL's 8).
+    pub left: f32,
+    /// The panel's width (TIDAL's 334).
+    pub width: f32,
+    /// The panel's height, where a theme gives it or its wrapper one
+    /// (Sunken Tidal's `height: 100%` of a wrapper `height: 100%` of the
+    /// content row: the panel runs on under the player bar to the window's
+    /// foot); `None` keeps TIDAL's foot.
+    pub height: Option<f32>,
+}
+
+/// [`QueueBox`] from the theme's rules on TIDAL's play queue wrapper and
+/// panel, in a window `viewport` points wide and high (the content row's
+/// height, see [`Flow::row`]); `None` where they leave TIDAL's box (`margin:
+/// 0 8px 8px`, 334 wide).
+pub fn queue_box(
+    wrapper: Option<&HostOverride>,
+    panel: Option<&HostOverride>,
+    vars: &BTreeMap<String, String>,
+    viewport: [f32; 2],
+) -> Option<QueueBox> {
+    let panel = panel.map(|h| &h.style);
+    // The panel's left margin moves it in the wrapper; its width is TIDAL's
+    // 334 (`width: 334px`, whatever its margins: Abyss Neptune's `margin:
+    // 2px; margin-right: -14px` lays it 2 in from the wrapper's edge, 334
+    // wide) unless a theme gives one.
+    let left = match panel {
+        Some(s) if s.margin.is_some() || s.margin_left.is_some() => {
+            margins(s, vars, EM, viewport)[3].clamp(-QUEUE_WRAPPER_WIDTH, QUEUE_WRAPPER_WIDTH)
+        }
+        _ => QUEUE_SIDE,
+    };
+    let width = panel
+        .and_then(|s| len(s.width.as_deref(), vars, QUEUE_WRAPPER_WIDTH, viewport))
+        .filter(|w| *w > 0.0)
+        .unwrap_or(QUEUE_WRAPPER_WIDTH - 2.0 * QUEUE_SIDE)
+        .min(viewport[0]);
+    let row = viewport[1].max(0.0);
+    let wrapper_height = wrapper
+        .and_then(|h| len(h.style.height.as_deref(), vars, row, viewport))
+        .filter(|h| *h > 0.0);
+    let height = panel
+        .and_then(|s| {
+            len(
+                s.height.as_deref(),
+                vars,
+                wrapper_height.unwrap_or((row - QUEUE_WRAPPER_SHORT).max(0.0)),
+                viewport,
+            )
+        })
+        .filter(|h| *h > 0.0);
+    let own = QueueBox {
+        left,
+        width,
+        height,
+    };
+    let tidal = QueueBox {
+        left: QUEUE_SIDE,
+        width: QUEUE_WRAPPER_WIDTH - 2.0 * QUEUE_SIDE,
+        height: None,
+    };
+    (own != tidal).then_some(own)
+}
 
 /// The box's `transform: translateY()` (and a `translate()`'s second
 /// length), in points; a percentage of the box's own height is left out.
@@ -414,6 +494,7 @@ pub fn resolve(
             .filter(|h| !h.hidden())
             .and_then(|h| header_tab(&h.style, vars, viewport)),
         flow: Flow::default(),
+        queue: None,
     }
 }
 
