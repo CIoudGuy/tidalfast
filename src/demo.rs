@@ -20,6 +20,15 @@ use crate::app::{App, RemoteSnapshot};
 use crate::backend::AuthStatus;
 use crate::model::*;
 
+/// The song the demo shows without words (`--demo-show no-lyrics`), by its
+/// TIDAL id: the Luna host's lyrics answer is empty for it too.
+static SONG_WITHOUT_WORDS: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// Whether the demo's song `id` has words (all but the one shown without).
+pub fn has_words(id: &str) -> bool {
+    SONG_WITHOUT_WORDS.lock().unwrap().as_deref() != Some(id)
+}
+
 fn image(seed: u32) -> Vec<Image> {
     // `TIDALFAST_DEMO_COVER=<TIDAL image id, as a/b/c/d/e>`: every cover is
     // that TIDAL cover, for plugins that only act on TIDAL's image server
@@ -414,6 +423,12 @@ fn track(index: usize) -> Track {
         }),
         audio_quality: Some("LOSSLESS".into()),
         quality_tags,
+        // Every TIDAL track has an ISRC, which Luna's `MediaItem` looks up
+        // on MusicBrainz (its title and release date); these are made up
+        // (`ZZ`, no country's), so the lookups find nothing.
+        external_ids: crate::api::models::ExternalIds {
+            isrc: Some(format!("ZZTFD26{:05}", index % 100_000)),
+        },
         ..Track::default()
     }
 }
@@ -1790,7 +1805,17 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
             "no-lyrics" => {
                 app.lyrics_uri = app.now_playing().map(|now| now.uri);
                 app.lyrics = Loadable::Loaded(None);
+                // Nor do plugins get words for it (`MediaItem.lyrics()`
+                // answers nothing, as TIDAL's API for such a song).
+                if let Some(uri) = &app.lyrics_uri {
+                    *SONG_WITHOUT_WORDS.lock().unwrap() =
+                        uri.rsplit(':').next().map(str::to_string);
+                }
             }
+            // The now-playing view opens on its Lyrics tab when the song
+            // has words, as TIDAL's does for a listener whose last view was
+            // the lyrics (the plugin checker's TIDAL).
+            "lyrics-tab" => app.now_playing_tab = Some(crate::model::NowPlayingTab::Lyrics),
             "no-playback" => app.remote = None,
             // The page scrolled down, to check what moves with it.
             "scrolled" => app.demo_scroll = Some(300.0),
@@ -10366,6 +10391,25 @@ mod tests {
             last.0 >= close.x1 - 0.5 && last.1 <= 1280.0,
             "{last:?} after {close:?}"
         );
+        app.backend.shutdown();
+    }
+
+    /// `--demo-show no-lyrics`: the song stopped on has no words for
+    /// plugins either (`MediaItem.lyrics()` answers nothing for it, as
+    /// TIDAL's API does for such a song), so lyrics-everywhere hides its
+    /// pill and OneClickLyrics greys its button, as their TIDAL runs did.
+    #[test]
+    fn the_song_without_words_has_none_for_plugins() {
+        let (_ctx, mut app) = accessible_app("no-lyrics-plugins");
+        let id = app
+            .now_playing()
+            .and_then(|now| now.uri.rsplit(':').next().map(str::to_string))
+            .expect("a song is shown");
+        assert!(has_words(&id));
+        apply_flags(&mut app, Some("home"), Some("no-lyrics"));
+        assert!(!has_words(&id), "{id}");
+        assert!(has_words("another"));
+        *SONG_WITHOUT_WORDS.lock().unwrap() = None;
         app.backend.shutdown();
     }
 

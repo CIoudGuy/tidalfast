@@ -499,7 +499,7 @@ impl LunaHost for AppHost {
         // words, so lyrics plugins can be checked there.
         #[cfg(feature = "demo")]
         if luna_demo() {
-            return Some(demo_lyrics(id));
+            return crate::demo::has_words(id).then(|| demo_lyrics(id));
         }
         // TIDAL's words, else those the app shows for the song (LRCLIB's
         // where TIDAL has none): a plugin's lyrics agree with the app's
