@@ -878,6 +878,9 @@ pub fn end_frame(ctx: &egui::Context) {
         next.sidebar.thumbs.clear();
         next.sidebar.rows.clear();
         next.sidebar.row_words.clear();
+        next.sidebar.submenu.clear();
+        next.sidebar.submenu_rect = None;
+        next.sidebar.collection = None;
         next.sidebar.playing = None;
         next.sidebar.heading = None;
         next.sidebar.feed_counter = None;
@@ -9304,6 +9307,12 @@ pub(crate) fn test_page_frame_as(id: &str) {
 #[cfg(test)]
 pub(crate) fn test_feed_counter() -> Option<dom_anchors::FeedCounter> {
     with(|s| s.frame.sidebar.feed_counter.clone())
+}
+
+/// How many pages of the Collection submenu were noted this frame.
+#[cfg(test)]
+pub(crate) fn test_submenu_pages() -> usize {
+    with(|s| s.frame.sidebar.submenu.len())
 }
 
 /// The track list panel noted this frame.

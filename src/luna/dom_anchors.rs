@@ -168,6 +168,16 @@ pub mod keys {
     /// `div._collectionWrapper_` around the Collection entry and its menu
     /// button (AltPlay puts its link after it).
     pub const COLLECTION_WRAPPER: &str = "sidebar-collection-wrapper";
+    /// TIDAL 2.46.0's Collection submenu (`div._submenu_1951fe4`, in the
+    /// document always, `_visible_c258a15` while it is open), whose pages
+    /// are `a[data-test=sidebar-collection-<page>]` ([`sidebar_item`]).
+    pub const COLLECTION_SUBMENU: &str = "sidebar-collection-submenu";
+    /// With the collection in the sidebar, TIDAL 2.46.0's section of its
+    /// pages instead of the submenu (`div._collectionSection_d0e664b`, first
+    /// in the list's scroll area), its heading, and the pages as navigation
+    /// rows ([`sidebar_item`]).
+    pub const COLLECTION_SECTION: &str = "sidebar-collection-section";
+    pub const COLLECTION_SECTION_HEADER: &str = "sidebar-collection-section:header";
 
     pub const FOOTER: &str = "footer-player";
     /// `nav._mobileTabBar_b6e8ee2[data-test=tab-bar]`, the narrow layout's
@@ -1399,6 +1409,33 @@ pub struct SidebarItem {
     pub rect: Option<Rect>,
 }
 
+/// A page of the Collection submenu (TIDAL's
+/// `a[data-test=sidebar-collection-albums]._submenuItem_3d0e609`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SubmenuItem {
+    /// `data-test` (`sidebar-collection-albums`, ...).
+    pub test: String,
+    pub label: String,
+    pub href: String,
+    /// The page shown (`_active_c099c70`).
+    pub active: bool,
+    /// Where the open submenu drew it; `None` while it is closed.
+    pub rect: Option<Rect>,
+}
+
+/// The collection's pages in the sidebar (TIDAL's "Show collection in
+/// sidebar", `pinCollectionToSidebar`): a heading and a navigation row for
+/// each page, where TIDAL has no Collection submenu.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CollectionSection {
+    /// The heading's words ("Collection").
+    pub title: String,
+    /// The heading's box.
+    pub heading: Option<Rect>,
+    /// The pages (`data-test` `sidebar-collection-albums`, ...).
+    pub rows: Vec<SidebarItem>,
+}
+
 /// The Feed row's counter (TIDAL's `span[data-test=feed-counter]`).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FeedCounter {
@@ -1435,6 +1472,13 @@ pub struct Sidebar {
     pub heading: Option<Rect>,
     /// The Feed row's counter while some activity is unseen.
     pub feed_counter: Option<FeedCounter>,
+    /// The Collection submenu's pages, there whether it is open or not.
+    pub submenu: Vec<SubmenuItem>,
+    /// The submenu's box while it is open.
+    pub submenu_rect: Option<Rect>,
+    /// With the collection in the sidebar: its section of rows, and no
+    /// submenu.
+    pub collection: Option<CollectionSection>,
 }
 
 /// The page shown in `main`.
@@ -2669,6 +2713,9 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
         // Collection opens its menu: TIDAL's `svg._icon_77f3f89._icon_b8b52c1
         // ._arrowRight_f57b400`, an icon like the row's.
         if item.test == "sidebar-collection-menu" {
+            if side.collection.is_none() {
+                collection_submenu(out, side);
+            }
             out.push(
                 el(
                     keys::sidebar_item_arrow(&item.test),
@@ -2705,6 +2752,9 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
             .at(list),
     );
     out.push(el(LIST_INNER, Some(LIST_SCROLL), "div").at(list));
+    if let Some(section) = &side.collection {
+        collection_section(out, section, side.collapsed);
+    }
     if let Some(rect) = side.heading {
         // Exactly TIDAL's class: the cotton candy family names it as
         // `[class="_sectionHeader_ca54638"]`.
@@ -4063,6 +4113,121 @@ fn badge(
     }
 }
 
+/// TIDAL 2.46.0's Collection submenu after its button (captured):
+/// `div._submenu_1951fe4[role=menu][tabindex=-1]` (`opacity: 0` until
+/// `_visible_c258a15`), each page
+/// `a[data-test=sidebar-collection-<page>][role=menuitem]._submenuItem_3d0e609`
+/// (`_active_c099c70` for the page shown) holding its icon and
+/// `span._label_cd5bc9e` with its name, there whether the submenu is open
+/// or not (plugins rewrite the names as the page loads). With the
+/// collection in the sidebar TIDAL renders no submenu
+/// ([`collection_section`]).
+fn collection_submenu(out: &mut Vec<HostNode>, side: &Sidebar) {
+    use keys::*;
+    let mut submenu = el(COLLECTION_SUBMENU, Some(COLLECTION_WRAPPER), "div")
+        .class("_submenu_1951fe4")
+        .attr("role", "menu")
+        .attr("tabindex", "-1")
+        .at(side.submenu_rect);
+    if side.submenu_rect.is_some() {
+        submenu = submenu.class("_visible_c258a15");
+    }
+    out.push(submenu);
+    for item in &side.submenu {
+        let key = sidebar_item(&item.test);
+        let mut link = el(key.clone(), Some(COLLECTION_SUBMENU), "a")
+            .class("_submenuItem_3d0e609")
+            .test(&item.test)
+            .attr("role", "menuitem")
+            .attr("href", item.href.clone())
+            .at(item.rect);
+        if item.active {
+            link = link.class("_active_c099c70");
+        }
+        out.push(link);
+        let icon = sidebar_item_icon(&item.test);
+        if item.test == "sidebar-collection-purchases" {
+            // Purchases has TIDAL's badge round its icon.
+            let badge = format!("{key}:badge");
+            out.push(
+                el(badge.clone(), Some(&key), "span")
+                    .class("_root_da7d9a8 _blendPlate_ffaa09d _innerTagBoost_ef18089 _purchaseBadgeIcon_af129c9"),
+            );
+            out.push(el(icon, Some(&badge), "svg"));
+        } else {
+            out.push(el(icon, Some(&key), "svg").class("_icon_77f3f89 _icon_9b8e2a8"));
+        }
+        out.push(
+            el(sidebar_item_label(&item.test), Some(&key), "span")
+                .class("_marketText_1lyag_1 _semibold20_1lyag_246 _label_cd5bc9e")
+                .text(item.label.clone())
+                .at(item.rect),
+        );
+    }
+}
+
+/// TIDAL 2.46.0's Collection section, with the collection in the sidebar
+/// (its bundle: `pinCollectionToSidebar` renders this first in the list's
+/// scroll area and no Collection submenu): `div._collectionSection_d0e664b`
+/// holding the heading (`div._sectionHeader_f4932eb` in medium-20 type,
+/// `_collapsed_c94e713` on the rail) and each page as a navigation row like
+/// Music's, `a._navigationItem_4e9deae[data-test=sidebar-collection-<page>]`
+/// with its small icon (`_smallIcon_e87c031`) and `span._title_f46b277`
+/// holding its name, which plugins rewrite.
+fn collection_section(out: &mut Vec<HostNode>, section: &CollectionSection, collapsed: bool) {
+    use keys::*;
+    let span = section
+        .heading
+        .into_iter()
+        .chain(section.rows.iter().filter_map(|r| r.rect))
+        .reduce(|a, b| {
+            let (x0, y0) = (a[0].min(b[0]), a[1].min(b[1]));
+            let (x1, y1) = (
+                (a[0] + a[2]).max(b[0] + b[2]),
+                (a[1] + a[3]).max(b[1] + b[3]),
+            );
+            [x0, y0, x1 - x0, y1 - y0]
+        });
+    out.push(
+        el(COLLECTION_SECTION, Some(LIST_INNER), "div")
+            .class("_collectionSection_d0e664b")
+            .at(span),
+    );
+    let mut header = el(COLLECTION_SECTION_HEADER, Some(COLLECTION_SECTION), "div")
+        .class("_marketText_1lyag_1 _medium20_1lyag_192 _sectionHeader_f4932eb");
+    if collapsed {
+        header = header.class("_collapsed_c94e713");
+    }
+    out.push(header.text(section.title.clone()).at(section.heading));
+    for row in &section.rows {
+        let key = sidebar_item(&row.test);
+        // TIDAL's class list exactly, which themes name whole.
+        let mut node = el(key.clone(), Some(COLLECTION_SECTION), "a")
+            .class("_navigationItem_4e9deae")
+            .test(&row.test)
+            .at(row.rect);
+        if row.selected {
+            node = node.class("_selected_29027d1").attr("aria-current", "page");
+        }
+        if let Some(href) = &row.href {
+            node = node.attr("href", href.clone());
+        }
+        out.push(node);
+        out.push(
+            el(sidebar_item_icon(&row.test), Some(&key), "svg")
+                .class("_icon_77f3f89 _icon_b8b52c1 _smallIcon_e87c031"),
+        );
+        out.push(
+            el(sidebar_item_label(&row.test), Some(&key), "span")
+                .class("_marketText_1lyag_1 _semibold20_1lyag_246 _title_f46b277")
+                .text(row.label.clone())
+                .at(row
+                    .rect
+                    .map(|[x, y, w, h]| [x + 40.0, y, (w - 40.0).max(0.0), h])),
+        );
+    }
+}
+
 /// `#footerPlayer[data-test=footer-player]` (census d, "Player bar").
 pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     use PlayerPart as P;
@@ -5091,6 +5256,9 @@ pub fn sample_frame() -> Frame {
             playing: None,
             heading: None,
             feed_counter: None,
+            submenu: Vec::new(),
+            submenu_rect: None,
+            collection: None,
         },
         page: Some(Page {
             rect: r(240.0, 92.0, 1040.0, 608.0),
@@ -5370,6 +5538,183 @@ mod tests {
         let gradient = find(&tree, keys::QUALITY_GRADIENT);
         assert_eq!(gradient.parent.as_deref(), Some(keys::QUALITY_BADGE));
         assert_eq!(attr(gradient, "class"), Some("_gradientHigh_87f2c3b"));
+    }
+
+    /// TIDAL 2.46.0's Collection submenu is in the document whether it is
+    /// open or not (captured): `div._submenu_1951fe4` after the Collection
+    /// button, `_visible_c258a15` while open, each page a
+    /// `a[data-test=sidebar-collection-<page>]._submenuItem_3d0e609` with
+    /// its icon and `span._label_cd5bc9e`, the page shown `_active_c099c70`
+    /// (uwu-ifier and korean-translation rewrite the names as Home loads).
+    #[test]
+    fn the_collection_submenu_is_in_the_page_open_or_not() {
+        let mut frame = sample_frame();
+        frame.sidebar.items.push(SidebarItem {
+            test: "sidebar-collection-menu".into(),
+            label: "Collection".into(),
+            href: Some("/my-collection".into()),
+            selected: false,
+            rect: None,
+        });
+        frame.sidebar.submenu = vec![
+            SubmenuItem {
+                test: "sidebar-collection-albums".into(),
+                label: "Albums".into(),
+                href: "/my-collection/albums".into(),
+                active: true,
+                rect: None,
+            },
+            SubmenuItem {
+                test: "sidebar-collection-purchases".into(),
+                label: "Purchases".into(),
+                href: "/my-collection/purchases".into(),
+                active: false,
+                rect: None,
+            },
+        ];
+        let tree = build(&frame);
+        let submenu = find(&tree, keys::COLLECTION_SUBMENU);
+        assert_eq!(submenu.parent.as_deref(), Some(keys::COLLECTION_WRAPPER));
+        assert_eq!(attr(submenu, "class"), Some("_submenu_1951fe4"));
+        assert_eq!(attr(submenu, "role"), Some("menu"));
+        assert_eq!(attr(submenu, "tabindex"), Some("-1"));
+        let albums = find(&tree, &keys::sidebar_item("sidebar-collection-albums"));
+        assert_eq!(albums.parent.as_deref(), Some(keys::COLLECTION_SUBMENU));
+        assert_eq!(albums.tag, "a");
+        assert_eq!(attr(albums, "data-test"), Some("sidebar-collection-albums"));
+        assert_eq!(attr(albums, "role"), Some("menuitem"));
+        assert_eq!(
+            attr(albums, "class"),
+            Some("_submenuItem_3d0e609 _active_c099c70")
+        );
+        assert_eq!(attr(albums, "href"), Some("/my-collection/albums"));
+        let label = find(
+            &tree,
+            &keys::sidebar_item_label("sidebar-collection-albums"),
+        );
+        assert_eq!(label.text.as_deref(), Some("Albums"));
+        assert_eq!(
+            attr(label, "class"),
+            Some("_marketText_1lyag_1 _semibold20_1lyag_246 _label_cd5bc9e")
+        );
+        assert_eq!(
+            find(&tree, &keys::sidebar_item_icon("sidebar-collection-albums"))
+                .parent
+                .as_deref(),
+            Some(albums.key.as_str())
+        );
+        let purchases = keys::sidebar_item("sidebar-collection-purchases");
+        assert_eq!(
+            find(&tree, &format!("{purchases}:badge")).parent.as_deref(),
+            Some(purchases.as_str())
+        );
+        // Open: the submenu is visible and its pages have their boxes.
+        frame.sidebar.submenu_rect = Some([240.0, 300.0, 200.0, 330.0]);
+        frame.sidebar.submenu[0].rect = Some([244.0, 304.0, 190.0, 40.0]);
+        let tree = build(&frame);
+        assert_eq!(
+            attr(find(&tree, keys::COLLECTION_SUBMENU), "class"),
+            Some("_submenu_1951fe4 _visible_c258a15")
+        );
+        assert_eq!(
+            find(&tree, &keys::sidebar_item("sidebar-collection-albums")).rect,
+            Some([244.0, 304.0, 190.0, 40.0])
+        );
+    }
+
+    /// With the collection in the sidebar (`pinCollectionToSidebar`) TIDAL
+    /// 2.46.0 renders no Collection submenu: its bundle lists the pages first
+    /// in the list's scroll area, `div._collectionSection_d0e664b` with the
+    /// heading `div._sectionHeader_f4932eb` and each page a navigation row,
+    /// `a._navigationItem_4e9deae[data-test=sidebar-collection-<page>]` with
+    /// its small icon and `span._title_f46b277` holding its name.
+    #[test]
+    fn with_the_collection_in_the_sidebar_its_pages_are_rows_not_a_submenu() {
+        let mut frame = sample_frame();
+        frame.sidebar.items.push(SidebarItem {
+            test: "sidebar-collection-menu".into(),
+            label: "Collection".into(),
+            href: Some("/my-collection".into()),
+            selected: false,
+            rect: None,
+        });
+        frame.sidebar.collection = Some(CollectionSection {
+            title: "Collection".into(),
+            heading: Some([0.0, 300.0, 240.0, 54.0]),
+            rows: vec![
+                SidebarItem {
+                    test: "sidebar-collection-albums".into(),
+                    label: "Albums".into(),
+                    href: Some("/my-collection/albums".into()),
+                    selected: true,
+                    rect: Some([16.0, 354.0, 208.0, 40.0]),
+                },
+                SidebarItem {
+                    test: "sidebar-collection-tracks".into(),
+                    label: "Tracks".into(),
+                    href: Some("/my-collection/tracks".into()),
+                    selected: false,
+                    rect: Some([16.0, 394.0, 208.0, 40.0]),
+                },
+            ],
+        });
+        let tree = build(&frame);
+        assert!(
+            !tree.nodes.iter().any(|n| n.key == keys::COLLECTION_SUBMENU),
+            "no submenu"
+        );
+        let section = find(&tree, keys::COLLECTION_SECTION);
+        assert_eq!(section.parent.as_deref(), Some(keys::LIST_INNER));
+        assert_eq!(attr(section, "class"), Some("_collectionSection_d0e664b"));
+        assert_eq!(section.rect, Some([0.0, 300.0, 240.0, 134.0]));
+        // First in the list's scroll area, before "All playlists".
+        let inner = tree
+            .nodes
+            .iter()
+            .position(|n| n.key == keys::LIST_INNER)
+            .unwrap();
+        assert_eq!(tree.nodes[inner + 1].key, keys::COLLECTION_SECTION);
+        let header = find(&tree, keys::COLLECTION_SECTION_HEADER);
+        assert_eq!(header.parent.as_deref(), Some(keys::COLLECTION_SECTION));
+        assert_eq!(header.text.as_deref(), Some("Collection"));
+        assert_eq!(
+            attr(header, "class"),
+            Some("_marketText_1lyag_1 _medium20_1lyag_192 _sectionHeader_f4932eb")
+        );
+        let albums = find(&tree, &keys::sidebar_item("sidebar-collection-albums"));
+        assert_eq!(albums.parent.as_deref(), Some(keys::COLLECTION_SECTION));
+        assert_eq!(albums.tag, "a");
+        assert_eq!(attr(albums, "data-test"), Some("sidebar-collection-albums"));
+        assert_eq!(
+            attr(albums, "class"),
+            Some("_navigationItem_4e9deae _selected_29027d1")
+        );
+        assert_eq!(attr(albums, "href"), Some("/my-collection/albums"));
+        assert_eq!(albums.rect, Some([16.0, 354.0, 208.0, 40.0]));
+        assert_eq!(
+            attr(
+                find(&tree, &keys::sidebar_item_icon("sidebar-collection-albums")),
+                "class"
+            ),
+            Some("_icon_77f3f89 _icon_b8b52c1 _smallIcon_e87c031")
+        );
+        let label = find(
+            &tree,
+            &keys::sidebar_item_label("sidebar-collection-albums"),
+        );
+        assert_eq!(label.parent.as_deref(), Some(albums.key.as_str()));
+        assert_eq!(label.text.as_deref(), Some("Albums"));
+        assert_eq!(
+            attr(label, "class"),
+            Some("_marketText_1lyag_1 _semibold20_1lyag_246 _title_f46b277")
+        );
+        assert_eq!(
+            attr(
+                find(&tree, &keys::sidebar_item("sidebar-collection-tracks")),
+                "class"
+            ),
+            Some("_navigationItem_4e9deae")
+        );
     }
 
     /// Before a song's stream says, TIDAL 2.46.0's badge names the quality

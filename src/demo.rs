@@ -5299,6 +5299,173 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// The Collection flyout shows its pages' names as plugins wrote them
+    /// in TIDAL's submenu (uwu-ifier's "awbums"), the others as they are.
+    #[test]
+    fn the_collection_flyout_shows_the_names_plugins_wrote() {
+        use crate::luna::dom::{DomOverlay, HostOverride};
+        use crate::luna::dom_anchors::keys;
+        use egui::accesskit::{Action as AccessibleAction, Role};
+        let (ctx, mut app) = accessible_app("collection-flyout-words");
+        app.open(Page::Home);
+        let mut overlay = DomOverlay::default();
+        overlay.hosts.insert(
+            keys::sidebar_item_label("sidebar-collection-albums"),
+            HostOverride {
+                text: Some("awbums".into()),
+                ..HostOverride::default()
+            },
+        );
+        crate::ui::plugin_dom::test_overlay(Some(overlay));
+        // The UI alone, as the plugin overlay is the test's.
+        let frame = |ctx: &egui::Context, app: &mut App, events: Vec<egui::Event>| {
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1280.0, 800.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(app, ui),
+            );
+            output.textures_delta.clear();
+            output
+                .platform_output
+                .accesskit_update
+                .expect("screen-reader tree")
+        };
+        frame(&ctx, &mut app, vec![]);
+        let tree = frame(&ctx, &mut app, vec![]);
+        let collection = accessible_node(&tree, "Collection", Role::Button);
+        frame(
+            &ctx,
+            &mut app,
+            vec![accessible_action(collection, AccessibleAction::Focus, None)],
+        );
+        let tree = frame(&ctx, &mut app, vec![]);
+        crate::ui::plugin_dom::test_overlay(None);
+        assert!(
+            has_node(&tree, "Tracks", Role::Button),
+            "the flyout is open"
+        );
+        assert!(has_node(&tree, "awbums", Role::Button));
+        assert!(!has_node(&tree, "Albums", Role::Button));
+        app.backend.shutdown();
+    }
+
+    /// With the collection in the sidebar, TIDAL 2.46.0 renders no
+    /// Collection submenu: the pages are its navigation rows
+    /// (`a[data-test=sidebar-collection-albums]` in
+    /// `div._collectionSection_d0e664b`), and the rows show the names
+    /// plugins wrote on them (uwu-ifier's "awbums").
+    #[test]
+    fn the_collection_in_the_sidebar_is_tidals_rows_with_the_names_plugins_wrote() {
+        use crate::luna::dom::{DomOverlay, HostOverride};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        use egui::accesskit::Role;
+        let (ctx, mut app) = accessible_app("collection-sidebar-words");
+        app.settings.collection_in_sidebar = true;
+        app.open(Page::Home);
+        let mut overlay = DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        };
+        overlay.hosts.insert(
+            keys::sidebar_item_label("sidebar-collection-albums"),
+            HostOverride {
+                text: Some("awbums".into()),
+                ..HostOverride::default()
+            },
+        );
+        plugin_dom::test_overlay(Some(overlay));
+        let mut tree = None;
+        for _ in 0..3 {
+            tree = shown_frame(&ctx, &mut app);
+            plugin_dom::end_frame(&ctx);
+        }
+        let tree = tree.expect("screen-reader tree");
+        let sent = plugin_dom::test_sent_tree().expect("a tree was sent");
+        plugin_dom::test_overlay(None);
+        let attr = |n: &crate::luna::dom::HostNode, name: &str| {
+            n.attrs
+                .iter()
+                .find(|(k, _)| k == name)
+                .map(|(_, v)| v.clone())
+        };
+        assert!(
+            !sent
+                .nodes
+                .iter()
+                .any(|n| attr(n, "class").is_some_and(|c| c.contains("_submenu_1951fe4"))),
+            "no submenu"
+        );
+        let albums = sent
+            .nodes
+            .iter()
+            .find(|n| attr(n, "data-test").as_deref() == Some("sidebar-collection-albums"))
+            .expect("the Albums row");
+        assert_eq!(albums.tag, "a");
+        assert!(
+            attr(albums, "class").is_some_and(|c| c.contains("_navigationItem_4e9deae")),
+            "{:?}",
+            albums.attrs
+        );
+        assert!(albums.rect.is_some(), "the row has its box");
+        let section = sent
+            .nodes
+            .iter()
+            .find(|n| Some(&n.key) == albums.parent.as_ref())
+            .expect("the row's parent");
+        assert_eq!(
+            attr(section, "class").as_deref(),
+            Some("_collectionSection_d0e664b")
+        );
+        assert!(has_node(&tree, "awbums", Role::Button));
+        assert!(!has_node(&tree, "Albums", Role::Button));
+        assert!(has_node(&tree, "Tracks", Role::Button));
+        app.backend.shutdown();
+    }
+
+    /// The collapsed sidebar's rail has no Collection row in the plugins'
+    /// page, so no Collection submenu: nothing of the submenu is noted
+    /// there, where the expanded sidebar notes its 8 pages.
+    #[test]
+    fn the_rail_notes_no_collection_submenu() {
+        use crate::luna::dom::DomOverlay;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("rail-no-submenu");
+        app.open(Page::Home);
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        }));
+        shown_frame(&ctx, &mut app);
+        let expanded = plugin_dom::test_submenu_pages();
+        plugin_dom::end_frame(&ctx);
+        app.settings.sidebar_visible = false;
+        let mut rail = 0;
+        for _ in 0..3 {
+            shown_frame(&ctx, &mut app);
+            rail = plugin_dom::test_submenu_pages();
+            plugin_dom::end_frame(&ctx);
+        }
+        let sent = plugin_dom::test_sent_tree().expect("a tree was sent");
+        plugin_dom::test_overlay(None);
+        assert_eq!(expanded, 8);
+        assert!(
+            sent.nodes.iter().any(|n| n
+                .attrs
+                .iter()
+                .any(|(k, v)| k == "class" && v.contains("_isCollapsed_4fb92c6"))),
+            "the rail was drawn"
+        );
+        assert_eq!(rail, 0, "the rail notes no submenu");
+        app.backend.shutdown();
+    }
+
     #[test]
     fn collection_in_sidebar_lists_the_collection_pages_as_rows() {
         use egui::accesskit::Role;

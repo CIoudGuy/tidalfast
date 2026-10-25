@@ -673,7 +673,8 @@ fn rail(app: &mut App, ui: &mut egui::Ui) {
     feed_row(app, ui, &palette, &page, true);
     upload_row(app, ui, &palette, &page, true);
     let collection = rail_button(ui, &palette, Icon::Collection, collection_active(&page));
-    collection_flyout(app, ui, &collection, collection.rect.right() + 4.0);
+    // The rail's anchors have no Collection row, so no submenu either.
+    collection_flyout(app, ui, &collection, collection.rect.right() + 4.0, false);
 
     // "All playlists" shrinks to its create button.
     let (header, _) = ui.allocate_exact_size(vec2(ui.available_width(), 54.0), Sense::hover());
@@ -1750,7 +1751,9 @@ fn sidebar_icon_button(
 }
 
 /// The row ids of the collection pages in the sidebar, in the order of
-/// [`collection_items`] (static: no formatting per frame).
+/// [`collection_items`] (static: no formatting per frame), for the pages
+/// TIDAL has no row of its own for (Downloaded); the others are TIDAL's
+/// ([`submenu_test`]).
 const COLLECTION_ROW_IDS: [&str; 9] = [
     "sidebar-collection-0",
     "sidebar-collection-1",
@@ -1795,9 +1798,63 @@ fn collection_items(
     ]
 }
 
+/// TIDAL's `data-test` of a page of its Collection submenu
+/// (`sidebar-collection-albums`); Downloaded is Tidalfast's own.
+fn submenu_test(page: &Page) -> Option<&'static str> {
+    Some(match page {
+        Page::Mixes => "sidebar-collection-mixes-and-radio",
+        Page::Playlists => "sidebar-collection-playlists",
+        Page::Albums => "sidebar-collection-albums",
+        Page::LikedSongs => "sidebar-collection-tracks",
+        Page::Videos => "sidebar-collection-videos",
+        Page::Artists => "sidebar-collection-artists",
+        Page::Purchases => "sidebar-collection-purchases",
+        Page::SaveForLater => "sidebar-collection-save-for-later",
+        _ => return None,
+    })
+}
+
+/// TIDAL's Collection submenu for plugins, in the document whether it is
+/// open or not: its pages, where the open flyout drew them (`drawn`, in
+/// [`collection_items`]' order) and its box.
+fn note_submenu(app: &App, drawn: &[Rect], open: Option<Rect>) {
+    if !super::plugin_dom::on() {
+        return;
+    }
+    let current = app.page();
+    let items: Vec<_> = collection_items(app.locale)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, (_, label, page))| {
+            Some(crate::luna::dom_anchors::SubmenuItem {
+                test: submenu_test(&page)?.into(),
+                label: label.into_owned(),
+                href: super::plugin_dom::tidal_path(&page),
+                active: *current == page,
+                rect: drawn.get(i).copied().and_then(super::plugin_dom::rect),
+            })
+        })
+        .collect();
+    let open = open.and_then(super::plugin_dom::rect);
+    super::plugin_dom::note(|f| {
+        f.sidebar.submenu = items;
+        f.sidebar.submenu_rect = open;
+    });
+}
+
 /// My Collection's flyout: it opens beside the row while the pointer is on
-/// the row or on the flyout itself, as TIDAL's does.
-fn collection_flyout(app: &mut App, ui: &mut egui::Ui, row: &egui::Response, anchor_x: f32) {
+/// the row or on the flyout itself, as TIDAL's does. `in_page`: TIDAL's
+/// Collection submenu is in the plugins' page with the row (the expanded
+/// sidebar's); without it nothing is noted for plugins and the pages show
+/// their own names.
+fn collection_flyout(
+    app: &mut App,
+    ui: &mut egui::Ui,
+    row: &egui::Response,
+    anchor_x: f32,
+    in_page: bool,
+) {
+    let in_page = in_page && super::plugin_dom::on();
     let palette = app.palette;
     let locale = app.locale;
     let id = egui::Id::new("collection-flyout");
@@ -1818,10 +1875,14 @@ fn collection_flyout(app: &mut App, ui: &mut egui::Ui, row: &egui::Response, anc
     }
     ui.data_mut(|data| data.insert_temp(open_id, open));
     if !open {
+        if in_page {
+            note_submenu(app, &[], None);
+        }
         return;
     }
     let items = collection_items(locale);
     let current = app.page().clone();
+    let mut drawn = Vec::with_capacity(items.len());
     let area = egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(pos2(anchor_x, row.rect.top()))
@@ -1831,7 +1892,18 @@ fn collection_flyout(app: &mut App, ui: &mut egui::Ui, row: &egui::Response, anc
                 for (icon, label, page) in items {
                     let (rect, response) =
                         ui.allocate_exact_size(vec2(190.0, 40.0), Sense::click());
+                    drawn.push(rect);
                     let active = current == page;
+                    // The page's name as plugins wrote it in TIDAL's
+                    // submenu (a translation, uwu-ifier's).
+                    let label = match submenu_test(&page).filter(|_| in_page) {
+                        Some(test) => super::plugin_dom::text(
+                            &crate::luna::dom_anchors::keys::sidebar_item_label(test),
+                            label.as_ref(),
+                        )
+                        .into_owned(),
+                        None => label.into_owned(),
+                    };
                     // TIDAL's flyout items: `background-color .2s`.
                     let hover = crate::motion::progress(
                         ui.ctx(),
@@ -1861,7 +1933,7 @@ fn collection_flyout(app: &mut App, ui: &mut egui::Ui, row: &egui::Response, anc
                     ui.painter().text(
                         pos2(rect.left() + 40.0, rect.center().y),
                         egui::Align2::LEFT_CENTER,
-                        label.as_ref(),
+                        label.as_str(),
                         theme::semibold(14.0),
                         color,
                     );
@@ -1870,7 +1942,7 @@ fn collection_flyout(app: &mut App, ui: &mut egui::Ui, row: &egui::Response, anc
                             egui::WidgetType::Button,
                             true,
                             active,
-                            label.as_ref(),
+                            label.as_str(),
                         )
                     });
                     if response.clicked() {
@@ -1880,6 +1952,9 @@ fn collection_flyout(app: &mut App, ui: &mut egui::Ui, row: &egui::Response, anc
             });
         });
     ui.data_mut(|data| data.insert_temp(rect_id, area.response.rect));
+    if in_page {
+        note_submenu(app, &drawn, Some(area.response.rect));
+    }
 }
 
 /// [`navigation`] moved by a theme's `translate` on its box
@@ -1929,12 +2004,17 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
     // TIDAL's "Show collection in sidebar": the collection's pages as rows of
     // their own instead of the Collection row and its flyout.
     let collection = if app.settings.collection_in_sidebar {
-        // TIDAL heads the rows with "Collection", styled as "All playlists".
+        // TIDAL heads the rows with "Collection", styled as "All playlists",
+        // in the words plugins left on its heading.
         let (heading, _) = ui.allocate_exact_size(vec2(ui.available_width(), 54.0), Sense::hover());
+        let title = gettext(locale, "Collection");
         ui.painter().text(
             pos2(heading.left() + 18.0, heading.top() + 35.0),
             egui::Align2::LEFT_CENTER,
-            gettext(locale, "Collection"),
+            super::plugin_dom::text(
+                crate::luna::dom_anchors::keys::COLLECTION_SECTION_HEADER,
+                &title,
+            ),
             theme::medium(14.0),
             palette.tertiary(),
         );
@@ -1944,19 +2024,47 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
             heading.min,
             vec2(heading.width(), 40.0),
         ));
+        let dom = super::plugin_dom::on();
+        let mut rows = Vec::new();
         for (index, (icon, label, target)) in collection_items(locale).into_iter().enumerate() {
+            // TIDAL's own rows are `a[data-test=sidebar-collection-<page>]`,
+            // whose names plugins rewrite; Downloaded is Tidalfast's.
+            let tidal = submenu_test(&target);
+            let test = tidal.unwrap_or(COLLECTION_ROW_IDS[index]);
+            let selected = page == target;
             let row = nav_row(
                 ui,
                 &palette,
-                COLLECTION_ROW_IDS[index],
+                test,
                 icon,
-                &label,
-                page == target,
+                &nav_label(test, label.clone()),
+                selected,
                 false,
             );
+            if dom && let Some(test) = tidal {
+                rows.push(crate::luna::dom_anchors::SidebarItem {
+                    test: test.into(),
+                    label: label.into_owned(),
+                    href: Some(super::plugin_dom::tidal_path(&target)),
+                    selected,
+                    rect: super::plugin_dom::nav_row_rect(test)
+                        .flatten()
+                        .and_then(super::plugin_dom::rect),
+                });
+            }
             if row.clicked() {
                 app.actions.push(Action::Open(target));
             }
+        }
+        if dom {
+            // TIDAL renders these rows, and no Collection submenu, with
+            // the collection in the sidebar.
+            let section = crate::luna::dom_anchors::CollectionSection {
+                title: title.into_owned(),
+                heading: super::plugin_dom::rect(heading),
+                rows,
+            };
+            super::plugin_dom::note(|f| f.sidebar.collection = Some(section));
         }
         first
     } else {
@@ -1975,7 +2083,7 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
                 collection_active,
                 true,
             );
-            collection_flyout(app, ui, &row, row.rect.right() - 16.0 + 4.0);
+            collection_flyout(app, ui, &row, row.rect.right() - 16.0 + 4.0, true);
             row.rect
         }
     };
