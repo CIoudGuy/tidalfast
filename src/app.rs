@@ -3604,6 +3604,21 @@ impl App {
         }
     }
 
+    /// The words the app shows for the song it looked lyrics up for: its
+    /// own, else those a plugin gives the song in TIDAL's store, as TIDAL's
+    /// page draws a song the store gives words with a Lyrics tab.
+    pub fn shown_lyrics(&self) -> &Loadable<Option<crate::lyrics::Lyrics>> {
+        let none = match &self.lyrics {
+            Loadable::Loaded(None) => true,
+            Loadable::Loaded(Some(l)) => l.lines.is_empty() && !l.instrumental,
+            _ => false,
+        };
+        match &self.plugins.store_lyrics {
+            Some((uri, words)) if none && self.lyrics_uri.as_deref() == Some(uri.as_str()) => words,
+            _ => &self.lyrics,
+        }
+    }
+
     /// Asks for the playing track's lyrics unless they are here or on the
     /// way.
     pub fn request_lyrics(&mut self) {

@@ -85,6 +85,14 @@ pub struct Plugins {
     /// Titles a plugin gave songs in a TIDAL answer, by TIDAL id
     /// (`HostCommand::RetitleTracks`); track rows show them.
     pub retitles: std::collections::HashMap<String, String>,
+    /// The words a plugin gives a song in TIDAL's store
+    /// (`HostCommand::StoreLyrics`), by the song's URI: shown where the
+    /// app has none for it ([`crate::app::App::shown_lyrics`]). They go
+    /// with the runtime.
+    pub store_lyrics: Option<(
+        String,
+        crate::model::Loadable<Option<crate::lyrics::Lyrics>>,
+    )>,
     /// The Plugins tab, with the plugins' Settings, was drawn this frame.
     pub(crate) settings_drawn: bool,
     /// When Luna started waiting for the account to sign in.
@@ -126,6 +134,7 @@ impl Plugins {
             updates_seen: 0,
             editor: None,
             retitles: std::collections::HashMap::new(),
+            store_lyrics: None,
             settings_drawn: false,
             held_since: None,
             #[cfg(any(test, feature = "demo"))]
@@ -238,6 +247,7 @@ impl Plugins {
         }
         self.editor = None;
         self.retitles.clear();
+        self.store_lyrics = None;
         self.gate = gate::Gate::default();
     }
 }

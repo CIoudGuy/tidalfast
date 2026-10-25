@@ -1215,6 +1215,17 @@ impl App {
                     ctx.request_repaint();
                     return;
                 }
+                if let HostCommand::StoreLyrics { track_id, lyrics } = command {
+                    self.plugins.store_lyrics = track_id.and_then(|id| {
+                        let l = lyrics.as_ref()?;
+                        let text = |k: &str| l.get(k).and_then(Value::as_str).unwrap_or("");
+                        let words =
+                            crate::lyrics::Lyrics::from_texts(text("subtitles"), text("lyrics"))?;
+                        Some((track_uri(&id), Loadable::Loaded(Some(words))))
+                    });
+                    ctx.request_repaint();
+                    return;
+                }
                 for action in self.host_command_actions(command) {
                     self.apply_cleared(action, ctx);
                 }
@@ -1554,7 +1565,9 @@ impl App {
             }
             HostCommand::PlayNowFrom { .. } => Vec::new(),
             HostCommand::Search(phrase) => vec![Action::Search(phrase)],
-            HostCommand::RetitleTracks(_) | HostCommand::SetNowPlayingView(_) => Vec::new(),
+            HostCommand::RetitleTracks(_)
+            | HostCommand::StoreLyrics { .. }
+            | HostCommand::SetNowPlayingView(_) => Vec::new(),
             // Luna's `Page.open()`: TIDAL's not-found route with the page's
             // name as its search.
             HostCommand::Navigate(path) if path.starts_with("/not-found?") => {
@@ -2220,6 +2233,84 @@ mod tests {
             None,
             "the song before's words are not this song's"
         );
+        app.backend.shutdown();
+    }
+
+    /// A song TIDAL and the app have no words for, which a plugin gives
+    /// words in TIDAL's store: the app shows those words (its Lyrics tab and
+    /// views read them), as TIDAL's page does; what plugins are told the app
+    /// found stays its own lookup's (TIDAL's lyrics answer stays empty), and
+    /// the words go once the plugin gives none.
+    #[test]
+    fn words_a_plugin_gives_the_store_show_where_the_app_has_none() {
+        let mut app = app("plugin-store-lyrics");
+        let ctx = egui::Context::default();
+        app.lyrics_uri = Some("tidal:track:77".into());
+        app.lyrics = Loadable::Loaded(None);
+        assert!(matches!(app.shown_lyrics(), Loadable::Loaded(None)));
+        app.handle_host_request(
+            HostRequest::Command(HostCommand::StoreLyrics {
+                track_id: Some("77".into()),
+                lyrics: Some(json!({
+                    "trackId": "77",
+                    "lyrics": "One\nTwo",
+                    "subtitles": "[00:01.00] One\n[00:02.00] Two",
+                    "isRightToLeft": false,
+                })),
+            }),
+            &ctx,
+        );
+        match app.shown_lyrics() {
+            Loadable::Loaded(Some(l)) => {
+                assert!(l.synced);
+                assert_eq!(
+                    l.lines.iter().map(|x| x.text.as_str()).collect::<Vec<_>>(),
+                    ["One", "Two"]
+                );
+            }
+            other => panic!("{other:?}"),
+        }
+        // The app's own lookup is unchanged: what plugins are told.
+        assert!(matches!(app.lyrics, Loadable::Loaded(None)));
+        // Another song's lookup does not show them.
+        app.lyrics_uri = Some("tidal:track:78".into());
+        assert!(matches!(app.shown_lyrics(), Loadable::Loaded(None)));
+        app.lyrics_uri = Some("tidal:track:77".into());
+        app.handle_host_request(
+            HostRequest::Command(HostCommand::StoreLyrics {
+                track_id: None,
+                lyrics: None,
+            }),
+            &ctx,
+        );
+        assert!(matches!(app.shown_lyrics(), Loadable::Loaded(None)));
+        app.backend.shutdown();
+    }
+
+    /// Words a plugin gave a song in TIDAL's store go with the runtime when
+    /// plugins are switched off (no word that there are none comes from a
+    /// runtime that stopped): the app shows its own lookup's at once.
+    #[test]
+    fn words_a_plugin_gave_the_store_go_when_plugins_stop() {
+        let mut app = app("plugin-store-lyrics-stop");
+        let ctx = egui::Context::default();
+        app.lyrics_uri = Some("tidal:track:77".into());
+        app.lyrics = Loadable::Loaded(None);
+        app.handle_host_request(
+            HostRequest::Command(HostCommand::StoreLyrics {
+                track_id: Some("77".into()),
+                lyrics: Some(json!({
+                    "trackId": "77",
+                    "lyrics": "One\nTwo",
+                    "subtitles": "",
+                    "isRightToLeft": false,
+                })),
+            }),
+            &ctx,
+        );
+        assert!(matches!(app.shown_lyrics(), Loadable::Loaded(Some(_))));
+        app.plugins.stop_luna();
+        assert!(matches!(app.shown_lyrics(), Loadable::Loaded(None)));
         app.backend.shutdown();
     }
 

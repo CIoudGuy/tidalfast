@@ -174,7 +174,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui) {
         );
         return;
     };
-    let lyrics = match &app.lyrics {
+    let lyrics = match app.shown_lyrics() {
         Loadable::NotLoaded | Loadable::Loading => {
             if !app.network_reachable {
                 widgets::empty_state(
@@ -377,7 +377,7 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
         );
         return;
     };
-    let lyrics = match &app.lyrics {
+    let lyrics = match app.shown_lyrics() {
         Loadable::NotLoaded | Loadable::Loading => {
             skeleton::lines(ui, &palette, 8, 56.0, 36.0, true);
             return;

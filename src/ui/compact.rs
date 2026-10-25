@@ -606,7 +606,7 @@ fn lyrics_panel(app: &mut App, ui: &mut egui::Ui, rect: Rect, now: Option<&NowPl
         message(ui, &gettext(app.locale, "Nothing playing"));
         return;
     };
-    let lyrics = match &app.lyrics {
+    let lyrics = match app.shown_lyrics() {
         Loadable::Loaded(Some(lyrics))
             if app.lyrics_uri.as_deref() == Some(now.uri.as_str()) && !lyrics.instrumental =>
         {

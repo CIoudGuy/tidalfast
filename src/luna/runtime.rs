@@ -1915,6 +1915,22 @@ It is installed and switched on; what it may do is asked when it does it, and it
             i.dirty = true;
             Ok(Value::Null)
         }
+        // The page script, reading the store a plugin's `getState` wraps:
+        // the words it gives the playing song (see `HostCommand::StoreLyrics`).
+        "lyrics.store" => {
+            if who.caller != Caller::Host {
+                return Err("EACCES: only the runtime reads the store's lyrics".into());
+            }
+            let track_id = a
+                .get("trackId")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string);
+            let lyrics = track_id.is_some().then(|| a.clone());
+            let host = inner.borrow().host.clone();
+            host.command(HostCommand::StoreLyrics { track_id, lyrics });
+            Ok(Value::Null)
+        }
         "plugin.settings" => {
             let name = str_of(a, "name").to_string();
             if who.acting()? != name {
