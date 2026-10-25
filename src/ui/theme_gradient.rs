@@ -33,6 +33,13 @@ pub struct Angled {
     pub size: [f32; 2],
     /// `background-position` as fractions of the room the image leaves.
     pub position: [f32; 2],
+    /// The stops as written when one of them sits at a length (`#0000 1em`,
+    /// `calc(100% - 1.5em)`: the cotton candy family's row lines): each
+    /// position as a fraction of the gradient line plus points, worked out
+    /// once the line's length is known ([`for_line`]). `stops` holds them
+    /// with the points left out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lengths: Option<Vec<(Option<[f32; 2]>, Color32)>>,
 }
 
 /// Keeps the name of a `var(--x)` angle that nothing declares: the first
@@ -72,6 +79,7 @@ pub fn parse(layer: &str) -> Option<Angled> {
         None => (180.0, None, parts.as_slice()),
     };
     let mut picked: Vec<(Option<f32>, Color32)> = Vec::new();
+    let mut written: Vec<(Option<[f32; 2]>, Color32)> = Vec::new();
     for stop in stops {
         let words = css::words(stop.trim());
         let Some(color) = words.first().and_then(|w| css::color(w)) else {
@@ -80,14 +88,17 @@ pub fn parse(layer: &str) -> Option<Angled> {
         let at = words
             .last()
             .filter(|_| words.len() > 1)
-            .and_then(|w| w.strip_suffix('%'))
-            .and_then(|p| p.trim().parse::<f32>().ok())
-            .map(|p| p / 100.0);
-        picked.push((at, color));
+            .and_then(|w| stop_position(w));
+        picked.push((at.map(|[fraction, _]| fraction), color));
+        written.push((at, color));
     }
     if picked.len() < 2 {
         return None;
     }
+    let lengths = written
+        .iter()
+        .any(|(at, _)| at.is_some_and(|[_, points]| points != 0.0))
+        .then_some(written);
     let stops = place(&picked);
     // Positions that spread the stops evenly (`0%` ... `100%` or none) are
     // the plain ramp's own.
@@ -97,7 +108,7 @@ pub fn parse(layer: &str) -> Option<Angled> {
         .enumerate()
         .all(|(i, (at, _))| (at - i as f32 / last).abs() < 1e-3);
     let plain_angle = [90.0, 180.0].iter().any(|a| (angle - a).abs() < 0.01);
-    if spin.is_none() && plain_angle && even {
+    if spin.is_none() && plain_angle && even && lengths.is_none() {
         return None;
     }
     Some(Angled {
@@ -106,7 +117,48 @@ pub fn parse(layer: &str) -> Option<Angled> {
         spin,
         size: [1.0, 1.0],
         position: [0.0, 0.0],
+        lengths,
     })
+}
+
+/// A colour stop's position: a percentage, a length (`112px`, `1em` of
+/// TIDAL's 14-point words) or both in `calc()`, as [fraction of the
+/// gradient line, points].
+fn stop_position(word: &str) -> Option<[f32; 2]> {
+    // `%` against two references gives the fraction and the points apart.
+    let at = |reference: f32| css::length(word, 14.0, reference, [0.0, 0.0]);
+    let points = at(0.0)?;
+    let fraction = (at(100.0)? - points) / 100.0;
+    (points.is_finite() && fraction.is_finite()).then_some([fraction, points])
+}
+
+/// `g` with its stops at their places along a gradient line `line` points
+/// long (a stop at a length among them); `g` itself otherwise.
+pub fn for_line(g: &Angled, line: f32) -> std::borrow::Cow<'_, Angled> {
+    let Some(written) = g.lengths.as_ref().filter(|_| line > 0.0) else {
+        return std::borrow::Cow::Borrowed(g);
+    };
+    let picked: Vec<(Option<f32>, Color32)> = written
+        .iter()
+        .map(|(at, color)| {
+            (
+                at.map(|[fraction, points]| fraction + points / line),
+                *color,
+            )
+        })
+        .collect();
+    std::borrow::Cow::Owned(Angled {
+        stops: place(&picked),
+        lengths: None,
+        ..g.clone()
+    })
+}
+
+/// The length of `g`'s gradient line in a box `size` points large at its
+/// own angle: CSS's, from corner to corner along the angle.
+pub fn line_length(g: &Angled, size: egui::Vec2) -> f32 {
+    let radians = g.angle.to_radians();
+    (size.x * g.size[0] * radians.sin()).abs() + (size.y * g.size[1] * radians.cos()).abs()
 }
 
 /// Any `linear-gradient(...)` in `value` as an angled gradient, the plain
@@ -150,6 +202,7 @@ pub fn parse_any(value: &str) -> Option<Angled> {
     }
     let last = (colors.len() - 1) as f32;
     Some(Angled {
+        lengths: None,
         stops: colors
             .iter()
             .enumerate()
@@ -324,6 +377,7 @@ pub fn mesh(
     if line < 1e-3 {
         return None;
     }
+    let g = &*for_line(g, line);
     let along = |p: Pos2| (p - image.center()).dot(dir) / line + 0.5;
     let outline = match corners {
         Some(c) => super::plugin_dom::rounded_outline(rect, c),
@@ -464,6 +518,35 @@ mod tests {
             .collect()
     }
 
+    /// The cotton candy family's row line, `border-image: linear-gradient(to
+    /// right, #0000 1em, #0000 2%, ... 80%, #ffffff00 calc(100% - 1.5em),
+    /// #0000 100%)`: a stop at a length sits that far along the line
+    /// (Chromium: the fade ends 21 points from a 1451-point row's end, at
+    /// 98.6 %). The length was dropped and the stop spread half way between
+    /// its neighbours (90 %), so the line faded out over half the distance.
+    #[test]
+    fn a_stop_at_a_length_sits_that_far_along_the_line() {
+        let g = parse(
+            "linear-gradient(to right, #0000 1em, #0000 2%, #ff0000 20%, #ff0000 80%,              #ff000000 calc(100% - 1.5em), #0000 100%)",
+        )
+        .expect("an angled gradient");
+        let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(1451.0, 2.0));
+        let ctx = egui::Context::default();
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            paint(ui.painter(), rect, None, &g, g.angle, g.position);
+        });
+        out.textures_delta.clear();
+        let at = |x: f32| {
+            crate::ui::plugin_dom::test_colour_at(&out.shapes, pos2(x, 1.0), Color32::BLACK).r()
+        };
+        // 90 % along: about half way through the fade (Chromium 46 % red).
+        let red = at(1451.0 * 0.9);
+        assert!((100..=140).contains(&red), "90 % along: {red}");
+        // Nothing past 1451 - 21.
+        assert!(at(1440.0) <= 3, "near the end: {}", at(1440.0));
+        assert!(at(1451.0 * 0.5) >= 250, "the middle is the line's colour");
+    }
+
     #[test]
     fn a_diagonal_gradient_runs_from_one_corner_to_the_other() {
         let g = Angled {
@@ -472,6 +555,7 @@ mod tests {
             spin: None,
             size: [1.0, 1.0],
             position: [0.0, 0.0],
+            lengths: None,
         };
         let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 100.0));
         let v = painted(&g, 135.0, rect);
@@ -526,6 +610,7 @@ mod tests {
             spin: None,
             size: [4.0, 4.0],
             position: [0.0, 0.0],
+            lengths: None,
         };
         let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 100.0));
         let start = painted(&g, 90.0, rect);
