@@ -1988,6 +1988,47 @@ lib.observe(unloads, '[data-test="new-now-playing-close"]', (close) => {
     finish(luna, dir);
 }
 
+/// An image's and a source's `srcset` and `sizes` reflect their attributes,
+/// as in Chromium: uwu-ifier sets `img.srcset = ""` and `img.sizes = ""` on
+/// every picture it replaces, which TIDAL's page sees as attribute changes.
+/// Here they were plain properties: no attribute, no mutation record.
+#[test]
+fn an_images_srcset_and_sizes_reflect_their_attributes() {
+    let (luna, _host, dir) = start(
+        r##"
+const img = document.createElement("img");
+img.setAttribute("srcset", "a.jpg 160w, b.jpg 320w");
+document.body.append(img);
+const seen = [];
+new MutationObserver((rs) => {
+	for (const r of rs) seen.push([r.attributeName, r.oldValue]);
+	R.seen = seen;
+}).observe(img, { attributes: true, attributeOldValue: true });
+R.before = img.srcset;
+img.srcset = "";
+img.sizes = "";
+R.after = [img.getAttribute("srcset"), img.getAttribute("sizes"), img.srcset, img.sizes];
+const s = document.createElement("source");
+s.srcset = "c.jpg 2x";
+R.source = s.getAttribute("srcset");
+R.div = "srcset" in document.createElement("div");
+"##,
+    );
+    let r = results_until(&luna, &dir, 10, |r| {
+        r["seen"].as_array().is_some_and(|s| s.len() >= 2)
+    });
+    assert_eq!(r["before"], json!("a.jpg 160w, b.jpg 320w"), "{r}");
+    assert_eq!(r["after"], json!(["", "", "", ""]), "{r}");
+    assert_eq!(
+        r["seen"],
+        json!([["srcset", "a.jpg 160w, b.jpg 320w"], ["sizes", null]]),
+        "{r}"
+    );
+    assert_eq!(r["source"], json!("c.jpg 2x"), "{r}");
+    assert_eq!(r["div"], json!(false), "{r}");
+    finish(luna, dir);
+}
+
 /// custom-fonts: its settings look up `._title_a453dad`, which in TIDAL is
 /// the app's name in the title bar, and rewrite it ("TIDALuna" and its
 /// Comic Sans tag). It used to be the Plugins page's heading, which TIDAL's
