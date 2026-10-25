@@ -804,6 +804,12 @@ fn collapsing(app: &mut App, ui: &mut egui::Ui, collapse: f32) -> Placed {
     let width = full + (RAIL_WIDTH - full) * collapse;
     let floating = floating(ui.ctx());
     let shift = slide(ui.ctx(), width);
+    let margin = Margin {
+        left: 0,
+        right: 0,
+        top,
+        bottom: 8,
+    };
     let over = over_page(ui.ctx());
     let behind = floating
         .filter(|_| !over)
@@ -820,17 +826,12 @@ fn collapsing(app: &mut App, ui: &mut egui::Ui, collapse: f32) -> Placed {
                 } else {
                     panel_fill(ui.ctx(), &palette)
                 })
-                .inner_margin(Margin {
-                    left: 0,
-                    right: 0,
-                    top,
-                    bottom: 8,
-                }),
+                .inner_margin(margin),
             floating.as_ref(),
         ))
         .show(ui, |ui| {
             ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
-            slid(ui, shift, &palette, floating.as_ref(), |ui| {
+            slid(ui, shift, &palette, floating.as_ref(), margin, |ui| {
                 if collapse >= 0.5 {
                     rail(app, ui);
                 } else {
@@ -914,11 +915,16 @@ fn slid(
     shift: Option<f32>,
     palette: &theme::Palette,
     floating: Option<&crate::ui::theme_layout::Floating>,
+    margin: Margin,
     add: impl FnOnce(&mut egui::Ui),
 ) {
     let key = crate::luna::dom_anchors::keys::SIDEBAR;
+    let corner = floating.map_or(egui::CornerRadius::ZERO, |f| f.radius);
     let Some(shift) = shift else {
         super::plugin_dom::paint_host_layers(ui, key, ui.max_rect());
+        // The card's inset `box-shadow` over its fill, under what it holds
+        // (the cotton candy family's white glow round its sidebar).
+        super::plugin_dom::paint_glow(ui, key, ui.max_rect() + margin, corner);
         add(ui);
         return;
     };
@@ -934,6 +940,7 @@ fn slid(
         fill,
     );
     super::plugin_dom::paint_host_layers(&moved, key, rect);
+    super::plugin_dom::paint_glow(&moved, key, rect + margin, corner);
     let opacity = [
         crate::luna::dom_anchors::keys::SIDEBAR_NAV,
         crate::luna::dom_anchors::keys::SIDEBAR_CONTENT,
@@ -1082,6 +1089,12 @@ fn place_panel(app: &mut App, ui: &mut egui::Ui) -> Placed {
         ui.available_width() - super::topbar::least_width(ui.ctx()) - beside,
     );
     let floating = floating(ui.ctx()).map(|f| f.fitted(ui.available_height()));
+    let margin = Margin {
+        left: 0,
+        right: 0,
+        top,
+        bottom: if expanded_art { 0 } else { 8 },
+    };
     let shift = slide(
         ui.ctx(),
         app.settings.sidebar_width.max(super::SIDEBAR_MIN_WIDTH),
@@ -1103,16 +1116,11 @@ fn place_panel(app: &mut App, ui: &mut egui::Ui) -> Placed {
                 } else {
                     panel_fill(ui.ctx(), &palette)
                 })
-                .inner_margin(Margin {
-                    left: 0,
-                    right: 0,
-                    top,
-                    bottom: if expanded_art { 0 } else { 8 },
-                }),
+                .inner_margin(margin),
             floating.as_ref(),
         ));
     let response = panel.show(ui, |ui| {
-        slid(ui, shift, &palette, floating.as_ref(), |ui| {
+        slid(ui, shift, &palette, floating.as_ref(), margin, |ui| {
             let art_rect = expanded_art.then(|| expanded_art_rect(ui));
             if let Some(rect) = art_rect.filter(|_| !floating_art) {
                 reserve_expanded_art(ui, rect);

@@ -1847,6 +1847,15 @@ pub(crate) fn outer_shadow_shape(
     egui::Shape::Vec(rings)
 }
 
+/// A theme's inset `box-shadow` on anchor `key` (its look's glow), inside
+/// the box `r`: for a box painted by its own part rather than through its
+/// look (the sidebar's card), over its fill and layers, under what it holds.
+pub fn paint_glow(ui: &egui::Ui, key: &str, r: Rect, corner: egui::CornerRadius) {
+    if let Some((color, blur, spread)) = anchor_look(key).and_then(|l| l.glow) {
+        paint_inset_glow(ui.painter(), r, corner, color, blur, spread);
+    }
+}
+
 /// An inset `box-shadow` inside `r`: full `color` over its `spread`, then
 /// fading out across its `blur`, as a browser's Gaussian falls off (half
 /// strength at the blur's start, nothing past its end).

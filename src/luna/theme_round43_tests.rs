@@ -329,3 +329,42 @@ fn a_bar_cards_box_holds_tidals_lines_in_its_padding_and_border() {
         "the words move in by the padding and border: {title:?} against {title_plain:?}"
     );
 }
+/// A theme's inset `box-shadow` on TIDAL's sidebar card (the cotton candy
+/// family's white `inset 0 0 6em` glow on `div._sidebarWrapper_`) lies
+/// over the card's fill along its edges and under what it holds, as
+/// Chromium paints it: under Purple Paradise Punch TIDAL 2.46.0's card is
+/// 15 levels lighter 5 points in from its left edge than at its middle (the
+/// parity checker's replay). Tidalfast painted the card's fill alone.
+#[test]
+fn a_sidebar_cards_inset_glow_lies_along_its_edges() {
+    use super::theme_round41_tests as r41;
+    use dom_anchors::keys;
+    let css = "/* {\"name\": \"Glowing sidebar\"} */\n[class*=\"_sidebarWrapper_\"] { background-color: rgb(40, 0, 60); box-shadow: inset 0 0 40px rgba(255, 255, 255, .6); }\n";
+    let (ctx, mut app) = r41::demo_app("album:alb0", None);
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let sidebar = plain
+        .nodes
+        .iter()
+        .find(|n| n.key == keys::SIDEBAR)
+        .and_then(|n| n.rect)
+        .expect("the sidebar's box");
+    let mut o = r41::styled("glowing-sidebar.css", css, &plain, keys::SIDEBAR);
+    o.version = 2;
+    // 2 points in from the card's left edge, half way down: the fill,
+    // rgb(40, 0, 60), under the white glow (TIDAL: 0.45 of its 60 %).
+    let y = sidebar[1] + sidebar[3] / 2.0;
+    let colours = r41::painted_at(&ctx, &mut app, o, &[[sidebar[0] + 2.0, y]]);
+    app.backend.shutdown();
+    let edge = colours[0];
+    assert!(
+        edge.g() >= 50 && edge.r() > 60,
+        "the glow along the card's edge: {edge:?} (the fill alone is rgb(40, 0, 60))"
+    );
+}
