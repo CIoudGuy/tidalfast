@@ -210,6 +210,15 @@ fn app_repeat(mode: LunaRepeat) -> RepeatMode {
 }
 
 impl App {
+    /// The quality the song `id` is expected at before its stream says:
+    /// what plugins see in the badge and the playback context until then.
+    pub(crate) fn expected_stream_quality(&self, id: Option<&str>) -> crate::tidal_engine::Quality {
+        expected_quality(
+            id.and_then(|id| self.track_cache.get(id)),
+            self.settings.quality(),
+        )
+    }
+
     /// Offer a user action to Luna plugins first; `true` when the caller
     /// should go on and apply it now.
     pub(super) fn gate_action(&mut self, action: &Action, ctx: &egui::Context) -> bool {

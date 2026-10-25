@@ -2046,6 +2046,33 @@ lib.observe(unloads, '[class*="_qualityBadgeContainer"]', (t) => {
     finish(luna, dir);
 }
 
+/// A plugin reading the quality badge before the song's stream says reads
+/// TIDAL 2.46.0's words for a badge with no bit depth or sample rate yet:
+/// "LOW" for a song expected lossless.
+#[test]
+fn a_badge_waiting_for_its_stream_reads_tidals_words() {
+    let (luna, _host, dir) = start(
+        r##"
+lib.observe(unloads, '[class*="_qualityBadgeContainer"]', (t) => {
+	if (R.words !== undefined) return;
+	R.words = t.querySelector("span > span")?.textContent ?? null;
+	R.quality = t.querySelector("a")?.getAttribute("data-test-quality-badge-streaming-quality") ?? null;
+});
+"##,
+    );
+    let mut frame = dom_anchors::sample_frame();
+    let player = frame.player.as_mut().unwrap();
+    player.quality = None;
+    player.expected_quality = Some("LOSSLESS".into());
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = results_until(&luna, &dir, 10, |r| r["words"].is_string());
+    assert_eq!(
+        (&r["words"], &r["quality"]),
+        (&json!("LOW"), &json!("LOSSLESS"))
+    );
+    finish(luna, dir);
+}
+
 /// @minseokk7/korean-translation: walks the document's text nodes and
 /// replaces the ones a dictionary knows (`node.textContent = ...` on a text
 /// node). The text of a host element's own text node reaches the overlay as
