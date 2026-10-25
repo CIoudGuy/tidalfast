@@ -140,7 +140,7 @@ pub struct Recommendations<'a> {
     pub loading: bool,
     pub error: Option<&'a str>,
     /// Songs the playlist holds already, which are not suggested again.
-    pub members: &'a HashSet<&'a str>,
+    pub members: &'a HashSet<String>,
     /// Whether the playlist's table has its Date added and Added by columns,
     /// which the rows keep empty so the columns after them stay in line.
     pub show_added: bool,
@@ -148,15 +148,38 @@ pub struct Recommendations<'a> {
 }
 
 /// The URIs of the songs a playlist page holds, loaded or just added.
-pub fn member_uris<'a>(
-    items: &'a [PlaylistItem],
-    added: &'a std::collections::BTreeSet<String>,
-) -> HashSet<&'a str> {
+pub fn member_uris(
+    items: &[PlaylistItem],
+    added: &std::collections::BTreeSet<String>,
+) -> HashSet<String> {
     items
         .iter()
         .filter_map(|item| item.playable().map(PlayableItem::uri))
         .chain(added.iter().map(String::as_str))
+        .map(str::to_owned)
         .collect()
+}
+
+/// [`member_uris`] for the playlist `id`, made again only when its songs or
+/// the ones just added change: every pass asks, and a long playlist holds
+/// thousands of songs.
+pub fn cached_member_uris(
+    ctx: &egui::Context,
+    id: &str,
+    items: &crate::model::PagedList<PlaylistItem>,
+    added: &std::collections::BTreeSet<String>,
+) -> std::sync::Arc<HashSet<String>> {
+    type Members = ((u64, usize, usize), std::sync::Arc<HashSet<String>>);
+    let key = egui::Id::new(("playlist members", id));
+    let stamp = (items.revision, items.items.len(), added.len());
+    if let Some((held, members)) = ctx.data(|data| data.get_temp::<Members>(key))
+        && held == stamp
+    {
+        return members;
+    }
+    let members = std::sync::Arc::new(member_uris(&items.items, added));
+    ctx.data_mut(|data| data.insert_temp::<Members>(key, (stamp, std::sync::Arc::clone(&members))));
+    members
 }
 
 /// One suggestion, laid out in `cols` as a row of the playlist's table:
@@ -395,7 +418,46 @@ pub fn shelves(
 
 #[cfg(test)]
 mod tests {
-    use super::role_label;
+    use super::{cached_member_uris, role_label};
+    use crate::api::models::{PlayableItem, PlaylistItem, Track};
+
+    fn row(uri: &str) -> PlaylistItem {
+        PlaylistItem {
+            item: Some(PlayableItem::Track(Track {
+                uri: uri.into(),
+                ..Default::default()
+            })),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_playlists_members_are_made_again_only_when_its_songs_change() {
+        let ctx = egui::Context::default();
+        let mut items = crate::model::PagedList::<PlaylistItem> {
+            items: vec![row("tidal:track:1"), row("tidal:track:2")],
+            ..Default::default()
+        };
+        let mut added = std::collections::BTreeSet::new();
+        let first = cached_member_uris(&ctx, "pl", &items, &added);
+        assert!(first.contains("tidal:track:2"));
+        // The same songs: the same set, not made again.
+        let again = cached_member_uris(&ctx, "pl", &items, &added);
+        assert!(std::sync::Arc::ptr_eq(&first, &again));
+        // A song just added counts at once.
+        added.insert("tidal:track:3".to_string());
+        assert!(cached_member_uris(&ctx, "pl", &items, &added).contains("tidal:track:3"));
+        // Songs that change with the list's revision (a reorder keeps the count).
+        items.items = vec![row("tidal:track:9"), row("tidal:track:2")];
+        items.revision += 1;
+        let changed = cached_member_uris(&ctx, "pl", &items, &added);
+        assert!(changed.contains("tidal:track:9") && !changed.contains("tidal:track:1"));
+        // Another playlist has its own.
+        assert!(
+            !cached_member_uris(&ctx, "other", &Default::default(), &Default::default())
+                .contains("tidal:track:9")
+        );
+    }
 
     #[test]
     fn code_names_of_roles_read_as_words() {
