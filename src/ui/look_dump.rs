@@ -15,6 +15,24 @@ use super::anchor_look::{AnchorLook, look_of};
 use super::{on, with};
 use crate::luna::dom::HostTree;
 
+/// Writes [`dump_looks`] to `path` with what this pass paints
+/// ([`paint_runs`]), at the end of the pass a shot is taken of
+/// (`--demo-dump-looks`, a dev script's `shot`).
+pub fn write_looks(path: &std::path::Path, ctx: &egui::Context) {
+    let Some(mut report) = dump_looks() else {
+        log::error!("no anchor tree yet, {} not written", path.display());
+        return;
+    };
+    if let Some(o) = report.as_object_mut() {
+        o.insert("paint".into(), paint_runs(ctx));
+    }
+    let text = serde_json::to_string_pretty(&report).unwrap_or_default();
+    match std::fs::write(path, text) {
+        Ok(()) => log::info!("wrote the anchors' looks to {}", path.display()),
+        Err(error) => log::error!("could not write {}: {error}", path.display()),
+    }
+}
+
 /// The report for the tree last sent to the runtime, or `None` before one
 /// was sent.
 pub fn dump_looks() -> Option<Value> {

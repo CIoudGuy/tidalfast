@@ -675,16 +675,36 @@ impl App {
                 // Installed ones load from disk; installing again would reload them.
                 let installed = std::fs::read_to_string(self.dirs.luna_dir().join("plugins.json"))
                     .unwrap_or_default();
+                // Themes go in one after another (`crate::demo::DemoThemes`).
+                #[cfg(any(test, feature = "demo"))]
+                let mut themes = Vec::new();
                 for url in urls.iter().filter(|url| !installed.contains(url.as_str())) {
                     if url.ends_with(".css") {
+                        #[cfg(any(test, feature = "demo"))]
+                        themes.push(url.clone());
+                        #[cfg(not(any(test, feature = "demo")))]
                         luna.install_theme(url);
                     } else {
                         luna.install(url);
                     }
                 }
+                #[cfg(any(test, feature = "demo"))]
+                {
+                    self.plugins.demo_themes = Some(themes);
+                }
             }
         } else if !wanted && self.plugins.luna.is_some() {
             self.plugins.stop_luna();
+        }
+        // The demo's themes (at start, and a dev script's `theme` control).
+        #[cfg(any(test, feature = "demo"))]
+        if let Some(luna) = &self.plugins.luna {
+            if let Some(urls) = self.plugins.demo_themes.take() {
+                self.plugins.demo_installer.replace(luna, urls);
+            }
+            if self.plugins.demo_installer.tick(luna) {
+                ctx.request_repaint_after(Duration::from_millis(50));
+            }
         }
         if !wanted {
             self.plugins.luna_error = None;
