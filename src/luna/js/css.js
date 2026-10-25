@@ -1437,9 +1437,16 @@
 	// (`getComputedStyle(document.documentElement)`) or use them in their
 	// CSS; measured in TIDAL 2.43.2. They are not a theme's: they never
 	// reach the overlay's variables, which recolour Tidalfast.
+	// The corner radii are TIDAL 2.46.0's (`:root` in its sheet): CatJam's
+	// cat is rounded by `var(--wave-border-radius--extra-small)`, 4 px.
 	const TIDAL_VARS = [
 		["--wave-color-opacity-contrast-fill-thick", "#fff9"],
 		["--wave-color-opacity-contrast-fill-ultra-thick", "#fffc"],
+		["--wave-border-radius--none", "0"],
+		["--wave-border-radius--extra-small", "4px"],
+		["--wave-border-radius--small", "8px"],
+		["--wave-border-radius--regular", "12px"],
+		["--wave-border-radius--full", "1000px"],
 	];
 	const NO_VARS = new Map(TIDAL_VARS);
 	let rootMemo = null;
@@ -1630,7 +1637,7 @@
 	};
 
 	// ---------------------------------------------------------------- getComputedStyle
-	const BLOCK = new Set(["div", "p", "section", "article", "main", "aside", "header", "footer", "nav", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6", "form", "figure", "html", "body", "table", "pre"]);
+	const BLOCK = new Set(["div", "p", "section", "article", "main", "aside", "header", "footer", "nav", "ul", "ol", "h1", "h2", "h3", "h4", "h5", "h6", "form", "figure", "html", "body", "pre"]);
 	const NONE = new Set(["head", "style", "script", "meta", "link", "title", "template"]);
 	// What the cascade declares for `el` (variables resolved, inherited
 	// properties carried down), with no used values: nothing here asks for
@@ -1657,13 +1664,207 @@
 		}
 		return csTok;
 	};
+	// What TIDAL 2.46.0's own sheet gives its classes, for `getComputedStyle`
+	// only (Tidalfast draws its own elements itself): an element carrying
+	// one, TIDAL's or a plugin's copy of it, computes it under every rule a
+	// plugin or theme declares, and what is inside inherits it. Its flex
+	// and grid boxes (whose items Chromium blockifies: SongReleaseDate's
+	// date in the player bar's title reads `flex`) and the text sizes,
+	// weights and (dark) colours that differ from the page's. By exact
+	// class, else by the class's name without its hash where every one of
+	// TIDAL's classes of that name agrees.
+	// Measured in TIDAL 2.46.0's own pages (Home, an album, My Collection's
+	// albums and tracks, a track's menu, the now-playing view, at its
+	// 2137 x 1183 window) for the classes the anchors carry, where its
+	// sheets make the class set the property: a box of its own (`flex`,
+	// `grid`, and `inline-flex` where its items' boxes made it `flex`),
+	// font sizes and weights, and colours only where the class's own colour
+	// is the one shown (a state class may change it).
+	const TIDAL_LOOK_ENTRIES = {
+		_actionContainer_: { display: "flex" },
+		_actionText_d77b98b: { display: "flex", "font-weight": "500" },
+		_actionTextInner_: { "font-size": "12px", "font-weight": "600", color: "rgb(255, 255, 255)" },
+		_albumColumn_: { display: "flex" },
+		_artistColumn_: { display: "flex" },
+		_artistText_: { display: "block" },
+		_artworkContainer_: { "font-size": "14px", "font-weight": "500" },
+		_badge_57d1ccb: { display: "inline-flex" },
+		_badge_7b2911e: { display: "flex" },
+		_badgeCounter_bd84d2f: { color: "rgb(255, 255, 255)" },
+		_bar_: { display: "flex" },
+		_button_6808704: { display: "flex" },
+		_button_98ab3d0: { display: "flex", color: "rgb(255, 255, 255)" },
+		_button_a3412d0: { display: "flex" },
+		_button_c25ce4d: { color: "rgba(255, 255, 255, 0.6)" },
+		_button_c372e89: { display: "flex" },
+		_button_wl3o7_17: { "font-size": "14px", "font-weight": "500" },
+		_buttonContainer_a07db07: { display: "flex" },
+		_buttonContainer_d207640: { display: "flex" },
+		_card_38c6c04: { display: "flex" },
+		_cardContainer_: { display: "flex" },
+		_cellCoverContainer_: { display: "grid" },
+		_cellImage_: { display: "flex" },
+		_container_080b5dc: { display: "flex" },
+		_container_4454af7: { display: "flex" },
+		_container_84abbc3: { display: "flex" },
+		_container_ad3e54e: { display: "flex" },
+		_container_b3e8f28: { display: "flex" },
+		_container_bb78f1d: { display: "flex" },
+		_container_cb5cbe4: { display: "flex" },
+		_container_f1be359: { display: "flex" },
+		_containerRow_: { display: "flex" },
+		_contentContainer_6f8427a: { display: "flex" },
+		_contentItem_: { display: "flex" },
+		_contextColumn_: { display: "flex" },
+		_contextMenuButton_: { display: "flex" },
+		_contextMenuButton_4c9ff38: { display: "flex", color: "rgba(255, 255, 255, 0.6)" },
+		_contextMenuButton_9741d3a: { color: "rgba(255, 255, 255, 0.55)" },
+		_creatorImageContainer_274e19d: { display: "grid" },
+		_creatorImages_6cd6b4e: { display: "inline-flex" },
+		_dataContainer_: { display: "flex" },
+		_dateAddedColumn_: { display: "flex" },
+		_defaultStyles_a1b9da9: { display: "grid" },
+		_explicitBadge_b93510b: { display: "flex" },
+		_extraIcon_56196ff: { display: "flex" },
+		_feed_412931c: { display: "flex" },
+		_flexWrapper_: { display: "flex" },
+		_fxHoverControls_cb86dc6: { display: "flex" },
+		_gray_c82f8e6: { color: "rgba(255, 255, 255, 0.6)" },
+		_grid_97562f5: { display: "grid" },
+		_header_2f58a49: { display: "flex" },
+		_header_d2e600f: { display: "flex" },
+		_headerColumn_fed0322: { display: "flex" },
+		_headerContainer_5618a8d: { display: "flex" },
+		_iconButton_: { display: "flex" },
+		_indexColumn_3ac64ab: { display: "flex" },
+		_indexNumber_de640b9: { color: "rgb(121, 119, 127)" },
+		_link_86815a7: { display: "block" },
+		_link_ce56174: { display: "flex" },
+		_list_eaac7af: { display: "grid" },
+		_listSection_26d6dae: { display: "flex" },
+		_main_a5d9f44: { display: "grid" },
+		_mainContainer_: { display: "flex" },
+		_marketButton_1d16h_1: { display: "inline-flex" },
+		_marketPagingTabList_mibfb_1: { display: "flex" },
+		_metaContainer_3980a6e: { display: "grid" },
+		_navigationItem_: { display: "flex" },
+		_nowPlayingContainer_: { display: "flex" },
+		// Written for two classes (`._nowPlayingContainer_88d37df.
+		// _nowPlayingHidden_7e74506 { visibility: hidden }`): the closed
+		// now-playing view (StarryNight's sky in it is hidden there).
+		_nowPlayingHidden_: { visibility: "hidden" },
+		_occlusion_de6b9d3: { display: "grid" },
+		_overflowButtons_: { display: "flex" },
+		_overlayIconWrapper_6331eb1: { display: "flex" },
+		_overline_70ce5b5: { "font-size": "12px", "font-weight": "600" },
+		_playbackControls_: { display: "flex" },
+		_player_: { display: "grid" },
+		_playerContent_: { display: "contents" },
+		_playQueueWrapper_: { display: "flex" },
+		_profilePicture_1786ea0: { display: "flex" },
+		_repeatButton_: { display: "flex", color: "rgba(255, 255, 255, 0.55)" },
+		_scrollableContent_4035207: { display: "flex" },
+		_scrubberTime_: { color: "rgba(255, 255, 255, 0.35)" },
+		_scrubberTimeText_: { color: "rgba(255, 255, 255, 0.35)" },
+		_searchField_d9ef617: { color: "rgb(255, 255, 255)" },
+		_searchFieldFilter_0f926aa: { color: "rgb(255, 255, 255)" },
+		_sectionHeader_ca54638: { display: "flex" },
+		_shortcutItem_6c8e7b4: { display: "flex", "font-weight": "600" },
+		_shuffleButton_: { display: "flex", color: "rgba(255, 255, 255, 0.55)" },
+		_sidebar_: { display: "flex" },
+		_sidebarWrapper_: { display: "flex" },
+		_sliderContainer_: { display: "flex" },
+		_small_wl3o7_73: { "font-size": "14px", "font-weight": "500" },
+		_smallButtons_: { display: "flex" },
+		_smallHeader_: { display: "flex" },
+		_smallText_a636ed6: { "font-size": "12px" },
+		_soundOutputButton_a6d011c: { display: "flex" },
+		_subMenuIcon_fbc18e3: { color: "rgb(120, 120, 135)" },
+		_tableHeader_: { display: "flex", color: "rgba(255, 255, 255, 0.6)" },
+		_tableRow_: { display: "flex", color: "rgb(255, 255, 255)" },
+		_textContent_462c76e: { display: "flex" },
+		_textWrapper_da25926: { display: "flex" },
+		_thumbnail_f82abfa: { display: "flex" },
+		_timeColumn_: { display: "flex" },
+		_title_2bc5e10: { "font-size": "14px", "font-weight": "600", color: "rgb(255, 255, 255)" },
+		_title_3b8740e: { display: "flex" },
+		_titleArtistStack_: { display: "flex" },
+		_titleColumn_: { display: "flex" },
+		_titleContainer_: { display: "flex" },
+		_titleGroup_208d294: { display: "flex" },
+		_titleText_1d0e44e: { color: "rgba(255, 255, 255, 0.3)" },
+		_titleText_51cccae: { display: "block" },
+		"_trackcells-sort_ecf19dd": { color: "rgba(255, 255, 255, 0.6)" },
+		_trackContent_: { display: "flex" },
+		_trackInfo_: { display: "flex" },
+		_utilityButtons_: { display: "flex" },
+		_utilityContainer_: { display: "flex" },
+		"wave-text-capital-demi": { "font-size": "10px", "font-weight": "600" },
+		"wave-text-caption-demi": { "font-size": "12px", "font-weight": "600" },
+		"wave-text-description-demi": { "font-size": "14px", "font-weight": "600" },
+		"wave-text-headline-bold": { "font-weight": "700" },
+		"wave-text-subheadline-bold": { "font-size": "20px", "font-weight": "600" },
+		"wave-text-title-bold": { "font-size": "32px", "font-weight": "700" },
+	};
+	const TIDAL_LOOK = new Map(Object.entries(TIDAL_LOOK_ENTRIES));
+	// A form control's own font, from Chromium's sheet (`font:
+	// -webkit-small-control`, which TIDAL's normalize sizes back to its
+	// parent's): weight 400 whatever its parent's, normal line height, and
+	// a field's text in Chromium's field colour (HorizontalVolumeSlider's
+	// range reads `rgb(16, 16, 16)` in TIDAL).
+	const FORM_LOOK = { "font-weight": "400", "line-height": "normal" };
+	const FIELD_LOOK = { ...FORM_LOOK, color: "rgb(16, 16, 16)" };
+	const TAG_LOOK = { button: FORM_LOOK, input: FIELD_LOOK, select: FIELD_LOOK, textarea: FIELD_LOOK };
+	// TIDAL's `._utilityButtons_4d7aaf9 button { color: var(--market-core-
+	// text-20-color); display: flex }`: a plugin's button among the player
+	// bar's utility buttons (OneClickLyrics', MusicVideoButton's) is grey.
+	const inUtility = (el) => {
+		for (let n = el.parentNode, i = 0; n instanceof g.Element && i < 4; n = n.parentNode, i++) if (String(n.getAttribute("class") ?? "").includes("_utilityButtons_")) return true;
+		return false;
+	};
+	const UTILITY_BUTTON = { color: "rgba(255, 255, 255, 0.55)", display: "flex" };
+	const lookCache = new Map();
+	const pageLooks = new Map();
+	const lookOf = (el) => {
+		const tag = el.localName;
+		// A plugin window's page has Chromium's sheet only.
+		if (L.page) {
+			const look = TAG_LOOK[tag];
+			if (!look) return null;
+			let m = pageLooks.get(tag);
+			if (!m) pageLooks.set(tag, (m = new Map(Object.entries(look))));
+			return m;
+		}
+		const cls = el.getAttribute?.("class") ?? "";
+		const utility = tag === "button" && inUtility(el);
+		if (!cls && !(tag in TAG_LOOK)) return null;
+		const light = D.colorScheme === "light";
+		const key = `${tag in TAG_LOOK ? tag : ""}|${utility ? "u" : ""}|${light ? "l" : ""}|${cls}`;
+		const hit = lookCache.get(key);
+		if (hit !== undefined) return hit;
+		let out = null;
+		const put = (look) => {
+			for (const k in look) if (!(k === "color" && light)) (out ??= new Map()).set(k, look[k]);
+		};
+		if (tag in TAG_LOOK) put(TAG_LOOK[tag]);
+		if (utility) put(UTILITY_BUTTON);
+		for (const c of cls.split(/\s+/)) {
+			if (!c) continue;
+			const look = TIDAL_LOOK.get(c) ?? TIDAL_LOOK.get(/^(_[A-Za-z0-9]+_)[0-9a-z]{5,8}(?:_\d+)?$/.exec(c)?.[1] ?? "");
+			if (look) put(look);
+		}
+		if (lookCache.size > 4096) lookCache.clear();
+		lookCache.set(key, out);
+		return out;
+	};
 	const cascadedOf = (ix, tok, el) => {
 		const m = el._cs;
 		if (m !== undefined && m.tok === tok) return m.res;
 		const p = el.parentNode;
 		const up = p instanceof g.Element ? cascadedOf(ix, tok, p) : ROOT_CS;
 		const d = cascade(ix, el);
-		if (m !== undefined && m.d === d && m.up === up) {
+		const look = lookOf(el);
+		if (m !== undefined && m.d === d && m.up === up && m.look === look) {
 			m.tok = tok;
 			return m.res;
 		}
@@ -1672,6 +1873,7 @@
 		let vars = up.vars;
 		const props = new Map();
 		for (const [k, v] of up.props) if (INHERITED.has(k)) props.set(k, v);
+		if (look) for (const [k, v] of look) props.set(k, v);
 		if (d) {
 			for (const [k, v] of d)
 				if (k.startsWith("--")) {
@@ -1684,8 +1886,8 @@
 				if (r !== "inherit") props.set(k, r);
 			}
 		}
-		const res = { props, vars, base: null };
-		el._cs = { tok, d, up, res };
+		const res = { props, vars, base: null, look };
+		el._cs = { tok, d, up, look, res };
 		return res;
 	};
 	const cascaded = (el) => {
@@ -1784,17 +1986,91 @@
 		if (m.res.fontPx !== undefined) return m.res.fontPx;
 		const p = el.parentNode;
 		const parent = p instanceof g.Element && p._cs !== undefined ? fontSizeOf(p) : ROOT_FONT_PX;
-		const own = m.d?.get("font-size");
+		const own = m.d?.get("font-size") ?? m.res.look?.get("font-size");
 		const px = own === undefined ? parent : (declaredFontPx(resolveVars(own, m.res.vars), parent) ?? parent);
 		m.res.fontPx = px;
 		return px;
 	};
 	const WEIGHTS = { normal: "400", bold: "700" };
+	// Blockification (CSS Display 3): the item of a flex or grid container, an
+	// absolutely positioned or floated box and the root are block-level, so
+	// their `display` computes to the block-level twin of an inline one
+	// (Chromium reports `flex` for SongReleaseDate's `inline-flex` date in
+	// the player bar's title, a flex box).
+	const BLOCKIFIED = { inline: "block", "inline-block": "block", "inline-flex": "flex", "inline-grid": "grid", "inline-table": "table", "inline-list-item": "list-item", "table-row-group": "block", "table-header-group": "block", "table-footer-group": "block", "table-row": "block", "table-cell": "block", "table-column-group": "block", "table-column": "block", "table-caption": "block", "ruby-base": "block", "ruby-text": "block" };
+	const FLEX_OR_GRID = /^(inline-)?(flex|grid)$/;
+	// An element's `display` before any rule: Chromium's own sheet, and on
+	// TIDAL's page its normalize sheet (`audio, canvas, video {
+	// display: inline-block }`, `audio:not([controls])` and `[hidden]` not
+	// shown, `details`, `summary` and the like blocks). A picture and an
+	// SVG are inline in Chromium.
+	const TAG_DISPLAY = { li: "list-item", table: "table", caption: "table-caption", thead: "table-header-group", tbody: "table-row-group", tfoot: "table-footer-group", tr: "table-row", td: "table-cell", th: "table-cell", col: "table-column", colgroup: "table-column-group", button: "inline-block", input: "inline-block", select: "inline-block", textarea: "inline-block", meter: "inline-block", progress: "inline-block" };
+	const TIDAL_TAG_BLOCK = new Set(["details", "figcaption", "hgroup", "summary", "dialog", "fieldset", "legend", "hr", "address", "blockquote", "dl", "dt", "dd", "menu"]);
+	const tagDisplay = (el) => {
+		const t = el.localName;
+		if (NONE.has(t) || el.hasAttribute?.("hidden")) return "none";
+		if (t === "audio" && !el.hasAttribute?.("controls")) return "none";
+		if (BLOCK.has(t)) return "block";
+		if (TAG_DISPLAY[t] !== undefined) return TAG_DISPLAY[t];
+		if (TIDAL_TAG_BLOCK.has(t)) return "block";
+		if (!L.page && (t === "audio" || t === "canvas" || t === "video")) return "inline-block";
+		return "inline";
+	};
+	const word = (x) =>
+		String(x ?? "")
+			.replace(/!important/i, "")
+			.trim()
+			.toLowerCase();
+	// The element's computed `display`, kept with its cascaded result. A
+	// `display: contents` parent passes its own parent's box on: its
+	// children are that box's items.
+	const displayOf = (el) => {
+		const res = el._cs?.res;
+		// `hidden` on or off changes no rule: the cached answer is for one.
+		const hid = !!el.hasAttribute?.("hidden");
+		if (res?.display !== undefined && res.hid === hid) return res.display;
+		const props = res?.props;
+		const own = word(props?.get("display")) || tagDisplay(el);
+		let d = own;
+		if (BLOCKIFIED[d] !== undefined) {
+			let up = el.parentNode;
+			while (up instanceof g.Element && up._cs !== undefined && displayOf(up) === "contents") up = up.parentNode;
+			const upDisplay = up instanceof g.Element && up._cs !== undefined ? displayOf(up) : "";
+			const out = /^(absolute|fixed)$/.test(word(props?.get("position"))) || /^(left|right|inline-start|inline-end)$/.test(word(props?.get("float")));
+			if (FLEX_OR_GRID.test(upDisplay) || out || el === g.document?.documentElement) d = BLOCKIFIED[d];
+		}
+		if (res) {
+			res.display = d;
+			res.hid = hid;
+		}
+		return d;
+	};
+	// A corner radius as Chromium computes it: lengths in pixels (`0` is
+	// `0px`, `em` and `rem` resolved), percentages kept, and the four
+	// corners written as briefly as they read (`0 0 12px 12px` is
+	// `0px 0px 12px 12px`, `8px 8px` is `8px`).
+	const radiusPx = (value, fontPx) => {
+		const s = String(value).trim();
+		if (s.includes("/") || /var\(|calc\(/i.test(s)) return s;
+		const parts = s.split(/\s+/).map((p) => {
+			const m = /^(-?[\d.]+)(px|em|rem)?$/i.exec(p);
+			if (!m) return p;
+			const n = parseFloat(m[1]);
+			const px = !m[2] || m[2].toLowerCase() === "px" ? n : m[2].toLowerCase() === "em" ? n * fontPx : n * ROOT_FONT_PX;
+			return `${Math.round(px * 1000) / 1000}px`;
+		});
+		if (parts.length !== 4 && parts.length !== 3 && parts.length !== 2) return parts.join(" ");
+		const [a, b, c = a, d = b] = parts;
+		if (a === b && b === c && c === d) return a;
+		if (a === c && b === d) return `${a} ${b}`;
+		if (b === d) return `${a} ${b} ${c}`;
+		return `${a} ${b} ${c} ${d}`;
+	};
 	const computedBase = (el, res) => {
 		const { props, vars } = res;
 		const m = new Map();
 		const box = () => el.getBoundingClientRect();
-		m.set("display", v(NONE.has(el.localName) ? "none" : BLOCK.has(el.localName) ? "block" : el.localName === "svg" || el.localName === "img" ? "inline-block" : "inline"));
+		m.set("display", v(tagDisplay(el)));
 		for (const [k, x] of [
 			["visibility", "visible"],
 			["opacity", "1"],
@@ -1810,7 +2086,8 @@
 		m.set("height", { get value() { return `${box().height}px`; }, important: false });
 		m.set("line-height", v("normal"));
 		m.set("transform", v("none"));
-		for (const [k, x] of props) m.set(k, v(x));
+		for (const [k, x] of props) m.set(k, v(/radius$/.test(k) ? radiusPx(x, fontSizeOf(el)) : x));
+		m.set("display", v(displayOf(el)));
 		// Computed values as a browser reports them: the font size in pixels,
 		// a weight as its number, a z-index within a 32-bit integer (oneko's
 		// `Number.MAX_SAFE_INTEGER` reads 2147483647), an address quoted.

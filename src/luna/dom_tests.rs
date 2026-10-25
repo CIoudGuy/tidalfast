@@ -727,6 +727,96 @@ R.found = {
     finish(luna, dir);
 }
 
+/// `display` as Chromium computes it on TIDAL's page: a flex or grid item,
+/// an absolutely positioned or floated box is blockified (SongReleaseDate's
+/// `inline-flex` date in the player bar's title, a flex box in TIDAL's
+/// sheet, reads `flex`; tidal-genres' badge in `._trackContent_` too), a
+/// `display: contents` box passes its parent's on, and the tags start from
+/// Chromium's sheet and TIDAL's normalize (`video { inline-block }`, an
+/// `img` and an `svg` inline, `li` a list item, `[hidden]` and an `audio`
+/// without controls not shown). Text inside TIDAL's `._smallText_` is its
+/// 12 px, and what is inside the closed now-playing view is hidden
+/// (StarryNight's sky). A corner radius computes to pixels, written as briefly as it
+/// reads, and TIDAL's radius variables resolve.
+#[test]
+fn computed_display_and_lengths_follow_chromium_and_tidals_sheet() {
+    let (luna, _host, dir) = start(
+        r##"
+const add = (parent, tag, css) => {
+	const el = document.createElement(tag);
+	if (css) el.style.cssText = css;
+	parent.appendChild(el);
+	return el;
+};
+const cs = (el) => getComputedStyle(el);
+lib.observe(unloads, '[data-test="footer-track-title"]', (title) => {
+	if (R.found) return;
+	const flex = add(document.body, "div", "display: flex");
+	const item = add(flex, "span", "display: inline-flex");
+	const plainItem = add(flex, "span", "");
+	const contents = add(flex, "div", "display: contents");
+	const deepItem = add(contents, "span", "display: inline-block");
+	const abs = add(document.body, "span", "position: absolute");
+	const floated = add(document.body, "span", "float: left");
+	const outside = add(document.body, "span", "display: inline-flex");
+	const li = add(add(document.body, "ul", ""), "li", "");
+	const hidden = add(document.body, "div", "");
+	hidden.hidden = true;
+	const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+	document.body.appendChild(svg);
+	const date = add(title, "span", "display: inline-flex");
+	const bar = document.querySelector('[class*="_smallText_"]');
+	const small = add(bar, "span", "");
+	const closed = add(document.body, "section", "");
+	closed.className = "_nowPlayingContainer_88d37df _nowPlayingHidden_7e74506";
+	const sky = add(closed, "div", "");
+	R.found = {
+		sky: cs(sky).visibility,
+		items: [item, plainItem, deepItem, abs, floated, outside].map((e) => cs(e).display),
+		tags: ["video", "img", "button", "audio"].map((t) => cs(add(document.body, t, "")).display).concat([cs(svg).display, cs(li).display, cs(hidden).display]),
+		date: cs(date).display,
+		small: cs(small).fontSize,
+		radii: ["border-radius: 0 0 12px 12px", "border-radius: 0.5em 0.5em", "border-radius: var(--wave-border-radius--extra-small)"].map((c) => cs(add(document.body, "div", c)).borderRadius),
+	};
+});
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 20, |r| !r["found"].is_null());
+    let f = &r["found"];
+    assert_eq!(
+        f["items"],
+        json!(["flex", "block", "block", "block", "block", "inline-flex"]),
+        "{f}"
+    );
+    assert_eq!(
+        f["tags"],
+        json!([
+            "inline-block",
+            "inline",
+            "inline-block",
+            "none",
+            "inline",
+            "list-item",
+            "none"
+        ]),
+        "{f}"
+    );
+    assert_eq!(f["date"], json!("flex"), "{f}");
+    assert_eq!(f["small"], json!("12px"), "{f}");
+    assert_eq!(
+        f["sky"],
+        json!("hidden"),
+        "inside the closed now-playing view: {f}"
+    );
+    assert_eq!(
+        f["radii"],
+        json!(["0px 0px 12px 12px", "7px", "4px"]),
+        "{f}"
+    );
+    finish(luna, dir);
+}
+
 /// Chromium's prefixed aliases are the standard property: radiant-lyrics
 /// sets `backdrop-filter` and `-webkit-backdrop-filter` on the player bar,
 /// which in TIDAL is one property, written once in the style attribute.
