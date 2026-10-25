@@ -1076,6 +1076,9 @@
 			try {
 				localReducer(type, payload);
 			} catch {}
+		// An interceptor that read the store saw it before the action: what
+		// it reads next has the action in it.
+		invalidate();
 		if (go && watch !== null) {
 			sendEdited(watch);
 			watchEdits(watch);
