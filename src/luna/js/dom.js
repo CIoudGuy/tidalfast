@@ -888,6 +888,19 @@
 		return /^(webkit|moz|ms)-/.test(s) ? `-${s}` : s;
 	};
 	const camel = (k) => k.replace(/^-(webkit|moz|ms)-/, "$1-").replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+	// Chromium's prefixed aliases: a declaration of one is the standard
+	// property's, under the standard name (radiant-lyrics sets
+	// `backdrop-filter` and `-webkit-backdrop-filter` on the player bar,
+	// which is one property there). A `-moz-`, `-ms-` or `-o-` property is
+	// not one of Chromium's: it is dropped.
+	const ALIASED = new Set(["align-content", "align-items", "align-self", "animation", "animation-delay", "animation-direction", "animation-duration", "animation-fill-mode", "animation-iteration-count", "animation-name", "animation-play-state", "animation-timing-function", "appearance", "backdrop-filter", "backface-visibility", "background-clip", "background-origin", "background-size", "border-bottom-left-radius", "border-bottom-right-radius", "border-radius", "border-top-left-radius", "border-top-right-radius", "box-shadow", "box-sizing", "clip-path", "column-count", "column-gap", "column-rule", "column-rule-color", "column-rule-style", "column-rule-width", "column-span", "column-width", "columns", "filter", "flex", "flex-basis", "flex-direction", "flex-flow", "flex-grow", "flex-shrink", "flex-wrap", "font-feature-settings", "justify-content", "order", "perspective", "perspective-origin", "transform", "transform-origin", "transform-style", "transition", "transition-delay", "transition-duration", "transition-property", "transition-timing-function"]);
+	const canonical = (k) => {
+		if (k.startsWith("-webkit-")) {
+			const s = k.slice(8);
+			return ALIASED.has(s) ? s : k;
+		}
+		return /^-(moz|ms|o)-/.test(k) ? null : k;
+	};
 	// Split `a; b; c` at top level (outside parens and strings).
 	const splitDecls = (text) => {
 		const out = [];
@@ -929,7 +942,8 @@
 				important = true;
 				value = value.slice(0, m.index).trim();
 			}
-			out.push({ name: name.startsWith("--") ? name : name.toLowerCase(), value, important });
+			const key = name.startsWith("--") ? name : canonical(name.toLowerCase());
+			if (key !== null) out.push({ name: key, value, important });
 		}
 		return out;
 	};
@@ -955,14 +969,17 @@
 			this._owner?._styleChanged?.();
 		}
 		getPropertyValue(k) {
-			return this._m.get(String(k).startsWith("--") ? String(k) : String(k).toLowerCase())?.value ?? "";
+			k = String(k);
+			return this._m.get(k.startsWith("--") ? k : canonical(k.toLowerCase()))?.value ?? "";
 		}
 		getPropertyPriority(k) {
-			return this._m.get(String(k))?.important ? "important" : "";
+			k = String(k);
+			return this._m.get(k.startsWith("--") ? k : canonical(k.toLowerCase()))?.important ? "important" : "";
 		}
 		setProperty(k, v, prio) {
 			k = String(k);
-			if (!k.startsWith("--")) k = k.toLowerCase();
+			if (!k.startsWith("--")) k = canonical(k.toLowerCase());
+			if (k === null) return;
 			if (v === null || v === undefined || String(v).trim() === "") return this.removeProperty(k);
 			let value = String(v).trim();
 			let important = String(prio ?? "").toLowerCase() === "important";
@@ -979,6 +996,7 @@
 		}
 		removeProperty(k) {
 			k = String(k);
+			if (!k.startsWith("--")) k = canonical(k.toLowerCase()) ?? k;
 			const cur = this._m.get(k);
 			if (!cur) return "";
 			this._own();
@@ -1048,6 +1066,7 @@
 		if (s === undefined) {
 			if (kebabs.size > 4096) kebabs.clear();
 			s = kebab(k);
+			s = canonical(s) ?? s;
 			kebabs.set(k, s);
 		}
 		return s;
