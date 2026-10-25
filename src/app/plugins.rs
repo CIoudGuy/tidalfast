@@ -704,6 +704,8 @@ impl App {
             }
             if self.plugins.demo_installer.tick(luna) {
                 ctx.request_repaint_after(Duration::from_millis(50));
+            } else {
+                crate::demo::set_themes_ready(true);
             }
         }
         if !wanted {
