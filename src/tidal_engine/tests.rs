@@ -21,6 +21,7 @@ use crate::tidal_engine::decode::tests::wav;
 mod adaptive;
 mod listed_twice;
 mod paged;
+mod queued_details;
 mod song_end;
 mod video_wait;
 

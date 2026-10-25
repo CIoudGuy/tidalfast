@@ -95,7 +95,15 @@ pub struct Queue {
     /// not wrap round that song alone, so Next, Previous and its end wait
     /// for the context instead of playing it again.
     partial: bool,
+    /// The songs the last clears took off *Playing next*, with their
+    /// details: the app reorders the queued songs by clearing them and
+    /// adding them again, and a song added again takes its details back
+    /// from here instead of being looked up anew ([`Self::known`]).
+    cleared: VecDeque<LocalTrack>,
 }
+
+/// More songs than *Playing next* holds in use; older ones are let go.
+const CLEARED_KEPT: usize = 500;
 
 impl Default for Queue {
     fn default() -> Self {
@@ -128,6 +136,7 @@ impl Queue {
             recent: Recent::default(),
             blocked: BlockedSet::default(),
             partial: false,
+            cleared: VecDeque::new(),
         }
     }
 
@@ -625,7 +634,37 @@ impl Queue {
 
     /// Empties *Playing next*, keeping the context.
     pub fn clear_queued(&mut self) {
-        self.queued.clear();
+        for track in std::mem::take(&mut self.queued) {
+            if track.title.is_empty() {
+                continue;
+            }
+            self.cleared.retain(|kept| kept.uri != track.uri);
+            self.cleared.push_back(track);
+        }
+        while self.cleared.len() > CLEARED_KEPT {
+            self.cleared.pop_front();
+        }
+    }
+
+    /// The details the queue holds already for the song `uri`: a queued
+    /// copy, one taken off by a clear, the playing song, or the context's.
+    pub fn known(&self, uri: &str) -> Option<LocalTrack> {
+        self.queued
+            .iter()
+            .chain(self.cleared.iter().rev())
+            .chain(self.current.as_ref().map(|(track, _)| track))
+            .chain(&self.context)
+            .find(|track| track.uri == uri && !track.title.is_empty())
+            .cloned()
+    }
+
+    /// Whether a queued copy of `uri`, or the playing song, still waits for
+    /// its details.
+    pub fn lacks(&self, uri: &str) -> bool {
+        self.queued
+            .iter()
+            .chain(self.current.as_ref().map(|(track, _)| track))
+            .any(|track| track.uri == uri && track.title.is_empty())
     }
 
     /// Fills in metadata for queued songs added by URI alone.
