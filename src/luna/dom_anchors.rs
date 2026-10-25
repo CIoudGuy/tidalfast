@@ -1789,6 +1789,9 @@ pub struct PlayerBar {
     pub cover_url: Option<String>,
     /// TIDAL's audio quality (`HI_RES_LOSSLESS`, `LOSSLESS`, `HIGH`, ...).
     pub quality: Option<String>,
+    /// The quality the song is expected at before its stream says (the
+    /// user's streaming quality, capped by the song's own).
+    pub expected_quality: Option<String>,
     pub favorite: bool,
     pub playing: bool,
     pub shuffle: bool,
@@ -4421,13 +4424,26 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     // TIDAL 2.46.0's quality badge, the utility container's second child
     // (`div._qualityBadgeContainer_b9ec6fa > a[data-test=quality-badge-*]`,
     // captured; Tidal Tags colours the container). A song whose stream has
-    // not started yet still has TIDAL's badge, with
-    // no quality: plugins look the indicator up as the song changes (Tidal
-    // Tags) and give up after a second.
+    // not started yet still has TIDAL's badge (plugins look the indicator up
+    // as the song changes, Tidal Tags, and give up after a second), with the
+    // quality TIDAL 2.46.0's selector gives it then: the stream's, else the
+    // user's streaming quality capped by the song's (radiant-lyrics colours
+    // the progress bar by it at load). Its words are TIDAL's for a badge
+    // with no bit depth or sample rate yet: a lossy quality's bit rate,
+    // else "LOW" (its `quality_low` string in capitals).
     let pending = p.quality.is_none() && p.track_id.is_some();
-    if let Some(q) = p.quality.as_deref().or(pending.then_some("")) {
+    let expected = pending.then(|| p.expected_quality.as_deref().unwrap_or(""));
+    if let Some(q) = p.quality.as_deref().or(expected) {
         let (tier, gradient, classes, text) = if q.is_empty() {
             ("low", "gradientLow", &["badge"][..], "")
+        } else if pending {
+            let (tier, gradient, classes, _) = badge(q);
+            let text = match q {
+                "HIGH" => "320 kbps",
+                "LOW" => "96 kbps",
+                _ => "LOW",
+            };
+            (tier, gradient, classes, text)
         } else {
             badge(q)
         };
@@ -5354,6 +5370,58 @@ mod tests {
         let gradient = find(&tree, keys::QUALITY_GRADIENT);
         assert_eq!(gradient.parent.as_deref(), Some(keys::QUALITY_BADGE));
         assert_eq!(attr(gradient, "class"), Some("_gradientHigh_87f2c3b"));
+    }
+
+    /// Before a song's stream says, TIDAL 2.46.0's badge names the quality
+    /// the song is expected at (its selector: the stream's quality, else the
+    /// user's streaming quality capped by the song's) and has TIDAL's words
+    /// for a badge with no bit depth or sample rate yet: a lossy quality's
+    /// bit rate, else "LOW". radiant-lyrics colours the progress bar by it
+    /// at load. Without an expected quality it has none, and once the stream
+    /// says, the stream's.
+    #[test]
+    fn a_badge_waiting_for_its_stream_names_the_expected_quality() {
+        let badge_of = |quality: Option<&str>, expected: Option<&str>| {
+            let mut frame = sample_frame();
+            let p = frame.player.as_mut().unwrap();
+            p.quality = quality.map(str::to_string);
+            p.expected_quality = expected.map(str::to_string);
+            let tree = build(&frame);
+            let badge = find(&tree, keys::QUALITY_BADGE);
+            (
+                attr(badge, "data-test-quality-badge-streaming-quality").map(str::to_string),
+                attr(badge, "data-test").map(str::to_string),
+                attr(badge, "class").map(str::to_string),
+                find(&tree, keys::QUALITY_LABEL).text.clone(),
+            )
+        };
+        let s = |v: &str| Some(v.to_string());
+        assert_eq!(
+            badge_of(None, Some("LOSSLESS")),
+            (
+                s("LOSSLESS"),
+                s("quality-badge-high"),
+                s("_badge_7b2911e _high_4b5525b"),
+                s("LOW")
+            )
+        );
+        let max = badge_of(None, Some("HI_RES_LOSSLESS"));
+        assert_eq!((max.0, max.3), (s("HI_RES_LOSSLESS"), s("LOW")));
+        assert_eq!(badge_of(None, Some("HIGH")).3, s("320 kbps"));
+        assert_eq!(badge_of(None, Some("LOW")).3, s("96 kbps"));
+        assert_eq!(
+            badge_of(None, None),
+            (s(""), s("quality-badge-low"), s("_badge_7b2911e"), s(""))
+        );
+        assert_eq!(
+            badge_of(Some("LOSSLESS"), Some("HI_RES_LOSSLESS")),
+            (
+                s("LOSSLESS"),
+                s("quality-badge-high"),
+                s("_badge_7b2911e _high_4b5525b"),
+                s("HIGH")
+            )
+        );
     }
 
     /// AltPlay sizes the quality badge from the label span's `offsetWidth`
