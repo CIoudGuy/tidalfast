@@ -452,12 +452,9 @@ fn note_player_bar(app: &App, rect: Rect, now: Option<&NowPlaying>, view_open: b
             bar.duration = now.duration_ms as f32 / 1000.0;
             bar.volume = f32::from(now.volume_percent) / 100.0;
             bar.muted = now.volume_percent == 0;
-            // The badge's quality until this computer's stream says.
-            bar.expected_quality = now.local.then(|| {
-                app.expected_stream_quality(now.id.as_deref())
-                    .api_name()
-                    .to_string()
-            });
+            // The badge's quality until a stream here says, for every
+            // song (one on another device too).
+            bar.expected_quality = Some(app.badge_quality(now).api_name().to_string());
         }
         f.player = Some(bar);
     });

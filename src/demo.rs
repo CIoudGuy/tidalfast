@@ -5429,6 +5429,75 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// A song on another device has no stream here, and TIDAL 2.46.0's
+    /// badge still names a quality for it (its selector: the user's
+    /// streaming quality capped by the song's `audioQuality`), with the
+    /// `data-test`, classes and words that follow: High's "320 kbps" under a
+    /// High setting, the song's LOSSLESS under Max.
+    #[test]
+    fn the_badge_of_a_song_on_another_device_names_tidals_quality() {
+        use crate::luna::dom::DomOverlay;
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("remote-badge");
+        app.open(Page::Home);
+        assert!(app.now_playing().is_some_and(|now| !now.local));
+        let badge = |app: &mut App, setting: &str| {
+            app.settings.tidal_quality = setting.into();
+            plugin_dom::test_overlay(Some(DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            }));
+            for _ in 0..3 {
+                shown_frame(&ctx, app);
+                plugin_dom::end_frame(&ctx);
+            }
+            let sent = plugin_dom::test_sent_tree().expect("a tree was sent");
+            plugin_dom::test_overlay(None);
+            let attr = |key: &str, name: &str| {
+                let node = sent.nodes.iter().find(|n| n.key == key)?;
+                node.attrs
+                    .iter()
+                    .find(|(k, _)| k == name)
+                    .map(|(_, v)| v.clone())
+            };
+            let words = sent
+                .nodes
+                .iter()
+                .find(|n| n.key == keys::QUALITY_LABEL)
+                .and_then(|n| n.text.clone());
+            (
+                attr(keys::QUALITY_BADGE, "data-test"),
+                attr(keys::QUALITY_BADGE, "class"),
+                attr(
+                    keys::QUALITY_BADGE,
+                    "data-test-quality-badge-streaming-quality",
+                ),
+                words,
+            )
+        };
+        let s = |v: &str| Some(v.to_string());
+        assert_eq!(
+            badge(&mut app, "HIGH"),
+            (
+                s("quality-badge-HIGH"),
+                s("_badge_7b2911e"),
+                s("HIGH"),
+                s("320 kbps")
+            )
+        );
+        assert_eq!(
+            badge(&mut app, "HI_RES_LOSSLESS"),
+            (
+                s("quality-badge-LOSSLESS"),
+                s("_badge_7b2911e _high_4b5525b"),
+                s("LOSSLESS"),
+                s("LOW")
+            )
+        );
+        app.backend.shutdown();
+    }
+
     /// The collapsed sidebar's rail has no Collection row in the plugins'
     /// page, so no Collection submenu: nothing of the submenu is noted
     /// there, where the expanded sidebar notes its 8 pages.

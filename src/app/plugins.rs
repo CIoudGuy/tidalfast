@@ -238,13 +238,24 @@ fn app_repeat(mode: LunaRepeat) -> RepeatMode {
 }
 
 impl App {
-    /// The quality the song `id` is expected at before its stream says:
-    /// what plugins see in the badge and the playback context until then.
-    pub(crate) fn expected_stream_quality(&self, id: Option<&str>) -> crate::tidal_engine::Quality {
-        expected_quality(
-            id.and_then(|id| self.track_cache.get(id)),
-            self.settings.quality(),
-        )
+    /// The quality the player's badge names for the song `now` while no
+    /// stream of it here says one, as TIDAL 2.46.0's selector gives it (its
+    /// bundle, `fZ`): the playback context's quality, which for a song
+    /// playing here is the quality it is expected at (what plugins read
+    /// there until its stream says), else the user's streaming quality
+    /// capped by the song's `audioQuality` (a song on another device).
+    /// Never none.
+    pub(crate) fn badge_quality(&self, now: &NowPlaying) -> crate::tidal_engine::Quality {
+        use crate::tidal_engine::Quality;
+        let track = now.id.as_deref().and_then(|id| self.track_cache.get(id));
+        let asked = self.settings.quality();
+        if now.local {
+            return expected_quality(track, asked);
+        }
+        track
+            .and_then(|track| track.audio_quality.as_deref())
+            .and_then(Quality::from_api)
+            .map_or(asked, |own| own.min(asked))
     }
 
     /// Offer a user action to Luna plugins first; `true` when the caller
