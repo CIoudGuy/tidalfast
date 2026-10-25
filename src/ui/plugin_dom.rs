@@ -153,10 +153,12 @@ struct State {
     /// The next `font_names` and `element_fonts`, taken at the next frame,
     /// when egui has the families.
     fonts_next: Option<(Vec<String>, HashMap<String, String>)>,
-    /// Outlines plugins set on host elements, for this overlay version.
-    outlines: Option<(u64, Vec<HostOutline>)>,
-    /// Words themes draw on host elements, for this overlay version.
-    labels: Option<(u64, Vec<HostLabel>)>,
+    /// Outlines plugins set on host elements, for this overlay version and
+    /// window size (their `vw` and `vh` are the window's).
+    outlines: Option<(u64, [f32; 2], Vec<HostOutline>)>,
+    /// Words themes draw on host elements, for this overlay version and
+    /// window size.
+    labels: Option<(u64, [f32; 2], Vec<HostLabel>)>,
     /// `overlay.scroll_top` not applied yet: (container key, top).
     scroll_top_seq: u64,
     scroll_top_pending: Option<(String, f32)>,
@@ -183,17 +185,17 @@ struct State {
     secondary_dropped: bool,
     /// The page background, parsed for this overlay version.
     page_layers: Option<(u64, Arc<PageLayers>)>,
-    /// Anchors' box layers, parsed for this overlay version.
-    box_layers: Option<(u64, BoxLayerCache)>,
-    /// The theme's badge, bar cards and grid cards, parsed for this
-    /// overlay version.
-    theme_boxes: Option<(u64, ThemeBoxes)>,
+    /// Anchors' box layers, parsed for this overlay version and window size
+    /// (a layer's `vw` and `vh` are the window's).
+    box_layers: Option<(u64, [f32; 2], BoxLayerCache)>,
+    /// The theme's badge, bar cards and grid cards and every anchor's look,
+    /// parsed for this overlay version and window size. A resize leaves the
+    /// overlay as it was (its rules say `20vh` at any size), so the size is
+    /// part of what these are kept for.
+    theme_boxes: Option<(u64, [f32; 2], ThemeBoxes)>,
     /// The shell geometry a theme sets, for this overlay version and window
     /// size (`None` inside when the theme sets none).
     layout: Option<LayoutCache>,
-    /// The window's size when the looks resolved from the theme were last
-    /// started over (a look's `vw` and `vh` are the window's).
-    looks_at: [f32; 2],
     /// The `:hover` target last told to the runtime.
     hover_sent: Option<DomTarget>,
     /// Pointer position last sent as `mousemove`, and when.
@@ -546,7 +548,7 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
         }
         let overlay = luna.dom_overlay();
         if overlay.version != s.overlay.version {
-            carry_looks(s, &overlay, [window.width(), window.height()]);
+            carry_looks(s, &overlay);
             let old = std::mem::replace(&mut s.overlay, overlay);
             s.pictures = sets_pictures(&s.overlay);
             if old.may_move_boxes(&s.overlay) {
@@ -619,14 +621,14 @@ pub fn begin_frame(ctx: &egui::Context, luna: Option<&Luna>, window: Rect, page:
 /// A new overlay is taken: what was resolved from the theme for the overlay
 /// before (the palette, every anchor's look, box layers, the page's layers,
 /// the shell's geometry) answers for the new one when it leaves the theme's
-/// parts as they were ([`DomOverlay::theme_version`]) and the window kept its
-/// size. A plugin's own element that changes (a counter, a sprite, the sung
-/// line) made all of them again on the next frame.
-fn carry_looks(s: &mut State, new: &DomOverlay, viewport: [f32; 2]) {
+/// parts as they were ([`DomOverlay::theme_version`]). What resolved lengths
+/// keeps the window size it was resolved at, and is made again at another.
+/// A plugin's own element that changes (a counter, a sprite, the sung line)
+/// made all of them again on the next frame.
+fn carry_looks(s: &mut State, new: &DomOverlay) {
     let (from, to) = (s.overlay.version, new.version);
     // A runtime that started again counts its versions from the start.
-    if new.theme_version != s.overlay.theme_version || to < from || s.looks_at != viewport {
-        s.looks_at = viewport;
+    if new.theme_version != s.overlay.theme_version || to < from {
         return;
     }
     if let Some((v, _, _)) = s.theme.as_mut()
@@ -639,12 +641,12 @@ fn carry_looks(s: &mut State, new: &DomOverlay, viewport: [f32; 2]) {
     {
         *v = to;
     }
-    if let Some((v, _)) = s.box_layers.as_mut()
+    if let Some((v, _, _)) = s.box_layers.as_mut()
         && *v == from
     {
         *v = to;
     }
-    if let Some((v, _)) = s.theme_boxes.as_mut()
+    if let Some((v, _, _)) = s.theme_boxes.as_mut()
         && *v == from
     {
         *v = to;
@@ -1113,8 +1115,8 @@ fn host_labels(
 /// bar), at the element's corner moved as the box's margins and transform
 /// say. Read once per overlay; nothing is drawn while no rule draws words.
 fn paint_host_labels(ctx: &egui::Context, s: &mut State) {
-    let version = s.overlay.version;
-    if s.labels.as_ref().map(|(v, _)| *v) != Some(version) {
+    let key = (s.overlay.version, s.frame.viewport);
+    if s.labels.as_ref().map(|(v, at, _)| (*v, *at)) != Some(key) {
         let tags: BTreeMap<&str, (&str, bool)> = s.sent.as_ref().map_or_else(BTreeMap::new, |t| {
             t.nodes
                 .iter()
@@ -1125,9 +1127,9 @@ fn paint_host_labels(ctx: &egui::Context, s: &mut State) {
                 .collect()
         });
         let list = host_labels(&s.overlay, &tags, &s.vars, s.frame.viewport);
-        s.labels = Some((version, list));
+        s.labels = Some((key.0, key.1, list));
     }
-    let Some((_, labels)) = s.labels.as_ref() else {
+    let Some((_, _, labels)) = s.labels.as_ref() else {
         return;
     };
     if labels.is_empty() {
@@ -1183,12 +1185,12 @@ fn paint_host_labels(ctx: &egui::Context, s: &mut State) {
 /// with a red glow (`box-shadow: 0 0 10px`), as TIDAL draws it. Read once
 /// per overlay; nothing is drawn while no rule sets one.
 fn paint_host_outlines(ctx: &egui::Context, s: &mut State) {
-    let version = s.overlay.version;
-    if s.outlines.as_ref().map(|(v, _)| *v) != Some(version) {
+    let key = (s.overlay.version, s.frame.viewport);
+    if s.outlines.as_ref().map(|(v, at, _)| (*v, *at)) != Some(key) {
         let list = host_outlines(&s.overlay, &s.vars, s.frame.viewport);
-        s.outlines = Some((version, list));
+        s.outlines = Some((key.0, key.1, list));
     }
-    let Some((_, outlines)) = s.outlines.as_ref() else {
+    let Some((_, _, outlines)) = s.outlines.as_ref() else {
         return;
     };
     if outlines.is_empty() {
@@ -2098,18 +2100,20 @@ pub fn tidal_panel_text(palette: Palette, panel: SidePanel) -> Palette {
     if !palette.themed {
         return Palette { accent, ..palette };
     }
+    let viewport = viewport();
     let (text, secondary, dim) = with(|s| {
         let version = s.overlay.version;
-        if let Some((v, boxes)) = &s.theme_boxes
+        if let Some((v, at, boxes)) = &s.theme_boxes
             && *v == version
+            && *at == viewport
             && let Some(roles) = boxes.panel_text[panel as usize]
         {
             return roles;
         }
         let roles = tidal_text_roles(&s.overlay, panel);
         let boxes = match &mut s.theme_boxes {
-            Some((v, boxes)) if *v == version => boxes,
-            slot => &mut slot.insert((version, ThemeBoxes::default())).1,
+            Some((v, at, boxes)) if *v == version && *at == viewport => boxes,
+            slot => &mut slot.insert((version, viewport, ThemeBoxes::default())).2,
         };
         boxes.panel_text[panel as usize] = Some(roles);
         roles
@@ -3140,11 +3144,12 @@ struct ThemeBoxes {
 }
 
 fn theme_boxes<R>(f: impl FnOnce(&mut ThemeBoxes) -> R) -> R {
+    let viewport = viewport();
     with(|s| {
         let version = s.overlay.version;
         let boxes = match &mut s.theme_boxes {
-            Some((v, boxes)) if *v == version => boxes,
-            slot => &mut slot.insert((version, ThemeBoxes::default())).1,
+            Some((v, at, boxes)) if *v == version && *at == viewport => boxes,
+            slot => &mut slot.insert((version, viewport, ThemeBoxes::default())).2,
         };
         f(boxes)
     })
@@ -7176,13 +7181,16 @@ fn paint_layers(
     }
     let layers = with(|s| {
         let version = s.overlay.version;
-        if s.box_layers.as_ref().is_none_or(|(v, _)| *v != version) {
-            s.box_layers = Some((version, BTreeMap::new()));
+        let viewport = s.frame.viewport;
+        if s.box_layers
+            .as_ref()
+            .is_none_or(|(v, at, _)| *v != version || *at != viewport)
+        {
+            s.box_layers = Some((version, viewport, BTreeMap::new()));
         }
         let host = s.overlay.hosts.get(key)?;
         let vars = s.vars.clone();
-        let viewport = s.frame.viewport;
-        let cache = &mut s.box_layers.as_mut()?.1;
+        let cache = &mut s.box_layers.as_mut()?.2;
         Some(
             cache
                 .entry(key.to_string())
@@ -9131,7 +9139,7 @@ mod tests {
         };
         let take = |o: &DomOverlay, viewport: [f32; 2]| {
             with(|s| {
-                carry_looks(s, o, viewport);
+                carry_looks(s, o);
                 s.overlay = Arc::new(o.clone());
                 s.frame.viewport = viewport;
             });
@@ -9144,10 +9152,7 @@ mod tests {
         };
         o.hosts.insert(key.into(), fill("rgb(10, 20, 30)"));
         test_overlay(Some(o.clone()));
-        with(|s| {
-            s.frame.viewport = size;
-            s.looks_at = size;
-        });
+        with(|s| s.frame.viewport = size);
         let first = anchor_look(key).expect("a look");
         // A plugin's own element changed: the theme's version is the same.
         o.version = 6;
@@ -9166,6 +9171,96 @@ mod tests {
         take(&o, [1000.0, 800.0]);
         let resized = anchor_look(key).expect("a look");
         assert!(!Arc::ptr_eq(&changed, &resized));
+        test_overlay(None);
+    }
+
+    /// An outline's corners and a box label's margins in `vw` follow the
+    /// window: a resize leaves the overlay as it was, and what is drawn at
+    /// the new size has the new window's lengths (both kept the ones
+    /// resolved at the old size).
+    #[test]
+    fn an_outline_and_a_box_label_sized_in_vw_follow_the_window() {
+        use crate::luna::dom::{HostNode, HostOverride, HostTree, Style};
+        let key = dom_anchors::keys::FOOTER;
+        let mut o = DomOverlay {
+            version: 3,
+            ..DomOverlay::default()
+        };
+        o.hosts.insert(
+            key.into(),
+            HostOverride {
+                style: Style {
+                    outline: Some("2px solid rgb(0, 200, 0)".into()),
+                    border_radius: Some("1vw".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        // Tidal TUI's box labels, with a margin in `vw`.
+        o.hosts.insert(
+            "bar".into(),
+            HostOverride {
+                before: Some(Style {
+                    content: Some("Playing".into()),
+                    margin_left: Some("1vw".into()),
+                    margin_top: Some("1vw".into()),
+                    color: Some("#fff".into()),
+                    ..Style::default()
+                }),
+                ..HostOverride::default()
+            },
+        );
+        test_overlay(Some(o));
+        let node = |key: &str, rect: [f32; 4]| HostNode {
+            key: key.into(),
+            tag: "div".into(),
+            rect: Some(rect),
+            ..HostNode::default()
+        };
+        with(|s| {
+            s.sent = Some(Arc::new(HostTree {
+                nodes: vec![
+                    node(key, [0.0, 300.0, 900.0, 90.0]),
+                    node("bar", [100.0, 100.0, 200.0, 40.0]),
+                ],
+                ..HostTree::default()
+            }));
+        });
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        // The ring's corner and where the label's words start.
+        let drawn = |size: [f32; 2]| {
+            with(|s| s.frame.viewport = size);
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                with(|s| {
+                    paint_host_outlines(ui.ctx(), s);
+                    paint_host_labels(ui.ctx(), s);
+                });
+            });
+            output.textures_delta.clear();
+            let ring = output.shapes.iter().find_map(|c| match &c.shape {
+                egui::Shape::Rect(r) if r.stroke.color == Color32::from_rgb(0, 200, 0) => {
+                    Some(r.corner_radius.nw)
+                }
+                _ => None,
+            });
+            let words = output.shapes.iter().find_map(|c| match &c.shape {
+                egui::Shape::Text(t) => Some(t.pos),
+                _ => None,
+            });
+            (ring, words)
+        };
+        // 1vw, and half the ring's width; the label 1vw in and down.
+        let wide = (Some(14), Some(egui::pos2(112.8, 112.8)));
+        assert_eq!(drawn([1280.0, 800.0]), wide);
+        assert_eq!(
+            drawn([1000.0, 400.0]),
+            (Some(11), Some(egui::pos2(110.0, 110.0))),
+            "the old window's lengths"
+        );
+        assert_eq!(drawn([1280.0, 800.0]), wide);
+        with(|s| s.sent = None);
         test_overlay(None);
     }
 
