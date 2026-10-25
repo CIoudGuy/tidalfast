@@ -211,7 +211,9 @@ fn eased(raw: f32, on: bool, transition: Transition) -> f32 {
     let elapsed = if on { raw } else { 1.0 - raw } * total;
     let local = ((elapsed - transition.delay) / transition.seconds.max(1e-6)).clamp(0.0, 1.0);
     let value = transition.ease.at(local);
-    if on { value } else { 1.0 - value }
+    // A curve can read a hair over 1 near its end in `f32`: a fade going
+    // back would then read a hair under 0.
+    if on { value } else { 1.0 - value }.clamp(0.0, 1.0)
 }
 
 /// How far something that comes into view under `id` has faded in, 0 to 1:
@@ -518,6 +520,25 @@ mod tests {
         }
         // The panel curve rushes out: most of the way there by a third.
         assert!(ease::PANEL.at(0.33) > 0.8);
+    }
+
+    /// A curve read near its end can come out a hair over 1 in `f32`
+    /// (`ease`'s at 0.99999 and the like): a fade going back then reads a
+    /// hair under 0, which `Color32::gamma_multiply` refuses in a debug
+    /// build (the plugin checker's demo panicked on a sidebar row's hover
+    /// fading out: "factor should be finite, but was -0.00000011920929").
+    /// Every eased value stays within 0 and 1.
+    #[test]
+    fn an_eased_value_never_leaves_zero_to_one() {
+        for transition in [tidal::HOVER, tidal::ICON, tidal::CARD_OVERLAY, tidal::PILL] {
+            for step in 0..=100_000 {
+                let raw = step as f32 / 100_000.0;
+                for on in [true, false] {
+                    let v = eased(raw, on, transition);
+                    assert!((0.0..=1.0).contains(&v), "{transition:?} {raw} {on}: {v}");
+                }
+            }
+        }
     }
 
     #[test]
