@@ -2119,6 +2119,43 @@ lib.observe(unloads, '[data-test="new-now-playing-close"]', (close) => {
     finish(luna, dir);
 }
 
+/// A disabled button in the player is at half strength, as TIDAL 2.46.0's
+/// own rule (`:is(._player_8c80ae6 button):disabled { opacity: .5 }`) draws
+/// it: OneClickLyrics' button for a song without words, drawn and read.
+#[test]
+fn a_disabled_button_in_the_player_is_at_half_strength() {
+    let (luna, _host, dir) = start(
+        r##"
+lib.observe(unloads, "[class*='_sliderContainer']", (slider) => {
+	if (R.done) return;
+	const off = document.createElement("button");
+	off.id = "off";
+	off.disabled = true;
+	slider.before(off);
+	const on = document.createElement("button");
+	on.id = "on";
+	slider.before(on);
+	R.opacity = [getComputedStyle(off).opacity, getComputedStyle(on).opacity];
+	R.done = true;
+});
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["opacity"], json!(["0.5", "1"]), "{r}");
+    let by_id = |o: &DomOverlay, id: &str| {
+        o.injected
+            .iter()
+            .flat_map(|i| &i.nodes)
+            .find(|n| n.attrs.iter().any(|(k, v)| k == "id" && v == id))
+            .map(|n| n.style.opacity.clone())
+    };
+    let o = overlay_until(&luna, 10, |o| by_id(o, "off").is_some());
+    assert_eq!(by_id(&o, "off"), Some(Some("0.5".into())));
+    assert_eq!(by_id(&o, "on"), Some(None));
+    finish(luna, dir);
+}
+
 /// An image's and a source's `srcset` and `sizes` reflect their attributes,
 /// as in Chromium: uwu-ifier sets `img.srcset = ""` and `img.sizes = ""` on
 /// every picture it replaces, which TIDAL's page sees as attribute changes.
