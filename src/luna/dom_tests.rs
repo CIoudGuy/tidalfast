@@ -4731,6 +4731,64 @@ setTimeout(go, 300);
     finish(luna, dir);
 }
 
+/// The now-playing lyrics are TIDAL 2.46.0's boxes: the scroll area
+/// `[data-test=now-playing-lyrics]`, its viewport, the content box
+/// `div._content_fef19e8` and in it the lines' `div[data-test=lyrics-text]`.
+/// Lyrics plugins that draw their own lines find that box from a line (its
+/// parent's parent, then the box's first `div`) or, before there are lines,
+/// from the scroll area (its first `div`, then the child named `_content_`),
+/// and put their lines in the lines' box.
+#[test]
+fn lyrics_plugins_find_tidals_lyrics_boxes() {
+    let (luna, _host, dir) = start(
+        r#"
+const go = () => {
+	const line = document.querySelector('span[data-test="lyrics-line"]');
+	if (!line) return setTimeout(go, 20);
+	const host = document.querySelector('[data-test="now-playing-lyrics"]');
+	const box = line.parentElement?.parentElement ?? null;
+	const inner = box?.querySelector(":scope > div") ?? null;
+	const first = [...host.children].find((a) => a.tagName === "DIV" && ![...a.classList].some((c) => c.startsWith("os-scrollbar")));
+	const up = [];
+	for (let n = line.parentElement; n && n !== host; n = n.parentElement) up.push(n.getAttribute("data-test") ?? (n.className || n.localName));
+	R.found = {
+		up,
+		box: [...(box?.classList ?? [])].some((c) => c.startsWith("_content_")),
+		inner: inner?.getAttribute("data-test") ?? null,
+		viaHost: first?.querySelector(':scope > [class*="_content_"]') === box,
+	};
+	const mine = document.createElement("div");
+	mine.className = "probe-lines";
+	inner?.appendChild(mine);
+};
+setTimeout(go, 300);
+"#,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| !r["found"].is_null());
+    assert_eq!(
+        r["found"],
+        json!({
+            "up": ["lyrics-text", "_content_fef19e8", "div"],
+            "box": true,
+            "inner": "lyrics-text",
+            "viaHost": true,
+        }),
+        "{r}"
+    );
+    let o = overlay_until(&luna, 10, |o| {
+        o.at(keys::LYRICS_LINES, Position::Append).count() == 1
+    });
+    assert_eq!(
+        o.at(keys::LYRICS_LINES, Position::Append)
+            .next()
+            .unwrap()
+            .attrs,
+        vec![("class".to_string(), "probe-lines".to_string())]
+    );
+    finish(luna, dir);
+}
+
 /// A read never stalls the runtime for a window that does not lay the
 /// change out: it gives up when the UI did not start drawing it in time,
 /// or, drawing it, did not send its tree, and reads the boxes it has.

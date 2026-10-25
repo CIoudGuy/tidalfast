@@ -10512,6 +10512,78 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// What a plugin puts in the lyrics' content box (TIDAL 2.46.0's
+    /// `div._content_fef19e8` round the lines' box) or in the scroll area's
+    /// viewport is drawn there, in the lyrics, with the box it is drawn at.
+    #[test]
+    fn a_plugin_element_in_the_lyrics_content_box_is_drawn() {
+        use crate::luna::dom::{DomOverlay, Injected, Position, Style, VNode};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("np-lyrics-content");
+        apply_flags(&mut app, Some("home"), Some("now-playing-lyrics"));
+        let block = |id: u64| VNode {
+            id,
+            tag: "div".into(),
+            style: Style {
+                display: Some("block".into()),
+                height: Some("30px".into()),
+                ..Style::default()
+            },
+            children: vec![VNode {
+                id: id + 100,
+                tag: "#text".into(),
+                text: Some(format!("words {id}")),
+                ..VNode::default()
+            }],
+            ..VNode::default()
+        };
+        let overlay = DomOverlay {
+            version: 1,
+            injected: vec![
+                Injected {
+                    anchor: keys::LYRICS_CONTENT.into(),
+                    position: Position::Append,
+                    nodes: vec![block(1)],
+                },
+                Injected {
+                    anchor: keys::LYRICS_VIEWPORT.into(),
+                    position: Position::Prepend,
+                    nodes: vec![block(2)],
+                },
+            ],
+            measure: vec![1, 2],
+            ..DomOverlay::default()
+        };
+        plugin_dom::test_overlay(Some(overlay));
+        for _ in 0..3 {
+            shown_frame(&ctx, &mut app);
+            plugin_dom::end_frame(&ctx);
+        }
+        let tree = plugin_dom::test_sent_tree().expect("a tree was sent");
+        plugin_dom::test_overlay(None);
+        let lyrics = tree
+            .nodes
+            .iter()
+            .find(|n| n.key == keys::LYRICS)
+            .and_then(|n| n.rect)
+            .expect("the lyrics are on screen");
+        for id in [1, 2] {
+            let r = tree
+                .node_rects
+                .iter()
+                .find(|(n, _)| *n == id)
+                .map(|(_, r)| *r)
+                .unwrap_or_else(|| panic!("{id} drawn: {:?}", tree.node_rects));
+            assert!((r[3] - 30.0).abs() < 1.0, "its own height: {r:?}");
+            assert!(
+                r[0] >= lyrics[0] - 1.0 && r[0] + r[2] <= lyrics[0] + lyrics[2] + 1.0,
+                "in the lyrics: {r:?} {lyrics:?}"
+            );
+        }
+        app.backend.shutdown();
+    }
+
     /// TidalLyricsTranslate puts its Translate button after the now-playing
     /// header's full screen button, in TIDAL 2.46.0's `div._actionButtons_`:
     /// it is drawn there, between the full screen button and the chevron,
