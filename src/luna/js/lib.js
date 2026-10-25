@@ -711,7 +711,13 @@
 			this.releaseDate = memoize(async () => {
 				let d = parseDate(this.tidalItem.releaseDate);
 				if (d === undefined) d = parseDate((await this.brainzItem().catch(() => undefined))?.recording?.["first-release-date"]);
-				if (d === undefined) d = parseDate((await this.album())?.releaseDate);
+				if (d === undefined) {
+					// As Luna: the album's date, else MusicBrainz's for its
+					// barcode release.
+					const album = await this.album();
+					d = parseDate(album?.releaseDate);
+					if (d === undefined) d = parseDate((await album?.brainzAlbum().catch(() => undefined))?.date);
+				}
 				return d ?? parseDate(this.tidalItem.streamStartDate);
 			});
 			this.releaseDateStr = memoize(async () => (await this.releaseDate())?.toISOString().slice(0, 10));
