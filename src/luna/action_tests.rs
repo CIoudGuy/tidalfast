@@ -854,6 +854,31 @@ lib.redux.intercept("search/SEARCH_RESULT_SUCCESS", unloads, (p) => {
     let _ = std::fs::remove_dir_all(dir3);
 }
 
+/// What a plugin reads from the store after an action the app sent has
+/// that action in it, also when it read the store in its interceptor (the
+/// store it read there, before the action, was kept for the next reads).
+#[test]
+fn the_store_read_after_an_app_action_has_it() {
+    let (luna, host, dir) = start(
+        r#"
+const store = luna.core.modules["@luna/core"].reduxStore;
+lib.redux.intercept("view/ENTERED_NOWPLAYING", unloads, () => {
+	const before = store.getState().view.isNowPlaying;
+	setTimeout(() => say("open " + before + " then " + store.getState().view.isNowPlaying), 0);
+});
+"#,
+        PlaybackSnapshot::default(),
+    );
+    luna.event(LunaEvent::Action {
+        kind: "view/ENTERED_NOWPLAYING".into(),
+        payload: Value::Null,
+    });
+    host.wait(&luna, "the read", |h| !h.notes().is_empty());
+    assert_eq!(host.notes(), ["open false then true"]);
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// The Electron surface plugins call: window controls reach the host,
 /// openExternal takes only web links, the clipboard reads what was written
 /// (after a click),
