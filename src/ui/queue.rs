@@ -617,13 +617,27 @@ pub fn floating_rect(ctx: &egui::Context, screen: egui::Rect) -> egui::Rect {
         + 4.0
         + super::row_shift(ctx)
         + super::plugin_dom::theme_layout(ctx).map_or(0.0, |l| l.flow.queue);
+    let foot = screen.bottom() - super::player_bar::reserved_height(ctx) - 20.0;
+    // A theme's margins, width and height for the panel in TIDAL's 350-point
+    // wrapper (Sunken Tidal's full-bleed panel: `margin: 0; width: 100%;
+    // height: 100%`, its foot under the player bar).
+    if let Some(q) = super::plugin_dom::theme_layout(ctx).and_then(|l| l.queue) {
+        let left = wrapper_left(screen) + q.left;
+        return egui::Rect::from_min_max(
+            egui::pos2(left, top),
+            egui::pos2(left + q.width, q.height.map_or(foot, |h| top + h)),
+        );
+    }
     egui::Rect::from_min_max(
         egui::pos2(screen.right() - FLOATING_MARGIN - FLOATING_WIDTH, top),
-        egui::pos2(
-            screen.right() - FLOATING_MARGIN,
-            screen.bottom() - super::player_bar::reserved_height(ctx) - 20.0,
-        ),
+        egui::pos2(screen.right() - FLOATING_MARGIN, foot),
     )
+}
+
+/// TIDAL's play queue wrapper's left edge in a window of `screen`: the
+/// page ends there while the queue is open.
+pub(crate) fn wrapper_left(screen: egui::Rect) -> f32 {
+    screen.right() - super::theme_layout::QUEUE_WRAPPER_WIDTH
 }
 
 /// The gap between the page and the open play queue.
@@ -657,7 +671,9 @@ pub fn reserve_in(ctx: &egui::Context, open: bool, page: egui::Rect) -> f32 {
     if super::plugin_dom::theme_layout(ctx).is_some_and(|l| l.main_reach > 0.0) {
         return 0.0;
     }
-    page_reserve(open, page, floating_rect(ctx, ctx.content_rect()).left())
+    // The page ends at the wrapper's edge, whatever the panel's margins in
+    // it (TIDAL's 8 and the gap make the same 350).
+    page_reserve(open, page, wrapper_left(ctx.content_rect()) + PAGE_GAP)
 }
 
 /// TIDAL's play queue, floating over the page: the title with save and
@@ -704,12 +720,27 @@ pub fn floating_panel(app: &mut App, ui: &mut egui::Ui) {
             }
             let over_now_playing = app.now_playing_view;
             let panel = egui::Rect::from_min_size(ui.max_rect().min, rect.size());
-            let boxed = super::plugin_dom::paints_box(crate::luna::dom_anchors::keys::QUEUE_PANEL);
+            // A panel a theme runs on under the player bar (Sunken Tidal's)
+            // lies under it, as in TIDAL.
+            let bar_top = ctx.content_rect().bottom() - super::player_bar::reserved_height(&ctx);
+            if panel.bottom() > bar_top {
+                let clip = ui.clip_rect();
+                ui.set_clip_rect(egui::Rect::from_min_max(
+                    clip.min,
+                    egui::pos2(clip.max.x, clip.max.y.min(bar_top)),
+                ));
+            }
+            let key = crate::luna::dom_anchors::keys::QUEUE_PANEL;
+            let boxed = super::plugin_dom::paints_box(key);
             // A theme that shapes the panel (its corners, border, shadow)
             // but gives it no fill of its own leaves TIDAL's (Minimalist
-            // Black, Giorgeous): the panel stays a card, not a hole.
+            // Black, Giorgeous): the panel stays a card, not a hole. One that
+            // also takes away its backdrop blur (`backdrop-filter: none`,
+            // Sunken Tidal) leaves TIDAL's glass alone over what is behind
+            // (TIDAL 2.46.0: the page at 65 %).
             if boxed
-                && super::plugin_dom::fill(crate::luna::dom_anchors::keys::QUEUE_PANEL).is_none()
+                && super::plugin_dom::fill(key).is_none()
+                && !super::plugin_dom::backdrop_cleared(key)
             {
                 ui.painter()
                     .rect_filled(panel, 12.0, floating_fill(&palette, over_now_playing));

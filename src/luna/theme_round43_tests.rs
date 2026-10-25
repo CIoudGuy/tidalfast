@@ -368,3 +368,107 @@ fn a_sidebar_cards_inset_glow_lies_along_its_edges() {
         "the glow along the card's edge: {edge:?} (the fill alone is rgb(40, 0, 60))"
     );
 }
+/// Sunken Tidal's play queue: `[class*="_playQueueWrapper"] { margin: 0;
+/// margin-top: var(--headerHeight); height: 100% }` and `#playQueueSidebar
+/// { margin: 0; width: 100%; height: 100%; backdrop-filter: none }`. TIDAL
+/// 2.46.0 lays the panel over the whole 350-point wrapper, from 56 under
+/// the content row's top down past the player bar to the window's foot
+/// (`aside#playQueueSidebar` 350 x 1153 at x 1787 of a 2137 window), and
+/// paints its own grey glass over what is behind it with no blur, so the
+/// page shows through (Chromium, the parity checker's replay). Tidalfast
+/// kept TIDAL's 334-point panel 8 in from the window's edge, ending 20
+/// above the bar, an opaque card under the glass.
+#[test]
+fn a_play_queue_a_theme_unboxes_runs_full_bleed_over_the_page() {
+    use super::theme_round41_tests as r41;
+    use dom_anchors::keys;
+    let css = |page: &str| {
+        format!(
+            "/* {{\"name\": \"Full-bleed queue\"}} */\n:root {{ --wave-color-solid-base-fill: {page}; }}\n[class*=\"_hasPlayer\"] [class*=\"_playQueueWrapper\"] {{ margin: 0; height: 100%; margin-top: var(--headerHeight); }}\n#playQueueSidebar {{ border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 0; backdrop-filter: none; width: 100%; height: 100%; margin: 0; }}\n"
+        )
+    };
+    let mut boxes = Vec::new();
+    let mut colours = Vec::new();
+    for (name, page) in [
+        ("full-bleed-red.css", "rgb(200, 0, 0)"),
+        ("full-bleed-green.css", "rgb(0, 200, 0)"),
+    ] {
+        let (ctx, mut app) = r41::demo_app("album:alb0", Some("queue"));
+        let plain = r41::drawn(
+            &ctx,
+            &mut app,
+            DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            },
+        );
+        let mut o = r41::styled(name, &css(page), &plain, keys::QUEUE_PANEL);
+        o.version = 2;
+        let themed = r41::drawn(&ctx, &mut app, o.clone());
+        let panel = themed
+            .nodes
+            .iter()
+            .find(|n| n.key == keys::QUEUE_PANEL)
+            .and_then(|n| n.rect)
+            .expect("the queue panel's box");
+        // Inside the panel, in its right padding half way down.
+        let at = [panel[0] + panel[2] - 6.0, panel[1] + 400.0];
+        colours.push(r41::painted_at(&ctx, &mut app, o, &[at])[0]);
+        app.backend.shutdown();
+        boxes.push(panel);
+    }
+    let panel = boxes[0];
+    assert!(
+        (panel[0] - (2137.0 - 350.0)).abs() < 0.5 && (panel[2] - 350.0).abs() < 0.5,
+        "across the wrapper: {panel:?}"
+    );
+    assert!(
+        panel[1] + panel[3] > 1183.0 - 88.0,
+        "down past the player bar's top: {panel:?}"
+    );
+    let [red, green] = [colours[0], colours[1]];
+    assert!(
+        red.r() > green.r() + 60 && green.g() > red.g() + 60,
+        "the page shows through the glass: {red:?} over red, {green:?} over green"
+    );
+}
+/// TIDAL's play queue panel is 334 points wide (`width: 334px`) and its
+/// margins move it in its 350-point wrapper: Abyss Neptune's `margin: 2px;
+/// margin-right: -14px` lays it 2 in from the wrapper's left edge, still
+/// 334 wide (TIDAL 2.46.0: x 1789 to 2123 in a 2137 window, the replay).
+/// And where a theme fills TIDAL's `main` (Sunken Tidal's grey page), what
+/// lies round the open panel is what lies behind `main`, TIDAL's black,
+/// not the page's grey.
+#[test]
+fn a_queue_panels_margins_move_it_in_its_wrapper() {
+    use super::theme_round41_tests as r41;
+    use dom_anchors::keys;
+    let css = "/* {\"name\": \"Moved queue\"} */\n#main { background-color: rgb(120, 120, 120); }\n#playQueueSidebar { margin: 2px; margin-right: -14px !important; background-color: rgba(0, 0, 0, 0.8) !important; }\n";
+    let (ctx, mut app) = r41::demo_app("album:alb0", Some("queue"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let mut o = r41::styled("moved-queue.css", css, &plain, keys::QUEUE_PANEL);
+    o.version = 2;
+    let themed = r41::drawn(&ctx, &mut app, o.clone());
+    let panel = themed
+        .nodes
+        .iter()
+        .find(|n| n.key == keys::QUEUE_PANEL)
+        .and_then(|n| n.rect)
+        .expect("the queue panel's box");
+    // Right of the panel, in the wrapper's last 14 points, half way down:
+    // what lies behind `main`.
+    let colours = r41::painted_at(&ctx, &mut app, o, &[[2133.0, panel[1] + 400.0]]);
+    app.backend.shutdown();
+    assert!(
+        (panel[0] - (2137.0 - 350.0 + 2.0)).abs() < 0.5 && (panel[2] - 334.0).abs() < 0.5,
+        "{panel:?}"
+    );
+    assert!(colours[0].r() < 40, "beside the panel: {:?}", colours[0]);
+}
