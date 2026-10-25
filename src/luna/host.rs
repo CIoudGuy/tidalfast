@@ -240,6 +240,16 @@ pub enum HostCommand {
     /// edited the titles in a TIDAL answer (Hunminjeongeum's search
     /// results and single items) and the reducer would keep what it wrote.
     RetitleTracks(Vec<(String, String)>),
+    /// The words a plugin gives the playing song `track_id` in TIDAL's
+    /// store (a lyrics entity and the song's relationship to it, read
+    /// through the store's `getState`), as TIDAL's lyrics JSON (`lyrics`,
+    /// `subtitles` in LRC, `isRightToLeft`); `track_id: None` once it gives
+    /// none. TIDAL's page shows a song the store gives words as one with
+    /// lyrics.
+    StoreLyrics {
+        track_id: Option<String>,
+        lyrics: Option<Value>,
+    },
     /// Open a TIDAL web path (`/album/1`, `/playlist/uuid`, ...).
     Navigate(String),
     /// The now-playing view's tab (`lyrics`, `credits`, `similar`; `None`:

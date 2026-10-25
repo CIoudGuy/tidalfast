@@ -1098,8 +1098,56 @@
 			has: (_, type) => typeof type === "string",
 		},
 	);
+	// TIDAL's page draws from its store as `getState` answers: a plugin
+	// that wraps `getState` to give the playing song lyrics TIDAL has none
+	// for (a lyrics entity and the song's relationship to it, as
+	// radiant-lyrics does) gets a Lyrics tab with its words in TIDAL. While
+	// a plugin's `getState` stands in for the store's, the app is told the
+	// words it gives the playing song, and that it gives none once it stops.
+	let stateFn = getState;
+	// The store's own `getState` and the bound copies made of it, and of
+	// those: a plugin keeps `store.getState.bind(store)` to call from its
+	// wrapper and puts that copy back as it unloads, which leaves the store
+	// its own; loaded again, it binds the copy it put back.
+	const ownState = new WeakSet();
+	const markOwn = (fn) => {
+		ownState.add(fn);
+		Object.defineProperty(fn, "bind", {
+			configurable: true,
+			writable: true,
+			value(...args) {
+				const copy = Function.prototype.bind.apply(this, args);
+				if (ownState.has(this)) markOwn(copy);
+				return copy;
+			},
+		});
+	};
+	markOwn(getState);
+	const wrapped = () => !ownState.has(stateFn);
+	let storeLyricsTold = "";
+	let storeLyricsTimer = false;
+	const storeLyrics = () => {
+		let said = null;
+		if (wrapped())
+			try {
+				const s = stateFn.call(reduxStore);
+				const id = String(s?.playbackControls?.mediaProduct?.productId ?? "");
+				const ref = id ? s?.entities?.tracks?.entities?.[id]?.relationships?.lyrics?.data?.[0]?.id : undefined;
+				const a = ref === undefined || ref === null ? undefined : s?.entities?.lyrics?.entities?.[ref]?.attributes;
+				// Lyrics the app gave the song are its own, not a plugin's.
+				if (a && !lyricsKnown.has(id) && (a.text || a.lrcText)) said = { trackId: id, lyrics: String(a.text ?? ""), subtitles: String(a.lrcText ?? ""), isRightToLeft: a.direction === "rtl" };
+			} catch (err) {
+				L.reportError(err);
+			}
+		const key = said === null ? "" : JSON.stringify(said);
+		if (key !== storeLyricsTold) {
+			storeLyricsTold = key;
+			callOp("lyrics.store", said ?? { trackId: null });
+		}
+		storeLyricsTimer = wrapped();
+		if (storeLyricsTimer) L.internalTimeout(storeLyrics, 1000);
+	};
 	const reduxStore = {
-		getState,
 		dispatch,
 		subscribe(fn) {
 			subscribers.add(fn);
@@ -1115,6 +1163,18 @@
 			return { subscribe: (o) => ({ unsubscribe: reduxStore.subscribe(() => o.next?.(getState())) }) };
 		},
 	};
+	Object.defineProperty(reduxStore, "getState", {
+		configurable: true,
+		enumerable: true,
+		get: () => stateFn,
+		set: (fn) => {
+			stateFn = typeof fn === "function" ? fn : getState;
+			if (!storeLyricsTimer) {
+				storeLyricsTimer = true;
+				L.internalTimeout(storeLyrics, 0);
+			}
+		},
+	});
 	L.reduxStore = reduxStore;
 	L.content = content;
 	L.interceptors = interceptors;

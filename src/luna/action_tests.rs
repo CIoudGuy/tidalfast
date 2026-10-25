@@ -20,10 +20,14 @@ struct ActionHost {
     /// What the user picks in the next file dialogs, in turn; none left
     /// means they cancel.
     dialogs: Mutex<Vec<std::path::PathBuf>>,
+    /// How many times the runtime read the playback state (a store read).
+    reads: std::sync::atomic::AtomicUsize,
 }
 
 impl LunaHost for ActionHost {
     fn playback(&self) -> PlaybackSnapshot {
+        self.reads
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.snap.lock().unwrap().clone()
     }
     fn command(&self, c: HostCommand) {
@@ -852,6 +856,199 @@ lib.redux.intercept("search/SEARCH_RESULT_SUCCESS", unloads, (p) => {
     let _ = std::fs::remove_dir_all(dir);
     let _ = std::fs::remove_dir_all(dir2);
     let _ = std::fs::remove_dir_all(dir3);
+}
+
+/// TIDAL's page draws from its store as `getState` answers: a plugin that
+/// wraps the store's `getState` to give the playing song lyrics of its own
+/// (a lyrics entity and the song's relationship to it, the shape
+/// radiant-lyrics adds) has the app told those words; once the plugin puts
+/// the store's own `getState` back, the app is told the song has none from
+/// it.
+#[test]
+fn lyrics_a_plugin_gives_the_store_reach_the_app() {
+    let snap = PlaybackSnapshot {
+        queue: Arc::new(vec![entry("77", "u0")]),
+        current_index: Some(0),
+        ..Default::default()
+    };
+    let (luna, host, dir) = start(
+        r#"
+const store = luna.core.modules["@luna/core"].reduxStore;
+const own = store.getState;
+const words = { id: "lx1", type: "lyrics", attributes: { text: "One\nTwo", lrcText: "[00:01.00] One\n[00:02.00] Two", direction: "ltr" } };
+store.getState = () => {
+	const s = own.call(store);
+	const t = s.entities.tracks.entities["77"];
+	const track = { ...t, relationships: { ...t.relationships, lyrics: { data: [{ id: "lx1", type: "lyrics" }] } } };
+	const tracks = { ...s.entities.tracks, entities: { ...s.entities.tracks.entities, 77: track } };
+	return { ...s, entities: { ...s.entities, tracks, lyrics: { ids: ["lx1"], entities: { lx1: words } } } };
+};
+setTimeout(() => {
+	store.getState = own;
+	say("restored");
+}, 2500);
+"#,
+        snap,
+    );
+    let told = |h: &ActionHost| {
+        h.commands().into_iter().find_map(|c| match c {
+            HostCommand::StoreLyrics {
+                track_id: Some(id),
+                lyrics: Some(l),
+            } => Some((id, l)),
+            _ => None,
+        })
+    };
+    host.wait(&luna, "the words", |h| told(h).is_some());
+    let (id, words) = told(&host).unwrap();
+    assert_eq!(id, "77");
+    assert_eq!(words["subtitles"], json!("[00:01.00] One\n[00:02.00] Two"));
+    assert_eq!(words["lyrics"], json!("One\nTwo"));
+    assert_eq!(words["isRightToLeft"], json!(false));
+    host.wait(&luna, "none once the store is its own", |h| {
+        matches!(
+            h.commands().last(),
+            Some(HostCommand::StoreLyrics { track_id: None, .. })
+        )
+    });
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A plugin that wraps the store's `getState` calls a bound copy of the
+/// store's own from its wrapper and puts that copy back as it unloads (the
+/// way radiant-lyrics does): the store is its own again, so the app is told
+/// the song has no words from it and the store is no longer read each
+/// second for them.
+#[test]
+fn the_store_is_not_read_for_lyrics_once_a_plugin_puts_a_bound_copy_back() {
+    let snap = PlaybackSnapshot {
+        queue: Arc::new(vec![entry("77", "u0")]),
+        current_index: Some(0),
+        ..Default::default()
+    };
+    let (luna, host, dir) = start(
+        r#"
+const store = luna.core.modules["@luna/core"].reduxStore;
+const own = store.getState.bind(store);
+const words = { id: "lx1", type: "lyrics", attributes: { text: "One\nTwo", lrcText: "", direction: "ltr" } };
+store.getState = () => {
+	const s = own();
+	const t = s.entities.tracks.entities["77"];
+	const track = { ...t, relationships: { ...t.relationships, lyrics: { data: [{ id: "lx1", type: "lyrics" }] } } };
+	const tracks = { ...s.entities.tracks, entities: { ...s.entities.tracks.entities, 77: track } };
+	return { ...s, entities: { ...s.entities, tracks, lyrics: { ids: ["lx1"], entities: { lx1: words } } } };
+};
+unloads.add(() => {
+	store.getState = own;
+});
+"#,
+        snap,
+    );
+    host.wait(&luna, "the words", |h| {
+        h.commands().iter().any(|c| {
+            matches!(
+                c,
+                HostCommand::StoreLyrics {
+                    track_id: Some(_),
+                    ..
+                }
+            )
+        })
+    });
+    luna.set_enabled("Actions", false);
+    host.wait(&luna, "none once the plugin unloaded", |h| {
+        matches!(
+            h.commands().last(),
+            Some(HostCommand::StoreLyrics { track_id: None, .. })
+        )
+    });
+    let reads = || host.reads.load(std::sync::atomic::Ordering::Relaxed);
+    let before = reads();
+    let end = Instant::now() + Duration::from_millis(2600);
+    while Instant::now() < end {
+        luna.sync(Duration::from_secs(5));
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert_eq!(
+        reads(),
+        before,
+        "the store was read after the plugin left it"
+    );
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The same plugin loaded again (switched off and on, reloaded or
+/// updated) binds the copy it put back the first time; when it unloads
+/// again and puts that copy of the copy back, the store is still its own
+/// and is no longer read each second for lyrics.
+#[test]
+fn the_store_is_not_read_for_lyrics_after_a_plugin_loads_and_unloads_twice() {
+    let snap = PlaybackSnapshot {
+        queue: Arc::new(vec![entry("77", "u0")]),
+        current_index: Some(0),
+        ..Default::default()
+    };
+    let (luna, host, dir) = start(
+        r#"
+const store = luna.core.modules["@luna/core"].reduxStore;
+const own = store.getState.bind(store);
+const words = { id: "lx1", type: "lyrics", attributes: { text: "One\nTwo", lrcText: "", direction: "ltr" } };
+store.getState = () => {
+	const s = own();
+	const t = s.entities.tracks.entities["77"];
+	const track = { ...t, relationships: { ...t.relationships, lyrics: { data: [{ id: "lx1", type: "lyrics" }] } } };
+	const tracks = { ...s.entities.tracks, entities: { ...s.entities.tracks.entities, 77: track } };
+	return { ...s, entities: { ...s.entities, tracks, lyrics: { ids: ["lx1"], entities: { lx1: words } } } };
+};
+unloads.add(() => {
+	store.getState = own;
+});
+"#,
+        snap,
+    );
+    let words = |h: &ActionHost| {
+        h.commands()
+            .iter()
+            .filter(|c| {
+                matches!(
+                    c,
+                    HostCommand::StoreLyrics {
+                        track_id: Some(_),
+                        ..
+                    }
+                )
+            })
+            .count()
+    };
+    for round in 1..=2 {
+        host.wait(&luna, "the words", |h| words(h) >= round);
+        luna.set_enabled("Actions", false);
+        host.wait(&luna, "none once the plugin unloaded", |h| {
+            matches!(
+                h.commands().last(),
+                Some(HostCommand::StoreLyrics { track_id: None, .. })
+            )
+        });
+        if round == 1 {
+            luna.set_enabled("Actions", true);
+        }
+    }
+    let reads = || host.reads.load(std::sync::atomic::Ordering::Relaxed);
+    let before = reads();
+    let end = Instant::now() + Duration::from_millis(2600);
+    while Instant::now() < end {
+        luna.sync(Duration::from_secs(5));
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert_eq!(
+        reads(),
+        before,
+        "the store was read after the plugin left it the second time"
+    );
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// What a plugin reads from the store after an action the app sent has

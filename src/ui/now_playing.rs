@@ -200,7 +200,7 @@ fn tabs(app: &App) -> Vec<(NowPlayingTab, std::borrow::Cow<'static, str>)> {
         ),
         (NowPlayingTab::Credits, gettext(app.locale, "Credits")),
     ];
-    let words = match &app.lyrics {
+    let words = match app.shown_lyrics() {
         Loadable::Loaded(Some(lyrics)) => !lyrics.instrumental,
         Loadable::Loaded(None) => false,
         Loadable::Failed(_) | Loadable::Loading | Loadable::NotLoaded => true,

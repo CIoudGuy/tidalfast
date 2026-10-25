@@ -49,6 +49,34 @@ pub struct Lyrics {
 }
 
 impl Lyrics {
+    /// Words given as TIDAL gives them: timed lines in LRC, else plain
+    /// lines; `None` when both are empty.
+    pub fn from_texts(lrc: &str, plain: &str) -> Option<Lyrics> {
+        let lines = parse_lrc(lrc);
+        if !lines.is_empty() {
+            return Some(Lyrics {
+                lines,
+                synced: true,
+                instrumental: false,
+            });
+        }
+        let lines: Vec<Line> = plain
+            .lines()
+            .map(|line| Line {
+                at_ms: None,
+                text: line.trim_end().to_string(),
+            })
+            .collect();
+        lines
+            .iter()
+            .any(|l| !l.text.trim().is_empty())
+            .then_some(Lyrics {
+                lines,
+                synced: false,
+                instrumental: false,
+            })
+    }
+
     /// The line being sung at `position_ms`, or `None` before the first one
     /// starts and for lyrics without timing.
     pub fn active_line(&self, position_ms: u32) -> Option<usize> {
