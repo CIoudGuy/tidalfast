@@ -41,7 +41,8 @@
 //! theme URL[,URL…]  the Luna themes become these, installed in that order
 //!                   as `TIDALFAST_DEMO_LUNA` installs them at start, and
 //!                   every theme installed before is removed; `none` for no
-//!                   theme (needs Luna in the demo: `TIDALFAST_DEMO_LUNA`)
+//!                   theme (needs Luna in the demo: `TIDALFAST_DEMO_LUNA`).
+//!                   What follows waits until they are in and loaded
 //! page PAGE [SHOW]  the demo's data and the window's state as a new demo
 //!                   window has them, then `--demo-page PAGE` and
 //!                   `--demo-show SHOW`
@@ -129,6 +130,10 @@ pub struct DevScript {
     controls: Vec<DemoControl>,
     /// A control was played: the window draws while the script runs.
     controlled: bool,
+    /// A `theme` control was played then: what follows waits until the
+    /// themes are in ([`crate::demo::themes_ready`]), for half a minute at
+    /// most.
+    themes_since: Option<Instant>,
 }
 
 impl DevScript {
@@ -189,10 +194,18 @@ impl DevScript {
             let _ = std::fs::remove_file(&path);
             self.parse(&text);
         }
-        // What follows a shot waits until its picture is written.
+        // What follows a shot waits until its picture is written, and what
+        // follows a `theme` control until the themes are in.
         if self.shot.is_some() {
             ctx.request_repaint_of(target);
             return;
+        }
+        if let Some(since) = self.themes_since {
+            if !crate::demo::themes_ready() && since.elapsed() < Duration::from_secs(30) {
+                ctx.request_repaint_of(target);
+                return;
+            }
+            self.themes_since = None;
         }
         if let Some(at) = self.resume_at {
             if Instant::now() < at {
@@ -231,6 +244,9 @@ impl DevScript {
                 // new window does.
                 if matches!(control, DemoControl::Page { .. }) {
                     raw.events.push(egui::Event::PointerGone);
+                }
+                if matches!(control, DemoControl::Themes(_)) {
+                    self.themes_since = Some(Instant::now());
                 }
                 self.controlled = true;
                 self.controls.push(control);
@@ -648,6 +664,10 @@ quit",
                 None
             )
         );
+        // What follows waits until the app has the themes in.
+        crate::demo::set_themes_ready(false);
+        assert_eq!(pass(&mut script, false), (vec![], false, false, None));
+        crate::demo::set_themes_ready(true);
         // A new page starts with no pointer over the window.
         let page = DemoControl::Page {
             page: "album:alb0".into(),

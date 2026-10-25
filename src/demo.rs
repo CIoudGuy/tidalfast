@@ -2485,7 +2485,10 @@ pub struct Fresh {
 pub fn control(app: &mut App, ctx: &egui::Context, control: crate::dev_script::DemoControl) {
     use crate::dev_script::DemoControl;
     match control {
-        DemoControl::Themes(urls) => app.plugins.demo_themes = Some(urls),
+        DemoControl::Themes(urls) => {
+            set_themes_ready(false);
+            app.plugins.demo_themes = Some(urls);
+        }
         DemoControl::Page { page, show } => {
             let fresh = app.demo_fresh.get_or_insert_with(|| Fresh {
                 first_page: app.history.first().cloned().unwrap_or(Page::Home),
@@ -2520,7 +2523,10 @@ pub fn control(app: &mut App, ctx: &egui::Context, control: crate::dev_script::D
 /// them: each once the one before has loaded. A colourway then always finds
 /// the base installed before it (Cotton Candy's `theme.css` over its
 /// `base.css`); installed together, the colourway's small file could arrive
-/// first and apply alone, without its base.
+/// first and apply alone, without its base. Every theme but the last is
+/// switched off as it goes in, so its file is there for the one after it
+/// without the page being styled by it alone first (one theme applies at a
+/// time: the last one switches the others off as it goes in anyway).
 #[cfg(any(test, feature = "demo"))]
 #[derive(Debug, Default)]
 pub struct DemoThemes {
@@ -2583,9 +2589,28 @@ impl DemoThemes {
             return false;
         };
         luna.install_theme(&url);
+        if !self.queue.is_empty() {
+            luna.set_theme_enabled(&crate::luna::themes::canonical_url(&url), false);
+        }
         self.waiting = Some((url, Instant::now()));
         true
     }
+}
+
+#[cfg(any(test, feature = "demo"))]
+static THEMES_READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether the themes a dev script's `theme` control asked for are in and
+/// loaded (what follows the control waits for it).
+#[cfg(any(test, feature = "demo"))]
+pub fn themes_ready() -> bool {
+    THEMES_READY.load(std::sync::atomic::Ordering::Acquire)
+}
+
+/// Notes whether the demo's themes are in ([`themes_ready`]).
+#[cfg(any(test, feature = "demo"))]
+pub fn set_themes_ready(ready: bool) {
+    THEMES_READY.store(ready, std::sync::atomic::Ordering::Release);
 }
 
 #[cfg(test)]
