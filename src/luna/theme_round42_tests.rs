@@ -235,3 +235,47 @@ fn a_themes_header_fill_lies_over_the_pages_top() {
     assert_eq!(got[0], green, "the header's box");
     assert_ne!(got[1], green, "the page under it");
 }
+
+/// A gradient on a `background-size` smaller than its box tiles the box
+/// (CSS's `background-repeat: repeat`) from where `background-position`
+/// puts one tile, and `no-repeat` leaves the one tile (the cotton candy
+/// family's now-playing glows: `800px 800px` at `0 0, 400px 400px`).
+/// Tidalfast stretched the one gradient over the whole box.
+#[test]
+fn a_gradient_smaller_than_its_box_tiles_it() {
+    let red = egui::Color32::from_rgb(255, 0, 0);
+    let blue = egui::Color32::from_rgb(0, 0, 255);
+    let key = dom_anchors::keys::MAIN_CONTAINER;
+    let colours = |name: &str, repeat: &str| {
+        let css = format!(
+            "/* {{\"name\": \"Tiles\"}} */\n._mainContainer_6519c30 {{ background-image: linear-gradient(90deg, rgb(255, 0, 0) 50%, rgb(0, 0, 255) 50%); background-size: 100px 100px; background-position: 20px 0; {repeat} }}\n"
+        );
+        let o = overlay(name, &css, &dom_anchors::sample_frame(), key);
+        pd::test_overlay(Some((*o).clone()));
+        let ctx = egui::Context::default();
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 300.0));
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(rect),
+                ..Default::default()
+            },
+            |ui| pd::paint_host_layers(ui, key, rect),
+        );
+        output.textures_delta.clear();
+        pd::test_overlay(None);
+        [10.0, 40.0, 90.0, 140.0, 190.0, 40.0]
+            .iter()
+            .zip([50.0, 50.0, 50.0, 50.0, 50.0, 150.0])
+            .map(|(x, y)| {
+                pd::test_colour_at(&output.shapes, egui::pos2(*x, y), egui::Color32::BLACK)
+            })
+            .collect::<Vec<_>>()
+    };
+    // Tiles from x 20 (and -80 before it), each red then blue, a row of
+    // them every 100 points down.
+    assert_eq!(colours("tiles.css", ""), [blue, red, blue, red, blue, red]);
+    // One tile at 20, 0, and nothing round it.
+    let one = colours("one-tile.css", "background-repeat: no-repeat;");
+    let none = egui::Color32::BLACK;
+    assert_eq!(one, [none, red, blue, none, none, none]);
+}
