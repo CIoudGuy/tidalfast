@@ -1358,24 +1358,6 @@ struct Shot {
     looks_due: bool,
 }
 
-/// Writes the anchors' looks for `--demo-dump-looks`, with what this pass
-/// paints (`paint`: rows of words and pictures).
-#[cfg(feature = "demo")]
-fn write_looks(path: &std::path::Path, ctx: &egui::Context) {
-    let Some(mut report) = tidalfast::ui::plugin_dom::dump_looks() else {
-        log::error!("no anchor tree yet, {} not written", path.display());
-        return;
-    };
-    if let Some(o) = report.as_object_mut() {
-        o.insert("paint".into(), tidalfast::ui::plugin_dom::paint_runs(ctx));
-    }
-    let text = serde_json::to_string_pretty(&report).unwrap_or_default();
-    match std::fs::write(path, text) {
-        Ok(()) => log::info!("wrote the anchors' looks to {}", path.display()),
-        Err(error) => log::error!("could not write {}: {error}", path.display()),
-    }
-}
-
 #[cfg(feature = "demo")]
 impl Shell {
     fn drive_shot(&mut self, ctx: &egui::Context) {
@@ -1537,6 +1519,11 @@ impl eframe::App for Shell {
         if let Some(bench) = self.bench.as_mut() {
             bench.logic(ctx, frame, app);
         }
+        // A dev script's demo controls, before this pass's logic and drawing.
+        #[cfg(feature = "demo")]
+        for control in self.script.take_controls() {
+            tidalfast::demo::control(app, ctx, control);
+        }
         // Before the logic, which sets the drawing budget from it.
         #[cfg(windows)]
         if let Some(occlusion) = self.occlusion.as_mut() {
@@ -1560,7 +1547,11 @@ impl eframe::App for Shell {
             && std::mem::take(&mut shot.looks_due)
             && let Some(path) = &shot.looks
         {
-            write_looks(path, ui.ctx());
+            tidalfast::ui::plugin_dom::write_looks(path, ui.ctx());
+        }
+        #[cfg(feature = "demo")]
+        if let Some(path) = self.script.looks_due() {
+            tidalfast::ui::plugin_dom::write_looks(&path, ui.ctx());
         }
         #[cfg(feature = "demo")]
         if let Some(bench) = self.bench.as_mut() {

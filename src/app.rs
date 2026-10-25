@@ -425,6 +425,10 @@ pub struct App {
     pub demo_windows_controls: bool,
     /// Demo screenshots: open the first table row's menu.
     pub demo_open_menu: bool,
+    /// A dev script's demo controls: what a new demo window has, which
+    /// each `page` control goes back to (`crate::demo::control`).
+    #[cfg(feature = "demo")]
+    pub demo_fresh: Option<crate::demo::Fresh>,
     /// Demo screenshots: scroll the page this far down on its first frame.
     pub demo_scroll: Option<f32>,
     /// Demo screenshots: the window shows compact mode's contents.
@@ -1090,6 +1094,8 @@ impl App {
             #[cfg(any(test, feature = "demo"))]
             demo_windows_controls: false,
             demo_open_menu: false,
+            #[cfg(feature = "demo")]
+            demo_fresh: None,
             demo_scroll: None,
             demo_compact: false,
             applied_dark: None,

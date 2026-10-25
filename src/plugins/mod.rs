@@ -110,6 +110,13 @@ pub struct Plugins {
     /// What the user answered to [`Plugins::demo_permission`].
     #[cfg(any(test, feature = "demo"))]
     pub demo_permission_answer: Option<crate::luna::ProgramChoice>,
+    /// Themes the demo asked for (`TIDALFAST_DEMO_LUNA`, a dev script's
+    /// `theme` control), put in place once Luna runs.
+    #[cfg(any(test, feature = "demo"))]
+    pub demo_themes: Option<Vec<String>>,
+    /// Puts them in place, one after another.
+    #[cfg(any(test, feature = "demo"))]
+    pub demo_installer: crate::demo::DemoThemes,
 }
 
 /// A code editor a plugin opened in a window of its own (Themer's CSS
@@ -145,6 +152,10 @@ impl Plugins {
             demo_permission: None,
             #[cfg(any(test, feature = "demo"))]
             demo_permission_answer: None,
+            #[cfg(any(test, feature = "demo"))]
+            demo_themes: None,
+            #[cfg(any(test, feature = "demo"))]
+            demo_installer: crate::demo::DemoThemes::default(),
         }
     }
 

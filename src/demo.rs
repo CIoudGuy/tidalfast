@@ -2470,6 +2470,124 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
     }
 }
 
+/// What a new demo window has before `--demo-page` and `--demo-show`, kept
+/// by a dev script's first `page` control for the ones after it.
+#[cfg(feature = "demo")]
+pub struct Fresh {
+    first_page: Page,
+    queue_open: bool,
+    settings: crate::settings::Settings,
+}
+
+/// Applies a dev script's demo control (`crate::dev_script`), so one window
+/// takes one demo shot after another as new windows would each take one.
+#[cfg(feature = "demo")]
+pub fn control(app: &mut App, ctx: &egui::Context, control: crate::dev_script::DemoControl) {
+    use crate::dev_script::DemoControl;
+    match control {
+        DemoControl::Themes(urls) => app.plugins.demo_themes = Some(urls),
+        DemoControl::Page { page, show } => {
+            let fresh = app.demo_fresh.get_or_insert_with(|| Fresh {
+                first_page: app.history.first().cloned().unwrap_or(Page::Home),
+                queue_open: app.show_queue_panel,
+                settings: app.settings.clone(),
+            });
+            // The page a new window opens on, with nothing to go forward
+            // to; `--demo-page` then opens the shot's page after it.
+            app.history = vec![fresh.first_page.clone()];
+            app.history_index = 0;
+            app.show_queue_panel = fresh.queue_open;
+            if app.settings.theme != fresh.settings.theme {
+                app.actions.push(Action::SettingsChanged);
+            }
+            app.settings = fresh.settings.clone();
+            app.selection = None;
+            egui::Popup::close_all(ctx);
+            populate(app);
+            apply_flags(app, Some(&page), show.as_deref());
+        }
+        DemoControl::Size(size) => {
+            ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(size));
+            ctx.send_viewport_cmd(egui::ViewportCommand::MaxInnerSize(size));
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+        }
+        DemoControl::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+    }
+}
+
+/// The demo's Luna themes (`TIDALFAST_DEMO_LUNA`'s `.css` files, a dev
+/// script's `theme` control), installed one after another as a person adds
+/// them: each once the one before has loaded. A colourway then always finds
+/// the base installed before it (Cotton Candy's `theme.css` over its
+/// `base.css`); installed together, the colourway's small file could arrive
+/// first and apply alone, without its base.
+#[cfg(any(test, feature = "demo"))]
+#[derive(Debug, Default)]
+pub struct DemoThemes {
+    /// What the demo installed last, in order.
+    installed: Vec<String>,
+    /// Still to install.
+    queue: std::collections::VecDeque<String>,
+    /// Installed and not yet loaded, since when.
+    waiting: Option<(String, Instant)>,
+}
+
+#[cfg(any(test, feature = "demo"))]
+impl DemoThemes {
+    /// How long a theme may take to load before the next one goes in
+    /// anyway (one that never loads: a wrong address, a twin of another).
+    const PATIENCE: std::time::Duration = std::time::Duration::from_secs(15);
+
+    /// The themes become `urls`: every theme installed before is removed
+    /// now (those Luna lists and those the demo installed, which Luna may
+    /// not list yet), and `urls` go in one by one with
+    /// [`DemoThemes::tick`].
+    pub fn replace(&mut self, luna: &crate::luna::Luna, urls: Vec<String>) {
+        let mut gone: Vec<String> = luna
+            .snapshot()
+            .themes
+            .iter()
+            .map(|t| t.url.clone())
+            .collect();
+        gone.extend(
+            self.installed
+                .iter()
+                .map(|u| crate::luna::themes::canonical_url(u)),
+        );
+        gone.sort();
+        gone.dedup();
+        for url in &gone {
+            luna.uninstall_theme(url);
+        }
+        self.queue = urls.iter().cloned().collect();
+        self.installed = urls;
+        self.waiting = None;
+    }
+
+    /// Installs the next theme once the one before has loaded (or failed).
+    /// True while some are still to go in.
+    pub fn tick(&mut self, luna: &crate::luna::Luna) -> bool {
+        if let Some((url, since)) = &self.waiting {
+            let canon = crate::luna::themes::canonical_url(url);
+            let loaded = luna
+                .snapshot()
+                .themes
+                .iter()
+                .any(|t| t.url == canon && !t.loading);
+            if !loaded && since.elapsed() < Self::PATIENCE {
+                return true;
+            }
+            self.waiting = None;
+        }
+        let Some(url) = self.queue.pop_front() else {
+            return false;
+        };
+        luna.install_theme(&url);
+        self.waiting = Some((url, Instant::now()));
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2793,6 +2911,52 @@ mod tests {
         assert_eq!(long.len(), 20);
         assert_eq!(long[..12], own[..]);
         app.backend.shutdown();
+    }
+
+    /// A dev script's `page` control (the parity checker's one-window run)
+    /// gives the shot what a new demo window with `--demo-page` and
+    /// `--demo-show` has, whatever the shot before left: its page after the
+    /// first one only, the queue closed, no selected row or open menu, the
+    /// settings and the data as new.
+    #[cfg(feature = "demo")]
+    #[test]
+    fn a_page_control_starts_the_shot_as_a_new_window_does() {
+        use crate::dev_script::DemoControl;
+        let (ctx, mut new) = accessible_app("page-control-new");
+        apply_flags(&mut new, Some("playlist:pl0"), Some("quality-pill"));
+        let (ctx2, mut app) = accessible_app("page-control");
+        let page = |page: &str, show: &str| DemoControl::Page {
+            page: page.into(),
+            show: Some(show.into()),
+        };
+        control(
+            &mut app,
+            &ctx2,
+            page("album:alb0", "queue,quality-pill,long-album,light"),
+        );
+        app.selection = Some((
+            Page::Album("alb0".into()),
+            "tidal:track:trk1".into(),
+            RowSelection::default(),
+        ));
+        egui::Popup::open_id(&ctx2, egui::Id::new("a row's menu"));
+        app.open(Page::Albums);
+        control(&mut app, &ctx2, page("playlist:pl0", "quality-pill"));
+        let state = |app: &App, ctx: &egui::Context| {
+            (
+                app.history.clone(),
+                app.history_index,
+                app.show_queue_panel,
+                app.selection.is_some(),
+                egui::Popup::is_any_open(ctx),
+                app.settings.theme,
+                app.album_pages["alb0"].tracks.items.len(),
+                app.library.albums.items.len(),
+            )
+        };
+        assert_eq!(state(&app, &ctx2), state(&new, &ctx));
+        app.backend.shutdown();
+        new.backend.shutdown();
     }
 
     /// Animations ask for frames only while they run: once the fades on a
