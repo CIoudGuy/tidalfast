@@ -396,6 +396,32 @@ fn reduced_id() -> egui::Id {
     egui::Id::new("tidalfast-reduced-motion")
 }
 
+#[cfg(any(test, feature = "demo"))]
+thread_local! {
+    /// [`still`], for the window's thread (where the UI samples animations).
+    static STILL: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Demo shots for the theme parity checker (`--demo-show still`): CSS
+/// animations as the checker's browser leaves them once it has settled
+/// TIDAL's page (`Animation.finish()`, and `cancel()` for an endless one):
+/// a finite animation as it ends, an endless one not applied at all (the
+/// box's own style). Always false outside demo builds.
+pub fn still() -> bool {
+    #[cfg(any(test, feature = "demo"))]
+    {
+        STILL.with(std::cell::Cell::get)
+    }
+    #[cfg(not(any(test, feature = "demo")))]
+    false
+}
+
+/// Turns [`still`] on or off on this thread (demo builds and tests).
+#[cfg(any(test, feature = "demo"))]
+pub fn set_still(on: bool) {
+    STILL.with(|s| s.set(on));
+}
+
 /// Whether less motion is asked for, as last applied to `ctx`.
 pub fn reduced(ctx: &egui::Context) -> bool {
     ctx.data(|data| data.get_temp(reduced_id()))

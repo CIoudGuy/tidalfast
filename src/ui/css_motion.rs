@@ -613,6 +613,18 @@ impl Animation {
         })
     }
 
+    /// The moment a browser leaves once it settles the page as the theme
+    /// parity checker does (`finish()`, `cancel()` when it cannot finish):
+    /// a finite animation as it ends (nothing, without a fill mode that
+    /// keeps its last frame), an endless one not applied
+    /// ([`crate::motion::still`]).
+    pub fn settled(&self) -> Option<Moment> {
+        if self.count.is_infinite() {
+            return None;
+        }
+        self.at(self.delay + self.seconds * self.count + 1.0)
+    }
+
     /// The moment under less motion: a finite animation as it ends, an
     /// endless one at its start.
     pub fn at_rest(&self) -> Option<Moment> {
@@ -684,6 +696,9 @@ pub fn moments_with(
     clock: &mut Clock,
     list: &[Animation],
 ) -> Vec<Option<Moment>> {
+    if crate::motion::still() {
+        return list.iter().map(Animation::settled).collect();
+    }
     let now = ctx.input(|i| i.time);
     let pass = ctx.cumulative_pass_nr();
     let reduced = crate::motion::reduced(ctx);

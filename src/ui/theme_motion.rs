@@ -232,6 +232,12 @@ fn running(
         let Some(frames) = keyframes.get(&a.name) else {
             continue;
         };
+        if crate::motion::still() {
+            if let Some(moment) = a.settled() {
+                use_frames(frames, a, moment.progress);
+            }
+            continue;
+        }
         let id = egui::Id::new(("theme-anim", key, a.name.as_str()));
         let start = ctx.data_mut(|d| *d.get_temp_mut_or_insert_with(id, || now));
         let moment = if reduced {
@@ -353,6 +359,43 @@ mod tests {
         for value in ["top 30%", "30% left", "left right", "top bottom"] {
             assert_eq!(parse_position(value), None, "{value}");
         }
+    }
+
+    /// The theme parity checker's demo shots (`--demo-show still`) show a
+    /// box as its browser leaves TIDAL's page once it settles it: an
+    /// endless animation cancelled (the box's own position), a finite one
+    /// finished (its last frame, kept by `forwards`). Before, the 11 themes
+    /// whose whole page animates could not be compared: each side showed a
+    /// frame of its own.
+    #[test]
+    fn a_still_shot_shows_animations_as_a_settled_page_does() {
+        let own = Style {
+            background_position: Some("20% 50%".into()),
+            ..style()
+        };
+        let finite = Style {
+            animation: Some("gradient 30 0 1 normal linear running forwards".into()),
+            ..own.clone()
+        };
+        let at = |style: &Style| {
+            let ctx = ctx_at(12.0);
+            let mut out = None;
+            let mut o = ctx.run_ui(
+                egui::RawInput {
+                    time: Some(12.5),
+                    ..Default::default()
+                },
+                |ui| out = background_position(ui.ctx(), "tile-item:0", style, &frames()),
+            );
+            o.textures_delta.clear();
+            out
+        };
+        let moving = at(&own);
+        crate::motion::set_still(true);
+        let still = [at(&own), at(&finite)];
+        crate::motion::set_still(false);
+        assert!(moving.is_some(), "an endless drift moves the box");
+        assert_eq!(still, [None, Some((0.0, 0.5))]);
     }
 
     #[test]
