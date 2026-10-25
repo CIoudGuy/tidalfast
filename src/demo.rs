@@ -2631,6 +2631,15 @@ impl DemoThemes {
     }
 }
 
+/// The demo's themes as its Luna runtime starts: those
+/// `TIDALFAST_DEMO_LUNA` lists, unless a dev script's `theme` control is
+/// waiting already (a new window's first passes can play one before the
+/// runtime is up): that is the later word, and it stays.
+#[cfg(any(test, feature = "demo"))]
+pub fn themes_at_start(waiting: &mut Option<Vec<String>>, listed: Vec<String>) {
+    waiting.get_or_insert(listed);
+}
+
 #[cfg(any(test, feature = "demo"))]
 static THEMES_READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -2654,6 +2663,26 @@ mod tests {
     use crate::paths::AppDirs;
     use crate::settings::Settings;
     use std::sync::Arc;
+
+    /// A dev script's first `theme` control can reach a new window before
+    /// its Luna runtime starts. The start then put the themes
+    /// `TIDALFAST_DEMO_LUNA` lists in its place (none, in the parity
+    /// checker's window), so the window showed no theme: the checker starts
+    /// a new window after one that stopped, its theme control first.
+    #[test]
+    fn a_theme_control_played_before_luna_starts_is_kept() {
+        let control = vec![
+            "http://h/a/base.css".to_string(),
+            "http://h/a/theme.css".to_string(),
+        ];
+        let mut waiting = Some(control.clone());
+        themes_at_start(&mut waiting, Vec::new());
+        assert_eq!(waiting, Some(control), "the control's themes go in");
+        let listed = vec!["http://h/b/theme.css".to_string()];
+        let mut none = None;
+        themes_at_start(&mut none, listed.clone());
+        assert_eq!(none, Some(listed), "without a control, the listed ones");
+    }
 
     /// LuckyLP puts its shuffle button right after My Collection's
     /// "Albums" title: TIDAL's "..." beside the title moves right by the
