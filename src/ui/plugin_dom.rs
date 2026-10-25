@@ -4890,11 +4890,27 @@ pub fn theme_layout(ctx: &egui::Context) -> Option<Arc<super::theme_layout::Them
         );
         if s.layout.as_ref().is_none_or(|(k, _)| *k != key) {
             let hosts = &s.overlay.hosts;
-            let layout = super::theme_layout::resolve(
+            let mut layout = super::theme_layout::resolve(
                 hosts.get(dom_anchors::keys::FOOTER),
                 hosts.get(dom_anchors::keys::SIDEBAR),
                 hosts.get(dom_anchors::keys::HEADER),
                 hosts.get(dom_anchors::keys::MAIN),
+                &s.vars,
+                [size.x, size.y],
+            );
+            layout.flow = super::theme_layout::flow(
+                super::theme_layout::FlowHosts {
+                    bar: hosts.get(dom_anchors::keys::BAR),
+                    content_area: hosts.get(dom_anchors::keys::CONTENT_AREA),
+                    header: hosts.get(dom_anchors::keys::HEADER),
+                    header_bar: hosts.get(dom_anchors::keys::HEADER_BAR),
+                    main: hosts.get(dom_anchors::keys::MAIN),
+                    main_content: hosts.get(dom_anchors::keys::MAIN_CONTENT),
+                    queue_wrapper: hosts.get(dom_anchors::keys::QUEUE_WRAPPER),
+                    queue_panel: hosts.get(dom_anchors::keys::QUEUE_PANEL),
+                    sidebar: hosts.get(dom_anchors::keys::SIDEBAR),
+                    sidebar_nav: hosts.get(dom_anchors::keys::SIDEBAR_NAV),
+                },
                 &s.vars,
                 [size.x, size.y],
             );
@@ -4912,6 +4928,29 @@ fn host<R>(
         return None;
     }
     with(|s| s.overlay.hosts.get(key).and_then(|h| f(h, &s.vars)))
+}
+
+/// The margins a theme gives the anchor, top right bottom left, in points
+/// (`em` of TIDAL's 14-point words): `None` on a side no rule sets, which
+/// keeps the part's own room.
+pub fn margins(key: &str) -> [Option<f32>; 4] {
+    let viewport = viewport();
+    host(key, |h, vars| {
+        let s = &h.style;
+        let shorthand = s.margin.is_some();
+        let set = [
+            shorthand || s.margin_top.is_some(),
+            shorthand || s.margin_right.is_some(),
+            shorthand || s.margin_bottom.is_some(),
+            shorthand || s.margin_left.is_some(),
+        ];
+        if !set.contains(&true) {
+            return None;
+        }
+        let all = super::theme_layout::margins(s, vars, super::theme_layout::EM, viewport);
+        Some(std::array::from_fn(|i| set[i].then_some(all[i])))
+    })
+    .unwrap_or([None; 4])
 }
 
 /// The height a theme gives the anchor's `::before` box, in points: a

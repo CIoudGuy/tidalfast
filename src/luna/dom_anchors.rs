@@ -32,6 +32,12 @@ pub mod keys {
     pub const SIDEBAR_NAV: &str = "sidebar-nav";
     pub const SIDEBAR_CONTENT: &str = "sidebar-content";
     pub const MAIN: &str = "main";
+    /// TIDAL 2.46.0's `div._contentArea_cf918f9` in the content row,
+    /// between the sidebar and `main`'s slot: the header's box. A theme's
+    /// padding on it holds the header down (Blur's and TidalCustomTheme's
+    /// `[class^="_contentArea"] { padding-top: 30px }` under a title bar
+    /// taken out of the flow).
+    pub const CONTENT_AREA: &str = "content-area";
     pub const HEADER: &str = "main-header";
     /// The header's bar inside it, `div._container_cb5cbe4[data-test=header]`
     /// (TIDAL 2.46.0), round the arrows, the search and the profile button:
@@ -675,6 +681,7 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("bar", "_bar_5b9ac59"),
     ("cellImage", "_cellImage_0ef8dd3"),
     ("closeButton", "_closeButton_560a9f3"),
+    ("contentArea", "_contentArea_cf918f9"),
     ("contextMenu", "_contextMenu_8606b2d"),
     ("current", "_current_8d537f4"),
     ("favoriteButton", "_favoriteButton_499c518"),
@@ -2313,6 +2320,14 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     }
     out.push(row);
     sidebar(out, &frame.sidebar, docked_view);
+    // TIDAL 2.46.0 keeps the header out of `main`: `div._contentArea_` in
+    // the row, before `main`'s slot, holds it, and `main` keeps room for it
+    // by its top padding.
+    out.push(
+        el(CONTENT_AREA, Some(CONTAINER_ROW), "div")
+            .modules(&["contentArea"])
+            .at(main_rect(frame)),
+    );
     // TIDAL's page box beside the sidebar, under the title bar, is
     // `_hasDockedPlayer_` (`_nowPlayingVisible_` over the now-playing
     // view): Tidal TUI labels it `Main` in its `::before`.
@@ -2327,7 +2342,7 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     }
     main.scroll = frame.main_scroll;
     out.push(main);
-    let mut header = el(HEADER, Some(MAIN), "div")
+    let mut header = el(HEADER, Some(CONTENT_AREA), "div")
         .id("mainHeader")
         .test("main-layout-header")
         .modules(&["header", "solidHeader"])

@@ -606,11 +606,17 @@ const FLOATING_TOP_PAD: f32 = 22.0;
 
 /// The floating panel's rect in a window of `screen`.
 pub fn floating_rect(ctx: &egui::Context, screen: egui::Rect) -> egui::Rect {
+    // TIDAL's panel sits 60 under its content row's top: it moves with a
+    // row a theme moves ([`super::row_shift`]) and as the theme moves its
+    // wrapper (the cotton candy family's `translateY(2.6em)`); its foot
+    // stays above the player bar.
     let top = screen.top()
         + theme::titlebar_inset(ctx)
         + super::titlebar::height(ctx)
         + theme::top_bar_height()
-        + 4.0;
+        + 4.0
+        + super::row_shift(ctx)
+        + super::plugin_dom::theme_layout(ctx).map_or(0.0, |l| l.flow.queue);
     egui::Rect::from_min_max(
         egui::pos2(screen.right() - FLOATING_MARGIN - FLOATING_WIDTH, top),
         egui::pos2(

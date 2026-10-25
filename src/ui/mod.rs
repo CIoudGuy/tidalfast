@@ -172,7 +172,15 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         now_playing::show(app, ui);
     } else {
         let above_bar = ui.available_rect_before_wrap();
-        plugin_dom::note(|f| f.shell.main = plugin_dom::rect(above_bar));
+        // A theme that moves TIDAL's content row from under its title bar
+        // (the cotton candy family pulls it 30 points up under the bar)
+        // moves the sidebar, the header and the page with it; what goes
+        // above the room left here is cut off, under the title bar or past
+        // the window's edge, as TIDAL's title bar covers it.
+        let row = row_shift(ctx);
+        let row_room =
+            Rect::from_min_max(pos2(above_bar.left(), above_bar.top() + row), above_bar.max);
+        plugin_dom::note(|f| f.shell.main = plugin_dom::rect(row_room));
         // How far the page reaches past the bar's top: to the window's
         // bottom when it runs under the bar.
         let under = if page_under_bar {
@@ -182,29 +190,47 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
         };
         let (reach, inset) =
             plugin_dom::theme_layout(ctx).map_or((0.0, 0.0), |l| (l.main_reach, l.main_inset));
-        let page_left = if reach > 0.0 {
-            // `#main`'s left padding: its content starts that far in.
-            Some(sidebar_over_page(app, ui, reach) + inset)
-        } else {
-            let _part = part!("sidebar");
-            sidebar::show(app, ui);
-            None
-        };
-        if app.show_lyrics_panel {
-            lyrics::side_panel(app, ui);
-        }
-        match page_left {
-            Some(left) => {
-                // The page starts where the sidebar's slot is left over by
-                // the reach the theme gives it, and the sidebar floats over
-                // the rest.
-                let mut room = ui.available_rect_before_wrap();
-                room.min.x = left.clamp(room.min.x, room.max.x);
-                let mut page = ui.new_child(egui::UiBuilder::new().max_rect(room));
-                page.set_clip_rect(room.intersect(ui.clip_rect()));
-                central(app, &mut page, under);
+        let mut moved_row = (row != 0.0).then(|| {
+            let mut child = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(row_room)
+                    .layout(*ui.layout()),
+            );
+            child.set_clip_rect(ui.clip_rect().intersect(Rect::from_min_max(
+                pos2(ui.clip_rect().left(), above_bar.top()),
+                ui.clip_rect().max,
+            )));
+            child
+        });
+        {
+            let ui = match moved_row.as_mut() {
+                Some(child) => child,
+                None => &mut *ui,
+            };
+            let page_left = if reach > 0.0 {
+                // `#main`'s left padding: its content starts that far in.
+                Some(sidebar_over_page(app, ui, reach) + inset)
+            } else {
+                let _part = part!("sidebar");
+                sidebar::show(app, ui);
+                None
+            };
+            if app.show_lyrics_panel {
+                lyrics::side_panel(app, ui);
             }
-            None => central(app, ui, under),
+            match page_left {
+                Some(left) => {
+                    // The page starts where the sidebar's slot is left over
+                    // by the reach the theme gives it, and the sidebar
+                    // floats over the rest.
+                    let mut room = ui.available_rect_before_wrap();
+                    room.min.x = left.clamp(room.min.x, room.max.x);
+                    let mut page = ui.new_child(egui::UiBuilder::new().max_rect(room));
+                    page.set_clip_rect(room.intersect(ui.clip_rect()));
+                    central(app, &mut page, under);
+                }
+                None => central(app, ui, under),
+            }
         }
         keep_room_for_panels(app, ctx);
         if page_under_bar {
@@ -590,10 +616,11 @@ fn central(app: &mut App, ui: &mut egui::Ui, under: f32) {
     }
     let mut room = ui.available_rect_before_wrap();
     room.max.y += under;
-    let clip = ui
-        .clip_rect()
-        .union(room)
-        .intersect(ui.ctx().content_rect());
+    // Down to the window's foot; a page a theme pulls up under the title
+    // bar stays cut off at its foot.
+    let mut clip = ui.clip_rect().union(room);
+    clip.min.y = ui.clip_rect().top();
+    let clip = clip.intersect(ui.ctx().content_rect());
     let mut page = ui.new_child(egui::UiBuilder::new().max_rect(room));
     page.set_clip_rect(clip.intersect(room));
     page_panel(app, &mut page, under);
@@ -689,6 +716,15 @@ fn page_panel(app: &mut App, ui: &mut egui::Ui, under: f32) {
                     ) && plugin_dom::hidden(crate::luna::dom_anchors::keys::PAGE)
                     {
                         return;
+                    }
+                    // `#main`'s and `.mainContent`'s top margins and
+                    // paddings a theme sets move the page's content (the
+                    // cotton candy family's 18 down, Sugarcoat's 56). One
+                    // that pulls it up under the header stops at the page's
+                    // top: the header keeps its room here.
+                    let shift = plugin_dom::theme_layout(ui.ctx()).map_or(0.0, |l| l.flow.page);
+                    if shift != 0.0 {
+                        ui.add_space(shift.max(-4.0));
                     }
                     Frame::new()
                         .inner_margin(Margin {
@@ -956,6 +992,20 @@ pub(super) struct WindowControlsReservation {
 
 const fn windows_chrome_visible(on_windows: bool, fullscreen: bool) -> bool {
     on_windows && !fullscreen
+}
+
+/// How far a theme moves TIDAL's content row from its title bar's foot
+/// ([`theme_layout::Flow::row`]), in points down. Tidalfast's window shows
+/// TIDAL's Windows app from under its title bar (the system's title bar,
+/// or Tidalfast's own, takes that bar's place), so the row moves as it does
+/// there. In full screen there is no title bar to lie under, and TIDAL on
+/// macOS draws none (its traffic lights sit in the header).
+pub(crate) fn row_shift(ctx: &egui::Context) -> f32 {
+    let fullscreen = ctx.input(|input| input.viewport().fullscreen.unwrap_or(false));
+    if cfg!(target_os = "macos") || fullscreen {
+        return 0.0;
+    }
+    plugin_dom::theme_layout(ctx).map_or(0.0, |l| l.flow.row)
 }
 
 fn windows_chrome_visible_here(ctx: &egui::Context) -> bool {
