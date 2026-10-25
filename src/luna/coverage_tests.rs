@@ -114,6 +114,10 @@ impl LunaHost for CatalogueHost {
             // ISRC MusicBrainz knows only for that chapter.
             "4" => Some(only_girl(4, "USUM71023200")),
             "5" => Some(only_girl(5, "ISRC5")),
+            // A song MusicBrainz knows no recording of, on an album TIDAL
+            // gives no date: its release date is MusicBrainz's for the
+            // album's barcode.
+            "6" => Some(song(6, "ISRC6", 12, &["LOSSLESS"], "LOSSLESS")),
             _ => None,
         }
     }
@@ -125,6 +129,10 @@ impl LunaHost for CatalogueHost {
                 "recordLabel": "Label X", "copyright": "(p) Y",
                 "artists": [{ "id": 100, "name": "Artist A" }],
                 "artist": { "id": 100, "name": "Artist A" },
+            })),
+            "12" => Some(json!({
+                "id": 12, "title": "Album Twelve", "numberOfTracks": 7, "upc": "333",
+                "artists": [{ "id": 100, "name": "Artist A" }],
             })),
             // Another UPC, and a track count MusicBrainz's release disagrees with.
             "11" => Some(json!({
@@ -190,6 +198,8 @@ impl LunaHost for CatalogueHost {
                 "title": "MB Title", "artist-credit": [{ "joinphrase": "" }],
                 "recording": { "id": "rec1", "isrcs": ["ISRC1", "ISRC9"], "first-release-date": "2019-01-02" },
             }] }] }] })
+        } else if url.contains("barcode:333") {
+            json!({ "releases": [{ "id": "rel3", "title": "Album Twelve", "track-count": 7, "date": "2001-02-03" }] })
         } else if url.contains("barcode:111") || url.contains("barcode:222") {
             json!({ "releases": [{ "id": "rel1", "title": "MB Album", "track-count": 10, "barcode": "B1" }] })
         } else {
@@ -248,6 +258,25 @@ pub(super) fn tidal_action(luna: &Luna, kind: &str, payload: Value) {
         kind: kind.into(),
         payload,
     });
+}
+
+/// Luna's `MediaItem.releaseDate()`: TIDAL's date for the song, else its
+/// MusicBrainz recording's first release, else the album's date, else the
+/// date MusicBrainz gives the album's barcode release, else the song's
+/// stream start. The last MusicBrainz step was missing: a song on an album
+/// TIDAL gives no date had none (SongReleaseDate showed nothing).
+#[test]
+fn a_release_date_falls_back_to_the_albums_musicbrainz_release() {
+    let (r, _host) = run_catalogue(
+        r##"
+const { MediaItem } = lib;
+const m = await MediaItem.fromId(6);
+R.date = await m.releaseDateStr();
+R.done = true;
+"##,
+        |_, _| {},
+    );
+    assert_eq!(r["date"], json!("2001-02-03"), "{r}");
 }
 
 #[test]
