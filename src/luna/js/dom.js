@@ -1767,6 +1767,20 @@
 	D.createEl = createEl;
 	Object.assign(g.HTMLMediaElement.prototype, { play: () => Promise.resolve(), pause() {}, load() {}, canPlayType: () => "", paused: true, currentTime: 0, duration: NaN, volume: 1, muted: false, readyState: 0, playbackRate: 1, ended: false });
 	Object.assign(g.HTMLImageElement.prototype, { complete: true, naturalWidth: 0, naturalHeight: 0, decode: () => Promise.resolve(), loading: "eager" });
+	// An image's and a source's `srcset` and `sizes` reflect their attributes,
+	// as in a browser: a script that clears them (uwu-ifier, on every picture
+	// it replaces) changes the attribute, which observers and the page see.
+	for (const C of [g.HTMLImageElement, g.HTMLSourceElement])
+		for (const prop of ["srcset", "sizes"])
+			Object.defineProperty(C.prototype, prop, {
+				get() {
+					return this.getAttribute(prop) ?? "";
+				},
+				set(v) {
+					this.setAttribute(prop, v);
+				},
+				configurable: true,
+			});
 	g.Audio = class Audio extends g.HTMLAudioElement {
 		constructor(src) {
 			super("audio");
