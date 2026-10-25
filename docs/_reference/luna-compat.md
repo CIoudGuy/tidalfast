@@ -2792,6 +2792,83 @@ lines, the now-playing view and an animated theme use them); TIDAL's
 draw their `box-shadow` as egui's frame shadow; the queue covers' hash
 matching (round 39).
 
+### Round 41 (TIDAL's flow of the shell's boxes, 2026-10-25)
+
+TIDAL 2.46.0 lays its window out as a column: its 30-point title bar
+(`div._bar_5b9ac59`), then the content row (`div._containerRow_`: the
+sidebar's wrapper, the content area that holds the header, `main` and
+the play queue's wrapper). Tidalfast's window shows that page from the
+title bar's foot down (the system's title bar, or Tidalfast's own, takes
+the bar's place). The pixel comparison's largest remaining group, the
+cotton candy family's page 25 to 30 points off, came from rules that move
+those boxes, which Tidalfast did not follow. Measured on TIDAL's
+captured page under each theme (Chromium) and fixed in the generic layer:
+
+- **A title bar's margins move the content row.** The family's "header
+  removal", `[class*="_bar_"] { margin-bottom: -2.5em }` (30 points of
+  the bar's 12-point words), pulls TIDAL's row 30 points up under the
+  title bar; Blur and TidalCustomTheme take the bar out of the flow
+  (`position: absolute`), which does the same. The sidebar, the header,
+  the page and the play queue now move with the row; what goes above the
+  window's top is under the title bar in TIDAL too. Not on macOS (TIDAL
+  draws no such bar there) or in full screen.
+- **The parts' own margins and paddings move them back.** The header's
+  controls take the content area's and `#mainHeader`'s top padding and
+  margin and its first box's margin (the family's `#mainHeader > * {
+  margin-top: 2em }`, Blur's `[class^="_contentArea"] { padding-top:
+  30px }`), drawn over the page as TIDAL's fixed header is; the page's
+  content takes `#main`'s top margin and its padding beyond TIDAL's
+  `--headerHeight` and `.mainContent`'s top margin and padding (the
+  family's 18 points, Sugarcoat's 56, Blur's 49); the play queue its
+  wrapper's top margin and `transform: translateY()` (the family's
+  2.6em); the sidebar's rows the wrapper's and `aside#sidebar`'s top
+  margin and padding (Blur's 30). TIDAL's header now has its content area
+  (`div._contentArea_cf918f9`) in the anchors, the header's box in the
+  row, as in TIDAL.
+- **Margins between native rows.** A navigation row's own margins
+  (the family's `margin-bottom: .6em`: rows 48.4 points apart, not 40)
+  and the album header controls' top margin (the family's 34 points,
+  TidalCustomTheme's 30, TIDAL's own 48).
+- **A sidebar card's own height ends it** (the family's `height:
+  calc(100% - (var(--miniPlayerHeight) * 1.234))` of the row, the window
+  less the title bar); before, the card ended as far off the column's
+  foot as its top was off the top.
+- **A box's padding lies inside it.** A collection grid's padding (the
+  cotton candy singles' `1.3em .8em .9em 1em`) narrows the cards inside
+  the grid's box (six 228-point cards, not 232), and a track list
+  panel's padding and border lie round the list (the family's glass 15
+  points out from the album's songs), as TIDAL's module boxes do.
+- **A plugin box's shadow lies outside it**: a see-through box no
+  longer shows its own `box-shadow` through it (the bug round 40 fixed
+  for the sidebar card and the player bar).
+- **A gradient stop at a length** (`#0000 1em`, `calc(100% - 1.5em)`:
+  the family's row lines) sits that far along the gradient line; the
+  length was dropped and the stop spread between its neighbours.
+
+Totals (dark-compared themes and no theme, as in round 40; this round's
+start measured again with the same checker settings): pixels 6.80 % to
+4.90 % of 226 million compared pixels (8.39 % to 5.53 % of those a theme
+changes); the no-theme shots are pixel-identical before and after. Worst
+before: Snowcone 13.5 %, Cotton Candy Nights (single) 12.1 %, Purple
+Paradise Punch 12.0 %, Ube Charcoal 11.6 %, Blueberry Lemon 11.6 %;
+after: 10.3 (Snowcone), 8.6, 7.5, 6.9 and 7.2 %. Worst now: Sunken Tidal
+10.3 %, Snowcone 10.3 %, TidalCustomTheme 10.0 %, Lunallena (visible
+sidebar) 8.6 %, Cotton Candy Nights (single) 8.6 %. The style comparison
+went from 551 to 549 differences over about 84,000 anchor elements
+(99.35 %).
+
+Not done, largest first: the light scheme and real hover against TIDAL
+(TIDAL was held by another round's session all through this one); a
+module class with several TIDAL hashes (`_cellContainer_`: the play
+queue's cell, its cover and a collection card's cell each have their
+own) still matches a theme's rule for another of them (the queue covers'
+62 report items); a playlist header's art fades out over about 100
+points under the header in TIDAL, where Tidalfast's ends at once
+(TidalCustomTheme's playlist page, now 30 points higher with its row);
+Sunken Tidal's full-height, full-bleed queue panel; gradients tiled by a
+`background-size` under 100 % (only the now-playing view and an animated
+theme use them).
+
 ### Round 28 (plugins in use, 2026-10-23)
 
 Sixteen popular plugins (Tidal Tags, tidal-genres, total-play-time,
