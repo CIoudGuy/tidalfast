@@ -737,10 +737,17 @@ impl App {
     /// real, signed-in session): every two seconds, the plugins'
     /// status and logs and the DOM overlay go to `luna-dump.json` in the
     /// state directory, for checking plugins in an off-screen window.
+    ///
+    /// The JSON is made and written on a thread of its own: with a theme's
+    /// overlay it took tens of milliseconds of the window's thread, every
+    /// two seconds, which showed in the demo bench's slowest frames. A dump
+    /// still being written when the next is due skips that one.
     #[cfg(feature = "demo")]
     fn demo_luna_dump(&self) {
         use std::sync::Mutex;
+        use std::sync::atomic::{AtomicBool, Ordering};
         static LAST: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+        static WRITING: AtomicBool = AtomicBool::new(false);
         let mut last = LAST.lock().unwrap_or_else(|p| p.into_inner());
         if last.is_some_and(|t| t.elapsed() < Duration::from_secs(2)) {
             return;
@@ -749,30 +756,37 @@ impl App {
         let Some(luna) = &self.plugins.luna else {
             return;
         };
+        if WRITING.swap(true, Ordering::AcqRel) {
+            return;
+        }
         let snap = luna.snapshot();
+        let overlay = luna.dom_overlay();
         // `TIDALFAST_DEMO_LUNA_DUMP_LOGS=<n>`: how many log lines per plugin.
         let keep = std::env::var("TIDALFAST_DEMO_LUNA_DUMP_LOGS")
             .ok()
             .and_then(|n| n.parse::<usize>().ok())
             .unwrap_or(15);
-        let plugins: Vec<Value> = snap
-            .plugins
-            .iter()
-            .map(|p| {
-                json!({
-                    "name": p.name,
-                    "status": format!("{:?}", p.status),
-                    "logs": p.logs.iter().rev().take(keep).map(|l| format!("{:?} {}", l.level, l.message)).collect::<Vec<_>>(),
-                })
-            })
-            .collect();
-        let dump = json!({
-            "plugins": plugins,
-            "runtime": snap.runtime_log.iter().rev().take(15).map(|l| l.message.clone()).collect::<Vec<_>>(),
-            "overlay": &*luna.dom_overlay(),
-        });
         let path = self.dirs.luna_dir().with_file_name("luna-dump.json");
-        let _ = std::fs::write(path, serde_json::to_vec_pretty(&dump).unwrap_or_default());
+        demo_off_thread(move || {
+            let plugins: Vec<Value> = snap
+                .plugins
+                .iter()
+                .map(|p| {
+                    json!({
+                        "name": p.name,
+                        "status": format!("{:?}", p.status),
+                        "logs": p.logs.iter().rev().take(keep).map(|l| format!("{:?} {}", l.level, l.message)).collect::<Vec<_>>(),
+                    })
+                })
+                .collect();
+            let dump = json!({
+                "plugins": plugins,
+                "runtime": snap.runtime_log.iter().rev().take(15).map(|l| l.message.clone()).collect::<Vec<_>>(),
+                "overlay": &*overlay,
+            });
+            let _ = std::fs::write(path, serde_json::to_vec_pretty(&dump).unwrap_or_default());
+            WRITING.store(false, Ordering::Release);
+        });
     }
 
     /// The state Luna plugins read.
@@ -1561,9 +1575,60 @@ fn favorite_uris(kind: &str, ids: &[String]) -> Vec<String> {
     ids.iter().map(|id| format!("tidal:{kind}:{id}")).collect()
 }
 
+/// Runs `job` on the demo's own writer thread (`demo-dump`), in order, or
+/// here when that thread cannot start.
+#[cfg(feature = "demo")]
+fn demo_off_thread(job: impl FnOnce() + Send + 'static) {
+    type Job = Box<dyn FnOnce() + Send>;
+    static WRITER: std::sync::OnceLock<Option<std::sync::mpsc::Sender<Job>>> =
+        std::sync::OnceLock::new();
+    let writer = WRITER.get_or_init(|| {
+        let (tx, rx) = std::sync::mpsc::channel::<Job>();
+        std::thread::Builder::new()
+            .name("demo-dump".into())
+            .spawn(move || rx.into_iter().for_each(|job| job()))
+            .ok()
+            .map(|_| tx)
+    });
+    let job: Job = Box::new(job);
+    match writer {
+        Some(tx) => {
+            if let Err(std::sync::mpsc::SendError(job)) = tx.send(job) {
+                job();
+            }
+        }
+        None => job(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "demo")]
+    #[test]
+    fn the_demo_luna_dump_is_made_on_a_thread_of_its_own() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        for i in 0..3 {
+            let tx = tx.clone();
+            demo_off_thread(move || {
+                let _ = tx.send((i, std::thread::current().name().map(str::to_string)));
+            });
+        }
+        let ran: Vec<_> = (0..3)
+            .map(|_| {
+                rx.recv_timeout(Duration::from_secs(10))
+                    .expect("the job ran")
+            })
+            .collect();
+        assert_eq!(
+            ran,
+            (0..3)
+                .map(|i| (i, Some("demo-dump".to_string())))
+                .collect::<Vec<_>>(),
+            "each job on the dump thread, in the order given"
+        );
+    }
 
     #[test]
     fn favourite_kinds_become_uris() {
