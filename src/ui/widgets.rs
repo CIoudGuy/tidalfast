@@ -2886,6 +2886,9 @@ fn paint_border_image(
     sides: [f32; 4],
     g: &super::theme_gradient::Angled,
 ) {
+    // Stops at lengths sit along the whole box's line, not the strip's.
+    let g =
+        &*super::theme_gradient::for_line(g, super::theme_gradient::line_length(g, rect.size()));
     let [t, r, b, l] = sides;
     for (w, strip) in [
         (

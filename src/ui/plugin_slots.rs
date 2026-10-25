@@ -1913,6 +1913,7 @@ fn box_gradient(value: &str) -> Option<super::theme_gradient::Angled> {
         spin: None,
         size: [1.0, 1.0],
         position: [0.0, 0.0],
+        lengths: None,
     })
 }
 
