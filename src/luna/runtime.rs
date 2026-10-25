@@ -176,6 +176,8 @@ struct PluginRt {
     /// the plugin's error is then only a symptom of it.
     note: Option<String>,
     uses_dom: bool,
+    /// The plugin exports `Settings` (said when it loads).
+    has_settings: bool,
     settings: Option<SettingsNode>,
     logs: VecDeque<LogLine>,
 }
@@ -266,6 +268,10 @@ struct Inner {
     auto_updating: HashSet<String>,
     /// Hide-settings flags waiting for an imported plugin's package.
     pending_hide: HashMap<String, bool>,
+    /// The Plugins tab is open ([`super::Luna::set_settings_open`]), and
+    /// the view the page script was last told (open, folded-away names).
+    settings_open: bool,
+    settings_sent: Option<(bool, Vec<String>)>,
     install_outcomes: Vec<super::InstallOutcome>,
     outcome_seq: u64,
     background_updates: Vec<super::BackgroundUpdate>,
@@ -721,6 +727,7 @@ impl Inner {
                     programs: r.programs.clone(),
                     account_writes: r.account_writes,
                     grants: r.grants.clone(),
+                    has_settings: rt.is_some_and(|x| x.has_settings),
                     settings: rt.and_then(|x| x.settings.clone()),
                     logs: rt
                         .map(|x| x.logs.iter().cloned().collect())
@@ -1865,7 +1872,14 @@ It is installed and switched on; what it may do is asked when it does it, and it
                 // Only a plugin that is still installed and on runs (it may
                 // have been turned off while it loaded).
                 "loaded" if i.record(&name).is_some_and(|r| r.enabled) => {
-                    i.rt(&name).status = Some(PluginStatus::Running);
+                    let has = a.get("hasSettings").and_then(Value::as_bool) == Some(true);
+                    let rt = i.rt(&name);
+                    rt.status = Some(PluginStatus::Running);
+                    rt.has_settings = has;
+                    // A build without Settings leaves no box behind.
+                    if !has {
+                        rt.settings = None;
+                    }
                     i.log(Some(&name), LogLevel::Info, "Loaded".into());
                 }
                 "loaded" => {}
@@ -1883,6 +1897,7 @@ It is installed and switched on; what it may do is asked when it does it, and it
                 "unloaded" => {
                     let rt = i.rt(&name);
                     rt.settings = None;
+                    rt.has_settings = false;
                     if !matches!(rt.status, Some(PluginStatus::Failed(_))) {
                         rt.status = Some(PluginStatus::Disabled);
                     }
@@ -3757,6 +3772,7 @@ impl Engine {
                 let rt = i.rt(&name);
                 rt.status = Some(PluginStatus::Failed(err.clone()));
                 rt.settings = None;
+                rt.has_settings = false;
                 i.log(Some(&name), LogLevel::Error, format!("Disabled: {err}"));
                 i.close_plugin_io(&name);
             }
@@ -3789,6 +3805,28 @@ impl Engine {
             // would otherwise keep it until Luna stops).
             self.ctx.with(|ctx| super::wasm::drop_owner(&ctx, &name));
         }
+    }
+
+    /// Tells the page script which plugins' Settings are on screen (the
+    /// Plugins tab is open and they are not folded away) when that changed;
+    /// it mounts and unmounts them to match.
+    fn sync_settings_view(&self) {
+        let view = {
+            let i = self.inner.borrow();
+            let hidden: Vec<String> = i
+                .records
+                .iter()
+                .filter(|r| r.hide_settings)
+                .map(|r| r.name.clone())
+                .collect();
+            let view = (i.settings_open, hidden);
+            if i.settings_sent.as_ref() == Some(&view) {
+                return;
+            }
+            view
+        };
+        self.host_call("settings_view", json!({ "open": view.0, "hidden": view.1 }));
+        self.inner.borrow_mut().settings_sent = Some(view);
     }
 
     fn host_call(&self, kind: &str, arg: Value) {
@@ -3928,6 +3966,9 @@ impl Engine {
         }
         // A new run: what the last one was allowed once or denied is over.
         self.inner.borrow_mut().end_run(name);
+        // Its Settings mount at load only when its card is on screen with
+        // them unfolded (a hide flag set by an import is told first).
+        self.sync_settings_view();
         let (url, pkg, path) = {
             let i = self.inner.borrow();
             let Some(r) = i.record(name) else { return };
@@ -4254,6 +4295,8 @@ impl Engine {
                 && let Some(r) = i.record_mut(&name)
             {
                 r.hide_settings = hide;
+                // Told to the page script when the plugin loads.
+                i.settings_sent = None;
             }
             if update {
                 if i.auto_updating.remove(&url) {
@@ -4752,13 +4795,20 @@ impl Engine {
             Msg::RefreshStores => self.refresh_stores(),
             Msg::SetLiveReload(name, on) => self.set_live_reload(&name, on),
             Msg::SetHideSettings(name, hide) => {
-                let mut i = self.inner.borrow_mut();
-                if let Some(r) = i.record_mut(&name)
-                    && r.hide_settings != hide
                 {
-                    r.hide_settings = hide;
-                    i.save_records();
+                    let mut i = self.inner.borrow_mut();
+                    if let Some(r) = i.record_mut(&name)
+                        && r.hide_settings != hide
+                    {
+                        r.hide_settings = hide;
+                        i.save_records();
+                    }
                 }
+                self.sync_settings_view();
+            }
+            Msg::SettingsOpen(open) => {
+                self.inner.borrow_mut().settings_open = open;
+                self.sync_settings_view();
             }
             Msg::InstallTheme(url) => self.install_theme(&url),
             Msg::SetThemeEnabled(url, on) => self.set_theme_enabled(&url, on),
@@ -5731,6 +5781,8 @@ fn setup_with(
         live_busy: HashSet::new(),
         auto_updating: HashSet::new(),
         pending_hide: HashMap::new(),
+        settings_open: false,
+        settings_sent: None,
         install_outcomes: Vec::new(),
         outcome_seq: 0,
         background_updates: Vec::new(),

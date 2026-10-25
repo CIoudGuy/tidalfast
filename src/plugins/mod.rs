@@ -60,6 +60,9 @@ pub(crate) struct Seen {
     /// How many times the monitors had changed when plugins were last told
     /// ([`crate::luna::screen::changes`]).
     pub screens: u64,
+    /// Whether plugins were last told the Plugins tab is open
+    /// ([`crate::luna::Luna::set_settings_open`]).
+    pub settings_open: Option<bool>,
 }
 
 /// The plugins' running state, held by the app.
@@ -79,6 +82,8 @@ pub struct Plugins {
     /// Titles a plugin gave songs in a TIDAL answer, by TIDAL id
     /// (`HostCommand::RetitleTracks`); track rows show them.
     pub retitles: std::collections::HashMap<String, String>,
+    /// The Plugins tab, with the plugins' Settings, was drawn this frame.
+    pub(crate) settings_drawn: bool,
     /// When Luna started waiting for the account to sign in.
     pub(crate) held_since: Option<std::time::Instant>,
     /// A made-up question for the program prompt (demo shots and tests have
@@ -118,6 +123,7 @@ impl Plugins {
             updates_seen: 0,
             editor: None,
             retitles: std::collections::HashMap::new(),
+            settings_drawn: false,
             held_since: None,
             #[cfg(any(test, feature = "demo"))]
             demo_program: None,

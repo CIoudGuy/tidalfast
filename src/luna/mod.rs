@@ -801,6 +801,12 @@ pub struct PluginInfo {
     /// system-wide shortcuts, a program's pipe, saving TIDAL audio), each
     /// revocable with [`Luna::revoke_permission`].
     pub grants: Vec<Access>,
+    /// The plugin exports `Settings`: its card has a settings box, drawn
+    /// from [`PluginInfo::settings`] while the Plugins tab is open.
+    pub has_settings: bool,
+    /// The settings box as last rendered. Settings render only while the
+    /// Plugins tab shows them ([`Luna::set_settings_open`]), as TidaLuna
+    /// mounts them, so this is `None` until the tab first opens.
     pub settings: Option<SettingsNode>,
     pub logs: Vec<LogLine>,
     /// Luna's live reload: the published build is checked about once a
@@ -1009,6 +1015,7 @@ pub(crate) enum Msg {
     RefreshStores,
     SetLiveReload(String, bool),
     SetHideSettings(String, bool),
+    SettingsOpen(bool),
     InstallTheme(String),
     SetThemeEnabled(String, bool),
     ReloadTheme(String),
@@ -1413,6 +1420,14 @@ impl Luna {
     /// Fold a plugin's settings away or show them again (kept).
     pub fn set_hide_settings(&self, name: &str, hide: bool) {
         let _ = self.tx.send(Msg::SetHideSettings(name.to_string(), hide));
+    }
+
+    /// The Plugins tab opened or closed. As in TidaLuna, a plugin's
+    /// `Settings` component is mounted only while its card shows it (the
+    /// tab is open, the plugin runs and its settings are not folded away)
+    /// and unmounted when the tab closes, so it never runs at load.
+    pub fn set_settings_open(&self, open: bool) {
+        let _ = self.tx.send(Msg::SettingsOpen(open));
     }
 
     /// Add a CSS theme by URL, enabled; its CSS is fetched in the background.

@@ -1568,9 +1568,38 @@
 	}
 	const status = (name, state, extra = {}) => callOp("plugin.status", { ...extra, name, state, plugin: name });
 	const settingsRoots = {};
+	// Which plugins' Settings are on screen, as TidaLuna mounts them: its
+	// Plugins tab renders each enabled plugin's Settings unless they are
+	// hidden (LunaPluginSettings), and leaving the tab unmounts them. So a
+	// plugin's Settings component runs only while its card is shown, never
+	// at load; the app says when the Plugins tab opens and closes.
+	const settingsView = { open: false, hidden: new Set() };
+	const settingsShown = (name) => settingsView.open && !settingsView.hidden.has(name);
+	const newSettingsRoot = (name, Comp) => {
+		const root = new L.SettingsRoot(name, Comp);
+		root.onTree = (tree) => callOp("plugin.settings", { name, plugin: name, tree });
+		return root;
+	};
+	// Mounts or unmounts each plugin's Settings to match the view. An
+	// unmounted component's state goes with it (React's unmount): the next
+	// mount starts afresh.
+	const syncSettings = () => {
+		for (const name of Object.keys(settingsRoots)) {
+			const root = settingsRoots[name];
+			if (settingsShown(name)) {
+				if (!root.mounted) {
+					root.mounted = true;
+					renderSettings(name);
+				}
+			} else if (root.mounted) {
+				root.unmount();
+				settingsRoots[name] = newSettingsRoot(name, root.Comp);
+			}
+		}
+	};
 	const renderSettings = (name) => {
 		const root = settingsRoots[name];
-		if (!root) return;
+		if (!root?.mounted) return;
 		try {
 			root.render();
 		} catch (err) {
@@ -1617,13 +1646,11 @@
 				if (ns.errSignal._ !== undefined) status(name, "message", { error: String(ns.errSignal._) });
 			}
 			plugin.unloads = unloads;
-			if (typeof ns.Settings === "function" || (ns.Settings && typeof ns.Settings === "object")) {
-				const root = new L.SettingsRoot(name, ns.Settings);
-				root.onTree = (tree) => callOp("plugin.settings", { name, plugin: name, tree });
-				settingsRoots[name] = root;
-			}
+			if (typeof ns.Settings === "function" || (ns.Settings && typeof ns.Settings === "object")) settingsRoots[name] = newSettingsRoot(name, ns.Settings);
 			status(name, "loaded", { hasSettings: !!settingsRoots[name] });
-			renderSettings(name);
+			// Rendered now only when its card is on screen (a reload or an
+			// enable from the Plugins tab).
+			syncSettings();
 		} catch (err) {
 			// A stale load's failure (its code was replaced meanwhile) is no
 			// failure of the plugin.
@@ -1688,9 +1715,15 @@
 			}
 			case "render_settings":
 				return void renderSettings(arg.name);
+			case "settings_view":
+				settingsView.open = !!arg.open;
+				settingsView.hidden = new Set(arg.hidden ?? []);
+				return void syncSettings();
 			case "settings_input": {
 				const root = settingsRoots[arg.name];
 				if (!root) throw new Error(`${arg.name} has no settings`);
+				// The card closed before the input arrived.
+				if (!root.mounted) return;
 				const r = root.input(arg.id, arg.value);
 				if (r instanceof Promise) r.catch(L.reportError).finally(() => root.invalidate());
 				root.invalidate();

@@ -54,6 +54,7 @@ pub(super) fn installed(p: &StorePlugin, update: bool) -> PluginInfo {
         programs: vec![],
         account_writes: false,
         grants: vec![],
+        has_settings: false,
         settings: None,
         logs: vec![],
         live_reload: false,

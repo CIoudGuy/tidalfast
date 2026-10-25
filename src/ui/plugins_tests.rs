@@ -244,6 +244,7 @@ fn info(name: &str) -> PluginInfo {
         programs: vec![],
         account_writes: false,
         grants: vec![],
+        has_settings: false,
         settings: None,
         logs: vec![],
         live_reload: false,
@@ -413,6 +414,7 @@ fn the_tabs_are_lunas_in_lunas_order() {
 fn a_plugin_card_has_lunas_header_controls() {
     let ctx = context();
     let mut p = info("VolumeScroll");
+    p.has_settings = true;
     p.settings = Some(tree());
     let mut failed = info("Broken");
     failed.status = PluginStatus::Failed("boom on load".into());
@@ -478,6 +480,7 @@ fn a_plugin_card_has_lunas_header_controls() {
 fn a_plugin_that_stored_something_can_be_reset_after_asking() {
     let ctx = context();
     let mut p = info("VolumeScroll");
+    p.has_settings = true;
     p.settings = Some(tree());
     p.has_stored = true;
     let fresh = info("Fresh");
@@ -551,6 +554,7 @@ fn a_plugin_that_stored_something_can_be_reset_after_asking() {
 fn hidden_settings_are_not_drawn() {
     let ctx = context();
     let mut p = info("VolumeScroll");
+    p.has_settings = true;
     p.settings = Some(tree());
     p.hide_settings = true;
     let snapshot = LunaSnapshot {

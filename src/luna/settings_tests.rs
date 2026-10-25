@@ -37,7 +37,14 @@ fn serve_plugin(version: u32, hash: &str, body: &str) -> (String, Files) {
     (serve(files.clone()), files)
 }
 
+/// Installs `body` with the Plugins tab open, where its settings show.
 fn start_in(dir: &std::path::Path, body: &str) -> (Luna, String) {
+    let (luna, base) = start_in_closed(dir, body);
+    luna.set_settings_open(true);
+    (luna, base)
+}
+
+fn start_in_closed(dir: &std::path::Path, body: &str) -> (Luna, String) {
     let (base, _files) = serve_plugin(1, "s1", body);
     let luna = Luna::start(config(dir), Arc::new(MockHost::default())).unwrap();
     luna.install(&format!("{base}/SetTest.mjs"));
@@ -669,6 +676,7 @@ export const Settings = () => {
     let dir = temp_dir("settings-persist");
     let (base, files) = serve_plugin(1, "s1", body);
     let luna = Luna::start(config(&dir), Arc::new(MockHost::default())).unwrap();
+    luna.set_settings_open(true);
     luna.install(&format!("{base}/SetTest.mjs"));
     wait_until(&luna, 30, |s| {
         plugin(s, "SetTest").is_some_and(|p| p.settings.is_some())
@@ -683,6 +691,7 @@ export const Settings = () => {
 
     // Restart: same data directory, nothing installed again.
     let luna = Luna::start(config(&dir), Arc::new(MockHost::default())).unwrap();
+    luna.set_settings_open(true);
     wait_until(&luna, 30, |s| {
         plugin(s, "SetTest").is_some_and(|p| p.settings.is_some())
     });
@@ -705,4 +714,61 @@ export const Settings = () => {
     let d = until(&luna, |d| d.contains(&"number:Step=9".to_string()));
     assert!(d.contains(&"text:Name=kept".to_string()), "{d:?}");
     assert_eq!(stored(&dir)["name"], json!("kept"));
+}
+
+/// TidaLuna renders a plugin's `Settings` only on its Plugins tab
+/// (LunaPluginSettings): never at load, unmounted when the tab closes, and
+/// not while the user folded them away. A Settings component that fetches
+/// at mount (playlist-tools lists the user's playlists) must not run before
+/// the tab opens.
+#[test]
+fn settings_mount_only_while_the_plugins_tab_shows_them() {
+    let dir = temp_dir("settings-mount");
+    let (luna, _) = start_in_closed(
+        &dir,
+        r#"
+export const Settings = () => {
+	React.useEffect(() => {
+		store.mounts = (store.mounts ?? 0) + 1;
+		return () => void (store.unmounts = (store.unmounts ?? 0) + 1);
+	}, []);
+	return h(ui.LunaSettings, null, h(ui.LunaSwitchSetting, { title: "On", checked: store.on }));
+};
+setTimeout(() => void (store.later = true), 300);
+"#,
+    );
+    // Loaded and settled, the tab never opened: nothing mounted.
+    wait_until(&luna, 30, |s| {
+        plugin(s, "SetTest").is_some_and(|p| p.status == PluginStatus::Running && p.has_settings)
+    });
+    wait_until(&luna, 10, |_| stored(&dir)["later"] == json!(true));
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    assert_eq!(stored(&dir)["mounts"], Value::Null, "{:?}", stored(&dir));
+    assert!(
+        plugin(&luna.snapshot(), "SetTest")
+            .unwrap()
+            .settings
+            .is_none()
+    );
+
+    // The tab opens: mounted and drawn once.
+    luna.set_settings_open(true);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "SetTest").is_some_and(|p| p.settings.is_some())
+    });
+    wait_until(&luna, 10, |_| stored(&dir)["mounts"] == json!(1));
+    assert_eq!(describe(&tree(&luna)), ["switch:On=false"]);
+
+    // It closes: unmounted (the effect's cleanup runs).
+    luna.set_settings_open(false);
+    wait_until(&luna, 10, |_| stored(&dir)["unmounts"] == json!(1));
+
+    // Folded away, the tab opening does not mount them; unfolded, it does.
+    luna.set_hide_settings("SetTest", true);
+    luna.set_settings_open(true);
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    luna.sync(std::time::Duration::from_secs(5));
+    assert_eq!(stored(&dir)["mounts"], json!(1));
+    luna.set_hide_settings("SetTest", false);
+    wait_until(&luna, 10, |_| stored(&dir)["mounts"] == json!(2));
 }

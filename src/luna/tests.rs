@@ -283,6 +283,8 @@ fn fixture_plugin_end_to_end() {
         ..Default::default()
     });
     let luna = Luna::start(config(&dir), host.clone()).unwrap();
+    // The Plugins tab is open: settings render.
+    luna.set_settings_open(true);
 
     // Install + load.
     luna.install(&format!("{base}/Fixture.mjs"));
@@ -677,6 +679,8 @@ fn real_plugins_run_unmodified() {
     let mut cfg = config(&dir);
     cfg.watchdog = Duration::from_secs(10);
     let luna = Luna::start(cfg, host.clone()).unwrap();
+    // The Plugins tab is open: settings render.
+    luna.set_settings_open(true);
     let store = "https://github.com/Inrixia/luna-plugins/releases/download/latest";
     let names = [
         "VolumeScroll",
@@ -693,6 +697,8 @@ fn real_plugins_run_unmodified() {
             plugin(s, n).is_some_and(|p| {
                 !matches!(p.status, PluginStatus::Loading | PluginStatus::Installing)
             })
+        }) && ["VolumeScroll", "ListenBrainz"].iter().all(|n| {
+            plugin(s, n).is_some_and(|p| p.status != PluginStatus::Running || p.settings.is_some())
         })
     });
     for n in names {
@@ -818,6 +824,8 @@ fn real_discord_rpc_sets_activity_over_ipc() {
     let dir = temp_dir("discord");
     let host = Arc::new(MockHost::default());
     let luna = Luna::start(config(&dir), host.clone()).unwrap();
+    // The Plugins tab is open: settings render.
+    luna.set_settings_open(true);
     luna.install("https://github.com/Inrixia/luna-plugins/releases/download/latest/DiscordRPC");
     // The pipe picker shows once the plugin has listed the pipes.
     let s = wait_until(&luna, 60, |s| {

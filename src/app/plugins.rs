@@ -705,6 +705,19 @@ impl App {
         window.minimized || self.window_hidden || crate::occlusion::covered(ctx)
     }
 
+    /// After drawing: tells plugins whether the Plugins tab, where their
+    /// Settings are mounted, is on screen, when that changed.
+    pub(crate) fn luna_settings_view(&mut self) {
+        let open = std::mem::take(&mut self.plugins.settings_drawn);
+        if self.plugins.seen.settings_open == Some(open) {
+            return;
+        }
+        if let Some(luna) = &self.plugins.luna {
+            self.plugins.seen.settings_open = Some(open);
+            luna.set_settings_open(open);
+        }
+    }
+
     pub(crate) fn luna_visibility(&mut self, hidden: bool) {
         if self.plugins.seen.hidden == Some(hidden) {
             return;

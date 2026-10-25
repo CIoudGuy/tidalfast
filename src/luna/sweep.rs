@@ -838,6 +838,8 @@ fn run_one(store: &str, store_name: Option<String>, sp: &StorePlugin, pipe: &str
             return r;
         }
     };
+    // The sweep drives each plugin's settings: their Plugins tab is open.
+    luna.set_settings_open(true);
 
     // A realistic TIDAL-shaped document for DOM plugins to find.
     let mut tree = super::dom_anchors::sample_tree();
