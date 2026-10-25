@@ -6,7 +6,7 @@ msgstr ""
 "Project-Id-Version: Tidalfast\n"
 "Report-Msgid-Bugs-To: https://github.com/CIoudGuy/tidalfast/issues/new?"
 "template=translation.yml\n"
-"POT-Creation-Date: 2026-10-22 13:00+0300\n"
+"POT-Creation-Date: 2026-10-25 04:22+0200\n"
 "PO-Revision-Date: 2026-09-09 13:30+0000\n"
 "Last-Translator: Tidalfast contributors\n"
 "Language-Team: Japanese\n"
@@ -31,22 +31,22 @@ msgstr "{name}を再生"
 #. Translators: Keep {count} exactly as written. A folder's size in the sidebar.
 #. Translators: Keep {count} exactly as written. A playlist's size in the sidebar.
 #. Translators: The label beside the pointer while several items are dragged. {count} is how many.
-#: src/ui/sidebar.rs:405 src/ui/sidebar.rs:1321 src/ui/widgets.rs:2114
+#: src/ui/sidebar.rs:405 src/ui/sidebar.rs:1356 src/ui/widgets.rs:2190
 #, rust-format
 msgid "{count} item"
 msgid_plural "{count} items"
 msgstr[0] "{count}個の項目"
 
-#: src/ui/sidebar.rs:464 src/ui/sidebar.rs:1270 src/ui/sidebar.rs:1976
-#: src/app.rs:3276 src/app.rs:6550 src/app.rs:20755 src/ui/collection.rs:3659
-#: src/ui/collection.rs:4181 src/ui/home.rs:198 src/ui/search.rs:433
-#: src/ui/search.rs:980 src/ui/search.rs:1403 src/ui/search.rs:1618
+#: src/ui/sidebar.rs:464 src/ui/sidebar.rs:1305 src/ui/sidebar.rs:2141
+#: src/app.rs:3290 src/app.rs:6564 src/app.rs:20774 src/ui/collection.rs:3933
+#: src/ui/collection.rs:4455 src/ui/home.rs:205 src/ui/search.rs:472
+#: src/ui/search.rs:1019 src/ui/search.rs:1442 src/ui/search.rs:1657
 msgid "Playlist"
 msgstr "プレイリスト"
 
-#: src/ui/sidebar.rs:474 src/ui/sidebar.rs:1641 src/app.rs:3250
-#: src/app.rs:20760 src/model.rs:855 src/ui/collection.rs:3905
-#: src/ui/collection.rs:4069 src/ui/keys.rs:237 src/ui/search.rs:814
+#: src/ui/sidebar.rs:474 src/ui/sidebar.rs:1781 src/app.rs:3264
+#: src/app.rs:20779 src/model.rs:855 src/ui/collection.rs:4179
+#: src/ui/collection.rs:4343 src/ui/keys.rs:243 src/ui/search.rs:853
 #: src/ui/save_later.rs:22 src/ui/purchases.rs:38 src/ui/uploads.rs:1430
 msgid "Tracks"
 msgstr "トラック"
@@ -55,8 +55,8 @@ msgstr "トラック"
 msgid "Library order"
 msgstr "ライブラリ順"
 
-#: src/ui/sidebar.rs:512 src/ui/home.rs:700 src/ui/home.rs:710
-#: src/ui/home.rs:731
+#: src/ui/sidebar.rs:512 src/ui/home.rs:766 src/ui/home.rs:776
+#: src/ui/home.rs:797
 msgid "Recently played"
 msgstr "最近再生した順"
 
@@ -84,127 +84,127 @@ msgstr "サイドバーを表示 (Ctrl+B)"
 msgid "Show sidebar (Cmd+B)"
 msgstr "サイドバーを表示 (Cmd+B)"
 
-#: src/ui/sidebar.rs:662 src/ui/sidebar.rs:1756 src/ui/sidebar.rs:1837
+#: src/ui/sidebar.rs:662 src/ui/sidebar.rs:1905 src/ui/sidebar.rs:1986
 msgid "Music"
 msgstr "ミュージック"
 
-#: src/ui/sidebar.rs:668 src/ui/sidebar.rs:1769 src/ui/sidebar.rs:1843
+#: src/ui/sidebar.rs:668 src/ui/sidebar.rs:1918 src/ui/sidebar.rs:1992
 #: src/ui/explore.rs:69
 msgid "Explore"
 msgstr "探索"
 
-#: src/ui/sidebar.rs:689 src/ui/sidebar.rs:1964 src/ui/library.rs:43
+#: src/ui/sidebar.rs:689 src/ui/sidebar.rs:2129 src/ui/library.rs:44
 msgid "Create a playlist"
 msgstr "プレイリストを作成"
 
-#: src/ui/sidebar.rs:1365 src/ui/sidebar.rs:1849 src/ui/feed.rs:33
+#: src/ui/sidebar.rs:1402 src/ui/sidebar.rs:1998 src/ui/feed.rs:33
 msgid "Feed"
 msgstr "フィード"
 
-#: src/ui/sidebar.rs:1411 src/ui/sidebar.rs:1855 src/ui/uploads.rs:53
+#: src/ui/sidebar.rs:1510 src/ui/sidebar.rs:2004 src/ui/uploads.rs:53
 #: src/ui/uploads.rs:74 src/ui/uploads.rs:118
 msgid "Upload"
 msgstr "アップロード"
 
-#: src/ui/sidebar.rs:1634 src/ui/library.rs:47 src/ui/now_playing.rs:843
+#: src/ui/sidebar.rs:1774 src/ui/library.rs:48 src/ui/now_playing.rs:869
 msgid "Mixes & Radio"
 msgstr "ミックスとラジオ"
 
-#: src/ui/sidebar.rs:1637 src/model.rs:858 src/ui/artist.rs:196
-#: src/ui/artist.rs:1291 src/ui/artist.rs:2200 src/ui/library.rs:41
-#: src/ui/library.rs:42 src/ui/profile.rs:127 src/ui/menus.rs:636
+#: src/ui/sidebar.rs:1777 src/model.rs:858 src/ui/artist.rs:205
+#: src/ui/artist.rs:1300 src/ui/artist.rs:2220 src/ui/library.rs:42
+#: src/ui/library.rs:43 src/ui/profile.rs:129 src/ui/menus.rs:634
 #: src/ui/downloads.rs:509 src/ui/save_later.rs:24
 msgid "Playlists"
 msgstr "プレイリスト"
 
-#: src/ui/sidebar.rs:1640 src/model.rs:857 src/model.rs:1123
-#: src/ui/artist.rs:950 src/ui/artist.rs:1284 src/ui/artist.rs:2169
-#: src/ui/library.rs:29 src/ui/downloads.rs:508 src/ui/save_later.rs:21
+#: src/ui/sidebar.rs:1780 src/model.rs:857 src/model.rs:1123
+#: src/ui/artist.rs:959 src/ui/artist.rs:1293 src/ui/artist.rs:2189
+#: src/ui/library.rs:30 src/ui/downloads.rs:508 src/ui/save_later.rs:21
 #: src/ui/purchases.rs:37
 msgid "Albums"
 msgstr "アルバム"
 
-#: src/ui/sidebar.rs:1642 src/model.rs:860 src/ui/artist.rs:224
-#: src/ui/artist.rs:1289 src/ui/videos.rs:44 src/ui/videos.rs:52
+#: src/ui/sidebar.rs:1782 src/model.rs:860 src/ui/artist.rs:233
+#: src/ui/artist.rs:1298 src/ui/videos.rs:44 src/ui/videos.rs:52
 #: src/ui/save_later.rs:25
 msgid "Videos"
 msgstr "ビデオ"
 
-#: src/ui/sidebar.rs:1643 src/model.rs:856 src/ui/library.rs:35
+#: src/ui/sidebar.rs:1783 src/model.rs:856 src/ui/library.rs:36
 msgid "Profiles"
 msgstr "プロフィール"
 
-#: src/ui/sidebar.rs:1644 src/ui/purchases.rs:21
+#: src/ui/sidebar.rs:1784 src/ui/purchases.rs:21
 msgid "Purchases"
 msgstr "購入済み"
 
-#: src/ui/sidebar.rs:1647 src/ui/menus.rs:754 src/ui/save_later.rs:75
+#: src/ui/sidebar.rs:1787 src/ui/menus.rs:752 src/ui/save_later.rs:75
 msgid "Save for Later"
 msgstr "後で保存"
 
-#: src/ui/sidebar.rs:1652 src/ui/settings.rs:1707 src/ui/collection.rs:1299
-#: src/ui/collection.rs:4011 src/app/downloads.rs:709
+#: src/ui/sidebar.rs:1792 src/ui/settings.rs:1707 src/ui/collection.rs:1466
+#: src/ui/collection.rs:4285 src/app/downloads.rs:709
 msgid "Downloaded"
 msgstr "ダウンロード済み"
 
-#: src/ui/sidebar.rs:1788 src/ui/sidebar.rs:1825 src/ui/sidebar.rs:1861
+#: src/ui/sidebar.rs:1937 src/ui/sidebar.rs:1974 src/ui/sidebar.rs:2010
 msgid "Collection"
 msgstr "コレクション"
 
-#: src/ui/sidebar.rs:1950
+#: src/ui/sidebar.rs:2110
 msgid "All playlists"
 msgstr "すべてのプレイリスト"
 
-#: src/ui/sidebar.rs:1989
+#: src/ui/sidebar.rs:2154
 msgid "Folder"
 msgstr "フォルダ"
 
-#: src/ui/sidebar.rs:2007
+#: src/ui/sidebar.rs:2172
 msgid "Sort playlists"
 msgstr "プレイリストを並べ替え"
 
-#: src/ui/sidebar.rs:2057
+#: src/ui/sidebar.rs:2222
 msgid "Hide sidebar (Ctrl+B)"
 msgstr "サイドバーを非表示 (Ctrl+B)"
 
-#: src/ui/sidebar.rs:2058
+#: src/ui/sidebar.rs:2223
 msgid "Hide sidebar (Cmd+B)"
 msgstr "サイドバーを非表示 (Cmd+B)"
 
-#: src/ui/sidebar.rs:2176 src/app.rs:3314 src/ui/artist.rs:492
-#: src/ui/home.rs:236 src/ui/home.rs:823 src/ui/search.rs:863
+#: src/ui/sidebar.rs:2341 src/app.rs:3328 src/ui/artist.rs:501
+#: src/ui/home.rs:246 src/ui/home.rs:889 src/ui/search.rs:902
 msgid "Artist"
 msgstr "アーティスト"
 
-#: src/ui/sidebar.rs:2272
+#: src/ui/sidebar.rs:2437
 msgid "Nothing here yet."
 msgstr "まだ何もありません。"
 
-#: src/ui/sidebar.rs:2274
+#: src/ui/sidebar.rs:2439
 msgid "No matches."
 msgstr "一致する項目はありません。"
 
-#: src/ui/sidebar.rs:2936
+#: src/ui/sidebar.rs:3113
 msgid "Sort by recently played"
 msgstr "最近再生した順に並べ替え"
 
-#: src/ui/sidebar.rs:2955 src/ui/equalizer.rs:693
+#: src/ui/sidebar.rs:3132 src/ui/equalizer.rs:693
 msgid "Rename"
 msgstr "名前を変更"
 
-#: src/ui/sidebar.rs:2967
+#: src/ui/sidebar.rs:3144
 msgid "Delete folder"
 msgstr "フォルダを削除"
 
-#: src/ui/sidebar.rs:2984 src/ui/menus.rs:1471 src/ui/videos.rs:389
+#: src/ui/sidebar.rs:3161 src/ui/menus.rs:1561 src/ui/videos.rs:389
 msgid "Play now"
 msgstr "今すぐ再生"
 
-#: src/ui/sidebar.rs:3002
+#: src/ui/sidebar.rs:3179
 msgid "Unpin"
 msgstr "固定を解除"
 
-#: src/ui/sidebar.rs:3004
+#: src/ui/sidebar.rs:3181
 msgid "Pin to top"
 msgstr "上部に固定"
 
@@ -219,8 +219,8 @@ msgstr[0] "プレイリスト • {count}曲"
 #. Translators: Keep {count} exactly as written.
 #. Translators: Keep {count} exactly as written. Shown in capitals on page headers.
 #. Translators: Keep {count} exactly as written. It becomes the number of selected tracks.
-#: src/i18n.rs:195 src/ui/collection.rs:4108 src/ui/collection.rs:4137
-#: src/ui/search.rs:616 src/ui/menus.rs:101 src/ui/menus.rs:1160
+#: src/i18n.rs:195 src/ui/collection.rs:4382 src/ui/collection.rs:4411
+#: src/ui/search.rs:655 src/ui/menus.rs:101 src/ui/menus.rs:1244
 #: src/ui/uploads.rs:244 src/ui/uploads.rs:707
 #, rust-format
 msgid "{count} track"
@@ -251,108 +251,108 @@ msgstr "{name}、フォルダ、折りたたみ"
 msgid "{name}, folder, expanded"
 msgstr "{name}、フォルダ、展開"
 
-#: src/i18n.rs:262 src/i18n.rs:265 src/ui/keys.rs:233 src/ui/home_feeds.rs:524
+#: src/i18n.rs:262 src/i18n.rs:265 src/ui/keys.rs:239 src/ui/home_feeds.rs:524
 #: src/ui/titlebar.rs:165
 msgid "Home"
 msgstr "ホーム"
 
-#: src/i18n.rs:369 src/ui/menus.rs:1610
+#: src/i18n.rs:369 src/ui/menus.rs:1700
 msgid "Unfollow"
 msgstr "フォローを解除"
 
-#: src/i18n.rs:371 src/ui/menus.rs:1669
+#: src/i18n.rs:371 src/ui/menus.rs:1759
 msgctxt "artist"
 msgid "Unfollow"
 msgstr "フォロー解除"
 
-#: src/ui/player_bar.rs:455 src/ui/lyrics.rs:172 src/ui/lyrics.rs:375
-#: src/ui/compact.rs:594 src/ui/now_playing.rs:321
+#: src/ui/player_bar.rs:511 src/ui/lyrics.rs:172 src/ui/lyrics.rs:375
+#: src/ui/compact.rs:606 src/ui/now_playing.rs:319
 msgid "Nothing playing"
 msgstr "再生していません"
 
-#: src/ui/player_bar.rs:461 src/app.rs:9584 src/ui/now_playing.rs:322
+#: src/ui/player_bar.rs:517 src/app.rs:9593 src/ui/now_playing.rs:320
 msgid "Pick a track, album, or playlist"
 msgstr "曲、アルバム、プレイリストを選んでください"
 
-#: src/ui/player_bar.rs:775 src/ui/widgets.rs:1993 src/ui/widgets.rs:3250
-#: src/ui/collection.rs:3724 src/ui/collection.rs:3746 src/ui/dialogs.rs:140
-#: src/ui/radio.rs:259 src/ui/menus.rs:716 src/ui/menus.rs:730
-#: src/ui/menus.rs:1194 src/ui/compact.rs:491
+#: src/ui/player_bar.rs:853 src/ui/widgets.rs:2069 src/ui/widgets.rs:3546
+#: src/ui/collection.rs:3998 src/ui/collection.rs:4020 src/ui/dialogs.rs:140
+#: src/ui/radio.rs:256 src/ui/menus.rs:714 src/ui/menus.rs:728
+#: src/ui/menus.rs:1278 src/ui/compact.rs:503
 msgid "Remove from My Collection"
 msgstr "マイコレクションから削除"
 
-#: src/ui/player_bar.rs:782 src/ui/widgets.rs:1995 src/ui/widgets.rs:3256
-#: src/ui/collection.rs:3723 src/ui/collection.rs:3745 src/ui/radio.rs:258
-#: src/ui/menus.rs:718 src/ui/menus.rs:732 src/ui/menus.rs:1196
-#: src/ui/compact.rs:493
+#: src/ui/player_bar.rs:860 src/ui/widgets.rs:2071 src/ui/widgets.rs:3552
+#: src/ui/collection.rs:3997 src/ui/collection.rs:4019 src/ui/radio.rs:255
+#: src/ui/menus.rs:716 src/ui/menus.rs:730 src/ui/menus.rs:1280
+#: src/ui/compact.rs:505
 msgid "Add to My Collection"
 msgstr "マイコレクションに追加"
 
-#: src/ui/player_bar.rs:846
+#: src/ui/player_bar.rs:924
 msgid "Don't play this"
 msgstr "この曲を再生しない"
 
-#: src/ui/player_bar.rs:919 src/ui/queue.rs:1165 src/ui/widgets.rs:2039
-#: src/ui/widgets.rs:3213 src/ui/artist.rs:880 src/ui/artist.rs:1681
-#: src/ui/artist.rs:2083 src/ui/collection.rs:1054 src/ui/now_playing.rs:1073
+#: src/ui/player_bar.rs:997 src/ui/queue.rs:1298 src/ui/widgets.rs:2115
+#: src/ui/widgets.rs:3502 src/ui/artist.rs:889 src/ui/artist.rs:1690
+#: src/ui/artist.rs:2103 src/ui/collection.rs:1177 src/ui/now_playing.rs:1099
 #: src/ui/now_playing_video.rs:312 src/ui/sticky.rs:447
 #: src/ui/album_credits.rs:549 src/ui/uploads.rs:1542
 msgid "More"
 msgstr "その他"
 
-#: src/ui/player_bar.rs:1058 src/ui/player_bar.rs:1065 src/ui/artist.rs:861
-#: src/ui/artist.rs:1660 src/ui/artist.rs:1735 src/ui/artist.rs:2029
-#: src/ui/collection.rs:1026 src/ui/menus.rs:1537 src/ui/titlebar.rs:184
+#: src/ui/player_bar.rs:1163 src/ui/player_bar.rs:1170 src/ui/artist.rs:870
+#: src/ui/artist.rs:1669 src/ui/artist.rs:1744 src/ui/artist.rs:2049
+#: src/ui/collection.rs:1130 src/ui/menus.rs:1627 src/ui/titlebar.rs:184
 #: src/ui/sticky.rs:521
 msgid "Shuffle"
 msgstr "シャッフル"
 
-#: src/ui/player_bar.rs:1085 src/ui/compact.rs:415
+#: src/ui/player_bar.rs:1190 src/ui/compact.rs:427
 #: src/ui/now_playing_video.rs:498 src/ui/titlebar.rs:183
 msgid "Previous"
 msgstr "前へ"
 
-#: src/ui/player_bar.rs:1131 src/ui/collection.rs:1208 src/ui/compact.rs:422
+#: src/ui/player_bar.rs:1236 src/ui/collection.rs:1375 src/ui/compact.rs:434
 #: src/ui/now_playing_video.rs:517
 msgid "Pause"
 msgstr "一時停止"
 
-#: src/ui/player_bar.rs:1133 src/ui/artist.rs:844 src/ui/artist.rs:1667
-#: src/ui/artist.rs:1745 src/ui/artist.rs:2021 src/ui/collection.rs:1210
-#: src/ui/compact.rs:424 src/ui/now_playing_video.rs:519
+#: src/ui/player_bar.rs:1238 src/ui/artist.rs:853 src/ui/artist.rs:1676
+#: src/ui/artist.rs:1754 src/ui/artist.rs:2041 src/ui/collection.rs:1377
+#: src/ui/compact.rs:436 src/ui/now_playing_video.rs:519
 msgid "Play"
 msgstr "再生"
 
-#: src/ui/player_bar.rs:1162 src/ui/compact.rs:434
+#: src/ui/player_bar.rs:1267 src/ui/compact.rs:446
 #: src/ui/now_playing_video.rs:535 src/ui/titlebar.rs:182
 msgid "Next"
 msgstr "次へ"
 
-#: src/ui/player_bar.rs:1171 src/ui/titlebar.rs:185
+#: src/ui/player_bar.rs:1276 src/ui/titlebar.rs:185
 msgid "Repeat"
 msgstr "リピート"
 
-#: src/ui/player_bar.rs:1175
+#: src/ui/player_bar.rs:1280
 msgid "Repeat one"
 msgstr "1曲リピート"
 
-#: src/ui/player_bar.rs:1180
+#: src/ui/player_bar.rs:1285
 msgid "Repeat off"
 msgstr "リピートをオフ"
 
-#: src/ui/player_bar.rs:1304 src/ui/compact.rs:566
+#: src/ui/player_bar.rs:1414 src/ui/compact.rs:578
 msgid "Playback position (%)"
 msgstr "再生位置 (%)"
 
-#: src/ui/player_bar.rs:1362 src/ui/player_utility.rs:495
+#: src/ui/player_bar.rs:1475 src/ui/player_utility.rs:502
 msgid "Bit-perfect"
 msgstr "ビットパーフェクト"
 
-#: src/ui/player_bar.rs:1447
+#: src/ui/player_bar.rs:1564
 msgid "Compact mode"
 msgstr "コンパクトモード"
 
-#: src/ui/player_bar.rs:1502
+#: src/ui/player_bar.rs:1625
 msgid ""
 "Bit-perfect playback: the volume stays at 100%. Turn the volume down on your "
 "device."
@@ -360,15 +360,15 @@ msgstr ""
 "ビットパーフェクト再生：音量は 100% に固定されます。音量はデバイス側で下げて"
 "ください。"
 
-#: src/ui/player_bar.rs:1507
+#: src/ui/player_bar.rs:1630
 msgid "This device's volume can't be changed from Tidalfast"
 msgstr "このデバイスの音量は Tidalfast から変更できません"
 
-#: src/ui/player_bar.rs:1539 src/ui/queue.rs:24 src/ui/queue.rs:41
+#: src/ui/player_bar.rs:1666 src/ui/queue.rs:24 src/ui/queue.rs:41
 msgid "Queue"
 msgstr "再生待ちリスト"
 
-#: src/ui/queue.rs:42 src/ui/menus.rs:580 src/ui/menus.rs:656
+#: src/ui/queue.rs:42 src/ui/menus.rs:578 src/ui/menus.rs:654
 msgid "Recent"
 msgstr "履歴"
 
@@ -376,11 +376,11 @@ msgstr "履歴"
 msgid "Save as a playlist"
 msgstr "プレイリストとして保存"
 
-#: src/ui/queue.rs:96 src/ui/queue.rs:991
+#: src/ui/queue.rs:96 src/ui/queue.rs:1042
 msgid "Clear queue"
 msgstr "再生待ちリストをクリア"
 
-#: src/ui/queue.rs:199 src/ui/queue.rs:212 src/ui/queue.rs:948
+#: src/ui/queue.rs:199 src/ui/queue.rs:212 src/ui/queue.rs:999
 msgid "Playing from"
 msgstr "再生元"
 
@@ -410,8 +410,8 @@ msgstr "次の再生元"
 msgid "Next up"
 msgstr "このあと再生"
 
-#: src/ui/queue.rs:458 src/ui/queue.rs:491 src/ui/widgets.rs:4616
-#: src/ui/collection.rs:2869 src/ui/plugins.rs:2261 src/ui/blocked.rs:49
+#: src/ui/queue.rs:458 src/ui/queue.rs:491 src/ui/widgets.rs:5028
+#: src/ui/collection.rs:3139 src/ui/plugins.rs:2261 src/ui/blocked.rs:49
 msgid "Retry"
 msgstr "再試行"
 
@@ -427,36 +427,36 @@ msgstr "再生した曲がここに表示されます。"
 msgid "Load more"
 msgstr "さらに読み込む"
 
-#: src/ui/queue.rs:792 src/ui/queue.rs:807 src/ui/titlebar.rs:167
+#: src/ui/queue.rs:843 src/ui/queue.rs:858 src/ui/titlebar.rs:167
 msgid "Play queue"
 msgstr "再生キュー"
 
-#: src/ui/queue.rs:819 src/ui/lyrics.rs:133 src/ui/artist.rs:751
+#: src/ui/queue.rs:870 src/ui/lyrics.rs:133 src/ui/artist.rs:760
 #: src/ui/dialogs.rs:786 src/ui/dialogs.rs:946 src/ui/dialogs.rs:1770
-#: src/ui/mod.rs:1108 src/ui/now_playing.rs:386 src/ui/now_playing_video.rs:152
+#: src/ui/mod.rs:1171 src/ui/now_playing.rs:384 src/ui/now_playing_video.rs:152
 #: src/ui/now_playing_video.rs:490 src/ui/blocked.rs:29 src/ui/uploads.rs:492
 msgid "Close"
 msgstr "閉じる"
 
-#: src/ui/queue.rs:916
+#: src/ui/queue.rs:967
 msgid "History"
 msgstr "履歴"
 
-#: src/ui/queue.rs:983 src/ui/widgets.rs:5202
+#: src/ui/queue.rs:1034 src/ui/widgets.rs:5816
 msgid "Clear"
 msgstr "クリア"
 
 #. Translators: {title} is a song name, {subtitle} its artists.
-#: src/ui/queue.rs:1040 src/ui/widgets.rs:1462
+#: src/ui/queue.rs:1123 src/ui/widgets.rs:1522
 #, rust-format
 msgid "Play {title}, {subtitle}"
 msgstr "{title}を再生、{subtitle}"
 
-#: src/ui/queue.rs:1151 src/ui/dialogs.rs:171
+#: src/ui/queue.rs:1283 src/ui/dialogs.rs:171
 msgid "Remove"
 msgstr "削除"
 
-#: src/ui/lyrics.rs:122 src/ui/compact.rs:304 src/ui/now_playing.rs:210
+#: src/ui/lyrics.rs:122 src/ui/compact.rs:316 src/ui/now_playing.rs:211
 msgid "Lyrics"
 msgstr "歌詞"
 
@@ -468,32 +468,32 @@ msgstr "歌詞を全画面表示"
 msgid "Play a track to see its lyrics."
 msgstr "曲を再生すると歌詞が表示されます。"
 
-#: src/ui/lyrics.rs:184 src/ui/lyrics.rs:201 src/app.rs:12639
-#: src/ui/artist.rs:379 src/ui/artist.rs:413 src/ui/collection.rs:3212
-#: src/ui/collection.rs:3369 src/ui/collection.rs:3402
-#: src/ui/collection.rs:3461 src/ui/collection.rs:3583
-#: src/ui/collection.rs:3616 src/ui/collection.rs:3896 src/ui/library.rs:298
-#: src/ui/library.rs:461 src/ui/downloads.rs:40 src/ui/save_later.rs:154
+#: src/ui/lyrics.rs:184 src/ui/lyrics.rs:201 src/app.rs:12655
+#: src/ui/artist.rs:388 src/ui/artist.rs:422 src/ui/collection.rs:3482
+#: src/ui/collection.rs:3643 src/ui/collection.rs:3676
+#: src/ui/collection.rs:3735 src/ui/collection.rs:3857
+#: src/ui/collection.rs:3890 src/ui/collection.rs:4170 src/ui/library.rs:305
+#: src/ui/library.rs:470 src/ui/downloads.rs:40 src/ui/save_later.rs:154
 #: src/ui/purchases.rs:116
 msgid "You're offline"
 msgstr "オフラインです"
 
-#: src/ui/lyrics.rs:187 src/ui/lyrics.rs:204 src/ui/artist.rs:382
-#: src/ui/artist.rs:416 src/ui/collection.rs:3215 src/ui/collection.rs:3372
-#: src/ui/collection.rs:3405 src/ui/collection.rs:3464
-#: src/ui/collection.rs:3586 src/ui/collection.rs:3619
-#: src/ui/collection.rs:3899 src/ui/library.rs:301 src/ui/library.rs:464
+#: src/ui/lyrics.rs:187 src/ui/lyrics.rs:204 src/ui/artist.rs:391
+#: src/ui/artist.rs:425 src/ui/collection.rs:3485 src/ui/collection.rs:3646
+#: src/ui/collection.rs:3679 src/ui/collection.rs:3738
+#: src/ui/collection.rs:3860 src/ui/collection.rs:3893
+#: src/ui/collection.rs:4173 src/ui/library.rs:308 src/ui/library.rs:473
 #: src/ui/downloads.rs:55 src/ui/save_later.rs:157 src/ui/purchases.rs:119
 msgid "Tidalfast will reconnect automatically when your connection returns."
 msgstr "接続が回復すると、Tidalfastは自動的に再接続します。"
 
 #: src/ui/lyrics.rs:213 src/ui/lyrics.rs:390 src/ui/settings.rs:592
-#: src/ui/downloads.rs:488 src/ui/now_playing.rs:677
+#: src/ui/downloads.rs:488 src/ui/now_playing.rs:699
 #: src/ui/album_credits.rs:590 src/ui/album_extras.rs:82
 msgid "Try again"
 msgstr "もう一度試す"
 
-#: src/ui/lyrics.rs:224 src/ui/lyrics.rs:401 src/ui/compact.rs:608
+#: src/ui/lyrics.rs:224 src/ui/lyrics.rs:401 src/ui/compact.rs:620
 msgid "No lyrics"
 msgstr "歌詞はありません"
 
@@ -501,7 +501,7 @@ msgstr "歌詞はありません"
 msgid "No lyrics found for this track."
 msgstr "この曲の歌詞は見つかりませんでした。"
 
-#: src/ui/lyrics.rs:234 src/ui/lyrics.rs:411 src/ui/compact.rs:604
+#: src/ui/lyrics.rs:234 src/ui/lyrics.rs:411 src/ui/compact.rs:616
 msgid "Instrumental"
 msgstr "インストゥルメンタル"
 
@@ -509,142 +509,142 @@ msgstr "インストゥルメンタル"
 msgid "No timed lyrics for this track."
 msgstr "この曲には同期された歌詞がありません。"
 
-#: src/ui/lyrics.rs:359 src/ui/lyrics.rs:711
+#: src/ui/lyrics.rs:359 src/ui/lyrics.rs:736
 msgid "Sync Lyrics"
 msgstr "歌詞を同期"
 
-#: src/ui/lyrics.rs:763
+#: src/ui/lyrics.rs:788
 msgid "The lyrics service is busy right now. Try again in a moment."
 msgstr ""
 "歌詞サービスは現在混み合っています。しばらくしてからもう一度お試しください。"
 
-#: src/ui/lyrics.rs:769
+#: src/ui/lyrics.rs:794
 msgid "Couldn't reach the lyrics service. Check your connection and try again."
 msgstr ""
 "歌詞サービスに接続できませんでした。接続を確認してから、もう一度お試しくださ"
 "い。"
 
 #. Translators: Keep {error} unchanged. It is the original failure detail.
-#: src/ui/lyrics.rs:776
+#: src/ui/lyrics.rs:801
 #, rust-format
 msgid "Couldn't fetch the lyrics: {error}"
 msgstr "歌詞を取得できませんでした：{error}"
 
-#: src/ui/widgets.rs:1113 src/ui/library.rs:44
+#: src/ui/widgets.rs:1172 src/ui/library.rs:45
 msgid "Filter playlists"
 msgstr "プレイリストを絞り込む"
 
-#: src/ui/widgets.rs:1140
+#: src/ui/widgets.rs:1200
 msgid "No editable playlists"
 msgstr "編集できるプレイリストはありません"
 
-#: src/ui/widgets.rs:1142 src/ui/library.rs:290
+#: src/ui/widgets.rs:1202 src/ui/library.rs:297
 msgid "No matching playlists"
 msgstr "一致するプレイリストはありません"
 
 #. Translators: {column} is a column heading of a song list, such as Title.
-#: src/ui/widgets.rs:2621
+#: src/ui/widgets.rs:2730
 #, rust-format
 msgid "Sort by {column}"
 msgstr "{column}で並べ替え"
 
-#: src/ui/widgets.rs:2626
+#: src/ui/widgets.rs:2735
 msgctxt "column heading"
 msgid "TITLE"
 msgstr "タイトル"
 
-#: src/ui/widgets.rs:2633
+#: src/ui/widgets.rs:2742
 msgid "Sort by playlist order"
 msgstr "プレイリストの順に並べ替え"
 
-#: src/ui/widgets.rs:2650
+#: src/ui/widgets.rs:2768
 msgctxt "column heading"
 msgid "ARTIST"
 msgstr "アーティスト"
 
-#: src/ui/widgets.rs:2655
+#: src/ui/widgets.rs:2780
 msgctxt "column heading"
 msgid "ALBUM"
 msgstr "アルバム"
 
-#: src/ui/widgets.rs:2660
+#: src/ui/widgets.rs:2792
 msgctxt "column heading"
 msgid "ADDED BY"
 msgstr "追加したユーザー"
 
-#: src/ui/widgets.rs:2665
+#: src/ui/widgets.rs:2804
 msgctxt "column heading"
 msgid "DATE ADDED"
 msgstr "追加日"
 
-#: src/ui/widgets.rs:2686
+#: src/ui/widgets.rs:2832
 msgctxt "column heading"
 msgid "TIME"
 msgstr "時間"
 
-#: src/ui/widgets.rs:2692
+#: src/ui/widgets.rs:2838
 msgid "Sort by duration"
 msgstr "再生時間で並べ替え"
 
-#: src/ui/widgets.rs:2698
+#: src/ui/widgets.rs:2845
 msgctxt "column heading"
 msgid "BPM"
 msgstr "BPM"
 
-#: src/ui/widgets.rs:2699
+#: src/ui/widgets.rs:2846
 msgctxt "column heading"
 msgid "KEY"
 msgstr "キー"
 
-#: src/ui/widgets.rs:3234 src/ui/menus.rs:502
+#: src/ui/widgets.rs:3524 src/ui/menus.rs:500
 msgid "Add to playlist"
 msgstr "プレイリストに追加"
 
-#: src/ui/widgets.rs:4579 src/app.rs:12225
+#: src/ui/widgets.rs:4991 src/app.rs:12241
 msgid "That needs a connection. Turn off offline mode to use TIDAL."
 msgstr "接続が必要です。TIDAL を使うにはオフラインモードをオフにしてください。"
 
-#: src/ui/widgets.rs:4587 src/app.rs:13817 src/app.rs:13831
+#: src/ui/widgets.rs:4999 src/app.rs:13835 src/app.rs:13849
 msgid "Network connection error. Check your connection."
 msgstr "ネットワーク接続エラーです。接続を確認してください。"
 
-#: src/ui/widgets.rs:4606 src/ui/downloads.rs:84 src/ui/downloads.rs:109
+#: src/ui/widgets.rs:5018 src/ui/downloads.rs:84 src/ui/downloads.rs:109
 msgid "Go online"
 msgstr "オンラインにする"
 
-#: src/ui/widgets.rs:5052
+#: src/ui/widgets.rs:5510
 msgid "Cut"
 msgstr "切り取り"
 
-#: src/ui/widgets.rs:5057
+#: src/ui/widgets.rs:5515
 msgid "Copy"
 msgstr "コピー"
 
-#: src/ui/widgets.rs:5062
+#: src/ui/widgets.rs:5520
 msgid "Paste"
 msgstr "貼り付け"
 
-#: src/ui/widgets.rs:5079
+#: src/ui/widgets.rs:5537
 msgid "Select all"
 msgstr "すべて選択"
 
-#: src/ui/widgets.rs:5501
+#: src/ui/widgets.rs:6115
 msgid "Host"
 msgstr "ホスト"
 
-#: src/ui/widgets.rs:5518
+#: src/ui/widgets.rs:6132
 msgid "Port"
 msgstr "ポート"
 
-#: src/ui/widgets.rs:5536
+#: src/ui/widgets.rs:6150
 msgid "Username"
 msgstr "ユーザー名"
 
-#: src/ui/widgets.rs:5547
+#: src/ui/widgets.rs:6161
 msgid "Password"
 msgstr "パスワード"
 
-#: src/ui/widgets.rs:5565
+#: src/ui/widgets.rs:6179
 msgid ""
 "Proxy login applies to Web requests. Local playback uses this proxy only "
 "without a login."
@@ -652,28 +652,28 @@ msgstr ""
 "プロキシのログイン情報はWebリクエストに適用されます。ローカル再生では、ログイ"
 "ン情報がない場合のみこのプロキシを使用します。"
 
-#: src/ui/widgets.rs:5569
+#: src/ui/widgets.rs:6183
 msgid ""
 "TIDAL hostnames are resolved by the proxy. Local playback connects directly."
 msgstr ""
 "TIDAL のホスト名はプロキシによって解決されます。ローカル再生は直接接続しま"
 "す。"
 
-#: src/app.rs:986
+#: src/app.rs:991
 msgid "Restoring proxy settings"
 msgstr "プロキシ設定を復元中"
 
-#: src/app.rs:1332
+#: src/app.rs:1339
 #, rust-format
 msgid "Tidalfast updated to v{version}"
 msgstr "Tidalfast を v{version} に更新しました"
 
-#: src/app.rs:1335 src/ui/settings.rs:1835 src/ui/dialogs.rs:271
+#: src/app.rs:1342 src/ui/settings.rs:1835 src/ui/dialogs.rs:271
 msgid "What's new"
 msgstr "新機能"
 
 #. Translators: {error} is a sentence saying why the proxy password could not be stored.
-#: src/app.rs:2359
+#: src/app.rs:2373
 #, rust-format
 msgid ""
 "{error} The original settings file is kept intact; changed preferences are "
@@ -682,99 +682,99 @@ msgstr ""
 "{error}元の設定ファイルはそのまま保持されます。変更した設定はまだ保存されてい"
 "ません。"
 
-#: src/app.rs:2380
+#: src/app.rs:2394
 #, rust-format
 msgid "Couldn't load AutoEQ's headphone list: {error}"
 msgstr "AutoEQ のヘッドホン一覧を読み込めませんでした: {error}"
 
-#: src/app.rs:2396
+#: src/app.rs:2410
 #, rust-format
 msgid "Couldn't load the AutoEQ profile: {error}"
 msgstr "AutoEQ のプロファイルを読み込めませんでした: {error}"
 
 #. Translators: {version} is a version number such as 1.4.0.
-#: src/app.rs:2540
+#: src/app.rs:2554
 #, rust-format
 msgid "Tidalfast {version} is available"
 msgstr "Tidalfast {version}が利用可能です"
 
-#: src/app.rs:2561
+#: src/app.rs:2575
 msgid "You're up to date"
 msgstr "最新の状態です"
 
-#: src/app.rs:2580
+#: src/app.rs:2594
 msgid "This build can't check for updates"
 msgstr "このビルドでは更新を確認できません"
 
-#: src/app.rs:2582
+#: src/app.rs:2596
 msgid "Couldn't reach the update server"
 msgstr "更新サーバーに接続できませんでした"
 
 #. Translators: {error} is an error message from the playback engine.
-#: src/app.rs:2655
+#: src/app.rs:2669
 #, rust-format
 msgid "Local playback: {error}"
 msgstr "ローカル再生：{error}"
 
-#: src/app.rs:2700
+#: src/app.rs:2714
 msgid "TIDAL hasn't confirmed your playlist changes yet. Try refreshing again."
 msgstr ""
 "TIDAL がプレイリストの変更をまだ確認していません。もう一度更新してみてくださ"
 "い。"
 
-#: src/app.rs:3185
+#: src/app.rs:3199
 msgid "The song you were playing isn't available anymore"
 msgstr "再生していた曲は利用できなくなりました"
 
 #. Translators: {name} is a song title.
-#: src/app.rs:3190
+#: src/app.rs:3204
 #, rust-format
 msgid "{name} isn't available anymore"
 msgstr "{name} は利用できなくなりました"
 
-#: src/app.rs:3258 src/app/radio.rs:191 src/ui/radio.rs:37 src/ui/radio.rs:81
+#: src/app.rs:3272 src/app/radio.rs:191 src/ui/radio.rs:37 src/ui/radio.rs:81
 msgid "Radio"
 msgstr "ラジオ"
 
-#: src/app.rs:3292 src/api/models.rs:306 src/ui/search.rs:431
-#: src/ui/search.rs:1402 src/ui/search.rs:1598 src/ui/feed.rs:131
+#: src/app.rs:3306 src/api/models.rs:306 src/ui/search.rs:470
+#: src/ui/search.rs:1441 src/ui/search.rs:1637 src/ui/feed.rs:123
 #: src/ui/uploads.rs:1295
 msgid "Album"
 msgstr "アルバム"
 
-#: src/app.rs:3323
+#: src/app.rs:3337
 #, rust-format
 msgid "{artist} top tracks"
 msgstr "{artist} のトップトラック"
 
-#: src/app.rs:3325
+#: src/app.rs:3339
 msgid "Top tracks"
 msgstr "人気曲"
 
-#: src/app.rs:3345 src/ui/radio.rs:201 src/ui/radio.rs:218
+#: src/app.rs:3359 src/ui/radio.rs:198 src/ui/radio.rs:215
 msgid "Mix"
 msgstr "ミックス"
 
-#: src/app.rs:3871
+#: src/app.rs:3888
 #, rust-format
 msgid "Left out {count} filters this equalizer does not have"
 msgstr "このイコライザーにない {count} 個のフィルターを省きました"
 
-#: src/app.rs:3880
+#: src/app.rs:3897
 #, rust-format
 msgid "That is not an Equalizer APO profile: {error}"
 msgstr "Equalizer APO のプロファイルではありません: {error}"
 
-#: src/app.rs:4026
+#: src/app.rs:4043
 msgid "Proxy applied. Restarting local playback."
 msgstr "プロキシを適用しました。ローカル再生を再起動しています。"
 
-#: src/app.rs:4028
+#: src/app.rs:4045
 msgid "Proxy settings applied"
 msgstr "プロキシ設定を適用しました"
 
 #. Translators: {error} is an error message.
-#: src/app.rs:4035
+#: src/app.rs:4052
 #, rust-format
 msgid ""
 "Proxy could not be applied: {error}. Previous connection settings are still "
@@ -783,284 +783,284 @@ msgstr ""
 "プロキシを適用できませんでした：{error}。以前の接続設定を引き続き使用していま"
 "す。"
 
-#: src/app.rs:5949
+#: src/app.rs:5963
 msgid "Removed from queue"
 msgstr "キューから削除しました"
 
-#: src/app.rs:6063
+#: src/app.rs:6077
 msgid "Queue cleared"
 msgstr "再生待ちリストをクリアしました"
 
 #. Translators: Keep {date} unchanged. It is a date in YYYY-MM-DD form.
-#: src/app.rs:6093 src/app.rs:20745
+#: src/app.rs:6107 src/app.rs:20764
 #, rust-format
 msgid "Queue {date}"
 msgstr "再生待ち {date}"
 
-#: src/app.rs:6691
+#: src/app.rs:6705
 msgid "Your TIDAL sign-in expired. Please sign in again."
 msgstr "TIDAL のログインの有効期限が切れました。もう一度ログインしてください。"
 
 #. Translators: {error} is an error message.
-#: src/app.rs:6698
+#: src/app.rs:6712
 #, rust-format
 msgid "Couldn't load your profile: {error}"
 msgstr "プロフィールを読み込めませんでした：{error}"
 
 #. Translators: {error} is an error message.
-#: src/app.rs:7079
+#: src/app.rs:7093
 #, rust-format
 msgid "Couldn't load more playlists: {error}"
 msgstr "プレイリストをさらに読み込めませんでした：{error}"
 
 #. Translators: {error} is an error message.
-#: src/app.rs:7387
+#: src/app.rs:7401
 #, rust-format
 msgid "Couldn't create the playlist: {error}"
 msgstr "プレイリストを作成できませんでした：{error}"
 
 #. Translators: {error} is an error message.
-#: src/app.rs:7405 src/app.rs:7424 src/app.rs:7613
+#: src/app.rs:7419 src/app.rs:7438 src/app.rs:7627
 #, rust-format
 msgid "Couldn't update the playlist: {error}"
 msgstr "プレイリストを更新できませんでした：{error}"
 
 #. Translators: {error} is an error message.
-#: src/app.rs:7440 src/app.rs:7577
+#: src/app.rs:7454 src/app.rs:7591
 #, rust-format
 msgid "Playlist change failed: {error}"
 msgstr "プレイリストの変更に失敗しました：{error}"
 
 #. Translators: {name} is an album name and {error} is an error message.
-#: src/app.rs:7461 src/app.rs:9868
+#: src/app.rs:7475 src/app.rs:9877
 #, rust-format
 msgid "Couldn't add {name} to queue: {error}"
 msgstr "{name}を再生待ちリストに追加できませんでした：{error}"
 
-#: src/app.rs:7490
+#: src/app.rs:7504
 msgid "Couldn't delete the folder, its playlists couldn't be moved out"
 msgstr "フォルダを削除できませんでした。中のプレイリストを移動できませんでした"
 
 #. Translators: {error} is an error message.
-#: src/app.rs:7497
+#: src/app.rs:7511
 #, rust-format
 msgid "Folder change failed: {error}"
 msgstr "フォルダの変更に失敗しました: {error}"
 
-#: src/app.rs:7788
+#: src/app.rs:7802
 msgid "We won't play this song again"
 msgstr "この曲は今後再生されません"
 
-#: src/app.rs:7791
+#: src/app.rs:7805
 msgid "Couldn't block this song"
 msgstr "この曲をブロックできませんでした"
 
-#: src/app.rs:7820
+#: src/app.rs:7834
 msgid "We'll play this song again"
 msgstr "この曲を再び再生します"
 
-#: src/app.rs:7831
+#: src/app.rs:7845
 msgid "Couldn't unblock this song"
 msgstr "この曲のブロックを解除できませんでした"
 
-#: src/app.rs:7850
+#: src/app.rs:7864
 msgid "We won't play this artist in mixes and radio"
 msgstr "このアーティストはミックスとラジオで再生しません"
 
-#: src/app.rs:7852
+#: src/app.rs:7866
 msgid "We'll play this artist again"
 msgstr "このアーティストを再び再生します"
 
-#: src/app.rs:7857
+#: src/app.rs:7871
 msgid "Couldn't block this artist"
 msgstr "このアーティストをブロックできませんでした"
 
-#: src/app.rs:7859
+#: src/app.rs:7873
 msgid "Couldn't unblock this artist"
 msgstr "このアーティストのブロックを解除できませんでした"
 
 #. Translators: {error} is an error message.
-#: src/app.rs:7939
+#: src/app.rs:7953
 #, rust-format
 msgid "Couldn't update My Collection: {error}"
 msgstr "マイコレクションを更新できませんでした: {error}"
 
 #. Translators: {query} is the words someone searched for.
-#: src/app.rs:7988
+#: src/app.rs:8002
 #, rust-format
 msgid "Nothing on TIDAL matches “{query}”"
 msgstr "TIDAL に「{query}」に一致するものはありません"
 
 #. Translators: {query} is the words someone searched for; {error} is an error message.
-#: src/app.rs:7996
+#: src/app.rs:8010
 #, rust-format
 msgid "Couldn't search for “{query}”: {error}"
 msgstr "「{query}」を検索できませんでした：{error}"
 
-#: src/app.rs:8034 src/ui/keys.rs:224 src/ui/search.rs:160 src/ui/topbar.rs:375
+#: src/app.rs:8048 src/ui/keys.rs:230 src/ui/search.rs:153 src/ui/topbar.rs:416
 #: src/ui/titlebar.rs:166
 msgid "Search"
 msgstr "検索"
 
 #. Translators: {error} is an error message.
-#: src/app.rs:8345
+#: src/app.rs:8354
 #, rust-format
 msgid "Cannot open this track: {error}"
 msgstr "この曲を開けません：{error}"
 
 #. Translators: {error} is an error message.
-#: src/app.rs:8410 src/app.rs:8434
+#: src/app.rs:8419 src/app.rs:8443
 #, rust-format
 msgid "Couldn't add to queue: {error}"
 msgstr "再生待ちリストに追加できませんでした：{error}"
 
-#: src/app.rs:8537
+#: src/app.rs:8546
 msgid "This track's album is not on TIDAL"
 msgstr "この曲のアルバムはTIDALにありません"
 
-#: src/app.rs:8550
+#: src/app.rs:8559
 msgid "Tidalfast cannot open this kind of TIDAL link"
 msgstr "Tidalfastはこの種類のTIDALリンクを開けません"
 
-#: src/app.rs:8774
+#: src/app.rs:8783
 msgid "Nothing is playing. Pick something first"
 msgstr "再生中の曲はありません。先に何か選んでください"
 
-#: src/app.rs:9182
+#: src/app.rs:9191
 msgid "Playback isn't ready yet. Sign in to TIDAL first"
 msgstr "再生の準備がまだできていません。先に TIDAL にログインしてください"
 
-#: src/app.rs:9567 src/app.rs:9572
+#: src/app.rs:9576 src/app.rs:9581
 msgid "Pick something to play"
 msgstr "再生するものを選んでください"
 
 #. Translators: {name} is an album name.
-#: src/app.rs:9833 src/app.rs:12745
+#: src/app.rs:9842 src/app.rs:12761
 #, rust-format
 msgid "Loading {name} to queue…"
 msgstr "{name}を再生待ちリストに読み込み中…"
 
-#: src/app.rs:9852
+#: src/app.rs:9861
 msgid "Playback device changed. Add the album to queue again"
 msgstr ""
 "再生デバイスが変わりました。もう一度アルバムを再生待ちリストに追加してくださ"
 "い"
 
-#: src/app.rs:9861 src/app.rs:9879 src/app.rs:9888
+#: src/app.rs:9870 src/app.rs:9888 src/app.rs:9897
 msgid "Couldn't load the album's tracks in order. Try again"
 msgstr "アルバムの曲を順番どおりに読み込めませんでした。もう一度お試しください"
 
-#: src/app.rs:9927
+#: src/app.rs:9936
 msgid "This album has no playable tracks to queue"
 msgstr "このアルバムには再生待ちリストに追加できる曲がありません"
 
 #. Translators: {count} is a number of songs and {name} is an album name.
-#: src/app.rs:9936
+#: src/app.rs:9945
 #, rust-format
 msgid "{count} track from {name} added to queue"
 msgid_plural "{count} tracks from {name} added to queue"
 msgstr[0] "{name}の{count}曲を再生待ちリストに追加しました"
 
 #. Translators: {count} is a number of songs.
-#: src/app.rs:9980
+#: src/app.rs:9989
 #, rust-format
 msgid "{count} track added to queue"
 msgid_plural "{count} tracks added to queue"
 msgstr[0] "{count}曲を再生待ちリストに追加しました"
 
 #. Translators: {name} is a song, album, or playlist name.
-#: src/app.rs:10017
+#: src/app.rs:10026
 #, rust-format
 msgid "{name} added to queue"
 msgstr "{name}を再生待ちリストに追加しました"
 
 #. Translators: {name} is a playlist name.
-#: src/app.rs:10356
+#: src/app.rs:10365
 #, rust-format
 msgid "Added to {name}"
 msgstr "{name}に追加しました"
 
-#: src/app.rs:10358 src/ui/settings.rs:830 src/ui/titlebar.rs:163
+#: src/app.rs:10367 src/ui/settings.rs:830 src/ui/titlebar.rs:163
 msgid "View"
 msgstr "表示"
 
-#: src/app.rs:10483
+#: src/app.rs:10492
 msgid "The clipboard has no TIDAL song links"
 msgstr "クリップボードに TIDAL の曲リンクがありません"
 
 #. Translators: {count} is the number of pasted links that failed.
-#: src/app.rs:10564
+#: src/app.rs:10573
 #, rust-format
 msgid "{count} pasted link could not be added"
 msgid_plural "{count} pasted links could not be added"
 msgstr[0] "貼り付けたリンクのうち{count}件を追加できませんでした"
 
-#: src/app.rs:11243
+#: src/app.rs:11255
 msgid "Removed from playlist"
 msgstr "プレイリストから削除しました"
 
-#: src/app.rs:11314
+#: src/app.rs:11326
 msgid "Playlist created"
 msgstr "プレイリストを作成しました"
 
-#: src/app.rs:11341
+#: src/app.rs:11353
 msgid "TIDAL doesn't let apps remove a playlist description, so it was kept"
 msgstr ""
 "TIDAL ではアプリからプレイリストの説明を削除できないため、そのまま残しました"
 
-#: src/app.rs:11351
+#: src/app.rs:11363
 msgid "Playlist updated"
 msgstr "プレイリストを更新しました"
 
-#: src/app.rs:11368
+#: src/app.rs:11380
 msgid "Playlist is now public"
 msgstr "プレイリストを公開しました"
 
-#: src/app.rs:11370
+#: src/app.rs:11382
 msgid "Playlist is now private"
 msgstr "プレイリストを非公開にしました"
 
-#: src/app.rs:11386
+#: src/app.rs:11398
 msgid "Playlist deleted"
 msgstr "プレイリストを削除しました"
 
-#: src/app.rs:11429
+#: src/app.rs:11441
 msgid "Folder created"
 msgstr "フォルダを作成しました"
 
-#: src/app.rs:11445
+#: src/app.rs:11457
 msgid "Folder renamed"
 msgstr "フォルダ名を変更しました"
 
-#: src/app.rs:11464
+#: src/app.rs:11476
 msgid "Folder deleted"
 msgstr "フォルダを削除しました"
 
-#: src/app.rs:11504 src/app.rs:11544 src/app/uploads.rs:511
+#: src/app.rs:11516 src/app.rs:11556 src/app/uploads.rs:511
 #: src/app/uploads.rs:516
 msgid "Link copied"
 msgstr "リンクをコピーしました"
 
-#: src/app.rs:11510
+#: src/app.rs:11522
 msgid "Embed code copied"
 msgstr "埋め込みコードをコピーしました"
 
 #. Translators: {count} is a number of song links, always more than one.
-#: src/app.rs:11548
+#: src/app.rs:11560
 #, rust-format
 msgid "{count} link copied"
 msgid_plural "{count} links copied"
 msgstr[0] "{count}件のリンクをコピーしました"
 
-#: src/app.rs:11624
+#: src/app.rs:11636
 msgid "Picture copied"
 msgstr "画像をコピーしました"
 
-#: src/app.rs:11626
+#: src/app.rs:11638
 msgid "The picture could not be copied"
 msgstr "画像をコピーできませんでした"
 
-#: src/app.rs:11860
+#: src/app.rs:11876
 msgid ""
 "TIDAL doesn't let apps reorder your playlists, so this order is saved on "
 "this computer"
@@ -1068,84 +1068,84 @@ msgstr ""
 "TIDAL ではアプリからプレイリストの順序を変更できないため、この順序はこのコン"
 "ピューターに保存されます"
 
-#: src/app.rs:11907
+#: src/app.rs:11923
 msgid "Restarting local playback"
 msgstr "ローカル再生を再起動しています"
 
-#: src/app.rs:11975
+#: src/app.rs:11991
 msgid "Play history cleared"
 msgstr "再生履歴を消去しました"
 
 #. Translators: {size} is a size in megabytes, such as 12.5.
-#: src/app.rs:11986
+#: src/app.rs:12002
 #, rust-format
 msgid "Cleared {size} MB of artwork"
 msgstr "アートワークを{size} MB削除しました"
 
 #. Translators: {error} is an error message.
-#: src/app.rs:11992
+#: src/app.rs:12008
 #, rust-format
 msgid "Couldn't clear artwork: {error}"
 msgstr "アートワークを削除できませんでした：{error}"
 
-#: src/app.rs:12103
+#: src/app.rs:12119
 msgid "Copied as an Equalizer APO profile"
 msgstr "Equalizer APO のプロファイルとしてコピーしました"
 
-#: src/app.rs:12214
+#: src/app.rs:12230
 msgid "Collaborator invites aren't available in Tidalfast yet"
 msgstr "コラボレーターの招待は Tidalfast ではまだ利用できません"
 
-#: src/app.rs:12311
+#: src/app.rs:12327
 msgid "Offline mode is on. Turn it off to check for updates."
 msgstr ""
 "オフラインモードがオンです。アップデートを確認するにはオフにしてください。"
 
-#: src/app.rs:12444
+#: src/app.rs:12460
 msgid "Couldn't change whether Tidalfast starts at login."
 msgstr "ログイン時に Tidalfast を起動する設定を変更できませんでした。"
 
-#: src/app.rs:12759 src/ui/collection.rs:1015
+#: src/app.rs:12775 src/ui/collection.rs:1121
 msgid "No playable tracks in this view"
 msgstr "このビューに再生できる曲はありません"
 
-#: src/app.rs:13623 src/ui/now_playing_video.rs:212
+#: src/app.rs:13641 src/ui/now_playing_video.rs:212
 msgid "Loading…"
 msgstr "読み込み中…"
 
-#: src/app.rs:13748
+#: src/app.rs:13766
 msgid "Couldn't start playback"
 msgstr "再生を開始できませんでした"
 
-#: src/app.rs:13749
+#: src/app.rs:13767
 msgid "Couldn't pause"
 msgstr "一時停止できませんでした"
 
-#: src/app.rs:13750
+#: src/app.rs:13768
 msgid "Couldn't skip"
 msgstr "スキップできませんでした"
 
-#: src/app.rs:13751
+#: src/app.rs:13769
 msgid "Couldn't go back"
 msgstr "前に戻れませんでした"
 
-#: src/app.rs:13752
+#: src/app.rs:13770
 msgid "Couldn't seek"
 msgstr "再生位置を変更できませんでした"
 
-#: src/app.rs:13753
+#: src/app.rs:13771
 msgid "Couldn't change the volume"
 msgstr "音量を変更できませんでした"
 
-#: src/app.rs:13754
+#: src/app.rs:13772
 msgid "Couldn't change shuffle"
 msgstr "シャッフルを変更できませんでした"
 
-#: src/app.rs:13755
+#: src/app.rs:13773
 msgid "Couldn't change repeat"
 msgstr "リピートを変更できませんでした"
 
-#: src/app.rs:13798
+#: src/app.rs:13816
 msgid ""
 "No audio output device was found. Connect or enable one, then press play "
 "again."
@@ -1153,24 +1153,24 @@ msgstr ""
 "音声出力デバイスが見つかりません。デバイスを接続するか有効にしてから、もう一"
 "度再生してください。"
 
-#: src/app.rs:13803
+#: src/app.rs:13821
 msgid "This video can't be played in Tidalfast"
 msgstr "このビデオはTidalfastで再生できません"
 
-#: src/app.rs:13808
+#: src/app.rs:13826
 msgid "No internet connection. Tidalfast will carry on when you're back online"
 msgstr ""
 "インターネットに接続されていません。オンラインに戻ると Tidalfast が再開しま"
 "す。"
 
-#: src/app.rs:13822
+#: src/app.rs:13840
 msgid "TIDAL doesn't make this playlist's songs available to third-party apps."
 msgstr ""
 "TIDAL は、このプレイリストの曲をサードパーティ製アプリに提供していません。"
 
 #. Translators: Keep {track} unchanged. It is the name of the song,
 #. playlist, album, or artist the radio is based on, not translated.
-#: src/app.rs:20765 src/app/radio.rs:38
+#: src/app.rs:20784 src/app/radio.rs:38
 #, rust-format
 msgid "{track} Radio"
 msgstr "{track} のラジオ"
@@ -1199,7 +1199,7 @@ msgstr "このアプリについて"
 msgid "Search settings"
 msgstr "設定を検索"
 
-#: src/ui/settings.rs:379 src/ui/keys.rs:249 src/ui/topbar.rs:750
+#: src/ui/settings.rs:379 src/ui/keys.rs:255 src/ui/topbar.rs:871
 #: src/ui/titlebar.rs:157
 msgid "Settings"
 msgstr "設定"
@@ -1220,7 +1220,7 @@ msgstr "TIDAL Free：再生にはサブスクリプションが必要です"
 msgid "Audio quality"
 msgstr "音質"
 
-#: src/ui/settings.rs:447 src/ui/player_utility.rs:478
+#: src/ui/settings.rs:447 src/ui/player_utility.rs:485
 msgid "Bit-perfect (exclusive mode)"
 msgstr "ビットパーフェクト（排他モード）"
 
@@ -1856,7 +1856,7 @@ msgstr "履歴を消去"
 msgid "Tidalfast is not affiliated with TIDAL."
 msgstr "TidalfastはTIDALと提携していません。"
 
-#: src/ui/settings.rs:1832 src/ui/topbar.rs:754 src/ui/titlebar.rs:196
+#: src/ui/settings.rs:1832 src/ui/topbar.rs:875 src/ui/titlebar.rs:196
 msgid "Check for updates"
 msgstr "アップデートを確認"
 
@@ -1864,8 +1864,8 @@ msgstr "アップデートを確認"
 msgid "Checking…"
 msgstr "確認中…"
 
-#: src/ui/settings.rs:1834 src/ui/dialogs.rs:1757 src/ui/keys.rs:259
-#: src/ui/topbar.rs:757 src/ui/titlebar.rs:191
+#: src/ui/settings.rs:1834 src/ui/dialogs.rs:1757 src/ui/keys.rs:265
+#: src/ui/topbar.rs:878 src/ui/titlebar.rs:191
 msgid "Keyboard shortcuts"
 msgstr "キーボードショートカット"
 
@@ -1935,7 +1935,7 @@ msgstr "「{query}」に一致する設定はありません"
 msgid "Try fewer words, or check the spelling."
 msgstr "語句を減らすか、スペルを確認してください。"
 
-#: src/ui/settings.rs:2072 src/ui/player_utility.rs:434
+#: src/ui/settings.rs:2072 src/ui/player_utility.rs:441
 msgid "System default"
 msgstr "システムの既定"
 
@@ -1997,29 +1997,29 @@ msgctxt "proxy"
 msgid "System"
 msgstr "システム"
 
-#: src/ui/artist.rs:63 src/ui/artist.rs:1198
+#: src/ui/artist.rs:63 src/ui/artist.rs:1207
 msgid "Top Tracks"
 msgstr "トップトラック"
 
-#: src/ui/artist.rs:68 src/ui/artist.rs:197 src/ui/artist.rs:225
-#: src/ui/artist.rs:255 src/ui/artist.rs:326 src/ui/artist.rs:1017
-#: src/ui/artist.rs:2114 src/ui/artist.rs:2164 src/ui/home.rs:492
+#: src/ui/artist.rs:68 src/ui/artist.rs:206 src/ui/artist.rs:234
+#: src/ui/artist.rs:264 src/ui/artist.rs:335 src/ui/artist.rs:1026
+#: src/ui/artist.rs:2134 src/ui/artist.rs:2184 src/ui/home.rs:523
 #: src/ui/explore.rs:141 src/ui/home_feeds.rs:126 src/ui/home_feeds.rs:185
-#: src/ui/home_feeds.rs:401 src/ui/album_extras.rs:362
+#: src/ui/home_feeds.rs:401 src/ui/album_extras.rs:385
 msgid "View all"
 msgstr "すべて表示"
 
-#: src/ui/artist.rs:173 src/ui/artist.rs:1490
+#: src/ui/artist.rs:182 src/ui/artist.rs:1499
 msgid "No popular tracks to show."
 msgstr "表示できる人気曲はありません。"
 
-#: src/ui/artist.rs:254 src/ui/artist.rs:1290
+#: src/ui/artist.rs:263 src/ui/artist.rs:1299
 msgid "Fans also like"
 msgstr "ファンの間で人気"
 
-#: src/ui/artist.rs:321 src/ui/artist.rs:1292 src/ui/collection.rs:1073
-#: src/ui/menus.rs:1123 src/ui/menus.rs:1525 src/ui/menus.rs:1663
-#: src/ui/now_playing.rs:200 src/ui/now_playing_video.rs:187
+#: src/ui/artist.rs:330 src/ui/artist.rs:1301 src/ui/collection.rs:1213
+#: src/ui/menus.rs:1207 src/ui/menus.rs:1615 src/ui/menus.rs:1753
+#: src/ui/now_playing.rs:201 src/ui/now_playing_video.rs:187
 #: src/ui/sticky.rs:461 src/ui/album_credits.rs:137
 msgid "Credits"
 msgstr "クレジット"
@@ -2028,195 +2028,195 @@ msgstr "クレジット"
 #. number such as 1.9M.
 #. Translators: {count} is how many people follow the user's own
 #. artist profile, such as 2.
-#: src/ui/artist.rs:456 src/ui/artist.rs:1960
+#: src/ui/artist.rs:465 src/ui/artist.rs:1980
 #, rust-format
 msgid "{count} fan"
 msgid_plural "{count} fans"
 msgstr[0] "ファン{count}人"
 
-#: src/ui/artist.rs:546
+#: src/ui/artist.rs:555
 msgid "Read more"
 msgstr "続きを読む"
 
-#: src/ui/artist.rs:680
+#: src/ui/artist.rs:689
 msgid "No biography for this artist"
 msgstr "このアーティストの紹介はありません"
 
-#: src/ui/artist.rs:702
+#: src/ui/artist.rs:711
 msgid "Biography"
 msgstr "バイオグラフィー"
 
-#: src/ui/artist.rs:706
+#: src/ui/artist.rs:715
 #, rust-format
 msgid "Artist bio from {source}"
 msgstr "アーティストの経歴の提供元: {source}"
 
-#: src/ui/artist.rs:842 src/ui/collection.rs:1206
+#: src/ui/artist.rs:851 src/ui/collection.rs:1373
 msgid "Starting…"
 msgstr "起動中…"
 
-#: src/ui/artist.rs:886 src/ui/artist.rs:1691 src/ui/artist.rs:2089
-#: src/ui/collection.rs:1062 src/ui/menus.rs:485 src/ui/activity.rs:1040
+#: src/ui/artist.rs:895 src/ui/artist.rs:1700 src/ui/artist.rs:2109
+#: src/ui/collection.rs:1192 src/ui/menus.rs:483 src/ui/activity.rs:1040
 #: src/ui/activity.rs:1232 src/ui/sticky.rs:454 src/ui/uploads.rs:363
 #: src/ui/uploads.rs:1567
 msgid "Share"
 msgstr "共有"
 
-#: src/ui/artist.rs:893 src/ui/artist.rs:1702 src/ui/now_playing.rs:858
+#: src/ui/artist.rs:902 src/ui/artist.rs:1711 src/ui/now_playing.rs:884
 msgid "Artist radio"
 msgstr "アーティストラジオ"
 
-#: src/ui/artist.rs:903 src/ui/artist.rs:1712
+#: src/ui/artist.rs:912 src/ui/artist.rs:1721
 msgctxt "artist"
 msgid "Following"
 msgstr "フォロー中"
 
-#: src/ui/artist.rs:909 src/ui/artist.rs:1718 src/ui/menus.rs:1671
+#: src/ui/artist.rs:918 src/ui/artist.rs:1727 src/ui/menus.rs:1761
 msgctxt "artist"
 msgid "Follow"
 msgstr "フォロー"
 
-#: src/ui/artist.rs:963 src/ui/artist.rs:1285
+#: src/ui/artist.rs:972 src/ui/artist.rs:1294
 msgid "EPs & Singles"
 msgstr "EP とシングル"
 
-#: src/ui/artist.rs:971 src/ui/artist.rs:1286
+#: src/ui/artist.rs:980 src/ui/artist.rs:1295
 msgid "Compilations"
 msgstr "コンピレーション"
 
-#: src/ui/artist.rs:984 src/ui/artist.rs:1287
+#: src/ui/artist.rs:993 src/ui/artist.rs:1296
 msgid "Live albums"
 msgstr "ライブアルバム"
 
-#: src/ui/artist.rs:997 src/ui/artist.rs:1288
+#: src/ui/artist.rs:1006 src/ui/artist.rs:1297
 msgid "Appears on"
 msgstr "参加作品"
 
-#: src/ui/artist.rs:1196 src/ui/artist.rs:2189
+#: src/ui/artist.rs:1205 src/ui/artist.rs:2209
 msgid "Uploaded tracks"
 msgstr "アップロードしたトラック"
 
-#: src/ui/artist.rs:1977
+#: src/ui/artist.rs:1997
 msgid "Add bio"
 msgstr "自己紹介を追加"
 
-#: src/ui/artist.rs:2095 src/ui/collection.rs:1138 src/ui/sticky.rs:491
+#: src/ui/artist.rs:2115 src/ui/collection.rs:1301 src/ui/sticky.rs:491
 #: src/ui/uploads.rs:1264
 msgid "Edit"
 msgstr "編集"
 
-#: src/ui/artist.rs:2154
+#: src/ui/artist.rs:2174
 msgid "Your profile is empty"
 msgstr "プロフィールは空です"
 
-#: src/ui/artist.rs:2157
+#: src/ui/artist.rs:2177
 msgid ""
 "Start creating playlists, adding your social profiles, or uploading a track."
 msgstr ""
 "プレイリストを作成したり、SNSのプロフィールを追加したり、トラックをアップロー"
 "ドしたりしましょう。"
 
-#: src/ui/collection.rs:507
+#: src/ui/collection.rs:564
 msgid "Add collaborator"
 msgstr "コラボレーターを追加"
 
-#: src/ui/collection.rs:846
+#: src/ui/collection.rs:942
 msgid "Filter tracks"
 msgstr "トラックを絞り込む"
 
-#: src/ui/collection.rs:848
+#: src/ui/collection.rs:944
 msgid "Filter playlist on title, artist or album"
 msgstr "タイトル、アーティスト、アルバムでプレイリストを絞り込む"
 
-#: src/ui/collection.rs:1034
+#: src/ui/collection.rs:1153
 msgid "No playable songs in this view"
 msgstr "このビューに再生できる曲はありません"
 
-#: src/ui/collection.rs:1091 src/ui/collection.rs:1232 src/ui/sticky.rs:471
+#: src/ui/collection.rs:1235 src/ui/collection.rs:1399 src/ui/sticky.rs:471
 msgid "Save as playlist"
 msgstr "プレイリストとして保存"
 
-#: src/ui/collection.rs:1103 src/ui/sticky.rs:501
+#: src/ui/collection.rs:1247 src/ui/sticky.rs:501
 msgid "Added"
 msgstr "追加済み"
 
-#: src/ui/collection.rs:1109 src/ui/sticky.rs:507 src/ui/uploads.rs:745
+#: src/ui/collection.rs:1253 src/ui/sticky.rs:507 src/ui/uploads.rs:745
 msgid "Add"
 msgstr "追加"
 
-#: src/ui/collection.rs:1126 src/ui/sticky.rs:480 src/ui/uploads.rs:249
+#: src/ui/collection.rs:1276 src/ui/sticky.rs:480 src/ui/uploads.rs:249
 #: src/ui/uploads.rs:1320
 msgid "Public"
 msgstr "公開"
 
-#: src/ui/collection.rs:1128 src/ui/sticky.rs:482
+#: src/ui/collection.rs:1278 src/ui/sticky.rs:482
 msgid "Private"
 msgstr "非公開"
 
-#: src/ui/collection.rs:1247
+#: src/ui/collection.rs:1414
 msgid "Refreshing…"
 msgstr "更新中…"
 
-#: src/ui/collection.rs:1249
+#: src/ui/collection.rs:1416
 msgid "Refresh"
 msgstr "更新"
 
-#: src/ui/collection.rs:1301
+#: src/ui/collection.rs:1468
 msgid "Downloading"
 msgstr "ダウンロード中"
 
-#: src/ui/collection.rs:1303 src/ui/collection.rs:1329 src/ui/menus.rs:773
-#: src/ui/menus.rs:1211 src/ui/menus.rs:1369
+#: src/ui/collection.rs:1470 src/ui/collection.rs:1496 src/ui/menus.rs:771
+#: src/ui/menus.rs:1295 src/ui/menus.rs:1453
 msgid "Download"
 msgstr "ダウンロード"
 
-#: src/ui/collection.rs:1327 src/ui/menus.rs:769 src/ui/menus.rs:1208
-#: src/ui/menus.rs:1366
+#: src/ui/collection.rs:1494 src/ui/menus.rs:767 src/ui/menus.rs:1292
+#: src/ui/menus.rs:1450
 msgid "Remove download"
 msgstr "ダウンロードを削除"
 
-#: src/ui/collection.rs:2257
+#: src/ui/collection.rs:2525
 #, rust-format
 msgid "Volume {number}"
 msgstr "ディスク {number}"
 
-#: src/ui/collection.rs:2489 src/ui/collection.rs:2518
+#: src/ui/collection.rs:2758 src/ui/collection.rs:2787
 msgid "Unavailable"
 msgstr "利用不可"
 
-#: src/ui/collection.rs:2495
+#: src/ui/collection.rs:2764
 msgid "You're offline. Reconnect to load more tracks."
 msgstr "オフラインです。さらに曲を読み込むには再接続してください。"
 
-#: src/ui/collection.rs:2680
+#: src/ui/collection.rs:2950
 msgid "Nothing here yet"
 msgstr "まだ何もありません"
 
-#: src/ui/collection.rs:2681
+#: src/ui/collection.rs:2951
 msgid "Added tracks appear here."
 msgstr "追加した曲がここに表示されます。"
 
-#: src/ui/collection.rs:3120 src/ui/home.rs:973
+#: src/ui/collection.rs:3390 src/ui/home.rs:1039
 msgid "Your top tracks"
 msgstr "あなたのトップソング"
 
-#: src/ui/collection.rs:3129
+#: src/ui/collection.rs:3399
 msgid "Your most-played tracks from the last four weeks."
 msgstr "過去4週間でよく再生した曲です。"
 
-#: src/ui/collection.rs:3655
+#: src/ui/collection.rs:3929
 msgid "Collaborative Playlist"
 msgstr "コラボプレイリスト"
 
-#: src/ui/collection.rs:3657
+#: src/ui/collection.rs:3931
 msgid "Public Playlist"
 msgstr "公開プレイリスト"
 
-#: src/ui/collection.rs:4040
+#: src/ui/collection.rs:4314
 msgid "No downloads yet"
 msgstr "ダウンロードはまだありません"
 
-#: src/ui/collection.rs:4043
+#: src/ui/collection.rs:4317
 msgid ""
 "Turn on Download on an album, playlist or mix to play it without a "
 "connection."
@@ -2225,32 +2225,32 @@ msgstr ""
 "できます。"
 
 #. Translators: {count} is the number of people who saved a playlist.
-#: src/ui/collection.rs:4124
+#: src/ui/collection.rs:4398
 #, rust-format
 msgid "{count} save"
 msgid_plural "{count} saves"
 msgstr[0] "保存{count}件"
 
 #. Translators: {name} is the name of someone who added songs to the playlist.
-#: src/ui/collection.rs:4224
+#: src/ui/collection.rs:4498
 #, rust-format
 msgid "with {name}"
 msgstr "{name}と共同"
 
 #. Translators: {first} and {second} are names of people who added songs.
-#: src/ui/collection.rs:4228
+#: src/ui/collection.rs:4502
 #, rust-format
 msgid "with {first} and {second}"
 msgstr "{first}、{second}と共同"
 
 #. Translators: {count} is how many other people added songs to the playlist.
-#: src/ui/collection.rs:4235
+#: src/ui/collection.rs:4509
 #, rust-format
 msgid "and {count} other"
 msgid_plural "and {count} others"
 msgstr[0] "ほか{count}人"
 
-#: src/ui/dialogs.rs:138 src/ui/menus.rs:1599
+#: src/ui/dialogs.rs:138 src/ui/menus.rs:1689
 msgid "Delete playlist"
 msgstr "プレイリストを削除"
 
@@ -2333,7 +2333,7 @@ msgstr[0] ""
 "「{first}」、「{second}」、ほか{count}曲はすでに「{playlist}」にあります。そ"
 "れでも追加しますか？"
 
-#: src/ui/dialogs.rs:775 src/ui/dialogs.rs:878 src/ui/menus.rs:469
+#: src/ui/dialogs.rs:775 src/ui/dialogs.rs:878 src/ui/menus.rs:467
 msgid "Copy embed code"
 msgstr "埋め込みコードをコピー"
 
@@ -2368,7 +2368,7 @@ msgstr "説明を入力"
 msgid "{count}/500 characters"
 msgstr "{count}/500文字"
 
-#: src/ui/dialogs.rs:1298 src/ui/menus.rs:1579
+#: src/ui/dialogs.rs:1298 src/ui/menus.rs:1669
 msgid "Collaborators"
 msgstr "コラボレーター"
 
@@ -2412,7 +2412,7 @@ msgstr "新しいフォルダ"
 msgid "Give your new folder a name"
 msgstr "新しいフォルダの名前を入力"
 
-#: src/ui/dialogs.rs:1620 src/ui/menus.rs:1563
+#: src/ui/dialogs.rs:1620 src/ui/menus.rs:1653
 msgid "Edit playlist"
 msgstr "プレイリストを編集"
 
@@ -2424,177 +2424,177 @@ msgstr "選択したプレイリストのカバー"
 msgid "Current playlist cover"
 msgstr "現在のプレイリストのカバー"
 
-#: src/ui/home.rs:187
+#: src/ui/home.rs:194
 msgid "Created by me"
 msgstr "自分で作成"
 
-#: src/ui/home.rs:192
+#: src/ui/home.rs:199
 #, rust-format
 msgid "Created by {owner}"
 msgstr "作成者：{owner}"
 
-#: src/ui/home.rs:470 src/ui/home_feeds.rs:56
+#: src/ui/home.rs:501 src/ui/home_feeds.rs:56
 msgid "For you"
 msgstr "あなたへ"
 
-#: src/ui/home.rs:787 src/ui/home.rs:797 src/ui/home.rs:812
+#: src/ui/home.rs:853 src/ui/home.rs:863 src/ui/home.rs:878
 msgid "Your top artists"
 msgstr "あなたのトップアーティスト"
 
-#: src/ui/home.rs:974
+#: src/ui/home.rs:1040
 msgid "Show more top tracks"
 msgstr "トップソングをもっと見る"
 
-#: src/ui/home.rs:988
+#: src/ui/home.rs:1054
 msgid "Recommended for you"
 msgstr "おすすめ"
 
-#: src/ui/keys.rs:170
+#: src/ui/keys.rs:176
 msgctxt "key"
 msgid "Space"
 msgstr "スペース"
 
-#: src/ui/keys.rs:171
+#: src/ui/keys.rs:177
 msgid "Play or pause"
 msgstr "再生／一時停止"
 
-#: src/ui/keys.rs:175
+#: src/ui/keys.rs:181
 msgid "Previous or next"
 msgstr "前へ／次へ"
 
-#: src/ui/keys.rs:179
+#: src/ui/keys.rs:185
 msgid "Seek 10 seconds"
 msgstr "10秒シーク"
 
-#: src/ui/keys.rs:183
+#: src/ui/keys.rs:189
 msgid "Volume up or down"
 msgstr "音量を上げる／下げる"
 
-#: src/ui/keys.rs:185
+#: src/ui/keys.rs:191
 msgid "Mute or unmute"
 msgstr "ミュート／ミュート解除"
 
-#: src/ui/keys.rs:188
+#: src/ui/keys.rs:194
 msgid "Add or remove the playing track from My Collection"
 msgstr "再生中のトラックをマイコレクションに追加または削除"
 
-#: src/ui/keys.rs:190
+#: src/ui/keys.rs:196
 msgid "Toggle shuffle"
 msgstr "シャッフルの切り替え"
 
-#: src/ui/keys.rs:191
+#: src/ui/keys.rs:197
 msgid "Cycle repeat"
 msgstr "リピートの切り替え"
 
-#: src/ui/keys.rs:192
+#: src/ui/keys.rs:198
 msgid "Show the queue"
 msgstr "再生待ちリストを表示"
 
-#: src/ui/keys.rs:193
+#: src/ui/keys.rs:199
 msgid "Show the lyrics"
 msgstr "歌詞を表示"
 
-#: src/ui/keys.rs:194
+#: src/ui/keys.rs:200
 msgid "Lyrics: leave full screen"
 msgstr "歌詞：全画面表示を終了"
 
-#: src/ui/keys.rs:197
+#: src/ui/keys.rs:203
 msgid "Track list: extend or shrink the selection"
 msgstr "曲一覧：選択範囲を広げる／狭める"
 
-#: src/ui/keys.rs:199
+#: src/ui/keys.rs:205
 msgid "Remove from this playlist"
 msgstr "このプレイリストから削除"
 
-#: src/ui/keys.rs:202
+#: src/ui/keys.rs:208
 msgid "Track list: select all"
 msgstr "曲リスト：すべて選択"
 
-#: src/ui/keys.rs:206
+#: src/ui/keys.rs:212
 msgid "Track list: copy the selected tracks' links"
 msgstr "曲リスト：選択した曲のリンクをコピー"
 
-#: src/ui/keys.rs:210
+#: src/ui/keys.rs:216
 msgid "Playlist: cut the selected tracks"
 msgstr "プレイリスト：選択した曲を切り取る"
 
-#: src/ui/keys.rs:214
+#: src/ui/keys.rs:220
 msgid "Playlist: add the pasted track links"
 msgstr "プレイリスト：貼り付けた曲のリンクを追加"
 
 #. Translators: Keep the key names. Only the word "or" is translated.
-#: src/ui/keys.rs:219
+#: src/ui/keys.rs:225
 msgid "Cmd+F  or  /"
 msgstr "Cmd+F  または  /"
 
 #. Translators: Keep the key names. Only the word "or" is translated.
-#: src/ui/keys.rs:222
+#: src/ui/keys.rs:228
 msgid "Ctrl+F  or  /"
 msgstr "Ctrl+F  または  /"
 
-#: src/ui/keys.rs:228
+#: src/ui/keys.rs:234
 msgid "Show or hide the sidebar"
 msgstr "サイドバーの表示／非表示"
 
-#: src/ui/keys.rs:230
+#: src/ui/keys.rs:236
 msgid "Back or forward"
 msgstr "戻る／進む"
 
-#: src/ui/keys.rs:241
+#: src/ui/keys.rs:247
 msgid "Go to the playing artist"
 msgstr "再生中のアーティストへ移動"
 
-#: src/ui/keys.rs:245
+#: src/ui/keys.rs:251
 msgid "Go to the playing album"
 msgstr "再生中のアルバムへ移動"
 
 #. Translators: Keep the key names. Only the word "or" is translated.
-#: src/ui/keys.rs:254
+#: src/ui/keys.rs:260
 msgid "Cmd+/ or ?"
 msgstr "Cmd+/ または ?"
 
 #. Translators: Keep the key names. Only the word "or" is translated.
-#: src/ui/keys.rs:257
+#: src/ui/keys.rs:263
 msgid "Ctrl+/ or ?"
 msgstr "Ctrl+/ または ?"
 
-#: src/ui/keys.rs:263
+#: src/ui/keys.rs:269
 msgid "Close the window"
 msgstr "ウインドウを閉じる"
 
-#: src/ui/keys.rs:265 src/ui/titlebar.rs:161
+#: src/ui/keys.rs:271 src/ui/titlebar.rs:161
 msgid "Quit"
 msgstr "終了"
 
-#: src/ui/library.rs:30
+#: src/ui/library.rs:31
 msgid "No saved albums"
 msgstr "保存したアルバムはありません"
 
-#: src/ui/library.rs:31
+#: src/ui/library.rs:32
 msgid "Saved albums appear here."
 msgstr "保存したアルバムがここに表示されます。"
 
-#: src/ui/library.rs:32
+#: src/ui/library.rs:33
 msgid "Filter albums"
 msgstr "アルバムを絞り込む"
 
-#: src/ui/library.rs:36
+#: src/ui/library.rs:37
 msgid "No followed artists"
 msgstr "フォローしているアーティストはいません"
 
-#: src/ui/library.rs:37
+#: src/ui/library.rs:38
 msgid "Followed artists appear here."
 msgstr "フォローしたアーティストがここに表示されます。"
 
-#: src/ui/library.rs:38
+#: src/ui/library.rs:39
 msgid "Filter profiles"
 msgstr "プロフィールを絞り込む"
 
-#: src/ui/library.rs:48
+#: src/ui/library.rs:49
 msgid "No mixes yet"
 msgstr "ミックスはまだありません"
 
-#: src/ui/library.rs:51
+#: src/ui/library.rs:52
 msgid "Mixes and radios you add to your collection appear here."
 msgstr "コレクションに追加したミックスとラジオはここに表示されます。"
 
@@ -2634,206 +2634,206 @@ msgstr "Max（ハイレゾ）でログイン"
 msgid "Proxy Settings"
 msgstr "プロキシ設定"
 
-#: src/ui/mod.rs:1088
+#: src/ui/mod.rs:1151
 msgid "Minimize"
 msgstr "最小化"
 
-#: src/ui/mod.rs:1095
+#: src/ui/mod.rs:1158
 msgid "Restore"
 msgstr "元に戻す"
 
-#: src/ui/mod.rs:1097
+#: src/ui/mod.rs:1160
 msgid "Maximize"
 msgstr "最大化"
 
-#: src/ui/radio.rs:340
+#: src/ui/radio.rs:346
 msgid "Based on this playlist"
 msgstr "このプレイリストをもとに作成"
 
-#: src/ui/radio.rs:341
+#: src/ui/radio.rs:347
 msgid "Based on this album"
 msgstr "このアルバムをもとに作成"
 
-#: src/ui/radio.rs:342
+#: src/ui/radio.rs:348
 msgid "Based on this artist"
 msgstr "このアーティストをもとに作成"
 
-#: src/ui/radio.rs:343
+#: src/ui/radio.rs:349
 msgid "Based on this track"
 msgstr "この曲をもとに作成"
 
 #. Translators: {first} is an artist name.
-#: src/ui/radio.rs:361
+#: src/ui/radio.rs:367
 #, rust-format
 msgid "With {first}"
 msgstr "{first}の曲を収録"
 
 #. Translators: {first} and {second} are artist names.
-#: src/ui/radio.rs:364
+#: src/ui/radio.rs:370
 #, rust-format
 msgid "With {first} and {second}"
 msgstr "{first}、{second}の曲を収録"
 
 #. Translators: {first}, {second} and {third} are artist names.
-#: src/ui/radio.rs:370
+#: src/ui/radio.rs:376
 #, rust-format
 msgid "With {first}, {second} and {third}"
 msgstr "{first}、{second}、{third}の曲を収録"
 
 #. Translators: {first}, {second} and {third} are artist names; more follow.
-#: src/ui/radio.rs:377
+#: src/ui/radio.rs:383
 #, rust-format
 msgid "With {first}, {second}, {third} and more"
 msgstr "{first}、{second}、{third}などの曲を収録"
 
-#: src/ui/search.rs:84 src/ui/search.rs:338
+#: src/ui/search.rs:77 src/ui/search.rs:377
 msgid "Search needs a connection. Turn off offline mode to search TIDAL."
 msgstr ""
 "検索には接続が必要です。TIDAL を検索するにはオフラインモードをオフにしてくだ"
 "さい。"
 
 #. Translators: {query} is the text the user searched for.
-#: src/ui/search.rs:128
+#: src/ui/search.rs:121
 #, rust-format
 msgid "No results for “{query}”"
 msgstr "「{query}」の検索結果はありません"
 
-#: src/ui/search.rs:130
+#: src/ui/search.rs:123
 msgid "Check the spelling, or try fewer words."
 msgstr "スペルを確認するか、語句を減らしてください。"
 
-#: src/ui/search.rs:187
+#: src/ui/search.rs:226
 #, rust-format
 msgid "Did you mean {query}?"
 msgstr "もしかして: {query}"
 
-#: src/ui/search.rs:279
+#: src/ui/search.rs:318
 msgid "Go to genre"
 msgstr "ジャンルへ"
 
-#: src/ui/search.rs:343
+#: src/ui/search.rs:382
 msgid "Connect to the internet to search tracks, artists, and playlists."
 msgstr ""
 "曲、アーティスト、プレイリストを検索するにはインターネットに接続してくださ"
 "い。"
 
-#: src/ui/search.rs:354
+#: src/ui/search.rs:393
 msgid "Search TIDAL"
 msgstr "TIDAL を検索"
 
-#: src/ui/search.rs:355
+#: src/ui/search.rs:394
 msgid "Find tracks, artists, albums, and playlists."
 msgstr "トラック、アーティスト、アルバム、プレイリストを検索。"
 
-#: src/ui/search.rs:432 src/ui/search.rs:1404 src/ui/search.rs:1608
+#: src/ui/search.rs:471 src/ui/search.rs:1443 src/ui/search.rs:1647
 msgid "Track"
 msgstr "トラック"
 
-#: src/ui/search.rs:434 src/ui/search.rs:1405 src/ui/search.rs:1628
+#: src/ui/search.rs:473 src/ui/search.rs:1444 src/ui/search.rs:1667
 msgid "Video"
 msgstr "ビデオ"
 
-#: src/ui/search.rs:977
+#: src/ui/search.rs:1016
 #, rust-format
 msgid "By {owner}"
 msgstr "作成者：{owner}"
 
-#: src/ui/search.rs:1358
+#: src/ui/search.rs:1397
 msgid "Recent Searches"
 msgstr "最近の検索"
 
-#: src/ui/topbar.rs:278
+#: src/ui/topbar.rs:310
 msgid "Back"
 msgstr "戻る"
 
-#: src/ui/topbar.rs:279
+#: src/ui/topbar.rs:311
 msgid "Forward"
 msgstr "進む"
 
-#: src/ui/topbar.rs:305
+#: src/ui/topbar.rs:340
 msgid "Update ready"
 msgstr "アップデートの準備完了"
 
-#: src/ui/topbar.rs:307 src/ui/update.rs:113
+#: src/ui/topbar.rs:342 src/ui/update.rs:113
 msgid "Downloading update…"
 msgstr "アップデートをダウンロード中…"
 
 #. Translators: {version} is a version number such as 1.2.0.
-#: src/ui/topbar.rs:311
+#: src/ui/topbar.rs:346
 #, rust-format
 msgid "Update to {version}"
 msgstr "{version}にアップデート"
 
-#: src/ui/topbar.rs:449
+#: src/ui/topbar.rs:504
 msgid "Offline mode is on. Turn it off in Settings or with Go online."
 msgstr ""
 "オフラインモードがオンです。設定または「オンラインにする」からオフにできま"
 "す。"
 
-#: src/ui/topbar.rs:454
+#: src/ui/topbar.rs:509
 msgid ""
 "Tidalfast is offline. Reconnecting automatically when connection returns."
 msgstr "Tidalfastはオフラインです。接続が回復すると自動的に再接続します。"
 
-#: src/ui/topbar.rs:463
+#: src/ui/topbar.rs:518
 msgid "Updating My Collection…"
 msgstr "マイコレクションを更新中…"
 
-#: src/ui/topbar.rs:464
+#: src/ui/topbar.rs:519
 msgid "Checking for updates…"
 msgstr "アップデートを確認しています…"
 
-#: src/ui/topbar.rs:465
+#: src/ui/topbar.rs:520
 msgid "Waiting for TIDAL…"
 msgstr "TIDAL を待っています…"
 
 #. Translators: {version} is a version number such as 1.2.0.
-#: src/ui/topbar.rs:482
+#: src/ui/topbar.rs:537
 #, rust-format
 msgid "Version {version} is available."
 msgstr "バージョン{version}が利用可能です。"
 
-#: src/ui/topbar.rs:735
+#: src/ui/topbar.rs:856
 msgid "Profile"
 msgstr "プロフィール"
 
-#: src/ui/topbar.rs:740 src/ui/profile.rs:118 src/ui/activity.rs:545
+#: src/ui/topbar.rs:861 src/ui/profile.rs:120 src/ui/activity.rs:545
 msgid "My Activity"
 msgstr "マイアクティビティ"
 
-#: src/ui/topbar.rs:747
+#: src/ui/topbar.rs:868
 msgid "Manage subscription"
 msgstr "サブスクリプションを管理"
 
-#: src/ui/topbar.rs:753 src/ui/titlebar.rs:187
+#: src/ui/topbar.rs:874 src/ui/titlebar.rs:187
 msgid "Help"
 msgstr "ヘルプ"
 
-#: src/ui/topbar.rs:761
+#: src/ui/topbar.rs:882
 msgid "Get Support"
 msgstr "サポートを受ける"
 
-#: src/ui/topbar.rs:763
+#: src/ui/topbar.rs:884
 msgid "Legal"
 msgstr "法的情報"
 
-#: src/ui/topbar.rs:764
+#: src/ui/topbar.rs:885
 msgid "Terms and Conditions"
 msgstr "利用規約"
 
-#: src/ui/topbar.rs:765
+#: src/ui/topbar.rs:886
 msgid "Privacy Notice"
 msgstr "プライバシー通知"
 
-#: src/ui/topbar.rs:769
+#: src/ui/topbar.rs:890
 msgid "Marketplace Terms and Conditions"
 msgstr "マーケットプレイス利用規約"
 
-#: src/ui/topbar.rs:777
+#: src/ui/topbar.rs:898
 msgid "Log out"
 msgstr "ログアウト"
 
-#: src/ui/topbar.rs:792
+#: src/ui/topbar.rs:913
 msgid "Luna Settings"
 msgstr "Luna設定"
 
@@ -3055,12 +3055,12 @@ msgstr "先月"
 msgid "Older"
 msgstr "それ以前"
 
-#: src/ui/feed.rs:126
+#: src/ui/feed.rs:118
 #, rust-format
 msgid "Single by {artists}"
 msgstr "{artists} のシングル"
 
-#: src/ui/feed.rs:129
+#: src/ui/feed.rs:121
 #, rust-format
 msgid "EP by {artists}"
 msgstr "{artists} のEP"
@@ -3069,17 +3069,17 @@ msgstr "{artists} のEP"
 msgid "Staff Picks"
 msgstr "スタッフのおすすめ"
 
-#: src/ui/profile.rs:67
+#: src/ui/profile.rs:69
 msgctxt "profile"
 msgid "Followers"
 msgstr "フォロワー"
 
-#: src/ui/profile.rs:71
+#: src/ui/profile.rs:73
 msgctxt "profile"
 msgid "Following"
 msgstr "フォロー中"
 
-#: src/ui/profile.rs:133
+#: src/ui/profile.rs:135
 msgid "No public playlists yet."
 msgstr "公開プレイリストはまだありません。"
 
@@ -3094,109 +3094,109 @@ msgid "{count} Item ({duration})"
 msgid_plural "{count} Items ({duration})"
 msgstr[0] "{count} 件 ({duration})"
 
-#: src/ui/menus.rs:318
+#: src/ui/menus.rs:315
 msgid "Share with anyone"
 msgstr "誰とでも共有"
 
-#: src/ui/menus.rs:331
+#: src/ui/menus.rs:328
 msgid "Music shared from TIDAL can be opened on other services"
 msgstr "TIDALから共有した音楽は他のサービスでも開けます"
 
-#: src/ui/menus.rs:412
+#: src/ui/menus.rs:410
 msgid "Invite as collaborator"
 msgstr "コラボレーターとして招待"
 
-#: src/ui/menus.rs:423
+#: src/ui/menus.rs:421
 msgid "Every invite link can be used once."
 msgstr "招待リンクは1回だけ使用できます。"
 
-#: src/ui/menus.rs:459 src/ui/uploads.rs:368
+#: src/ui/menus.rs:457 src/ui/uploads.rs:368
 msgid "Copy link"
 msgstr "リンクをコピー"
 
-#: src/ui/menus.rs:555
+#: src/ui/menus.rs:553
 msgid "Create new playlist"
 msgstr "新しいプレイリストを作成"
 
-#: src/ui/menus.rs:569
+#: src/ui/menus.rs:567
 msgid "Show all playlists"
 msgstr "すべてのプレイリストを表示"
 
-#: src/ui/menus.rs:606
+#: src/ui/menus.rs:604
 msgid "Move to folder"
 msgstr "フォルダに移動"
 
-#: src/ui/menus.rs:627
+#: src/ui/menus.rs:625
 msgid "Create folder"
 msgstr "フォルダを作成"
 
-#: src/ui/menus.rs:646
+#: src/ui/menus.rs:644
 msgid "Show all folders"
 msgstr "すべてのフォルダを表示"
 
-#: src/ui/menus.rs:684
+#: src/ui/menus.rs:682
 msgid "Go to artist"
 msgstr "アーティストへ移動"
 
-#: src/ui/menus.rs:752
+#: src/ui/menus.rs:750
 msgid "Remove from Save for Later"
 msgstr "「後で保存」から削除"
 
-#: src/ui/menus.rs:1047 src/ui/menus.rs:1173 src/ui/menus.rs:1484
+#: src/ui/menus.rs:1131 src/ui/menus.rs:1257 src/ui/menus.rs:1574
 #: src/ui/videos.rs:354
 msgid "Play next"
 msgstr "次に再生"
 
-#: src/ui/menus.rs:1054 src/ui/menus.rs:1497 src/ui/now_playing.rs:1085
+#: src/ui/menus.rs:1138 src/ui/menus.rs:1587 src/ui/now_playing.rs:1111
 #: src/ui/now_playing_video.rs:323 src/ui/videos.rs:361
 msgid "Add to queue"
 msgstr "再生待ちリストに追加"
 
-#: src/ui/menus.rs:1064
+#: src/ui/menus.rs:1148
 msgid "Remove from queue"
 msgstr "再生待ちリストから削除"
 
-#: src/ui/menus.rs:1085 src/ui/menus.rs:1184
+#: src/ui/menus.rs:1169 src/ui/menus.rs:1268
 msgid "Remove from playlist"
 msgstr "プレイリストから削除"
 
-#: src/ui/menus.rs:1099
+#: src/ui/menus.rs:1183
 msgid "Go to track radio"
 msgstr "トラックラジオへ移動"
 
-#: src/ui/menus.rs:1115
+#: src/ui/menus.rs:1199
 msgid "Go to album"
 msgstr "アルバムへ移動"
 
-#: src/ui/menus.rs:1580
+#: src/ui/menus.rs:1670
 msgid "NEW"
 msgstr "NEW"
 
-#: src/ui/menus.rs:1588
+#: src/ui/menus.rs:1678
 msgid "Make private"
 msgstr "非公開にする"
 
-#: src/ui/menus.rs:1590
+#: src/ui/menus.rs:1680
 msgid "Make public"
 msgstr "公開にする"
 
-#: src/ui/menus.rs:1612
+#: src/ui/menus.rs:1702
 msgid "Follow"
 msgstr "フォロー"
 
-#: src/ui/menus.rs:1636
+#: src/ui/menus.rs:1726
 msgid "Bio"
 msgstr "バイオグラフィー"
 
-#: src/ui/menus.rs:1641
+#: src/ui/menus.rs:1731
 msgid "Go to artist radio"
 msgstr "アーティストのラジオへ移動"
 
-#: src/ui/menus.rs:1650 src/ui/blocked.rs:134
+#: src/ui/menus.rs:1740 src/ui/blocked.rs:134
 msgid "Unblock"
 msgstr "ブロックを解除"
 
-#: src/ui/menus.rs:1652
+#: src/ui/menus.rs:1742
 msgid "Block"
 msgstr "ブロック"
 
@@ -3346,15 +3346,15 @@ msgstr "ミュート"
 msgid "Volume (%)"
 msgstr "音量 (%)"
 
-#: src/ui/player_utility.rs:363 src/ui/player_utility.rs:426
+#: src/ui/player_utility.rs:370 src/ui/player_utility.rs:433
 msgid "Sound output"
 msgstr "サウンド出力"
 
-#: src/ui/player_utility.rs:581 src/ui/player_utility.rs:586
+#: src/ui/player_utility.rs:588 src/ui/player_utility.rs:593
 msgid "Exclusive"
 msgstr "排他"
 
-#: src/ui/compact.rs:288
+#: src/ui/compact.rs:300
 msgid "Exit compact mode"
 msgstr "コンパクトモードを終了"
 
@@ -3661,84 +3661,84 @@ msgstr "更新が{n}件あります"
 msgid "Update all"
 msgstr "すべて更新"
 
-#: src/ui/plugins_store.rs:2043
+#: src/ui/plugins_store.rs:2046
 msgid "Find some in the Plugin Store."
 msgstr "プラグインストアで探してみましょう。"
 
-#: src/luna/mod.rs:388
+#: src/luna/mod.rs:417
 msgid "Connects to the internet"
 msgstr "インターネットに接続します"
 
-#: src/luna/mod.rs:390
+#: src/luna/mod.rs:419
 msgid "Talks to other apps on this computer (Discord)"
 msgstr "このコンピューター上の他のアプリと通信します（Discord）"
 
-#: src/luna/mod.rs:394
+#: src/luna/mod.rs:423
 msgid "Runs a local server other apps on this computer can use"
 msgstr "このコンピューター上の他のアプリが使えるローカルサーバーを起動します"
 
-#: src/luna/mod.rs:396
+#: src/luna/mod.rs:425
 msgid "Stores files in its own data folder only"
 msgstr "専用のデータフォルダーにのみファイルを保存します"
 
-#: src/luna/mod.rs:398
+#: src/luna/mod.rs:427
 msgid "Runs background (native) code in the sandbox"
 msgstr "サンドボックス内でバックグラウンドの（ネイティブ）コードを実行します"
 
-#: src/luna/mod.rs:400
+#: src/luna/mod.rs:429
 msgid "Changes the app's look or adds controls"
 msgstr "アプリの外観を変更したり、コントロールを追加したりします"
 
-#: src/luna/mod.rs:402
+#: src/luna/mod.rs:431
 msgid "Runs programs on your computer (asks you first)"
 msgstr "コンピューター上でプログラムを実行します（事前に確認します）"
 
-#: src/luna/mod.rs:406
+#: src/luna/mod.rs:435
 msgid "Changes your TIDAL playlists and favourites itself (asks you first)"
 msgstr "TIDALのプレイリストやお気に入りを自分で変更します（事前に確認します）"
 
-#: src/luna/mod.rs:408
+#: src/luna/mod.rs:437
 msgid "Uses your TIDAL sign-in (asks you first)"
 msgstr "TIDALのログイン情報を使用します（事前に確認します）"
 
-#: src/luna/mod.rs:411
+#: src/luna/mod.rs:440
 msgid "Uses keyboard shortcuts across your whole computer (asks you first)"
 msgstr ""
 "コンピューター全体でキーボードショートカットを使用します（事前に確認します）"
 
-#: src/luna/mod.rs:415
+#: src/luna/mod.rs:444
 msgid "Talks to another program over its own pipe or socket (asks you first)"
 msgstr ""
 "独自のパイプまたはソケットで別のプログラムと通信します（事前に確認します）"
 
-#: src/luna/mod.rs:417
+#: src/luna/mod.rs:446
 msgid "Saves TIDAL songs as files (asks you first)"
 msgstr "TIDALの曲をファイルとして保存します（事前に確認します）"
 
-#: src/luna/mod.rs:420
+#: src/luna/mod.rs:449
 msgid "Switches the output to exclusive (bit-perfect) mode (asks you first)"
 msgstr ""
 "出力を排他（ビットパーフェクト）モードに切り替えます（事前に確認します）"
 
-#: src/luna/mod.rs:457
+#: src/luna/mod.rs:486
 msgid "Not supported"
 msgstr "非対応"
 
-#: src/luna/mod.rs:458
+#: src/luna/mod.rs:487
 msgid "Partly supported"
 msgstr "一部対応"
 
-#: src/luna/mod.rs:459
+#: src/luna/mod.rs:488
 msgid "Needs your permission"
 msgstr "許可が必要です"
 
-#: src/luna/mod.rs:483
+#: src/luna/mod.rs:512
 msgid ""
 "This build needs TIDAL's own Last.fm key, which Tidalfast does not have."
 msgstr ""
 "このビルドにはTIDAL独自のLast.fmキーが必要ですが、Tidalfastにはありません。"
 
-#: src/luna/mod.rs:487
+#: src/luna/mod.rs:516
 msgid ""
 "It saves TIDAL songs as files, which it does only after you allow it (this "
 "may break TIDAL's terms of use)."
@@ -3746,12 +3746,12 @@ msgstr ""
 "TIDALの曲をファイルとして保存しますが、許可した後にのみ行います（TIDALの利用"
 "規約に違反する可能性があります）。"
 
-#: src/luna/mod.rs:491
+#: src/luna/mod.rs:520
 msgid ""
 "It needs TIDAL's own remote control code, which Tidalfast does not have."
 msgstr "TIDAL独自のリモコン用コードが必要ですが、Tidalfastにはありません。"
 
-#: src/luna/mod.rs:495
+#: src/luna/mod.rs:524
 msgid ""
 "It works out its bars with ffmpeg in a separate Node process, which "
 "Tidalfast does not have."
@@ -3759,22 +3759,22 @@ msgstr ""
 "別のNodeプロセスでffmpegを使ってバーを計算しますが、Tidalfastにはそれがありま"
 "せん。"
 
-#: src/luna/mod.rs:499
+#: src/luna/mod.rs:528
 msgid ""
 "It sends your TIDAL sign-in to its author's server, which it does only after "
 "you allow it."
 msgstr ""
 "TIDALのログイン情報を作者のサーバーに送信しますが、許可した後にのみ行います。"
 
-#: src/luna/mod.rs:507
+#: src/luna/mod.rs:532
 msgid ""
 "It takes the media keys across the whole computer, which it does only after "
 "you allow it (Windows only)."
 msgstr ""
-"コンピューター全体でメディアキーを使用しますが、許可した後にのみ行います（"
-"Windowsのみ）。"
+"コンピューター全体でメディアキーを使用しますが、許可した後にのみ行います"
+"（Windowsのみ）。"
 
-#: src/luna/mod.rs:511
+#: src/luna/mod.rs:536
 msgid ""
 "It plays through mpv, which needs your permission to start mpv, talk to it "
 "over its pipe and get TIDAL's audio."
@@ -3782,7 +3782,7 @@ msgstr ""
 "mpv経由で再生します。mpvの起動、パイプ経由の通信、TIDALの音声の取得には許可が"
 "必要です。"
 
-#: src/luna/mod.rs:515
+#: src/luna/mod.rs:540
 msgid ""
 "It marks playlists inside TIDAL's web \"add to playlist\" window, which "
 "Tidalfast does not have."
@@ -3790,7 +3790,7 @@ msgstr ""
 "TIDALのWebの「プレイリストに追加」ウィンドウ内でプレイリストに印を付けます"
 "が、Tidalfastにはそのウィンドウがありません。"
 
-#: src/luna/mod.rs:519
+#: src/luna/mod.rs:544
 msgid ""
 "It needs a native add-on that Tidalfast cannot load (Tidalfast has its own "
 "media controls)."
@@ -3798,7 +3798,7 @@ msgstr ""
 "Tidalfastが読み込めないネイティブのアドオンが必要です（Tidalfastには独自のメ"
 "ディアコントロールがあります）。"
 
-#: src/luna/mod.rs:523
+#: src/luna/mod.rs:548
 msgid ""
 "Last.fm scrobbling needs TIDAL's own Last.fm key, which Tidalfast does not "
 "have."
@@ -3806,7 +3806,7 @@ msgstr ""
 "Last.fmのスクロブルにはTIDAL独自のLast.fmキーが必要ですが、Tidalfastにはあり"
 "ません。"
 
-#: src/luna/mod.rs:531
+#: src/luna/mod.rs:552
 msgid ""
 "The Small depth model works, but the Base model (about 100 MB) is more than "
 "a plugin may download here."
@@ -3814,7 +3814,7 @@ msgstr ""
 "Smallの深度モデルは動作しますが、Baseモデル（約100 MB）はプラグインがここでダ"
 "ウンロードできるサイズを超えています。"
 
-#: src/app/plugins.rs:486
+#: src/app/plugins.rs:727
 #, rust-format
 msgid "{name} updated to {version}"
 msgstr "{name} を {version} に更新しました"
@@ -3998,44 +3998,44 @@ msgstr "{first}と{second}"
 msgid "Your most streamed artist"
 msgstr "いちばん再生したアーティスト"
 
-#: src/ui/now_playing.rs:198
+#: src/ui/now_playing.rs:199
 msgid "Similar tracks"
 msgstr "似ている曲"
 
-#: src/ui/now_playing.rs:436 src/ui/now_playing_video.rs:161
+#: src/ui/now_playing.rs:434 src/ui/now_playing_video.rs:161
 msgid "Leave full screen (Esc)"
 msgstr "全画面表示を終了 (Esc)"
 
-#: src/ui/now_playing.rs:438 src/ui/now_playing_video.rs:163
+#: src/ui/now_playing.rs:436 src/ui/now_playing_video.rs:163
 #: src/ui/titlebar.rs:175
 msgid "Full screen"
 msgstr "全画面"
 
-#: src/ui/now_playing.rs:703 src/ui/now_playing_video.rs:374
+#: src/ui/now_playing.rs:725 src/ui/now_playing_video.rs:374
 msgid "Released"
 msgstr "リリース"
 
-#: src/ui/now_playing.rs:706
+#: src/ui/now_playing.rs:728
 msgid "Label"
 msgstr "レーベル"
 
-#: src/ui/now_playing.rs:711
+#: src/ui/now_playing.rs:733
 msgid "No credits for this track."
 msgstr "この曲のクレジットはありません。"
 
-#: src/ui/now_playing.rs:857
+#: src/ui/now_playing.rs:883
 msgid "Artist Radio"
 msgstr "アーティストラジオ"
 
-#: src/ui/now_playing.rs:869
+#: src/ui/now_playing.rs:895
 msgid "Track Radio"
 msgstr "トラックラジオ"
 
-#: src/ui/now_playing.rs:870
+#: src/ui/now_playing.rs:896
 msgid "Track radio"
 msgstr "トラックラジオ"
 
-#: src/ui/now_playing.rs:880
+#: src/ui/now_playing.rs:906
 msgid "Suggested tracks"
 msgstr "おすすめの曲"
 
@@ -4182,26 +4182,26 @@ msgid "Refresh list"
 msgstr "リストを更新"
 
 #. Translators: {title} is a song's title; the button adds it to the playlist.
-#: src/ui/album_extras.rs:279
+#: src/ui/album_extras.rs:302
 #, rust-format
 msgid "Add {title} to the playlist"
 msgstr "{title} をプレイリストに追加"
 
-#: src/ui/album_extras.rs:314
+#: src/ui/album_extras.rs:337
 msgid "Other versions"
 msgstr "他のバージョン"
 
 #. Translators: {artist} is the album's artist.
-#: src/ui/album_extras.rs:323
+#: src/ui/album_extras.rs:346
 #, rust-format
 msgid "More albums by {artist}"
 msgstr "{artist}のその他のアルバム"
 
-#: src/ui/album_extras.rs:327
+#: src/ui/album_extras.rs:350
 msgid "Related albums"
 msgstr "関連アルバム"
 
-#: src/ui/album_extras.rs:328
+#: src/ui/album_extras.rs:351
 msgid "Related artists"
 msgstr "関連アーティスト"
 
