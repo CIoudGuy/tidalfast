@@ -3245,9 +3245,38 @@
 			L.reportError(err);
 		}
 		if (L.stat) L.stat(tree ? "layout wait" : "layout wait, no tree", t0);
-		// Observers and `resize` hear of it as of a frame, not inside the
-		// read.
-		if (tree) sync(tree, true);
+		if (tree) layoutSync(tree);
+	};
+	// A layout read takes the boxes of the tree laid out with the change;
+	// the rest of that tree (TIDAL's elements that went or came, their
+	// attributes and words) is reconciled after the running task, as
+	// Chromium answers a read without running TIDAL's render: a script
+	// never sees the page change under it within one task (a walk that
+	// reads each element's look met a row's cell cut from its row, its
+	// plugin child at the root of a detached subtree). A newer tree from
+	// the app replaces it.
+	let laterTree = null;
+	const layoutSync = (tree) => {
+		for (const n of tree.nodes ?? []) {
+			const el = n?.key ? hosts.get(n.key) : undefined;
+			if (!el) continue;
+			el._rect = Array.isArray(n.rect) ? n.rect : null;
+			el._scroll = Array.isArray(n.scroll) ? n.scroll : null;
+			if (el._scroll) el._scrollTop = undefined;
+		}
+		for (const [id, r] of tree.node_rects ?? []) {
+			const el = vnodes.get(Number(id));
+			if (el && Array.isArray(r) && r.length === 4) el._rect = r.map(Number);
+		}
+		const first = laterTree === null;
+		laterTree = tree;
+		if (first)
+			L.internalTimeout(() => {
+				const t = laterTree;
+				laterTree = null;
+				// Observers and `resize` hear of it as of a frame.
+				if (t) sync(t, true);
+			}, 0);
 	};
 
 	// ---------------------------------------------------------------- unload hygiene
@@ -3298,6 +3327,8 @@
 	let syncs = 0;
 	D.syncCount = () => syncs;
 	const sync = (tree, forced) => {
+		// The app's newer tree supersedes one a layout read left for later.
+		laterTree = null;
 		syncs++;
 		reconciling = true;
 		let resized = false;
