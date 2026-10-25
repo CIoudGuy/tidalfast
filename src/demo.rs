@@ -1994,6 +1994,34 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
                 });
             }
             "row-menu" => app.demo_open_menu = true,
+            // The album with 20 songs, as many as the album the parity
+            // checker's capture of TIDAL shows: its list runs on under the
+            // player bar as TIDAL's does, where the demo's 12 end above it.
+            "long-album" => {
+                if let Some(album) = app.album_pages.get_mut("alb0") {
+                    album
+                        .tracks
+                        .absorb(0, self::page((0..20).map(track).collect()));
+                }
+            }
+            // The albums collection as full as a TIDAL account's first page
+            // of 20 (the parity checker's capture of TIDAL has 20), so its
+            // grid has rows below the fold as TIDAL's has; the eight
+            // albums' pictures again, each card its own album.
+            "many-albums" => app.library.albums.absorb(
+                0,
+                self::page(
+                    (0..20)
+                        .map(|index| SavedAlbum {
+                            added_at: None,
+                            album: Album {
+                                images: album(index % ALBUMS.len()).images,
+                                ..album(index)
+                            },
+                        })
+                        .collect(),
+                ),
+            ),
             // This computer playing, on whatever page is open: for measuring
             // what a playing song costs outside the now-playing view.
             "playing-local" => {
@@ -2722,6 +2750,49 @@ mod tests {
         // These frames never advance the clock or take pictures.
         app.reveal_theme_changes = false;
         (ctx, app)
+    }
+
+    /// `--demo-show many-albums` (the parity checker's collection page):
+    /// twenty saved albums, as many as TIDAL's capture of an account's
+    /// collection shows, each its own album; without it the demo's eight.
+    #[test]
+    fn many_albums_fill_the_collection_as_tidals_capture_does() {
+        let (_ctx, mut app) = accessible_app("many-albums");
+        apply_flags(&mut app, Some("albums"), None);
+        assert_eq!(app.library.albums.items.len(), 8);
+        apply_flags(&mut app, Some("albums"), Some("many-albums"));
+        let ids: std::collections::HashSet<&str> = app
+            .library
+            .albums
+            .items
+            .iter()
+            .map(|saved| saved.album.id.as_str())
+            .collect();
+        assert_eq!((app.library.albums.items.len(), ids.len()), (20, 20));
+        app.backend.shutdown();
+    }
+
+    /// `--demo-show long-album` (the parity checker's album page): the
+    /// album's list holds 20 songs, as the album TIDAL's capture shows, its
+    /// first 12 the demo's own.
+    #[test]
+    fn a_long_album_holds_twenty_songs_from_the_demos_own() {
+        let (_ctx, mut app) = accessible_app("long-album");
+        let songs = |app: &App| -> Vec<String> {
+            app.album_pages["alb0"]
+                .tracks
+                .items
+                .iter()
+                .map(|t| t.uri.clone())
+                .collect()
+        };
+        let own = songs(&app);
+        assert_eq!(own.len(), 12);
+        apply_flags(&mut app, Some("album:alb0"), Some("long-album"));
+        let long = songs(&app);
+        assert_eq!(long.len(), 20);
+        assert_eq!(long[..12], own[..]);
+        app.backend.shutdown();
     }
 
     /// Animations ask for frames only while they run: once the fades on a
