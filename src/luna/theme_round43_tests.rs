@@ -732,3 +732,24 @@ fn a_collection_grids_page_grid_and_cell_boxes_lay_out_as_tidals() {
         "the cell's fill"
     );
 }
+
+/// A margin a browser cannot read is dropped as it parses, and the one
+/// before it stays: Sugarcoat's `._navigationItem_ { margin-bottom: .15em;
+/// margin: a }` spaces TIDAL 2.46.0's navigation rows 42.1 points apart
+/// (Chromium, the parity checker's replay). Tidalfast took `margin: a` as a
+/// shorthand that reset the bottom margin, and kept the rows 40 apart.
+#[test]
+fn a_margin_a_browser_cannot_read_leaves_the_one_before_it() {
+    use super::theme_round41_tests as r41;
+    let css = r#"/* {"name": "Unreadable margin"} */
+[class*="_navigationItem_"] { margin-bottom: .15em; margin: a; padding: 3px nope; }
+"#;
+    let explore = dom_anchors::keys::sidebar_item("sidebar-explore");
+    let music = dom_anchors::keys::sidebar_item("sidebar-music");
+    let (plain, themed) = r41::plain_and_themed("unreadable-margin.css", css, &explore);
+    let gap = |b: &std::collections::BTreeMap<String, [f32; 4]>| {
+        r41::top(b, &explore) - r41::top(b, &music)
+    };
+    assert!((gap(&plain) - 40.0).abs() < 0.3, "plain {}", gap(&plain));
+    assert!((gap(&themed) - 42.1).abs() < 0.3, "themed {}", gap(&themed));
+}

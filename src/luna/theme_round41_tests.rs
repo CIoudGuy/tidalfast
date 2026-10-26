@@ -160,7 +160,7 @@ pub(super) fn painted_at(
 }
 
 /// The anchors' boxes in `tree`, by key.
-fn boxes(tree: &HostTree) -> BTreeMap<String, [f32; 4]> {
+pub(super) fn boxes(tree: &HostTree) -> BTreeMap<String, [f32; 4]> {
     tree.nodes
         .iter()
         .filter_map(|n| Some((n.key.clone(), n.rect?)))
@@ -169,7 +169,7 @@ fn boxes(tree: &HostTree) -> BTreeMap<String, [f32; 4]> {
 
 /// The album page's boxes with Luna on and no theme, and under `css` (its
 /// cascade over the app's own anchors, once it styles `key`).
-fn plain_and_themed(
+pub(super) fn plain_and_themed(
     name: &str,
     css: &str,
     key: &str,
@@ -200,11 +200,11 @@ fn plain_and_themed_on(
     (boxes(&plain), boxes(&themed))
 }
 
-fn top(boxes: &BTreeMap<String, [f32; 4]>, key: &str) -> f32 {
+pub(super) fn top(boxes: &BTreeMap<String, [f32; 4]>, key: &str) -> f32 {
     boxes.get(key).unwrap_or_else(|| panic!("no box for {key}"))[1]
 }
 
-fn near(got: f32, want: f32) -> bool {
+pub(super) fn near(got: f32, want: f32) -> bool {
     (got - want).abs() <= 1.0
 }
 
