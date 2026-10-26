@@ -120,6 +120,9 @@ pub struct Style {
     pub margin_right: Option<String>,
     /// A shelf's `column-gap` (the cotton candy family spaces cards with it).
     pub column_gap: Option<String>,
+    /// A grid's `row-gap` (a collection grid's rows, the cotton candy
+    /// singles' `1.3em`).
+    pub row_gap: Option<String>,
     pub padding_top: Option<String>,
     pub padding_left: Option<String>,
     pub padding_right: Option<String>,
@@ -494,6 +497,7 @@ impl Style {
             margin_left,
             margin_right,
             column_gap,
+            row_gap,
             padding_top,
             padding_left,
             padding_right,
