@@ -1,0 +1,11 @@
+{
+  "commit": "4b8c306737fb53423d5c0138e24a367f0c268cf0",
+  "release": "1.17.1-beta",
+  "paths": {
+    "luna.d.ts": "d7c94608c70679ca97c9798d4e5e744d1852f441",
+    "plugins/lib": "27e521f6e260e765c1706fab5712cbad566435a2",
+    "plugins/lib.native": "7a01de1d0833a28d313501d896378f6603f28f4a",
+    "plugins/ui": "6257a26da8ee8628d49352039fb2037d40bff7a4",
+    "render": "c221878e1789401fb392d921ccde3df3a202e83a"
+  }
+}
