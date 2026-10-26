@@ -928,6 +928,42 @@
 		out.push(cur);
 		return out;
 	};
+	// A margin or padding value the browser rejects as it parses (Sugarcoat's
+	// `margin: a` after `margin-bottom: .15em`): the declaration is dropped,
+	// so it neither sets nor resets anything. A value with a variable is only
+	// checked once it is resolved, as in a browser.
+	const BOX_SIDE = /^(margin|padding)(-(top|right|bottom|left))?$/;
+	const GLOBAL_WORD = /^(inherit|initial|unset|revert|revert-layer)$/i;
+	const LENGTH_WORD = /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?(px|em|rem|%|vh|vw|vmin|vmax|svh|lvh|dvh|svw|lvw|dvw|pt|pc|cm|mm|in|q|ch|ex|ic|cap|lh|rlh|cqw|cqh|cqi|cqb|cqmin|cqmax)$/i;
+	const ZERO_WORD = /^[-+]?(0+\.?0*|\.0+)$/;
+	const MATH_WORD = /^(calc|min|max|clamp|env|-webkit-calc)\(.*\)$/i;
+	const invalidBoxValue = (name, value) => {
+		const m = BOX_SIDE.exec(name);
+		if (!m) return false;
+		const v = String(value).trim();
+		if (/var\(/i.test(v) || GLOBAL_WORD.test(v)) return false;
+		const words = [];
+		let depth = 0;
+		let cur = "";
+		for (const ch of v) {
+			if (ch === "(") depth++;
+			if (ch === ")") depth--;
+			if (/\s/.test(ch) && depth === 0) {
+				if (cur) words.push(cur);
+				cur = "";
+			} else cur += ch;
+		}
+		if (cur) words.push(cur);
+		if (!words.length || words.length > (m[2] ? 1 : 4)) return true;
+		const margin = m[1] === "margin";
+		return !words.every((w) => {
+			if (MATH_WORD.test(w)) return true;
+			if (margin && /^auto$/i.test(w)) return true;
+			if (!ZERO_WORD.test(w) && !LENGTH_WORD.test(w)) return false;
+			return margin || !w.startsWith("-");
+		});
+	};
+	D.invalidBoxValue = invalidBoxValue;
 	const parseDecls = (text) => {
 		const out = [];
 		for (const part of splitDecls(String(text ?? ""))) {
@@ -943,7 +979,7 @@
 				value = value.slice(0, m.index).trim();
 			}
 			const key = name.startsWith("--") ? name : canonical(name.toLowerCase());
-			if (key !== null) out.push({ name: key, value, important });
+			if (key !== null && !invalidBoxValue(key, value)) out.push({ name: key, value, important });
 		}
 		return out;
 	};
@@ -988,6 +1024,7 @@
 				important = true;
 				value = value.slice(0, m.index).trim();
 			}
+			if (invalidBoxValue(k, value)) return;
 			const cur = this._m.get(k);
 			if (cur && cur.value === value && cur.important === important) return;
 			this._own();
