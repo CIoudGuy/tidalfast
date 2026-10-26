@@ -4389,9 +4389,18 @@ pub(crate) fn card_overlay(ui: &Ui, response: &egui::Response, hovered: bool) ->
 /// desktop's 1451 beside its open play queue).
 pub const COLLECTION_CARD_MIN: f32 = 212.0;
 
+/// TIDAL's My Collection card with no theme: 232 points wide, its cell
+/// as tall as the card's text makes it (`text_height` more), a height to
+/// width TIDAL keeps for a cell a theme narrows (`aspect-ratio`).
+const COLLECTION_CARD_WIDE: f32 = 232.0;
+
 /// A wrapping My Collection grid: as many cards of at least
 /// [`COLLECTION_CARD_MIN`] as fit, 16 apart, each `text_height` taller than
-/// it is wide, rows 16 apart.
+/// it is wide, rows 16 apart. Under a theme, TIDAL's grid box
+/// ([`super::plugin_dom::GridBox`]: its width, margins, translation,
+/// padding, border and gaps) and its cells' boxes
+/// ([`super::plugin_dom::CellBox`]: each card in a box inside its track,
+/// as tall as TIDAL's cell, a 232-point card's height to its width).
 pub fn virtual_collection_cards(
     ui: &mut Ui,
     count: usize,
@@ -4401,49 +4410,87 @@ pub fn virtual_collection_cards(
     if count == 0 {
         return;
     }
-    // A theme's padding on TIDAL's grid lies inside its box, round the
-    // cards.
-    let [pad_top, pad_right, pad_bottom, pad_left] = super::plugin_dom::collection_grid_padding();
-    let box_width = ui.available_width();
-    let row_width = (box_width - pad_left - pad_right).max(1.0);
+    let room = ui.available_width();
+    let grid = super::plugin_dom::collection_grid_box(room);
+    let cells = super::plugin_dom::collection_cell_box();
+    let [pad_top, pad_right, pad_bottom, pad_left] =
+        std::array::from_fn::<f32, 4, _>(|i| grid.padding[i] + grid.border[i]);
+    let column_gap = grid.column_gap.unwrap_or(CARD_GAP);
+    let row_gap = grid.row_gap.unwrap_or(CARD_GAP);
+    let row_width = (grid.width - pad_left - pad_right).max(1.0);
     let columns =
-        (((row_width + CARD_GAP) / (COLLECTION_CARD_MIN + CARD_GAP)).floor() as usize).max(1);
-    let width = ((row_width - CARD_GAP * (columns as f32 - 1.0)) / columns as f32).max(1.0);
+        (((row_width + column_gap) / (COLLECTION_CARD_MIN + column_gap)).floor() as usize).max(1);
+    let track = ((row_width - column_gap * (columns as f32 - 1.0)) / columns as f32).max(1.0);
+    // A cell's box: its width in the track, its height a card's own
+    // height to its width (TIDAL's `aspect-ratio` on the cell), the row
+    // its margin box.
+    let aspect = (COLLECTION_CARD_WIDE + text_height) / COLLECTION_CARD_WIDE;
+    let cell = cells.map(|c| {
+        let w = c.width(track);
+        let tall = w * aspect;
+        let row = (tall + c.margins[0] + c.margins[2]).max(1.0);
+        (c, w, tall, row)
+    });
+    let width = cell.map_or(track, |(c, w, ..)| {
+        (w - c.padding[1] - c.padding[3]).max(1.0)
+    });
+    let row_height = cell.map_or(track + text_height, |(.., row)| row);
     set_card_width(ui, width);
     let row_count = count.div_ceil(columns);
     // The whole grid, every row (TIDAL's `section` round the cells), for a
     // theme's box under the cards.
-    let rows_height = row_count as f32 * (width + text_height + CARD_GAP) - CARD_GAP;
+    let rows_height = row_count as f32 * (row_height + row_gap) - row_gap;
+    let top_left = ui.cursor().min + grid.offset;
     super::plugin_dom::collection_grid(
         ui,
         Rect::from_min_size(
-            ui.cursor().min,
-            vec2(box_width, rows_height.max(0.0) + pad_top + pad_bottom),
+            top_left,
+            vec2(grid.width, rows_height.max(0.0) + pad_top + pad_bottom),
         ),
     );
     let previous_spacing = ui.spacing().item_spacing;
     ui.spacing_mut().item_spacing.y = 0.0;
+    if grid.offset.y != 0.0 {
+        ui.add_space(grid.offset.y);
+    }
     if pad_top > 0.0 {
         ui.add_space(pad_top);
     }
     let grid_id = ui.unique_id().with("collection-card");
-    virtual_rows(ui, row_count, width + text_height + CARD_GAP, |ui, row| {
+    let left = grid.offset.x + pad_left;
+    virtual_rows(ui, row_count, row_height + row_gap, |ui, row| {
         ui.horizontal(|ui| {
-            if pad_left > 0.0 {
-                ui.add_space(pad_left);
+            if left != 0.0 {
+                ui.add_space(left);
             }
-            ui.spacing_mut().item_spacing = vec2(CARD_GAP, 0.0);
+            ui.spacing_mut().item_spacing = vec2(column_gap, 0.0);
             let start = row * columns;
             let end = (start + columns).min(count);
             for index in start..end {
                 ui.scope_builder(UiBuilder::new().id(grid_id.with(index)), |ui| {
-                    ui.set_width(width);
-                    ui.set_height(width + text_height);
-                    card(ui, index);
+                    ui.set_width(track);
+                    ui.set_height(row_height);
+                    let Some((c, w, tall, row)) = cell else {
+                        super::plugin_dom::collection_cell(ui, ui.max_rect());
+                        card(ui, index);
+                        return;
+                    };
+                    let at = ui.max_rect().min + vec2(c.margins[3], c.margins[0]) + c.translate;
+                    let cell_rect = Rect::from_min_size(at, vec2(w, c.height(row, tall)));
+                    super::plugin_dom::collection_cell(ui, cell_rect);
+                    let inner = Rect::from_min_max(
+                        cell_rect.min + vec2(c.padding[3], c.padding[0]),
+                        cell_rect.max - vec2(c.padding[1], c.padding[2]),
+                    );
+                    ui.scope_builder(UiBuilder::new().max_rect(inner), |ui| {
+                        ui.set_width(inner.width().max(1.0));
+                        ui.set_height(inner.height().max(1.0));
+                        card(ui, index);
+                    });
                 });
             }
         });
-        ui.allocate_space(vec2(row_width, CARD_GAP));
+        ui.allocate_space(vec2(row_width, row_gap));
     });
     if pad_bottom > 0.0 {
         ui.add_space(pad_bottom);
@@ -5093,12 +5140,19 @@ pub fn feed_column_capped(ui: &mut Ui, cap: f32, add_contents: impl FnOnce(&mut 
 pub const PAGE_MAX_WIDTH: f32 = 1472.0;
 
 /// TIDAL's album and playlist column: at most [`PAGE_MAX_WIDTH`] wide with
-/// 48 points either side (1104 of a 1200-point main area), centred.
+/// 48 points either side (1104 of a 1200-point main area), centred. On a
+/// My Collection page, as wide, as high and as far moved as a theme makes
+/// TIDAL's page box ([`super::plugin_dom::collection_page`]).
 pub fn page_column(ui: &mut Ui, add_contents: impl FnOnce(&mut Ui)) {
     let full = ui.available_width() + 2.0 * PAGE_PADDING;
-    let width = (full - 96.0).clamp(0.0, PAGE_MAX_WIDTH);
+    let mut width = (full - 96.0).clamp(0.0, PAGE_MAX_WIDTH);
+    let mut shift = Vec2::ZERO;
+    if let Some(page) = super::plugin_dom::collection_page(width, full) {
+        width = page.width;
+        shift = page.translate + vec2(0.0, page.top);
+    }
     let left = (full - width) / 2.0 - PAGE_PADDING;
-    let top_left = pos2(ui.cursor().left() + left, ui.cursor().top());
+    let top_left = pos2(ui.cursor().left() + left, ui.cursor().top()) + shift;
     ui.scope_builder(
         UiBuilder::new().max_rect(Rect::from_min_size(top_left, vec2(width, f32::INFINITY))),
         |ui| {

@@ -2506,16 +2506,263 @@ pub fn collection_grid(ui: &egui::Ui, r: Rect) {
     }
 }
 
-/// The padding a theme gives a collection page's grid of cards, top right
-/// bottom left: room inside the grid's box, round the cards, which narrows
-/// them as TIDAL's `box-sizing: border-box` grid does (the cotton candy
-/// singles' `padding: 1.3em .8em .9em 1em`: six 228-point cards across
-/// TIDAL 2.46.0's 1475-point grid, not 232).
-pub fn collection_grid_padding() -> [f32; 4] {
-    anchor_look(dom_anchors::keys::CARD_GRID)
+/// What a theme made of a collection page's grid of cards (TIDAL 2.46.0's
+/// `section._grid_97562f5`, a `box-sizing: border-box` grid), laid out in
+/// a column `room` wide.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GridBox {
+    /// Its padding and border, top right bottom left: room inside the box,
+    /// round the cards, which narrows them (the cotton candy singles'
+    /// `padding: 1.3em .8em .9em 1em` and 2-point border: six 227.6-point
+    /// cards across TIDAL's 1475-point grid, not 232).
+    pub padding: [f32; 4],
+    pub border: [f32; 4],
+    /// The box's width: the column's, less its side margins, then its
+    /// `max-width` and `min-width` (`%` of the column; the singles'
+    /// `calc(100.2% - var(--playQueueWidth) * .85)`: 1474.9 of 1472).
+    pub width: f32,
+    /// Where the box lies from the column's left and from where the cards
+    /// start with no theme: its left margin and its `transform`; down, its
+    /// top margin beyond the 36 points of the filter field's bottom margin
+    /// it collapses with.
+    pub offset: egui::Vec2,
+    /// Its `row-gap` and `column-gap` (the `gap` shorthand's), when set.
+    pub row_gap: Option<f32>,
+    pub column_gap: Option<f32>,
+}
+
+impl GridBox {
+    /// The grid with no theme: the column's whole width.
+    pub fn plain(room: f32) -> Self {
+        GridBox {
+            padding: [0.0; 4],
+            border: [0.0; 4],
+            width: room,
+            offset: egui::Vec2::ZERO,
+            row_gap: None,
+            column_gap: None,
+        }
+    }
+}
+
+/// The collection grid's box ([`GridBox`]) in a column `room` wide.
+pub fn collection_grid_box(room: f32) -> GridBox {
+    let plain = GridBox::plain(room);
+    if !on() {
+        return plain;
+    }
+    let key = dom_anchors::keys::CARD_GRID;
+    let padding = anchor_look(key)
         .and_then(|look| look.padding)
         .unwrap_or([0.0; 4])
-        .map(|p| p.clamp(0.0, 64.0))
+        .map(|p| p.clamp(0.0, 64.0));
+    let border = outline_sides(key, Color32::TRANSPARENT)
+        .map_or([0.0; 4], |(sides, _)| sides.map(|w| w.clamp(0.0, 16.0)));
+    let viewport = viewport();
+    host(key, |h, vars| {
+        let s = &h.style;
+        let len = |v: Option<&String>, reference: f32| {
+            v.and_then(|v| css::length(&css::resolve_vars(v, vars), 14.0, reference, viewport))
+                .filter(|n| n.is_finite())
+        };
+        let [top, right, _, left] =
+            super::theme_layout::margins(s, vars, 14.0, viewport).map(|m| m.clamp(-200.0, 200.0));
+        let mut width = room - left - right;
+        if let Some(max) = len(s.max_width.as_ref(), room) {
+            width = width.min(max);
+        }
+        if let Some(min) = len(s.min_width.as_ref(), room) {
+            width = width.max(min);
+        }
+        let translate = s.transform.as_deref().map_or(egui::Vec2::ZERO, |t| {
+            translation(&css::resolve_vars(t, vars))
+        });
+        let gap = s
+            .gap
+            .as_deref()
+            .map(|g| css::resolve_vars(g, vars))
+            .unwrap_or_default();
+        let words = css::words(&gap);
+        let gap_len = |w: Option<&&str>| {
+            w.and_then(|w| css::length(w, 14.0, 0.0, viewport))
+                .map(|n| n.clamp(0.0, 200.0))
+        };
+        let row_gap = len(s.row_gap.as_ref(), 0.0)
+            .map(|n| n.clamp(0.0, 200.0))
+            .or_else(|| gap_len(words.first()));
+        let column_gap = len(s.column_gap.as_ref(), 0.0)
+            .map(|n| n.clamp(0.0, 200.0))
+            .or_else(|| gap_len(words.get(1).or(words.first())));
+        Some(GridBox {
+            padding,
+            border,
+            width: width.clamp(1.0, room * 2.0 + 1.0),
+            offset: egui::vec2(left, (top - 36.0).max(0.0)) + translate,
+            row_gap,
+            column_gap,
+        })
+    })
+    .unwrap_or(GridBox {
+        padding,
+        border,
+        ..plain
+    })
+}
+
+/// What a theme made of a collection grid's cells (TIDAL 2.46.0's
+/// `div._staticCell_d3a8e6a`, each holding a card in the grid's track):
+/// the cell's margins, padding, `max-width` and `max-height` and its
+/// `transform`, read from the first cell (one rule boxes them all).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CellBox {
+    pub margins: [f32; 4],
+    pub padding: [f32; 4],
+    /// `max-width` and `max-height`: lengths, or shares (`%`) of the
+    /// track's width and height (negative here: `-0.9` for `90%`).
+    pub max_width: Option<f32>,
+    pub max_height: Option<f32>,
+    pub translate: egui::Vec2,
+}
+
+impl CellBox {
+    /// The cell's width in a track `track` wide: what its margins leave,
+    /// at most its `max-width`.
+    pub fn width(&self, track: f32) -> f32 {
+        let room = track - self.margins[1] - self.margins[3];
+        let max = self
+            .max_width
+            .map_or(f32::INFINITY, |m| if m < 0.0 { -m * track } else { m });
+        room.min(max).max(1.0)
+    }
+
+    /// The cell's height in a row `row` tall when its box is `tall`: at
+    /// most its `max-height`.
+    pub fn height(&self, row: f32, tall: f32) -> f32 {
+        let max = self
+            .max_height
+            .map_or(f32::INFINITY, |m| if m < 0.0 { -m * row } else { m });
+        tall.min(max).max(1.0)
+    }
+}
+
+/// The collection grid's cells' box ([`CellBox`]); `None` while no theme
+/// styles them, so the cards fill their tracks as they do with no theme.
+pub fn collection_cell_box() -> Option<CellBox> {
+    if !on() {
+        return None;
+    }
+    let key = dom_anchors::keys::card_cell(0);
+    let look = anchor_look(&key)?;
+    let viewport = viewport();
+    host(&key, |h, vars| {
+        let s = &h.style;
+        let share = |v: Option<&String>| {
+            let v = css::resolve_vars(v?, vars);
+            let v = v.trim().trim_end_matches("!important").trim();
+            if let Some(p) = v
+                .strip_suffix('%')
+                .and_then(|p| p.trim().parse::<f32>().ok())
+            {
+                return Some(-(p / 100.0).clamp(0.0, 4.0));
+            }
+            css::length(v, 14.0, 0.0, viewport).filter(|n| n.is_finite() && *n > 0.0)
+        };
+        Some(CellBox {
+            margins: super::theme_layout::margins(s, vars, 14.0, viewport)
+                .map(|m| m.clamp(-200.0, 200.0)),
+            padding: look.padding.unwrap_or([0.0; 4]).map(|p| p.clamp(0.0, 64.0)),
+            max_width: share(s.max_width.as_ref()),
+            max_height: share(s.max_height.as_ref()),
+            translate: look.translate,
+        })
+    })
+}
+
+/// A collection grid's cell is drawn at `r`, round the card drawn next:
+/// notes it for that card and paints the theme's box for it (the cotton
+/// candy singles' glass cells).
+pub fn collection_cell(ui: &egui::Ui, r: Rect) {
+    if !on() {
+        return;
+    }
+    let mut index = None;
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.next_cell = rect(r);
+            index = Some(p.cards.len());
+        }
+    });
+    let Some(index) = index else {
+        return;
+    };
+    let key = dom_anchors::keys::card_cell(index);
+    if let Some(look) = anchor_look(&key) {
+        paint_look(ui, &key, &look, r, egui::CornerRadius::ZERO);
+    }
+}
+
+/// What a theme made of a My Collection page's box (TIDAL 2.46.0's
+/// `div._defaultStyles_a1b9da9._container_d43f21d`, the page anchor
+/// there): the column's width, its top against TIDAL's own 24-point top
+/// margin, and its `transform`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PageBox {
+    pub width: f32,
+    pub top: f32,
+    pub translate: egui::Vec2,
+}
+
+/// The My Collection page's column ([`PageBox`]): `natural` wide with no
+/// theme (TIDAL's `max-width: 1472px`), centred in `room` (TIDAL's
+/// `main`). A theme's `max-width`, then its `min-width` (which wins), its
+/// top margin and its translation (`margin: auto; min-width: calc(96vw -
+/// var(--sidebarWidth))`: 1811.5 points of a 1897-point `main`, at its
+/// top). `None` off the collection's pages or with no theme rule for it.
+pub fn collection_page(natural: f32, room: f32) -> Option<PageBox> {
+    if !on() {
+        return None;
+    }
+    let collection = with(|s| {
+        s.frame
+            .page
+            .as_ref()
+            .and_then(|p| p.page_id.as_deref())
+            .is_some_and(|id| id.starts_with("mycollection_"))
+    });
+    if !collection {
+        return None;
+    }
+    let viewport = viewport();
+    let key = dom_anchors::keys::PAGE;
+    let set = margins(key);
+    host(key, |h, vars| {
+        let s = &h.style;
+        let len = |v: Option<&String>| {
+            v.and_then(|v| css::length(&css::resolve_vars(v, vars), 14.0, room, viewport))
+                .filter(|n| n.is_finite() && *n > 0.0)
+        };
+        let max = len(s.max_width.as_ref());
+        let min = len(s.min_width.as_ref());
+        let translate = s.transform.as_deref().map_or(egui::Vec2::ZERO, |t| {
+            translation(&css::resolve_vars(t, vars))
+        });
+        let top = set[0].map_or(0.0, |t| t.clamp(-200.0, 200.0) - 24.0);
+        if max.is_none() && min.is_none() && translate == egui::Vec2::ZERO && top == 0.0 {
+            return None;
+        }
+        let mut width = natural;
+        if let Some(max) = max {
+            width = width.min(max);
+        }
+        if let Some(min) = min {
+            width = width.max(min);
+        }
+        Some(PageBox {
+            width: width.clamp(1.0, room.max(1.0) * 2.0),
+            top,
+            translate,
+        })
+    })
 }
 
 /// The thumbnail of track row `index` of `list` is drawn in `r`: gives it
@@ -3319,6 +3566,7 @@ pub fn grid_card(r: Rect, artist: bool) -> Option<String> {
         if let Some(p) = f.page.as_mut() {
             key = Some(dom_anchors::keys::card(p.cards.len()));
             let item = p.next_card.take();
+            let cell = p.next_cell.take();
             p.cards.push(dom_anchors::GridCard {
                 rect: rect(r),
                 artist,
@@ -3327,6 +3575,7 @@ pub fn grid_card(r: Rect, artist: bool) -> Option<String> {
                 item,
                 words: None,
                 play: None,
+                cell,
             });
         }
     });

@@ -555,6 +555,15 @@ pub mod keys {
     pub fn card(index: usize) -> String {
         format!("card:{index}")
     }
+    /// A My Collection card's grid cell (`card-cell:<index>`, TIDAL
+    /// 2.46.0's `div._staticCell_d3a8e6a`) and the plain `div` in it that
+    /// holds the card (`card-cell-inner:<index>`).
+    pub fn card_cell(index: usize) -> String {
+        format!("card-cell:{index}")
+    }
+    pub fn card_cell_inner(index: usize) -> String {
+        format!("card-cell-inner:{index}")
+    }
     /// A card's cover box (`card-cover:<index>`), the wrapper inside it
     /// (`card-cover-wrapper:<index>`) and the picture (`card-cover-img:<index>`).
     pub fn card_cover(index: usize) -> String {
@@ -1555,6 +1564,8 @@ pub struct Page {
     /// What the card about to be drawn shows (its kind and id, its
     /// artists), when its page says so.
     pub next_card: Option<CardItem>,
+    /// The grid cell of the My Collection card about to be drawn.
+    pub next_cell: Option<Rect>,
     /// The shelf being drawn (its cards take it as their parent).
     pub open_shelf: Option<usize>,
     /// The artist page's header (`div._artistHeader_`): the portrait's box.
@@ -1638,6 +1649,8 @@ pub struct GridCard {
     pub words: Option<CardWords>,
     /// Where its play button shows under the pointer.
     pub play: Option<Rect>,
+    /// A My Collection card's grid cell, round the card.
+    pub cell: Option<Rect>,
 }
 
 /// What a card shows: TIDAL's card id is `<kind>-card-<id>`, and its
@@ -3116,7 +3129,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
             (false, true) => &["card", "cellContainer"],
             (false, false) => &["card"],
         };
-        let parent = card
+        let mut parent = card
             .shelf
             .filter(|s| *s < page.shelves.len())
             .map_or_else(|| keys::CARD_GRID.to_string(), keys::shelf);
@@ -3125,6 +3138,19 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         // collection cell `grid-item-<kind>` with the item's id in
         // `data-test-element-id`.
         let cell = collection && card.shelf.is_none();
+        if cell {
+            // TIDAL 2.46.0's collection grid holds each card in a cell,
+            // `div._staticCell_d3a8e6a > div > article` (the cell is the
+            // grid's track, the plain `div` the card's box): a theme boxes
+            // the cells (`[class^="_staticCell_"]`).
+            out.push(
+                el(keys::card_cell(i), Some(&parent), "div")
+                    .class("_staticCell_d3a8e6a")
+                    .at(card.cell.or(card.rect)),
+            );
+            out.push(el(keys::card_cell_inner(i), Some(&keys::card_cell(i)), "div").at(card.rect));
+            parent = keys::card_cell_inner(i);
+        }
         let item = card.item.as_ref();
         let id = item.and_then(|item| {
             let word = item.kind.word()?;

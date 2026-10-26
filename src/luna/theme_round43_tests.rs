@@ -644,3 +644,91 @@ fn a_playlists_filter_and_table_move_with_their_boxes() {
         moved_by(header)
     );
 }
+
+/// TIDAL 2.46.0's My Collection page lays a theme's boxes round the grid
+/// of cards: the page box's `min-width`, `margin` and `transform`
+/// (`div._defaultStyles_a1b9da9._container_d43f21d`), the grid's margins,
+/// `transform`, `min-width`, padding, border and gaps
+/// (`section._grid_97562f5`, its top margin collapsing with the filter
+/// field's 36), and each card's cell (`div._staticCell_d3a8e6a`) with its
+/// padding, `max-width` and `max-height` in its track, its negative
+/// margins and its `transform`, as tall as a 232-point card's cell for its
+/// width. The numbers are Chromium's for these rules on TIDAL's captured
+/// page (the parity checker's replay): the page 1811.5 wide at x 280.7 and
+/// 20 higher, eight 223.4-point tracks, cells 201.1 x 276.8 that start
+/// 18 in and 12 down in the grid, rows 309.6 apart, the card 10 in the
+/// cell. Tidalfast laid six 232-point cards in TIDAL's own column and
+/// left the cells out of its tree.
+#[test]
+fn a_collection_grids_page_grid_and_cell_boxes_lay_out_as_tidals() {
+    use super::theme_round41_tests as r41;
+    use dom_anchors::keys;
+    let css = "/* {\"name\": \"Collection boxes\"} */\n\
+        [data-track--page-id=\"mycollection_albums\"] { margin: auto; min-width: calc(96vw - var(--sidebarWidth)) !important; transform: translateX(-2px) translateY(4px); }\n\
+        ._grid_97562f5 { margin: 20px; transform: translateX(-20px); min-width: 100%; padding: 10px; border: 2px solid rgb(1, 2, 3); row-gap: 30px; column-gap: 0px; }\n\
+        [class^=\"_staticCell_\"] { background-color: rgb(250, 160, 200); padding: 10px; max-width: 90%; max-height: 99%; margin-right: -20px; margin-bottom: -10px; transform: translateX(6px); }\n";
+    let (ctx, mut app) = r41::demo_app("albums", Some("many-albums"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let rect = |tree: &super::dom::HostTree, key: &str| {
+        tree.nodes
+            .iter()
+            .find(|n| n.key == key)
+            .and_then(|n| n.rect)
+            .unwrap_or_else(|| panic!("no box for {key}"))
+    };
+    let plain_grid = rect(&plain, keys::CARD_GRID);
+    let plain_cell = rect(&plain, &keys::card_cell(0));
+    let plain_card = rect(&plain, &keys::card(0));
+    let mut o = r41::styled("collection-boxes.css", css, &plain, &keys::card_cell(0));
+    o.version = 2;
+    let themed = r41::drawn(&ctx, &mut app, o.clone());
+    let grid = rect(&themed, keys::CARD_GRID);
+    let cell = rect(&themed, &keys::card_cell(0));
+    let next = rect(&themed, &keys::card_cell(1));
+    let below = rect(&themed, &keys::card_cell(8));
+    let card = rect(&themed, &keys::card(0));
+    let colour = r41::painted_at(&ctx, &mut app, o, &[[cell[0] + 4.0, cell[1] + 4.0]]);
+    app.backend.shutdown();
+    let near = |a: f32, b: f32| (a - b).abs() < 0.6;
+    // With no theme: TIDAL's 1472-point column, the cell its track.
+    assert!(
+        near(plain_grid[0], 452.5) && near(plain_grid[2], 1472.0),
+        "{plain_grid:?}"
+    );
+    assert!(
+        near(plain_cell[2], 232.0) && near(plain_cell[3], 334.0) && near(plain_card[2], 232.0),
+        "{plain_cell:?} {plain_card:?}"
+    );
+    assert!(
+        near(grid[0], 280.73) && near(grid[2], 1811.52) && near(grid[1], plain_grid[1] - 20.0),
+        "grid {grid:?}, no theme {plain_grid:?}"
+    );
+    assert!(
+        near(cell[0], grid[0] + 18.0)
+            && near(cell[1], grid[1] + 12.0)
+            && near(cell[2], 201.09)
+            && near(cell[3], 276.77),
+        "cell {cell:?} in {grid:?}"
+    );
+    assert!(near(next[0] - cell[0], 223.44), "next cell {next:?}");
+    assert!(
+        near(below[0], cell[0]) && near(below[1] - cell[1], 309.56),
+        "the second row's cell {below:?}"
+    );
+    assert!(
+        near(card[0], cell[0] + 10.0) && near(card[1], cell[1] + 10.0) && near(card[2], 181.09),
+        "card {card:?}"
+    );
+    assert_eq!(
+        colour[0],
+        egui::Color32::from_rgb(250, 160, 200),
+        "the cell's fill"
+    );
+}
