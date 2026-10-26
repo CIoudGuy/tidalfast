@@ -1073,6 +1073,40 @@ mod tests {
         assert_eq!(delay(Budget::Normal, &fade), std::time::Duration::ZERO);
     }
 
+    /// A still shot (`--demo-show still`) samples a box's animations as the
+    /// parity checker's browser leaves the settled page: an endless one not
+    /// applied, a finite one at its end, whatever the clock says.
+    #[test]
+    fn a_still_shot_samples_animations_as_a_settled_page_does() {
+        let spin = anim("spin 4 0 infinite normal linear running none");
+        let rise = anim("rise 2 1 1 normal linear running forwards");
+        let ctx = egui::Context::default();
+        let mut out = Vec::new();
+        let mut o = ctx.run_ui(
+            egui::RawInput {
+                time: Some(1.5),
+                ..Default::default()
+            },
+            |ui| {
+                let list = [spin.clone(), rise.clone()];
+                crate::motion::set_still(true);
+                out = moments_with(ui.ctx(), &mut Clock::default(), &list);
+                crate::motion::set_still(false);
+            },
+        );
+        o.textures_delta.clear();
+        assert_eq!(
+            out,
+            vec![
+                None,
+                Some(Moment {
+                    progress: 1.0,
+                    running: false
+                })
+            ]
+        );
+    }
+
     #[test]
     fn a_clock_keeps_starts_restarts_new_names_and_holds_pauses() {
         let mut clock = Clock::default();
