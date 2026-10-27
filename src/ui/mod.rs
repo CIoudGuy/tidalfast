@@ -233,6 +233,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             }
         }
         keep_room_for_panels(app, ctx);
+        player_bar::paint_shade(ui, window, slide);
         if page_under_bar {
             let _part = part!("player bar");
             player_bar::show_over_page(app, ui, window);

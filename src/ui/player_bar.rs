@@ -315,6 +315,42 @@ pub fn show_over_page(app: &mut App, ui: &mut egui::Ui, window: Rect) {
     show(app, &mut bar);
 }
 
+/// TIDAL's shade over what lies above the bar (`._player_8c80ae6::before`:
+/// `inset: -80px -12px -12px`, `linear-gradient(rgba(0, 0, 0, 0),
+/// rgba(0, 0, 0, .15))`), painted over the page, the sidebar and the
+/// docked play queue down to the bar's top in `window`, as it lies over
+/// them in TIDAL; the bar's own fill lies over the rest. Faded out with
+/// the now-playing view up (`.nowPlayingVisible::before { opacity: 0 }`).
+pub fn paint_shade(ui: &egui::Ui, window: Rect, view: f32) {
+    if view >= 1.0 || !plugin_dom::footer_shade() {
+        return;
+    }
+    let top_gap = floating(ui.ctx()).map_or(0.0, |f| f32::from(f.gaps.top));
+    let bar_top = window.bottom() - reserved_height(ui.ctx()) + top_gap;
+    let from = bar_top - SHADE_ABOVE;
+    let to = bar_top + theme::PLAYER_BAR_HEIGHT + SHADE_BELOW;
+    // The gradient's alpha at the bar's top.
+    let at_bar = SHADE_ALPHA * SHADE_ABOVE / (to - from);
+    let fade = 1.0 - view.max(0.0);
+    let rect = Rect::from_min_max(pos2(window.left(), from), pos2(window.right(), bar_top));
+    let clear = Color32::TRANSPARENT;
+    let dark = Color32::from_black_alpha((255.0 * at_bar * fade).round() as u8);
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(rect.left_top(), clear);
+    mesh.colored_vertex(rect.right_top(), clear);
+    mesh.colored_vertex(rect.right_bottom(), dark);
+    mesh.colored_vertex(rect.left_bottom(), dark);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(0, 2, 3);
+    ui.painter().add(egui::Shape::mesh(mesh));
+}
+
+/// How far TIDAL's shade reaches above the bar and below it.
+const SHADE_ABOVE: f32 = 80.0;
+const SHADE_BELOW: f32 = 12.0;
+/// The shade's alpha at its foot.
+const SHADE_ALPHA: f32 = 0.15;
+
 /// The height the bar takes from the bottom of the window: its own, plus
 /// the gaps of a floating bar a theme sets.
 pub fn reserved_height(ctx: &egui::Context) -> f32 {

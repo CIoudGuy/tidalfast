@@ -2056,6 +2056,26 @@ pub fn token_popup_fill() -> Option<Color32> {
     .map(Color32::to_opaque)
 }
 
+/// Whether TIDAL's shade over the page above the bar is drawn: TIDAL's own
+/// `._player_8c80ae6::before` (a gradient from clear to black at 15 %
+/// from 80 points above the bar to 12 below it), unless a theme hides that
+/// box or gives it a background of its own (the cotton candy family's
+/// `display: none`, Tidal TUI's `background: transparent`).
+pub fn footer_shade() -> bool {
+    host(dom_anchors::keys::FOOTER, |h, _| {
+        let b = h.before.as_ref()?;
+        let gone = b.hidden()
+            || b.background_color.is_some()
+            || b.background_image.is_some()
+            || b.opacity
+                .as_deref()
+                .and_then(|o| o.trim().parse::<f32>().ok())
+                .is_some_and(|o| o <= 0.0);
+        Some(!gone)
+    })
+    .unwrap_or(true)
+}
+
 /// TIDAL's frosted chip under the back and forward arrows
 /// (`div._container_bb78f1d { background:
 /// var(--frosted-glass-floating-surface) }`): a theme's value of the token
