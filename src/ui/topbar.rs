@@ -399,7 +399,13 @@ fn bar_contents(
         ui.add_space(HEADER_RIGHT);
         // The account button a plugin hid is left out or keeps its room
         // empty, as in TIDAL.
-        super::plugin_dom::anchored(ui, keys::PROFILE, |ui| account_button(app, ui));
+        // A theme's `transform: translate()` on the account button or its
+        // box moves it and keeps its room (the cotton candy family's
+        // `translateX(var(--profbuff))`).
+        let shift = shell_shift(&[keys::PROFILE_CONTAINER, keys::PROFILE]);
+        super::plugin_dom::anchored(ui, keys::PROFILE, |ui| {
+            moved(ui, shift, |ui| account_button(app, ui))
+        });
         super::plugin_slots::inline(ui, keys::HEADER, Position::Append);
         ui.add_space(HEADER_GAP - ITEM_SPACING);
         let before = app.search.query.clone();
@@ -410,7 +416,7 @@ fn bar_contents(
         // A search field a plugin hid is left out or keeps its room empty,
         // as in TIDAL.
         let search_shown = super::plugin_dom::shown(keys::SEARCH_FIELD);
-        let mut field = |ui: &mut egui::Ui| {
+        let field = |ui: &mut egui::Ui| {
             super::widgets::header_search_field(
                 ui,
                 &palette,
@@ -421,12 +427,17 @@ fn bar_contents(
                 search_width,
             )
         };
+        // A theme's `transform: translate()` on the field or its wrapper
+        // moves it and keeps its room (the cotton candy family's
+        // `translateX(var(--searchbuf))`, 70 points left in a 2137-point
+        // window).
+        let shift = shell_shift(&[keys::SEARCH, keys::SEARCH_FIELD]);
         let response = match search_shown {
-            super::plugin_dom::Shown::Drawn => field(ui),
+            super::plugin_dom::Shown::Drawn => moved(ui, shift, field),
             super::plugin_dom::Shown::Invisible => {
                 ui.scope(|ui| {
                     ui.set_invisible();
-                    field(ui)
+                    moved(ui, shift, field)
                 })
                 .inner
             }
@@ -643,6 +654,15 @@ pub fn show_tab(
 /// Lays `add` out where it sits and draws it moved by `shift` (a theme's
 /// `transform: translate()`): the room it takes stays where it was, as a
 /// browser keeps a moved box's room, and the clicks follow it.
+/// How far a theme's `transform: translate()` on the boxes `keys` (one
+/// inside the other) moves what they hold.
+fn shell_shift(keys: &[&str]) -> Vec2 {
+    keys.iter()
+        .filter_map(|key| super::plugin_dom::anchor_look(key))
+        .map(|look| look.translate)
+        .fold(Vec2::ZERO, |a, b| a + b)
+}
+
 pub(crate) fn moved<R>(ui: &mut egui::Ui, shift: Vec2, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     if shift == Vec2::ZERO {
         return add(ui);

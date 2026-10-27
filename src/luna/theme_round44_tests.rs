@@ -191,3 +191,38 @@ fn the_back_and_forward_pill_is_tidals_frosted_chip() {
     }
     app.backend.shutdown();
 }
+
+/// A theme's `transform: translateX()` on TIDAL's search field and on the
+/// account button's box moves them as Chromium does, keeping their room:
+/// the cotton candy family's `translateX(var(--searchbuf))` (-5em, 70
+/// points, in a window 2100 or more wide) and `translateX(var(--profbuff))`
+/// (-1em) put TIDAL 2.46.0's field 70 points left of its wrapper and the
+/// account button 14 left of its place (TIDAL's captured page replayed in
+/// Chromium). Tidalfast read the moves and drew both where they were.
+#[test]
+fn a_moved_search_field_and_account_button_are_drawn_moved() {
+    let css = "/* {\"name\": \"Moved header\"} */\n[class=\"_container_f1be359 searchFieldWithinSearchFieldWithPopover _searchField_b2eb7f7\"] { transform: translateX(-70px); }\n[class=\"_buttonContainer_d207640\"] { transform: translateX(-14px); }\n";
+    let (ctx, mut app) = r41::demo_app("album:alb0", Some("quality-pill"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let mut o = r41::styled("moved-header.css", css, &plain, keys::SEARCH_FIELD);
+    o.version = 2;
+    let themed = r41::drawn(&ctx, &mut app, o);
+    app.backend.shutdown();
+    let (before, after) = (r41::boxes(&plain), r41::boxes(&themed));
+    for (key, want) in [(keys::SEARCH_FIELD, -70.0), (keys::PROFILE, -14.0)] {
+        let moved = after[key][0] - before[key][0];
+        assert!(
+            (moved - want).abs() < 0.5,
+            "{key} moved {moved}, not {want} ({:?} -> {:?})",
+            before[key],
+            after[key]
+        );
+    }
+}
