@@ -48,3 +48,42 @@ fn a_pages_content_starts_24_under_the_header() {
         );
     }
 }
+
+/// TIDAL 2.46.0 marks a playlist's header art up as its own
+/// (`button._artwork_1d717fe > div._image_d7a36dc._shadow_32a27bc > ... >
+/// img._resourceImage_4beb8bc`, captured), not as an album's
+/// (`._coverArtContainer_2eafdf9 > ._coverArt_79d862c > ... > img`): a
+/// theme's rule for the album's art leaves a playlist's with TIDAL's own
+/// shadow (Cotton Candy Single's pink `0 16px 32px` shadow lies under the
+/// album's cover only), and one for the playlist's classes reaches it (the
+/// cotton candy family's `._shadow_32a27bc img`). Tidalfast gave a
+/// playlist's art the album's classes.
+#[test]
+fn a_playlists_header_art_is_marked_up_as_tidals() {
+    let css = "/* {\"name\": \"Art\"} */\n:is(._coverArtContainer_2eafdf9 ._coverArt_79d862c) img { box-shadow: 0 16px 32px 0 rgb(200, 80, 180); }\n._shadow_32a27bc img { box-shadow: 0 16px 32px 0 rgb(20, 200, 40); }\n";
+    for (page, want) in [
+        ("album:alb0", "rgb(200, 80, 180)"),
+        ("playlist:pl0", "rgb(20, 200, 40)"),
+    ] {
+        let (ctx, mut app) = r41::demo_app(page, Some("quality-pill"));
+        let tree = r41::drawn(
+            &ctx,
+            &mut app,
+            DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            },
+        );
+        app.backend.shutdown();
+        let o = r41::styled("art.css", css, &tree, keys::HERO_COVER_IMG);
+        let shadow = o.hosts[keys::HERO_COVER_IMG]
+            .style
+            .box_shadow
+            .clone()
+            .unwrap_or_default();
+        assert!(
+            shadow.contains(want),
+            "{page}: the header art's shadow is {shadow:?}, not the one for its own classes ({want})"
+        );
+    }
+}
