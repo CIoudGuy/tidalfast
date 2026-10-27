@@ -14,7 +14,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, PoisonError};
 
 use rquickjs::{ArrayBuffer, Ctx, Exception, Function, Object};
@@ -1759,6 +1759,27 @@ fn demo_audio() -> bool {
     cfg!(feature = "demo") && std::env::var_os("TIDALFAST_DEMO_LUNA").is_some()
 }
 
+/// Whether the demo's song is paused (`--demo-show paused`).
+static DEMO_PAUSED: AtomicBool = AtomicBool::new(false);
+
+/// The demo's song is paused, or plays: a paused song's taps are silent,
+/// as TIDAL's `captureStream()` of a paused song is (audio-visualizer hides
+/// its panels then), and a playing one's carry the demo's chord.
+#[cfg(any(test, feature = "demo"))]
+pub fn set_demo_paused(paused: bool) {
+    DEMO_PAUSED.store(paused, Ordering::Relaxed);
+}
+
+/// What a demo build's taps carry: the moving chord, or silence while the
+/// song is paused.
+fn demo_samples(n: usize, channel: i32, paused: bool) -> Vec<f32> {
+    if paused {
+        vec![0.0; n]
+    } else {
+        synth(n, channel)
+    }
+}
+
 /// A moving chord for demo builds, which play no audio.
 fn synth(n: usize, channel: i32) -> Vec<f32> {
     static T0: LazyLock<std::time::Instant> = LazyLock::new(std::time::Instant::now);
@@ -1801,7 +1822,7 @@ const CONTEXT_RATE: f64 = 48_000.0;
 fn samples(n: usize, channel: i32) -> Vec<f32> {
     crate::audio_tap::arm();
     if demo_audio() && !crate::audio_tap::live() {
-        return synth(n, channel);
+        return demo_samples(n, channel, DEMO_PAUSED.load(Ordering::Relaxed));
     }
     let src = f64::from(crate::audio_tap::rate());
     if src <= 0.0 || (src - CONTEXT_RATE).abs() < 1.0 {
@@ -1955,6 +1976,16 @@ pub(super) fn shutdown() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A demo song that is paused has silent taps, as TIDAL's paused song:
+    /// audio-visualizer reads the level and hides its panels when it is
+    /// quiet, where the demo's chord kept its header panel shown.
+    #[test]
+    fn a_paused_demo_song_is_silent() {
+        let level = |v: &[f32]| v.iter().map(|x| x.abs()).fold(0.0f32, f32::max);
+        assert_eq!(level(&demo_samples(2048, 0, true)), 0.0);
+        assert!(level(&demo_samples(2048, 0, false)) > 0.01);
+    }
 
     #[test]
     fn a_gradient_has_no_more_stops_than_its_buffer() {
