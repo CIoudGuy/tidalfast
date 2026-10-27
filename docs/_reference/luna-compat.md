@@ -3023,6 +3023,118 @@ saturate()`, and Sunken Tidal's full-height, full-bleed play queue (its
 wrapper's and panel's sizes, and TIDAL's glass laid twice over the native
 card).
 
+### Round 43 (one window for the checker, cards, the bar's song card and the play queue, 2026-10-25)
+
+The parity checker now shoots every theme and page in one demo window
+instead of starting a window for each (about 220 a run): a dev script
+(`TIDALFAST_DEV_SCRIPT`, demo builds only) switches the Luna themes, opens
+each page with the demo's data and window state as a new window has them,
+and writes each shot and the anchors' looks of the pass it shows. Shot
+by shot it gives the same report as a window per shot: on no theme and
+five themes (one of the cotton candy family, Sugarcoat, Blur, Meteor
+Night, Sunken Tidal) the style report matched item for item and the pixel
+numbers within run-to-run spread. A theme switched to goes in whole before
+the next shot's wait starts: a colourway goes in after its base, which
+goes in switched off, so the page is never styled by the base alone.
+
+Found with the parity checker and fixed in the generic layer:
+
+- **A collection card's box ends with what it holds.** TIDAL's My
+  Collection card is as tall as its cover and lines with its padding round
+  them (305.5 points under a 232-point cover, in a 334-point grid row);
+  Tidalfast's filled the row, so a theme's fill for the card (the cotton
+  candy family's glass cards) ran 29 points below TIDAL's.
+- **The player bar's song card** (`._trackContent_`, Sugarcoat's and the
+  cotton candy singles' box round the song's words) starts where the words
+  do with no theme, its padding and border move the words in, and down it
+  holds TIDAL's lines (64 points) with its padding and border round them:
+  77.8 points tall under Sugarcoat, as in TIDAL, not 62. A bar card's
+  border lies outside its padding, as CSS lays it (the utility buttons'
+  card too).
+- **A sidebar card's inset glow** (the cotton candy family's white `inset
+  0 0 6em` shadow on `div._sidebarWrapper_`) lies along its edges, over its
+  fill and under what it holds.
+- **A sidebar card's height in `%`** is of the whole window: Tidalfast's
+  window shows TIDAL's page from its title bar's foot down, so TIDAL's
+  content row is the window (the cotton candy family's card ended 30
+  points above TIDAL's).
+- **A play queue a theme unboxes runs full-bleed.** A theme's margins,
+  width and height for TIDAL's panel in its 350-point wrapper apply
+  (Sunken Tidal's `margin: 0; width: 100%; height: 100%` panel runs from
+  the header down under the player bar; Abyss Neptune's `margin: 2px` lays
+  it 2 in, still 334 wide). A theme that takes the panel's backdrop blur
+  away (`backdrop-filter: none`, now kept by the cascade) shows the page
+  through TIDAL's glass, with no card under it.
+- **What lies round the open queue** is what lies behind TIDAL's `main`:
+  the document's fill, or TIDAL's black where a theme's tokens colour the
+  page (Sunken Tidal's grey), and the player bar's glass lies over that in
+  the queue's column (Catppuccin's lighter base colour there).
+- **A song list moves with its box.** The list's module box's own top
+  padding and border lie above the list and its `transform` moves both
+  (Sugarcoat's `translateY(-1.1em)` over `padding-top: 1.4em`: its songs
+  6 points lower than with no theme); on a playlist the filter field moves
+  with them, and the table's own `transform` moves it in the box (the
+  cotton candy family's `translateY(-1.6em)`).
+- **A My Collection page's boxes lie as TIDAL lays them.** The page box's
+  `min-width`, `max-width`, top margin and `transform`
+  (`div._defaultStyles_a1b9da9._container_d43f21d`: Cotton Candy Nights
+  Single's `margin: auto; min-width: calc(96vw - var(--sidebarWidth))`, a
+  1811.5-point column 20 points higher), the grid's own width, margins and
+  `transform` (its top margin collapsing with the filter field's), its
+  border, `row-gap` and `column-gap` (eight 223-point tracks with no gap
+  between them), and each card's cell, now in the tree as TIDAL's
+  `div._staticCell_d3a8e6a > div` round the card: its fill, padding,
+  `max-width` and `max-height` in its track, negative margins and
+  `transform`, as tall for its width as a 232-point card's cell.
+- **`--playQueueWidth` is `0px`**, as TIDAL 2.46.0 declares it on its
+  player's wrapper with the play queue open or not (TIDAL 2.43.2 gave its
+  350-point panel's width): the collection grids of the cotton candy
+  family, Sugarcoat and the singles (`calc(100.2% - var(--playQueueWidth)
+  * .85)`) are 1474.9 points wide, as in TIDAL.
+- **A margin or padding a browser cannot read is dropped** as the sheet
+  is read, so the one before it stays (Sugarcoat's `margin-bottom: .15em;
+  margin: a` on the navigation rows: 42.1 points apart, as in TIDAL, not
+  40; Abyss Neptune's and TidalCustomTheme's `margin: none` and `margin-top:
+  none` no longer reset a margin).
+
+The checker's own state (private tools, demo surfaces): the player bar's
+song is now one on no page shot (`playing-elsewhere`; TIDAL's capture has
+no playing row), and a closed folder heads the library (`folder-first`, as
+"Rated" does in the capture, so the open playlist is the list's second
+row, as there). `still` shows CSS animations as the checker's browser
+settles TIDAL's page (an endless one not applied, a finite one at its
+end), so the eleven themes whose whole page animates are compared.
+
+Totals (dark-compared themes and no theme). Like for like with the
+round's start (the checker's round 42 demo state, the animated themes left
+out): pixels 3.25 % to 2.29 % of 228.5 million compared pixels; no theme
+unchanged (0.88 %: album 0.59, menu 0.69, playlist 1.64, collection 0.66);
+style 662 to 653 differences over about 118,000 anchor elements. Worst
+before: Sunken Tidal 8.4 %, Cotton Candy Nights (single) 6.6 %, Meteor
+Night 5.6 %, Sugarcoat 5.5 %, Purple Paradise Punch 5.4 %; after: Meteor
+Night 5.6 %, Lunallena macOS 4.7 %, Abyss Neptune (black) 4.4 %, Sugarcoat
+4.3 %, Sunken Tidal 4.3 % (Cotton Candy Nights single 2.4 %; its collection
+page 21.3 % to 1.4 %). Only Synthwave '77 moved up, by 0.02 points. With
+the checker's own state as TIDAL's capture has it (the bar's song on no
+page shot, a folder heading the library) and animations settled, all 55
+themes are compared: 2.52 % of 305 million pixels (2.65 % on the round's
+twelfth commit), no theme 0.75 %, the eleven animated themes 2.6 % to
+4.3 %. Light scheme: Tidal Light 1.24 % (unchanged), the adaptive Cotton
+Candy 3.4 % to 3.0 % and Horchata 1.9 % to 1.7 %. Hover (no theme and six
+themes, five hover pages, the checker's new state): 2.2 % (3.1 % at round
+42's end in its old state; Catppuccin Mocha Blue 4.6 % to 1.3 %, its
+playing row gone).
+
+Not done, largest first: a track row's line drawn half a pixel off
+TIDAL's fractional row places (the cotton candy family's row borders), the
+open menu's own entries (account data), the player bar's song card's line
+spacing under the cotton candy singles and Sugarcoat (TIDAL's 22, 20 and
+18-point line boxes), Meteor Night's header and title-cell boxes, the
+Lunallena themes' header bar on the collection page, a list panel's
+gradient under its `backdrop-filter: saturate()`, and the play queue's
+wrapper as the panel's parent in the tree (TIDAL's order; the themes'
+rules for the wrapper already reach the panel's words and its moves).
+
 ### Round 28 (plugins in use, 2026-10-23)
 
 Sixteen popular plugins (Tidal Tags, tidal-genres, total-play-time,
