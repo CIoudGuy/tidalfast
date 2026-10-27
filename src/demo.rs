@@ -2500,6 +2500,8 @@ pub fn apply_flags(app: &mut App, page: Option<&str>, show: Option<&str>) {
             _ => {}
         }
     }
+    // Plugins' audio taps carry the demo's chord only while its song plays.
+    crate::luna::canvas::set_demo_paused(!app.believed_playing());
 }
 
 /// What a new demo window has before `--demo-page` and `--demo-show`, kept
