@@ -2705,13 +2705,20 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
             )
             .class("_icon_77f3f89 _icon_b8b52c1"),
         );
+        // In the narrowed sidebar TIDAL 2.46.0 keeps the rows and hides
+        // their words (`_hidden_7634c40`, `opacity: 0` in its sheet).
+        let title = if side.collapsed {
+            "_marketText_1lyag_1 _semibold20_1lyag_246 _title_f46b277 _hidden_7634c40"
+        } else {
+            "_marketText_1lyag_1 _semibold20_1lyag_246 _title_f46b277"
+        };
         out.push(
             el(
                 keys::sidebar_item_label(&item.test),
                 Some(&keys::sidebar_item(&item.test)),
                 "span",
             )
-            .class("_marketText_1lyag_1 _semibold20_1lyag_246 _title_f46b277")
+            .class(title)
             // The row's words are this span's text, as in TIDAL 2.46.0:
             // what reads or hides the span reads or hides the words.
             .text(item.label.clone())
@@ -2744,18 +2751,24 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
             );
         }
         // Collection opens its menu: TIDAL's `svg._icon_77f3f89._icon_b8b52c1
-        // ._arrowRight_f57b400`, an icon like the row's.
+        // ._arrowRight_f57b400`, an icon like the row's (with
+        // `_visuallyHidden_ac6ece2` in the narrowed sidebar).
         if item.test == "sidebar-collection-menu" {
             if side.collection.is_none() {
                 collection_submenu(out, side);
             }
+            let arrow = if side.collapsed {
+                "_icon_77f3f89 _icon_b8b52c1 _arrowRight_f57b400 _visuallyHidden_ac6ece2"
+            } else {
+                "_icon_77f3f89 _icon_b8b52c1 _arrowRight_f57b400"
+            };
             out.push(
                 el(
                     keys::sidebar_item_arrow(&item.test),
                     Some(&keys::sidebar_item(&item.test)),
                     "svg",
                 )
-                .class("_icon_77f3f89 _icon_b8b52c1 _arrowRight_f57b400")
+                .class(arrow)
                 // 16 points, centred 16 in from the row's right end.
                 .at(item
                     .rect
@@ -6402,6 +6415,52 @@ mod tests {
             attr(find(&tree, keys::FEED_COUNTER), "class"),
             Some(
                 "_marketText_1lyag_1 _paragraph10_1lyag_156 _badgeCounter_bd84d2f _collapsed_f4061d3"
+            )
+        );
+    }
+
+    /// TIDAL 2.46.0's narrowed sidebar keeps its navigation rows and hides
+    /// their words (`_hidden_7634c40` on the title, `_visuallyHidden_
+    /// ac6ece2` on Collection's arrow); expanded, they have neither.
+    #[test]
+    fn the_narrowed_sidebar_hides_the_rows_words_as_tidal() {
+        let mut frame = sample_frame();
+        frame.sidebar.items.push(SidebarItem {
+            test: "sidebar-collection-menu".into(),
+            label: "Collection".into(),
+            href: Some("/my-collection".into()),
+            selected: false,
+            rect: None,
+        });
+        let classes = |frame: &Frame| {
+            let tree = build(frame);
+            (
+                attr(
+                    find(&tree, &keys::sidebar_item_label("sidebar-music")),
+                    "class",
+                )
+                .map(str::to_string),
+                attr(
+                    find(&tree, &keys::sidebar_item_arrow("sidebar-collection-menu")),
+                    "class",
+                )
+                .map(str::to_string),
+            )
+        };
+        let s = |v: &str| Some(v.to_string());
+        assert_eq!(
+            classes(&frame),
+            (
+                s("_marketText_1lyag_1 _semibold20_1lyag_246 _title_f46b277"),
+                s("_icon_77f3f89 _icon_b8b52c1 _arrowRight_f57b400")
+            )
+        );
+        frame.sidebar.collapsed = true;
+        assert_eq!(
+            classes(&frame),
+            (
+                s("_marketText_1lyag_1 _semibold20_1lyag_246 _title_f46b277 _hidden_7634c40"),
+                s("_icon_77f3f89 _icon_b8b52c1 _arrowRight_f57b400 _visuallyHidden_ac6ece2")
             )
         );
     }
