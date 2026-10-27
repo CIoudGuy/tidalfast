@@ -12116,8 +12116,22 @@ mod tests {
                         continue;
                     }
                     checked += 1;
+                    // TIDAL's shade over the page above the bar is the
+                    // page's own, painted before the view slides over it.
+                    let bar_top = 800.0 - crate::theme::PLAYER_BAR_HEIGHT;
+                    let shade = egui::Rect::from_min_max(
+                        egui::pos2(0.0, bar_top - 80.0),
+                        egui::pos2(1280.0, bar_top),
+                    );
                     for (shape, clip) in &shapes {
                         let bounds = match shape {
+                            Shape::Mesh(mesh)
+                                if mesh.vertices.len() == 4
+                                    && mesh.calc_bounds() == shade
+                                    && mesh.vertices[0].color == egui::Color32::TRANSPARENT =>
+                            {
+                                continue;
+                            }
                             Shape::Mesh(mesh) if mesh.vertices.len() > 3 => mesh.calc_bounds(),
                             Shape::Rect(rect) if rect.fill == base => rect.rect,
                             _ => continue,

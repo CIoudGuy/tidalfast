@@ -13,6 +13,16 @@ use super::*;
 /// The overlay a theme's `css` gives `tree` once it sets the variable
 /// `var`.
 fn styled_vars(name: &str, css: &str, tree: &HostTree, var: &str) -> DomOverlay {
+    styled_until(name, css, tree, |o| o.vars.contains_key(var))
+}
+
+/// The overlay a theme's `css` gives `tree` once `done` holds.
+fn styled_until(
+    name: &str,
+    css: &str,
+    tree: &HostTree,
+    done: impl Fn(&DomOverlay) -> bool,
+) -> DomOverlay {
     let files: Files = Arc::default();
     files
         .lock()
@@ -26,10 +36,10 @@ fn styled_vars(name: &str, css: &str, tree: &HostTree, var: &str) -> DomOverlay 
         luna.sync_dom(tree.clone());
         luna.sync(Duration::from_secs(5));
         let o = luna.dom_overlay();
-        if o.vars.contains_key(var) {
+        if done(&o) {
             break o;
         }
-        assert!(Instant::now() < end, "the theme never set {var}");
+        assert!(Instant::now() < end, "the theme never got there");
         std::thread::sleep(Duration::from_millis(30));
     };
     luna.shutdown();
@@ -251,4 +261,64 @@ fn the_search_fields_box_is_its_pill() {
             && (field[3] - 36.0).abs() < 0.5,
         "the search field's box: {field:?}"
     );
+}
+
+/// TIDAL shades what lies above its bar: `._player_8c80ae6::before` is a
+/// gradient from clear to black at 15 %, from 80 points above the bar to 12
+/// below it, over the page, the sidebar and the play queue. Under
+/// TidalCustomTheme's pink page TIDAL 2.46.0's page is 16 levels darker
+/// just above the bar than higher up (TIDAL's captured page replayed in
+/// Chromium); a theme that hides the box (the cotton candy family's
+/// `._player_8c80ae6:before { display: none }`) leaves the page as it is.
+/// Tidalfast drew no shade.
+#[test]
+fn the_page_is_shaded_above_the_bar_as_tidals_is() {
+    let (ctx, mut app) = r41::demo_app("album:alb0", Some("quality-pill"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let footer = r41::boxes(&plain)[keys::FOOTER];
+    let bar_top = footer[1];
+    // Beside the page's column, clear of the sidebar and the list.
+    let x = 262.0;
+    let points = [[x, bar_top - 2.5], [x, bar_top - 150.0]];
+    let light = crate::theme::Palette {
+        themed: true,
+        ..crate::theme::Palette::light()
+    };
+    for (css, shaded) in [
+        (":root { --unrelated-token: 1px; }", true),
+        ("._player_8c80ae6:before { display: none; }", false),
+    ] {
+        let css = format!("/* {{\"name\": \"Shade\"}} */\n{css}\n");
+        let o = if shaded {
+            styled_vars("shade.css", &css, &plain, "--unrelated-token")
+        } else {
+            styled_until("shade.css", &css, &plain, |o| {
+                o.hosts
+                    .get(keys::FOOTER)
+                    .is_some_and(|h| h.before.is_some())
+            })
+        };
+        app.palette = light;
+        let colours = r41::painted_at(&ctx, &mut app, o, &points);
+        let (near, far) = (colours[0], colours[1]);
+        // 2.5 points above the bar: 15 % of the way 77.5 / 180 down.
+        let alpha = 0.15 * (80.0 - 2.5) / 180.0;
+        let want = if shaded {
+            (f32::from(far.r()) * (1.0 - alpha)).round()
+        } else {
+            f32::from(far.r())
+        };
+        assert!(
+            (f32::from(near.r()) - want).abs() <= 2.0,
+            "shaded {shaded}: the page above the bar is {near:?}, higher up {far:?} (want red {want})"
+        );
+    }
+    app.backend.shutdown();
 }
