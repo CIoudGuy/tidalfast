@@ -4284,8 +4284,21 @@ pub fn hero_cover(r: Rect, radio: bool) -> Option<CoverStyle> {
             p.hero_radio = radio;
         }
     });
-    // A radio's art has other classes than an album's: kept apart.
-    let slot = if radio { usize::MAX - 1 } else { usize::MAX };
+    // A radio's art and a playlist's have other classes than an album's:
+    // kept apart.
+    let playlist = with(|s| {
+        s.frame
+            .page
+            .as_ref()
+            .is_some_and(|p| p.page_id.as_deref() == Some("playlist"))
+    });
+    let slot = if radio {
+        usize::MAX - 1
+    } else if playlist {
+        usize::MAX - 8
+    } else {
+        usize::MAX
+    };
     if let Some(hit) = theme_boxes(|b| b.covers.get(&slot).cloned()) {
         return hit;
     }

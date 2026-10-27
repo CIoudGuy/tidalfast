@@ -3595,8 +3595,40 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 .at(meta.words.or(meta.rect)),
         );
     }
-    // The header's art: `._coverArtContainer_2eafdf9 > ._coverArt_79d862c > img`.
-    if let Some(art) = page.hero {
+    // The header's art: `._coverArtContainer_2eafdf9 > ._coverArt_79d862c > img`
+    // on an album; on a playlist TIDAL 2.46.0's `button._artwork_1d717fe >
+    // div._image_d7a36dc._shadow_32a27bc > div > div >
+    // img._resourceImage_4beb8bc[data-test=cover-art]` (captured), which
+    // the album's rules do not reach.
+    if let Some(art) = page.hero
+        && !page.hero_radio
+        && page.page_id.as_deref() == Some("playlist")
+    {
+        out.push(
+            el(keys::HERO_COVER, Some(PAGE_DATA), "button")
+                .class("_button_94c5125")
+                .class("_clean_af1ce7e")
+                .class("_medium_c24bed2")
+                .class("_artwork_1d717fe")
+                .attr("type", "button")
+                .at(Some(art)),
+        );
+        out.push(
+            el(keys::HERO_COVER_ART, Some(keys::HERO_COVER), "div")
+                .class("tidal-ui__geometry")
+                .class("css-szds1q")
+                .class("_image_d7a36dc")
+                .class("_shadow_32a27bc")
+                .at(Some(art)),
+        );
+        out.push(
+            el(keys::HERO_COVER_IMG, Some(keys::HERO_COVER_ART), "img")
+                .class("_resourceImage_4beb8bc")
+                .class("_image_145331a")
+                .test("cover-art")
+                .at(Some(art)),
+        );
+    } else if let Some(art) = page.hero {
         out.push(
             el(keys::HERO_COVER, Some(PAGE_DATA), "div")
                 .class("_coverArtContainer_2eafdf9")
