@@ -695,19 +695,16 @@ fn now_playing_block(
     let text_width = words_cap.map_or(text_width, |cap| text_width.min(cap));
     // TIDAL's third line: where the playing thing comes from.
     let source = app.playing_from();
-    // The words' box clips what it holds: tall enough for each line whole
-    // (a source line's "g" or "y" was cut at 52).
-    let row = |font: egui::FontId| ui.fonts_mut(|f| f.row_height(&font));
-    let lines = row(theme::semibold(14.0)) + 2.0 + row(theme::regular(12.0));
-    let text_height = if source.is_some() {
-        (lines + 2.0 + row(theme::regular(12.0)).max(12.0)).max(52.0)
+    // The words' box is TIDAL 2.46.0's `_titleArtistStack_`, centred in the
+    // bar: the title's line box 22, the artists' 20 and the source's 2 + 18,
+    // 1 apart (64; 43 without a source). It clips what it holds, and each
+    // line lies whole in it (a source line's "g" or "y" was cut at 52).
+    let stack = if source.is_some() {
+        TRACK_STACK
     } else {
-        lines.max(36.0)
+        TRACK_STACK_NO_SOURCE
     };
-    let text_rect = Rect::from_min_size(
-        pos2(text_left, cy - text_height / 2.0),
-        vec2(text_width, text_height),
-    );
+    let text_rect = Rect::from_min_size(pos2(text_left, cy - stack / 2.0), vec2(text_width, stack));
     let info_response = ui.interact(text_rect, egui::Id::new("now-playing-info"), drag_sense);
     // The space around the title and artists is the bar's own: it opens
     // the now-playing view too. The links over it take their own clicks.
@@ -724,7 +721,13 @@ fn now_playing_block(
             .layout(Layout::top_down(Align::Min)),
     );
     text_ui.set_clip_rect(text_rect.intersect(ui.clip_rect()));
-    text_ui.spacing_mut().item_spacing.y = 2.0;
+    // Each line is laid in its own line box, as TIDAL's are, not one glyph
+    // row after the other.
+    text_ui.spacing_mut().item_spacing.y = 0.0;
+    let row = |font: egui::FontId| text_ui.fonts_mut(|f| f.row_height(&font));
+    let (title_row, small_row) = (row(theme::semibold(14.0)), row(theme::regular(12.0)));
+    let stack_top = text_rect.top();
+    line_at(&mut text_ui, stack_top + TITLE_LINE.1, title_row);
     // Luna plugins may rewrite the title (translators) or hide it.
     // A title a plugin gave the song in a TIDAL answer comes first.
     let shown = now
@@ -801,10 +804,17 @@ fn now_playing_block(
         } else {
             palette.secondary
         });
+    // A line a plugin left out takes no room; one it hid keeps it.
+    let artist_shown = [keys::ARTIST_ROW, keys::ARTIST].map(plugin_dom::shown);
+    let artist_gone = artist_shown.contains(&plugin_dom::Shown::Gone);
+    let mut line_top = stack_top + TITLE_LINE.0 + LINE_GAP;
+    advance_to(&mut text_ui, line_top);
+    if !artist_gone {
+        line_at(&mut text_ui, line_top + ARTIST_LINE.1, small_row);
+    }
     let artist_row = text_ui.horizontal_top(|ui| {
-        // A line a plugin left out takes no room; one it hid keeps it.
-        let shown = [keys::ARTIST_ROW, keys::ARTIST].map(plugin_dom::shown);
-        if shown.contains(&plugin_dom::Shown::Gone) {
+        let shown = artist_shown;
+        if artist_gone {
             return;
         }
         if shown.contains(&plugin_dom::Shown::Invisible) {
@@ -849,6 +859,11 @@ fn now_playing_block(
         }
     }
     if let Some(from) = source {
+        if !artist_gone {
+            line_top += ARTIST_LINE.0 + LINE_GAP;
+            advance_to(&mut text_ui, line_top);
+        }
+        line_at(&mut text_ui, line_top + SOURCE_LINE.1, small_row);
         source_line(app, &mut text_ui, &from, artist_color);
     }
     if (cover_response.drag_started_by(egui::PointerButton::Primary)
@@ -923,11 +938,13 @@ fn now_playing_block(
     if let Some((card, slot)) = card {
         let words = text_ui.min_rect();
         let actions = heart_rect.union(heart_rect.translate(vec2(more_shift, 0.0)));
-        // Down the card holds TIDAL's lines, centred in the bar: the title's
-        // 22, the artists' 20 and the source's 2 + 18, 1 apart (64 in all,
-        // 43 without a source; TIDAL 2.46.0's `_titleArtistStack_`), not
-        // the glyph rows the words take here (54).
-        let stack = if has_source { 64.0 } else { 43.0 };
+        // Down the card holds TIDAL's lines, centred in the bar (the
+        // words' box, `_titleArtistStack_`).
+        let stack = if has_source {
+            TRACK_STACK
+        } else {
+            TRACK_STACK_NO_SOURCE
+        };
         let content = Rect::from_min_max(
             pos2(words.left(), cy - stack / 2.0),
             pos2(actions.right().max(words.right()), cy + stack / 2.0),
@@ -1052,6 +1069,39 @@ fn now_playing_block(
         reach = reach.max(line_end + 64.0 + (more_shift - 28.0));
     }
     reach
+}
+
+/// TIDAL 2.46.0's `_titleArtistStack_` with a source line: the title's
+/// line box, the artists' and the source's (2 + 18), 1 apart.
+const TRACK_STACK: f32 = 64.0;
+
+/// The same without a source line.
+const TRACK_STACK_NO_SOURCE: f32 = 43.0;
+
+/// The gap between two of the stack's line boxes.
+const LINE_GAP: f32 = 1.0;
+
+/// Each line box's height and where its words' glyph row is centred in it
+/// (from the box's top), so that the glyphs lie where TIDAL's do (TIDAL
+/// 2.46.0's captured bar replayed in Chromium in the same face): the
+/// title's 22 (`line-height: 22px`), the artists' 20, and the source's 2
+/// (its top margin) + 18.
+const TITLE_LINE: (f32, f32) = (22.0, 10.0);
+const ARTIST_LINE: (f32, f32) = (20.0, 11.0);
+const SOURCE_LINE: (f32, f32) = (20.0, 11.0);
+
+/// Moves `ui`'s cursor down to `y` (never up).
+fn advance_to(ui: &mut egui::Ui, y: f32) {
+    let gap = y - ui.cursor().top();
+    if gap > 0.0 {
+        ui.add_space(gap);
+    }
+}
+
+/// Moves `ui`'s cursor down so that a row `height` tall added next is
+/// centred on `centre`.
+fn line_at(ui: &mut egui::Ui, centre: f32, height: f32) {
+    advance_to(ui, centre - height / 2.0);
 }
 
 /// Room kept between the end of the track info's plugin elements and the
@@ -2377,6 +2427,48 @@ mod narrow_tests {
             "{:?} is cut by {clip:?}: {rect:?}",
             source.name
         );
+    }
+
+    /// TIDAL 2.46.0 lays the bar's words in line boxes (its
+    /// `_titleArtistStack_`, 64 points centred in the bar: the title's 22,
+    /// the artists' 20 and the source's 2 + 18, 1 apart), so their glyph
+    /// rows' middles lie 22 above the bar's middle, 2 below it and 23
+    /// below it (TIDAL's captured bar replayed in Chromium in Tidalfast's
+    /// face). Tidalfast stacked the glyph rows 2 apart in a 54-point box:
+    /// the title 4 points low and the source line 4 high.
+    #[test]
+    fn the_track_infos_lines_lie_in_tidals_line_boxes() {
+        let (ctx, mut app) = setup();
+        crate::ui::plugin_dom::test_overlay(None);
+        let source = app.playing_from().expect("the demo plays from a source");
+        let now = app.now_playing().expect("the demo plays a song");
+        let height = 820.0;
+        let found = settled(&ctx, &mut app, 1240.0);
+        let middle = |text: &str| {
+            found
+                .iter()
+                .find(|(t, rect)| t == text && rect.top() > height - 88.0)
+                .unwrap_or_else(|| panic!("{text:?} is not in the bar"))
+                .1
+                .center()
+                .y
+        };
+        let bar = height - 44.0;
+        let artist = now
+            .artists
+            .first()
+            .map_or(now.subtitle.clone(), |a| a.name.clone());
+        for (text, want) in [
+            (now.title.as_str(), bar - 22.0),
+            (artist.as_str(), bar + 2.0),
+            (source.name.as_str(), bar + 23.0),
+        ] {
+            let got = middle(text);
+            assert!(
+                (got - want).abs() <= 0.5,
+                "{text:?}: its row's middle at {got}, TIDAL's at {want}"
+            );
+        }
     }
 
     /// CatJam appends its cat to the bar's cover. While the now-playing view
