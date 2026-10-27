@@ -66,8 +66,10 @@ pub(super) struct HeroImages<'a> {
 
 /// The larger of the hero's two cover sizes (TIDAL: 240).
 const HERO_ART: f32 = 240.0;
-/// The space above the cover, under the header (TIDAL: 24).
-pub(super) const HERO_TOP: f32 = 13.0;
+/// The space above the cover, under the header and the page frame's own
+/// top margin and row gap: 24 under the header in all (TIDAL 2.46.0's
+/// header container under `#main`'s 56-point header room).
+pub(super) const HERO_TOP: f32 = 14.0;
 /// The space the hero leaves after itself; the controls row adds its own.
 const HERO_GAP: f32 = 0.0;
 
