@@ -226,3 +226,29 @@ fn a_moved_search_field_and_account_button_are_drawn_moved() {
         );
     }
 }
+
+/// TIDAL 2.46.0's search field (`div._container_f1be359`) is its 280 x 36
+/// pill, 1797 points from the left of a 2137-point window with the play
+/// queue closed (TIDAL's captured page replayed in Chromium), and a theme's
+/// box for it lies there. Tidalfast's anchor was the text box inside the
+/// pill (200 x 19, 44 in from its left).
+#[test]
+fn the_search_fields_box_is_its_pill() {
+    let (ctx, mut app) = r41::demo_app("album:alb0", Some("quality-pill"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    app.backend.shutdown();
+    let field = r41::boxes(&plain)[keys::SEARCH_FIELD];
+    assert!(
+        (field[0] - 1797.0).abs() < 0.5
+            && (field[2] - 280.0).abs() < 0.5
+            && (field[3] - 36.0).abs() < 0.5,
+        "the search field's box: {field:?}"
+    );
+}

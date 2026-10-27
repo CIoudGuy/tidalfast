@@ -443,9 +443,12 @@ fn bar_contents(
             }
             super::plugin_dom::Shown::Gone => ui.allocate_exact_size(Vec2::ZERO, Sense::hover()).1,
         };
+        // The field's box is its pill (TIDAL's `div._container_f1be359`,
+        // 280 x 36), not the text box inside it.
+        let pill = super::widgets::search_pill(ui.ctx(), id).unwrap_or(response.rect);
         super::plugin_dom::note(|f| {
             f.shell.search = (search_shown != super::plugin_dom::Shown::Gone)
-                .then_some(response.rect)
+                .then_some(pill)
                 .and_then(super::plugin_dom::rect);
             f.shell.search_text.clone_from(&app.search.query);
         });
