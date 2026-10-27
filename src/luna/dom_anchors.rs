@@ -1861,6 +1861,11 @@ pub struct PlayerBar {
     /// selector: the playback context's, else the user's streaming quality
     /// capped by the song's), for every song.
     pub expected_quality: Option<String>,
+    /// What TIDAL's badge reads for the stream here when it has figures:
+    /// a lossless stream's bit depth and sample rate (`16-bit 44.1kHz`),
+    /// a video's height (`1080P`). None: TIDAL's words for the quality
+    /// alone (a lossy one's bit rate, else "LOW").
+    pub quality_words: Option<String>,
     pub favorite: bool,
     pub playing: bool,
     pub shuffle: bool,
@@ -4136,16 +4141,26 @@ pub fn track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackR
     );
 }
 
-/// The player's quality badge for a TIDAL quality: (the modules on the
-/// badge, text). As TIDAL 2.46.0's (its bundle, `m1e`): `_max_` for HI_RES
-/// and HI_RES_LOSSLESS, `_high_` for LOSSLESS alone, and `_badge_` alone
-/// for the lossy HIGH and LOW.
-fn badge(quality: &str) -> (&'static [&'static str], &'static str) {
+/// The modules on the player's quality badge for a TIDAL quality. As
+/// TIDAL 2.46.0's (its bundle, `m1e`): `_max_` for HI_RES and
+/// HI_RES_LOSSLESS, `_high_` for LOSSLESS alone, and `_badge_` alone for
+/// the lossy HIGH and LOW.
+fn badge(quality: &str) -> &'static [&'static str] {
     match quality.to_ascii_uppercase().as_str() {
-        "HI_RES_LOSSLESS" | "HI_RES" | "MAX" => (&["badge", "max"], "MAX"),
-        "LOSSLESS" => (&["badge", "high"], "HIGH"),
-        "HIGH" => (&["badge"], "HIGH"),
-        _ => (&["badge"], "LOW"),
+        "HI_RES_LOSSLESS" | "HI_RES" | "MAX" => &["badge", "max"],
+        "LOSSLESS" => &["badge", "high"],
+        _ => &["badge"],
+    }
+}
+
+/// The words of TIDAL 2.46.0's badge for a quality without figures (its
+/// bundle, `m1e`): a lossy quality's bit rate, else its `quality_low`
+/// string in capitals.
+fn badge_words(quality: &str) -> &'static str {
+    match quality {
+        "HIGH" => "320 kbps",
+        "LOW" => "96 kbps",
+        _ => "LOW",
     }
 }
 
@@ -4154,7 +4169,7 @@ fn badge(quality: &str) -> (&'static [&'static str], &'static str) {
 /// and `._max_ ._gradientMax_` for HI_RES and HI_RES_LOSSLESS; the other
 /// two are there at `opacity: 0`.
 pub fn shown_quality_gradient(quality: &str) -> &'static str {
-    match badge(quality).0 {
+    match badge(quality) {
         [_, "max"] => keys::QUALITY_GRADIENT_MAX,
         [_, "high"] => keys::QUALITY_GRADIENT_HIGH,
         _ => keys::QUALITY_GRADIENT_LOW,
@@ -4641,24 +4656,18 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     // as the song changes, Tidal Tags, and give up after a second), with the
     // quality TIDAL 2.46.0's selector gives it then: the stream's, else the
     // user's streaming quality capped by the song's (radiant-lyrics colours
-    // the progress bar by it at load). Its words are TIDAL's for a badge
-    // with no bit depth or sample rate yet: a lossy quality's bit rate,
-    // else "LOW" (its `quality_low` string in capitals).
+    // the progress bar by it at load). Its words are TIDAL's: the stream's
+    // figures (`16-bit 44.1kHz`; Tidal Tags reads them), else, as for a
+    // badge with no bit depth or sample rate yet, a lossy quality's bit
+    // rate or "LOW".
     let pending = p.quality.is_none() && p.track_id.is_some();
     let expected = pending.then(|| p.expected_quality.as_deref().unwrap_or(""));
     if let Some(q) = p.quality.as_deref().or(expected) {
         let (classes, text) = if q.is_empty() {
             (&["badge"][..], "")
-        } else if pending {
-            let (classes, _) = badge(q);
-            let text = match q {
-                "HIGH" => "320 kbps",
-                "LOW" => "96 kbps",
-                _ => "LOW",
-            };
-            (classes, text)
         } else {
-            badge(q)
+            let words = p.quality_words.as_deref().filter(|_| !pending);
+            (badge(q), words.unwrap_or_else(|| badge_words(q)))
         };
         // TIDAL's `data-test` names the quality itself
         // (`quality-badge-LOSSLESS`); a badge with no quality keeps the
@@ -5267,6 +5276,7 @@ pub fn sample_frame() -> Frame {
         }],
         cover_url: Some("https://resources.tidal.com/images/a/b/c/80x80.jpg".into()),
         quality: Some("LOSSLESS".into()),
+        quality_words: Some("16-bit 44.1kHz".into()),
         playing: true,
         repeat: "off".into(),
         position: 61.0,
@@ -5842,9 +5852,39 @@ mod tests {
                 s("LOSSLESS"),
                 s("quality-badge-LOSSLESS"),
                 s("_badge_7b2911e _high_4b5525b"),
-                s("HIGH")
+                s("16-bit 44.1kHz")
             )
         );
+    }
+
+    /// Once the stream here says, TIDAL 2.46.0's badge (its bundle, `m1e`)
+    /// reads the stream's figures (a lossless stream's bit depth and sample
+    /// rate); without them, its words for the quality alone: a lossy one's
+    /// bit rate, else "LOW". The anchors read "HIGH", "HIGH" and "LOW".
+    #[test]
+    fn the_badge_of_a_stream_reads_tidals_words() {
+        let words_of = |quality: &str, words: Option<&str>| {
+            let mut frame = sample_frame();
+            let p = frame.player.as_mut().unwrap();
+            p.quality = Some(quality.to_string());
+            p.quality_words = words.map(str::to_string);
+            let tree = build(&frame);
+            find(&tree, keys::QUALITY_LABEL)
+                .text
+                .clone()
+                .unwrap_or_default()
+        };
+        assert_eq!(
+            words_of("LOSSLESS", Some("16-bit 44.1kHz")),
+            "16-bit 44.1kHz"
+        );
+        assert_eq!(
+            words_of("HI_RES_LOSSLESS", Some("24-bit 96.0kHz")),
+            "24-bit 96.0kHz"
+        );
+        assert_eq!(words_of("LOSSLESS", None), "LOW");
+        assert_eq!(words_of("HIGH", None), "320 kbps");
+        assert_eq!(words_of("LOW", None), "96 kbps");
     }
 
     /// TIDAL 2.46.0's player badge (its bundle, `m1e`) holds, for every

@@ -5739,6 +5739,59 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// A stream here: TIDAL 2.46.0's badge reads its figures (`m1e`:
+    /// `${bitDepth}-bit ${(sampleRate / 1e3).toFixed(1)}kHz` for a lossless
+    /// one, a lossy one's bit rate), as the pill draws them; Tidal Tags
+    /// reads that text. The anchors said "HIGH" for both.
+    #[test]
+    fn the_badge_of_a_stream_here_reads_its_figures() {
+        use crate::luna::dom::DomOverlay;
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("local-badge");
+        app.open(Page::Home);
+        apply_flags(&mut app, None, Some("quality-pill"));
+        let words = |app: &mut App| {
+            plugin_dom::test_overlay(Some(DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            }));
+            for _ in 0..3 {
+                shown_frame(&ctx, app);
+                plugin_dom::end_frame(&ctx);
+            }
+            let sent = plugin_dom::test_sent_tree().expect("a tree was sent");
+            plugin_dom::test_overlay(None);
+            let test = sent
+                .nodes
+                .iter()
+                .find(|n| n.key == keys::QUALITY_BADGE)
+                .and_then(|n| n.attrs.iter().find(|(k, _)| k == "data-test"))
+                .map(|(_, v)| v.clone());
+            let words = sent
+                .nodes
+                .iter()
+                .find(|n| n.key == keys::QUALITY_LABEL)
+                .and_then(|n| n.text.clone());
+            (test, words)
+        };
+        let s = |v: &str| Some(v.to_string());
+        assert_eq!(
+            words(&mut app),
+            (s("quality-badge-LOSSLESS"), s("16-bit 44.1kHz"))
+        );
+        // A lossy stream: its bit rate, as TIDAL's (not the tier's name).
+        app.local.format = Some(crate::tidal_engine::StreamFormat {
+            codec: "aac".into(),
+            sample_rate: 44_100,
+            channels: 2,
+            quality: Some(crate::tidal_engine::Quality::High),
+            ..Default::default()
+        });
+        assert_eq!(words(&mut app), (s("quality-badge-HIGH"), s("320 kbps")));
+        app.backend.shutdown();
+    }
+
     /// A song on another device has no stream here, and TIDAL 2.46.0's
     /// badge still names a quality for it (its selector: the user's
     /// streaming quality capped by the song's `audioQuality`), with the

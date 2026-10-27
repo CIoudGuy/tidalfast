@@ -2159,8 +2159,9 @@ lib.observe(unloads, "#footerPlayer", ready);
 }
 
 /// Tidal Tags (dev): the player bar's quality badge has TIDAL's
-/// `span > span` label; the plugin writes the stream's format into it and
-/// colours the badge, and both reach the native pill.
+/// `span > span` label with the stream's figures, as TIDAL's reads; the
+/// plugin writes the stream's format into it and colours the badge, and
+/// both reach the native pill.
 #[test]
 fn quality_badge_label_takes_plugin_text_and_colour() {
     let (luna, _host, dir) = start(
@@ -2176,7 +2177,7 @@ lib.observe(unloads, '[class*="_qualityBadgeContainer"]', (t) => {
     );
     luna.sync_dom(tree());
     let r = results_until(&luna, &dir, 10, |r| r["native"].is_string());
-    assert_eq!(r["native"], json!("HIGH"));
+    assert_eq!(r["native"], json!("16-bit 44.1kHz"));
     let o = overlay_until(&luna, 10, |o| {
         o.host(keys::QUALITY_LABEL)
             .is_some_and(|h| h.text.as_deref() == Some("24bit 96kHz FLAC"))
