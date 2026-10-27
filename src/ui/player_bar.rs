@@ -1575,8 +1575,13 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         run.slot(ui, 3, keys::QUALITY, Position::Prepend);
         // Between the buttons' box and the badge's.
         run.slot(ui, 8, keys::UTILITY_BUTTONS, Position::After);
+        // TIDAL's badge reads the pill's words, except where the pill names
+        // the tier for want of figures (TIDAL's then read its fallback).
+        let words =
+            (!matches!(badge.label.as_str(), "MAX" | "LOSSLESS")).then(|| badge.label.clone());
         plugin_dom::note(|f| {
             if let Some(bar) = f.player.as_mut() {
+                bar.quality_words = words;
                 bar.quality = Some(
                     match badge.quality {
                         crate::tidal_engine::Quality::HiResLossless => "HI_RES_LOSSLESS",
