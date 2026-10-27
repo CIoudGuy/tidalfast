@@ -5861,40 +5861,101 @@ mod tests {
         app.backend.shutdown();
     }
 
-    /// The collapsed sidebar's rail has no Collection row in the plugins'
-    /// page, so no Collection submenu: nothing of the submenu is noted
-    /// there, where the expanded sidebar notes its 8 pages.
+    /// TIDAL 2.46.0's collapsed sidebar keeps its navigation rows (`Dqe`,
+    /// their words hidden with `_hidden_7634c40`) and the Collection
+    /// submenu, so the rail's rows are in the plugins' page too, where each
+    /// is drawn, and the submenu's 8 pages with them; a row a plugin hides
+    /// leaves the rail. The rail noted no rows and no submenu.
     #[test]
-    fn the_rail_notes_no_collection_submenu() {
-        use crate::luna::dom::DomOverlay;
+    fn the_rail_keeps_tidals_navigation_rows() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::keys;
         use crate::ui::plugin_dom;
-        let (ctx, mut app) = accessible_app("rail-no-submenu");
+        let (ctx, mut app) = accessible_app("rail-rows");
         app.open(Page::Home);
-        plugin_dom::test_overlay(Some(DomOverlay {
-            version: 1,
-            ..DomOverlay::default()
-        }));
-        shown_frame(&ctx, &mut app);
-        let expanded = plugin_dom::test_submenu_pages();
-        plugin_dom::end_frame(&ctx);
         app.settings.sidebar_visible = false;
-        let mut rail = 0;
-        for _ in 0..3 {
-            shown_frame(&ctx, &mut app);
-            rail = plugin_dom::test_submenu_pages();
-            plugin_dom::end_frame(&ctx);
-        }
-        let sent = plugin_dom::test_sent_tree().expect("a tree was sent");
-        plugin_dom::test_overlay(None);
-        assert_eq!(expanded, 8);
+        let rows = |ctx: &egui::Context, app: &mut App, overlay: DomOverlay| {
+            plugin_dom::test_overlay(Some(overlay));
+            let mut pages = 0;
+            for _ in 0..3 {
+                shown_frame(ctx, app);
+                pages = plugin_dom::test_submenu_pages();
+                plugin_dom::end_frame(ctx);
+            }
+            let sent = plugin_dom::test_sent_tree().expect("a tree was sent");
+            plugin_dom::test_overlay(None);
+            let found = |key: &str| sent.nodes.iter().find(|n| n.key == key).cloned();
+            let class = |key: &str| {
+                found(key).and_then(|n| {
+                    n.attrs
+                        .iter()
+                        .find(|(k, _)| k == "class")
+                        .map(|(_, v)| v.clone())
+                })
+            };
+            let drawn: Vec<_> = [
+                "sidebar-music",
+                "sidebar-explore",
+                "sidebar-feed",
+                "sidebar-collection-menu",
+            ]
+            .iter()
+            .map(|test| found(&keys::sidebar_item(test)).and_then(|n| n.rect))
+            .collect();
+            (
+                class(keys::SIDEBAR),
+                class(&keys::sidebar_item_label("sidebar-music")),
+                drawn,
+                pages,
+            )
+        };
+        let (wrapper, words, drawn, pages) = rows(
+            &ctx,
+            &mut app,
+            DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            },
+        );
         assert!(
-            sent.nodes.iter().any(|n| n
-                .attrs
-                .iter()
-                .any(|(k, v)| k == "class" && v.contains("_isCollapsed_4fb92c6"))),
+            wrapper.is_some_and(|c| c.contains("_isCollapsed_4fb92c6")),
             "the rail was drawn"
         );
-        assert_eq!(rail, 0, "the rail notes no submenu");
+        assert_eq!(
+            words.as_deref(),
+            Some("_marketText_1lyag_1 _semibold20_1lyag_246 _title_f46b277 _hidden_7634c40")
+        );
+        assert!(drawn.iter().all(Option::is_some), "{drawn:?}");
+        // One above the other, 40 points apart.
+        let tops: Vec<f32> = drawn.iter().flatten().map(|r| r[1]).collect();
+        assert!(tops.windows(2).all(|w| w[1] > w[0]), "{tops:?}");
+        assert_eq!(pages, 8, "the submenu's pages");
+        // A plugin that hides Explore takes it out of the rail.
+        let hide = (
+            keys::sidebar_item("sidebar-explore"),
+            HostOverride {
+                style: Style {
+                    display: Some("none".into()),
+                    ..Style::default()
+                },
+                ..HostOverride::default()
+            },
+        );
+        let (_, _, hidden, _) = rows(
+            &ctx,
+            &mut app,
+            DomOverlay {
+                version: 2,
+                hosts: [hide].into_iter().collect(),
+                ..DomOverlay::default()
+            },
+        );
+        assert!(hidden[1].is_none(), "{hidden:?}");
+        assert_eq!(
+            hidden[2].map(|r| r[1]),
+            drawn[1].map(|r| r[1]),
+            "Feed moved up"
+        );
         app.backend.shutdown();
     }
 

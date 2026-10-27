@@ -658,23 +658,48 @@ fn rail(app: &mut App, ui: &mut egui::Ui) {
     {
         app.actions.push(Action::ToggleSidebar);
     }
-    if rail_button(ui, &palette, Icon::Music, page == Page::Home)
-        .on_hover_text(gettext(locale, "Music").as_ref())
-        .clicked()
+    if rail_button(
+        ui,
+        &palette,
+        "sidebar-music",
+        Icon::Music,
+        page == Page::Home,
+    )
+    .on_hover_text(gettext(locale, "Music").as_ref())
+    .clicked()
     {
         app.actions.push(Action::Open(Page::Home));
     }
-    if rail_button(ui, &palette, Icon::Globe, super::explore::is_explore(&page))
-        .on_hover_text(gettext(locale, "Explore").as_ref())
-        .clicked()
+    if rail_button(
+        ui,
+        &palette,
+        "sidebar-explore",
+        Icon::Globe,
+        super::explore::is_explore(&page),
+    )
+    .on_hover_text(gettext(locale, "Explore").as_ref())
+    .clicked()
     {
         app.actions.push(Action::Open(super::explore::page()));
     }
     feed_row(app, ui, &palette, &page, true);
-    upload_row(app, ui, &palette, &page, true);
-    let collection = rail_button(ui, &palette, Icon::Collection, collection_active(&page));
-    // The rail's anchors have no Collection row, so no submenu either.
-    collection_flyout(app, ui, &collection, collection.rect.right() + 4.0, false);
+    let upload_shown = upload_row(app, ui, &palette, &page, true);
+    let collection = rail_button(
+        ui,
+        &palette,
+        "sidebar-collection-menu",
+        Icon::Collection,
+        collection_active(&page),
+    );
+    // TIDAL's collapsed sidebar keeps its rows and the Collection submenu
+    // in the page (their words hidden): plugins find and rewrite them.
+    collection_flyout(app, ui, &collection, collection.rect.right() + 4.0, true);
+    if super::plugin_dom::on() {
+        let row = collection.rect;
+        note_nav_items(app, &page, upload_shown, |i, last| {
+            row.translate(vec2(0.0, -row.height() * (last - i) as f32))
+        });
+    }
 
     // "All playlists" shrinks to its create button.
     let (header, _) = ui.allocate_exact_size(vec2(ui.available_width(), 54.0), Sense::hover());
@@ -1410,7 +1435,8 @@ fn nav_label<'a>(test: &str, native: std::borrow::Cow<'a, str>) -> std::borrow::
 fn feed_row(app: &mut App, ui: &mut egui::Ui, palette: &Palette, page: &Page, rail: bool) {
     let label = gettext(app.locale, "Feed");
     let response = if rail {
-        rail_button(ui, palette, Icon::Bell, *page == Page::Feed).on_hover_text(label.as_ref())
+        rail_button(ui, palette, "sidebar-feed", Icon::Bell, *page == Page::Feed)
+            .on_hover_text(label.as_ref())
     } else {
         let shown = nav_label("sidebar-feed", label);
         nav_row(
@@ -1519,7 +1545,8 @@ fn upload_row(
     let label = gettext(app.locale, "Upload");
     let active = *page == Page::Uploads;
     let response = if rail {
-        rail_button(ui, palette, Icon::ArrowUp, active).on_hover_text(label.as_ref())
+        rail_button(ui, palette, "sidebar-uploads", Icon::ArrowUp, active)
+            .on_hover_text(label.as_ref())
     } else {
         let shown = nav_label("sidebar-uploads", label);
         nav_row(
@@ -1684,14 +1711,33 @@ fn idle_nav_ink(palette: &Palette) -> egui::Color32 {
 }
 
 /// A navigation row of the icon rail: the icon alone in a 40 x 40 box.
-fn rail_button(ui: &mut egui::Ui, palette: &Palette, icon: Icon, active: bool) -> egui::Response {
+/// A navigation row of the narrowed sidebar (TIDAL's `data-test` `test`):
+/// its icon in a 40-point button. A row a plugin hid is left out or keeps
+/// its room, as `nav_row`.
+fn rail_button(
+    ui: &mut egui::Ui,
+    palette: &Palette,
+    test: &str,
+    icon: Icon,
+    active: bool,
+) -> egui::Response {
+    let key = crate::luna::dom_anchors::keys::sidebar_item(test);
+    let shown = super::plugin_dom::shown(&key);
+    if shown == super::plugin_dom::Shown::Gone {
+        super::plugin_dom::nav_row_drawn(test, None);
+        return ui
+            .allocate_exact_size(vec2(ui.available_width(), 0.0), Sense::hover())
+            .1;
+    }
     let (row, _) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::hover());
     let rect = Rect::from_center_size(row.center(), vec2(RAIL_BUTTON_WIDTH, 40.0));
-    let response = ui.interact(
-        rect,
-        ui.id().with(("rail-button", std::mem::discriminant(&icon))),
-        Sense::click(),
-    );
+    super::plugin_dom::nav_row_drawn(test, Some(rect));
+    let id = ui.id().with(("rail-button", std::mem::discriminant(&icon)));
+    if shown != super::plugin_dom::Shown::Drawn {
+        // Hidden elements take no pointer: no hover, no click.
+        return ui.interact(rect, id, Sense::hover());
+    }
+    let response = ui.interact(rect, id, Sense::click());
     if ui.is_rect_visible(rect) {
         let hover = crate::motion::progress(
             ui.ctx(),
@@ -1722,6 +1768,76 @@ fn rail_button(ui: &mut egui::Ui, palette: &Palette, icon: Icon, active: bool) -
     });
     theme::focus_ring(ui, &response);
     response
+}
+
+/// TIDAL's navigation rows (`div#sidebar-content` in TIDAL 2.46.0's `Dqe`)
+/// for the anchors: their `data-test`, words, address and whether the page
+/// is theirs, with where each was drawn this frame; `fallback(i, last)` is
+/// the box of row `i` of `last + 1` that did not say. The rail has the same
+/// rows: TIDAL's collapsed sidebar keeps them and hides their words.
+fn note_nav_items(
+    app: &App,
+    page: &Page,
+    upload_shown: bool,
+    fallback: impl Fn(usize, usize) -> Rect,
+) {
+    let locale = app.locale;
+    let items = [
+        (
+            "sidebar-music",
+            gettext(locale, "Music"),
+            "/",
+            *page == Page::Home,
+        ),
+        (
+            "sidebar-explore",
+            gettext(locale, "Explore"),
+            "/explore",
+            super::explore::is_explore(page),
+        ),
+        (
+            "sidebar-feed",
+            gettext(locale, "Feed"),
+            "/feed",
+            *page == Page::Feed,
+        ),
+        (
+            "sidebar-uploads",
+            gettext(locale, "Upload"),
+            "/your-uploads",
+            *page == Page::Uploads,
+        ),
+        (
+            "sidebar-collection-menu",
+            gettext(locale, "Collection"),
+            "/my-collection",
+            collection_active(page),
+        ),
+    ];
+    let items: Vec<_> = items
+        .into_iter()
+        .filter(|(test, ..)| upload_shown || *test != "sidebar-uploads")
+        .collect();
+    let last = items.len() - 1;
+    let drawn: Vec<_> = items
+        .iter()
+        .map(|(test, ..)| super::plugin_dom::nav_row_rect(test))
+        .collect();
+    super::plugin_dom::note(|f| {
+        for (i, ((test, label, href, selected), drawn)) in items.into_iter().zip(drawn).enumerate()
+        {
+            // Where the row drew itself; a row a plugin left out has no
+            // box.
+            let r = drawn.unwrap_or_else(|| Some(fallback(i, last)));
+            f.sidebar.items.push(crate::luna::dom_anchors::SidebarItem {
+                test: test.into(),
+                label: label.into_owned(),
+                href: Some(href.into()),
+                selected,
+                rect: r.and_then(super::plugin_dom::rect),
+            });
+        }
+    });
 }
 
 /// A 16-point icon in TIDAL's text-30 grey that turns white under the
@@ -2096,72 +2212,11 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
         }
     };
     if super::plugin_dom::on() {
-        let items = [
-            (
-                "sidebar-music",
-                gettext(locale, "Music"),
-                "/",
-                page == Page::Home,
-            ),
-            (
-                "sidebar-explore",
-                gettext(locale, "Explore"),
-                "/explore",
-                super::explore::is_explore(&page),
-            ),
-            (
-                "sidebar-feed",
-                gettext(locale, "Feed"),
-                "/feed",
-                page == Page::Feed,
-            ),
-            (
-                "sidebar-uploads",
-                gettext(locale, "Upload"),
-                "/your-uploads",
-                page == Page::Uploads,
-            ),
-            (
-                "sidebar-collection-menu",
-                gettext(locale, "Collection"),
-                "/my-collection",
-                collection_active,
-            ),
-        ];
-        let items: Vec<_> = items
-            .into_iter()
-            .filter(|(test, ..)| upload_shown || *test != "sidebar-uploads")
-            .collect();
         // The rows just drawn, top to bottom, end at the collection row.
-        let row = collection;
-        let last = items.len() - 1;
-        let drawn: Vec<_> = items
-            .iter()
-            .map(|(test, ..)| super::plugin_dom::nav_row_rect(test))
-            .collect();
-        super::plugin_dom::note(|f| {
-            for (i, ((test, label, href, selected), drawn)) in
-                items.into_iter().zip(drawn).enumerate()
-            {
-                // The row's pill, 16 in from the sidebar's edges, as
-                // TIDAL's `_navigationItem_` box (208 x 40 at 16).
-                // Where the row drew itself; a row a plugin left out has
-                // no box.
-                let r = match drawn {
-                    Some(drawn) => drawn,
-                    None => Some(
-                        row.translate(vec2(0.0, -row.height() * (last - i) as f32))
-                            .shrink2(vec2(16.0, 0.0)),
-                    ),
-                };
-                f.sidebar.items.push(crate::luna::dom_anchors::SidebarItem {
-                    test: test.into(),
-                    label: label.into_owned(),
-                    href: Some(href.into()),
-                    selected,
-                    rect: r.and_then(super::plugin_dom::rect),
-                });
-            }
+        note_nav_items(app, &page, upload_shown, |i, last| {
+            collection
+                .translate(vec2(0.0, -collection.height() * (last - i) as f32))
+                .shrink2(vec2(16.0, 0.0))
         });
         // Plugin links after the Collection entry (AltPlay, after its
         // wrapper), then at the end of the fixed navigation (miniplayer's
