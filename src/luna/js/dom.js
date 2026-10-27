@@ -928,6 +928,82 @@
 		out.push(cur);
 		return out;
 	};
+	// A declared value as Chromium serializes it: a colour it parsed reads
+	// back in its own notation, not the text it was given. `#3fe`, `hsl()`
+	// and the other sRGB forms are `rgb(51, 255, 238)`, or `rgba(r, g, b, a)`
+	// when not opaque (radiant-lyrics sets its progress colour `#3fe` and
+	// TIDAL's style attribute reads `rgb(51, 255, 238)`), wherever the colour
+	// stands in the value (a shadow, a gradient). A custom property, and a
+	// value with `var()` (substituted only when computed), keep their text;
+	// so do colour names, `url()` and strings.
+	const COLOUR_HINT = /#[0-9a-f]{3}|(rgba?|hsla?)\(/i;
+	const alphaText = (a) => String(Number(Math.min(1, Math.max(0, a)).toFixed(6)));
+	const rgbText = (r, g, b, a) => {
+		const c = (x) => Math.round(Math.min(255, Math.max(0, x)));
+		return a >= 1 ? `rgb(${c(r)}, ${c(g)}, ${c(b)})` : `rgba(${c(r)}, ${c(g)}, ${c(b)}, ${alphaText(a)})`;
+	};
+	const hexColour = (h) => {
+		if (h.length === 3 || h.length === 4) h = [...h].map((x) => x + x).join("");
+		const n = (i) => parseInt(h.slice(i, i + 2), 16);
+		if (h.length === 6) return rgbText(n(0), n(2), n(4), 1);
+		// An alpha byte reads with two decimals when they name the same byte,
+		// else three (`#0000004d` is `rgba(0, 0, 0, 0.3)`).
+		const byte = n(6);
+		const two = Math.round((byte / 255) * 100) / 100;
+		return rgbText(n(0), n(2), n(4), Math.round(two * 255) === byte ? two : Math.round((byte / 255) * 1000) / 1000);
+	};
+	const NUMBER_ARG = /^([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)(%|deg)?$/i;
+	const colourFunction = (fn, args) => {
+		const parts = args
+			.trim()
+			.split(/\s*,\s*|\s*\/\s*|\s+/)
+			.filter(Boolean);
+		if (parts.length < 3 || parts.length > 4) return null;
+		const nums = parts.map((p) => NUMBER_ARG.exec(p));
+		if (nums.some((m) => !m)) return null;
+		const val = (m) => parseFloat(m[1]);
+		const alpha = nums[3] ? (nums[3][2] === "%" ? val(nums[3]) / 100 : nums[3][2] ? NaN : val(nums[3])) : 1;
+		if (!Number.isFinite(alpha)) return null;
+		if (fn.startsWith("rgb")) {
+			if (nums.slice(0, 3).some((m) => m[2] && m[2] !== "%")) return null;
+			const ch = (m) => (m[2] === "%" ? (val(m) * 255) / 100 : val(m));
+			return rgbText(ch(nums[0]), ch(nums[1]), ch(nums[2]), alpha);
+		}
+		if (nums[0][2] === "%" || nums[1][2] === "deg" || nums[2][2] === "deg") return null;
+		const h = (((val(nums[0]) % 360) + 360) % 360) / 360;
+		const s = Math.min(1, Math.max(0, val(nums[1]) / 100));
+		const l = Math.min(1, Math.max(0, val(nums[2]) / 100));
+		const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+		const p = 2 * l - q;
+		const hue = (t) => {
+			t = ((t % 1) + 1) % 1;
+			if (t < 1 / 6) return p + (q - p) * 6 * t;
+			if (t < 1 / 2) return q;
+			if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+			return p;
+		};
+		return rgbText(hue(h + 1 / 3) * 255, hue(h) * 255, hue(h - 1 / 3) * 255, alpha);
+	};
+	// Strings and addresses are matched first so that what is in them stays.
+	const COLOUR_TOKEN = /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\burl\([^)]*\)|(^|[^-\w])#([0-9a-f]+)(?![-\w])|\b(rgba?|hsla?)\(([^()]*)\)/gi;
+	// Values seen before, as sheets and per-frame writes repeat them.
+	const serialized = new Map();
+	const serializeColours = (name, value) => {
+		if (name.startsWith("--") || !COLOUR_HINT.test(value) || /var\(/i.test(value)) return value;
+		let out = serialized.get(value);
+		if (out !== undefined) return out;
+		out = value.replace(COLOUR_TOKEN, (m, pre, hex, fn, args) => {
+			if (hex !== undefined) return [3, 4, 6, 8].includes(hex.length) ? pre + hexColour(hex.toLowerCase()) : m;
+			// A colour function this does not read (a relative colour,
+			// `calc()` in it) keeps its text.
+			if (fn !== undefined) return colourFunction(fn.toLowerCase(), args) ?? m;
+			return m;
+		});
+		if (serialized.size >= 4096) serialized.clear();
+		serialized.set(value, out);
+		return out;
+	};
+	D.serializeColours = serializeColours;
 	// A margin or padding value the browser rejects as it parses (Sugarcoat's
 	// `margin: a` after `margin-bottom: .15em`): the declaration is dropped,
 	// so it neither sets nor resets anything. A value with a variable is only
@@ -979,7 +1055,7 @@
 				value = value.slice(0, m.index).trim();
 			}
 			const key = name.startsWith("--") ? name : canonical(name.toLowerCase());
-			if (key !== null && !invalidBoxValue(key, value)) out.push({ name: key, value, important });
+			if (key !== null && !invalidBoxValue(key, value)) out.push({ name: key, value: serializeColours(key, value), important });
 		}
 		return out;
 	};
@@ -1025,6 +1101,7 @@
 				value = value.slice(0, m.index).trim();
 			}
 			if (invalidBoxValue(k, value)) return;
+			value = serializeColours(k, value);
 			const cur = this._m.get(k);
 			if (cur && cur.value === value && cur.important === important) return;
 			this._own();
@@ -1312,7 +1389,7 @@
 		_cloneSelf() {
 			const c = createEl(this.localName, this.namespaceURI);
 			for (const [k, v] of this._attrs) c._attrs.set(k, v);
-			if (this._attrs.has("style")) c.style.cssText = this._attrs.get("style");
+			if (this._attrs.has("style")) (c._style = new CSSStyleDeclaration(c))._setSilently(this._attrs.get("style"));
 			if (this._attrs.has("src")) c._load?.();
 			if (this._value !== undefined) c._value = this._value;
 			return c;
@@ -1323,7 +1400,9 @@
 		}
 		getAttribute(k) {
 			k = this._name(k);
-			if (k === "style" && this._style) return this._style.length ? this._style.cssText : (this._attrs.get("style") ?? null);
+			// The attribute's text as it was set (Chromium keeps it); a change
+			// through the style object writes the declarations' serialization.
+			if (k === "style") return this._attrs.get("style") ?? (this._style?.length ? this._style.cssText : null);
 			return this._attrs.get(k) ?? null;
 		}
 		hasAttribute(k) {
@@ -1977,7 +2056,7 @@
 				const an = svg ? am[0] : am[0].toLowerCase();
 				el._attrs.set(an, decode(val));
 			}
-			if (el._attrs.has("style")) el.style.cssText = el._attrs.get("style");
+			if (el._attrs.has("style")) (el._style = new CSSStyleDeclaration(el))._setSilently(el._attrs.get("style"));
 			if (el._attrs.has("src")) el._load?.();
 			const parent = top().el;
 			parent.childNodes.push(el);

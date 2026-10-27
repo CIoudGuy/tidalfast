@@ -530,7 +530,10 @@ document.addEventListener("contextmenu", (e) => {
             .is_some_and(|h| h.style.outline.is_some())
     });
     let ring = &o.host(keys::FAVORITE).unwrap().style;
-    assert_eq!(ring.outline.as_deref(), Some("2px solid #ff6b6b"));
+    assert_eq!(
+        ring.outline.as_deref(),
+        Some("2px solid rgb(255, 107, 107)")
+    );
     assert_eq!(ring.outline_offset.as_deref(), Some("2px"));
     assert!(ring.box_shadow.is_some());
     finish(luna, dir);
@@ -963,6 +966,84 @@ R.found = {
     );
     assert_eq!(f["moz"], json!(""), "{f}");
     assert_eq!(f["length"], json!(2), "{f}");
+    finish(luna, dir);
+}
+
+/// A declared colour reads back as Chromium serializes it, not as it was
+/// written: a plugin that sets `#3fe` on an element (radiant-lyrics' progress
+/// colour) finds `rgb(51, 255, 238)` in its style and style attribute, as in
+/// TIDAL, wherever the colour stands in the value. Custom properties, values
+/// with `var()`, names and addresses keep their text, and the style
+/// attribute keeps the text it was set to until the style object changes it.
+#[test]
+fn declared_colours_read_back_as_chromium_serializes_them() {
+    let (luna, _host, dir) = start(
+        r##"
+const el = document.createElement("div");
+document.body.appendChild(el);
+el.style.setProperty("background-color", "#3fe", "important");
+el.style.color = "hsl(120, 50%, 50%)";
+el.style.boxShadow = "0 0 4px #00000080";
+el.style.backgroundImage = "linear-gradient(#FFF, rgba(0,0,0,.5))";
+el.style.borderTopColor = "rgba(10, 20, 30, 1)";
+el.style.fill = "url(#grad)";
+el.style.outlineColor = "red";
+el.style.setProperty("--accent", "#3fe");
+el.style.caretColor = "var(--accent, #fff)";
+const set = document.createElement("div");
+set.setAttribute("style", "color:#fff");
+const parsed = document.createElement("div");
+parsed.innerHTML = '<span style="color:#000">x</span>';
+const sheet = document.createElement("style");
+sheet.textContent = ".dom-test-colour { color: #abc; }";
+document.head.appendChild(sheet);
+R.found = {
+	attr: el.getAttribute("style"),
+	read: [el.style.backgroundColor, el.style.color, el.style.boxShadow, el.style.backgroundImage, el.style.borderTopColor, el.style.fill, el.style.outlineColor, el.style.getPropertyValue("--accent"), el.style.caretColor],
+	set: [set.getAttribute("style"), set.style.color],
+	parsed: [parsed.firstChild.getAttribute("style"), parsed.firstChild.style.color, parsed.innerHTML],
+	rule: sheet.sheet.cssRules[0].style.color,
+};
+"##,
+    );
+    let r = results_until(&luna, &dir, 20, |r| !r["found"].is_null());
+    let f = &r["found"];
+    assert_eq!(
+        f["attr"],
+        json!(
+            "background-color: rgb(51, 255, 238) !important; color: rgb(64, 191, 64); \
+             box-shadow: 0 0 4px rgba(0, 0, 0, 0.5); background-image: linear-gradient(rgb(255, \
+             255, 255), rgba(0, 0, 0, 0.5)); border-top-color: rgb(10, 20, 30); fill: url(#grad); \
+             outline-color: red; --accent: #3fe; caret-color: var(--accent, #fff);"
+        ),
+        "{f}"
+    );
+    assert_eq!(
+        f["read"],
+        json!([
+            "rgb(51, 255, 238)",
+            "rgb(64, 191, 64)",
+            "0 0 4px rgba(0, 0, 0, 0.5)",
+            "linear-gradient(rgb(255, 255, 255), rgba(0, 0, 0, 0.5))",
+            "rgb(10, 20, 30)",
+            "url(#grad)",
+            "red",
+            "#3fe",
+            "var(--accent, #fff)"
+        ]),
+        "{f}"
+    );
+    assert_eq!(f["set"], json!(["color:#fff", "rgb(255, 255, 255)"]), "{f}");
+    assert_eq!(
+        f["parsed"],
+        json!([
+            "color:#000",
+            "rgb(0, 0, 0)",
+            "<span style=\"color:#000\">x</span>"
+        ]),
+        "{f}"
+    );
+    assert_eq!(f["rule"], json!("rgb(170, 187, 204)"), "{f}");
     finish(luna, dir);
 }
 
@@ -2102,7 +2183,7 @@ lib.observe(unloads, '[class*="_qualityBadgeContainer"]', (t) => {
     });
     assert_eq!(
         o.host(keys::QUALITY).unwrap().style.color.as_deref(),
-        Some("#ffd432")
+        Some("rgb(255, 212, 50)")
     );
     finish(luna, dir);
 }
@@ -3687,7 +3768,7 @@ R.ready = true;
     assert_eq!(after.border_width.as_deref(), Some("10px 10px 0px 10px"));
     assert_eq!(
         after.border_color.as_deref(),
-        Some("#111 transparent transparent transparent")
+        Some("rgb(17, 17, 17) transparent transparent transparent")
     );
     assert!(bubble.style.border_width.is_none(), "one width all round");
     let plain = by_id("plain");
@@ -3770,7 +3851,7 @@ R.ready = true;
             .selection
             .as_ref()
             .and_then(|s| s.background_color.as_deref()),
-        Some("#48003c"),
+        Some("rgb(72, 0, 60)"),
         "{title:?}"
     );
     assert!(
@@ -4084,7 +4165,10 @@ lib.observe(unloads, "div[data-track--page-id='album']", (page) => {
         .unwrap()
         .children[0];
     assert_eq!(button.style.margin.as_deref(), Some("0 0 0 16px"));
-    assert_eq!(button.style.fill.as_deref(), Some("#fff9"));
+    assert_eq!(
+        button.style.fill.as_deref(),
+        Some("rgba(255, 255, 255, 0.6)")
+    );
     let markup = button.children[0].markup.as_deref().unwrap();
     assert!(
         markup.contains(r#"<svg viewBox="0 0 24 24" width="100%" height="100%">"#)
@@ -4284,7 +4368,7 @@ lib.observe(unloads, '[data-test="new-now-playing-close"]', () => {
     assert_eq!(button.style.height.as_deref(), Some("30px"));
     assert_eq!(button.style.padding.as_deref(), Some("0 11px"));
     assert_eq!(button.style.font_weight.as_deref(), Some("600"));
-    assert_eq!(button.style.color.as_deref(), Some("#b4b4b8"));
+    assert_eq!(button.style.color.as_deref(), Some("rgb(180, 180, 184)"));
     // Tidalfast's own tabs keep their native look.
     assert!(o.host(&tab).is_none_or(|h| h.style.padding.is_none()));
     finish(luna, dir);
@@ -4319,7 +4403,7 @@ for (const c of ["dm-nav", "dm-nav on"]) {
             .copied()
             .unwrap()
     };
-    for (cls, left) in [("dm-nav", "transparent"), ("dm-nav on", "#0078d7")] {
+    for (cls, left) in [("dm-nav", "transparent"), ("dm-nav on", "rgb(0, 120, 215)")] {
         let style = &by(cls).style;
         assert_eq!(
             style.border_width.as_deref(),

@@ -320,7 +320,7 @@ R.ready = true;
             let s = luna.snapshot();
             assert_eq!(s.context_menu.len(), 3, "{:?}", s.context_menu);
             let by = |t: &str| s.context_menu.iter().find(|i| i.text == t).unwrap().clone();
-            assert_eq!(by("Coloured").color.as_deref(), Some("#31d8ff"));
+            assert_eq!(by("Coloured").color.as_deref(), Some("rgb(49, 216, 255)"));
             assert!(!by("Coloured").hidden);
             assert!(by("Hidden").hidden);
             assert_eq!(by("Plain").color, None);
