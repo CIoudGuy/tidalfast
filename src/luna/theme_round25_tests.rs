@@ -403,8 +403,9 @@ fn the_playlists_heading_takes_the_themes_colour_for_it() {
 /// (`._feed_412931c`: a border, corners, a gradient, padding, and
 /// `max-width: calc(88vw - var(--sidebarWidth) - (var(--playQueueWidth) *
 /// .9))`), which narrows the feed in TIDAL. Nothing of it was drawn and
-/// the feed kept its own width; TIDAL's `--playQueueWidth` (350) was not
-/// declared, so the width could not resolve.
+/// the feed kept its own width; TIDAL's `--playQueueWidth` was not
+/// declared, so the width could not resolve (TIDAL 2.46.0 declares it
+/// `0px`).
 #[test]
 fn homes_feed_card_takes_the_themes_width_and_padding() {
     use crate::ui::plugin_dom as pd;
@@ -431,10 +432,7 @@ fn homes_feed_card_takes_the_themes_width_and_padding() {
     pd::note(|f| f.viewport = [2137.0, 1183.0]);
     let card = pd::feed_card().expect("the card");
     let width = card.width.expect("its width");
-    assert!(
-        (width - (0.88 * 2137.0 - 240.0 - 315.0)).abs() < 1.0,
-        "{width}"
-    );
+    assert!((width - (0.88 * 2137.0 - 240.0)).abs() < 1.0, "{width}");
     // In ems of the feed's 14-point text: TIDAL's card edge lies 2.2em
     // (30.8) left of the feed, measured on its capture.
     for (got, want) in card.padding.iter().zip([16.8, 29.4, 0.0, 30.8]) {

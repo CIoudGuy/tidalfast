@@ -2584,9 +2584,12 @@ fn main_rect(frame: &Frame) -> Option<Rect> {
 
 /// The width of TIDAL's expanded sidebar, in its inline style.
 const TIDAL_SIDEBAR_WIDTH: f32 = 240.0;
-/// TIDAL 2.43.2's side panel (the play queue) is 350 wide: its
-/// `--playQueueWidth`.
-const PLAY_QUEUE_WIDTH: f32 = 350.0;
+/// TIDAL 2.46.0's `--playQueueWidth`: `0px`, on the player's wrapper
+/// (`div.has-footer-player`), with the play queue open or not (its capture,
+/// queue open: the cotton candy singles' collection grid, `calc(100.2% -
+/// var(--playQueueWidth) * .85)`, is 1474.9 of 1472 points). TIDAL 2.43.2
+/// gave its 350-point panel's width.
+const PLAY_QUEUE_WIDTH: f32 = 0.0;
 
 /// The sidebar; `docked_view`: the docked now-playing view is open, which
 /// TIDAL 2.46.0 marks on the wrapper (`_nowPlayingVisible_03bf437`).
@@ -5517,7 +5520,7 @@ mod tests {
         );
         assert_eq!(
             style(&frame, keys::CONTAINER_ROW).as_deref(),
-            Some("--sidebarWidth: 300px; --collapsedSidebarWidth: 72px; --playQueueWidth: 350px;")
+            Some("--sidebarWidth: 300px; --collapsedSidebarWidth: 72px; --playQueueWidth: 0px;")
         );
         frame.sidebar.width = 240.0;
         assert_eq!(
@@ -5532,7 +5535,7 @@ mod tests {
         );
         assert_eq!(
             style(&frame, keys::CONTAINER_ROW).as_deref(),
-            Some("--sidebarWidth: 72px; --collapsedSidebarWidth: 72px; --playQueueWidth: 350px;")
+            Some("--sidebarWidth: 72px; --collapsedSidebarWidth: 72px; --playQueueWidth: 0px;")
         );
     }
 
