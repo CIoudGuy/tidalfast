@@ -138,7 +138,7 @@ fn border_longhands_make_a_border_and_a_border_needs_a_style() {
     let (luna, o) = overlay_with("longhands.css", css, dom_anchors::sample_tree(), MAIN);
     assert_eq!(
         o.hosts[MAIN].style.border.as_deref(),
-        Some("2px solid #123456")
+        Some("2px solid rgb(18, 52, 86)")
     );
     // One side only, coloured by its `border-image` (the family's line
     // over each track row; it was drawn as a whole grey box).
@@ -188,7 +188,7 @@ fn the_play_queue_is_tidals_side_panel_and_themes_reach_it() {
     );
     assert_eq!(
         o.hosts[QUEUE_WRAPPER].style.color.as_deref(),
-        Some("#fedcba")
+        Some("rgb(254, 220, 186)")
     );
     // The backdrop's brightness darkens only what shows through the
     // panel: under this opaque fill nothing does, so no veil is laid over

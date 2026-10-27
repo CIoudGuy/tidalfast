@@ -147,7 +147,7 @@ fn a_page_comes_out_as_its_document_from_the_root() {
     );
     assert_eq!(body.style.app_region.as_deref(), Some("drag"));
     let b = find(&root, &id_is("b")).unwrap();
-    assert_eq!(b.style.color.as_deref(), Some("rgb(1,2,3)"));
+    assert_eq!(b.style.color.as_deref(), Some("rgb(1, 2, 3)"));
     assert_eq!(b.style.app_region.as_deref(), Some("no-drag"));
     assert_eq!(text(find(&root, &id_is("t")).unwrap()), "Hello");
 }

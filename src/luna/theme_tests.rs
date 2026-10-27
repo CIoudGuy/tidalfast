@@ -419,10 +419,13 @@ div._dataContainer_66f4f40::before { --img: none !important; background-color: r
             .is_none_or(|h| h.style.background_color.is_none()),
         "a pinned hash must match exactly"
     );
-    assert_eq!(o.hosts[FIXED_NAV].style.color.as_deref(), Some("#abcdef"));
+    assert_eq!(
+        o.hosts[FIXED_NAV].style.color.as_deref(),
+        Some("rgb(171, 205, 239)")
+    );
     assert_eq!(
         o.hosts[CONTAINER_ROW].style.background_color.as_deref(),
-        Some("#010203")
+        Some("rgb(1, 2, 3)")
     );
     assert!(
         !o.hosts
@@ -806,7 +809,7 @@ fn the_background_shorthand_and_its_longhands_cascade_together() {
     let style = &o.hosts[MAIN].style;
     assert_eq!(
         style.background_color.as_deref(),
-        Some("#333333"),
+        Some("rgb(51, 51, 51)"),
         "the most specific longhand wins over the shorthand"
     );
     assert!(

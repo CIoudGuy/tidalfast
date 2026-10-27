@@ -1194,7 +1194,7 @@
 					if (!colour && decls.has("border-image")) {
 						const g = /gradient\((.*)\)/is.exec(get("border-image"));
 						const stops = g ? splitTop(g[1]).map((x) => x.trim()) : [];
-						const solid = stops.find((x) => !/^(to\s|[\d.-]+(deg|turn|rad)\b)/i.test(x) && !/^(transparent|#0000(0000)?)\b/i.test(x) && !/^#[0-9a-f]{3}0\b/i.test(x));
+						const solid = stops.find((x) => !/^(to\s|[\d.-]+(deg|turn|rad)\b)/i.test(x) && !/^(transparent|#0000(0000)?)\b/i.test(x) && !/^#[0-9a-f]{3}0\b/i.test(x) && !/^rgba\([^)]*,\s*0\)/i.test(x));
 						if (solid && !undefinedVar(solid)) colour = solid.replace(/\s+[\d.]+%(\s+[\d.]+%)?$/, "");
 					}
 					colour ||= st.color ?? parentStyle?.color ?? "currentcolor";
