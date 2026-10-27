@@ -678,8 +678,11 @@ fn nav_arrows(
         .count();
     let (rect, _) = ui.allocate_exact_size(vec2(2.0 + 34.0 * room as f32, 36.0), Sense::hover());
     if room > 0 {
-        ui.painter()
-            .rect_filled(rect, CornerRadius::same(18), palette.chip());
+        ui.painter().rect_filled(
+            rect,
+            CornerRadius::same(18),
+            super::plugin_dom::frosted_chip(palette),
+        );
     }
     super::plugin_dom::note(|f| f.shell.nav_disabled = [!can_back, !can_forward]);
     let mut clicked = [false; 2];
