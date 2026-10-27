@@ -2,9 +2,41 @@
 //! demo's pages, with made-up themes (their own values, TIDAL's classes and
 //! anchors only) where a theme is involved.
 
-use super::dom::DomOverlay;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use super::dom::{DomOverlay, HostTree};
 use super::dom_anchors::keys;
 use super::theme_round41_tests as r41;
+use super::*;
+
+/// The overlay a theme's `css` gives `tree` once it sets the variable
+/// `var`.
+fn styled_vars(name: &str, css: &str, tree: &HostTree, var: &str) -> DomOverlay {
+    let files: Files = Arc::default();
+    files
+        .lock()
+        .unwrap()
+        .insert(format!("/{name}"), css.as_bytes().to_vec());
+    let base = serve(files);
+    let luna = Luna::start(config(&temp_dir(name)), Arc::new(MockHost::default())).unwrap();
+    luna.install_theme(&format!("{base}/{name}"));
+    let end = Instant::now() + Duration::from_secs(20);
+    let o = loop {
+        luna.sync_dom(tree.clone());
+        luna.sync(Duration::from_secs(5));
+        let o = luna.dom_overlay();
+        if o.vars.contains_key(var) {
+            break o;
+        }
+        assert!(Instant::now() < end, "the theme never set {var}");
+        std::thread::sleep(Duration::from_millis(30));
+    };
+    luna.shutdown();
+    let mut o = (*o).clone();
+    o.version = 2;
+    o
+}
 
 /// TIDAL 2.46.0 starts a page's content 24 points under its header (the
 /// album's and playlist's cover, My Collection's title: `#main`'s 56-point
@@ -86,4 +118,76 @@ fn a_playlists_header_art_is_marked_up_as_tidals() {
             "{page}: the header art's shadow is {shadow:?}, not the one for its own classes ({want})"
         );
     }
+}
+
+/// TIDAL fills its back and forward pill with its frosted chip,
+/// `var(--frosted-glass-floating-surface)` (`#282828bf`), whatever colours
+/// a theme gives the page: under TidalCustomTheme's pink page the pill is
+/// TIDAL's dark glass (TIDAL 2.46.0's captured page replayed in Chromium),
+/// and a theme that sets the token (Tidal Light's `#dbdbdb59`) fills it
+/// with its own. Tidalfast filled the pill with a themed palette's surface
+/// (TidalCustomTheme's light pink).
+#[test]
+fn the_back_and_forward_pill_is_tidals_frosted_chip() {
+    let (ctx, mut app) = r41::demo_app("album:alb0", Some("quality-pill"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let pill = r41::boxes(&plain)[keys::NAV_ARROWS];
+    let light = crate::theme::Palette {
+        themed: true,
+        ..crate::theme::Palette::light()
+    };
+    let blend = |c: egui::Color32, under: egui::Color32| {
+        let [r, g, b, a] = c.to_srgba_unmultiplied();
+        let a = f32::from(a) / 255.0;
+        let mix = |x: u8, y: u8| (f32::from(x) * a + f32::from(y) * (1.0 - a)).round() as u8;
+        egui::Color32::from_rgb(mix(r, under.r()), mix(g, under.g()), mix(b, under.b()))
+    };
+    // Inside the pill above the back chevron, and just left of the pill.
+    let points = [
+        [pill[0] + 17.0, pill[1] + 5.0],
+        [pill[0] - 4.0, pill[1] + 5.0],
+    ];
+    for (css, want) in [
+        (
+            ":root { --unrelated-token: 1px; }",
+            egui::Color32::from_rgba_unmultiplied(40, 40, 40, 191),
+        ),
+        (
+            ":root { --frosted-glass-floating-surface: #dbdbdb59; }",
+            egui::Color32::from_rgba_unmultiplied(0xdb, 0xdb, 0xdb, 0x59),
+        ),
+    ] {
+        let var = if css.contains("frosted") {
+            "--frosted-glass-floating-surface"
+        } else {
+            "--unrelated-token"
+        };
+        let css = format!(
+            "/* {{\"name\": \"Chip\"}} */
+{css}
+"
+        );
+        let o = styled_vars("chip.css", &css, &plain, var);
+        app.palette = light;
+        let colours = r41::painted_at(&ctx, &mut app, o, &points);
+        let expected = blend(want, colours[1]);
+        let near = colours[0]
+            .to_array()
+            .iter()
+            .zip(expected.to_array())
+            .all(|(a, b)| a.abs_diff(b) <= 3);
+        assert!(
+            near,
+            "{var}: the pill is {:?} over {:?}, TIDAL's chip there {expected:?}",
+            colours[0], colours[1]
+        );
+    }
+    app.backend.shutdown();
 }

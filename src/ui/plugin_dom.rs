@@ -2056,6 +2056,27 @@ pub fn token_popup_fill() -> Option<Color32> {
     .map(Color32::to_opaque)
 }
 
+/// TIDAL's frosted chip under the back and forward arrows
+/// (`div._container_bb78f1d { background:
+/// var(--frosted-glass-floating-surface) }`): a theme's value of the token
+/// (Tidal Light's `#dbdbdb59`), or TIDAL's own `#282828bf` under a theme
+/// that leaves it, light or dark. Without a theme, the palette's chip.
+pub fn frosted_chip(palette: &Palette) -> Color32 {
+    let token = on()
+        .then(|| {
+            with(|s| {
+                let v = s.overlay.vars.get("--frosted-glass-floating-surface")?;
+                css::color(&css::resolve_vars(v, &s.overlay.vars))
+            })
+        })
+        .flatten();
+    match token {
+        Some(c) => c,
+        None if palette.themed => Color32::from_rgba_unmultiplied(40, 40, 40, 191),
+        None => palette.chip(),
+    }
+}
+
 /// The words TIDAL colours with `--wave-color-solid-contrast-fill` itself,
 /// not with the body's colour: a track row's (its title and time, where no
 /// rule names them) and a menu's. Measured in TIDAL with themes that set
