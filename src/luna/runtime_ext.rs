@@ -871,6 +871,7 @@ impl Engine {
                     .map(|s| s.to_string())
                     .collect();
                 super::super::ensure_pinned_stores(&mut stores);
+                super::super::record_default_stores(&i.cfg.data_dir);
                 stores
             } else {
                 Vec::new()

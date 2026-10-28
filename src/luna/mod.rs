@@ -111,9 +111,10 @@ impl RuntimeId {
 
 /// The store list TidaLuna ships with (`@luna/ui` PluginStoreTab), in its
 /// order and with its release channels: Inrixia's store and wont-stream's are
-/// the `dev` build, the rest `latest`. Read from the `to(...)` calls in the
-/// `luna.ui.mjs` of TidaLuna 1.17.1-beta. The `dev` builds are what TidaLuna
-/// users run and what the plugin comparisons were made against.
+/// the `dev` build, the rest `latest`. Read from the `addToStores(...)` calls
+/// of TidaLuna 1.18.0-beta. The `dev` builds are what TidaLuna users run and
+/// what the plugin comparisons were made against. A store added to the end
+/// is offered once to a list saved before it ([`offer_new_default_stores`]).
 pub const DEFAULT_STORES: &[&str] = &[
     "https://github.com/SuperslowJelly/TIDAL-Clear-Coat/releases/download/latest",
     "https://github.com/meowarex/TidalLuna-Plugins/releases/download/latest",
@@ -138,7 +139,63 @@ pub const DEFAULT_STORES: &[&str] = &[
     "https://github.com/seomin0610/luna-plugins/releases/download/latest",
     "https://github.com/visiuun/tidaluna-plugins/releases/download/latest",
     "https://github.com/Kisakay/luna-plugins/releases/download/latest",
+    "https://github.com/BaeHyolyn/tidal-presence/releases/latest/download",
 ];
+
+/// How many of [`DEFAULT_STORES`] a store list saved before Tidalfast kept a
+/// record of the defaults it was given had (TidaLuna 1.17.1-beta's list).
+const DEFAULT_STORES_BEFORE_RECORD: usize = 23;
+
+/// Adds to a saved store list the default stores it has never been given,
+/// as TidaLuna adds a store newly in its list on the next start. A default
+/// the user removed stays removed: `default-stores.json` in `data_dir`
+/// records the defaults already given. `first_run` is a list just seeded
+/// with every default. Whether `stores` changed.
+pub(crate) fn offer_new_default_stores(
+    data_dir: &std::path::Path,
+    stores: &mut Vec<String>,
+    first_run: bool,
+) -> bool {
+    let recorded: Option<Vec<String>> = storage::read_json(&data_dir.join("default-stores.json"))
+        .and_then(|v| serde_json::from_value(v).ok());
+    let up_to_date = recorded.as_ref().is_some_and(|recorded| {
+        recorded
+            .iter()
+            .map(String::as_str)
+            .eq(DEFAULT_STORES.iter().copied())
+    });
+    let given: Vec<String> = recorded.unwrap_or_else(|| {
+        let given = if first_run {
+            DEFAULT_STORES
+        } else {
+            &DEFAULT_STORES[..DEFAULT_STORES_BEFORE_RECORD]
+        };
+        given.iter().map(|s| s.to_string()).collect()
+    });
+    let mut changed = false;
+    for store in DEFAULT_STORES {
+        if given.iter().any(|g| is_same_store(g, store)) {
+            continue;
+        }
+        if !stores.iter().any(|s| is_same_store(s, store)) {
+            stores.push((*store).to_string());
+            changed = true;
+        }
+    }
+    if !up_to_date {
+        record_default_stores(data_dir);
+    }
+    changed
+}
+
+/// Records that the store list in `data_dir` has been given every default
+/// store ([`offer_new_default_stores`]).
+pub(crate) fn record_default_stores(data_dir: &std::path::Path) {
+    let _ = storage::write_json(
+        &data_dir.join("default-stores.json"),
+        &serde_json::json!(DEFAULT_STORES),
+    );
+}
 
 /// Store addresses an earlier Tidalfast listed by default and TidaLuna does
 /// not, each with the address TidaLuna uses for the same store: (old, new).
@@ -230,6 +287,18 @@ pub fn plugin_identity(url: &str) -> String {
             "releases",
             "download",
             _tag,
+            file @ ..,
+        ] if !file.is_empty() => {
+            format!("github/{owner}/{repo}/{}", file.join("/"))
+        }
+        // GitHub's address of the latest release's file.
+        [
+            "github.com",
+            owner,
+            repo,
+            "releases",
+            "latest",
+            "download",
             file @ ..,
         ] if !file.is_empty() => {
             format!("github/{owner}/{repo}/{}", file.join("/"))

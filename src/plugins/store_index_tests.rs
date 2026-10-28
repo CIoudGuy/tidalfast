@@ -39,7 +39,25 @@ fn a_release_gives_each_plugin_its_asset_time() {
     .concat();
     assert_eq!(
         github_release(&url),
-        Some(("Inrixia".into(), "luna-plugins".into(), "latest".into()))
+        Some((
+            "Inrixia".into(),
+            "luna-plugins".into(),
+            "releases/tags/latest".into()
+        ))
+    );
+    // GitHub's address of a repository's latest release.
+    let latest = [
+        "https://git",
+        "hub.com/BaeHyolyn/tidal-presence/releases/latest/download",
+    ]
+    .concat();
+    assert_eq!(
+        github_release(&latest),
+        Some((
+            "BaeHyolyn".into(),
+            "tidal-presence".into(),
+            "releases/latest".into()
+        ))
     );
     assert_eq!(github_release("https://example.com/store"), None);
 }

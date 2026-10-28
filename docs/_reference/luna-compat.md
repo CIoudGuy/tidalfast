@@ -390,6 +390,16 @@ except where a line says so.
   `LunaConfig` with a struct literal instead of `LunaConfig::new` needs it.
 - `DEFAULT_STORES` now equals upstream TidaLuna's store list (23 entries;
   added FireWall-code, FlazeIGuess, seomin0610, visiuun, Kisakay).
+- TidaLuna 1.18.0-beta: `DEFAULT_STORES` has its 24th store,
+  BaeHyolyn/tidal-presence, at GitHub's latest-release address
+  (`.../releases/latest/download`), which the store index and plugin
+  identities now read as a release address too. A store list saved before
+  gets a store newly in TidaLuna's list once, as TidaLuna adds it on the
+  next start; a default the user removed stays removed
+  (`offer_new_default_stores`, recorded in `default-stores.json`).
+  `LUNA_API` (what plugins read as Luna's version) is 1.18.0-beta; its
+  plugin API is unchanged from 1.17.1-beta, whose captures the comparisons
+  in this page were made against.
 - Plugin servers (`net.createServer`, `http.createServer`) always bind
   `127.0.0.1`, whatever host the plugin asks for (`net::LISTEN_HOST`).
   `https.createServer` (TLS) stays unavailable.

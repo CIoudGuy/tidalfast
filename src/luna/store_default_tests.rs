@@ -6,9 +6,9 @@
 
 use super::*;
 
-/// TidaLuna 1.17.1-beta's `PluginStoreTab` list, in its order, copied from the
-/// `to("...")` calls in the `luna.ui.mjs` of the TIDAL install it ships in
-/// (the `/store.json` ending is what the tab strips before it saves one).
+/// TidaLuna 1.18.0-beta's `PluginStoreTab` list, in its order, copied from
+/// its `addToStores("...")` calls (the `/store.json` ending is what the tab
+/// strips before it saves one).
 const TIDALUNA_STORES: &[&str] = &[
     "https://github.com/SuperslowJelly/TIDAL-Clear-Coat/releases/download/latest/store.json",
     "https://github.com/meowarex/TidalLuna-Plugins/releases/download/latest/store.json",
@@ -33,6 +33,7 @@ const TIDALUNA_STORES: &[&str] = &[
     "https://github.com/seomin0610/luna-plugins/releases/download/latest/store.json",
     "https://github.com/visiuun/tidaluna-plugins/releases/download/latest/store.json",
     "https://github.com/Kisakay/luna-plugins/releases/download/latest/store.json",
+    "https://github.com/BaeHyolyn/tidal-presence/releases/latest/download/store.json",
 ];
 
 const OLD_INRIXIA: &str = "https://github.com/Inrixia/luna-plugins/releases/download/latest";
@@ -110,7 +111,18 @@ fn only_an_address_that_is_exactly_a_retired_default_moves() {
     );
 }
 
+/// Starts on a saved store list that has been given every default store.
 fn start_with_stores(dir: &Path, stores: &[&str], defaults: bool) -> (Luna, LunaSnapshot) {
+    std::fs::create_dir_all(dir).unwrap();
+    std::fs::write(
+        dir.join("default-stores.json"),
+        serde_json::to_string(DEFAULT_STORES).unwrap(),
+    )
+    .unwrap();
+    start_with_list(dir, stores, defaults)
+}
+
+fn start_with_list(dir: &Path, stores: &[&str], defaults: bool) -> (Luna, LunaSnapshot) {
     std::fs::create_dir_all(dir).unwrap();
     std::fs::write(
         dir.join("stores.json"),
@@ -162,6 +174,43 @@ fn a_saved_inrixia_latest_store_becomes_the_dev_store_in_place() {
     let (luna, s) = start_with_stores(&dir, &[OLD_INRIXIA, mine], false);
     assert_eq!(store_urls(&s), [OLD_INRIXIA, mine]);
     assert_eq!(saved_stores(&dir), [OLD_INRIXIA, mine]);
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A store TidaLuna adds to its list reaches a list saved before, once, as
+/// TidaLuna adds it on the next start; a default the user removed stays
+/// removed, and a store at GitHub's latest-release address is a store.
+#[test]
+fn a_new_default_store_is_offered_once_to_a_saved_list() {
+    let dir = temp_dir("store-offer");
+    let mine = "https://example.invalid/mine";
+    let owner = PINNED_STORES[0];
+    let new = *DEFAULT_STORES.last().unwrap();
+    assert!(new.ends_with("/releases/latest/download"));
+    // A list saved by an earlier Tidalfast: TidaLuna 1.17.1-beta's stores
+    // less one the user removed, and their own.
+    let mut old: Vec<&str> = DEFAULT_STORES[1..23].to_vec();
+    old.push(mine);
+    let (luna, s) = start_with_list(&dir, &old, true);
+    let mut want = old.clone();
+    want.push(new);
+    want.push(owner);
+    assert_eq!(store_urls(&s), want, "the new store added after the user's");
+    assert_eq!(saved_stores(&dir), want, "and saved");
+    assert!(
+        !store_urls(&s).iter().any(|u| u == DEFAULT_STORES[0]),
+        "a default the user removed does not come back"
+    );
+    luna.remove_store(new);
+    let s = wait_until(&luna, 10, |s| !store_urls(s).iter().any(|u| u == new));
+    assert!(!store_urls(&s).iter().any(|u| u == new));
+    luna.shutdown();
+    // Removed, it stays removed on the next start.
+    let after: Vec<String> = saved_stores(&dir);
+    let after: Vec<&str> = after.iter().map(String::as_str).collect();
+    let (luna, s) = start_with_list(&dir, &after, true);
+    assert!(!store_urls(&s).iter().any(|u| u == new), "offered once");
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -5689,9 +5689,10 @@ fn setup_with(
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
     let records_deduped = dedupe_records(&mut records, &cfg.data_dir);
-    let stores: Vec<String> = match storage::read_json(&cfg.data_dir.join("stores.json"))
-        .and_then(|v| serde_json::from_value(v).ok())
-    {
+    let saved: Option<Vec<String>> = storage::read_json(&cfg.data_dir.join("stores.json"))
+        .and_then(|v| serde_json::from_value(v).ok());
+    let first_run = saved.is_none();
+    let stores: Vec<String> = match saved {
         Some(s) => s,
         None if cfg.default_stores => super::DEFAULT_STORES
             .iter()
@@ -5701,6 +5702,8 @@ fn setup_with(
     };
     let mut stores = stores;
     let stores_moved = cfg.default_stores && migrate_stores(&mut stores, &cfg.retired_stores);
+    let defaults_added = cfg.default_stores
+        && super::offer_new_default_stores(&cfg.data_dir, &mut stores, first_run);
     let pinned_added = cfg.default_stores && super::ensure_pinned_stores(&mut stores);
     let rt = Runtime::new()?;
     rt.set_memory_limit(cfg.memory_limit);
@@ -5813,7 +5816,7 @@ fn setup_with(
     }));
     ext::load_saved(&inner);
     inner.borrow_mut().load_source_maps();
-    if pinned_added || stores_moved {
+    if pinned_added || stores_moved || defaults_added {
         inner.borrow_mut().save_stores();
     }
     if records_deduped {
