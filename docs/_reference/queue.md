@@ -119,6 +119,9 @@ Playback started on the replacement engine takes precedence over recovery.
    how it started: the song before it ended, you pressed Next, you
    clicked its queue row, or a media key skipped to it. Only that
    occurrence leaves: another copy you queued remains until its own turn.
+   A queued song the player passes over (a blocked one) leaves as well.
+   A song that has played never comes back when you queue more songs or
+   reorder *Playing next*, also after Previous restarted the song before it.
 
 4. **Next removes the top row right away.**
 

@@ -3062,6 +3062,15 @@ impl App {
         let track_changed =
             state.track != self.local.track || state.track_sequence != self.local.track_sequence;
         let reconnected = state.connected && !self.local.connected;
+        // Previous late in a song restarts it: no song starts, so the next
+        // one to start (a queued song, at the end of this one) is not the
+        // request's and leaves Playing next as usual.
+        if state.seek_sequence != self.local.seek_sequence
+            && !track_changed
+            && self.queue_start_pending == Some(Target::Local)
+        {
+            self.queue_start_pending = None;
+        }
         if state.shuffle != self.local.shuffle
             && self
                 .shuffle_set_at
@@ -3553,7 +3562,7 @@ impl App {
         // without consuming that queued copy. Explicit skips have already
         // consumed their rows; only an unrequested advance consumes one here.
         if !queue_already_updated && !repeating {
-            self.consume_manual_queue_head(&now.uri);
+            self.consume_manual_queue_through(&now.uri);
         }
         if !queue_already_updated
             && !repeating
@@ -6182,6 +6191,17 @@ impl App {
     fn consume_manual_queue_head(&mut self, uri: &str) {
         if self.manual_queue.first().map(String::as_str) == Some(uri) {
             self.remove_manual_queue_row(0);
+        }
+    }
+
+    /// A queued song the player moved on to by itself: it leaves, with the
+    /// songs queued before it, which the player passed over (a blocked
+    /// song), so they cannot hold back the songs queued after them.
+    fn consume_manual_queue_through(&mut self, uri: &str) {
+        if let Some(at) = self.manual_queue.iter().position(|queued| queued == uri) {
+            for _ in 0..=at {
+                self.remove_manual_queue_row(0);
+            }
         }
     }
 
@@ -17217,6 +17237,93 @@ mod tests {
         let (current, next) = queue_uris(&app);
         assert_eq!(current.as_deref(), Some("tidal:track:b"));
         assert_eq!(next, vec!["tidal:track:c"]);
+    }
+
+    /// Previous late in a song only restarts it. The queued song that plays
+    /// after it still leaves Playing next, and a later Play next does not
+    /// queue it again.
+    #[test]
+    fn a_queued_song_played_after_a_restart_does_not_come_back() {
+        let ctx = egui::Context::default();
+        let mut app = app_playing_locally();
+        app.on_now_playing_changed();
+        app.apply(
+            Action::AddToQueue {
+                uri: "tidal:track:a".into(),
+                label: "A".into(),
+            },
+            &ctx,
+        );
+        assert_eq!(app.manual_queue, vec!["tidal:track:a"]);
+        app.apply(Action::Previous, &ctx);
+        let mut restarted = app.local.clone();
+        restarted.position_ms = 0;
+        restarted.seek_sequence += 1;
+        app.handle_local(restarted);
+        let mut next = app.local.clone();
+        next.track = Some(crate::player::LocalTrack {
+            uri: "tidal:track:a".into(),
+            title: "A".into(),
+            ..Default::default()
+        });
+        next.track_sequence += 1;
+        app.handle_local(next);
+        assert!(
+            app.manual_queue.is_empty(),
+            "the queued song that played left Playing next: {:?}",
+            app.manual_queue
+        );
+        app.apply(
+            Action::InsertInQueue {
+                items: vec![queued_song("tidal:track:c")],
+                position: 0,
+            },
+            &ctx,
+        );
+        assert_eq!(
+            app.manual_queue,
+            vec!["tidal:track:c"],
+            "A is not queued again"
+        );
+        app.backend.shutdown();
+    }
+
+    /// The player passes over a queued song it will not play (a blocked
+    /// one) and starts the next queued song. Both leave Playing next, and
+    /// the songs queued after them still leave it as they play.
+    #[test]
+    fn a_queued_song_passed_over_does_not_hold_the_rest_back() {
+        let mut app = app_playing_locally();
+        app.on_now_playing_changed();
+        app.manual_queue = vec![
+            "tidal:track:blocked".into(),
+            "tidal:track:a".into(),
+            "tidal:track:b".into(),
+        ];
+        app.queue = loaded_queue(
+            "tidal:track:playing",
+            &[
+                "tidal:track:blocked",
+                "tidal:track:a",
+                "tidal:track:b",
+                "tidal:track:ctx",
+            ],
+        );
+        for uri in ["tidal:track:a", "tidal:track:b"] {
+            let mut next = app.local.clone();
+            next.track = Some(crate::player::LocalTrack {
+                uri: uri.into(),
+                ..Default::default()
+            });
+            next.track_sequence += 1;
+            app.handle_local(next);
+        }
+        assert!(
+            app.manual_queue.is_empty(),
+            "every queued song played or passed over left: {:?}",
+            app.manual_queue
+        );
+        app.backend.shutdown();
     }
 
     /// A stale queue response does not undo an optimistic skip.
