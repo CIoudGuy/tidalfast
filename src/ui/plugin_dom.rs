@@ -1920,6 +1920,31 @@ pub fn filter_box(ui: &egui::Ui, r: Rect) -> bool {
         && (paints_box(key) || fill(key).is_some())
 }
 
+/// The top and bottom border widths a theme gives the page's filter pill
+/// together: TIDAL's pill is its 40-point field inside a 1-point border
+/// (42 in all), and a theme's border changes its height (the cotton candy
+/// family's `border: 0 !important` leaves it 40). `None` where no theme
+/// sets one.
+pub fn filter_box_borders() -> Option<f32> {
+    host(dom_anchors::keys::PAGE_FILTER_BOX, |h, vars| {
+        if let Some(v) = h.style.border_width.as_deref() {
+            let v = css::resolve_vars(v, vars);
+            let v = v.trim().trim_end_matches("!important").trim();
+            let lengths: Vec<f32> = css::words(v)
+                .iter()
+                .filter_map(|w| css::length(w, 14.0, 0.0, [0.0, 0.0]))
+                .collect();
+            return match lengths.as_slice() {
+                [a] | [a, _] => Some(2.0 * a),
+                [t, _, b, ..] => Some(t + b),
+                [] => None,
+            };
+        }
+        let v = css::resolve_vars(h.style.border.as_deref()?, vars);
+        Some(css::border(&v).map_or(0.0, |(w, _)| 2.0 * w))
+    })
+}
+
 /// The open play queue panel is drawn in `r` (`over_now_playing` while the
 /// now-playing view is behind it): gives it TIDAL's side panel anchors and
 /// paints a theme's box for it (`._container_b3e8f28`: the cotton candy

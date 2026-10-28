@@ -1033,7 +1033,10 @@ pub(super) fn filter_field(
 ) {
     let palette = app.palette;
     let locale = app.locale;
-    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 42.0), Sense::hover());
+    // TIDAL's 40-point field in its 1-point border, or the border a theme
+    // gives the pill.
+    let height = 40.0 + super::plugin_dom::filter_box_borders().unwrap_or(2.0);
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
     let id = egui::Id::new(("collection-filter", name));
     let focused = ui.memory(|memory| memory.has_focus(id));
     // Room under the field for a theme's panel round it and the list.
