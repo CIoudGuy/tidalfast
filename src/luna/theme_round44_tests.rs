@@ -322,3 +322,38 @@ fn the_page_is_shaded_above_the_bar_as_tidals_is() {
     }
     app.backend.shutdown();
 }
+
+/// TIDAL's filter pill on a My Collection page is its 40-point field in a
+/// 1-point border, 42 in all; a theme's border changes its height, and
+/// what follows moves with it: under the cotton candy family's `border: 0
+/// !important` TIDAL 2.46.0's pill is 40 tall and the grid 2 points
+/// higher (TIDAL's captured page replayed in Chromium). Tidalfast's pill
+/// stayed 42.
+#[test]
+fn a_filter_pills_border_sets_its_height() {
+    let css = "/* {\"name\": \"Pill\"} */\n._container_080b5dc { border: 0 !important; background-color: rgb(40, 80, 160); }\n";
+    let (ctx, mut app) = r41::demo_app("albums", Some("quality-pill"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let mut o = r41::styled("pill.css", css, &plain, keys::PAGE_FILTER_BOX);
+    o.version = 2;
+    let themed = r41::drawn(&ctx, &mut app, o);
+    app.backend.shutdown();
+    let (before, after) = (r41::boxes(&plain), r41::boxes(&themed));
+    let pill = (
+        before[keys::PAGE_FILTER_BOX][3],
+        after[keys::PAGE_FILTER_BOX][3],
+    );
+    assert!(
+        (pill.0 - 42.0).abs() < 0.01 && (pill.1 - 40.0).abs() < 0.01,
+        "the pill's height plain and with no border: {pill:?}"
+    );
+    let grid = after[keys::CARD_GRID][1] - before[keys::CARD_GRID][1];
+    assert!((grid + 2.0).abs() < 0.01, "the grid moved {grid}, not 2 up");
+}
