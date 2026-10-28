@@ -1200,6 +1200,7 @@ fn a_plugin_has_one_identity_whatever_address_it_is_reached_by() {
         "http://github.com/inrixia/luna-plugins/releases/download/v2/Radiant.Lyrics.mjs",
         "https://www.github.com/Inrixia/luna-plugins/releases/download/latest/Radiant Lyrics/",
         "https://raw.githubusercontent.com/Inrixia/luna-plugins/main/Radiant.Lyrics.json",
+        "https://github.com/Inrixia/luna-plugins/releases/latest/download/Radiant.Lyrics.mjs",
     ];
     let first = plugin_identity(same[0]);
     for url in same {

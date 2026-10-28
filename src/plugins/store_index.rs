@@ -1295,8 +1295,8 @@ fn fetch_store(
     let mut ok = true;
     let mut release = None;
     let mut repo = RepoInfo::default();
-    if let Some((owner, name, tag)) = github_release(&store.url) {
-        let api = format!("https://api.github.com/repos/{owner}/{name}/releases/tags/{tag}");
+    if let Some((owner, name, release_path)) = github_release(&store.url) {
+        let api = format!("https://api.github.com/repos/{owner}/{name}/{release_path}");
         let etag = cache.releases.get(&api).and_then(|c| c.etag.clone());
         match (pass == Pass::Releases).then(|| net.get_json(&api, etag.as_deref())) {
             Some(Fetch::Fresh((value, etag))) => {
@@ -1401,15 +1401,27 @@ fn plugin_dates(
     }
 }
 
-/// `https://github.com/<owner>/<repo>/releases/download/<tag>`.
+/// The owner, repository and GitHub API path of the release a store's files
+/// come from: `https://github.com/<owner>/<repo>/releases/download/<tag>`
+/// (`releases/tags/<tag>`) or GitHub's latest release,
+/// `https://github.com/<owner>/<repo>/releases/latest/download`
+/// (`releases/latest`).
 fn github_release(store_url: &str) -> Option<(String, String, String)> {
     let rest = store_url.strip_prefix("https://github.com/")?;
-    let mut parts = rest.trim_end_matches('/').split('/');
-    let owner = parts.next()?;
-    let repo = parts.next()?;
-    (parts.next()? == "releases" && parts.next()? == "download").then_some(())?;
-    let tag = parts.next()?;
-    (parts.next().is_none()).then(|| (owner.to_string(), repo.to_string(), tag.to_string()))
+    let parts: Vec<&str> = rest.trim_end_matches('/').split('/').collect();
+    match parts.as_slice() {
+        [owner, repo, "releases", "download", tag] => Some((
+            owner.to_string(),
+            repo.to_string(),
+            format!("releases/tags/{tag}"),
+        )),
+        [owner, repo, "releases", "latest", "download"] => Some((
+            owner.to_string(),
+            repo.to_string(),
+            "releases/latest".to_string(),
+        )),
+        _ => None,
+    }
 }
 
 fn parse_release(v: &Value) -> Option<ReleaseInfo> {

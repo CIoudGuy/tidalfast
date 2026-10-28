@@ -11,7 +11,7 @@ use serde_json::json;
 /// The TidaLuna release whose plugin API the shim follows (upstream's
 /// `package.json` version). Shown on the Settings tab and given to plugins as
 /// `@luna/lib.native`'s `pkg.version`.
-pub const LUNA_API: &str = "1.17.1-beta";
+pub const LUNA_API: &str = "1.18.0-beta";
 
 /// What `process.versions` reports: the Node and Electron TidaLuna 1.17 ran
 /// on inside TIDAL 2.43. Plugins check these for feature support.
