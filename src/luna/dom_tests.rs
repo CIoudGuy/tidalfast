@@ -1131,6 +1131,38 @@ unloads.add(() => clearInterval(id));
     finish(luna, dir);
 }
 
+/// Markup with a `<template>` parses as in Chromium: the template's
+/// markup is its content, and what follows it goes on in its parent (any
+/// closing tag after a template's opening one threw a TypeError).
+#[test]
+fn markup_with_a_template_parses() {
+    let (luna, _host, dir) = start(
+        r##"
+const box = document.createElement("div");
+try {
+	box.innerHTML = `<template id="t"><div class="row"><span>in</span></div></template><p>after</p><template></template>`;
+	const t = box.querySelector("template");
+	R.found = [box.children.length, t?.content?.childNodes?.length ?? -1, t?.content?.firstChild?.className ?? null, box.querySelector("p")?.textContent ?? null, box.innerHTML];
+} catch (err) {
+	R.found = String(err);
+}
+"##,
+    );
+    let r = results_until(&luna, &dir, 20, |r| !r["found"].is_null());
+    assert_eq!(
+        r["found"],
+        json!([
+            3,
+            1,
+            "row",
+            "after",
+            "<template id=\"t\"><div class=\"row\"><span>in</span></div></template><p>after</p><template></template>"
+        ]),
+        "{r}"
+    );
+    finish(luna, dir);
+}
+
 /// A computed opacity is the number Chromium reports: `.75` reads `0.75`,
 /// a percentage its fraction, and a value past 1 or below 0 is clamped.
 /// The declared text came back as written (true-taste's `.75`).

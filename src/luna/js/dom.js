@@ -2032,7 +2032,7 @@
 				const name = html.slice(i + 2, end < 0 ? n : end).trim().toLowerCase();
 				i = end < 0 ? n : end + 1;
 				for (let k = stack.length - 1; k > 0; k--)
-					if (stack[k].el.localName.toLowerCase() === name) {
+					if ((stack[k].name ?? stack[k].el.localName.toLowerCase()) === name) {
 						stack.length = k;
 						break;
 					}
@@ -2108,7 +2108,9 @@
 				continue;
 			}
 			if (lname === "template") {
-				stack.push({ el: el.content ?? el, svg });
+				// Its markup goes into its content, a fragment with no tag of
+				// its own: the closing tag finds it by this name.
+				stack.push({ el: el.content ?? el, svg, name: lname });
 				continue;
 			}
 			stack.push({ el, svg });
