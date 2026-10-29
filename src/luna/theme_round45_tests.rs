@@ -89,3 +89,70 @@ fn an_overlay_build_the_watchdog_stops_is_built_again() {
         "the list panel never got the theme's style"
     );
 }
+
+/// The overlay a theme's `css` gives the demo's `page` once `done` holds.
+fn page_overlay(
+    name: &str,
+    css: &str,
+    page: &str,
+    show: Option<&str>,
+    done: impl Fn(&DomOverlay) -> bool,
+) -> DomOverlay {
+    let (ctx, mut app) = r41::demo_app(page, show);
+    let tree = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    app.backend.shutdown();
+    let files: Files = Arc::default();
+    files
+        .lock()
+        .unwrap()
+        .insert(format!("/{name}"), css.as_bytes().to_vec());
+    let base = serve(files);
+    let luna = Luna::start(config(&temp_dir(name)), Arc::new(MockHost::default())).unwrap();
+    luna.install_theme(&format!("{base}/{name}"));
+    let end = Instant::now() + Duration::from_secs(30);
+    let o = loop {
+        luna.sync_dom(tree.clone());
+        luna.sync(Duration::from_secs(5));
+        let o = luna.dom_overlay();
+        if done(&o) {
+            break o;
+        }
+        assert!(Instant::now() < end, "{page}: the theme never got there");
+        std::thread::sleep(Duration::from_millis(30));
+    };
+    luna.shutdown();
+    (*o).clone()
+}
+
+/// TIDAL 2.46.0's `main` holds a scroll sentinel before `div.mainContent`,
+/// and the page's box is `mainContent`'s first child (captured). A theme's
+/// `div:nth-child(1) > div > div { border-style: none }` (the cotton candy
+/// nights colourways', meant for the song rows' lines) so never reaches
+/// the list panel there, and the panel keeps the theme's 2-point border
+/// (TIDAL's songs 2 lower for it). Tidalfast's page content was `main`'s
+/// first child and its page box second, so the rule took the border off.
+#[test]
+fn a_div_chain_rule_reaches_the_list_panel_only_where_tidals_does() {
+    let css = "div:nth-child(1) > div > div { border-style: none; }\n\
+        ._items_8615603, .is-intersecting._occlusion_de6b9d3.ALBUM_ITEMS { border-style: solid; border-width: 2px; border-color: rgb(1, 2, 3); }\n";
+    for page in ["playlist:pl0", "album:alb0"] {
+        let o = page_overlay("div-chain.css", css, page, Some("queue"), |o| {
+            o.hosts
+                .get(keys::LIST_PANEL)
+                .is_some_and(|h| h.style.border_color.is_some() || h.style.border.is_some())
+        });
+        let style = &o.hosts[keys::LIST_PANEL].style;
+        assert_eq!(
+            style.border.as_deref(),
+            Some("2px solid rgb(1, 2, 3)"),
+            "{page}: {style:?}"
+        );
+    }
+}

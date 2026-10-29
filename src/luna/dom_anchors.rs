@@ -52,6 +52,8 @@ pub mod keys {
     pub const SEARCH: &str = "search";
     pub const SEARCH_FIELD: &str = "search-field";
     pub const SEARCH_INPUT: &str = "search-input";
+    /// `div._scrollSentinel_a7a9ac2`, `main`'s first child.
+    pub const MAIN_SENTINEL: &str = "main-sentinel";
     pub const MAIN_CONTENT: &str = "main-content";
     pub const PAGE: &str = "page";
     pub const PAGE_TITLE: &str = "page-title";
@@ -2007,7 +2009,6 @@ pub fn build(frame: &Frame) -> HostTree {
     let mut out =
         Vec::with_capacity(64 + frame.lists.iter().map(|l| l.rows.len() * 8).sum::<usize>());
     shell(&mut out, frame);
-    theme_roles(&mut out);
     // A page's track list sits in its list panel's
     // `div._tableContainer_556e9aa` (TIDAL 2.46.0), so a theme's rules
     // nested in that container reach its rows (the cotton candy family's
@@ -2026,6 +2027,8 @@ pub fn build(frame: &Frame) -> HostTree {
     for list in &frame.lists {
         track_list(&mut out, list_parent, list);
     }
+    // After the page: TIDAL's page box is `div.mainContent`'s first child.
+    theme_roles(&mut out);
     if let Some(np) = &frame.now_playing {
         now_playing(&mut out, np, frame.shell.fullscreen);
     }
@@ -2571,6 +2574,16 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
         picture = picture.attr("src", src.clone());
     }
     out.push(picture);
+    // TIDAL 2.46.0's `main` holds its scroll sentinel before the page's
+    // content (captured), so `div.mainContent` is its second child: a
+    // theme's `div:nth-child(1) > div > div` (the cotton candy family's
+    // `{ border-style: none }` for the song rows' lines) reaches neither
+    // the page's boxes nor the list panel there.
+    out.push(
+        el(MAIN_SENTINEL, Some(MAIN), "div")
+            .class("_scrollSentinel_a7a9ac2")
+            .attr("aria-hidden", "true"),
+    );
     out.push(
         el(MAIN_CONTENT, Some(MAIN), "div")
             .class("mainContent")
