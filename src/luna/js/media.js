@@ -1760,7 +1760,7 @@
 			this._loading = false;
 			this._broken = !ok;
 			// A drawn <img> without a CSS size takes its natural one.
-			if (this.isConnected) L.dom?.markDirty?.();
+			if (this.isConnected) L.dom?.loadedDirty?.();
 			if (!ok) {
 				this._nw = this._nh = 0;
 				this._surf = null;

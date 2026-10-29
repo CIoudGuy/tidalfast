@@ -6041,3 +6041,46 @@ R.done = true;
     );
     finish(luna, dir);
 }
+
+/// Every picture of a page that came in (each cover) made the whole page
+/// match every rule again, the page's first pass under a large theme over
+/// and over. A loaded picture changes what is drawn, never what a selector
+/// matches: the cascades stay and only the overlay is built again.
+#[test]
+fn a_picture_that_loads_keeps_every_cascade() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = ".pics span { color: rgb(1, 2, 3); }";
+document.head.append(st);
+const box = document.createElement("div");
+box.className = "pics";
+for (let i = 0; i < 20; i++) box.append(document.createElement("span"));
+document.body.append(box);
+const img = document.createElement("img");
+const loaded = new Promise((resolve) => {
+	img.addEventListener("load", () => resolve("load"));
+	img.addEventListener("error", () => resolve("error"));
+});
+box.append(img);
+await new Promise((r) => setTimeout(r, 100));
+getComputedStyle(box.firstChild).color;
+const resets = D.cascadeResets ?? 0;
+const runs = D.cascadeRuns ?? 0;
+img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+R.event = await loaded;
+await new Promise((r) => setTimeout(r, 100));
+R.color = getComputedStyle(box.firstChild).color;
+R.resets = (D.cascadeResets ?? 0) - resets;
+R.runs = (D.cascadeRuns ?? 0) - runs;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["event"], json!("load"), "{r}");
+    assert_eq!(r["color"], json!("rgb(1, 2, 3)"), "{r}");
+    assert_eq!(r["resets"], json!(0), "{r}");
+    assert_eq!(r["runs"], json!(0), "{r}");
+    finish(luna, dir);
+}

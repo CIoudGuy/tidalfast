@@ -71,6 +71,12 @@
 		flushQueued = true;
 		L.internalTimeout(() => D.flush(), Math.max(0, 33 - (Date.now() - lastFlush)));
 	};
+	// A picture or a frame finished loading: what is drawn changed (an
+	// <img> without a CSS size takes its natural one), but no selector
+	// reads whether an image has loaded, so every cascade stays. Each cover
+	// of a page was a whole-page restyle as it came in, the page's first
+	// one under a large theme again and again.
+	D.loadedDirty = () => contentDirty();
 	const markStyleDirty = (el) => {
 		restyled.add(el);
 		styleGen++;
