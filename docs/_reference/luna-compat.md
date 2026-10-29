@@ -53,6 +53,15 @@ right-click reaches plugins before the menu it opens (element-hider, LuckyLP,
 TidalLyricsTranslate, total-play-time and uwu-ifier now behave as in TIDAL
 2.46.0; see their rows). No status changed.
 
+TIDAL 2.47.0 (2026-10-29) was checked against 2.46.0: its desktop shell
+changed only its version and a macOS audio fix, and its page (the same
+web bundle for both) kept every class, `data-test`, root variable, redux
+action and entity the anchors carry. The one change themes and plugins see
+is an album header's new `div._primaryActions_097c7f3` round the pills and
+the captioned buttons (`[data-test=header-controls] > ._primaryActions_
+097c7f3 > ._container_84abbc3`, `> ._smallButtons_5c1ea50`); the anchors
+follow it. No status changed.
+
 Plugin round 8 (2026-10-24) made page-wide plugin scans fast (a
 `getComputedStyle` pass over the demo's album page took 88 to 91 ms and
 now 2 to 3 ms, and a new page reaches observers as one mutation record, as
