@@ -130,6 +130,11 @@
 			return Reflect.ownKeys(this._ev());
 		}
 	}
+	// Node assigns its methods to the prototype one by one, so they are
+	// enumerable: libraries copy them with `Object.assign(proto, ...,
+	// EventEmitter.prototype)` (node-mpv), which skips class methods.
+	for (const k of Object.getOwnPropertyNames(EventEmitter.prototype))
+		if (k !== "constructor") Object.defineProperty(EventEmitter.prototype, k, { enumerable: true });
 	EventEmitter.EventEmitter = EventEmitter;
 	EventEmitter.on = (emitter, name) => {
 		const queue = [];

@@ -173,6 +173,35 @@ R.done = true;
     assert_eq!(r["buffer"], "3,0,hi,2,hi,el,true,true,true,2", "{r}");
 }
 
+/// Node's `EventEmitter.prototype` methods are enumerable own properties
+/// (assigned one by one in Node's source), so a library that builds its
+/// prototype with `Object.assign(proto, ..., EventEmitter.prototype)` gets
+/// `on` and `emit`. The shim's were class methods, which `Object.assign`
+/// skips: such an object had no `on` ("not a function").
+#[test]
+fn an_event_emitter_prototype_copied_with_object_assign_has_its_methods() {
+    let (r, ..) = run(
+        "Compat",
+        r#"
+const n = await native("Compat/emitter.native.ts", `"use strict";
+const EventEmitter = require("events").EventEmitter;
+function Player() { EventEmitter.call(this); }
+Player.prototype = Object.assign({ constructor: Player, play() { this.emit("played", 3); } }, EventEmitter.prototype);
+exports.copied = () => {
+	const p = new Player();
+	let got;
+	p.on("played", (v) => (got = v));
+	p.play();
+	return [got, typeof p.once, typeof p.removeListener, Object.keys(EventEmitter.prototype).includes("emit")].join(",");
+};
+`);
+await check("copied", () => n("copied"));
+R.done = true;
+"#,
+    );
+    assert_eq!(r["copied"], "3,function,function,true", "{r}");
+}
+
 /// DesktopConnect's native module requires TIDAL's own main-process code
 /// from `original.asar`; that fails with a message that says so.
 #[test]
