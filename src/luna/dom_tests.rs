@@ -984,6 +984,153 @@ unloads.add(() => clearInterval(id));
     finish(luna, dir);
 }
 
+/// The first tree goes whole, as it serialises; after it, a node as it was
+/// goes as its key and box, and a node with any change whole.
+#[test]
+fn a_tree_goes_whole_first_and_then_as_its_changes() {
+    let t0 = tree();
+    assert_eq!(
+        serde_json::to_value(t0.wire(None)).unwrap(),
+        serde_json::to_value(&t0).unwrap()
+    );
+    let mut t1 = t0.clone();
+    node(&mut t1, keys::TITLE_SPAN).text = Some("Song Changed".into());
+    let wire = serde_json::to_value(t1.wire(Some(&t0))).unwrap();
+    let whole = serde_json::to_value(&t1).unwrap();
+    for (w, n) in wire["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(whole["nodes"].as_array().unwrap())
+    {
+        if n["key"] == json!(keys::TITLE_SPAN) {
+            assert_eq!(w, n);
+        } else {
+            let mut short = json!({ "key": n["key"], "same": 1 });
+            for k in ["rect", "scroll"] {
+                if !n[k].is_null() {
+                    short[k] = n[k].clone();
+                }
+            }
+            assert_eq!(w, &short);
+        }
+    }
+    let mut rest = wire.clone();
+    let mut whole_rest = whole.clone();
+    rest.as_object_mut().unwrap().remove("nodes");
+    whole_rest.as_object_mut().unwrap().remove("nodes");
+    assert_eq!(rest, whole_rest);
+}
+
+/// Trees after the first come as changes (`HostTree::wire`): through
+/// changed attributes and words, boxes alone moving, an element gone and
+/// back with another tag, a changed value and an element moved to another
+/// parent, every app element in the document is what the newest tree says,
+/// as when each tree came whole.
+#[test]
+fn trees_sent_as_changes_build_what_whole_trees_build() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const dump = () => {
+	const out = [];
+	for (const [key, el] of D.hosts) {
+		const attrs = [...el._hostAttrs.entries()];
+		const shown = attrs.every(([k, v]) => k === "class" || el.getAttribute(k) === v);
+		out.push([key, el.localName, attrs, el._hostTextVal ?? null, el._hostParent?._hostKey ?? null, el._rect?.map((x) => x.toFixed(2)) ?? null, el._hostValue ?? null, shown && el.parentNode === el._hostParent]);
+	}
+	R.dump = out.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+	R.syncs = D.syncCount();
+};
+const id = setInterval(dump, 20);
+unloads.add(() => clearInterval(id));
+"##,
+    );
+    let expect = |t: &HostTree| -> Value {
+        let mut rows: Vec<Value> = t
+            .nodes
+            .iter()
+            .map(|n| {
+                json!([
+                    n.key,
+                    n.tag.to_lowercase(),
+                    n.attrs
+                        .iter()
+                        .map(|(k, v)| json!([k.to_lowercase(), v]))
+                        .collect::<Vec<_>>(),
+                    n.text,
+                    n.parent,
+                    n.rect.map(|r| r.map(|x| format!("{x:.2}"))),
+                    n.value,
+                    true
+                ])
+            })
+            .collect();
+        rows.sort_by(|a, b| a[0].as_str().cmp(&b[0].as_str()));
+        Value::Array(rows)
+    };
+    let mut trees = vec![tree()];
+    let mut t = tree();
+    node(&mut t, keys::SHELL)
+        .attrs
+        .push(("title".into(), "x".into()));
+    node(&mut t, keys::TITLE_SPAN).text = Some("Song Changed".into());
+    trees.push(t.clone());
+    for n in &mut t.nodes {
+        if let Some(r) = &mut n.rect {
+            r[1] += 7.0;
+        }
+    }
+    trees.push(t.clone());
+    let gone = t
+        .nodes
+        .iter()
+        .rposition(|n| t.nodes.iter().all(|c| c.parent.as_deref() != Some(&n.key)))
+        .unwrap();
+    let leaf = t.nodes.remove(gone);
+    trees.push(t.clone());
+    let mut back = leaf.clone();
+    back.tag = if back.tag == "span" {
+        "div".into()
+    } else {
+        "span".into()
+    };
+    back.attrs.push(("data-back".into(), "1".into()));
+    t.nodes.insert(gone, back);
+    if let Some(n) = t.nodes.iter_mut().find(|n| n.tag == "input") {
+        n.value = Some("41".into());
+    }
+    trees.push(t.clone());
+    let leaf_key = t.nodes[gone].key.clone();
+    let new_parent = t.nodes[..gone]
+        .iter()
+        .rev()
+        .find(|n| Some(&n.key) != t.nodes[gone].parent.as_ref())
+        .unwrap()
+        .key
+        .clone();
+    node(&mut t, &leaf_key).parent = Some(new_parent);
+    trees.push(t.clone());
+    trees.push(t.clone());
+    for (i, t) in trees.iter().enumerate() {
+        luna.sync_dom(t.clone());
+        let r = results_until(&luna, &dir, 10, |r| {
+            r["syncs"].as_u64() >= Some(i as u64 + 1)
+        });
+        let want = expect(t);
+        let got = &r["dump"];
+        assert_eq!(
+            got.as_array().map(Vec::len),
+            want.as_array().map(Vec::len),
+            "tree {i}"
+        );
+        for (g, w) in got.as_array().unwrap().iter().zip(want.as_array().unwrap()) {
+            assert_eq!(g, w, "tree {i}");
+        }
+    }
+    finish(luna, dir);
+}
+
 /// A computed opacity is the number Chromium reports: `.75` reads `0.75`,
 /// a percentage its fraction, and a value past 1 or below 0 is clamped.
 /// The declared text came back as written (true-taste's `.75`).

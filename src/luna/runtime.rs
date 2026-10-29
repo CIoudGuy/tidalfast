@@ -259,6 +259,8 @@ struct Inner {
     /// reconciled boxes were laid out with ([`super::dom::HostTree::laid_out`]).
     boxes_version: u64,
     laid_out: u64,
+    /// The last host tree the page script got ([`super::dom::HostTree::wire`]).
+    sent_tree: Option<Arc<super::dom::HostTree>>,
     /// The store's large parts as reads of the state last had them
     /// (`getState` leaves out the ones the reader already holds).
     state_parts: super::redux::StateParts,
@@ -2100,8 +2102,11 @@ It is installed and switched on; what it may do is asked when it does it, and it
             let Some(tree) = super::layout::wait(&cell, want, floor) else {
                 return Ok(Value::Null);
             };
-            inner.borrow_mut().laid_out = tree.laid_out;
-            serde_json::to_value(&*tree).map_err(|e| e.to_string())
+            let mut i = inner.borrow_mut();
+            i.laid_out = tree.laid_out;
+            let wire = serde_json::to_value(tree.wire(i.sent_tree.as_deref()));
+            i.sent_tree = wire.is_ok().then_some(tree);
+            wire.map_err(|e| e.to_string())
         }
         // The question before an account write (see `writes.rs`): where this
         // plugin stands, and the user's answer.
@@ -3773,6 +3778,9 @@ impl Engine {
     }
 
     fn on_failure(&self, f: JsFailure) {
+        // A call cut short may have left a host tree unread: the next one
+        // goes whole ([`super::dom::HostTree::wire`]).
+        self.inner.borrow_mut().sent_tree = None;
         // Who the watchdog caught is read from the live frames when it fired
         // (`caller::note_interrupt`); a stack string or a thrown
         // "interrupted" error from plugin code blames nobody.
@@ -3929,8 +3937,14 @@ impl Engine {
         let Some(tree) = cell.0.lock().ok().and_then(|mut t| t.tree.take()) else {
             return;
         };
-        self.inner.borrow_mut().laid_out = tree.laid_out;
-        match serde_json::to_string(&*tree) {
+        let json = {
+            let mut i = self.inner.borrow_mut();
+            i.laid_out = tree.laid_out;
+            let json = serde_json::to_string(&tree.wire(i.sent_tree.as_deref()));
+            i.sent_tree = json.is_ok().then_some(tree);
+            json
+        };
+        match json {
             Ok(json) => self.dom_call("sync", json),
             Err(e) => log::warn!(target: "luna", "host tree: {e}"),
         }
@@ -5839,6 +5853,7 @@ fn setup_with(
         boxes_version: 0,
         state_parts: super::redux::StateParts::default(),
         laid_out: 0,
+        sent_tree: None,
         live: HashSet::new(),
         live_off_dev: HashSet::new(),
         live_busy: HashSet::new(),

@@ -3573,6 +3573,7 @@
 		const t0 = L.stat ? Date.now() : 0;
 		try {
 			tree = L.callOp("dom.wait_layout", { ms: LAYOUT_WAIT_MS });
+			if (tree) tree = received(tree);
 		} catch (err) {
 			L.reportError(err);
 		}
@@ -3654,8 +3655,29 @@
 		const v = [...new Set(out)].join(" ");
 		if (v !== (el._attrs.get("class") ?? "")) el._setAttr("class", v);
 	};
+	// A tree as the app sends it (`HostTree::wire`): a node as it was in the
+	// tree before comes as its key and box, and is that node again here with
+	// its new box. A key the tree before did not have cannot come so; if it
+	// does, the call fails and the app sends the next tree whole.
+	let lastNodes = new Map();
+	const received = (tree) => {
+		const nodes = tree.nodes ?? [];
+		const next = new Map();
+		for (let i = 0; i < nodes.length; i++) {
+			let n = nodes[i];
+			if (n?.same) {
+				const o = lastNodes.get(n.key);
+				if (!o) throw new Error(`host tree: ${n.key} came as before without a tree before it`);
+				n = nodes[i] = { key: o.key, parent: o.parent, tag: o.tag, attrs: o.attrs, text: o.text, value: o.value, rect: n.rect, scroll: n.scroll };
+			}
+			if (n?.key !== undefined && !next.has(n.key)) next.set(n.key, n);
+		}
+		lastNodes = next;
+		return tree;
+	};
 	// Whether two trees gave an element the same attributes, in order.
 	const sameAttrs = (a, b) => {
+		if (a === b) return true;
 		if (a === undefined || a.length !== b.length) return false;
 		for (let i = 0; i < a.length; i++) if (a[i]?.[0] !== b[i]?.[0] || a[i]?.[1] !== b[i]?.[1]) return false;
 		return true;
@@ -4413,7 +4435,7 @@
 		const arg = json ? JSON.parse(json) : {};
 		switch (kind) {
 			case "sync":
-				return void sync(arg);
+				return void sync(received(arg));
 			case "event":
 				D.wakeFrames();
 				return handleEvent(arg) ?? null;

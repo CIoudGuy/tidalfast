@@ -92,6 +92,86 @@ fn is_zero(n: &u64) -> bool {
     *n == 0
 }
 
+impl HostTree {
+    /// This tree as the page script gets it after `last` (the tree it got
+    /// before, if any): a node just as it was there (the same parent, tag,
+    /// attributes, words and value under its key) goes as its key and box
+    /// alone, and dom.js takes the rest from `last`. Every element of the
+    /// page came whole in every tree, a tree a frame while a list scrolls,
+    /// and reading it was most of a reconcile.
+    pub fn wire<'a>(&'a self, last: Option<&HostTree>) -> WireTree<'a> {
+        let before: std::collections::HashMap<&str, &HostNode> =
+            last.map_or_else(Default::default, |t| {
+                let mut m = std::collections::HashMap::with_capacity(t.nodes.len());
+                for n in &t.nodes {
+                    m.entry(n.key.as_str()).or_insert(n);
+                }
+                m
+            });
+        let nodes = self
+            .nodes
+            .iter()
+            .map(|n| match before.get(n.key.as_str()) {
+                Some(o)
+                    if o.parent == n.parent
+                        && o.tag == n.tag
+                        && o.attrs == n.attrs
+                        && o.text == n.text
+                        && o.value == n.value =>
+                {
+                    WireNode::Same {
+                        key: &n.key,
+                        same: 1,
+                        rect: n.rect,
+                        scroll: n.scroll,
+                    }
+                }
+                _ => WireNode::Full(n),
+            })
+            .collect();
+        WireTree {
+            nodes,
+            viewport: self.viewport,
+            path: &self.path,
+            light: self.light,
+            reduced_motion: self.reduced_motion,
+            laid_out: self.laid_out,
+            node_rects: &self.node_rects,
+        }
+    }
+}
+
+/// A [`HostTree`] as the page script gets it ([`HostTree::wire`]).
+#[derive(Serialize)]
+pub struct WireTree<'a> {
+    nodes: Vec<WireNode<'a>>,
+    viewport: [f32; 2],
+    path: &'a str,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    light: bool,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    reduced_motion: bool,
+    #[serde(skip_serializing_if = "is_zero")]
+    laid_out: u64,
+    #[serde(skip_serializing_if = "<[_]>::is_empty")]
+    node_rects: &'a [(u64, [f32; 4])],
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum WireNode<'a> {
+    Full(&'a HostNode),
+    /// As in the tree before, but for its box.
+    Same {
+        key: &'a str,
+        same: u8,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        rect: Option<Rect>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        scroll: Option<[f32; 2]>,
+    },
+}
+
 /// Resolved CSS for one element: plain CSS values as strings, only the
 /// properties the native renderer understands. Unset fields mean "native
 /// default".
