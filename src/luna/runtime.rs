@@ -1188,9 +1188,71 @@ fn heap_stats(ctx: &Ctx<'_>, inner: &S) -> String {
     .to_string()
 }
 
+/// `dom.overlay`: publishes the overlay dom.js built when it differs from
+/// the last one; whether the boxes can have moved.
+fn publish_overlay(inner: &S, mut ov: DomOverlay) -> Result<Value, String> {
+    let (cell, host, trees) = {
+        let i = inner.borrow();
+        (i.overlay.clone(), i.host.clone(), i.trees.clone())
+    };
+    let changed = {
+        let Ok(mut cur) = cell.lock() else {
+            return Ok(Value::Null);
+        };
+        ov.version = cur.version;
+        // Worked out here, off the UI thread: the looks the UI
+        // resolved from the theme stay while this holds.
+        ov.theme_version = if cur.same_theme(&ov) {
+            cur.theme_version
+        } else {
+            cur.theme_version + 1
+        };
+        if **cur == ov {
+            None
+        } else {
+            let moved = cur.may_move_boxes(&ov);
+            ov.version += 1;
+            let version = ov.version;
+            // Noted before the UI can see it: the UI's frame that
+            // draws it is timed from it.
+            if moved && let Ok(mut slot) = trees.0.lock() {
+                slot.published(version);
+            }
+            *cur = Arc::new(ov);
+            Some((moved, version))
+        }
+    };
+    // Whether the boxes can have moved: the next read of one waits
+    // for them (`dom.wait_layout`).
+    let Some((moved, version)) = changed else {
+        return Ok(Value::Null);
+    };
+    REPAINTS[1].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    if moved {
+        inner.borrow_mut().boxes_version = version;
+        host.boxes_changed();
+    } else {
+        host.changed();
+    }
+    Ok(Value::Bool(moved))
+}
+
 fn op_sync(inner: &S, who: Who, name: &str, arg: &str) -> String {
     if name == "dom.overlay" && arg.len() > MAX_OVERLAY_BYTES {
         return json!({ "err": "the plugins' page is too large to show" }).to_string();
+    }
+    // The overlay (hundreds of kB with many plugins, at every change they
+    // make) is read straight into its type, not through a JSON value first.
+    if name == "dom.overlay" {
+        let out = match serde_json::from_str::<DomOverlay>(arg) {
+            Ok(ov) => publish_overlay(inner, ov),
+            Err(e) => Err(format!("overlay: {e}")),
+        };
+        return match out {
+            Ok(v) => json!({ "ok": v }),
+            Err(e) => json!({ "err": e }),
+        }
+        .to_string();
     }
     let a: Value = serde_json::from_str(arg).unwrap_or(Value::Null);
     let out = match op_sync_inner(inner, &who, name, &a) {
@@ -2018,52 +2080,8 @@ It is installed and switched on; what it may do is asked when it does it, and it
         // DOM bridge: the overlay dom.js built after plugin code changed the
         // document. Published only when it differs from the last one.
         "dom.overlay" => {
-            let mut ov: DomOverlay =
-                serde_json::from_value(a.clone()).map_err(|e| format!("overlay: {e}"))?;
-            let (cell, host, trees) = {
-                let i = inner.borrow();
-                (i.overlay.clone(), i.host.clone(), i.trees.clone())
-            };
-            let changed = {
-                let Ok(mut cur) = cell.lock() else {
-                    return Ok(Value::Null);
-                };
-                ov.version = cur.version;
-                // Worked out here, off the UI thread: the looks the UI
-                // resolved from the theme stay while this holds.
-                ov.theme_version = if cur.same_theme(&ov) {
-                    cur.theme_version
-                } else {
-                    cur.theme_version + 1
-                };
-                if **cur == ov {
-                    None
-                } else {
-                    let moved = cur.may_move_boxes(&ov);
-                    ov.version += 1;
-                    let version = ov.version;
-                    // Noted before the UI can see it: the UI's frame that
-                    // draws it is timed from it.
-                    if moved && let Ok(mut slot) = trees.0.lock() {
-                        slot.published(version);
-                    }
-                    *cur = Arc::new(ov);
-                    Some((moved, version))
-                }
-            };
-            // Whether the boxes can have moved: the next read of one waits
-            // for them (`dom.wait_layout`).
-            let Some((moved, version)) = changed else {
-                return Ok(Value::Null);
-            };
-            REPAINTS[1].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            if moved {
-                inner.borrow_mut().boxes_version = version;
-                host.boxes_changed();
-            } else {
-                host.changed();
-            }
-            Ok(Value::Bool(moved))
+            let ov = DomOverlay::deserialize(a).map_err(|e| format!("overlay: {e}"))?;
+            publish_overlay(inner, ov)
         }
         // A plugin reads a box after a change that can move boxes: wait for
         // the UI's tree laid out with it (on the frame that draws it, the

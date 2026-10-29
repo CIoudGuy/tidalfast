@@ -805,8 +805,7 @@ fn op(s: &State, name: &str, a: &Value) -> Result<Value, String> {
         "screen" => Ok(super::screen::op(Some(s.window.screen()))),
         "plugin.uses_dom" => Ok(Value::Null),
         "dom.overlay" => {
-            let mut ov: DomOverlay =
-                serde_json::from_value(a.clone()).map_err(|e| format!("overlay: {e}"))?;
+            let mut ov = DomOverlay::deserialize(a).map_err(|e| format!("overlay: {e}"))?;
             let moved = {
                 let mut cur = s.window.overlay.lock().map_err(|e| e.to_string())?;
                 ov.version = cur.version;

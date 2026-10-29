@@ -137,6 +137,13 @@
 		if (out && hasOwn.call(out, "err")) throw new Error(out.err);
 		return out?.ok;
 	};
+	// `callOp` with its argument already serialised (the overlay, made into
+	// JSON once to compare with the last one sent).
+	const callOpJson = (name, json) => {
+		const out = parse(native.op(name, json, null));
+		if (out && hasOwn.call(out, "err")) throw new Error(out.err);
+		return out?.ok;
+	};
 	const pending = new Map();
 	let opSeq = 1;
 	const callOpAsync = (name, arg) =>
@@ -153,7 +160,7 @@
 		if (ok) p.resolve(value);
 		else p.reject(new Error(typeof value === "string" ? value : stringify(value)));
 	};
-	const lunaInternal = (g.__lunaInternal = { callOp, callOpAsync, blobUrls: new Map(), blobModules: new Map() });
+	const lunaInternal = (g.__lunaInternal = { callOp, callOpJson, callOpAsync, stringify, blobUrls: new Map(), blobModules: new Map() });
 	// Async ops still in flight (a forked process lives while it waits for one).
 	lunaInternal.pendingOps = () => pending.size;
 	lunaInternal.evalAs = native.eval;

@@ -4353,13 +4353,14 @@
 		}
 		L.clearInternal(retry);
 		const t0 = L.stat ? Date.now() : 0;
-		const json = JSON.stringify(ov);
+		const json = L.stringify(ov);
 		if (L.stat) L.stat("overlay json", t0);
 		if (json === lastJson) return;
 		lastJson = json;
 		const t1 = L.stat ? Date.now() : 0;
 		try {
-			if (L.callOp("dom.overlay", ov) === true) boxesPending = true;
+			// The JSON just made is what goes, not a second one of the same.
+			if (L.callOpJson("dom.overlay", json) === true) boxesPending = true;
 		} catch (err) {
 			L.reportError(err);
 		}
