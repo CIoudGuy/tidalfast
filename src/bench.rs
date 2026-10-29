@@ -450,6 +450,16 @@ const BROWSE: [&str; 20] = [
 
 const SETTLE: Duration = Duration::from_secs(5);
 const SCROLL_WARMUP: Duration = Duration::from_secs(2);
+
+/// The scroll run's wait before it scrolls: [`SCROLL_WARMUP`], or
+/// `TIDALFAST_BENCH_WARMUP` seconds (time for Luna plugins to load first).
+fn scroll_warmup() -> Duration {
+    std::env::var("TIDALFAST_BENCH_WARMUP")
+        .ok()
+        .and_then(|secs| secs.parse::<f32>().ok())
+        .filter(|secs| secs.is_finite() && *secs >= 0.0)
+        .map_or(SCROLL_WARMUP, Duration::from_secs_f32)
+}
 const SCROLL_LEG: Duration = Duration::from_secs(5);
 /// Points the wheel moves the list each frame: a fast, steady flick.
 const SCROLL_STEP: f32 = 90.0;
@@ -669,7 +679,7 @@ impl Bench {
             }
             Scenario::Scroll => {
                 let leg = if self.step == 0 {
-                    SCROLL_WARMUP
+                    scroll_warmup()
                 } else {
                     SCROLL_LEG
                 };

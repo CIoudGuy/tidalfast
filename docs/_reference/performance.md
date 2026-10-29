@@ -26,6 +26,9 @@ target/release/tidalfast --demo --demo-bench startup   # or scroll, browse
   five seconds and back up for five at 90 points a frame. Reports CPU time
   per frame (eframe's measure: layout, tessellation and GL submission,
   without waiting for vsync) at p50, p95, p99 and max, and memory after.
+  It waits two seconds before it scrolls; `TIDALFAST_BENCH_WARMUP=<seconds>`
+  waits longer (Luna plugins installed with `TIDALFAST_DEMO_LUNA` load
+  first), and `--demo-page` scrolls another page (`album:alb0`, `home`).
 - `session`: the long run described under "Memory over a long session".
 - `browse`: twenty pages opened one after another, 1.5 seconds each, then
   memory. `TIDALFAST_BENCH_PAGES=home,album:alb0,...` (encoded pages,
