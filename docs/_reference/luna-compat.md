@@ -3480,6 +3480,53 @@ rule gives a border, and TIDAL's whole page lies 20 points lower under
 it); a track row's line at TIDAL's fractional row places; the Lunallena
 themes' header bar on the collection page; reading a large sheet faster.
 
+### Round 47 (reading a large sheet, see-through menus and row lines, 2026-10-29)
+
+Found with the parity checker (TIDAL 2.47.0's pages) and a timed sheet
+read, fixed in the generic layer:
+
+- **A theme's sheet is read by jumping, not a character at a time.**
+  Comments, rule blocks and declarations are found by jumping with a
+  regular expression to the next quote, bracket or stop and slicing. The
+  adaptive Cotton Candy's 422 kB sheet read in about 480 ms on a debug
+  build, 90 ms now, into the same rules: every reference theme's sheet
+  reads alike step by step, and so do short strings of quotes, escapes,
+  brackets and comments. The album page's first styled overlay under that
+  theme (debug build, five runs): 1.4 to 1.7 s before, 1.0 to 1.3 s after.
+  Test: `a_sheet_reads_the_same_through_quotes_brackets_and_comments`
+  (passes before and after: it holds what is read).
+- **A see-through context menu shows the page through it.** A theme that
+  makes TIDAL's menu transparent and paints it with a `::before` glass
+  (the Lunallena themes) or a translucent gradient on the popover round
+  it (the cotton candy family) had the menu's own colour laid under its
+  box, opaque, and egui's frame shadow under that too: a black menu, or
+  the gradient over a solid colour. Nothing of TIDAL's lies under a menu
+  the theme makes see-through now, and the shadow lies outside it. Test:
+  `a_see_through_menus_glass_lies_over_the_page`.
+- **A row's `border-image` line covers its pixels in part.** Under a
+  theme TIDAL's list rows sit at fractional offsets, and Chromium shades
+  the pixels a row's line partly reaches; the line was filled on the
+  pixels whose centres it holds only, most of a pixel out of place on
+  every row (the cotton candy family's gradient row lines). Test:
+  `a_border_image_line_at_a_fractional_place_covers_its_pixels_in_part`.
+
+Totals (TIDAL 2.47.0's pages; the checker's menu comparison now leaves
+out the pictures under a menu, as the page comparison does): dark pixels
+2.24 % -> 1.44 % of 305.1 million compared (no theme 0.69 % both), the
+cotton candy family's menu pages from about 7.5 % to about 1 to 3 %, no
+theme worse; style differences unchanged (780 over 131,244 anchor
+elements). Light scheme: adaptive Cotton Candy 1.18 % -> 0.66 %
+(its menu page 2.64 % -> 0.73 %), adaptive Horchata 0.68 % -> 0.51 %,
+Tidal Light 1.15 % both; hover pages 2.11 % -> 2.08 %.
+
+Not done, largest first: Meteor Night's menu page (TIDAL's empty
+`span.context-menu` lies in the shell before the main container, and the
+theme's border makes it a 20-point line that moves the whole app down
+while a menu is open: Tidalfast has no place for in-flow inline content
+above the app); row places a few tenths of a pixel off TIDAL's (the
+cotton candy family's rows, their words); the Lunallena themes' header
+bar on the collection page.
+
 ### Round 28 (plugins in use, 2026-10-23)
 
 Sixteen popular plugins (Tidal Tags, tidal-genres, total-play-time,
