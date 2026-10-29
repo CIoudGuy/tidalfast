@@ -158,6 +158,7 @@ For **Max** (24-bit), use **Log in with Max**, then choose *Settings, Playback, 
 Tidalfast runs plugins and themes made for [TidaLuna](https://github.com/Inrixia/TidaLuna), without a browser. It is **off by default**: turn it on in *Settings, Plugins (TidaLuna)*. From there you can browse the plugin stores, pick from a catalogue of 52 themes, install a plugin or theme from a URL, and import your Luna settings.
 
 - Plugins install over HTTPS only, and the Plugins page shows what each one has done (network, files, programs).
+- A plugin that opens a window of its own, like miniplayer or lyrics-everywhere, opens it as a real window.
 - A plugin asks before it runs a program, and can write to the clipboard only right after you click or press a key.
 - A plugin also asks before it gets your TIDAL sign-in, saves TIDAL songs as files, takes keyboard shortcuts across your whole computer (Windows) or talks to another program over its pipe. Each is off until you allow it, and an Always allow can be revoked in the plugin's Permissions.
 - Removing a plugin deletes everything it left: its files, downloaded models, settings and saved data. Turning it off keeps them. *Reset to defaults* on a plugin's card clears its settings, saved data and permissions and starts it fresh, keeping the plugin and its downloaded files.
