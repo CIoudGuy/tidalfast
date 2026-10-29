@@ -60,7 +60,11 @@ action and entity the anchors carry. The one change themes and plugins see
 is an album header's new `div._primaryActions_097c7f3` round the pills and
 the captioned buttons (`[data-test=header-controls] > ._primaryActions_
 097c7f3 > ._container_84abbc3`, `> ._smallButtons_5c1ea50`); the anchors
-follow it. No status changed.
+follow it. No status changed. TIDAL 2.47.0 also has an "Also on" row
+under an album's header (`[data-test=universal-share-inline]`, links to
+other services), behind its `web-inline-listen-on` feature flag, which is
+off for the test account: TIDAL draws no such row there, and neither does
+Tidalfast.
 
 Plugin round 8 (2026-10-24) made page-wide plugin scans fast (a
 `getComputedStyle` pass over the demo's album page took 88 to 91 ms and
@@ -207,6 +211,23 @@ build, and host trees sent as their changes. Fixed for every plugin, with
 a test that fails without it: markup with a `<template>` parses (its
 closing tag threw a TypeError). No status changed.
 
+Plugin round 18 (2026-10-30) recorded TIDAL's side of the checker again,
+in TIDAL 2.47.0 with TidaLuna 1.20.0-beta, for the eighteen plugins of
+round 17 and TidalDJ, with an artist page and a search page added to its
+pages (the paused song's artist, a search for "eminem"). No plugin did
+anything on the artist or search page that it did not do elsewhere, on
+either side. Fixed for every plugin, each with a test that fails without
+it: the player bar's cover picture sits in TIDAL's image cell (three boxes,
+the picture's parent placed absolutely), so a plugin's layer over the
+picture goes where it goes in TIDAL (radiant-lyrics' animated cover went
+into the figure), and the now-playing cover's tilting box has TIDAL's class
+and computes `position: relative`. TidalDJ's button matches TIDAL's (see
+its row). @visiuun/true-taste is labelled "Partly supported" (see its
+row). What still differs is page data (the account's album and covers, an
+animated cover TIDAL plays where the demo has a picture) or TIDAL's
+minimised window, which renders no frames (fades and observers that wait
+for one). No status changed.
+
 Open gaps (❌): TidalDJ and @imp/local-files, new in plugin round 14, and
 @visiuun/true-taste, new in plugin round 16 (see their rows). Before them: none. betterFullscreen's own view, open in plugin round 5,
 renders since plugin round 6 (TIDAL 2.46.0's now-playing and fullscreen
@@ -350,7 +371,7 @@ Notes that apply to every plugin:
 | PlayerAPI | thororen1234/luna-plugins | ✅ live r13 | GET answers the playing song; resume and pause work since the `executeJavaScript` fix. |
 | DiscordRPC+ | thororen1234/luna-plugins | ✅ live r13 | Handshake and SET_ACTIVITY with title, artist, cover and buttons against a fake Discord on pipe 7. |
 | TidalPresence | BaeHyolyn/luna-plugins (was BaeHyolyn/tidal-presence) | ✅ tests | Discord Rich Presence (derived from DiscordRPC, on `@xhayper/discord-rpc` with its own bundled undici), checked in plugin round 13 against a fake Discord pipe that every IPC connect was sent to (never a Discord running on the computer): the handshake with its own client id, then SET_ACTIVITY with the title, artists, album cover and "Album · HiFi", the artist's picture, links to the track, album and artist, the Listen on TIDAL and View Album buttons, the listening type and the song's own length 34 seconds in; paused, the activity reads "Paused". Its settings page renders all fifteen controls (six selects, four switches, five text fields) with the pipe picker listing the pipes found. Not seen on screen in a Discord client, and its karaoke styles (live lyric lines) were not exercised. |
-| TidalDJ | BaeHyolyn/luna-plugins | ❌ open | Published in TidaLuna 1.19.0-beta's store list. Plugin round 15 put it in the parity checker: in the demo it loads without errors and puts its `button.withBackground[data-test=tidaldj-now]` before the queue button, its colour, background and radius set each second, as its code reads; its queue picks (radio tracks, moods, favourites, skips) act only when a song changes or a wished-for song does not start, and were not exercised. Not compared with TIDAL yet: the TIDAL side could not be recorded (the test machine's TIDAL updated itself to 2.47.0, which runs without TidaLuna). |
+| TidalDJ | BaeHyolyn/luna-plugins | ❌ open | Published in TidaLuna 1.19.0-beta's store list. Plugin round 15 put it in the parity checker: in the demo it loads without errors and puts its `button.withBackground[data-test=tidaldj-now]` before the queue button, its colour, background and radius set each second, as its code reads; its queue picks (radio tracks, moods, favourites, skips) act only when a song changes or a wished-for song does not start, and were not exercised. Plugin round 18 compared it with TIDAL 2.47.0 (TidaLuna 1.20.0-beta), paused: its button and its look are the same on both sides. Its queue picks still were not exercised (they need playback, which the checker never starts in TIDAL). |
 | TidalEQ | BaeHyolyn/luna-plugins | 🔑 permission | Plays TIDAL's stream (its unencrypted manifest URL, from `MediaItem.playbackInfo`) through an mpv it starts with its equalizer, as @vmohammad/mpv does: starting mpv asks behind the `child_process` prompt. Plugin round 14, demo only: it loads, adds its two now-playing tabs (`toggle-tidaleq`, `toggle-tidaleq-visualizer`) and its start of mpv failed with ENOENT before any question (no mpv at its default path on the test machine), after which it says TIDAL keeps playing normally, as in TidaLuna without mpv. Not checked with mpv. Plugin round 15, parity checker (demo side only, as TidalDJ): its stylesheet and both tabs are added and the failed start of mpv shows its own error toast; nothing else at load. Plugin round 16 (sweep and demo): its frame loop builds a `DOMRect` from the now-playing cover's box, which threw a ReferenceError every frame (`DOMRect` is defined now, as in Chromium); and its native module, compiled while the next plugin loaded, left QuickJS's ignored syntax error behind, so that plugin failed to load (fixed for every plugin, see "Plugin rounds"). Its visualizer fetches the stream from the manifest's URL (`manifest.urls[0]`), which Tidalfast never hands plugins (see "Security model and limits"): it logs that it could not prepare the song and shows nothing. Still not checked with mpv. |
 | TranslateLyrics | thororen1234/luna-plugins | ✅ live r13 | Answered 'Lyrics translated successfully' for a song that loaded after the plugin (after the HTTP/1.1 change). For the song restored at start-up it says 'No lyrics available': it learns lyrics only from `content/LOAD_ITEM_LYRICS_SUCCESS`, which was sent before the plugin started. |
 | BetterFullscreen (fork) | thororen1234/luna-plugins | ✅ live r19 | Same code paths as vMohammad's (131 characters differ): its button appears in the bar's more-container (and goes away with the plugin off). Clicking it requests real window fullscreen, which took the off-screen test window onto a display, so its own view was not looked at again (as the original's row says). |
@@ -1500,6 +1521,19 @@ review pass of the compatibility audit.
 
 ### Plugin rounds
 
+- **Plugin round 18 (2026-10-30).** TIDAL's side of the checker recorded
+  again in TIDAL 2.47.0 with TidaLuna 1.20.0-beta for round 17's eighteen
+  plugins and TidalDJ, with an artist page and a search page added. Fixed
+  for every plugin, each with a synthetic test that fails without it: the
+  player bar's cover picture in TIDAL's image cell (`div.tidal-ui__geometry
+  > div.css-16luxag > div.css-1tk08rl > img`, relative round absolute), and
+  the now-playing cover's tilting box with TIDAL's class `_tilt_8fda471`,
+  computing `position: relative`. TidalDJ's button matches TIDAL's;
+  @visiuun/true-taste labelled "Partly supported" (its playlist needs
+  TIDAL's openapi as the account). Not done: TidalDJ's queue picks (need
+  playback), the now-playing tabs a plugin copies keep the look of the
+  pills Tidalfast draws (TIDAL 2.47.0 computes them 55 % white, weight 500,
+  fully round).
 - **Plugin round 16 (2026-10-29).** The whole-store sweep and the demo
   with several plugins at once over every store plugin outside the checker,
   and @visiuun/true-taste, new (open). Fixed for every plugin, each with a
