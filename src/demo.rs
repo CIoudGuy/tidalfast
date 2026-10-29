@@ -6237,7 +6237,18 @@ mod tests {
             // Gently, so the row's end is not overshot: what is left of
             // a wheel past it goes on to the page.
             frame(&ctx, &mut app, size, wheel(egui::vec2(0.0, -20.0)));
-            tree = frame(&ctx, &mut app, size, vec![]);
+            // The row glides to where the wheel sent it: look once it is
+            // there, or a wheel given while it is still on its way goes on
+            // to the page (how far that is depends on the fonts' widths).
+            let mut at = pills(&frame(&ctx, &mut app, size, vec![]));
+            for _ in 0..60 {
+                tree = frame(&ctx, &mut app, size, vec![]);
+                let now = pills(&tree);
+                if now[0].left() == at[0].left() {
+                    break;
+                }
+                at = now;
+            }
         }
         for _ in 0..60 {
             tree = frame(&ctx, &mut app, size, vec![]);
