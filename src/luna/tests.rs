@@ -94,6 +94,8 @@ mod theme_round44_tests;
 mod theme_round45_tests;
 #[path = "theme_tests.rs"]
 mod theme_tests;
+#[path = "tidal247_tests.rs"]
+mod tidal247_tests;
 
 #[derive(Default)]
 struct MockHost {

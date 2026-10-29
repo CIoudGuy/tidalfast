@@ -41,7 +41,12 @@ fn wait(
     }
 }
 
-fn overlay(name: &str, css: &str, frame: &dom_anchors::Frame, key: &str) -> Arc<DomOverlay> {
+pub(super) fn overlay(
+    name: &str,
+    css: &str,
+    frame: &dom_anchors::Frame,
+    key: &str,
+) -> Arc<DomOverlay> {
     let tree = dom_anchors::build(frame);
     let luna = themed_luna(name, css);
     let o = wait(&luna, &tree, &|o| o.hosts.contains_key(key));
@@ -221,7 +226,7 @@ fn the_navigation_arrows_are_tidals_pill() {
     );
 }
 
-fn page_frame(page_id: &str) -> dom_anchors::Frame {
+pub(super) fn page_frame(page_id: &str) -> dom_anchors::Frame {
     let mut frame = dom_anchors::sample_frame();
     if let Some(page) = frame.page.as_mut() {
         page.page_id = Some(page_id.into());

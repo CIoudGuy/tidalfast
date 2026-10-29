@@ -29,7 +29,7 @@ fn dom_results(dir: &Path) -> Value {
 }
 
 /// Installs `body` as plugin `DomTest` and waits until it runs.
-fn start(body: &str) -> (Luna, Arc<MockHost>, PathBuf) {
+pub(super) fn start(body: &str) -> (Luna, Arc<MockHost>, PathBuf) {
     let files: Files = Arc::default();
     files.lock().unwrap().insert(
         "/DomTest.json".into(),
@@ -80,7 +80,7 @@ fn overlay_until(
     }
 }
 
-fn results_until(
+pub(super) fn results_until(
     luna: &Luna,
     dir: &Path,
     secs: u64,
@@ -119,7 +119,7 @@ fn node<'a>(t: &'a mut HostTree, key: &str) -> &'a mut super::dom::HostNode {
     t.nodes.iter_mut().find(|n| n.key == key).unwrap()
 }
 
-fn finish(luna: Luna, dir: PathBuf) {
+pub(super) fn finish(luna: Luna, dir: PathBuf) {
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }

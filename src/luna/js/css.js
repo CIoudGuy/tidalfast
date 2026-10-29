@@ -1845,6 +1845,7 @@
 		_player_: { display: "grid" },
 		_playerContent_: { display: "contents" },
 		_playQueueWrapper_: { display: "flex" },
+		_primaryActions_097c7f3: { display: "flex" },
 		_profilePicture_1786ea0: { display: "flex" },
 		_repeatButton_: { display: "flex", color: "rgba(255, 255, 255, 0.55)" },
 		_scrollableContent_4035207: { display: "flex" },
