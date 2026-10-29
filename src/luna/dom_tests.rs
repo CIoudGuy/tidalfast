@@ -804,6 +804,95 @@ run();
     finish(luna, dir);
 }
 
+/// Every app element's `listens` in the overlay is the sorted set of event
+/// types listened for on it and on every node an event on it reaches, as
+/// listeners come and go (a second listener of a type, an `on*` handler,
+/// one taken away) and as plugins put nodes in and move app elements, over
+/// overlays built one after another (an entry kept from the build before
+/// must still be right).
+#[test]
+fn an_app_elements_listened_types_follow_listeners_and_moves() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const typesOn = (n) => [...(n._ls?.keys() ?? []), ...Object.entries(n._on ?? {}).filter(([, v]) => v).map(([k]) => k)];
+const up = (n) => (n.parentNode ?? (n === document ? null : n instanceof ShadowRoot ? n.host : null));
+// The window's own types are in the document's entry (with those of the
+// document, `html` and `body`, which every connected element reaches).
+const want = (el, ov) => {
+	const set = new Set();
+	let n = el;
+	for (; n; n = up(n)) {
+		for (const t of typesOn(n)) set.add(t);
+		if (n === document) for (const t of ov.hosts[""]?.listens ?? []) set.add(t);
+	}
+	return [...set].sort();
+};
+const bad = [];
+const counts = [];
+const check = (step, type) => {
+	const ov = D.build();
+	let n = 0;
+	for (const [key, el] of D.hosts) {
+		const got = ov.hosts[key]?.listens ?? [];
+		const w = want(el, ov);
+		if (got.join() !== w.join()) bad.push(`${step} ${key}: ${got} vs ${w}`);
+		if (type && got.includes(type)) n++;
+	}
+	counts.push(n);
+};
+const run = () => {
+	const footer = document.querySelector('[data-test="footer-player"]');
+	if (R.done || !footer) return;
+	R.done = true;
+	check("start");
+	check("again");
+	const a = () => {};
+	const b = () => {};
+	footer.addEventListener("pointerdown", a);
+	check("pointerdown", "pointerdown");
+	footer.addEventListener("pointerdown", b);
+	check("second", "pointerdown");
+	const box = document.createElement("div");
+	box.addEventListener("keyup", () => {});
+	document.querySelector("main").appendChild(box);
+	check("box", "keyup");
+	const moved = footer.querySelector("[data-test]") ?? footer.firstElementChild;
+	box.appendChild(moved);
+	check("moved", "keyup");
+	footer.removeEventListener("pointerdown", a);
+	check("one left", "pointerdown");
+	footer.removeEventListener("pointerdown", b);
+	check("none left", "pointerdown");
+	document.body.onclick = () => {};
+	check("onclick", "click");
+	document.body.onclick = null;
+	check("no onclick", "click");
+	R.bad = bad;
+	R.counts = counts;
+};
+new MutationObserver(run).observe(document.body, { subtree: true, childList: true });
+run();
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 20, |r| !r["counts"].is_null());
+    assert_eq!(r["bad"], json!([]), "{r}");
+    let counts: Vec<u64> = r["counts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c.as_u64().unwrap())
+        .collect();
+    // pointerdown reaches the footer's elements, then none; keyup only the
+    // moved one and what is inside it; click every element, then none.
+    assert!(counts[2] > 1 && counts[3] == counts[2], "{r}");
+    assert!(counts[4] == 0 && counts[5] >= 1, "{r}");
+    assert!(counts[6] == counts[2] - counts[5] && counts[7] == 0, "{r}");
+    assert!(counts[8] > counts[2] && counts[9] == 0, "{r}");
+    finish(luna, dir);
+}
+
 /// A computed opacity is the number Chromium reports: `.75` reads `0.75`,
 /// a percentage its fraction, and a value past 1 or below 0 is clamped.
 /// The declared text came back as written (true-taste's `.75`).

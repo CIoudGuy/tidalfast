@@ -216,9 +216,6 @@
 	// on every mutation in the document, each time a full recascade of the
 	// page before).
 	let structGen = 0;
-	// Bumped when a node is put in or taken out of a parent: what is round
-	// an element (the listeners an event on it reaches) may have changed.
-	let treeGen = 0;
 	const inserted = new Set();
 	const markStructDirty = (node) => {
 		if (L.stat) L.stat(`restructure by ${L.pluginFromStack?.() ?? "host"}`, Date.now());
@@ -427,11 +424,7 @@
 			return dispatch(this, ev);
 		}
 	}
-	let listenVersion = 0;
-	const listensChanged = () => {
-		listenVersion++;
-		contentDirty();
-	};
+	const listensChanged = () => contentDirty();
 	const winTarget = new Target();
 	const parentForEvents = (n) => n.parentNode ?? (n === g.document ? winTarget : n instanceof ShadowRoot ? n.host : null);
 	const invoke = (node, ev, phase) => {
@@ -721,7 +714,6 @@
 			else if (c instanceof CharacterData) textChangedIn(this);
 			D.connected?.(c);
 			if (c instanceof Element && c._hostKey === undefined && !reconciling && this.isConnected) noteFresh(c);
-			treeGen++;
 			markStructDirty(c);
 			return c;
 		}
@@ -738,7 +730,6 @@
 			if (isStyleish(c) || (c instanceof Element && c.querySelector("style"))) cssChanged();
 			else if (c instanceof CharacterData) textChangedIn(this);
 			if (this instanceof Element) detachedFrom.add(this);
-			treeGen++;
 			markStructDirty(null);
 			return c;
 		}
@@ -3979,6 +3970,8 @@
 		if (n._on) for (const [k, v] of Object.entries(n._on)) if (v) out.push(k);
 		return out;
 	};
+	const NO_TYPES = [];
+	const sameTypes = (a, b) => a === b || (a?.length === b.length && a.every((t, i) => t === b[i]));
 	// Types listened for on `el` and every node an event on it reaches.
 	const listensUp = (el, stopAt) => {
 		const set = new Set();
@@ -4213,6 +4206,22 @@
 		} else scan(html, "");
 		if (L.stat) L.stat("overlay scan", ts);
 		const th = L.stat ? Date.now() : 0;
+		// The types listened for on each app element and every node an
+		// event on it reaches (`listensUp`), worked out once a build from its
+		// parent's: each element walked its ancestors to the window, and any
+		// node put in or taken out anywhere (a plugin's badge, a row of the
+		// list) made every app element's entry again for that alone.
+		const upCache = new Map();
+		const listensOn = (n) => {
+			if (!n) return NO_TYPES;
+			let v = upCache.get(n);
+			if (v !== undefined) return v;
+			const above = listensOn(parentForEvents(n));
+			const own = listenTypes(n);
+			v = own.every((t) => above.includes(t)) ? above : [...new Set([...above, ...own])].sort();
+			upCache.set(n, v);
+			return v;
+		};
 		for (const [key, el] of hosts) {
 			// What the entry is made of. While all of it is as it was (the
 			// clock's second rewrites the tree every second, and the progress
@@ -4228,6 +4237,7 @@
 			const invisible = up ? invisibleAt(up) : false;
 			const hostClass = el._hostAttrs.get("class") ?? "";
 			const curClass = el._attrs.get("class") ?? "";
+			const ls = listensOn(el);
 			const memo = el._ovMemo;
 			if (
 				memo &&
@@ -4242,8 +4252,7 @@
 				memo.invisible === invisible &&
 				memo.hostClass === hostClass &&
 				memo.curClass === curClass &&
-				memo.listens === listenVersion &&
-				memo.tree === treeGen
+				sameTypes(memo.ls, ls)
 			) {
 				if (memo.keep) hostsOut[key] = memo.o;
 				continue;
@@ -4293,10 +4302,9 @@
 				for (const c of el.childNodes) if (c instanceof Text) own += c._data;
 				if (own !== (el._hostTextVal ?? "")) o.text = own;
 			}
-			const ls = listensUp(el);
 			if (ls.length) o.listens = ls;
 			const keep = Object.keys(o).length > 0;
-			el._ovMemo = { st, ps, sel, gone, up, hidden, invisible, hostClass, curClass, listens: listenVersion, tree: treeGen, keep, o };
+			el._ovMemo = { st, ps, sel, gone, up, hidden, invisible, hostClass, curClass, ls, keep, o };
 			if (keep) hostsOut[key] = o;
 		}
 		if (L.stat) L.stat("overlay hosts", th);
