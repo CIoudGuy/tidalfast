@@ -2372,6 +2372,21 @@
 		return cc;
 	};
 	D.canonClass = canonClass;
+	// A class every element an attribute selector on `class` matches
+	// carries: `[class="_wrapper_512d5f4 x"]` only matches elements of class
+	// `_wrapper_512d5f4`. `=`, `~=` and a `^=` whose value holds a whole
+	// first class; a case-insensitive one, `*=` and the others have none.
+	const classToken = (attrs) => {
+		for (const a of attrs) {
+			if (a.name !== "class" || a.ci || typeof a.val !== "string") continue;
+			const v = a.val;
+			if (a.op === "=" || (a.op === "^=" && /\S\s/.test(v))) {
+				const t = v.trim().split(/\s+/)[0];
+				if (t) return t;
+			} else if (a.op === "~=" && v !== "" && !/\s/.test(v)) return v;
+		}
+		return null;
+	};
 	const attrVal = (e, name) => {
 		if (name === "class" || name === "id" || name === "style") return e.getAttribute(name);
 		const v = e._attrs.get(name);
@@ -2572,7 +2587,7 @@
 		return l;
 	};
 	const matchesList = (e, list, scope) => list.some((x) => matchSteps(e, x.steps, scope));
-	D.sel = { parse: parseSelectors, compile: compileList, matches: matchesList, matchSteps, cmpSpec, SelErr };
+	D.sel = { parse: parseSelectors, compile: compileList, matches: matchesList, matchSteps, cmpSpec, SelErr, classToken };
 	// The element descendants of `root` in document order, until `fn`
 	// answers true (then true). A loop with its own stack: a recursive
 	// generator costs a step per level for every element it yields, and

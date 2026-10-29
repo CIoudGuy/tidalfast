@@ -543,10 +543,11 @@
 			byClass = new Map(),
 			byTag = new Map(),
 			byAttr = new Map(),
-			any = [];
+			any = [],
+			root = [];
 		// `::before` / `::after` rules, indexed the same way: the anchors'
 		// box layers (TIDAL paints header art and glass in them).
-		const pseudoIx = () => ({ byId: new Map(), byClass: new Map(), byTag: new Map(), byAttr: new Map(), any: [], size: 0 });
+		const pseudoIx = () => ({ byId: new Map(), byClass: new Map(), byTag: new Map(), byAttr: new Map(), any: [], root: [], size: 0 });
 		// A range input's `::-webkit-slider-runnable-track` and
 		// `::-webkit-slider-thumb` (and Firefox's names) go the same way, and
 		// `::selection` too: the colours of selected text.
@@ -618,7 +619,7 @@
 								}
 					for (const sel of list) {
 						const last = sel.steps.at(-1).c;
-						let ix = { byId, byClass, byTag, byAttr, any };
+						let ix = { byId, byClass, byTag, byAttr, any, root };
 						let steps = sel.steps;
 						if (last.pe) {
 							const p = last.peName && pseudo[last.peName];
@@ -629,11 +630,10 @@
 							p.size++;
 						}
 						const entry = { steps, spec: sel.spec, order: order++, decls, pluginOnly };
-						if (last.ids.length) add(ix.byId, last.ids[0], entry);
-						else if (last.classes.length) add(ix.byClass, D.canonClass(last.classes[0]), entry);
-						else if (last.tag && last.tag !== "*") add(ix.byTag, last.tag.toLowerCase(), entry);
-						else if (last.attrs.length) add(ix.byAttr, last.attrs[0].name, entry);
-						else ix.any.push(entry);
+						const key = keyOf(last);
+						if (!key) ix.any.push(entry);
+						else if (key[0] === "root") ix.root.push(entry);
+						else add(ix[key[0]], key[1], entry);
 					}
 				} else if (r instanceof CSSGroupingRule) {
 					if (r.active) walk(r.cssRules);
@@ -673,7 +673,7 @@
 		}
 		if (skipped && !warnedCss) L.callOp("log", { plugin: null, level: "warn", msg: `${skipped} style sheet(s) left out: plugin and theme CSS is capped at ${MAX_CSS_BYTES >> 20} MB` });
 		warnedCss = skipped > 0;
-		index = { byId, byClass, byTag, byAttr, any, fonts, keyframes, hover, styleAttr, structural, hasSteps, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
+		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, hover, styleAttr, structural, hasSteps, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
 		return index;
 	};
 	// `@keyframes` body -> [[offset 0..1, Map name -> value]], sorted.
@@ -703,8 +703,30 @@
 	// -3em` on the album's list panel, which TIDAL 2.46.0 ignores).
 	const invalidDecl = (name, value) => /^padding(-(top|right|bottom|left))?$/.test(name) && /(^|\s)-(\d|\.\d)/.test(String(value)) && !/var\(|calc\(|min\(|max\(|clamp\(/i.test(String(value));
 	const usesHover = () => !!buildIndex().hover;
+	// Where a rule is indexed, by the compound its selector ends in (the
+	// element it styles): its id, else its first class, else the tag, else
+	// an attribute it reads; `:root` with the root alone, and a compound
+	// that is all `:is(...)` or `:where(...)` of one selector (`:is(button):
+	// not(:disabled):hover`) by that selector's own. Only rules with none of
+	// these are tried on every element.
+	const keyOf = (c) => {
+		if (c.ids.length) return ["byId", c.ids[0]];
+		if (c.classes.length) return ["byClass", D.canonClass(c.classes[0])];
+		const token = D.sel.classToken(c.attrs);
+		if (token) return ["byClass", D.canonClass(token)];
+		if (c.tag && c.tag !== "*") return ["byTag", c.tag.toLowerCase()];
+		if (c.pseudos.some((p) => p.name === "root")) return ["root"];
+		for (const p of c.pseudos)
+			if ((p.name === "is" || p.name === "where") && p.list?.length === 1) {
+				const key = keyOf(p.list[0].steps.at(-1).c);
+				if (key) return key;
+			}
+		if (c.attrs.length) return ["byAttr", c.attrs[0].name];
+		return null;
+	};
 	const candidates = (ix, el) => {
 		const out = [...ix.any];
+		if (el === g.document.documentElement) out.push(...ix.root);
 		const id = el._attrs.get("id");
 		if (id) out.push(...(ix.byId.get(id) ?? []));
 		const cls = el._attrs.get("class");
@@ -815,7 +837,10 @@
 		// Counted for the tests that check what a change keeps.
 		D.cascadeRuns = (D.cascadeRuns ?? 0) + 1;
 		const live = el.isConnected;
-		const matched = ix.size ? candidates(ix, el).filter((r) => !(r.pluginOnly && el._hostKey !== undefined) && D.sel.matchSteps(el, r.steps, null, live)) : [];
+		const tried = ix.size ? candidates(ix, el) : [];
+		// The rules matched against an element, counted for the same tests.
+		D.candidatesTried = (D.candidatesTried ?? 0) + tried.length;
+		const matched = tried.filter((r) => !(r.pluginOnly && el._hostKey !== undefined) && D.sel.matchSteps(el, r.steps, null, live));
 		const inline = el._style?._m;
 		if (!matched.length && !inline?.size) return null;
 		matched.sort((a, b) => D.sel.cmpSpec(a.spec, b.spec) || a.order - b.order);

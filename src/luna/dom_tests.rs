@@ -5900,3 +5900,75 @@ const wait = setInterval(() => {
     assert_eq!(r["watched"], json!(3));
     finish(luna, dir);
 }
+
+/// Cotton Candy adaptive names hundreds of TIDAL's elements by their whole
+/// class attribute (`[class="_wrapper_512d5f4 x"]`), and each such rule was
+/// tried on every element that has a class: the page's first style pass
+/// under the theme ran for seconds. A rule on the class attribute that
+/// needs a class (`=`, `~=`, a `^=` with a whole first class) is tried
+/// only on elements of that class, `:root` only on the root and
+/// `:is(button)` only on buttons; what they match is what they matched.
+#[test]
+fn a_rule_on_the_class_attribute_is_tried_only_where_its_class_is() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+let css = "";
+for (let i = 0; i < 300; i++) css += `[class="_zz${i}_0abcdef y"] { color: rgb(9, 9, 9); }\n`;
+for (let i = 0; i < 100; i++) css += `:root.zz${i}, :is(.zz${i}) { color: rgb(9, 9, 9); }\n`;
+css += '[class="_zzModule_5bb6028 x"] { color: rgb(1, 0, 0); }\n';
+css += '[class~="tok"] { color: rgb(2, 0, 0); }\n';
+css += '[class^="lead "] { color: rgb(3, 0, 0); }\n';
+css += '[class="CI ONE" i] { color: rgb(4, 0, 0); }\n';
+css += ':root { color: rgb(5, 0, 0); }\n';
+css += ':is(section):not(.no) { color: rgb(6, 0, 0); }\n';
+css += ':where(.wq) { color: rgb(7, 0, 0); }\n';
+const st = document.createElement("style");
+st.textContent = css;
+document.head.append(st);
+const box = document.createElement("div");
+const make = (tag, cls) => {
+	const e = document.createElement(tag);
+	if (cls !== null) e.setAttribute("class", cls);
+	box.append(e);
+	return e;
+};
+const els = {
+	fuzzy: make("div", "_zzModule_1234567 x"),
+	fuzzyMore: make("div", "_zzModule_1234567 x z"),
+	tok: make("div", "a tok b"),
+	lead: make("div", "lead b"),
+	leader: make("div", "leader b"),
+	ci: make("div", "ci one"),
+	section: make("section", null),
+	sectionNo: make("section", "no"),
+	wq: make("p", "wq"),
+};
+const plain = [];
+for (let i = 0; i < 50; i++) plain.push(make("div", "plain k"));
+document.body.append(box);
+const tried = D.candidatesTried ?? 0;
+for (const e of plain) getComputedStyle(e).color;
+R.perElement = ((D.candidatesTried ?? 0) - tried) / plain.length;
+R.colors = Object.fromEntries(Object.entries(els).map(([k, e]) => [k, getComputedStyle(e).color]));
+R.root = getComputedStyle(document.documentElement).color;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["colors"]["fuzzy"], json!("rgb(1, 0, 0)"), "{r}");
+    assert_ne!(r["colors"]["fuzzyMore"], json!("rgb(1, 0, 0)"), "{r}");
+    assert_eq!(r["colors"]["tok"], json!("rgb(2, 0, 0)"), "{r}");
+    assert_eq!(r["colors"]["lead"], json!("rgb(3, 0, 0)"), "{r}");
+    assert_ne!(r["colors"]["leader"], json!("rgb(3, 0, 0)"), "{r}");
+    assert_eq!(r["colors"]["ci"], json!("rgb(4, 0, 0)"), "{r}");
+    assert_eq!(r["colors"]["section"], json!("rgb(6, 0, 0)"), "{r}");
+    assert_ne!(r["colors"]["sectionNo"], json!("rgb(6, 0, 0)"), "{r}");
+    assert_eq!(r["colors"]["wq"], json!("rgb(7, 0, 0)"), "{r}");
+    assert_eq!(r["root"], json!("rgb(5, 0, 0)"), "{r}");
+    assert!(
+        r["perElement"].as_f64().unwrap() < 20.0,
+        "each element still tries the class attribute's rules: {r}"
+    );
+    finish(luna, dir);
+}
