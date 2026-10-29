@@ -355,8 +355,8 @@ pub fn shelf_title(locale: crate::i18n::Locale, entry: &AlbumShelf, album: &Albu
 /// TIDAL's shelves under the album's footer: Other versions, More albums by
 /// the artist, Related albums and Related artists, each with View all
 /// (where TIDAL has a page behind it). They are read once the footer is
-/// about to scroll into view, so the page's first paint is not held back;
-/// a shelf TIDAL has no cards for is not drawn, nor its heading.
+/// about to scroll into view, so the page's first paint is not held back
+/// (while plugins run, when the page opens, as TIDAL reads them); a shelf TIDAL has no cards for is not drawn, nor its heading.
 pub fn shelves(
     app: &mut App,
     ui: &mut egui::Ui,
@@ -369,7 +369,11 @@ pub fn shelves(
     // The footer is "in view" a screenful before it is reached.
     let top = ui.available_rect_before_wrap().top();
     let probe = Rect::from_min_size(pos2(ui.max_rect().left(), top), vec2(1.0, 1.0));
-    let near = ui.clip_rect().expand2(vec2(0.0, 600.0)).intersects(probe);
+    // While plugins run they are asked for when the page opens: TIDAL reads
+    // the album's page modules then, and plugins look for the shelves'
+    // headings at once.
+    let near =
+        super::plugin_dom::on() || ui.clip_rect().expand2(vec2(0.0, 600.0)).intersects(probe);
     if near && matches!(shelves, Loadable::NotLoaded) && app.network_reachable {
         *shelves = Loadable::Loading;
         app.backend

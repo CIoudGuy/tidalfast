@@ -9862,6 +9862,63 @@ mod tests {
         assert!(drawn.iter().any(|d| d == "연관 아티스트"), "{drawn:?}");
     }
 
+    /// TIDAL 2.46.0 reads an album's page modules (`pages/album`) when the
+    /// page opens, so its shelves' headings are in the page at once, where
+    /// plugins look for them. While plugins run, the album page asks for its
+    /// shelves when it opens, not when the footer nears the view; with Luna
+    /// off it still waits for the footer.
+    #[test]
+    fn an_albums_shelves_are_asked_for_when_it_opens_while_plugins_run() {
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("album-shelves-at-open");
+        app.network_reachable = true;
+        app.open(Page::Album("alb0".into()));
+        frame(&ctx, &mut app);
+        let unread = |app: &mut App| {
+            // The demo's shelves come with the album; a real page reads them.
+            // A long album keeps its footer far below the window.
+            let page = app.album_pages.get_mut("alb0").expect("the album page");
+            page.shelves = Loadable::NotLoaded;
+            page.tracks
+                .absorb(0, super::page((0..40).map(super::track).collect()));
+        };
+        let asked = |app: &App| {
+            !matches!(
+                app.album_pages.get("alb0").map(|p| &p.shelves),
+                Some(Loadable::NotLoaded)
+            )
+        };
+        unread(&mut app);
+        frame(&ctx, &mut app);
+        assert!(!asked(&app), "the footer is out of view: Luna off waits");
+        plugin_dom::test_overlay(Some(crate::luna::dom::DomOverlay {
+            version: 1,
+            ..crate::luna::dom::DomOverlay::default()
+        }));
+        // A window-sized frame with plugins running (`frame` would stop the
+        // test overlay: the app has no Luna).
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1280.0, 800.0),
+            )),
+            ..Default::default()
+        };
+        let page = app.page().clone();
+        let mut out = ctx.run_ui(input, |ui| {
+            plugin_dom::test_page_frame_for(&page);
+            crate::ui::show(&mut app, ui);
+        });
+        out.textures_delta.clear();
+        plugin_dom::end_frame(&ctx);
+        plugin_dom::test_overlay(None);
+        app.backend.shutdown();
+        assert!(
+            asked(&app),
+            "with plugins running the shelves are asked for at once"
+        );
+    }
+
     /// One frame of `app` in a tall window (every shelf of Home in view),
     /// with the anchor tree sent at its end.
     fn tall_plugin_frame(ctx: &egui::Context, app: &mut App) -> Vec<egui::epaint::ClippedShape> {
