@@ -1589,6 +1589,43 @@
 	g.DOMMatrixReadOnly ??= DOMMatrixReadOnly;
 	g.DOMMatrix ??= DOMMatrix;
 	g.WebKitCSSMatrix ??= DOMMatrix;
+	// ---------------------------------------------------------------- DOMRect
+	// Geometry's rectangles, as Chromium has them: a plugin builds one from a
+	// measured box (`new DOMRect(left, top, width, height)`). The edges are
+	// worked out from a negative width or height as the spec says.
+	class DOMRectReadOnly {
+		constructor(x = 0, y = 0, width = 0, height = 0) {
+			// Not an own enumerable property: Chromium's rect has none.
+			Object.defineProperty(this, "_r", { value: [+x, +y, +width, +height] });
+		}
+		static fromRect(o = {}) {
+			return new this(o.x ?? 0, o.y ?? 0, o.width ?? 0, o.height ?? 0);
+		}
+		get x() { return this._r[0]; }
+		get y() { return this._r[1]; }
+		get width() { return this._r[2]; }
+		get height() { return this._r[3]; }
+		get top() { return Math.min(this._r[1], this._r[1] + this._r[3]); }
+		get bottom() { return Math.max(this._r[1], this._r[1] + this._r[3]); }
+		get left() { return Math.min(this._r[0], this._r[0] + this._r[2]); }
+		get right() { return Math.max(this._r[0], this._r[0] + this._r[2]); }
+		toJSON() {
+			const { x, y, width, height, top, right, bottom, left } = this;
+			return { x, y, width, height, top, right, bottom, left };
+		}
+	}
+	class DOMRect extends DOMRectReadOnly {
+		get x() { return this._r[0]; }
+		set x(v) { this._r[0] = +v; }
+		get y() { return this._r[1]; }
+		set y(v) { this._r[1] = +v; }
+		get width() { return this._r[2]; }
+		set width(v) { this._r[2] = +v; }
+		get height() { return this._r[3]; }
+		set height(v) { this._r[3] = +v; }
+	}
+	g.DOMRectReadOnly ??= DOMRectReadOnly;
+	g.DOMRect ??= DOMRect;
 
 	// WebAssembly: js/wasm.js (on src/luna/wasm.rs).
 

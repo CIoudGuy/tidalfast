@@ -522,6 +522,46 @@ R.done = true;
     assert_eq!(r["parser"], "function", "{r}");
 }
 
+/// `DOMRect` and `DOMRectReadOnly` are Chromium's globals: a plugin builds
+/// a rect from a measured box (`new DOMRect(left, top, width, height)`) in
+/// its frame loop. They were not defined, so such a plugin threw a
+/// ReferenceError every frame.
+#[test]
+fn a_plugin_builds_dom_rects() {
+    let (r, ..) = run(
+        "Compat",
+        r#"
+try {
+	const el = document.createElement("div");
+	document.body.appendChild(el);
+	const b = el.getBoundingClientRect();
+	const r = new DOMRect(b.left + 10, b.top + 4, 120, 30);
+	R.rect = [r.x, r.y, r.width, r.height, r.left, r.top, r.right, r.bottom];
+	r.width = -20;
+	R.flipped = [r.left, r.right, r instanceof DOMRectReadOnly, Object.keys(r).length];
+	const ro = DOMRectReadOnly.fromRect({ x: 1, y: 2, width: 3, height: 4 });
+	R.ro = [ro.x, ro.bottom, JSON.stringify(ro)];
+	R.empty = [new DOMRect().width, DOMRect.fromRect() instanceof DOMRect];
+} catch (e) { R.err = String(e); }
+R.done = true;
+"#,
+    );
+    assert_eq!(r["err"], Value::Null, "{r}");
+    // The new element sits at the window's corner (0, 0).
+    assert_eq!(r["rect"], json!([10, 4, 120, 30, 10, 4, 130, 34]), "{r}");
+    assert_eq!(r["flipped"], json!([-10, 10, true, 0]), "{r}");
+    assert_eq!(
+        r["ro"],
+        json!([
+            1,
+            6,
+            r#"{"x":1,"y":2,"width":3,"height":4,"top":2,"right":4,"bottom":6,"left":1}"#
+        ]),
+        "{r}"
+    );
+    assert_eq!(r["empty"], json!([0, true]), "{r}");
+}
+
 #[test]
 fn local_redux_slices_and_action_probes() {
     let (r, ..) = run(
