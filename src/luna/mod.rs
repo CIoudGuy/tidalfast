@@ -765,6 +765,14 @@ const COMPAT: &[CompatRow] = &[
         },
     },
     CompatRow {
+        repo: "visiuun/tidaluna-plugins",
+        name: "@visiuun/true-taste",
+        note: CompatNote {
+            level: Compat::PartlySupported,
+            reason: "Its rating buttons work, but it cannot build its playlist through TIDAL's newer API, which Tidalfast does not open to plugins.",
+        },
+    },
+    CompatRow {
         repo: "Inrixia/luna-plugins",
         name: "Themer",
         note: CompatNote {

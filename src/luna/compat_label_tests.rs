@@ -218,7 +218,7 @@ fn store_url(repo: &str, file: &str) -> String {
 }
 
 /// The labels hit exactly the store entries they name and no other entry of
-/// those stores: 16 of the 51 (one entry that only needs an outside account is left out of the list).
+/// those stores: 17 of the 51 (one entry that only needs an outside account is left out of the list).
 #[test]
 fn labels_match_their_store_entries_and_nothing_else() {
     let mut got: Vec<&str> = STORE_INDEX
@@ -230,7 +230,7 @@ fn labels_match_their_store_entries_and_nothing_else() {
     got.sort_unstable();
     want.sort_unstable();
     assert_eq!(got, want);
-    assert_eq!(got.len(), 16);
+    assert_eq!(got.len(), 17);
     // Every row targets an entry of the index, in the repository it names.
     for row in COMPAT {
         assert!(
@@ -275,7 +275,8 @@ fn labels_are_keyed_by_store_and_package_name() {
     // Partly supported: miniplayer and lyrics-everywhere (their windows
     // open and work; the widget can slip under the taskbar and the lyrics
     // window does not scroll), Avatar (no email for Gravatar) and
-    // Themer (no Monaco window). 3d-cover's Base model and its fade and
+    // Themer (no Monaco window), true-taste (no playlist: TIDAL's openapi
+    // is not open to plugins as the account). 3d-cover's Base model and its fade and
     // spinner work, so it carries no label.
     let partly: Vec<&str> = COMPAT
         .iter()
@@ -288,6 +289,7 @@ fn labels_are_keyed_by_store_and_package_name() {
             "@jxnxsdev/miniplayer",
             "@jxnxsdev/lyrics-everywhere",
             "Avatar",
+            "@visiuun/true-taste",
             "Themer"
         ]
     );
@@ -390,6 +392,7 @@ const NEW_REASONS: &[&str] = &[
     "@jxnxsdev/audiovisualiser",
     "@jxnxsdev/miniplayer",
     "@jxnxsdev/lyrics-everywhere",
+    "@visiuun/true-taste",
 ];
 
 /// The plugins that run once the user gives them a permission are labelled
@@ -419,4 +422,7 @@ fn plugins_behind_a_permission_say_so() {
     // Its window opens since plugin windows came (round 1), without its
     // icons yet.
     assert_eq!(level("@jxnxsdev/miniplayer"), Some(Compat::PartlySupported));
+    // Its playlist goes through TIDAL's openapi, which plugins do not reach
+    // as the account (plugin round 18).
+    assert_eq!(level("@visiuun/true-taste"), Some(Compat::PartlySupported));
 }
