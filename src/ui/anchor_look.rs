@@ -597,6 +597,15 @@ pub fn menu_box_looks() -> Option<[Option<Arc<AnchorLook>>; 2]> {
     (more(&outer) || more(&menu)).then_some([outer, menu])
 }
 
+/// Whether the theme gives TIDAL's context menu (`div._contextMenu_
+/// [role=menu]`) a fully transparent `background-color` of its own.
+fn menu_see_through() -> bool {
+    host(crate::luna::dom_anchors::keys::THEME_MENU, |h, vars| {
+        style_color(&h.style, |s| s.background_color.as_ref(), vars)
+    })
+    .is_some_and(|c| c.a() == 0)
+}
+
 /// Lays the theme's menu box ([`menu_box_looks`]) into every menu frame
 /// painted with [`MENU_BOX_MARK`] this frame: the menu's colour
 /// (`native_fill`, the palette's), then the popover's and the menu's boxes.
@@ -643,7 +652,13 @@ pub fn paint_menu_boxes(ctx: &egui::Context, native_fill: Color32) {
                 ui.painter().rect_filled(rect, corner, native_fill);
             }
         } else {
-            ui.painter().rect_filled(rect, corner, native_fill);
+            // A menu the theme makes see-through (`background-color:
+            // transparent`) has nothing of TIDAL's under the theme's box:
+            // its `::before` glass lies over the page (Lunallena's half
+            // black over the blurred page), not over the menu's colour.
+            if !menu_see_through() {
+                ui.painter().rect_filled(rect, corner, native_fill);
+            }
             let [outer, menu] = menus.clone().unwrap_or_default();
             for (key, look) in [(THEME_MENU_BOX, &outer), (THEME_MENU, &menu)] {
                 if let Some(look) = look {

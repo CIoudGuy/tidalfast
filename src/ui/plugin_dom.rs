@@ -12110,6 +12110,82 @@ mod tests {
         assert_eq!(drawn, [crate::theme::regular(12.0).family]);
     }
 
+    /// A theme that makes TIDAL's context menu see-through and paints it
+    /// with a `::before` glass (`[role=menu] { background-color:
+    /// transparent } [role=menu]::before { background-color: rgba(0, 0, 0,
+    /// 0.5); backdrop-filter: blur(..) }`) shows the page through the
+    /// glass, as TIDAL does. The menu's own colour was laid under the
+    /// glass first, opaque: a black menu. A menu the theme gives a colour
+    /// keeps it under the box.
+    #[test]
+    fn a_see_through_menus_glass_lies_over_the_page() {
+        let key = dom_anchors::keys::THEME_MENU;
+        let menu_fills = |own: &str| {
+            let mut o = DomOverlay {
+                version: 9,
+                ..DomOverlay::default()
+            };
+            o.hosts.insert(
+                key.to_string(),
+                HostOverride {
+                    style: Style {
+                        background_color: Some(own.into()),
+                        ..Style::default()
+                    },
+                    before: Some(Style {
+                        position: Some("absolute".into()),
+                        top: Some("0".into()),
+                        right: Some("0".into()),
+                        bottom: Some("0".into()),
+                        left: Some("0".into()),
+                        background_color: Some("rgba(0, 0, 0, 0.5)".into()),
+                        ..Style::default()
+                    }),
+                    ..HostOverride::default()
+                },
+            );
+            test_overlay(Some(o));
+            let ctx = egui::Context::default();
+            crate::theme::install(&ctx);
+            let palette = crate::theme::Palette::dark();
+            let mut fills = Vec::new();
+            for _ in 0..3 {
+                let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                    super::super::widgets::menu_frame(&palette).show(ui, |ui| {
+                        ui.set_min_size(egui::vec2(200.0, 100.0));
+                    });
+                    anchor_look::paint_menu_boxes(ui.ctx(), palette.menu_bg());
+                });
+                out.textures_delta.clear();
+                fills.clear();
+                let mut walk = vec![];
+                walk.extend(out.shapes.iter().map(|c| c.shape.clone()));
+                while let Some(shape) = walk.pop() {
+                    match shape {
+                        egui::Shape::Vec(v) => walk.extend(v),
+                        egui::Shape::Rect(r) if r.rect.width() >= 200.0 && r.fill.a() > 0 => {
+                            fills.push(r.fill);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            test_overlay(None);
+            fills
+        };
+        let see_through = menu_fills("transparent");
+        assert!(
+            see_through.iter().all(|c| c.a() < 255),
+            "nothing opaque under the glass: {see_through:?}"
+        );
+        assert!(
+            see_through.contains(&Color32::from_black_alpha(128)),
+            "{see_through:?}"
+        );
+        let coloured = menu_fills("rgb(10, 20, 30)");
+        assert!(coloured.iter().any(|c| c.a() == 255), "{coloured:?}");
+    }
+
     /// A theme's border on a box it gives no corners (Catppuccin Mocha
     /// Blue's `[role=menu] { border: 1px solid }`) follows the part's own
     /// corners, as TIDAL's rounded menu keeps its radius under the border;
