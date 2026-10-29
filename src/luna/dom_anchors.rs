@@ -709,6 +709,12 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("actionTextInner", "_actionTextInner_a14f37c"),
     ("albumColumn", "_albumColumn_907bff3"),
     ("artistName", "_artistName_a1d1fe6"),
+    // The bar's cover (`figure._artworkContainer_3cdbf46._artwork_941d1cf`).
+    // TIDAL 2.46.0 has a dozen `_artwork_` modules (a playlist's header art
+    // is `button._artwork_1d717fe`): a theme's rule for one of them (the
+    // cotton candy family's `._artwork_b010eae { border-radius: 1em }`)
+    // reaches that one alone.
+    ("artwork", "_artwork_941d1cf"),
     ("artworkContainer", "_artworkContainer_3cdbf46"),
     ("bar", "_bar_5b9ac59"),
     // A collection card's cell (`article._cellContainer_19b23ad`). TIDAL

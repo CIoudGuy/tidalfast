@@ -156,3 +156,29 @@ fn a_div_chain_rule_reaches_the_list_panel_only_where_tidals_does() {
         );
     }
 }
+
+/// TIDAL 2.46.0 has a dozen `_artwork_` modules, and a theme's rule for one
+/// (the cotton candy family's `._artwork_b010eae { border-radius: 1em }`)
+/// reaches that one alone: the bar's cover (`figure._artwork_941d1cf`) and
+/// a playlist's header art (`button._artwork_1d717fe`) keep TIDAL's 2-point
+/// corners. Tidalfast read any `_artwork_` hash as either of them.
+#[test]
+fn a_rule_for_one_artwork_module_reaches_that_one_alone() {
+    let css = "._artwork_b010eae { border-radius: 1em; }\n\
+        ._artwork_941d1cf { border-radius: 3px; }\n";
+    let o = page_overlay("artwork.css", css, "playlist:pl0", None, |o| {
+        o.hosts
+            .get(keys::COVER)
+            .is_some_and(|h| h.style.border_radius.is_some())
+    });
+    assert_eq!(
+        o.hosts[keys::COVER].style.border_radius.as_deref(),
+        Some("3px")
+    );
+    assert_eq!(
+        o.hosts
+            .get(keys::HERO_COVER)
+            .and_then(|h| h.style.border_radius.as_deref()),
+        None
+    );
+}
