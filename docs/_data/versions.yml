@@ -1,7 +1,7 @@
-current: v1.1.0
+current: v1.2.0
 items:
-  - id: v1.1.0
-    title: v1.1.0
+  - id: v1.2.0
+    title: v1.2.0
     url: /download/
   - title: Changelog
     url: https://github.com/CIoudGuy/tidalfast/releases
