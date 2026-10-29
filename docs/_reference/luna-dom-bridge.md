@@ -1199,7 +1199,7 @@ with the keyboard focus and 30 without, and none while it is minimised or
 covered (`plugin_windows::pace`; what the page's drawing asks for is noted
 for its window instead of egui's next frame).
 
-**What the windowing layer can do** (winit through the owner's eframe fork,
+**What the windowing layer can do** (winit through Tidalfast's eframe fork,
 CIoudGuy/egui on crmne/egui apps-0.36.2, glow renderer):
 
 | | Windows | Linux X11 | Linux Wayland | macOS |
@@ -1261,7 +1261,7 @@ element, the same for plugin elements in the app). A scroll box reports
 its `scrollTop` and `scrollHeight` back; only a move fires `scroll`.
 `scrollbar-width: none` scrolls with no bar.
 
-**Not yet** (see the plan in `.internal/PLUGIN-WINDOWS-PROGRESS.md`):
+**Not yet**:
 pages from `http(s)` URLs, `<script src>`, `@import` in a linked sheet,
 focus and blur of a page's text fields (typing in them works through
 egui's text field; `focus()` from a script does not focus it yet), a scroll

@@ -994,7 +994,7 @@ checks its 30-frame cap) and a window on screen, where vsync also paces it.
 
 ## Plugin windows: see-through, egui fork (2026-10-24)
 
-egui moved from crmne/egui apps-0.36 (ba6790fe) to the owner's fork
+egui moved from crmne/egui apps-0.36 (ba6790fe) to Tidalfast's fork
 CIoudGuy/egui (466a177a: egui 0.36.2 with crmne's changes, plus options for
 see-through windows). A see-through frameless plugin window now has no
 system frame, and with Luna on eframe picks a GL config with alpha for its
@@ -1210,7 +1210,7 @@ DOM syncs, 22 and 26 overlay builds in 10 s) against 45 % and 48 % (217 and
 226 syncs, 59 and 64 overlay builds). Each sync carries more cards, but the
 set of cards no longer changes as cards come into view, so the runtime
 restructures the page and rebuilds the overlay far less. A signed-in Home
-in lunatest held about 165 cards.
+in a test profile held about 165 cards.
 
 ## Themes, speed round 1: where time goes (2026-10-25)
 
