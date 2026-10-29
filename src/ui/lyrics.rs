@@ -691,6 +691,7 @@ pub(super) fn fullscreen_contents(app: &mut App, ui: &mut egui::Ui) {
             super::plugin_dom::note(|f| {
                 if let Some(np) = f.now_playing.as_mut() {
                     np.lyrics_rect = super::plugin_dom::rect(viewport);
+                    np.synced = lyrics.synced;
                 }
             });
             super::plugin_slots::inline(ui, keys::LYRICS_LINES, Position::Append);

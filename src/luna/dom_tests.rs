@@ -4935,6 +4935,49 @@ setTimeout(go, 300);
     finish(luna, dir);
 }
 
+/// The lyrics' lines box and lines are marked up as TIDAL 2.46.0 renders
+/// them (its bundle): the box is market text in the `display-20` type,
+/// white, with `_hasCues_` for timed lyrics, so what a plugin puts in it
+/// inherits the lyrics' 48 px bold (radiant-lyrics' word-by-word box reads
+/// that in TIDAL); only the sung line has `data-current`, the others their
+/// `data-distance` from it, and timed lines are buttons.
+#[test]
+fn the_lyrics_lines_box_has_tidals_type_and_lines() {
+    let (luna, _host, dir) = start(
+        r#"
+const go = () => {
+	const box = document.querySelector('[data-test="lyrics-text"]');
+	if (!box || !box.querySelector('span[data-test="lyrics-line"]')) return setTimeout(go, 20);
+	const mine = document.createElement("div");
+	mine.className = "probe-words";
+	box.appendChild(mine);
+	const cs = getComputedStyle(mine);
+	const lines = [...box.querySelectorAll('span[data-test="lyrics-line"]')];
+	R.found = {
+		font: [cs.fontSize, cs.fontWeight, cs.color],
+		cues: box.matches('[class^="_marketText_"]._display20_1lyag_21._text_4a89397._hasCues_15d8b83'),
+		sung: box.querySelectorAll("span[data-current]").length,
+		lines: lines.map((l) => [l.getAttribute("data-current"), l.getAttribute("data-distance"), l.getAttribute("role"), l.getAttribute("tabindex")]),
+	};
+};
+setTimeout(go, 300);
+"#,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| !r["found"].is_null());
+    assert_eq!(
+        r["found"],
+        json!({
+            "font": ["48px", "700", "rgb(255, 255, 255)"],
+            "cues": true,
+            "sung": 1,
+            "lines": [["true", null, "button", "0"], [null, "1", "button", "0"]],
+        }),
+        "{r}"
+    );
+    finish(luna, dir);
+}
+
 /// A read never stalls the runtime for a window that does not lay the
 /// change out: it gives up when the UI did not start drawing it in time,
 /// or, drawing it, did not send its tree, and reads the boxes it has.

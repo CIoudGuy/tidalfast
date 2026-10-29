@@ -1914,6 +1914,9 @@ pub struct NowPlaying {
     /// that place the sung line themselves scroll.
     pub lyrics_scroll: Option<[f32; 2]>,
     pub lines: Vec<LyricLine>,
+    /// The lyrics are timed (TIDAL's `cues`): the lines' box carries
+    /// `_hasCues_`, and each line is a button that seeks to it.
+    pub synced: bool,
     pub sync_rect: Option<Rect>,
     /// The close chevron in the header (`[data-test=new-now-playing-close]`).
     pub close_rect: Option<Rect>,
@@ -5009,20 +5012,41 @@ pub fn now_playing(out: &mut Vec<HostNode>, np: &NowPlaying, fullscreen: bool) {
             .class("_content_fef19e8")
             .at(np.lyrics_rect),
     );
-    out.push(
-        el(LYRICS_LINES, Some(LYRICS_CONTENT), "div")
-            .test("lyrics-text")
-            .at(np.lyrics_rect),
-    );
+    // The lines' box is TIDAL's market text in the `display-20` type and
+    // white (`_text_4a89397` sets that type's tokens for the lyrics), with
+    // `_hasCues_15d8b83` while the lyrics are timed: what a plugin puts in
+    // it inherits the lyrics' type (its bundle and market.css).
+    let mut lines = el(LYRICS_LINES, Some(LYRICS_CONTENT), "div")
+        .class("_marketText_1lyag_1 _display20_1lyag_21 _textWhite_1lyag_319 _text_4a89397");
+    if np.synced {
+        lines = lines.class("_hasCues_15d8b83");
+    }
+    out.push(lines.test("lyrics-text").at(np.lyrics_rect));
+    // A line as TIDAL 2.46.0 renders it (its bundle): `data-current` on the
+    // sung line only, the others `data-distance` from it (at most 3, and 3
+    // with no line sung), `_endOfStanza_` on an empty line, and a button
+    // when the lyrics are timed.
+    let sung = np.lines.iter().position(|l| l.current);
     for (i, line) in np.lines.iter().enumerate() {
         let mut node = el(keys::lyric(i), Some(LYRICS_LINES), "span")
             .modules(&["lyricsLine"])
             .test("lyrics-line")
-            .attr("data-current", line.current.to_string())
             .text(line.text.clone())
             .at(line.rect);
         if line.current {
-            node = node.modules(&["current"]).attr("aria-current", "true");
+            node = node
+                .modules(&["current"])
+                .attr("data-current", "true")
+                .attr("aria-current", "true");
+        } else {
+            let distance = sung.map_or(3, |s| s.abs_diff(i).min(3));
+            node = node.attr("data-distance", distance.to_string());
+        }
+        if line.text.is_empty() {
+            node = node.class("_endOfStanza_c8fd4ed");
+        }
+        if np.synced {
+            node = node.attr("role", "button").attr("tabindex", "0");
         }
         out.push(node);
     }
@@ -5432,6 +5456,7 @@ pub fn sample_frame() -> Frame {
                 },
             ],
             lyrics_rect: r(700.0, 100.0, 500.0, 580.0),
+            synced: true,
             ..NowPlaying::default()
         }),
         queue_title: None,

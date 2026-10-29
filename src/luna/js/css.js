@@ -1838,6 +1838,14 @@
 		["_iconButton_fe68160", ["_tertiary_1d16h_8", "_iconOnly_1d16h_1"], { color: "rgba(255, 255, 255, 0.55)" }],
 		["_toggleButton_934359e", ["_small_1d16h_3"], { "font-weight": "500", color: "rgba(255, 255, 255, 0.55)" }],
 		["_toggleButtonActive_b595428", ["_toggleButton_934359e", "_tertiary_1d16h_8"], { color: "rgba(0, 0, 0, 0.9)", "background-color": "rgb(255, 255, 255)" }],
+		// The lyrics' lines box (`div[data-test=lyrics-text]`): market text in
+		// the `display-20` type, whose tokens `._text_4a89397` sets for the
+		// lyrics (bold, `clamp(26px, 7cqw, 48px)` of the now-playing content,
+		// 48 at any window wider than about 700 points), and white
+		// (`._textWhite_`). A plugin's own lines inside inherit it
+		// (radiant-lyrics' word-by-word box reads 48px, 700 in TIDAL).
+		["_display20_1lyag_21", ["_marketText_1lyag_1", "_text_4a89397"], { "font-size": "48px", "font-weight": "700" }],
+		["_textWhite_1lyag_319", ["_marketText_1lyag_1"], { color: "rgb(255, 255, 255)" }],
 	];
 	// A form control's own font, from Chromium's sheet (`font:
 	// -webkit-small-control`, which TIDAL's normalize sizes back to its
