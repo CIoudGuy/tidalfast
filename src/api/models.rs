@@ -1072,7 +1072,21 @@ pub struct Promo {
     pub title: String,
     pub text: String,
     pub image: Option<String>,
-    pub item: ShelfItem,
+    /// The album, playlist, artist, mix, song or video it opens, if any.
+    #[serde(default)]
+    pub item: Option<ShelfItem>,
+    /// What it opens when it is not an item: a TIDAL page or a web page.
+    #[serde(default)]
+    pub link: Option<PromoLink>,
+}
+
+/// A promotion that opens a page rather than an item.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub enum PromoLink {
+    /// A TIDAL page by its API path (`pages/...`), shown in the page view.
+    Page(String),
+    /// A web page (TIDAL Magazine), opened in the system browser.
+    Url(String),
 }
 
 /// A TIDAL profile: the name and picture people see, its follower counts

@@ -11,7 +11,7 @@ use serde_json::Value;
 use super::convert::{self, RawAlbum, RawArtist, RawMix, RawPlaylist, RawTrack, RawVideo};
 use crate::api::models::{
     Album, AlbumShelf, AlbumShelfKind, Artist, CardMark, Image, Mix, PageLink, Playlist, Promo,
-    Shelf, ShelfItem, ShelfLayout, Track, Video,
+    PromoLink, Shelf, ShelfItem, ShelfLayout, Track, Video,
 };
 
 fn decode<T: DeserializeOwned>(value: &Value) -> Option<T> {
@@ -224,14 +224,15 @@ fn shelf(module: &Value) -> Option<Shelf> {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
-    if !items.is_empty() {
-        // Promotions (Explore's Videos and genre pages' "Featured") also
-        // come as TIDAL's wide editorial cards: kicker, title, text.
-        let promos = if matches!(kind, "FEATURED_PROMOTIONS" | "MULTIPLE_TOP_PROMOTIONS") {
-            items_of(module).into_iter().filter_map(magazine).collect()
-        } else {
-            Vec::new()
-        };
+    // Promotions (Explore's, Videos' and genre pages' "Featured") come as
+    // TIDAL's wide editorial cards: kicker, title, text. Those that open a
+    // page or a web page have no item, and may be all the module has.
+    let promos: Vec<Promo> = if matches!(kind, "FEATURED_PROMOTIONS" | "MULTIPLE_TOP_PROMOTIONS") {
+        items_of(module).into_iter().filter_map(magazine).collect()
+    } else {
+        Vec::new()
+    };
+    if !items.is_empty() || !promos.is_empty() {
         return Some(Shelf {
             title,
             kind: kind.to_string(),
@@ -421,9 +422,16 @@ fn magazine(data: &Value) -> Option<Promo> {
             .to_string()
     };
     let title = text("shortHeader");
-    let mut item = promotion(data)?;
-    if !title.is_empty() {
-        match &mut item {
+    let mut item = promotion(data);
+    let link = if item.is_some() {
+        None
+    } else {
+        Some(promotion_link(data)?)
+    };
+    if !title.is_empty()
+        && let Some(item) = &mut item
+    {
+        match item {
             ShelfItem::Album(album) => album.name = title.clone(),
             ShelfItem::Playlist(playlist) => playlist.name = title.clone(),
             ShelfItem::Artist(artist) => artist.name = title.clone(),
@@ -443,7 +451,23 @@ fn magazine(data: &Value) -> Option<Promo> {
         text: text("shortSubHeader"),
         image,
         item,
+        link,
     })
+}
+
+/// Where a promotion that is not an item leads, as TIDAL links it: a
+/// `CATEGORY_PAGES` promotion to its page (`/view/` and the artifact, a
+/// `pages/...` path), an `EXTURL` one to the web page (TIDAL Magazine), in
+/// a new window.
+fn promotion_link(data: &Value) -> Option<PromoLink> {
+    let target = non_empty(data.get("artifactId"))?;
+    match data.get("type")?.as_str()? {
+        "CATEGORY_PAGES" => Some(PromoLink::Page(normalize_path(&target))),
+        "EXTURL" if target.starts_with("https://") || target.starts_with("http://") => {
+            Some(PromoLink::Url(target))
+        }
+        _ => None,
+    }
 }
 
 /// The cursor of the feed's next page, if any.
@@ -847,12 +871,122 @@ mod tests {
         assert_eq!(shelves[0].promos.len(), 1);
         assert_eq!(shelves[0].promos[0].kicker, "WATCH");
         assert_eq!(shelves[0].promos[0].title, "LP Giobbi on SESSIONS");
-        assert!(matches!(&shelves[0].promos[0].item, ShelfItem::Video(video) if video.id == "123"));
+        assert!(
+            matches!(&shelves[0].promos[0].item, Some(ShelfItem::Video(video)) if video.id == "123")
+        );
         let ShelfItem::Video(video) = &shelves[1].items[0] else {
             panic!("a video")
         };
         assert_eq!((video.id.as_str(), video.name.as_str()), ("7", "Stan"));
         assert_eq!(video.duration, 400);
+    }
+
+    /// Explore's "Featured" as TIDAL 2.47.0 sent it (2026-10-29, module id
+    /// left out): an album, a TIDAL Magazine article and a TIDAL page. All
+    /// three are cards; the article opens in the browser, the page in the
+    /// page view, as TIDAL links them.
+    #[test]
+    fn explores_featured_keeps_article_and_page_promotions() {
+        let page = serde_json::json!({"rows": [{"modules": [{
+            "type": "FEATURED_PROMOTIONS",
+            "width": 100,
+            "title": "Featured",
+            "description": "",
+            "items": [
+                {
+                    "header": "TIDAL EXCLUSIVE: UPLOAD FOR PURCHASE",
+                    "shortHeader": "Phoebe Bridgers",
+                    "shortSubHeader": "\u{2018}Live at Madison Square Garden\u{2019} EP",
+                    "imageId": "fd953554-344a-46cf-839c-40a4ca3c9c96",
+                    "type": "ALBUM",
+                    "artifactId": "574136505",
+                    "text": "",
+                    "featured": false
+                },
+                {
+                    "header": "TIDAL MAGAZINE",
+                    "shortHeader": "Phoebe Bridgers",
+                    "shortSubHeader": "The story behind her new live EP",
+                    "imageId": "4e7ed775-794a-4fef-b751-198014ec7bac",
+                    "type": "EXTURL",
+                    "artifactId": "https://tidal.com/magazine/article/purchase-a-brand-new-live-phoebe-bridgers-ep-exclusively-on-tidal/1-99441",
+                    "text": "",
+                    "featured": false
+                },
+                {
+                    "header": "LISTEN",
+                    "shortHeader": "Uploads for Purchase",
+                    "shortSubHeader": "Support Independent Artists",
+                    "imageId": "67388ba0-b7f5-4800-b381-20571aff048d",
+                    "type": "CATEGORY_PAGES",
+                    "artifactId": "pages/UPLOAD_PAGE_PAYGATED_ALBUMS/view-all?vibe=uploads",
+                    "text": "",
+                    "featured": false
+                }
+            ],
+            "preTitle": null
+        }]}]});
+        let shelves = shelves(&page);
+        assert_eq!(shelves.len(), 1);
+        let promos = &shelves[0].promos;
+        let kickers: Vec<&str> = promos.iter().map(|promo| promo.kicker.as_str()).collect();
+        assert_eq!(
+            kickers,
+            [
+                "TIDAL EXCLUSIVE: UPLOAD FOR PURCHASE",
+                "TIDAL MAGAZINE",
+                "LISTEN"
+            ]
+        );
+        assert!(
+            matches!(&promos[0].item, Some(ShelfItem::Album(album)) if album.id == "574136505")
+        );
+        assert_eq!(promos[0].link, None);
+        assert_eq!(promos[1].item, None);
+        assert_eq!(
+            promos[1].link,
+            Some(PromoLink::Url(
+                "https://tidal.com/magazine/article/purchase-a-brand-new-live-phoebe-bridgers-ep-exclusively-on-tidal/1-99441".into()
+            ))
+        );
+        assert_eq!(promos[1].text, "The story behind her new live EP");
+        assert_eq!(promos[2].item, None);
+        assert_eq!(
+            promos[2].link,
+            Some(PromoLink::Page(
+                "pages/UPLOAD_PAGE_PAYGATED_ALBUMS/view-all?vibe=uploads".into()
+            ))
+        );
+        assert_eq!(promos[2].title, "Uploads for Purchase");
+        assert!(promos.iter().all(|promo| promo.image.is_some()));
+    }
+
+    /// A Featured module of pages and articles only is still a shelf, not
+    /// one waiting for its list.
+    #[test]
+    fn a_featured_module_without_items_is_still_shown() {
+        let page = serde_json::json!({"rows": [{"modules": [{
+            "type": "FEATURED_PROMOTIONS",
+            "title": "Featured",
+            "items": [{
+                "header": "LISTEN",
+                "shortHeader": "Uploads for Purchase",
+                "shortSubHeader": "Support Independent Artists",
+                "imageId": "aa-bb",
+                "type": "CATEGORY_PAGES",
+                "artifactId": "pages/UPLOAD_PAGE_PAYGATED_ALBUMS/view-all?vibe=uploads"
+            }, {
+                "header": "Odd",
+                "shortHeader": "A link nowhere",
+                "type": "EXTURL",
+                "artifactId": "javascript:alert(1)"
+            }]
+        }]}]});
+        let shelves = shelves(&page);
+        assert_eq!(shelves.len(), 1);
+        assert!(!shelves[0].pending);
+        assert!(shelves[0].items.is_empty());
+        assert_eq!(shelves[0].promos.len(), 1, "only web links are opened");
     }
 
     #[test]

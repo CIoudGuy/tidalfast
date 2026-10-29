@@ -8,7 +8,7 @@ use std::sync::Arc;
 use egui::{CornerRadius, Rect, Sense, Vec2, pos2, vec2};
 
 use crate::api::models::{
-    CardMark, PlayableItem, Promo, Shelf, ShelfItem, ShelfLayout, join_names, pick_image,
+    CardMark, PlayableItem, Promo, PromoLink, Shelf, ShelfItem, ShelfLayout, join_names, pick_image,
 };
 use crate::app::App;
 use crate::i18n::gettext;
@@ -509,27 +509,41 @@ fn promo_card(app: &mut App, ui: &mut egui::Ui, promo: &Promo) {
         egui::WidgetInfo::labeled(egui::WidgetType::Button, true, promo.title.clone())
     });
     if response.clicked() {
-        let page = match &promo.item {
-            ShelfItem::Album(album) => Page::Album(album.id.clone()),
-            ShelfItem::Playlist(playlist) => Page::Playlist(playlist.id.clone()),
-            ShelfItem::Artist(artist) => Page::Artist(artist.id.clone()),
-            ShelfItem::Mix(mix) => Page::Mix(mix.id.clone()),
-            ShelfItem::Track(track) => match &track.album {
-                Some(album) if !album.id.is_empty() => Page::Album(album.id.clone()),
-                _ => return,
-            },
-            // A video plays, like a song.
-            ShelfItem::Video(video) => {
-                let from = crate::model::PlayingFrom {
-                    name: gettext(app.locale, "Home").into_owned(),
-                    page: Some(Page::Home),
-                };
-                super::videos::play_from(app, video, &[], Some(&from));
-                return;
-            }
-        };
-        app.actions.push(Action::Open(page));
+        open_promo(app, promo);
     }
+}
+
+/// Opens what a promotion links to, as TIDAL does: its item, a TIDAL page
+/// in the page view, or a web page (TIDAL Magazine) in the browser.
+fn open_promo(app: &mut App, promo: &Promo) {
+    let Some(item) = &promo.item else {
+        match &promo.link {
+            Some(PromoLink::Page(path)) => super::explore::open(app, path, &promo.title),
+            Some(PromoLink::Url(url)) => app.actions.push(Action::OpenUrl(url.clone())),
+            None => {}
+        }
+        return;
+    };
+    let page = match item {
+        ShelfItem::Album(album) => Page::Album(album.id.clone()),
+        ShelfItem::Playlist(playlist) => Page::Playlist(playlist.id.clone()),
+        ShelfItem::Artist(artist) => Page::Artist(artist.id.clone()),
+        ShelfItem::Mix(mix) => Page::Mix(mix.id.clone()),
+        ShelfItem::Track(track) => match &track.album {
+            Some(album) if !album.id.is_empty() => Page::Album(album.id.clone()),
+            _ => return,
+        },
+        // A video plays, like a song.
+        ShelfItem::Video(video) => {
+            let from = crate::model::PlayingFrom {
+                name: gettext(app.locale, "Home").into_owned(),
+                page: Some(Page::Home),
+            };
+            super::videos::play_from(app, video, &[], Some(&from));
+            return;
+        }
+    };
+    app.actions.push(Action::Open(page));
 }
 
 #[cfg(test)]

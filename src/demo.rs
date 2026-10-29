@@ -799,7 +799,8 @@ fn home_feed_tabs(app: &mut App, tracks: &[Track]) {
         title: title.into(),
         text: text.into(),
         image: image(300 + index).first().map(|image| image.url.clone()),
-        item: ShelfItem::Album(album(index as usize % ALBUMS.len())),
+        item: Some(ShelfItem::Album(album(index as usize % ALBUMS.len()))),
+        link: None,
     };
     let uploads = vec![
         albums("Uploaded albums", vec![upload; ALBUMS.len()]),
@@ -1334,6 +1335,44 @@ pub fn populate(app: &mut App) {
     app.shelf_pages.insert(
         crate::ui::explore::PATH.into(),
         Loadable::Loaded(vec![
+            // TIDAL 2.47.0's Explore leads with Featured: an album, a TIDAL
+            // Magazine article and a TIDAL page (2026-10-29).
+            Shelf {
+                title: "Featured".into(),
+                kind: "FEATURED_PROMOTIONS".into(),
+                items: vec![ShelfItem::Album(album(0))],
+                promos: vec![
+                    crate::api::models::Promo {
+                        kicker: "TIDAL EXCLUSIVE: UPLOAD FOR PURCHASE".into(),
+                        title: "Live at the Garden".into(),
+                        text: "\u{2018}Live at the Garden\u{2019} EP".into(),
+                        image: image(310).first().map(|image| image.url.clone()),
+                        item: Some(ShelfItem::Album(album(0))),
+                        link: None,
+                    },
+                    crate::api::models::Promo {
+                        kicker: "TIDAL MAGAZINE".into(),
+                        title: "Behind the live EP".into(),
+                        text: "The story behind the new live EP".into(),
+                        image: image(311).first().map(|image| image.url.clone()),
+                        item: None,
+                        link: Some(crate::api::models::PromoLink::Url(
+                            "https://tidal.com/magazine/article/demo/1-1".into(),
+                        )),
+                    },
+                    crate::api::models::Promo {
+                        kicker: "LISTEN".into(),
+                        title: "Uploads for Purchase".into(),
+                        text: "Support Independent Artists".into(),
+                        image: image(312).first().map(|image| image.url.clone()),
+                        item: None,
+                        link: Some(crate::api::models::PromoLink::Page(
+                            "pages/UPLOAD_PAGE_PAYGATED_ALBUMS/view-all?vibe=uploads".into(),
+                        )),
+                    },
+                ],
+                ..Default::default()
+            },
             cloud(
                 "Genres",
                 links(
@@ -17940,6 +17979,80 @@ mod tests {
         let tree = accessible_frame(&ctx, &mut app, vec![]);
         accessible_node(&tree, "Hip-Hop", Role::Button);
         accessible_node(&tree, "Clean Content", Role::Link);
+        app.backend.shutdown();
+    }
+
+    /// A frame of the app `width` wide, its actions left unapplied.
+    fn explore_frame(
+        ctx: &egui::Context,
+        app: &mut App,
+        width: f32,
+        events: Vec<egui::Event>,
+    ) -> egui::accesskit::TreeUpdate {
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(width, 1000.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ui| crate::ui::show(app, ui),
+        );
+        output.textures_delta.clear();
+        output
+            .platform_output
+            .accesskit_update
+            .expect("screen-reader tree")
+    }
+
+    /// The demo Explore's Featured cards, as TIDAL 2.47.0 has them: an
+    /// album, a TIDAL Magazine article, a TIDAL page.
+    const FEATURED_TITLES: [&str; 3] = [
+        "Live at the Garden",
+        "Behind the live EP",
+        "Uploads for Purchase",
+    ];
+
+    /// Explore's Featured shows the article and the page TIDAL 2.47.0 shows
+    /// beside the album; the article opens in the browser and the page in
+    /// the page view, as TIDAL links them.
+    #[test]
+    fn explores_featured_article_and_page_open_as_tidals_do() {
+        use egui::accesskit::{Action as AccessibleAction, Role};
+        let (ctx, mut app) = accessible_app("explore-featured-links");
+        app.open(crate::ui::explore::page());
+        for _ in 0..3 {
+            explore_frame(&ctx, &mut app, 2121.0, vec![]);
+        }
+        let tree = explore_frame(&ctx, &mut app, 2121.0, vec![]);
+        for title in FEATURED_TITLES {
+            accessible_node(&tree, title, Role::Button);
+        }
+        app.actions.clear();
+        let article = accessible_node(&tree, FEATURED_TITLES[1], Role::Button);
+        explore_frame(
+            &ctx,
+            &mut app,
+            2121.0,
+            vec![accessible_action(article, AccessibleAction::Click, None)],
+        );
+        assert!(app.actions.iter().any(|action| matches!(action,
+            Action::OpenUrl(url) if url == "https://tidal.com/magazine/article/demo/1-1")));
+        app.actions.clear();
+        let tree = explore_frame(&ctx, &mut app, 2121.0, vec![]);
+        let page = accessible_node(&tree, FEATURED_TITLES[2], Role::Button);
+        explore_frame(
+            &ctx,
+            &mut app,
+            2121.0,
+            vec![accessible_action(page, AccessibleAction::Click, None)],
+        );
+        assert!(app.actions.iter().any(|action| matches!(action,
+            Action::Open(Page::Shelf(path))
+                if path == "pages/UPLOAD_PAGE_PAYGATED_ALBUMS/view-all?vibe=uploads")));
+        app.actions.clear();
         app.backend.shutdown();
     }
 

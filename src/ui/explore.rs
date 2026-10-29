@@ -171,7 +171,7 @@ fn modules(app: &mut App, ui: &mut egui::Ui, path: &str, shelves: &[Shelf]) {
             }
             continue;
         }
-        if shelf.items.is_empty() {
+        if shelf.items.is_empty() && shelf.promos.is_empty() {
             if shelf.pending {
                 skeleton::shelf(ui, &palette, Some(&shelf.title), false);
             }
