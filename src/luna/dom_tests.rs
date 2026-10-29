@@ -5972,3 +5972,72 @@ R.done = true;
     );
     finish(luna, dir);
 }
+
+/// A rule that names an ancestor (`#nowPlaying ._item_235a32d:hover ... *`,
+/// the cotton candy family's) walked up every element it was tried on, to
+/// the root, though no element of the page had that ancestor. As in
+/// Chromium, each element keeps a filter of what its ancestors are (tags,
+/// ids, classes, attribute names), and a rule whose ancestors cannot all
+/// be there is not walked; one whose can still matches.
+#[test]
+fn a_rule_whose_ancestors_are_not_there_is_not_walked() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+let css = "";
+for (let i = 0; i < 200; i++) css += `#absent${i} ._gone_0abcdef span { color: rgb(9, 9, 9); }\n`;
+css += '.box > .mid span { color: rgb(1, 0, 0); }\n';
+css += '[data-zone] .mid i { color: rgb(2, 0, 0); }\n';
+css += '.first + .mid b { color: rgb(3, 0, 0); }\n';
+css += '[class="box q"] u { color: rgb(4, 0, 0); }\n';
+const st = document.createElement("style");
+st.textContent = css;
+document.head.append(st);
+const box = document.createElement("div");
+box.setAttribute("class", "box q");
+box.setAttribute("data-zone", "1");
+const first = document.createElement("div");
+first.className = "first";
+const mid = document.createElement("div");
+mid.className = "mid";
+box.append(first, mid);
+const spans = [];
+for (let i = 0; i < 40; i++) {
+	const s = document.createElement("span");
+	mid.append(s);
+	spans.push(s);
+}
+const i = document.createElement("i");
+const b = document.createElement("b");
+const u = document.createElement("u");
+mid.append(i, b, u);
+document.body.append(box);
+const walks = D.selectorWalks ?? 0;
+R.span = getComputedStyle(spans[3]).color;
+for (const s of spans) getComputedStyle(s).color;
+R.perSpan = ((D.selectorWalks ?? 0) - walks) / spans.length;
+R.i = getComputedStyle(i).color;
+R.b = getComputedStyle(b).color;
+R.u = getComputedStyle(u).color;
+// An ancestor that gains the class a rule needs: the filter follows it.
+const late = document.createElement("span");
+first.append(late);
+R.lateBefore = getComputedStyle(late).color;
+first.classList.add("mid");
+R.lateAfter = getComputedStyle(late).color;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["span"], json!("rgb(1, 0, 0)"), "{r}");
+    assert_eq!(r["i"], json!("rgb(2, 0, 0)"), "{r}");
+    assert_eq!(r["b"], json!("rgb(3, 0, 0)"), "{r}");
+    assert_eq!(r["u"], json!("rgb(4, 0, 0)"), "{r}");
+    assert_ne!(r["lateBefore"], json!("rgb(1, 0, 0)"), "{r}");
+    assert_eq!(r["lateAfter"], json!("rgb(1, 0, 0)"), "{r}");
+    assert!(
+        r["perSpan"].as_f64().unwrap() < 10.0,
+        "each span still walks the absent ancestors' rules: {r}"
+    );
+    finish(luna, dir);
+}

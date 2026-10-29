@@ -2387,6 +2387,76 @@
 		}
 		return null;
 	};
+	// The ancestor filter (Chromium's selector filter): a 256-bit Bloom
+	// filter of the tags, ids, classes and attribute names of an element and
+	// all its ancestors, kept on the element while the document's matching
+	// generations hold, and of each selector the ones its ancestor compounds
+	// need. A rule whose ancestors cannot all be there (`#nowPlaying
+	// ._item_235a32d ... *` on an element outside the now-playing view) is
+	// left without walking the element's ancestors; a filter only ever says
+	// "maybe" for one that can, so what matches is what matched.
+	const bloomAdd = (bits, key) => {
+		let h = 0x811c9dc5;
+		for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193);
+		bits[(h >>> 5) & 7] |= 1 << (h & 31);
+		bits[(h >>> 13) & 7] |= 1 << ((h >>> 8) & 31);
+	};
+	const NO_BITS = new Int32Array(8);
+	// The filter of `e` and its ancestors.
+	const chainBits = (e) => {
+		const chain = [];
+		let base = NO_BITS;
+		for (let x = e; x; x = x.parentElement) {
+			const c = x._af;
+			if (c && c.d === domGen && c.s === structGen) {
+				base = c.bits;
+				break;
+			}
+			chain.push(x);
+		}
+		for (let i = chain.length - 1; i >= 0; i--) {
+			const x = chain[i];
+			const bits = new Int32Array(base);
+			bloomAdd(bits, `<${x.localName.toLowerCase()}`);
+			const id = x._attrs.get("id");
+			if (id) bloomAdd(bits, `#${id}`);
+			for (const k of elClasses(x).set) bloomAdd(bits, `.${k}`);
+			for (const k of x._attrs.keys()) bloomAdd(bits, `@${k.toLowerCase()}`);
+			x._af = { d: domGen, s: structGen, bits };
+			base = bits;
+		}
+		return base;
+	};
+	// What a selector's ancestor compounds need (those reached from the
+	// element by descendant and child combinators only; a sibling's own
+	// parts are not on the element's chain), or null for none.
+	const needBits = (steps) => {
+		if (steps._need !== undefined) return steps._need;
+		let bits = null;
+		const need = (key) => bloomAdd((bits ??= new Int32Array(8)), key);
+		for (let j = steps.length - 1; j >= 1; j--) {
+			if (steps[j].comb === "+" || steps[j].comb === "~") continue;
+			const c = steps[j - 1].c;
+			if (c.tag && c.tag !== "*") need(`<${c.tag.toLowerCase()}`);
+			for (const id of c.ids) need(`#${id}`);
+			for (const k of (c.cclasses ??= c.classes.map(canonClass))) need(`.${k}`);
+			const token = classToken(c.attrs);
+			if (token) need(`.${canonClass(token)}`);
+			for (const a of c.attrs) if (a.name !== "style") need(`@${a.name}`);
+		}
+		steps._need = bits;
+		return bits;
+	};
+	// Whether `e`'s ancestors may match the ancestor compounds of `steps`
+	// (`e` in the document: a detached tree changes silently).
+	const ancestorsMayMatch = (e, steps) => {
+		const need = needBits(steps);
+		if (!need) return true;
+		const p = e.parentElement;
+		const have = p ? chainBits(p) : NO_BITS;
+		for (let i = 0; i < 8; i++) if ((have[i] & need[i]) !== need[i]) return false;
+		return true;
+	};
 	const attrVal = (e, name) => {
 		if (name === "class" || name === "id" || name === "style") return e.getAttribute(name);
 		const v = e._attrs.get(name);
@@ -2401,7 +2471,7 @@
 		if (a === null || a === undefined) return false;
 		if (t.op === null) return true;
 		let v = t.val;
-		if (t.name === "class" && t.op !== "|=" && t.op !== "$=" && /_[0-9a-f]{7}/.test(v)) {
+		if (t.name === "class" && t.op !== "|=" && t.op !== "$=" && (t.hashed ??= /_[0-9a-f]{7}/.test(v))) {
 			a = elClasses(e).str;
 			v = t.cval ??= canonClasses(v) + (/\s$/.test(v) ? " " : "");
 		}
@@ -2534,6 +2604,9 @@
 	// every change moves one of the generations below; a detached tree's
 	// attributes change silently.
 	const matchSteps = (e, steps, scope, memo = false) => {
+		// The element itself first: most rules tried on it fail there, before
+		// anything below is set up.
+		if (!compoundTest(e, steps[steps.length - 1].c, scope)) return false;
 		if (memo && (ancGens[0] !== domGen || ancGens[1] !== structGen || ancGens[2] !== styleGen || ancGens[3] !== hovered || ancGens[4] !== focused)) {
 			ancMemo = new WeakMap();
 			ancGens = [domGen, structGen, styleGen, hovered, focused];
@@ -2550,9 +2623,9 @@
 			if (r === undefined) s[i] = r = at(p, i) || anc(p, i);
 			return r;
 		};
-		const at = (el, i) => {
-			if (!compoundTest(el, steps[i].c, scope)) return false;
-			if (i === 0) return true;
+		const at = (el, i) => compoundTest(el, steps[i].c, scope) && (i === 0 || after(el, i));
+		// `el` matches steps[i]: whether what is round it matches the steps before.
+		const after = (el, i) => {
 			const comb = steps[i].comb;
 			if (comb === ">") return !!el.parentElement && at(el.parentElement, i - 1);
 			if (comb === "+") {
@@ -2567,7 +2640,11 @@
 			for (let p = el.parentElement; p; p = p.parentElement) if (at(p, i - 1)) return true;
 			return false;
 		};
-		return at(e, steps.length - 1);
+		const last = steps.length - 1;
+		if (last === 0) return true;
+		// Counted for the tests that check what the ancestor filter spares.
+		D.selectorWalks = (D.selectorWalks ?? 0) + 1;
+		return after(e, last);
 	};
 	const selCache = new Map();
 	const compileList = (sel) => {
@@ -2587,7 +2664,7 @@
 		return l;
 	};
 	const matchesList = (e, list, scope) => list.some((x) => matchSteps(e, x.steps, scope));
-	D.sel = { parse: parseSelectors, compile: compileList, matches: matchesList, matchSteps, cmpSpec, SelErr, classToken };
+	D.sel = { parse: parseSelectors, compile: compileList, matches: matchesList, matchSteps, cmpSpec, SelErr, classToken, ancestorsMayMatch };
 	// The element descendants of `root` in document order, until `fn`
 	// answers true (then true). A loop with its own stack: a recursive
 	// generator costs a step per level for every element it yields, and

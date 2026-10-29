@@ -840,7 +840,7 @@
 		const tried = ix.size ? candidates(ix, el) : [];
 		// The rules matched against an element, counted for the same tests.
 		D.candidatesTried = (D.candidatesTried ?? 0) + tried.length;
-		const matched = tried.filter((r) => !(r.pluginOnly && el._hostKey !== undefined) && D.sel.matchSteps(el, r.steps, null, live));
+		const matched = tried.filter((r) => !(r.pluginOnly && el._hostKey !== undefined) && (!live || D.sel.ancestorsMayMatch(el, r.steps)) && D.sel.matchSteps(el, r.steps, null, live));
 		const inline = el._style?._m;
 		if (!matched.length && !inline?.size) return null;
 		matched.sort((a, b) => D.sel.cmpSpec(a.spec, b.spec) || a.order - b.order);
