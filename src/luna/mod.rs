@@ -1158,9 +1158,9 @@ pub(crate) enum Msg {
     /// The UI's anchor tree changed (DOM bridge).
     /// A new host tree is in [`runtime::TreeCell`].
     DomSync,
-    /// User input on a host widget or a plugin element, how many host trees
-    /// the UI had sent when it happened, and where to say whether a listener
-    /// cancelled it (see [`Luna::dom_event_verdict`]).
+    /// User input on a host widget or a plugin element, its number among
+    /// the input events the UI sent (`TreeSlot::events`), and where to say
+    /// whether a listener cancelled it (see [`Luna::dom_event_verdict`]).
     DomEvent(dom::DomEvent, u64, Option<Sender<bool>>),
     /// The window was hidden (minimized, closed to the tray) or shown again.
     Hidden(bool),
@@ -1233,6 +1233,7 @@ impl Luna {
         if let Ok(mut slot) = slot.lock() {
             slot.tree = Some(tree.into());
             slot.sent += 1;
+            slot.events_before_tree = slot.events;
             arrived.notify_all();
         }
         let _ = self.tx.send(Msg::DomSync);
@@ -1269,14 +1270,22 @@ impl Luna {
         self.trees.0.lock().ok().and_then(|s| s.waiting)
     }
 
-    /// Forward user input to the plugins' DOM listeners. The event names
-    /// the trees sent before it, the document the user acted on: a newer
-    /// tree holds the app's answer to the input (the menu a right-click
-    /// opens) and reaches the document after the listeners ran, as a page
-    /// in Chromium changes only once the event it dispatched is handled.
+    /// Forward user input to the plugins' DOM listeners. A tree the UI
+    /// sends after it holds the app's answer to the input (the menu a
+    /// right-click opens) and reaches the document once the listeners of
+    /// every event sent before that tree ran, as a page in Chromium changes
+    /// only once the events it dispatched are handled.
     pub fn dom_event(&self, event: dom::DomEvent) {
-        let seen = self.trees.0.lock().map_or(0, |slot| slot.sent);
-        let _ = self.tx.send(Msg::DomEvent(event, seen, None));
+        let number = self.number_event();
+        let _ = self.tx.send(Msg::DomEvent(event, number, None));
+    }
+
+    /// The number of the input event about to be sent (from 1).
+    fn number_event(&self) -> u64 {
+        self.trees.0.lock().map_or(0, |mut slot| {
+            slot.events += 1;
+            slot.events
+        })
     }
 
     /// [`Luna::dom_event`], waiting at most `wait` for the listeners to
@@ -1285,9 +1294,9 @@ impl Luna {
     /// handlers run), `None` when the answer did not come in time (the
     /// event still goes to the listeners).
     pub fn dom_event_verdict(&self, event: dom::DomEvent, wait: Duration) -> Option<bool> {
-        let seen = self.trees.0.lock().map_or(0, |slot| slot.sent);
+        let number = self.number_event();
         let (tx, rx) = std::sync::mpsc::channel();
-        self.tx.send(Msg::DomEvent(event, seen, Some(tx))).ok()?;
+        self.tx.send(Msg::DomEvent(event, number, Some(tx))).ok()?;
         rx.recv_timeout(wait).ok()
     }
 

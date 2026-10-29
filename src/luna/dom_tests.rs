@@ -5222,6 +5222,68 @@ R.ready = true;
     finish(luna, dir);
 }
 
+/// Input that queues up while a plugin holds the thread (a click, then the
+/// right-click) reaches the listeners in order, and the menu the
+/// right-click opens comes after its `contextmenu`, not after the click
+/// queued before it.
+#[test]
+fn a_right_click_queued_behind_other_input_comes_before_its_menu() {
+    let (luna, _host, dir) = start(
+        r##"
+let armed = false;
+document.addEventListener("contextmenu", () => {
+	armed = true;
+	R.heard = (R.heard ?? 0) + 1;
+}, true);
+new MutationObserver((records) => {
+	for (const r of records)
+		for (const n of r.addedNodes) {
+			if (!(n instanceof Element)) continue;
+			const menu = n.matches('[data-test="contextmenu"]') ? n : n.querySelector('[data-test="contextmenu"]');
+			if (menu) R.menuSeen = armed ? "after the event" : "before the event";
+		}
+}).observe(document.body, { childList: true, subtree: true });
+// A plugin busy on the thread while the click, the right-click and the
+// menu arrive behind it.
+document.addEventListener("mousedown", () => {
+	const until = Date.now() + 400;
+	while (Date.now() < until);
+	R.busy = true;
+});
+document.addEventListener("click", () => {
+	R.clicked = !armed;
+});
+R.ready = true;
+"##,
+    );
+    let mut frame = dom_anchors::sample_frame();
+    let menu = frame.context_menu.take();
+    luna.sync_dom(dom_anchors::build(&frame));
+    results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
+    luna.sync(Duration::from_secs(10));
+    let event = |kind: &str| DomEvent {
+        target: DomTarget::Host(String::new()),
+        kind: kind.into(),
+        data: json!({}),
+    };
+    luna.dom_event(event("mousedown"));
+    std::thread::sleep(Duration::from_millis(100));
+    luna.dom_event(event("click"));
+    luna.dom_event(DomEvent {
+        target: DomTarget::Host(keys::row("album:55", 1)),
+        kind: "contextmenu".into(),
+        data: json!({ "button": 2, "clientX": 400, "clientY": 300 }),
+    });
+    frame.context_menu = menu;
+    luna.sync_dom(dom_anchors::build(&frame));
+    let r = results_until(&luna, &dir, 10, |r| r["menuSeen"].is_string());
+    assert_eq!(r["busy"], json!(true), "{r}");
+    assert_eq!(r["clicked"], json!(true), "the click came first: {r}");
+    assert_eq!(r["heard"], json!(1), "{r}");
+    assert_eq!(r["menuSeen"], json!("after the event"), "{r}");
+    finish(luna, dir);
+}
+
 /// LuckyLP observes `div[data-track--page-id='mycollection_albums']` and
 /// puts its shuffle after the `h1` in it. In TIDAL 2.46.0 that page is
 /// `[data-test=page-title-container]` and the `h1` sits in its `._header_`

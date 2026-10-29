@@ -252,6 +252,9 @@ struct Inner {
     overlay: OverlayCell,
     /// The newest host tree not yet reconciled (syncs coalesce).
     trees: TreeCell,
+    /// The number of the last input event dispatched to the listeners
+    /// ([`super::layout::TreeSlot::events`]).
+    events_done: u64,
     /// The newest overlay that could move boxes, and the newest one the
     /// reconciled boxes were laid out with ([`super::dom::HostTree::laid_out`]).
     boxes_version: u64,
@@ -3864,13 +3867,23 @@ impl Engine {
         self.pump();
     }
 
-    /// Whether the tree waiting to be reconciled was sent after the
-    /// `seen`th.
-    fn tree_after(&self, seen: u64) -> bool {
-        let cell = self.inner.borrow().trees.clone();
-        cell.0
+    /// Reconcile the newest host tree once every input event the UI sent
+    /// before it has been dispatched: a tree sent after an event holds the
+    /// app's answer to it (TIDAL's context menu opening on a right-click),
+    /// which in Chromium comes after the listeners ran. element-hider ties
+    /// the menu that appears to its `contextmenu`.
+    fn apply_dom_sync_in_order(&self) {
+        let (cell, done) = {
+            let inner = self.inner.borrow();
+            (inner.trees.clone(), inner.events_done)
+        };
+        if cell
+            .0
             .lock()
-            .is_ok_and(|slot| slot.tree.is_some() && slot.sent > seen)
+            .is_ok_and(|slot| slot.events_before_tree <= done)
+        {
+            self.apply_dom_sync();
+        }
     }
 
     /// Reconcile the newest host tree into the plugins' document.
@@ -4748,17 +4761,8 @@ impl Engine {
         if let Msg::DomSync = msg {
             return true;
         }
-        // Input goes to the document the user acted on. A tree the UI sent
-        // after it is the app's answer (TIDAL's context menu opening on a
-        // right-click), which in Chromium comes after the listeners ran:
-        // element-hider ties the menu that appears to its `contextmenu`.
-        let answer = match &msg {
-            Msg::DomEvent(_, seen, _) => self.tree_after(*seen),
-            _ => false,
-        };
-        if !answer {
-            self.apply_dom_sync();
-        }
+        // Input goes to the document the user acted on.
+        self.apply_dom_sync_in_order();
         if is_user_gesture(&msg) {
             self.inner.borrow_mut().gesture_at = Some(Instant::now());
         }
@@ -5200,14 +5204,15 @@ impl Engine {
                 self.pump();
                 let _ = reply.send(go);
             }
-            Msg::DomEvent(ev, _, reply) => {
+            Msg::DomEvent(ev, number, reply) => {
                 let cancelled = self.dom_event(ev);
                 if let Some(reply) = reply {
                     let _ = reply.send(cancelled);
                 }
-                if answer {
-                    self.apply_dom_sync();
-                }
+                let mut inner = self.inner.borrow_mut();
+                inner.events_done = inner.events_done.max(number);
+                drop(inner);
+                self.apply_dom_sync_in_order();
             }
             Msg::Hidden(hidden) => self.host_call("visibility", json!({ "hidden": hidden })),
             Msg::Focused(focused) => self.host_call("focus", json!({ "focused": focused })),
@@ -5791,6 +5796,8 @@ fn setup_with(
         warned_actions: HashSet::new(),
         dev_busy: HashSet::new(),
         overlay,
+        // Events sent before this runtime started never reach it.
+        events_done: trees.0.lock().map_or(0, |slot| slot.events),
         trees,
         boxes_version: 0,
         state_parts: super::redux::StateParts::default(),
@@ -6098,7 +6105,7 @@ fn run(
                 if stop {
                     break;
                 }
-                engine.apply_dom_sync();
+                engine.apply_dom_sync_in_order();
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => break,
