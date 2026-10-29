@@ -112,7 +112,7 @@ impl RuntimeId {
 /// The store list TidaLuna ships with (`@luna/ui` PluginStoreTab), in its
 /// order and with its release channels: Inrixia's store and wont-stream's are
 /// the `dev` build, the rest `latest`. Read from the `addToStores(...)` calls
-/// of TidaLuna 1.18.0-beta. The `dev` builds are what TidaLuna users run and
+/// of TidaLuna 1.20.0-beta. The `dev` builds are what TidaLuna users run and
 /// what the plugin comparisons were made against. A store added to the end
 /// is offered once to a list saved before it (`offer_new_default_stores`).
 pub const DEFAULT_STORES: &[&str] = &[
@@ -139,7 +139,8 @@ pub const DEFAULT_STORES: &[&str] = &[
     "https://github.com/seomin0610/luna-plugins/releases/download/latest",
     "https://github.com/visiuun/tidaluna-plugins/releases/download/latest",
     "https://github.com/Kisakay/luna-plugins/releases/download/latest",
-    "https://github.com/BaeHyolyn/tidal-presence/releases/latest/download",
+    "https://github.com/BaeHyolyn/luna-plugins/releases/latest/download",
+    "https://github.com/Drousis3/Tidaluna-nice-to-have-plugins/releases/download/latest",
 ];
 
 /// How many of [`DEFAULT_STORES`] a store list saved before Tidalfast kept a
@@ -200,13 +201,21 @@ pub(crate) fn record_default_stores(data_dir: &std::path::Path) {
 /// Store addresses an earlier Tidalfast listed by default and TidaLuna does
 /// not, each with the address TidaLuna uses for the same store: (old, new).
 /// Inrixia's store was listed as the older `latest` build; TidaLuna lists
-/// `dev`. A saved store list and a plugin installed from exactly an old
+/// `dev`. BaeHyolyn's TidalPresence store (TidaLuna 1.18.0-beta) became
+/// their plugins' store in 1.19.0-beta, which carries TidalPresence under
+/// the same file name; the old repository is archived. A saved store list and a plugin installed from exactly an old
 /// address move to the new one (`migrated_store`, `migrated_plugin_url`);
 /// an address the user chose themselves is not in this list.
-pub const RETIRED_DEFAULT_STORES: &[(&str, &str)] = &[(
-    "https://github.com/Inrixia/luna-plugins/releases/download/latest",
-    "https://github.com/Inrixia/luna-plugins/releases/download/dev",
-)];
+pub const RETIRED_DEFAULT_STORES: &[(&str, &str)] = &[
+    (
+        "https://github.com/Inrixia/luna-plugins/releases/download/latest",
+        "https://github.com/Inrixia/luna-plugins/releases/download/dev",
+    ),
+    (
+        "https://github.com/BaeHyolyn/tidal-presence/releases/latest/download",
+        "https://github.com/BaeHyolyn/luna-plugins/releases/latest/download",
+    ),
+];
 
 /// The replacement for a store that is exactly one of the `retired` default
 /// addresses (case, a trailing slash and `/store.json` aside), else `None`.

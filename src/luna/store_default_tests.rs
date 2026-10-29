@@ -6,7 +6,7 @@
 
 use super::*;
 
-/// TidaLuna 1.18.0-beta's `PluginStoreTab` list, in its order, copied from
+/// TidaLuna 1.20.0-beta's `PluginStoreTab` list, in its order, copied from
 /// its `addToStores("...")` calls (the `/store.json` ending is what the tab
 /// strips before it saves one).
 const TIDALUNA_STORES: &[&str] = &[
@@ -33,7 +33,8 @@ const TIDALUNA_STORES: &[&str] = &[
     "https://github.com/seomin0610/luna-plugins/releases/download/latest/store.json",
     "https://github.com/visiuun/tidaluna-plugins/releases/download/latest/store.json",
     "https://github.com/Kisakay/luna-plugins/releases/download/latest/store.json",
-    "https://github.com/BaeHyolyn/tidal-presence/releases/latest/download/store.json",
+    "https://github.com/BaeHyolyn/luna-plugins/releases/latest/download/store.json",
+    "https://github.com/Drousis3/Tidaluna-nice-to-have-plugins/releases/download/latest/store.json",
 ];
 
 const OLD_INRIXIA: &str = "https://github.com/Inrixia/luna-plugins/releases/download/latest";
@@ -108,6 +109,15 @@ fn only_an_address_that_is_exactly_a_retired_default_moves() {
     assert_eq!(
         migrated_plugin_url(&[], &format!("{OLD_INRIXIA}/Tidal.Tags")),
         None
+    );
+    // BaeHyolyn's TidalPresence store moved into their plugins' store
+    // (TidaLuna 1.19.0-beta), TidalPresence with it.
+    let presence = "https://github.com/BaeHyolyn/tidal-presence/releases/latest/download";
+    let plugins = "https://github.com/BaeHyolyn/luna-plugins/releases/latest/download";
+    assert_eq!(migrated_store(&retired, presence).as_deref(), Some(plugins));
+    assert_eq!(
+        migrated_plugin_url(&retired, &format!("{presence}/TidalPresence")).as_deref(),
+        Some(format!("{plugins}/TidalPresence").as_str())
     );
 }
 
@@ -186,7 +196,8 @@ fn a_new_default_store_is_offered_once_to_a_saved_list() {
     let dir = temp_dir("store-offer");
     let mine = "https://example.invalid/mine";
     let owner = PINNED_STORES[0];
-    let new = *DEFAULT_STORES.last().unwrap();
+    let news = &DEFAULT_STORES[23..];
+    let new = news[0];
     assert!(new.ends_with("/releases/latest/download"));
     // A list saved by an earlier Tidalfast: TidaLuna 1.17.1-beta's stores
     // less one the user removed, and their own.
@@ -194,7 +205,7 @@ fn a_new_default_store_is_offered_once_to_a_saved_list() {
     old.push(mine);
     let (luna, s) = start_with_list(&dir, &old, true);
     let mut want = old.clone();
-    want.push(new);
+    want.extend_from_slice(news);
     want.push(owner);
     assert_eq!(store_urls(&s), want, "the new store added after the user's");
     assert_eq!(saved_stores(&dir), want, "and saved");
