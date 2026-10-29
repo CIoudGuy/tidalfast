@@ -188,11 +188,16 @@ const STORE_INDEX: &[(&str, &str, &str)] = &[
         "DownloadManager.mjs",
         "DownloadManager",
     ),
-    // visiuun's store, as listed on 2026-10-20.
+    // visiuun's store, as listed on 2026-10-29.
     (
         "visiuun/tidaluna-plugins",
         "visiuun.3d-cover.mjs",
         "@visiuun/3d-cover",
+    ),
+    (
+        "visiuun/tidaluna-plugins",
+        "visiuun.true-taste.mjs",
+        "@visiuun/true-taste",
     ),
     (
         "visiuun/tidaluna-plugins",
