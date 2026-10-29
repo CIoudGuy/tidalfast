@@ -172,6 +172,9 @@ fn artist(index: usize) -> Artist {
 /// Luna demo: plugins asking who sings the next song (up-next) get the name
 /// a signed-in session would.
 pub fn artist_json(id: &str) -> Option<serde_json::Value> {
+    if let Some(name) = song_artist(demo_songs(), id) {
+        return Some(serde_json::json!({ "id": id, "name": name, "picture": null }));
+    }
     let index: usize = id.strip_prefix("art")?.parse().ok()?;
     let a = artist(index);
     Some(serde_json::json!({ "id": a.id, "name": a.name, "picture": null }))
@@ -399,7 +402,78 @@ fn uploader_profile(app: &mut App) {
     app.album_pages.insert("upl-alb0".into(), album_page);
 }
 
+/// A song the demo's list starts with in place of its own
+/// ([`demo_songs`]).
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct DemoSong {
+    id: String,
+    title: String,
+    #[serde(default)]
+    artists: Vec<String>,
+}
+
+/// `TIDALFAST_DEMO_SONGS=<JSON file>`, `[{"id", "title", "artists": [..]}]`:
+/// the demo's list of songs starts with these (its id, title and artists'
+/// names), so the song it is paused on and the queue after it can be the
+/// ones another player shows (the plugin checker gives it the songs TIDAL
+/// is paused on and has next, so what plugins write about them compares).
+fn demo_songs() -> &'static [DemoSong] {
+    static SONGS: std::sync::OnceLock<Vec<DemoSong>> = std::sync::OnceLock::new();
+    SONGS.get_or_init(|| {
+        std::env::var("TIDALFAST_DEMO_SONGS")
+            .ok()
+            .and_then(|path| std::fs::read(path).ok())
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default()
+    })
+}
+
 fn track(index: usize) -> Track {
+    let mut track = demo_track(index);
+    if let Some(song) = demo_songs().get(index) {
+        song_as(&mut track, song);
+    }
+    track
+}
+
+/// `track` with `song`'s id, title and artists (named as the file says,
+/// with ids of their own: the demo's artist of that id has another name).
+fn song_as(track: &mut Track, song: &DemoSong) {
+    track.id = Some(song.id.clone());
+    track.uri = format!("tidal:track:{}", song.id);
+    track.name = song.title.clone();
+    if !song.artists.is_empty() {
+        track.artists = song
+            .artists
+            .iter()
+            .enumerate()
+            .map(|(n, name)| {
+                let id = format!("{}-artist{n}", song.id);
+                ArtistRef {
+                    uri: Some(format!("tidal:artist:{id}")),
+                    id: Some(id),
+                    name: name.clone(),
+                    picture: None,
+                }
+            })
+            .collect();
+    }
+}
+
+/// The name of the artist `id` of one of `songs` ([`song_as`] gives them
+/// their ids), so a plugin asking who sings it hears the file's name.
+fn song_artist<'a>(songs: &'a [DemoSong], id: &str) -> Option<&'a str> {
+    songs.iter().find_map(|song| {
+        let n: usize = id
+            .strip_prefix(song.id.as_str())?
+            .strip_prefix("-artist")?
+            .parse()
+            .ok()?;
+        song.artists.get(n).map(String::as_str)
+    })
+}
+
+fn demo_track(index: usize) -> Track {
     let album_index = index % ALBUMS.len();
     let mut album = album(album_index);
     album.tracks = None;
@@ -9665,6 +9739,35 @@ mod tests {
             .map(|(c, _)| c.as_str())
             .collect();
         assert!(failed.is_empty(), "{}", failed.join("\n"));
+    }
+
+    /// `TIDALFAST_DEMO_SONGS` names the demo's first songs: each takes the
+    /// file's id (and the uri from it), title and artists, each artist
+    /// with an id of its own.
+    #[test]
+    fn the_demo_songs_file_names_the_first_songs() {
+        let songs: Vec<DemoSong> = serde_json::from_str(
+            r#"[{"id": "33823233", "title": "OMG", "artists": ["USHER", "will.i.am"]}]"#,
+        )
+        .unwrap();
+        let mut song = demo_track(0);
+        let own = song.clone();
+        song_as(&mut song, &songs[0]);
+        assert_eq!(song.id.as_deref(), Some("33823233"));
+        assert_eq!(song.uri, "tidal:track:33823233");
+        assert_eq!(song.name, "OMG");
+        let names: Vec<_> = song.artists.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, ["USHER", "will.i.am"]);
+        assert_ne!(song.artists[0].id, own.artists[0].id);
+        assert_ne!(song.artists[1].id, song.artists[0].id);
+        assert_eq!(song.duration_ms, own.duration_ms);
+        // Asked by id, each artist is the file's.
+        let id = |n: usize| song.artists[n].id.clone().unwrap();
+        assert_eq!(song_artist(&songs, &id(0)), Some("USHER"));
+        assert_eq!(song_artist(&songs, &id(1)), Some("will.i.am"));
+        assert_eq!(song_artist(&songs, "art1"), None);
+        // Without the file the list is the demo's own.
+        assert!(demo_songs().is_empty() || std::env::var("TIDALFAST_DEMO_SONGS").is_ok());
     }
 
     /// An album's header carries TIDAL 2.46.0's quality badge after its
