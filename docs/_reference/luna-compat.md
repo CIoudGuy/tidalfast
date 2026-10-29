@@ -3402,6 +3402,67 @@ rule gives a border, and TIDAL's whole page lies 20 points lower); the
 Lunallena themes' header bar on the collection page; a list panel's
 gradient under its `backdrop-filter: saturate()`.
 
+### Round 46 (a large theme's first style pass, and a hover change, 2026-10-29)
+
+Found with the parity checker and a timed first style pass, fixed in the
+generic layer; what each rule matches is what it matched before:
+
+- **A rule on the class attribute is tried only on elements of its
+  class.** A rule whose element is named by its whole class attribute
+  (`[class="_wrapper_512d5f4 x"]`, `[class~="x"]`, a `^=` with a whole
+  first class) is indexed by that class, as `.x` is; `:root` rules are
+  tried on the root alone and a compound that is all `:is(button)` on
+  buttons. The adaptive Cotton Candy names hundreds of TIDAL's elements
+  this way, and each element with a class tried all of them: 428 rules an
+  element on its album page, 124 now. Test:
+  `a_rule_on_the_class_attribute_is_tried_only_where_its_class_is`.
+- **A rule whose ancestors are not there is not walked.** As Chromium's
+  selector filter does, each element keeps a filter of the tags, ids,
+  classes and attribute names above it, and a rule that names an ancestor
+  the element cannot have (`#nowPlaying ._item_235a32d:hover ... *` on an
+  element outside the now-playing view) is left at once instead of
+  walking the element's ancestors to the root. Test:
+  `a_rule_whose_ancestors_are_not_there_is_not_walked`.
+- **A picture that loads keeps every cascade.** Each cover that came in
+  made the whole page match every rule again, so a page's first style
+  pass under a large theme was done two to four times as its covers
+  arrived. A loaded picture changes what is drawn, never what a selector
+  matches. Test: `a_picture_that_loads_keeps_every_cascade`.
+- **A hover change restyles only what it reaches.** Every move of the
+  pointer matched the whole page again under a theme with `:hover` rules
+  (a hovered row lit late, and a menu row the pointer left kept its fill
+  for seconds on a debug build). Only the elements whose `:hover` state
+  changed and that a compound holding `:hover` can match are restyled
+  now, with what is inside them and, where a rule puts `:hover` before a
+  sibling combinator, the siblings after them; a `:hover` inside `:has()`
+  still restyles the page. Test:
+  `a_hover_change_restyles_only_what_it_reaches`.
+
+The adaptive Cotton Candy's first style pass on the album page (light
+scheme, 1,166 anchors, from the page's arrival to its first styled
+overlay; release builds, five runs each): 10.3 s before (6.6 to 10.3,
+the page matched again as its covers came in), 1.6 s after (1.2 to 1.7).
+One cascade of the page went from about 3.3 s to 0.45 s. About half of
+what is left is reading the 428 kB sheet, once each time the theme is
+loaded.
+
+Totals (the round 43 checker state): every shot of the dark run (54
+themes and no theme, four pages), the light run and the hover run is
+pixel for pixel the round's start's, and the style differences are the
+same 780 over about 128,900 anchor elements: the round changes how fast
+a page is styled and restyled, not what it looks like. Pixels stay
+2.29 % of 305.6 million compared pixels (no theme 0.75 %), light scheme
+1.20 % (adaptive Cotton Candy), 0.69 % (adaptive Horchata) and 1.17 %
+(Tidal Light), hover pages 2.11 %.
+
+Not done, largest first: the Lunallena macOS menu page (Tidalfast shows
+the theme's picture behind the page and the header bar's parts, about
+half the page); Meteor Night's menu page (TIDAL's open menu adds an empty
+`span.context-menu` to the body, which the theme's `[class*="menu"]`
+rule gives a border, and TIDAL's whole page lies 20 points lower under
+it); a track row's line at TIDAL's fractional row places; the Lunallena
+themes' header bar on the collection page; reading a large sheet faster.
+
 ### Round 28 (plugins in use, 2026-10-23)
 
 Sixteen popular plugins (Tidal Tags, tidal-genres, total-play-time,
