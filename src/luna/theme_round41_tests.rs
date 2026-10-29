@@ -418,15 +418,29 @@ fn a_sidebar_cards_own_height_ends_it() {
     // TIDAL's `--miniPlayerHeight` is 88; the row, pulled 30 up under the
     // title bar as the cotton candy family's is, is the 1183-point window.
     let foot = row - 30.0 + 31.5 + (1183.0 - 88.0 * 1.234);
-    let colours = painted_at(
-        &ctx,
-        &mut app,
-        o,
-        &[[120.0, foot - 3.0], [120.0, foot + 4.0]],
-    );
+    // The card's red, a point at a time from 40 above the foot to 40 under
+    // it: where it ends is in the message when the foot is off.
+    let ys: Vec<f32> = (-40..=40).map(|d| foot + d as f32).collect();
+    let points: Vec<[f32; 2]> = ys.iter().map(|y| [120.0, *y]).collect();
+    let colours = painted_at(&ctx, &mut app, o, &points);
     let red = |c: egui::Color32| c.r() > 200 && c.g() < 60 && c.b() < 60;
-    assert!(red(colours[0]), "inside the card's foot: {:?}", colours[0]);
-    assert!(!red(colours[1]), "under it: {:?}", colours[1]);
+    let end = ys
+        .iter()
+        .zip(&colours)
+        .filter(|(_, c)| red(**c))
+        .map(|(y, _)| *y)
+        .fold(f32::NAN, f32::max);
+    let at = |d: f32| colours[ys.iter().position(|y| *y == foot + d).unwrap()];
+    assert!(
+        red(at(-3.0)),
+        "inside the card's foot: {:?} (row {row}, foot {foot}, red to {end})",
+        at(-3.0)
+    );
+    assert!(
+        !red(at(4.0)),
+        "under it: {:?} (row {row}, foot {foot}, red to {end})",
+        at(4.0)
+    );
 }
 
 /// TIDAL 2.46.0's track list panel is the list's module box (`.is-
