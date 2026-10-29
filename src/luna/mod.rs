@@ -114,7 +114,7 @@ impl RuntimeId {
 /// the `dev` build, the rest `latest`. Read from the `addToStores(...)` calls
 /// of TidaLuna 1.18.0-beta. The `dev` builds are what TidaLuna users run and
 /// what the plugin comparisons were made against. A store added to the end
-/// is offered once to a list saved before it ([`offer_new_default_stores`]).
+/// is offered once to a list saved before it (`offer_new_default_stores`).
 pub const DEFAULT_STORES: &[&str] = &[
     "https://github.com/SuperslowJelly/TIDAL-Clear-Coat/releases/download/latest",
     "https://github.com/meowarex/TidalLuna-Plugins/releases/download/latest",

@@ -128,7 +128,7 @@ pub enum ToPage {
     Ipc { channel: String, args: String },
     /// User input on the window.
     Event(DomEvent),
-    /// A new tree from the UI is in the window's [`TreeCell`].
+    /// A new tree from the UI is in the window's `TreeCell`.
     Sync,
     /// An asynchronous op the page asked for finished.
     OpDone { id: f64, ok: bool, json: String },
