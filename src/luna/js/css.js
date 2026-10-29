@@ -15,55 +15,105 @@
 	const MAX_CSS_BYTES = 4 << 20;
 
 	// ---------------------------------------------------------------- text helpers
-	const stripComments = (s) => {
-		let out = "",
-			q = null;
-		for (let i = 0; i < s.length; i++) {
-			const ch = s[i];
-			if (q) {
-				out += ch;
-				if (ch === "\\") out += s[++i] ?? "";
-				else if (ch === q) q = null;
-			} else if (ch === '"' || ch === "'") {
-				q = ch;
-				out += ch;
-			} else if (ch === "/" && s[i + 1] === "*") {
-				const end = s.indexOf("*/", i + 2);
-				i = end < 0 ? s.length : end + 1;
-			} else out += ch;
+	// These read a sheet of hundreds of kB: each jumps with a regular
+	// expression to the next character that matters (a quote, a bracket, a
+	// stop) and slices, instead of walking and copying one character at a
+	// time.
+	//
+	// From a quote at `i`: the index after its closing quote, or, when the
+	// text ends inside it, where the scan stopped (an escape at the very
+	// end steps one past the end).
+	const skipQuoted = (s, i) => {
+		const q = s[i];
+		let j = i + 1;
+		for (; j < s.length; j++) {
+			const ch = s[j];
+			if (ch === "\\") j++;
+			else if (ch === q) return j + 1;
 		}
-		return out;
+		return -j;
 	};
+	const COMMENT_OR_QUOTE = /\/\*|["']/g;
+	const stripComments = (s) => {
+		if (!s.includes("/*")) return s;
+		let out = "",
+			i = 0;
+		for (;;) {
+			COMMENT_OR_QUOTE.lastIndex = i;
+			const m = COMMENT_OR_QUOTE.exec(s);
+			if (!m) return out + s.slice(i);
+			if (m[0] === "/*") {
+				out += s.slice(i, m.index);
+				const end = s.indexOf("*/", m.index + 2);
+				if (end < 0) return out;
+				i = end + 2;
+			} else {
+				const j = skipQuoted(s, m.index);
+				if (j < 0) return out + s.slice(i);
+				out += s.slice(i, j);
+				i = j;
+			}
+		}
+	};
+	const untilRes = new Map();
 	// Read from `i` up to the first top-level char in `stops`; returns [text, index].
 	const readUntil = (s, i, stops) => {
-		let depth = 0,
-			q = null;
+		let re = untilRes.get(stops);
+		if (!re) untilRes.set(stops, (re = new RegExp(`["'()\\[\\]${stops.replace(/[\]\\^-]/g, "\\$&")}]`, "g")));
+		let depth = 0;
 		const st = i;
-		for (; i < s.length; i++) {
-			const ch = s[i];
-			if (q) {
-				if (ch === "\\") i++;
-				else if (ch === q) q = null;
-			} else if (depth === 0 && stops.includes(ch)) break;
-			else if (ch === '"' || ch === "'") q = ch;
-			else if (ch === "(" || ch === "[") depth++;
+		for (;;) {
+			re.lastIndex = i;
+			const m = re.exec(s);
+			if (!m) {
+				i = Math.max(i, s.length);
+				break;
+			}
+			i = m.index;
+			const ch = m[0];
+			if (depth === 0 && stops.includes(ch)) break;
+			if (ch === '"' || ch === "'") {
+				const j = skipQuoted(s, i);
+				if (j < 0) {
+					i = -j;
+					break;
+				}
+				i = j;
+				continue;
+			}
+			if (ch === "(" || ch === "[") depth++;
 			else if (ch === ")" || ch === "]") depth = Math.max(0, depth - 1);
+			i++;
 		}
 		return [s.slice(st, i), i];
 	};
+	const BRACE_OR_QUOTE = /[{}"']/g;
 	// After a "{" at i-1: the block body and the index after the matching "}".
 	const readBlock = (s, i) => {
-		let depth = 1,
-			q = null;
+		let depth = 1;
 		const st = i;
-		for (; i < s.length; i++) {
-			const ch = s[i];
-			if (q) {
-				if (ch === "\\") i++;
-				else if (ch === q) q = null;
-			} else if (ch === '"' || ch === "'") q = ch;
-			else if (ch === "{") depth++;
-			else if (ch === "}" && --depth === 0) break;
+		for (;;) {
+			BRACE_OR_QUOTE.lastIndex = i;
+			const m = BRACE_OR_QUOTE.exec(s);
+			if (!m) {
+				i = Math.max(i, s.length);
+				break;
+			}
+			i = m.index;
+			const ch = m[0];
+			if (ch === "{") depth++;
+			else if (ch === "}") {
+				if (--depth === 0) break;
+			} else {
+				const j = skipQuoted(s, i);
+				if (j < 0) {
+					i = -j;
+					break;
+				}
+				i = j;
+				continue;
+			}
+			i++;
 		}
 		return [s.slice(st, i), i + 1];
 	};
@@ -253,12 +303,14 @@
 		}
 		return out.filter(Boolean);
 	};
+	const SPACE_OR_SEMI = /[\s;]*/y;
 	const parseRules = (text, sheet, parent) => {
 		const s = stripComments(String(text ?? ""));
 		const out = [];
 		let i = 0;
 		while (i < s.length) {
-			while (i < s.length && /[\s;]/.test(s[i])) i++;
+			SPACE_OR_SEMI.lastIndex = i;
+			i += SPACE_OR_SEMI.exec(s)[0].length;
 			if (i >= s.length) break;
 			if (s[i] === "}") {
 				i++;

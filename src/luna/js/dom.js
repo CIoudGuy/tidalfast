@@ -932,31 +932,41 @@
 		}
 		return /^-(moz|ms|o)-/.test(k) ? null : k;
 	};
-	// Split `a; b; c` at top level (outside parens and strings).
+	// Split `a; b; c` at top level (outside parens and strings): jumps to
+	// the next quote, paren or semicolon and slices (a theme's sheet holds
+	// thousands of these).
+	const DECL_MARK = /["'();]/g;
 	const splitDecls = (text) => {
 		const out = [];
 		let depth = 0,
-			q = null,
-			cur = "";
-		for (let i = 0; i < text.length; i++) {
-			const ch = text[i];
-			if (q) {
-				if (ch === "\\") {
-					cur += ch + (text[++i] ?? "");
-					continue;
+			st = 0,
+			i = 0;
+		for (;;) {
+			DECL_MARK.lastIndex = i;
+			const m = DECL_MARK.exec(text);
+			if (!m) break;
+			i = m.index;
+			const ch = m[0];
+			if (ch === '"' || ch === "'") {
+				let j = i + 1;
+				for (; j < text.length; j++) {
+					const c = text[j];
+					if (c === "\\") j++;
+					else if (c === ch) break;
 				}
-				if (ch === q) q = null;
-			} else if (ch === '"' || ch === "'") q = ch;
-			else if (ch === "(") depth++;
-			else if (ch === ")") depth = Math.max(0, depth - 1);
-			else if (ch === ";" && depth === 0) {
-				out.push(cur);
-				cur = "";
+				if (j >= text.length) break;
+				i = j + 1;
 				continue;
 			}
-			cur += ch;
+			if (ch === "(") depth++;
+			else if (ch === ")") depth = Math.max(0, depth - 1);
+			else if (depth === 0) {
+				out.push(text.slice(st, i));
+				st = i + 1;
+			}
+			i++;
 		}
-		out.push(cur);
+		out.push(text.slice(st));
 		return out;
 	};
 	// A declared value as Chromium serializes it: a colour it parsed reads

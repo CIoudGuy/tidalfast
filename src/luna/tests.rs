@@ -92,6 +92,8 @@ mod theme_round43_tests;
 mod theme_round44_tests;
 #[path = "theme_round45_tests.rs"]
 mod theme_round45_tests;
+#[path = "theme_round47_tests.rs"]
+mod theme_round47_tests;
 #[path = "theme_tests.rs"]
 mod theme_tests;
 #[path = "tidal247_tests.rs"]
