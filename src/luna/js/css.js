@@ -1936,6 +1936,10 @@
 		_trackInfo_: { display: "flex" },
 		_utilityButtons_: { display: "flex" },
 		_utilityContainer_: { display: "flex" },
+		// TIDAL's image cell (an emotion class: the same styles wherever it
+		// is): the picture's absolutely placed box in a relative one.
+		"css-16luxag": { position: "relative" },
+		"css-1tk08rl": { position: "absolute" },
 		"wave-text-capital-demi": { "font-size": "10px", "font-weight": "600" },
 		"wave-text-caption-demi": { "font-size": "12px", "font-weight": "600" },
 		"wave-text-description-demi": { "font-size": "14px", "font-weight": "600" },

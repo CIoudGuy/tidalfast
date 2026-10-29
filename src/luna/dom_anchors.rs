@@ -196,6 +196,12 @@ pub mod keys {
     pub const TRACK_INFO: &str = "track-info";
     pub const NOW_PLAYING_TOGGLE: &str = "now-playing-toggle";
     pub const COVER: &str = "cover";
+    /// TIDAL's image cell round the cover's picture, outermost first:
+    /// `div.tidal-ui__geometry.css-4d6l5a._cellImageShowVideoCover_d698c20 >
+    /// div.css-16luxag > div.css-1tk08rl > img` (2.46.0 and 2.47.0).
+    pub const COVER_CELL: &str = "cover:cell";
+    pub const COVER_FRAME: &str = "cover:frame";
+    pub const COVER_FILL: &str = "cover:fill";
     pub const COVER_IMG: &str = "cover-img";
     pub const TRACK_CONTENT: &str = "track-content";
     pub const TITLE_STACK: &str = "title-artist-stack";
@@ -4589,7 +4595,27 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .test("current-media-imagery")
             .at(p.rect(P::Cover)),
     );
-    let mut img = el(COVER_IMG, Some(COVER), "img")
+    // The picture sits in TIDAL's image cell, in an absolutely placed box
+    // in a relative one (a plugin's layer over the picture goes in the
+    // picture's parent: radiant-lyrics' animated cover).
+    out.push(
+        el(COVER_CELL, Some(COVER), "div")
+            .class("tidal-ui__geometry")
+            .class("css-4d6l5a")
+            .class("_cellImageShowVideoCover_d698c20")
+            .at(p.rect(P::Cover)),
+    );
+    out.push(
+        el(COVER_FRAME, Some(COVER_CELL), "div")
+            .class("css-16luxag")
+            .at(p.rect(P::Cover)),
+    );
+    out.push(
+        el(COVER_FILL, Some(COVER_FRAME), "div")
+            .class("css-1tk08rl")
+            .at(p.rect(P::Cover)),
+    );
+    let mut img = el(COVER_IMG, Some(COVER_FILL), "img")
         .modules(&["cellImage", "image"])
         .attr("alt", p.title.clone())
         .at(p.rect(P::Cover));

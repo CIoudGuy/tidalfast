@@ -6607,3 +6607,43 @@ setInterval(() => {
     }
     finish(luna, dir);
 }
+
+/// The player bar's cover is TIDAL's image cell: `figure[data-test=current-
+/// media-imagery] > div.tidal-ui__geometry.css-4d6l5a._cellImageShowVideo
+/// Cover_d698c20 > div.css-16luxag > div.css-1tk08rl > img` (TIDAL 2.46.0
+/// and 2.47.0), the picture in an absolutely placed box in a relative one.
+/// A plugin that lays its own layer over the picture in the picture's
+/// parent (radiant-lyrics' animated cover) finds that box, positioned, as
+/// in TIDAL, not the figure.
+#[test]
+fn the_player_covers_picture_sits_in_tidals_image_cell() {
+    let (luna, _host, dir) = start(
+        r##"
+const go = () => {
+	if (R.found) return;
+	const img = document.querySelector('[data-test="footer-player"] [data-test="current-media-imagery"] img');
+	if (!img) return;
+	const up = [];
+	for (let n = img.parentElement; n && n.getAttribute("data-test") !== "current-media-imagery"; n = n.parentElement) up.push([n.getAttribute("class"), getComputedStyle(n).position]);
+	R.found = up;
+};
+new MutationObserver(go).observe(document.body, { childList: true, subtree: true });
+go();
+"##,
+    );
+    luna.sync_dom(dom_anchors::build(&dom_anchors::sample_frame()));
+    let r = results_until(&luna, &dir, 20, |r| !r["found"].is_null());
+    assert_eq!(
+        r["found"],
+        json!([
+            ["css-1tk08rl", "absolute"],
+            ["css-16luxag", "relative"],
+            [
+                "tidal-ui__geometry css-4d6l5a _cellImageShowVideoCover_d698c20",
+                "static"
+            ]
+        ]),
+        "{r}"
+    );
+    finish(luna, dir);
+}
