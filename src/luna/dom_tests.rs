@@ -893,6 +893,97 @@ run();
     finish(luna, dir);
 }
 
+/// The same attributes in a new tree change nothing, and only what the
+/// host changed is applied: what a plugin set on an app element (a class
+/// added, one of TIDAL's taken away, an attribute of its own) stays through
+/// trees that repeat it, a host attribute's change, a class change and a
+/// removed attribute, with one record for each change.
+#[test]
+fn a_tree_with_the_same_attributes_leaves_what_plugins_set() {
+    let (luna, _host, dir) = start(
+        r##"
+const recs = [];
+let shell = null;
+const look = () => {
+	shell ??= document.querySelector("#wimp > div[data-market-theme] > div");
+	if (!shell) return;
+	if (!R.ready) {
+		shell.classList.add("plug");
+		shell.classList.remove("is-desktop-app");
+		shell.setAttribute("aria-label", "mine");
+		new MutationObserver((list) => {
+			for (const r of list) if (r.target === shell) recs.push(r.attributeName);
+		}).observe(shell, { attributes: true });
+		R.ready = true;
+	}
+	R.state = { cls: shell.className, label: shell.getAttribute("aria-label"), title: shell.getAttribute("title"), recs: recs.slice(), same: shell === document.querySelector("#wimp > div[data-market-theme] > div") };
+};
+const id = setInterval(look, 30);
+unloads.add(() => clearInterval(id));
+"##,
+    );
+    fn shell(t: &mut HostTree) -> &mut Vec<(String, String)> {
+        &mut node(t, keys::SHELL).attrs
+    }
+    let t0 = tree();
+    luna.sync_dom(t0.clone());
+    results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
+    let state = |want: &dyn Fn(&Value) -> bool| {
+        results_until(&luna, &dir, 10, |r| want(&r["state"]))["state"].clone()
+    };
+    let s = state(&|s| s["label"] == json!("mine"));
+    assert_eq!(
+        s["cls"],
+        json!("has-footer-player is-now-playing plug"),
+        "{s}"
+    );
+    // The same tree, again and again: nothing changes, nothing is recorded.
+    for _ in 0..3 {
+        luna.sync_dom(t0.clone());
+        luna.sync(Duration::from_secs(5));
+    }
+    std::thread::sleep(Duration::from_millis(150));
+    let s = state(&|_| true);
+    assert_eq!(
+        s,
+        json!({ "cls": "has-footer-player is-now-playing plug", "label": "mine", "title": null, "recs": [], "same": true })
+    );
+    // A host attribute changes: only it.
+    let mut t1 = t0.clone();
+    shell(&mut t1).push(("title".into(), "x".into()));
+    luna.sync_dom(t1.clone());
+    let s = state(&|s| s["title"] == json!("x"));
+    assert_eq!(
+        s,
+        json!({ "cls": "has-footer-player is-now-playing plug", "label": "mine", "title": "x", "recs": ["title"], "same": true })
+    );
+    // TIDAL's classes change: the plugin's stay added and taken away.
+    let mut t2 = t1.clone();
+    shell(&mut t2)
+        .iter_mut()
+        .find(|(k, _)| k == "class")
+        .unwrap()
+        .1
+        .push_str(" is-fullscreen");
+    luna.sync_dom(t2.clone());
+    let s = state(&|s| s["recs"].as_array().is_some_and(|r| r.len() == 2));
+    assert_eq!(
+        s["cls"],
+        json!("has-footer-player is-now-playing is-fullscreen plug"),
+        "{s}"
+    );
+    // A host attribute goes.
+    let mut t3 = t2.clone();
+    shell(&mut t3).retain(|(k, _)| k != "title");
+    luna.sync_dom(t3);
+    let s = state(&|s| s["title"].is_null());
+    assert_eq!(
+        s,
+        json!({ "cls": "has-footer-player is-now-playing is-fullscreen plug", "label": "mine", "title": null, "recs": ["title", "class", "title"], "same": true })
+    );
+    finish(luna, dir);
+}
+
 /// A computed opacity is the number Chromium reports: `.75` reads `0.75`,
 /// a percentage its fraction, and a value past 1 or below 0 is clamped.
 /// The declared text came back as written (true-taste's `.75`).

@@ -3654,6 +3654,12 @@
 		const v = [...new Set(out)].join(" ");
 		if (v !== (el._attrs.get("class") ?? "")) el._setAttr("class", v);
 	};
+	// Whether two trees gave an element the same attributes, in order.
+	const sameAttrs = (a, b) => {
+		if (a === undefined || a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) if (a[i]?.[0] !== b[i]?.[0] || a[i]?.[1] !== b[i]?.[1]) return false;
+		return true;
+	};
 	// Count of anchor trees received, so waits for TIDAL's elements can tell
 	// whether the app has drawn since they began.
 	let syncs = 0;
@@ -3702,9 +3708,14 @@
 					hosts.delete(n.key);
 					el = undefined;
 				}
+				// Most elements come with the attributes they came with last
+				// time (every element of the page, about thirty times a second
+				// while a list scrolls): nothing to compare or apply then.
+				const raw = n.attrs ?? [];
+				const same = !!el && sameAttrs(el._hostRaw, raw);
 				// TIDAL renders a new page element when the page changes, so
 				// plugins that observe pages see them arrive.
-				const pid = (n.attrs ?? []).find(([k]) => String(k).toLowerCase() === "data-track--page-id")?.[1];
+				const pid = same ? el._hostPid : raw.find(([k]) => String(k).toLowerCase() === "data-track--page-id")?.[1];
 				const was = el?._hostAttrs?.get("data-track--page-id");
 				if (el && pid !== undefined && was !== undefined && String(pid) !== was) {
 					el.remove();
@@ -3720,15 +3731,19 @@
 				}
 				el._hostParent = parent;
 				// attributes: apply what the host changed since last time
-				const next = new Map((n.attrs ?? []).map(([k, v]) => [String(k).toLowerCase(), String(v)]));
-				const prev = el._hostAttrs;
-				for (const [k, v] of next) {
-					if (!fresh && prev.get(k) === v) continue;
-					if (k === "class") classDiff(el, prev.get(k) ?? "", v);
-					else el._setAttr(k, String(v));
+				if (fresh || !same) {
+					const next = new Map(raw.map(([k, v]) => [String(k).toLowerCase(), String(v)]));
+					const prev = el._hostAttrs;
+					for (const [k, v] of next) {
+						if (!fresh && prev.get(k) === v) continue;
+						if (k === "class") classDiff(el, prev.get(k) ?? "", v);
+						else el._setAttr(k, String(v));
+					}
+					for (const [k] of prev) if (!next.has(k)) k === "class" ? classDiff(el, prev.get(k), "") : el._removeAttr(k);
+					el._hostAttrs = next;
+					el._hostRaw = raw;
+					el._hostPid = pid;
 				}
-				for (const [k] of prev) if (!next.has(k)) k === "class" ? classDiff(el, prev.get(k), "") : el._removeAttr(k);
-				el._hostAttrs = next;
 				// own text
 				const text = n.text ?? null;
 				if (text !== (el._hostTextVal ?? null) || fresh) {
