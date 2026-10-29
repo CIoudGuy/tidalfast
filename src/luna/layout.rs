@@ -38,6 +38,11 @@ pub(crate) struct TreeSlot {
     /// How many trees the UI has sent; the one in [`TreeSlot::tree`] is
     /// the `sent`th.
     pub sent: u64,
+    /// How many input events the UI has sent the plugins' listeners.
+    pub events: u64,
+    /// How many of those it had sent when it sent [`TreeSlot::tree`]: the
+    /// tree reaches the document once they have all been dispatched.
+    pub events_before_tree: u64,
     /// The newest overlay that can move boxes, and when it went out.
     published: Option<(u64, Instant)>,
     /// The newest such overlay the UI started a frame with, and when.
