@@ -2983,7 +2983,7 @@ fn paint_border_image(
     let g =
         &*super::theme_gradient::for_line(g, super::theme_gradient::line_length(g, rect.size()));
     let [t, r, b, l] = sides;
-    for (w, strip) in [
+    for (side, (w, strip)) in [
         (
             t,
             Rect::from_min_max(rect.min, pos2(rect.max.x, rect.min.y + t)),
@@ -3000,7 +3000,10 @@ fn paint_border_image(
             l,
             Rect::from_min_max(rect.min, pos2(rect.min.x + l, rect.max.y)),
         ),
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
         if w <= 0.0 {
             continue;
         }
@@ -3029,8 +3032,75 @@ fn paint_border_image(
                 })
                 .collect();
         }
-        super::theme_gradient::paint(painter, strip, None, &part, part.angle, part.position);
+        // A strip across the gradient's line (a top or bottom one under a
+        // gradient to the right, a side one under one downward) lies at
+        // the row's fractional place: Chromium covers the pixels it partly
+        // reaches in part (TIDAL's list rows sit at fractional offsets),
+        // where a mesh fills only the pixels whose centres it holds.
+        let vertical = (g.angle % 180.0).abs() < 0.01;
+        let across_y = horizontal && side % 2 == 0;
+        let across_x = vertical && side % 2 == 1;
+        if across_y || across_x {
+            let ppp = painter.ctx().pixels_per_point();
+            for (piece, cover) in pixel_cover(strip, across_y, ppp) {
+                let mut shaded = part.clone();
+                for s in &mut shaded.stops {
+                    s.1 = s.1.gamma_multiply(cover);
+                }
+                super::theme_gradient::paint(
+                    painter,
+                    piece,
+                    None,
+                    &shaded,
+                    shaded.angle,
+                    shaded.position,
+                );
+            }
+        } else {
+            super::theme_gradient::paint(painter, strip, None, &part, part.angle, part.position);
+        }
     }
+}
+
+/// `strip` cut along y (`along_y`) or x into whole device pixels, each with
+/// the share of it the strip covers: the partly covered pixel at each end,
+/// and the fully covered ones between. A strip on whole pixels is itself.
+fn pixel_cover(strip: Rect, along_y: bool, ppp: f32) -> Vec<(Rect, f32)> {
+    let (a, b) = if along_y {
+        (strip.min.y * ppp, strip.max.y * ppp)
+    } else {
+        (strip.min.x * ppp, strip.max.x * ppp)
+    };
+    let piece = |from: f32, to: f32| {
+        if along_y {
+            Rect::from_min_max(pos2(strip.min.x, from / ppp), pos2(strip.max.x, to / ppp))
+        } else {
+            Rect::from_min_max(pos2(from / ppp, strip.min.y), pos2(to / ppp, strip.max.y))
+        }
+    };
+    const EPS: f32 = 1e-3;
+    let (first, last) = (a.floor(), b.ceil());
+    if b - a <= EPS {
+        return Vec::new();
+    }
+    if (a - a.round()).abs() < EPS && (b - b.round()).abs() < EPS {
+        return vec![(strip, 1.0)];
+    }
+    if last - first <= 1.0 {
+        return vec![(piece(first, last), b - a)];
+    }
+    let mut out = Vec::new();
+    let (inner_a, inner_b) = (a.ceil(), b.floor());
+    if inner_a - a > EPS {
+        out.push((piece(first, inner_a), inner_a - a));
+    }
+    if inner_b > inner_a {
+        out.push((piece(inner_a, inner_b), 1.0));
+    }
+    if b - inner_b > EPS {
+        out.push((piece(inner_b, last), b - inner_b));
+    }
+    out
 }
 
 /// A border of `sides` (top, right, bottom, left) round `rect`: one stroke
@@ -6507,6 +6577,54 @@ mod tests {
         assert_eq!(round_corner(330.0), CornerRadius::same(165));
         assert_eq!(round_corner(173.0), CornerRadius::same(87));
         assert_eq!(round_corner(900.0), CornerRadius::same(255));
+    }
+
+    /// A list row lies at a fractional offset under a theme (the cotton
+    /// candy family's: 0.81 into a pixel), and its `border-image` line
+    /// with it. Chromium covers the pixels the line partly reaches in part
+    /// (a 2-point line from 519.81 shades pixel 519 a fifth, 520 fully and
+    /// 521 four fifths); the line was filled on pixels 520 and 521 only,
+    /// a line out of place by most of a pixel.
+    #[test]
+    fn a_border_image_line_at_a_fractional_place_covers_its_pixels_in_part() {
+        let g = super::super::theme_gradient::Angled {
+            stops: vec![(0.0, Color32::WHITE), (1.0, Color32::WHITE)],
+            angle: 90.0,
+            spin: None,
+            size: [1.0, 1.0],
+            position: [0.0, 0.0],
+            lengths: None,
+        };
+        let ctx = egui::Context::default();
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let rect = Rect::from_min_size(pos2(10.0, 519.8125), vec2(400.0, 48.0));
+            paint_border_image(ui.painter(), rect, [2.0, 0.0, 0.0, 0.0], &g);
+        });
+        out.textures_delta.clear();
+        // Each pixel row the line reaches, with the white it lays there.
+        let mut rows: Vec<(i32, i32, u8)> = out
+            .shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Mesh(m) => {
+                    let r = m.calc_bounds();
+                    let a = m.vertices.iter().map(|v| v.color.a()).max()?;
+                    Some((r.min.y.round() as i32, r.max.y.round() as i32, a))
+                }
+                _ => None,
+            })
+            .collect();
+        rows.sort();
+        assert_eq!(rows.len(), 3, "{rows:?}");
+        assert_eq!((rows[0].0, rows[0].1), (519, 520), "{rows:?}");
+        assert!((40..56).contains(&rows[0].2), "{rows:?}");
+        assert_eq!(
+            (rows[1].0, rows[1].1, rows[1].2),
+            (520, 521, 255),
+            "{rows:?}"
+        );
+        assert_eq!((rows[2].0, rows[2].1), (521, 522), "{rows:?}");
+        assert!((200..215).contains(&rows[2].2), "{rows:?}");
     }
 
     /// TIDAL writes "-" in the BPM column for a song without one.
