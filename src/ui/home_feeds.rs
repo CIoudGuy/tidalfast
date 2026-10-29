@@ -45,8 +45,6 @@ fn song_columns(width: f32) -> usize {
 }
 /// A Featured card's image: TIDAL's promotion art is 550 x 400.
 const PROMO_ASPECT: f32 = 400.0 / 550.0;
-/// The gap between Featured cards.
-const FEATURED_GAP: f32 = 16.0;
 
 /// The label of a Home tab.
 pub fn label(app: &App, tab: Option<&str>) -> String {
@@ -101,7 +99,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, feed: &'static str) {
         ui.scope(|ui| {
             skeleton::fade_in(ui, &id);
             let more = if !shelf.promos.is_empty() {
-                featured(app, ui, &id, shelf)
+                featured(app, ui, &id, shelf, FeaturedRow::Feed)
             } else if shelf.layout == ShelfLayout::Compact {
                 songs(app, ui, &id, shelf)
             } else {
@@ -394,23 +392,82 @@ fn explicit(ui: &egui::Ui, palette: &Palette, rect: Rect) {
     );
 }
 
-/// The Uploads tab's "Featured": wide editorial cards five to a row, the
-/// image over a cyan capital kicker, a title and a line of text.
-pub(super) fn featured(app: &mut App, ui: &mut egui::Ui, id: &str, shelf: &Shelf) -> bool {
+/// How TIDAL lays a row of promotion cards out. Both rows size the cards
+/// to fill the width exactly, and show the paging arrows only when the
+/// cards run past it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum FeaturedRow {
+    /// A page's promotion module (Explore, genre pages, Videos): TIDAL's
+    /// horizontal scroller with 250-point boxes, as many cards across as
+    /// whole boxes fit (six when none does), 24 apart; arrows when there
+    /// are more cards than that.
+    Module,
+    /// Home's tabs (a feed's MAGAZINE cards): as many 300-point cards as
+    /// fit, one to eight, 16 apart; arrows when the cards' widths alone
+    /// pass the row's.
+    Feed,
+}
+
+impl FeaturedRow {
+    fn gap(self) -> f32 {
+        match self {
+            FeaturedRow::Module => 24.0,
+            FeaturedRow::Feed => 16.0,
+        }
+    }
+
+    /// How many cards a row `width` wide shows at once.
+    fn columns(self, width: f32) -> usize {
+        match self {
+            FeaturedRow::Module => match (width / 250.0).floor() {
+                n if n >= 1.0 => n as usize,
+                _ => 6,
+            },
+            FeaturedRow::Feed => ((width / 300.0).floor().max(1.0) as usize).min(8),
+        }
+    }
+
+    /// A card's width in a row `width` wide.
+    fn card_width(self, width: f32) -> f32 {
+        let columns = self.columns(width) as f32;
+        ((width - (columns - 1.0) * self.gap()) / columns).max(1.0)
+    }
+
+    /// Whether `count` cards in a row `width` wide have paging arrows.
+    fn arrows(self, width: f32, count: usize) -> bool {
+        match self {
+            FeaturedRow::Module => count > self.columns(width),
+            FeaturedRow::Feed => self.card_width(width) * count as f32 > width,
+        }
+    }
+}
+
+/// A shelf of promotions ("Featured", Videos' "WATCH" cards): wide
+/// editorial cards, the image over a cyan capital kicker, a title and a
+/// line of text, laid out as `row` says.
+pub(super) fn featured(
+    app: &mut App,
+    ui: &mut egui::Ui,
+    id: &str,
+    shelf: &Shelf,
+    row: FeaturedRow,
+) -> bool {
     let palette = app.palette;
     let view_all = gettext(app.locale, "View all");
-    // TIDAL shows three cards across at any width, 16 apart.
+    let width = ui.available_width();
+    // A hair under the card's width, so the shelf counts the same columns.
     let sizing = widgets::CardSizing {
-        min_width: (((ui.available_width() - 2.0 * FEATURED_GAP) / 3.0).floor() - 1.0).max(1.0),
-        gap: FEATURED_GAP,
+        min_width: (row.card_width(width) - 0.01).max(0.5),
+        gap: row.gap(),
     };
-    widgets::shelf_sized(
+    widgets::shelf_sized_arrows(
         ui,
         &palette,
         id,
         &shelf.title,
         shelf.more.as_ref().map(|_| view_all.as_ref()),
         sizing,
+        row.arrows(width, shelf.promos.len()),
         |ui| {
             for promo in &shelf.promos {
                 promo_card(app, ui, promo);
@@ -420,17 +477,45 @@ pub(super) fn featured(app: &mut App, ui: &mut egui::Ui, id: &str, shelf: &Shelf
 }
 
 /// A Featured card's height: the image, then TIDAL's text block: 16 under
-/// the image, the kicker (10/12), 8, the title (18/24), 4, one line of
-/// text (14/20): 84 in all.
-fn promo_height(width: f32) -> f32 {
-    (width * PROMO_ASPECT).round() + 84.0
+/// the image, the kicker (10/12), 8, the title (18/24), 4, the text
+/// (14/20). The title takes two lines when there is no text, else one;
+/// the text up to two.
+fn promo_height(width: f32, title_lines: usize, text_lines: usize) -> f32 {
+    (width * PROMO_ASPECT).round()
+        + 16.0
+        + 12.0
+        + 8.0
+        + 24.0 * title_lines as f32
+        + 4.0
+        + 20.0 * text_lines as f32
 }
 
 fn promo_card(app: &mut App, ui: &mut egui::Ui, promo: &Promo) {
     let palette = app.palette;
     let width = widgets::card_width(ui);
     let image_height = (width * PROMO_ASPECT).round();
-    let height = promo_height(width);
+    let no_text = promo.text.trim().is_empty();
+    let title = crate::bidi::layout(
+        ui.painter(),
+        &promo.title,
+        theme::semibold(18.0),
+        palette.text,
+        width,
+        if no_text { 2 } else { 1 },
+        Some('\u{2026}'),
+    );
+    let text = crate::bidi::layout(
+        ui.painter(),
+        &promo.text,
+        theme::semibold(14.0),
+        palette.secondary,
+        width,
+        2,
+        Some('\u{2026}'),
+    );
+    let title_lines = title.rows.len().max(1);
+    let text_lines = if no_text { 0 } else { text.rows.len().max(1) };
+    let height = promo_height(width, title_lines, text_lines);
     let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::click());
     if ui.is_rect_visible(rect) {
         let image_rect = Rect::from_min_size(rect.min, vec2(width, image_height));
@@ -472,37 +557,23 @@ fn promo_card(app: &mut App, ui: &mut egui::Ui, promo: &Promo) {
             }
         }
         y += 12.0 + 8.0;
-        let title = crate::bidi::layout(
-            ui.painter(),
-            &promo.title,
-            theme::semibold(18.0),
-            palette.text,
-            width,
-            1,
-            None,
-        );
+        let title_block = 24.0 * title_lines as f32;
         let title_height = title.size().y;
         ui.painter().galley(
-            pos2(rect.left(), y + (24.0 - title_height) / 2.0),
+            pos2(rect.left(), y + (title_block - title_height) / 2.0),
             title,
             palette.text,
         );
-        y += 24.0 + 4.0;
-        let text = crate::bidi::layout(
-            ui.painter(),
-            &promo.text,
-            theme::semibold(14.0),
-            palette.secondary,
-            width,
-            1,
-            None,
-        );
-        let text_height = text.size().y;
-        ui.painter().galley(
-            pos2(rect.left(), y + (20.0 - text_height) / 2.0),
-            text,
-            palette.secondary,
-        );
+        y += title_block + 4.0;
+        if text_lines > 0 {
+            let text_block = 20.0 * text_lines as f32;
+            let text_height = text.size().y;
+            ui.painter().galley(
+                pos2(rect.left(), y + (text_block - text_height) / 2.0),
+                text,
+                palette.secondary,
+            );
+        }
     }
     let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
     response.widget_info(|| {
@@ -564,10 +635,59 @@ mod tab_tests {
     }
 
     /// A Featured card at 1440 is 350.9 wide: a 255-high image and 84 of
-    /// text.
+    /// text with a one-line title and one line of text; 20 more for each
+    /// further line (TIDAL 2.47.0's Uploads cards are 293 and 313 high at
+    /// 287.2 wide).
     #[test]
     fn featured_card_height_is_image_plus_tidals_text_block() {
-        assert_eq!(promo_height(350.9), 255.0 + 84.0);
+        assert_eq!(promo_height(350.9, 1, 1), 255.0 + 84.0);
+        assert_eq!(promo_height(287.2, 1, 1), 293.0);
+        assert_eq!(promo_height(287.2, 1, 2), 313.0);
+        assert_eq!(promo_height(275.2, 1, 1), 284.0);
+    }
+
+    /// Explore's Featured (TIDAL 2.47.0's horizontal scroller, 250-point
+    /// boxes 24 apart): 275.2 wide, five across, in the 1472 column of a
+    /// 2121 window; 238.7, three across, in a 764 one; no arrows for its
+    /// three cards at either.
+    #[test]
+    fn explores_featured_row_counts_tidals_250_point_boxes() {
+        let row = FeaturedRow::Module;
+        assert_eq!(row.gap(), 24.0);
+        assert_eq!(row.columns(1472.0), 5);
+        assert!((row.card_width(1472.0) - 275.2).abs() < 0.05);
+        assert_eq!(row.columns(764.0), 3);
+        assert!((row.card_width(764.0) - 238.67).abs() < 0.05);
+        assert_eq!(row.columns(1085.0), 4);
+        assert_eq!(row.columns(499.0), 1);
+        assert!(!row.arrows(1472.0, 3));
+        assert!(!row.arrows(764.0, 3));
+        assert!(row.arrows(600.0, 3), "two across, three cards");
+        assert!(!row.arrows(1472.0, 5));
+        assert!(row.arrows(1472.0, 6));
+    }
+
+    /// Home's Featured (TIDAL 2.47.0's feed row, 300-point cards 16 apart):
+    /// three across at 1085 (350.9), five at 1500 (287.2), two at 772
+    /// (378), three at 1140 (369.3), with arrows for its ten cards.
+    #[test]
+    fn homes_featured_row_counts_tidals_300_point_cards() {
+        let row = FeaturedRow::Feed;
+        assert_eq!(row.gap(), 16.0);
+        for (width, columns, card) in [
+            (1085.0, 3, 351.0),
+            (1500.0, 5, 287.2),
+            (772.0, 2, 378.0),
+            (1140.0, 3, 369.33),
+        ] {
+            assert_eq!(row.columns(width), columns, "{width}");
+            assert!((row.card_width(width) - card).abs() < 0.05, "{width}");
+            assert!(row.arrows(width, 10));
+        }
+        assert_eq!(row.columns(200.0), 1);
+        assert_eq!(row.columns(3000.0), 8);
+        assert!(!row.arrows(1085.0, 3));
+        assert!(row.arrows(1085.0, 4));
     }
 
     #[test]

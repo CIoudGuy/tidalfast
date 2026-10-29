@@ -4964,6 +4964,22 @@ pub fn shelf_sized(
     sizing: CardSizing,
     add_contents: impl FnOnce(&mut Ui),
 ) -> bool {
+    shelf_sized_arrows(ui, palette, id, title, more, sizing, true, add_contents)
+}
+
+/// [`shelf_sized`], with the header's paging arrows only when `arrows`
+/// (TIDAL leaves them out of a row whose cards all fit).
+#[expect(clippy::too_many_arguments)]
+pub fn shelf_sized_arrows(
+    ui: &mut Ui,
+    palette: &Palette,
+    id: &str,
+    title: &str,
+    more: Option<&str>,
+    sizing: CardSizing,
+    arrows: bool,
+    add_contents: impl FnOnce(&mut Ui),
+) -> bool {
     // A theme's spacing for the row (`column-gap`, `padding-top`,
     // `margin-bottom` of the cotton candy family's `._cardContainer_`).
     let themed = super::plugin_dom::shelf_spacing();
@@ -5006,7 +5022,7 @@ pub fn shelf_sized(
         ui,
         palette,
         title,
-        Some((resting > 0.5, resting < max_offset - 0.5)),
+        arrows.then_some((resting > 0.5, resting < max_offset - 0.5)),
         more,
         super::plugin_dom::next_shelf_index(),
     );

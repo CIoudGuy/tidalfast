@@ -18056,6 +18056,92 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// Explore's Featured as TIDAL 2.47.0 lays it out: as many cards across
+    /// as 250-point boxes fit, 24 apart (TIDAL's 238.7 at a 1100 window and
+    /// 275.2 at 2121), with and without the play queue open. The arrows'
+    /// rule is `FeaturedRow`'s own test.
+    #[test]
+    fn explores_featured_cards_are_sized_as_tidals() {
+        use egui::accesskit::Role;
+        for (width, queue) in [(1100.0, false), (2121.0, false), (2121.0, true)] {
+            let (ctx, mut app) = accessible_app("explore-featured-sizes");
+            app.show_queue_panel = queue;
+            app.open(crate::ui::explore::page());
+            for _ in 0..3 {
+                explore_frame(&ctx, &mut app, width, vec![]);
+            }
+            let tree = explore_frame(&ctx, &mut app, width, vec![]);
+            let cards: Vec<egui::accesskit::Rect> = FEATURED_TITLES
+                .iter()
+                .map(|title| {
+                    let id = accessible_node(&tree, title, Role::Button);
+                    tree.nodes
+                        .iter()
+                        .find(|(node, _)| *node == id)
+                        .and_then(|(_, node)| node.bounds())
+                        .expect("a card's box")
+                })
+                .collect();
+            let card = cards[0].width() as f32;
+            for pair in cards.windows(2) {
+                assert!((pair[1].width() - pair[0].width()).abs() < 0.01);
+                assert!(
+                    ((pair[1].x0 - pair[0].x1) - 24.0).abs() < 0.6,
+                    "{width}: 24 between cards, not {}",
+                    pair[1].x0 - pair[0].x1
+                );
+            }
+            // TIDAL's columns: 764 at 1100 (three across), 1472 at 2121
+            // (five across); with the queue open, five still fit.
+            let (across, column) = match (width, queue) {
+                (1100.0, _) => (3.0, 764.0),
+                (_, false) => (5.0, 1472.0),
+                _ => (5.0, 5.0 * card + 4.0 * 24.0),
+            };
+            assert_eq!((column / 250.0_f32).floor(), across, "{width} {queue}");
+            assert!(
+                (card - (column - (across - 1.0) * 24.0) / across).abs() < 0.05,
+                "{width} {queue}: {card}"
+            );
+            app.backend.shutdown();
+        }
+    }
+
+    /// Home's Uploads Featured as TIDAL 2.47.0 lays it out: as many
+    /// 300-point cards as fit, 16 apart. Five of 287.2 in the 1500 feed of
+    /// a 2121 window, three of 351 in the 1085 feed of a 1440 one.
+    #[test]
+    fn homes_featured_cards_are_sized_as_tidals() {
+        use egui::accesskit::Role;
+        for (width, card_width) in [(2121.0, 287.2), (1440.0, 351.0)] {
+            let (ctx, mut app) = accessible_app("home-featured-sizes");
+            app.open(Page::Home);
+            app.home_tab = Some("uploads");
+            for _ in 0..3 {
+                explore_frame(&ctx, &mut app, width, vec![]);
+            }
+            let tree = explore_frame(&ctx, &mut app, width, vec![]);
+            let cards: Vec<egui::accesskit::Rect> = ["Annisse", "Mo J. Simpson"]
+                .iter()
+                .map(|title| {
+                    let id = accessible_node(&tree, title, Role::Button);
+                    tree.nodes
+                        .iter()
+                        .find(|(node, _)| *node == id)
+                        .and_then(|(_, node)| node.bounds())
+                        .expect("a card's box")
+                })
+                .collect();
+            assert!(
+                (cards[0].width() as f32 - card_width).abs() < 0.6,
+                "{width}: {}",
+                cards[0].width()
+            );
+            assert!(((cards[1].x0 - cards[0].x1) - 16.0).abs() < 0.6);
+            app.backend.shutdown();
+        }
+    }
+
     /// The badges at the right end of the top bar sit in a right-to-left
     /// layout, which does not wrap and does not clip: anything that does not
     /// fit marches left over the search field. Draw the real bar and check

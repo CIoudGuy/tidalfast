@@ -189,7 +189,7 @@ fn modules(app: &mut App, ui: &mut egui::Ui, path: &str, shelves: &[Shelf]) {
         let clicked = if !shelf.promos.is_empty() {
             // Promotions as TIDAL's wide editorial cards ("Featured",
             // Videos' "WATCH" cards).
-            super::home_feeds::featured(app, ui, &id, shelf)
+            super::home_feeds::featured(app, ui, &id, shelf, super::home_feeds::FeaturedRow::Module)
         } else if videos {
             // Music videos: 16:9 cards, four or so to a row.
             widgets::shelf_sized(
