@@ -632,6 +632,52 @@
 		// `:empty`...): inserting or removing nodes may change what it
 		// matches anywhere.
 		let structural = false;
+		// The compounds that can match differently when an element's
+		// siblings change (each with its pseudo-classes left out: one with a
+		// position pseudo-class, or on either side of `+` or `~`): when a
+		// node's children change, only those of them a compound matches (and
+		// what is inside them) are matched again, as Chromium invalidates
+		// siblings. `deep`: a descendant or child step follows the compound
+		// (or it is inside a pseudo-class's argument), so what is inside a
+		// matched element can change too; else the element alone (a row's
+		// `:nth-child(odd)` colour leaves what the row holds as it was).
+		const POSITIONAL = new Set(["nth-child", "nth-last-child", "nth-of-type", "nth-last-of-type", "first-child", "last-child", "only-child", "first-of-type", "last-of-type", "only-of-type", "empty"]);
+		const siblingSubjects = new Map();
+		const bare = (c) => ({ ...c, pseudos: [], pe: false, scope: false });
+		const siblingSubjectsOf = (steps, outer) => {
+			for (let k = 0; k < steps.length; k++) {
+				const c = steps[k].c;
+				const sib = (s) => s !== undefined && (s.comb === "+" || s.comb === "~");
+				if (sib(steps[k]) || sib(steps[k + 1]) || c.pseudos.some((p) => POSITIONAL.has(p.name))) {
+					const s = c.scope && outer ? outer : bare(c);
+					const deep = outer !== null || steps.slice(k + 1).some((x) => x.comb === " " || x.comb === ">");
+					const key = JSON.stringify([s.tag, s.ids, s.classes, s.attrs]);
+					const had = siblingSubjects.get(key);
+					if (!had) siblingSubjects.set(key, { steps: [{ c: s }], deep });
+					else if (deep) had.deep = true;
+				}
+				for (const p of c.pseudos) for (const x of [...(p.list ?? []), ...(p.nth?.of ?? [])]) siblingSubjectsOf(x.steps, bare(c));
+			}
+		};
+		// A `:has(...)` that reads siblings (`.a:has(~ .b .c)`, `.a:has(.b +
+		// .c)`), one next to `+` or `~` (`.a:has(.b) + .c`) or one that
+		// decides a position (`:nth-child(2 of :has(.b))`): a change deep in
+		// one element can reach another's siblings; every element is
+		// matched again then.
+		let hasSiblings = false;
+		const sibComb = (s) => s !== undefined && (s.comb === "+" || s.comb === "~");
+		const hasReadsSiblings = (steps) =>
+			steps.some((st, k) => {
+				if (hasIn(st.c) && (sibComb(st) || sibComb(steps[k + 1]))) return true;
+				return st.c.pseudos.some(
+					(p) =>
+						(p.name === "has" && p.list.some((x) => x.steps.some(sibComb))) ||
+						(p.nth?.of ?? []).some((x) => x.steps.some((s) => hasIn(s.c))) ||
+						[...(p.list ?? []), ...(p.nth?.of ?? [])].some((x) => hasReadsSiblings(x.steps)),
+				);
+			});
+		// `:empty`: a node's children decide whether the node itself matches.
+		let empty = false;
 		// The compounds that carry a `:has(...)` (their other pseudo-classes
 		// left out): a change inside an element they match may change whether
 		// it matches, and so its whole subtree (scroll-to-playing marks the
@@ -680,7 +726,13 @@
 					const readsStyle = /\[\s*style\b/i.test(r._sel);
 					if (readsStyle) styleAttr = true;
 					if (readsStyle && /[+~]/.test(r._sel)) styleSiblings = true;
-					if (!structural && /[+~]|:(nth-|first-child|last-child|only-child|empty|first-of-type|last-of-type|only-of-type)/i.test(r._sel)) structural = true;
+					const positional = /[+~]|:(nth-|first-child|last-child|only-child|empty|first-of-type|last-of-type|only-of-type)/i.test(r._sel);
+					if (positional) {
+						structural = true;
+						if (!hasSiblings && r._sel.includes(":has(") && list.some((sel) => hasReadsSiblings(sel.steps))) hasSiblings = true;
+						if (/:empty/i.test(r._sel)) empty = true;
+						for (const sel of list) siblingSubjectsOf(sel.steps, null);
+					}
 					for (const m of r._sel.matchAll(/\[\s*([\w-]+)/g)) attrNames.add(m[1].toLowerCase());
 					const decls = [...r._decl._m].filter(([name, d]) => !invalidDecl(name, d.value)).map(([name, d]) => ({ name, value: d.value, important: d.important }));
 					if (!decls.length) continue;
@@ -750,7 +802,7 @@
 		}
 		if (skipped && !warnedCss) L.callOp("log", { plugin: null, level: "warn", msg: `${skipped} style sheet(s) left out: plugin and theme CSS is capped at ${MAX_CSS_BYTES >> 20} MB` });
 		warnedCss = skipped > 0;
-		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, hover, hoverSiblings, hoverHas, hoverSubjects, styleAttr, structural, hasSteps, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
+		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, hover, hoverSiblings, hoverHas, hoverSubjects, styleAttr, structural, siblingSubjects: [...siblingSubjects.values()].sort((a, b) => b.deep - a.deep), hasSiblings, empty, hasSteps, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
 		return index;
 	};
 	// `@keyframes` body -> [[offset 0..1, Map name -> value]], sorted.
@@ -854,7 +906,7 @@
 		m.set(name, value);
 	};
 	const cascade = (ix, el) => {
-		if (memoIx !== ix || memoGen !== D.domGen() || (memoStructGen !== D.structGen() && ix.structural)) {
+		if (memoIx !== ix || memoGen !== D.domGen() || (memoStructGen !== D.structGen() && ix.hasSiblings)) {
 			if (L.stat) L.stat(memoIx !== ix ? "recascade: css" : memoGen !== D.domGen() ? "recascade: dom" : "recascade: structure", Date.now());
 			D.cascadeResets = (D.cascadeResets ?? 0) + 1;
 			memo = new WeakMap();
@@ -868,16 +920,38 @@
 			D.takeRestyled();
 			D.takeInserted();
 			D.takeDetached();
+			D.takeReshaped();
 		}
 		if (memoStructGen !== D.structGen()) {
-			// Nodes came and went (or an element's class changed), and no
-			// selector looks at siblings: only what was inserted (it may have
-			// moved under other ancestors) is matched again, and the subtree of
-			// each ancestor a `:has(...)` rule may match.
+			// Nodes came and went (or an element's class changed): what was
+			// inserted (it may have moved under other ancestors) is matched
+			// again, and the subtree of each ancestor a `:has(...)` rule may
+			// match. Where a rule reads siblings or position, so is every
+			// child of a reshaped node that a compound next to `+`/`~` or with
+			// a position pseudo-class matches (with `:empty`, the node and its
+			// siblings too), with what is inside it: the result is a whole
+			// restyle's (a plugin's `:nth-child` rule restyled the whole page
+			// on every row a scroll brought in).
 			memoStructGen = D.structGen();
 			const inserted = D.takeInserted();
 			const detached = D.takeDetached();
+			const reshaped = D.takeReshaped();
 			for (const n of inserted) forgetSubtree(n);
+			if (ix.structural) {
+				const parents = new Set(reshaped);
+				if (ix.empty) for (const p of reshaped) if (p.parentNode) parents.add(p.parentNode);
+				for (const p of parents)
+					for (const c of p.childNodes ?? []) {
+						if (!(c instanceof g.Element)) continue;
+						// Deep subjects come first: the first that matches decides.
+						const s = ix.siblingSubjects.find((x) => D.sel.matchSteps(c, x.steps, null));
+						if (s?.deep) forgetSubtree(c);
+						else if (s) {
+							memo.delete(c);
+							pmemo.delete(c);
+						}
+					}
+			}
 			if (ix.hasSteps.length) {
 				const done = new Set();
 				const up = (a) => {
@@ -888,6 +962,7 @@
 				};
 				for (const n of inserted) up(n.parentElement);
 				for (const p of detached) up(p);
+				for (const p of reshaped) if (p instanceof g.Element) up(p);
 			}
 		}
 		if (memoStyleGen !== D.styleGen()) {
@@ -947,6 +1022,9 @@
 		for (const [k, v] of imp) put(normal, k, v);
 		return normal;
 	};
+	// For the tests that check a kept cascade against a fresh one: the
+	// element's cascade as kept (`fresh` false) or matched anew, unkept.
+	D.cascadeOf = (el, fresh) => (fresh ? cascadeNow : cascade)(buildIndex(), el);
 	// The winning declarations of an element's `::before`/`::after` (no
 	// inline style: that is the element's own).
 	const pseudoCascade = (px, el) => {
@@ -2308,6 +2386,5 @@
 	const varsRead = () => index?.varNames ?? null;
 	// Whether a rule looks at siblings, children or position: then a changed
 	// class can change what matches outside the element's own subtree.
-	const structural = () => !!buildIndex().structural;
-	L.css = { setUserAgentSheet, panelGlass: PANEL_GLASS, panelBorder: PANEL_BORDER, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, hoverReach, attrMatters, varsRead, structural, rangeParts };
+	L.css = { setUserAgentSheet, panelGlass: PANEL_GLASS, panelBorder: PANEL_BORDER, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, hoverReach, attrMatters, varsRead, rangeParts };
 })();

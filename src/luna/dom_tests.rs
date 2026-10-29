@@ -4015,8 +4015,8 @@ setTimeout(() => {
 /// (`+`, `~`, `:has`, `:nth-child`...), only the changed element and what
 /// is inside it are matched again, not the whole page (a full recascade of
 /// a 117-song playlist took ~200 ms each time). With a `:has` rule the
-/// ancestors it may match are matched again too; a sibling rule anywhere
-/// brings back the full recascade, which it needs.
+/// ancestors it may match are matched again too, and with a sibling rule
+/// the changed element's siblings (no whole recascade either).
 #[test]
 fn class_changes_rematch_only_the_changed_subtree() {
     let (luna, _host, dir) = start(
@@ -4064,6 +4064,7 @@ const before3 = D.cascadeResets;
 box.lastChild.className = "x";
 getComputedStyle(box.firstChild).color;
 R.resets3 = D.cascadeResets - before3;
+R.italic = [...box.children].map((e) => getComputedStyle(e).fontStyle);
 R.done = true;
 "##,
     );
@@ -4086,8 +4087,13 @@ R.done = true;
     // `:has` rules: the ancestors they may match are matched again, not
     // the page.
     assert_eq!(r["resets2"], json!(0), "{r}");
-    // A sibling rule: anything may match differently.
-    assert_eq!(r["resets3"], json!(1), "{r}");
+    // A sibling rule: the siblings are matched again, not the page.
+    assert_eq!(r["resets3"], json!(0), "{r}");
+    assert_eq!(
+        r["italic"],
+        json!(["", "italic", "italic", "italic"]),
+        "{r}"
+    );
     finish(luna, dir);
 }
 
@@ -6674,5 +6680,178 @@ go();
         json!(["_tilt_8fda471 _artworkTilt_1c6d5cc", "relative"]),
         "{r}"
     );
+    finish(luna, dir);
+}
+
+/// A rule that reads siblings or position (a plugin's `:nth-child(odd)`
+/// rows, a theme's `.a + .b`) made every node that came, went or changed
+/// class restyle the whole page: with eighteen plugins about 0.6 s an
+/// overlay build, so a scrolling list updated about once a second. As
+/// Chromium invalidates siblings, only the children of the node whose
+/// children changed that such a compound can match are matched again (with
+/// what is inside them where a later step reaches it), and what they
+/// match is a whole restyle's.
+#[test]
+fn a_sibling_rule_restyles_only_the_siblings_it_reaches() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = ".list > div:nth-child(odd) { background-color: rgb(1, 2, 3); } .list > .sel + div { color: rgb(4, 5, 6); } .list span { margin-left: 1px; }";
+document.head.append(st);
+const list = document.createElement("div");
+list.className = "list";
+const row = () => {
+	const r = document.createElement("div");
+	for (let i = 0; i < 5; i++) r.append(document.createElement("span"));
+	return r;
+};
+for (let i = 0; i < 60; i++) list.append(row());
+document.body.append(list);
+const all = () => [list, ...list.querySelectorAll("*")];
+const look = () => all().map((e) => getComputedStyle(e).backgroundColor + "/" + getComputedStyle(e).color);
+look();
+R.total = all().length;
+let runs = D.cascadeRuns ?? 0;
+list.prepend(row());
+const after = look();
+R.prependRuns = (D.cascadeRuns ?? 0) - runs;
+R.first = after[1];
+R.second = after[7];
+runs = D.cascadeRuns ?? 0;
+list.children[10].classList.add("sel");
+const marked = look();
+R.classRuns = (D.cascadeRuns ?? 0) - runs;
+R.next = marked[1 + 11 * 6];
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    // Row 0 is new and odd; row 1 was row 0.
+    let part = |k: &str, i: usize| r[k].as_str().unwrap().split('/').nth(i).map(str::to_owned);
+    assert_eq!(part("first", 0).as_deref(), Some("rgb(1, 2, 3)"), "{r}");
+    assert_eq!(
+        part("second", 0).as_deref(),
+        Some("rgba(0, 0, 0, 0)"),
+        "{r}"
+    );
+    assert_eq!(part("next", 1).as_deref(), Some("rgb(4, 5, 6)"), "{r}");
+    let total = r["total"].as_u64().unwrap();
+    for what in ["prependRuns", "classRuns"] {
+        let n = r[what].as_u64().unwrap();
+        assert!(
+            n * 3 < total,
+            "{what}: {n} of the list's {total} elements restyled: {r}"
+        );
+    }
+    finish(luna, dir);
+}
+
+/// Whatever a script does to the nodes (inserts, removes, moves, class
+/// changes, text that empties or fills a node), the cascades kept after a
+/// sibling-aware restyle are the ones a fresh match gives, under rules on
+/// every side of `+` and `~`, every position pseudo-class, `:empty`,
+/// `:nth-child(... of ...)`, `:not(...)`, `:is(...)` and `:has(...)`.
+#[test]
+fn kept_cascades_equal_fresh_ones_after_any_change() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = `
+.t > *:nth-child(2n+1) { color: rgb(1, 0, 0); }
+.t > .a + .b { background-color: rgb(2, 0, 0); }
+.t .a ~ .c span { border-top-color: rgb(3, 0, 0); }
+.t li:first-child { margin-left: 1px; }
+.t li:last-child > i { margin-right: 2px; }
+.t div:only-child { padding-top: 3px; }
+.t :nth-last-child(2) { padding-left: 4px; }
+.t b:first-of-type { opacity: 0.5; }
+.t u:nth-of-type(2) { width: 5px; }
+.t i:last-of-type, .t i:only-of-type { min-height: 1px; }
+.t .e:empty { height: 6px; }
+.t .e:empty + * { min-width: 7px; }
+.t :not(.a + .b) > span { max-width: 8px; }
+.t :nth-child(2 of .c) { top: 9px; }
+.t .a:not(:last-child) .x { left: 10px; }
+.t :is(.b ~ .a) i { right: 11px; }
+.t li:nth-child(3) .y, .t .c + li .y { bottom: 12px; }
+.t .y:nth-last-child(odd)::before { content: "y"; color: rgb(5, 0, 0); }
+.t .h:has(> .a) { z-index: 3; }
+.t .h:has(.c) span:nth-child(2) { flex-grow: 2; }
+.t .h:has(> .b:last-child) { flex-shrink: 3; }
+.t .x:has(.y):first-child i { order: 4; }
+.t .x { color: rgb(9, 9, 9); }
+`;
+document.head.append(st);
+let seed = 7;
+const rnd = (n) => {
+	seed = (seed * 1103515245 + 12345) % 2147483648;
+	return seed % n;
+};
+const TAGS = ["div", "li", "b", "u", "span", "i"];
+const CLS = ["a", "b", "c", "e", "x", "y", "h"];
+const make = () => {
+	const e = document.createElement(TAGS[rnd(TAGS.length)]);
+	for (const c of CLS) if (rnd(4) === 0) e.classList.add(c);
+	return e;
+};
+const root = document.createElement("div");
+root.className = "t";
+document.body.append(root);
+const els = () => [root, ...root.querySelectorAll("*")];
+for (let i = 0; i < 60; i++) {
+	const all = els();
+	all[rnd(all.length)].append(make());
+}
+const show = (m) => (m ? JSON.stringify([...m]) : "null");
+let checks = 0;
+let differ = 0;
+let resets = D.cascadeResets ?? 0;
+const check = (step) => {
+	for (const e of els()) {
+		checks++;
+		const kept = show(D.cascadeOf(e, false));
+		const fresh = show(D.cascadeOf(e, true));
+		if (kept !== fresh) {
+			differ++;
+			R.first ??= `step ${step}: <${e.localName} class="${e.className}"> kept ${kept}, fresh ${fresh}`;
+		}
+	}
+};
+check(-1);
+resets = D.cascadeResets ?? 0;
+for (let step = 0; step < 400; step++) {
+	const all = els();
+	const pick = () => all[rnd(all.length)];
+	const what = rnd(8);
+	const e = pick();
+	if (what === 0) e.append(make());
+	else if (what === 1) {
+		const p = pick();
+		p.insertBefore(make(), p.childNodes[rnd(p.childNodes.length + 1)] ?? null);
+	} else if (what === 2 && e !== root) e.remove();
+	else if (what === 3 && e !== root) {
+		const p = pick();
+		if (!e.contains(p)) p.insertBefore(e, p.firstChild);
+	} else if (what === 4) e.classList.toggle(CLS[rnd(CLS.length)]);
+	else if (what === 5 && !e.firstElementChild) e.textContent = rnd(2) ? "t" : "";
+	else if (what === 6) e.append(document.createTextNode(rnd(2) ? "t" : ""));
+	else if (what === 7 && e !== root) e.innerHTML = rnd(2) ? "" : "<i class='a'></i><span class='x'></span>";
+	if (els().length > 120) for (const k of [...root.children].slice(0, 2)) k.remove();
+	check(step);
+	if (step % 10 === 9) await new Promise((r) => setTimeout(r, 0));
+}
+R.checks = checks;
+R.differ = differ;
+R.resets = (D.cascadeResets ?? 0) - resets;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 60, |r| r["done"] == json!(true));
+    assert!(r["checks"].as_u64().unwrap() > 10_000, "{r}");
+    assert_eq!(r["differ"], json!(0), "{r}");
+    // The kept cascades were really kept, not thrown away at each change.
+    assert_eq!(r["resets"], json!(0), "{r}");
     finish(luna, dir);
 }

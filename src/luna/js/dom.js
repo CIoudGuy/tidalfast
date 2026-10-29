@@ -185,7 +185,7 @@
 	const attrChanged = (k, el) => {
 		const name = String(k).toLowerCase();
 		if (!MATCH_ATTRS.has(name) && !L.css?.attrMatters(name)) markContentDirty();
-		else if (el && !SHEET_TAGS.has(el.localName) && L.css?.structural?.() === false) {
+		else if (el && !SHEET_TAGS.has(el.localName) && L.css) {
 			noteLayout(el);
 			markMatchDirty(el);
 		} else {
@@ -197,24 +197,25 @@
 	// Elements whose attributes change the style sheets themselves
 	// (`disabled`, `media`), or whose subtree is the whole page anyway.
 	const SHEET_TAGS = new Set(["style", "link", "html", "body"]);
-	// A class, id or other matched attribute changed on `el`, and no rule
-	// looks at siblings or children (`+`, `~`, `:has`, `:nth-child`...): only
-	// `el` and what is inside it can match differently, so css.js matches
-	// that subtree again and keeps every other element's cascade, as it does
-	// for inserted nodes. tidal-genres and star-ratings retag their badges
-	// several times a second; each was a full recascade of the page.
+	// A class, id or other matched attribute changed on `el`: `el` and what
+	// is inside it can match differently, and where a rule reads siblings
+	// (`.x + i`, `:nth-child(2 of .x)`) so can its siblings: its parent is
+	// noted as reshaped. css.js matches those again (and the ancestors a
+	// `:has` rule may match) and keeps every other element's cascade, as it
+	// does for inserted nodes. tidal-genres and star-ratings retag their
+	// badges several times a second; each was a full recascade of the page.
 	const markMatchDirty = (el) => {
 		if (L.stat) L.stat(`rematch by ${L.pluginFromStack?.() ?? "host"}`, Date.now());
 		inserted.add(el);
+		if (el.parentNode) reshaped.add(el.parentNode);
 		structGen++;
 		contentDirty();
 	};
-	// Nodes inserted or removed: selectors that only look at an element and
-	// its ancestors (no sibling, `:has` or position pseudo-classes) match
-	// every other element as before, so css.js keeps their cascades and
-	// redoes only the inserted subtrees (tidal-genres re-renders its badges
-	// on every mutation in the document, each time a full recascade of the
-	// page before).
+	// Nodes inserted or removed: css.js keeps the cascades of every element
+	// a change cannot reach and redoes the inserted subtrees, the siblings a
+	// sibling or position rule reads and the ancestors a `:has` rule may
+	// match (tidal-genres re-renders its badges on every mutation in the
+	// document, each time a full recascade of the page before).
 	let structGen = 0;
 	const inserted = new Set();
 	const markStructDirty = (node) => {
@@ -234,6 +235,16 @@
 	D.takeDetached = () => {
 		const out = [...detachedFrom];
 		detachedFrom.clear();
+		return out;
+	};
+	// The nodes whose children came, went or moved, or one of whose
+	// children's classes changed: where a rule reads siblings or position
+	// (`+`, `~`, `:nth-child`, `:empty`...), css.js matches their children
+	// again, not the whole page.
+	const reshaped = new Set();
+	D.takeReshaped = () => {
+		const out = [...reshaped];
+		reshaped.clear();
 		return out;
 	};	D.styleGen = () => styleGen;
 	// The pointer moved from one element to another. Only the elements
@@ -714,6 +725,7 @@
 			else if (c instanceof CharacterData) textChangedIn(this);
 			D.connected?.(c);
 			if (c instanceof Element && c._hostKey === undefined && !reconciling && this.isConnected) noteFresh(c);
+			reshaped.add(this);
 			markStructDirty(c);
 			return c;
 		}
@@ -730,6 +742,7 @@
 			if (isStyleish(c) || (c instanceof Element && c.querySelector("style"))) cssChanged();
 			else if (c instanceof CharacterData) textChangedIn(this);
 			if (this instanceof Element) detachedFrom.add(this);
+			reshaped.add(this);
 			markStructDirty(null);
 			return c;
 		}
@@ -811,6 +824,7 @@
 			if (wasText && hadText === (s !== "")) contentDirty();
 			else {
 				if (removed.some((c) => c instanceof Element)) detachedFrom.add(this);
+				reshaped.add(this);
 				markStructDirty(this.firstChild);
 			}
 		}
@@ -1603,6 +1617,7 @@
 			for (const n of nodes) D.connected?.(n);
 			for (const n of nodes) inserted.add(n);
 			if (removed.length) detachedFrom.add(this);
+			reshaped.add(this);
 			markStructDirty(null);
 		}
 		get outerHTML() {
