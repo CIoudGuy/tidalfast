@@ -1188,3 +1188,61 @@ R.done = true;
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A native module whose code has a regular expression straight after a
+/// `for (...)` head (`for (const f of list()) /^x-[0-9a-f]+$/.test(f) &&
+/// ...`, as a bundler writes it) compiles; the plugin installed next must
+/// still load. The second plugin failed with the first's "invalid number
+/// literal", which the compile had left behind though it succeeded.
+#[test]
+fn a_plugin_loads_after_another_registers_a_native_with_a_regex_after_a_for_head() {
+    let files: Files = Arc::default();
+    let first = r#"
+const n = await native("First/a.native.ts", `"use strict";
+const c = { readdirSync: () => ["x-0123456789abcdef.pcm", "y"] };
+let k = 0;
+exports.count = () => { for (let e of (0, c.readdirSync)()) /^x-[0-9a-f]{16}\.pcm$/.test(e) && k++; return k; };
+`);
+await check("count", () => n("count"));
+R.first = true;
+"#;
+    let second = r#"
+R.second = true;
+R.done = true;
+"#;
+    for (name, body) in [("First", first), ("Second", second)] {
+        let mut f = files.lock().unwrap();
+        f.insert(
+            format!("/{name}.json"),
+            json!({ "name": name, "version": "1.0.0", "hash": name })
+                .to_string()
+                .into_bytes(),
+        );
+        f.insert(
+            format!("/{name}.mjs"),
+            format!("{HEADER}{body}").into_bytes(),
+        );
+    }
+    let base = serve(files);
+    let dir = temp_dir("compat-native-regex");
+    let host = Arc::new(CompatHost::default());
+    let luna = Luna::start(config(&dir), host).unwrap();
+    luna.install(&format!("{base}/First.mjs"));
+    wait_until(&luna, 30, |_| results(&dir)["first"] == json!(true));
+    luna.install(&format!("{base}/Second.mjs"));
+    wait_until(&luna, 30, |s| {
+        results(&dir)["done"] == json!(true)
+            || s.plugins
+                .iter()
+                .any(|p| p.name == "Second" && matches!(p.status, PluginStatus::Failed(_)))
+    });
+    let r = results(&dir);
+    let second = luna
+        .snapshot()
+        .plugins
+        .into_iter()
+        .find(|p| p.name == "Second");
+    luna.shutdown();
+    assert_eq!(r["count"], 1, "{r}");
+    assert_eq!(r["second"], true, "{r} {second:?}");
+}

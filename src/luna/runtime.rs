@@ -841,7 +841,22 @@ fn js_eval<'js>(
     let mut opts = EvalOptions::default();
     opts.strict = false;
     opts.filename = Some(filename);
-    ctx.eval_with_options(code, opts)
+    let value = ctx.eval_with_options(code, opts)?;
+    drop_stale_exception(&ctx);
+    Ok(value)
+}
+
+/// QuickJS's lookahead for an arrow function (`js_parse_skip_parens_token`)
+/// can raise a syntax error that it then ignores (its "should clear the
+/// exception"): in `for (const f of list()) /^x-[0-9a-f]+$/.test(f)` it
+/// reads the regular expression as a division and fails on `9a`. The
+/// parse itself succeeds, but the error stays pending, and the next call
+/// that looks for one (another plugin's import) fails with it. After a
+/// successful compile no error can be pending, so one is dropped.
+pub(super) fn drop_stale_exception(ctx: &Ctx<'_>) {
+    if ctx.has_exception() {
+        let _ = ctx.catch();
+    }
 }
 
 pub(super) fn bytes_of(buf: &ArrayBuffer<'_>, off: f64, len: f64) -> Vec<u8> {
@@ -1075,7 +1090,9 @@ impl Loader for LunaLoader {
                     "the blob is gone",
                 ));
             };
-            return Module::declare(ctx.clone(), name, src);
+            let module = Module::declare(ctx.clone(), name, src)?;
+            drop_stale_exception(ctx);
+            return Ok(module);
         }
         let code = self
             .0
@@ -1084,7 +1101,9 @@ impl Loader for LunaLoader {
             .get(name)
             .cloned()
             .ok_or_else(|| rquickjs::Error::new_loading(name))?;
-        Module::declare(ctx.clone(), name, code)
+        let module = Module::declare(ctx.clone(), name, code)?;
+        drop_stale_exception(ctx);
+        Ok(module)
     }
 }
 

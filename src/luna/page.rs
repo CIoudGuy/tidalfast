@@ -1002,7 +1002,9 @@ fn eval_as<'js>(
     let mut opts = EvalOptions::default();
     opts.strict = false;
     opts.filename = Some(filename);
-    ctx.eval_with_options(code, opts)
+    let value = ctx.eval_with_options(code, opts)?;
+    super::runtime::drop_stale_exception(&ctx);
+    Ok(value)
 }
 
 /// A failure the page's JavaScript raised, as text.
