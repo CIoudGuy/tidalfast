@@ -11,7 +11,7 @@
 //! without the app's window. While its page animates (a transition, an
 //! animation, a layout settling) it draws at most 60 frames a second with
 //! the keyboard focus and 30 without, and none while minimised or covered
-//! ([`pace`]). With no plugin window open, a frame here is one atomic load.
+//! (`pace`). With no plugin window open, a frame here is one atomic load.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};

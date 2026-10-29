@@ -316,7 +316,7 @@ fn work_area(bounds: [i32; 4]) -> Option<[i32; 4]> {
 }
 
 /// Looks at the monitors from the app's window: call once per pass of it.
-/// The first pass looks; later ones at most every [`POLL`], and only once a
+/// The first pass looks; later ones at most every `POLL`, and only once a
 /// plugin read the screen. Otherwise this is two atomic loads.
 pub fn poll(ctx: &egui::Context, frame: &eframe::Frame) {
     set_main_scale(ctx.pixels_per_point());

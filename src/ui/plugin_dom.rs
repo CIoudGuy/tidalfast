@@ -5138,7 +5138,7 @@ pub fn next_menu_row_style() -> Option<NavStyle> {
     }
 }
 
-/// The app's language this frame (see [`State::locale`]).
+/// The app's language this frame (see `State::locale`).
 pub fn set_locale(locale: crate::i18n::Locale) {
     with(|s| s.locale = locale);
 }
@@ -5218,7 +5218,7 @@ fn tidal_menu_id(
 }
 
 /// A row of an open context menu: becomes a `[data-type=contextmenu-item]`
-/// whose link's `data-test` is TIDAL's for that row ([`TIDAL_MENU_IDS`]).
+/// whose link's `data-test` is TIDAL's for that row (`TIDAL_MENU_IDS`).
 /// Clicks go to plugins listening on the item (track-radio).
 pub fn menu_item(ui: &mut egui::Ui, label: &str, enabled: bool, response: &egui::Response) {
     if !on() {
@@ -6475,7 +6475,7 @@ pub fn send(target: DomTarget, kind: &str, data: serde_json::Value) {
 }
 
 /// Whether this right-click's `contextmenu` already went to the plugins,
-/// with its press ([`secondary_press`]).
+/// with its press (`secondary_press`).
 pub fn contextmenu_sent() -> bool {
     on() && with(|s| s.contextmenu_sent)
 }

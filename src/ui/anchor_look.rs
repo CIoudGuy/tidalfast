@@ -534,7 +534,7 @@ pub fn paint_sides(painter: &egui::Painter, r: Rect, sides: [f32; 4], color: Col
 
 /// The fill [`crate::ui::widgets::menu_frame`] gives a popup menu whose
 /// box a theme paints beyond one colour (a gradient, a picture, a border,
-/// a `::before` box): a colour nothing else uses, which [`paint_menu_boxes`]
+/// a `::before` box): a colour nothing else uses, which `paint_menu_boxes`
 /// replaces at the frame's end with the theme's box, in the menu's own
 /// rect. egui's frames take one colour, and every menu shares that frame,
 /// so the box is laid in where the frame put it.
