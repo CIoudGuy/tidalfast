@@ -90,6 +90,8 @@ mod theme_round42_tests;
 mod theme_round43_tests;
 #[path = "theme_round44_tests.rs"]
 mod theme_round44_tests;
+#[path = "theme_round45_tests.rs"]
+mod theme_round45_tests;
 #[path = "theme_tests.rs"]
 mod theme_tests;
 

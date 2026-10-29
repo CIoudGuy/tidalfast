@@ -4099,17 +4099,31 @@
 		// A plugin window's page waits for the stylesheets its parser met
 		// (page.js), as Chromium does not draw a page before them.
 		if (D.holdPaint?.()) return;
+		const layout = layoutDirty;
 		dirty = false;
 		layoutDirty = false;
 		lastFlush = Date.now();
+		// The watchdog stops a turn of the runtime's own that runs too long
+		// (a heavy theme's first cascade of a page on a slow or busy
+		// machine), and nothing after it runs: the overlay is then still
+		// due, with no change left to ask for it. A retry waits for it,
+		// dropped once the build is done; the cascades worked out before the
+		// stop are kept, so the next try goes on from there.
+		const retry = L.internalTimeout(() => {
+			dirty = true;
+			layoutDirty ||= layout;
+			D.flush();
+		}, 33);
 		checkGeometry();
 		let ov;
 		try {
 			ov = build();
 		} catch (err) {
+			L.clearInternal(retry);
 			L.reportError(err);
 			return;
 		}
+		L.clearInternal(retry);
 		const t0 = L.stat ? Date.now() : 0;
 		const json = JSON.stringify(ov);
 		if (L.stat) L.stat("overlay json", t0);

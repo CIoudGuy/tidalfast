@@ -363,6 +363,7 @@
 	};
 	// Runtime bookkeeping timers: never cleared with a plugin's own timers.
 	lunaInternal.internalTimeout = (cb, ms) => addTimer(cb, ms, [], false, true);
+	lunaInternal.clearInternal = (id) => void timers.delete(id);
 	const timerId = (t) => (typeof t === "object" && t !== null ? t[Symbol.toPrimitive]?.() ?? t.id : t);
 	g.setTimeout = (cb, ms, ...args) => addTimer(cb, ms, args, false);
 	g.setInterval = (cb, ms, ...args) => addTimer(cb, ms, args, true);
