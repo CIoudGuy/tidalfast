@@ -6217,12 +6217,14 @@ mod tests {
         );
         let y = start[0].center().y;
         // The wheel over the row moves it until the last pill is in view,
-        // and the page itself does not move.
+        // and the page itself does not move. A mouse wheel, in notches:
+        // deltas in points are a touchpad's, which on Linux glide on after
+        // the last one, past the row's end and on to the page.
         let wheel = |delta: egui::Vec2| {
             vec![
                 egui::Event::PointerMoved(egui::pos2(300.0, y)),
                 egui::Event::MouseWheel {
-                    unit: egui::MouseWheelUnit::Point,
+                    unit: egui::MouseWheelUnit::Line,
                     delta,
                     phase: egui::TouchPhase::Move,
                     modifiers: egui::Modifiers::NONE,
@@ -6236,7 +6238,8 @@ mod tests {
             }
             // Gently, so the row's end is not overshot: what is left of
             // a wheel past it goes on to the page.
-            frame(&ctx, &mut app, size, wheel(egui::vec2(0.0, -20.0)));
+            // A sixth of a notch: 20 points.
+            frame(&ctx, &mut app, size, wheel(egui::vec2(0.0, -1.0 / 6.0)));
             // The row glides to where the wheel sent it: look once it is
             // there, or a wheel given while it is still on its way goes on
             // to the page (how far that is depends on the fonts' widths).
