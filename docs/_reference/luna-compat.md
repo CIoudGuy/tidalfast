@@ -3178,6 +3178,87 @@ gradient under its `backdrop-filter: saturate()`, and the play queue's
 wrapper as the panel's parent in the tree (TIDAL's order; the themes'
 rules for the wrapper already reach the panel's words and its moves).
 
+### Round 44 (the bar's line boxes, the page's top, the header's parts and the shade, 2026-10-27)
+
+Found with the parity checker and fixed in the generic layer:
+
+- **The player bar's song lies in TIDAL's line boxes**: the title's 22
+  points, the artists' 20 and the source's 2 + 18, 64 in all and centred
+  in the bar. Tidalfast stacked the glyph rows 2 apart in a 54-point box,
+  the title 4 points low and the source line 4 high, with no theme and
+  inside a theme's card (Sugarcoat, the cotton candy singles).
+- **A page's content starts 24 points under the header**, as TIDAL
+  2.46.0's does (the album's and playlist's cover, My Collection's title):
+  Tidalfast's came to 23, so the header's pills, the song list and its
+  rows sat a point high.
+- **A playlist's header art carries TIDAL's playlist markup**
+  (`button._artwork_1d717fe > div._image_d7a36dc._shadow_32a27bc > ... >
+  img._resourceImage_4beb8bc`), not the album's, so a theme's rule for
+  the album's cover no longer reaches it (Cotton Candy Single's pink
+  shadow).
+- **The back and forward pill is TIDAL's frosted chip**
+  (`var(--frosted-glass-floating-surface)`, `#282828bf`, or a theme's
+  value of the token such as Tidal Light's), not a themed palette's
+  surface (TidalCustomTheme's light pink).
+- **A theme's `transform: translate()` on the search field or the account
+  button moves them** as Chromium does, keeping their room (the cotton
+  candy family's `translateX(var(--searchbuf))`: the field 70 points
+  left).
+- **The search field's box is its 280 x 36 pill** (`div._container_f1be359`),
+  not the text box inside it, so a theme's box, percentages and plugin
+  elements placed by the field are measured as in TIDAL.
+- **TIDAL's shade over the page above the player bar** (the player's
+  `::before`: clear to black at 15 % from 80 points above the bar to 12
+  below it) is drawn over the page, the sidebar and the play queue, and
+  fades as the now-playing view comes up. A theme that hides that box or
+  gives it its own background (the cotton candy family's `display: none`,
+  Tidal TUI's `background: transparent`) leaves the page as it is. With
+  no theme it shows only on what lies above the bar.
+- **A filter pill's border sets its height**: TIDAL's is its 40-point
+  field in a 1-point border, and under the cotton candy family's `border:
+  0 !important` it is 40 tall, so a playlist's songs and a collection's
+  grid lie 2 points higher than with no theme, as in TIDAL.
+
+Totals (dark-compared themes and no theme, the round 43 checker state:
+playing-elsewhere, folder-first, animations settled): pixels 2.52 % to
+2.51 % of 305.5 million compared pixels, 1.56 % to 1.47 % leaving out the
+menu page (see below); no theme 0.75 % unchanged (playlist 0.81 to 0.80,
+collection 0.75 to 0.74). Best gains: TidalCustomTheme 4.10 % to 1.72 %,
+Cotton Candy Single 3.20 % to 2.01 %, Sugarcoat 4.48 % to 3.55 %, Cotton
+Candy Astronaut Ice Cream 4.05 % to 3.88 %. Worst now: Meteor Night 5.4 %,
+Lunallena macOS 4.6 %, Abyss Neptune (black) 4.4 %. Style: 779 to 828
+differences over about 128,700 anchor elements; the rise is the playlist
+art's new `button` now matched with TIDAL's (30 themes give it a
+`border-radius` of 10 or 14 points where TIDAL computes 2; the picture
+is drawn as before) and the menu page below. Light scheme: Tidal Light
+1.24 % to 1.17 %, the adaptive Horchata 1.72 % to 1.50 %, the adaptive
+Cotton Candy's playlist 1.25 % to 0.52 % and collection 1.05 % to 0.68 %
+(release builds of the round's start and end). Hover (no theme and six
+themes, five hover pages): 2.20 % to 2.11 % (Sugarcoat 4.84 % to 4.29 %),
+no theme 0.69 % unchanged.
+
+Seen in the checker, not caused by the round: on the menu page a track
+row's `:hover` fill can stay after the pointer leaves the window, in some
+runs and not others with the same build (six themes with a row hover
+fill, 2.6 points each). The Cotton Candy Nights colourways' playlist rows
+lie 2 points above TIDAL's now (0.03 to 0.06 points): their list panel's
+2-point border (`border-style: solid; border-width: 2px` on
+`._items_8615603`) is not counted above the filter pill, which the pill's
+old 42 points hid. Under the light scheme the adaptive Cotton Candy's
+album list panel is styled by one build and not by the next, the round's
+start included (a release build of the start leaves it unstyled, a debug
+build of it styles it; the same build always does the same): its rule in
+the 5,700-line sheet is then not matched at all, about 17 % of the album
+and menu pages.
+
+Not done, largest first: the adaptive Cotton Candy's album panel rule
+that one build matches and another does not, a track row's line at TIDAL's fractional row
+places, Meteor Night's header (TIDAL's menu page lies 20 points lower
+under it), the Lunallena themes' header bar on the collection page, a
+list panel's gradient under its `backdrop-filter: saturate()`, the
+Cotton Candy Nights list panel's border above the filter pill, and the
+playlist art button's `border-radius`.
+
 ### Round 28 (plugins in use, 2026-10-23)
 
 Sixteen popular plugins (Tidal Tags, tidal-genres, total-play-time,
