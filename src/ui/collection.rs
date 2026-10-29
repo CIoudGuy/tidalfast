@@ -966,7 +966,7 @@ pub fn actions_row(
         // TIDAL: a full-width filter field 40 under the controls and 40
         // above the table, both in the list's box: moved by its padding,
         // border and `transform` (see `plugin_dom::list_panel_push`).
-        ui.add_space(to_filter + super::plugin_dom::list_panel_push(true));
+        ui.add_space(to_filter + super::plugin_dom::list_panel_push(ui, true));
         // TIDAL's Tracks page (no cover) says "Filter tracks".
         let placeholder = if compact {
             gettext(app.locale, "Filter tracks")
@@ -2653,7 +2653,7 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
     if rows > 0 {
         // The list where TIDAL's flow puts it under a theme's padding,
         // border and move for its box (see `plugin_dom::list_panel_push`).
-        let push = super::plugin_dom::list_panel_push(false);
+        let push = super::plugin_dom::list_panel_push(ui, false);
         if push != 0.0 {
             ui.add_space(push);
         }

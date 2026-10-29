@@ -2437,9 +2437,14 @@ pub fn list_panel(ui: &egui::Ui, r: Rect) {
         .map(|p| p.clamp(0.0, 32.0));
     let border = outline_sides(key, Color32::TRANSPARENT)
         .map_or([0.0; 4], |(sides, _)| sides.map(|w| w.clamp(0.0, 8.0)));
+    // What is inside lies on whole pixels from a moved box's top (see
+    // `list_panel_inset`): the box keeps its own place round it.
+    let top = anchor_look(key).map_or(pad[0] + border[0], |l| {
+        list_panel_inset(ui, pad[0] + border[0], l.translate)
+    });
     let round = |inner: Rect| {
         Rect::from_min_max(
-            inner.min - egui::vec2(pad[3] + border[3], pad[0] + border[0]),
+            inner.min - egui::vec2(pad[3] + border[3], top),
             inner.max + egui::vec2(pad[1] + border[1], pad[2] + border[2]),
         )
     };
@@ -2482,7 +2487,7 @@ pub fn list_panel(ui: &egui::Ui, r: Rect) {
 /// [`list_panel`] lays the box round the list so moved. On a playlist the
 /// box also holds the filter field above the list: the field moves so
 /// (`above_filter`, asked where the field is laid), and the list with it.
-pub fn list_panel_push(above_filter: bool) -> f32 {
+pub fn list_panel_push(ui: &egui::Ui, above_filter: bool) -> f32 {
     let filtered = with(|s| {
         s.frame
             .page
@@ -2499,7 +2504,24 @@ pub fn list_panel_push(above_filter: bool) -> f32 {
     let pad = look.padding.map_or(0.0, |p| p[0].clamp(0.0, 32.0));
     let border =
         outline_sides(key, Color32::TRANSPARENT).map_or(0.0, |(s, _)| s[0].clamp(0.0, 8.0));
-    (pad + border + look.translate.y).clamp(-64.0, 64.0)
+    (list_panel_inset(ui, pad + border, look.translate) + look.translate.y).clamp(-64.0, 64.0)
+}
+
+/// How far below the top of the list's module box what is inside it is
+/// drawn: `inset`, its top padding and border. Chromium paints what is
+/// inside a box with a `transform` on whole device pixels from the box
+/// (the transform keeps the box's own fractional place): under the
+/// cotton candy family's `translateY(-1.1em)` the album's songs lie 97.19
+/// below the box's top and are painted 97 below it (TIDAL 2.47.0, the
+/// parity checker's replay), their lines 0.19 to 0.41 of a pixel from
+/// where the layout puts them. A table with a `transform` of its own is
+/// its own such box, and keeps its place.
+fn list_panel_inset(ui: &egui::Ui, inset: f32, translate: egui::Vec2) -> f32 {
+    if translate == egui::Vec2::ZERO || list_inner_shift() != 0.0 {
+        return inset;
+    }
+    let ppp = ui.ctx().pixels_per_point();
+    (inset * ppp).round() / ppp
 }
 
 /// How far a theme's `transform` moves the songs' table in its module box
