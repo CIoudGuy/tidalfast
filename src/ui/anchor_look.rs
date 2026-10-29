@@ -599,7 +599,7 @@ pub fn menu_box_looks() -> Option<[Option<Arc<AnchorLook>>; 2]> {
 
 /// Whether the theme gives TIDAL's context menu (`div._contextMenu_
 /// [role=menu]`) a fully transparent `background-color` of its own.
-fn menu_see_through() -> bool {
+pub fn menu_see_through() -> bool {
     host(crate::luna::dom_anchors::keys::THEME_MENU, |h, vars| {
         style_color(&h.style, |s| s.background_color.as_ref(), vars)
     })

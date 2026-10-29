@@ -36,8 +36,8 @@ use super::plugin_slots::css;
 mod anchor_look;
 pub use anchor_look::{
     AnchorLook, MENU_BOX_MARK, SUBMENU_BOX_MARK, anchor_look, card_inset, look_text, mark_opacity,
-    menu_box_looks, paint_anchor_box, paint_card, paint_look, paint_look_with_fill, paint_part,
-    paint_sides, paints_beyond_fill, part_card, submenu_box_look,
+    menu_box_looks, menu_see_through, paint_anchor_box, paint_card, paint_look,
+    paint_look_with_fill, paint_part, paint_sides, paints_beyond_fill, part_card, submenu_box_look,
 };
 #[cfg(any(test, feature = "demo"))]
 #[path = "look_dump.rs"]
@@ -12178,10 +12178,9 @@ mod tests {
             see_through.iter().all(|c| c.a() < 255),
             "nothing opaque under the glass: {see_through:?}"
         );
-        assert!(
-            see_through.contains(&Color32::from_black_alpha(128)),
-            "{see_through:?}"
-        );
+        // Nor egui's frame shadow, which lies under the whole box: only
+        // the glass is seen over the page.
+        assert_eq!(see_through, [Color32::from_black_alpha(128)]);
         let coloured = menu_fills("rgb(10, 20, 30)");
         assert!(coloured.iter().any(|c| c.a() == 255), "{coloured:?}");
     }

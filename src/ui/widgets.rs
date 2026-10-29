@@ -1122,9 +1122,17 @@ pub fn menu_frame(palette: &Palette) -> egui::Frame {
     // end, over the menu's colour.
     if super::plugin_dom::menu_box_looks().is_some() {
         super::plugin_dom::note_menu_fill(frame.fill);
-        return frame
+        let frame = frame
             .fill(super::plugin_dom::MENU_BOX_MARK)
             .stroke(egui::Stroke::NONE);
+        // egui's frame shadow lies under the whole box too: under a menu
+        // the theme makes see-through it darkens the page seen through
+        // it. The theme's own shadow is laid outside the box with it.
+        return if super::plugin_dom::menu_see_through() {
+            frame.shadow(egui::epaint::Shadow::NONE)
+        } else {
+            frame
+        };
     }
     frame
 }
