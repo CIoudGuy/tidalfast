@@ -1920,6 +1920,8 @@
 		_tableHeader_: { display: "flex", color: "rgba(255, 255, 255, 0.6)" },
 		_tableRow_: { display: "flex", color: "rgb(255, 255, 255)" },
 		_textContent_462c76e: { display: "flex" },
+		// The now-playing cover's tilting box (2.47.0, computed).
+		_tilt_8fda471: { position: "relative" },
 		_textWrapper_da25926: { display: "flex" },
 		_thumbnail_f82abfa: { display: "flex" },
 		_timeColumn_: { display: "flex" },

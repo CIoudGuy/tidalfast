@@ -793,6 +793,8 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("icon", "_icon_77f3f89"),
     ("link", "_link_ce56174"),
     ("artworkTilt", "_artworkTilt_1c6d5cc"),
+    // The now-playing cover's tilting box (TIDAL 2.46.0 and 2.47.0).
+    ("tilt", "_tilt_8fda471"),
     ("gradientMax", "_gradientMax_9111fba"),
     ("max", "_max_894bc7c"),
     ("badgeText", "_badgeText_1c9dd30"),

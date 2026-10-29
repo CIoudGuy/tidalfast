@@ -6647,3 +6647,32 @@ go();
     );
     finish(luna, dir);
 }
+
+/// The now-playing cover's tilting box (`div._tilt_8fda471._artworkTilt_
+/// 1c6d5cc`) is positioned in TIDAL (`position: relative`, 2.47.0): a
+/// plugin that lays its layer over the cover there (radiant-lyrics'
+/// animated cover, TidalEQ's visualizer) finds it so and leaves it as it
+/// is, as in TIDAL, instead of setting its position itself.
+#[test]
+fn the_now_playing_covers_tilting_box_is_positioned() {
+    let (luna, _host, dir) = start(
+        r##"
+const go = () => {
+	if (R.found) return;
+	const tilt = document.querySelector('[data-test="new-now-playing"] [class*="_artworkTilt_"]');
+	if (!tilt) return;
+	R.found = [tilt.getAttribute("class"), getComputedStyle(tilt).position];
+};
+new MutationObserver(go).observe(document.body, { childList: true, subtree: true });
+go();
+"##,
+    );
+    luna.sync_dom(dom_anchors::build(&dom_anchors::sample_frame()));
+    let r = results_until(&luna, &dir, 20, |r| !r["found"].is_null());
+    assert_eq!(
+        r["found"],
+        json!(["_tilt_8fda471 _artworkTilt_1c6d5cc", "relative"]),
+        "{r}"
+    );
+    finish(luna, dir);
+}
