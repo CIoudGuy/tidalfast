@@ -17,7 +17,7 @@ ones, and each row says which round last verified it. How a round worked is unde
 
 | | ✅ live | ✅ tests only | 🔑 your permission | ⛔ by design | ⚠️ external | ❌ open | total |
 |---|---|---|---|---|---|---|---|
-| Plugins | 74 | 2 | 7 | 4 | 1 | 0 | 88 |
+| Plugins | 74 | 2 | 8 | 4 | 1 | 2 | 91 |
 | Catalogue themes | 52 | 0 | 0 | 0 | 0 | 0 | 52 |
 
 Since 2026-10-20 (a project decision) seven plugins that were refused by design
@@ -35,6 +35,11 @@ all work) and removed its "Partly supported" label, see its row.
 Plugin round 13 added TidalPresence (BaeHyolyn/tidal-presence, a store
 TidaLuna 1.18.0-beta added; 88 plugins), checked in tests against a fake
 Discord, see its row.
+Plugin round 14 added the plugins of the two stores TidaLuna 1.19.0-beta
+and 1.20.0-beta list (91 plugins): TidalEQ (behind the `child_process`
+question, as mpv), and TidalDJ and @imp/local-files, open (run in the demo
+only; local-files plays local files, which needs the maintainer's
+decision), see their rows.
 
 The one ⚠️ left is spotify-sync (needs the user's Spotify account; its
 `tidaLuna://` sign-in redirect is handled since round 19, see its row).
@@ -144,7 +149,17 @@ changed. TidalPresence (BaeHyolyn/tidal-presence, a store added with
 TidaLuna 1.18.0-beta) was checked against a fake Discord: it runs as its
 code reads, nothing to fix (not compared with TIDAL itself).
 
-Open gaps (❌): none. betterFullscreen's own view, open in plugin round 5,
+Plugin round 14 (2026-10-29) gave the lyrics' lines box TIDAL 2.46.0's
+type classes (what a plugin puts in it reads 48px bold, as in TIDAL:
+radiant-lyrics' word-by-word box read 14px) and its lines TIDAL's
+`data-current` and `data-distance`, and followed TidaLuna 1.20.0-beta's
+store list. The checker read 97.18 % before and after (pooled 265 of 400):
+radiant-lyrics' remaining differences are its song's words, the rest is
+page data (other songs, Home, the menu opened on an album there and a
+track here). No status of an earlier plugin changed.
+
+Open gaps (❌): TidalDJ and @imp/local-files, new in plugin round 14 (see
+their rows). Before them: none. betterFullscreen's own view, open in plugin round 5,
 renders since plugin round 6 (TIDAL 2.46.0's now-playing and fullscreen
 sections, see its row). qr-share's overlay, open in round 20, is drawn since
 round 21 (batch 3). Before it the last three closed in round 17: Hunminjeongeum and
@@ -273,6 +288,7 @@ Notes that apply to every plugin:
 | TidalMediaControls | FireWall-code/TidaLuna-Plugins | ⛔ by design | Windows SMTC through a native `.node` addon, which QuickJS cannot load (technical limit); its card says so from load. Tidalfast has native media controls. |
 | @flazeiguess/star-ratings | FlazeIGuess/tidaluna-plugins | ✅ live r28 | Player-bar and row stars (r28: the title beside them keeps its room), hover preview with half stars, click to rate, quality colour, album average, kept across a restart. Its Rated-folder sync and like-above-threshold write to the account: allowed after a question since r10. r28, signed in: the sync reads the account's playlist folders (TIDAL v2) through the app and finds its Rated folder (it gave up with "folder not ready yet"); its writes there ask first, not run live. Compared with TidaLuna's reference captures (r20, demo): the five 16-point stars touch after the heart and "..." (they had 4 points between them), the row stars sit at the title cell's right end while the row is hovered, the half-star preview fills turquoise, gold for HiRes rows (tracks now carry TIDAL's quality tags); settings and defaults as TidaLuna's. Differs: when the pointer jumps onto a row in one step (the test's scripted pointer), the row's own hover look appears only once the pointer moves again; with a real mouse it shows at once. Round 20's sweep: its page listeners no longer take the Tracks and playlist filter's outline away, and its empty stars take dark ink in Light (they vanished into the bar). Plugin round 10: its stars' computed font is TIDAL's (14 px, 500), as in TIDAL (the plugin checker finds its items 1:1). |
 | @flazeiguess/altplay | FlazeIGuess/tidaluna-plugins | ✅ live r20 | Against a stand-in Jellyfin server: sign-in, Sync, its library page, matched songs play from the Jellyfin file through Tidalfast's engine (48 kHz badge), Next swaps the next match, fallback to TIDAL's stream with the server down, and Jellyfin-only songs play (also with nothing loaded: the remembered song is the carrier). Idle cost about 1% of a core alone (its own timers). Compared with TidaLuna's reference captures (r20, demo, not signed in to Jellyfin): its sidebar row after Collection is TIDAL's navigation row (40 points, 55 % white, the jellyfish icon), selected with its page open while Music is not; the library page (status line, Sync and close, title with BETA, Abspielen/Shuffle, filter, BITRATE/SAMPLE RATE/DEPTH header, empty-state line) and its settings (titles, texts, defaults; empty fields show their titles). Differs: its page and settings text are in Tidalfast's font, whose taller lines put the page's rows up to 7 points lower; the settings are drawn by Tidalfast's own plugin page, so its amber BETA notice box is plain text and its buttons are text buttons. Round 20's sweep: its page listeners no longer take the Tracks and playlist filter's outline away. Whole-app walk (2026-10-21): 1:1, its AltPlay row under Collection in every view, the playlists moved down by it. |
+| @imp/local-files | Drousis3/Tidaluna-nice-to-have-plugins | ❌ open | Published in TidaLuna 1.20.0-beta's store list. Plays the user's local MP3 and FLAC files by adding made-up tracks to TIDAL's store and serving the files from its own local server to TIDAL's web player. Tidalfast plays TIDAL's streams through its own engine only, and the one exception (AltPlay's Jellyfin files) is the maintainer's decision, so this needs that decision before it can play anything. Plugin round 14, demo only: it loads without errors and adds its stylesheet. |
 | LyricsPorter | seomin0610/luna-plugins | ✅ live r18 | On a free port (its `port`/`metadataPort` settings set to 38608/38609 in the plugin's settings file, the store build unchanged) both servers start ("output ready", "metadata ready"), `/` serves the overlay page and `/metadata` the playing song as JSON (`{"title":"Spring Day","artist":"BTS",...}`). Its default ports 1608/1609 fail with EACCES only on machines where Windows reserves that range (Hyper-V); elsewhere they bind. Batch 4: walk and settings card unchanged, as in TIDAL. |
 | KoreanSearch | seomin0610/luna-plugins | ✅ live r19 | A Korean query (봄날 BTS) drew its "한국어 검색 결과" section above the results, with the Korean-title / Latin-title / artist rows from its lookups. Before, the section was injected but never drawn: the search page now draws plugin content placed first in TIDAL's results box (`search-results-top`) or the main content. Batch 4: walk and settings card unchanged, as in TIDAL. |
 | Hunminjeongeum | seomin0610/luna-plugins | ✅ live r17 | A search now emits `search/SEARCH_RESULT_SUCCESS` (tracks as TIDAL v1 JSON with `isrc`, `topHits`). The plugin looked BTS's Spring Day up on MusicBrainz by ISRC and the song showed as 봄날 in the search tracks, the album, the top results, the queue and the player bar; the lyrics view carried its 한글화됨 badge. Edits a plugin makes to the answer's payload in place, now or seconds later, and its own dispatches of `search/SEARCH_RESULT_SUCCESS` or the `content/LOAD_*_MEDIA_ITEM(S)_SUCCESS` answers, are what the track rows show (a title map by song id; it clears when a plugin is switched off, reloaded or removed). Lookups need MusicBrainz to answer (it rate-limits with 503 and misses unknown ISRCs with 404, which the plugin remembers). Batch 4: walk and settings card unchanged, as in TIDAL. |
@@ -283,7 +299,9 @@ Notes that apply to every plugin:
 | @cioudguy/no-remix | CIoudGuy/TidaLuna-Plugins | ✅ live r10 | Removes remixes the user queued and skips one that starts playing (also from a playlist or album); took 2 remixes out of Next up at once; context menu entry marks and unmarks. |
 | PlayerAPI | thororen1234/luna-plugins | ✅ live r13 | GET answers the playing song; resume and pause work since the `executeJavaScript` fix. |
 | DiscordRPC+ | thororen1234/luna-plugins | ✅ live r13 | Handshake and SET_ACTIVITY with title, artist, cover and buttons against a fake Discord on pipe 7. |
-| TidalPresence | BaeHyolyn/tidal-presence | ✅ tests | Discord Rich Presence (derived from DiscordRPC, on `@xhayper/discord-rpc` with its own bundled undici), checked in plugin round 13 against a fake Discord pipe that every IPC connect was sent to (never a Discord running on the computer): the handshake with its own client id, then SET_ACTIVITY with the title, artists, album cover and "Album · HiFi", the artist's picture, links to the track, album and artist, the Listen on TIDAL and View Album buttons, the listening type and the song's own length 34 seconds in; paused, the activity reads "Paused". Its settings page renders all fifteen controls (six selects, four switches, five text fields) with the pipe picker listing the pipes found. Not seen on screen in a Discord client, and its karaoke styles (live lyric lines) were not exercised. |
+| TidalPresence | BaeHyolyn/luna-plugins (was BaeHyolyn/tidal-presence) | ✅ tests | Discord Rich Presence (derived from DiscordRPC, on `@xhayper/discord-rpc` with its own bundled undici), checked in plugin round 13 against a fake Discord pipe that every IPC connect was sent to (never a Discord running on the computer): the handshake with its own client id, then SET_ACTIVITY with the title, artists, album cover and "Album · HiFi", the artist's picture, links to the track, album and artist, the Listen on TIDAL and View Album buttons, the listening type and the song's own length 34 seconds in; paused, the activity reads "Paused". Its settings page renders all fifteen controls (six selects, four switches, five text fields) with the pipe picker listing the pipes found. Not seen on screen in a Discord client, and its karaoke styles (live lyric lines) were not exercised. |
+| TidalDJ | BaeHyolyn/luna-plugins | ❌ open | Published in TidaLuna 1.19.0-beta's store list, run in plugin round 14 in the demo only: it loads without errors and puts its `button[data-test=tidaldj-now]` among the player bar's utility buttons. Its queue picks (radio tracks, moods, favourites, skips) need a TIDAL session and were not exercised; not compared with TIDAL. |
+| TidalEQ | BaeHyolyn/luna-plugins | 🔑 permission | Plays TIDAL's stream (its unencrypted manifest URL, from `MediaItem.playbackInfo`) through an mpv it starts with its equalizer, as @vmohammad/mpv does: starting mpv asks behind the `child_process` prompt. Plugin round 14, demo only: it loads, adds its two now-playing tabs (`toggle-tidaleq`, `toggle-tidaleq-visualizer`) and its start of mpv failed with ENOENT before any question (no mpv at its default path on the test machine), after which it says TIDAL keeps playing normally, as in TidaLuna without mpv. Not checked with mpv. |
 | TranslateLyrics | thororen1234/luna-plugins | ✅ live r13 | Answered 'Lyrics translated successfully' for a song that loaded after the plugin (after the HTTP/1.1 change). For the song restored at start-up it says 'No lyrics available': it learns lyrics only from `content/LOAD_ITEM_LYRICS_SUCCESS`, which was sent before the plugin started. |
 | BetterFullscreen (fork) | thororen1234/luna-plugins | ✅ live r19 | Same code paths as vMohammad's (131 characters differ): its button appears in the bar's more-container (and goes away with the plugin off). Clicking it requests real window fullscreen, which took the off-screen test window onto a display, so its own view was not looked at again (as the original's row says). |
 | TotalPlayTime (fork) | thororen1234/luna-plugins | ✅ live r19 | Its pill (the time left in the queue, `03:04:38`) now shows under the "Play queue" title. Before, it never appeared: it anchors on `[data-test=playqueue-title]`, which the open queue panel did not have. |
@@ -421,6 +439,14 @@ except where a line says so.
   `LUNA_API` (what plugins read as Luna's version) is 1.18.0-beta; its
   plugin API is unchanged from 1.17.1-beta, whose captures the comparisons
   in this page were made against.
+- TidaLuna 1.19.0-beta and 1.20.0-beta: BaeHyolyn's store is their plugins'
+  store (`BaeHyolyn/luna-plugins`: TidalPresence, TidalEQ, TidalDJ; the
+  TidalPresence repository is archived), and Drousis3's store
+  (`Drousis3/Tidaluna-nice-to-have-plugins`: @imp/local-files) is added.
+  `DEFAULT_STORES` follows; the TidalPresence store is a retired default
+  (`RETIRED_DEFAULT_STORES`), so a saved list and TidalPresence installed
+  from it move to the new store. `LUNA_API` is 1.20.0-beta; the plugin API
+  is unchanged (the releases change only the store list and Nix files).
 - Plugin servers (`net.createServer`, `http.createServer`) always bind
   `127.0.0.1`, whatever host the plugin asks for (`net::LISTEN_HOST`).
   `https.createServer` (TLS) stays unavailable.
@@ -1424,6 +1450,19 @@ review pass of the compatibility audit.
 
 ### Plugin rounds
 
+- **Plugin round 14 (2026-10-29).** Fixed for every plugin, each with a
+  synthetic test that fails without it: the lyrics' lines box is TIDAL
+  2.46.0's market text (`display-20` type, white, `_hasCues_` when timed),
+  so plugin elements in it inherit 48px bold; a lyric line has
+  `data-current` only while sung, the others `data-distance`, timed lines
+  are buttons. TidaLuna 1.19.0-beta and 1.20.0-beta changed only the store
+  list: BaeHyolyn's plugins store replaces the archived TidalPresence store
+  (a saved list and TidalPresence move over), Drousis3's store is added;
+  `LUNA_API` 1.20.0-beta. Checker 97.18 % before and after (pooled 265 of
+  400; radiant-lyrics' box no longer differs in size and weight, only in
+  its song's words). Not done: the lyrics viewport's OverlayScrollbars
+  tokens (showing TIDAL's lyrics needs a song loaded in TIDAL, which the
+  comparison runs do not do).
 - **Plugin round 13 (2026-10-27).** Fixed for every plugin, each with a
   synthetic test that fails without it: declared colours serialize as
   Chromium's (`rgb()`/`rgba()` for hex, rgb(), hsl() wherever they stand;

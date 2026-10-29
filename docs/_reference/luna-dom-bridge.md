@@ -354,8 +354,8 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | `now-playing` | `section#nowPlaying[data-test=new-now-playing]._container_ad3e54e._nowPlayingContainer_`, the docked view, a child of the root before the player bar: `._nowPlayingHidden_7e74506` and empty while closed, taken out of the root while the view is fullscreen (that change to the root's children is what `observe` reports with the root, as in TIDAL), else holding `now-playing-header` (`header`), `now-playing-background` (`._background_`), `now-playing-content` (`._innerContainer_._content_`) | the now-playing view | Append (under the cover) |
 | `now-playing-buttons` > `now-playing-content-buttons` > `now-playing-tab:<name>` > `:span` | `header > div._buttons_ > div._contentButtons_ > button[data-test=toggle-similar-tracks\|toggle-credits\|toggle-lyrics][aria-pressed]._marketButton_1d16h_1._tertiary_1d16h_8._small_1d16h_3._toggleButton_934359e > span._label_1d16h_1`, then `div._actionButtons_ > button[data-test=new-now-playing-expand], button[data-test=new-now-playing-close]` (TIDAL 2.46.0's icon market buttons, `now-playing-action-buttons`), the tabs shown, before the close button; it comes before the player bar in the document, so `querySelector('[data-test^=toggle-lyrics]')` finds it first, as in TIDAL | the header's tab pills; `.click()` opens a tab | tab Before/After, tab box Prepend/Append (LangRomanizer after Lyrics), a tab's `padding-right` and `min-width` widen its pill and what is positioned inside the tab is drawn in it (radiant-lyrics' sparkle), `now-playing-buttons` After (left of the close button) |
 | `now-playing-artwork` > `now-playing-artwork-tilt` > `now-playing-artwork-img` + `now-playing-artwork-glare` | `div._artworkWrapper_ > div._tilt_._artworkTilt_[style="transform: perspective(1000px) rotateX(..deg) rotateY(..deg)"] > img[data-test=now-playing-artwork][src] + div._glare_` (TIDAL's; the `img` is a `video` while an animated cover plays; the style follows the native tilt every frame it moves) | big cover | positioned elements after the `img` or appended to the tilt box are drawn in the cover's tilt and lean with it, a WebGL canvas too (3d-cover) |
-| `lyrics-container` > `lyrics` > `lyrics-viewport` > `lyrics-content` > `lyrics-lines` | `div._lyricsContainer_ > div[data-test=now-playing-lyrics]._lyricsText_ > div` (the scroll area's viewport) `> div._content_fef19e8 > div[data-test=lyrics-text]` (the lines' box), as TIDAL 2.46.0 | Lyrics tab; `lyrics` hidden hides the native lines (radiant-lyrics) | container, lyrics, viewport, content and lines Prepend/Append (radiant-lyrics appends its lines to `lyrics-lines`) |
-| `lyric:<i>` | `span[data-test=lyrics-line][data-current]` (+ `_current_`, `aria-current`) | one line; text override (translators), colour (colorama), hidden; clicks forwarded | Append, After (under the line) |
+| `lyrics-container` > `lyrics` > `lyrics-viewport` > `lyrics-content` > `lyrics-lines` | `div._lyricsContainer_ > div[data-test=now-playing-lyrics]._lyricsText_ > div` (the scroll area's viewport) `> div._content_fef19e8 > div[data-test=lyrics-text]._marketText_1lyag_1._display20_1lyag_21._textWhite_1lyag_319._text_4a89397` (the lines' box, `._hasCues_15d8b83` when timed; it computes TIDAL's 48px bold white), as TIDAL 2.46.0 | Lyrics tab; `lyrics` hidden hides the native lines (radiant-lyrics) | container, lyrics, viewport, content and lines Prepend/Append (radiant-lyrics appends its lines to `lyrics-lines`) |
+| `lyric:<i>` | `span[data-test=lyrics-line]`; the sung line `[data-current=true]` (+ `_current_`, `aria-current`), the others `[data-distance]` (0 to 3, as TIDAL 2.46.0), `_endOfStanza_` when empty, `role=button` and `tabindex=0` when timed | one line; text override (translators), colour (colorama), hidden; clicks forwarded | Append, After (under the line) |
 | `lyrics-sync-wrap` > `lyrics-sync` | `div._syncButtonContainer_ > button[data-test=lyrics-sync-button]` | (no native rect yet) | |
 
 ### Menus and dialogs
@@ -1544,11 +1544,11 @@ once the taskbar is clicked).
   (`lyrics-viewport`), in it the content box `div._content_fef19e8`
   (`lyrics-content`) and in that the lines' `div[data-test=lyrics-text]`
   (`lyrics-lines`); what plugins put in the two new boxes is drawn in the
-  lyrics. The scroll area keeps reporting the scroll. The wrapper's,
-  scroll area's and lines' TIDAL classes (`_wrapper_512d5f4`,
-  `_scrollArea_200f837`, `_marketText_... _text_4a89397`) are not carried
-  yet: themes style them (the cotton candy family sizes the wrapper), which
-  is a theme round's call.
+  lyrics. The scroll area keeps reporting the scroll. The lines' box
+  carries TIDAL's classes since plugin round 14 (see "Plugin round 14");
+  the wrapper's and scroll area's (`_wrapper_512d5f4`,
+  `_scrollArea_200f837`) are not carried yet: themes style them (the
+  cotton candy family sizes the wrapper), which is a theme round's call.
 - TIDAL 2.46.0's Collection submenu is in the page whether it is open or
   not: `div._submenu_1951fe4` after the Collection button
   (`_visible_c258a15` while open), each page an
@@ -1585,6 +1585,23 @@ once the taskbar is clicked).
   renders them; it held one, the tier's, after the words. TIDAL's sheet
   shows one of them by the badge's tier, and a theme's fill and corners
   are drawn from that one.
+
+### Plugin round 14 (2026-10-29)
+
+- The lyrics' lines box (`div[data-test=lyrics-text]`) is TIDAL 2.46.0's
+  market text: `_marketText_1lyag_1 _display20_1lyag_21
+  _textWhite_1lyag_319 _text_4a89397`, with `_hasCues_15d8b83` while the
+  lyrics are timed (its bundle). `._text_4a89397` sets the `display-20`
+  type's tokens for the lyrics (bold, `clamp(26px, 7cqw, 48px)` of the
+  now-playing content, 48px at any window wider than about 700 points),
+  so it computes 48px, 700 and white, and what a plugin puts in it
+  inherits that (radiant-lyrics' word-by-word box read 14px, 500).
+- A lyric line has `data-current` only while it is the sung line, as in
+  TIDAL 2.46.0; the others carry `data-distance` (how many lines from the
+  sung one, at most 3, and 3 with none sung), an empty line
+  `_endOfStanza_c8fd4ed`, and timed lines `role=button` and `tabindex=0`.
+  Before, every other line had `data-current="false"`, so
+  `[data-current]` matched them all.
 
 ### Plugin round 13 (2026-10-27)
 
