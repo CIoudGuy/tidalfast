@@ -556,6 +556,20 @@
 		const keyframes = new Map();
 		registered.clear();
 		let hover = false;
+		// A `:hover` with a sibling combinator in the same selector (`.a:hover
+		// + .b`): a hover change reaches the siblings after an element; one
+		// inside `:has(...)`: it may reach any ancestor, and so anything.
+		let hoverSiblings = false;
+		let hoverHas = false;
+		// The compounds that hold `:hover` (also those in an `:is(...)` or
+		// `:not(...)`), their pseudo-classes and pseudo-element left out: only
+		// an element one of them matches can change a match when it gains or
+		// loses the pointer.
+		const hoverSubjects = [];
+		const hoverSubjectsOf = (c, out) => {
+			if (c.pseudos.some((p) => p.name === "hover")) out.push({ ...c, pseudos: [], pe: false });
+			for (const p of c.pseudos) for (const x of p.list ?? []) for (const st of x.steps) hoverSubjectsOf(st.c, out);
+		};
 		// Some rule sets `user-select` (copy-lyrics makes the lyrics
 		// selectable): the hosts it reaches are marked.
 		let userSelect = false;
@@ -599,7 +613,18 @@
 				if (r instanceof CSSStyleRule) {
 					const list = r.selectors;
 					if (!list) continue;
-					if (!hover && r._sel.includes(":hover")) hover = true;
+					if (r._sel.includes(":hover")) {
+						hover = true;
+						if (/[+~]/.test(r._sel)) hoverSiblings = true;
+						if (r._sel.includes(":has(")) hoverHas = true;
+						for (const sel of list) {
+							const found = [];
+							for (const st of sel.steps) hoverSubjectsOf(st.c, found);
+							// One this cannot see (`:nth-child(2 of :hover)`): any element.
+							if (!found.length) hoverHas = true;
+							hoverSubjects.push(...found);
+						}
+					}
 					const readsStyle = /\[\s*style\b/i.test(r._sel);
 					if (readsStyle) styleAttr = true;
 					if (readsStyle && /[+~]/.test(r._sel)) styleSiblings = true;
@@ -673,7 +698,7 @@
 		}
 		if (skipped && !warnedCss) L.callOp("log", { plugin: null, level: "warn", msg: `${skipped} style sheet(s) left out: plugin and theme CSS is capped at ${MAX_CSS_BYTES >> 20} MB` });
 		warnedCss = skipped > 0;
-		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, hover, styleAttr, structural, hasSteps, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
+		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, hover, hoverSiblings, hoverHas, hoverSubjects, styleAttr, structural, hasSteps, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
 		return index;
 	};
 	// `@keyframes` body -> [[offset 0..1, Map name -> value]], sorted.
@@ -703,6 +728,13 @@
 	// -3em` on the album's list panel, which TIDAL 2.46.0 ignores).
 	const invalidDecl = (name, value) => /^padding(-(top|right|bottom|left))?$/.test(name) && /(^|\s)-(\d|\.\d)/.test(String(value)) && !/var\(|calc\(|min\(|max\(|clamp\(/i.test(String(value));
 	const usesHover = () => !!buildIndex().hover;
+	// What a change of the hovered element can restyle: nothing (null),
+	// anything ("all"), or what is in and after the elements whose state
+	// changed and one of these compounds matches.
+	const hoverReach = () => {
+		const ix = buildIndex();
+		return !ix.hover ? null : ix.hoverHas ? "all" : ix.hoverSubjects;
+	};
 	// Where a rule is indexed, by the compound its selector ends in (the
 	// element it styles): its id, else its first class, else the tag, else
 	// an attribute it reads; `:root` with the root alone, and a compound
@@ -749,6 +781,7 @@
 	let memoGen = -1;
 	let memoStyleGen = -1;
 	let memoStructGen = -1;
+	let memoHoverGen = -1;
 	const forgetSubtree = (n) => {
 		memo.delete(n);
 		pmemo.delete(n);
@@ -778,6 +811,8 @@
 			memoGen = D.domGen();
 			memoStyleGen = D.styleGen();
 			memoStructGen = D.structGen();
+			memoHoverGen = D.hoverGen();
+			D.takeHoverTops();
 			D.takeRestyled();
 			D.takeInserted();
 			D.takeDetached();
@@ -825,6 +860,15 @@
 					}
 				}
 			} else for (const e of els) { memo.delete(e); pmemo.delete(e); }
+		}
+		if (memoHoverGen !== D.hoverGen()) {
+			// The pointer moved: what the elements whose `:hover` changed hold,
+			// and the siblings after them where a rule reads those.
+			memoHoverGen = D.hoverGen();
+			for (const e of D.takeHoverTops()) {
+				forgetSubtree(e);
+				if (ix.hoverSiblings) for (let n = e.nextSibling; n; n = n.nextSibling) forgetSubtree(n);
+			}
 		}
 		if (memo.has(el)) return memo.get(el);
 		const t0 = L.stat ? Date.now() : 0;
@@ -1686,7 +1730,7 @@
 	let csIx = null;
 	let csGens = "";
 	const csToken = (ix) => {
-		const gens = `${D.domGen()}|${D.structGen()}|${D.styleGen()}`;
+		const gens = `${D.domGen()}|${D.structGen()}|${D.styleGen()}|${D.hoverGen()}`;
 		if (csTok === null || csIx !== ix || csGens !== gens) {
 			csTok = {};
 			csIx = ix;
@@ -2206,5 +2250,5 @@
 	// Whether a rule looks at siblings, children or position: then a changed
 	// class can change what matches outside the element's own subtree.
 	const structural = () => !!buildIndex().structural;
-	L.css = { setUserAgentSheet, panelGlass: PANEL_GLASS, panelBorder: PANEL_BORDER, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, attrMatters, varsRead, structural, rangeParts };
+	L.css = { setUserAgentSheet, panelGlass: PANEL_GLASS, panelBorder: PANEL_BORDER, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, hoverReach, attrMatters, varsRead, structural, rangeParts };
 })();

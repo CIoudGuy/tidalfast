@@ -6084,3 +6084,93 @@ R.done = true;
     assert_eq!(r["runs"], json!(0), "{r}");
     finish(luna, dir);
 }
+
+/// A theme's `:hover` rules matched the whole page again on every move of
+/// the pointer (each move a full restyle: on a large theme the hovered row
+/// lit late, and the checker's pointer leaving a menu row was undone only
+/// seconds later). As Chromium does, a move restyles only the elements
+/// whose `:hover` state changed and that a `:hover` compound can match,
+/// what is inside them, and the siblings after them where a rule reads
+/// those; the result is the one a whole restyle gives.
+#[test]
+fn a_hover_change_restyles_only_what_it_reaches() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = '[data-test="tracklist-row"] { border-radius: 3px; } [data-test="tracklist-row"]:hover { background-color: rgb(1, 2, 3); } [data-test="tracklist-row"]:hover * { color: rgb(7, 8, 9); } ._indexColumn_3ac64ab:hover ~ [data-test="table-row-title"] { color: rgb(4, 5, 6); }';
+document.head.append(st);
+setInterval(() => {
+	R.runs = D.cascadeRuns ?? 0;
+	R.total = document.body.querySelectorAll("*").length;
+}, 10);
+"##,
+    );
+    luna.sync_dom(tree());
+    let list = "album:55";
+    let row = |i: usize| keys::row(list, i);
+    let bg = |o: &DomOverlay, i: usize| {
+        o.hosts
+            .get(&row(i))
+            .and_then(|h| h.style.background_color.clone())
+    };
+    let color = |o: &DomOverlay, i: usize, cell: &str| {
+        o.hosts
+            .get(&keys::row_cell(list, i, cell))
+            .and_then(|h| h.style.color.clone())
+    };
+    let cell = |i: usize| keys::row_cell(list, i, "index-col");
+    overlay_until(&luna, 10, |o| {
+        o.hosts
+            .get(&row(1))
+            .is_some_and(|h| h.style.border_radius.is_some())
+    });
+    let runs = || {
+        std::thread::sleep(Duration::from_millis(200));
+        let r = results_until(&luna, &dir, 10, |r| r["runs"].is_number());
+        (r["runs"].as_u64().unwrap(), r["total"].as_u64().unwrap())
+    };
+    let hover = |key: String| {
+        luna.dom_event(DomEvent {
+            target: DomTarget::Host(key),
+            kind: "hover".into(),
+            data: Value::Null,
+        })
+    };
+    let (start, total) = runs();
+    // The pointer on a row's number: the row, what is in it, and the
+    // title after the number.
+    hover(cell(1));
+    let o = overlay_until(&luna, 10, |o| bg(o, 1).as_deref() == Some("rgb(1, 2, 3)"));
+    assert_eq!(bg(&o, 0), None);
+    assert_eq!(bg(&o, 2), None);
+    assert_eq!(color(&o, 1, "title").as_deref(), Some("rgb(4, 5, 6)"));
+    assert_eq!(color(&o, 1, "title-text").as_deref(), Some("rgb(7, 8, 9)"));
+    assert_eq!(color(&o, 2, "title"), None);
+    let (over, _) = runs();
+    hover(cell(2));
+    let o = overlay_until(&luna, 10, |o| bg(o, 2).as_deref() == Some("rgb(1, 2, 3)"));
+    assert_eq!(bg(&o, 1), None);
+    assert_eq!(color(&o, 1, "title"), None);
+    assert_eq!(color(&o, 1, "title-text"), None);
+    assert_eq!(color(&o, 2, "title").as_deref(), Some("rgb(4, 5, 6)"));
+    assert_eq!(color(&o, 2, "title-text").as_deref(), Some("rgb(7, 8, 9)"));
+    let (moved, _) = runs();
+    // The pointer gone: everything as before.
+    hover(String::new());
+    let o = overlay_until(&luna, 10, |o| bg(o, 2).is_none());
+    assert_eq!(color(&o, 2, "title"), None);
+    assert_eq!(color(&o, 2, "title-text"), None);
+    let (gone, _) = runs();
+    for (what, n) in [
+        ("onto a row", over - start),
+        ("to the next row", moved - over),
+        ("off the rows", gone - moved),
+    ] {
+        assert!(
+            n * 4 < total,
+            "the pointer moving {what} restyled {n} of the page's {total} elements"
+        );
+    }
+    finish(luna, dir);
+}

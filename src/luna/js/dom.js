@@ -239,6 +239,40 @@
 		detachedFrom.clear();
 		return out;
 	};	D.styleGen = () => styleGen;
+	// The pointer moved from one element to another. Only the elements
+	// whose `:hover` state changes (those over the old one and not the new
+	// one, and the other way round) that a compound reading `:hover` can
+	// match (`subjects`), and what a selector can reach from them, can match
+	// differently: what is inside them, and (css.js decides) the siblings
+	// after them. The highest of each side holds the others, so those two
+	// are handed over and every other element keeps its cascade, as
+	// Chromium invalidates a hover change; a row's hover restyled the whole
+	// page before.
+	let hoverGen = 0;
+	const hoverTops = new Set();
+	const hoverMoved = (was, now, subjects) => {
+		const chain = (e) => {
+			const out = new Set();
+			for (let x = e; x; x = x.parentElement) out.add(x);
+			return out;
+		};
+		const overWas = chain(was);
+		const overNow = chain(now);
+		const top = (e, other) => {
+			let t = null;
+			for (let x = e; x && !other.has(x); x = x.parentElement) if (subjects.some((c) => compoundTest(x, c, null))) t = x;
+			return t;
+		};
+		for (const t of [top(was, overNow), top(now, overWas)]) if (t) hoverTops.add(t);
+		hoverGen++;
+		contentDirty();
+	};
+	D.hoverGen = () => hoverGen;
+	D.takeHoverTops = () => {
+		const out = [...hoverTops];
+		hoverTops.clear();
+		return out;
+	};
 	D.takeRestyled = () => {
 		const out = [...restyled];
 		restyled.clear();
@@ -3767,8 +3801,11 @@
 		if (type === "hover") {
 			// Pointer moved onto another element: only `:hover` styles change.
 			if (hovered !== el) {
+				const was = hovered;
 				hovered = el;
-				if (L.css?.usesHover?.()) markDirty();
+				const reach = L.css?.hoverReach?.() ?? null;
+				if (reach === "all" || (reach && was && !was.isConnected)) markDirty();
+				else if (reach) hoverMoved(was, el, reach);
 			}
 			return;
 		}
