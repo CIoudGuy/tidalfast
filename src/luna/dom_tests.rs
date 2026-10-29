@@ -730,6 +730,31 @@ R.found = {
     finish(luna, dir);
 }
 
+/// A computed opacity is the number Chromium reports: `.75` reads `0.75`,
+/// a percentage its fraction, and a value past 1 or below 0 is clamped.
+/// The declared text came back as written (true-taste's `.75`).
+#[test]
+fn computed_opacity_is_chromiums_number() {
+    let (luna, _host, dir) = start(
+        r##"
+const css = document.createElement("style");
+css.textContent = ".fade { opacity: .75; }";
+document.head.appendChild(css);
+const add = (cls, style) => {
+	const el = document.createElement("div");
+	el.className = cls;
+	el.style.cssText = style;
+	document.body.appendChild(el);
+	return getComputedStyle(el).opacity;
+};
+R.found = [add("fade", ""), add("", "opacity: 40%"), add("", "opacity: 1.5"), add("", "opacity: -2"), add("", "")];
+"##,
+    );
+    let r = results_until(&luna, &dir, 20, |r| !r["found"].is_null());
+    assert_eq!(r["found"], json!(["0.75", "0.4", "1", "0", "1"]), "{r}");
+    finish(luna, dir);
+}
+
 /// TIDAL's market buttons compute their type and colour from its sheet:
 /// a size class sets the type (small 14 px at 600, medium 16 px), a class
 /// that sets the button's own tokens wins whatever the class order (a

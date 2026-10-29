@@ -2139,6 +2139,9 @@
 		if (weight in WEIGHTS) m.set("font-weight", v(WEIGHTS[weight]));
 		const z = String(props.get("z-index") ?? "").trim();
 		if (/^-?\d+$/.test(z)) m.set("z-index", v(String(Math.max(-2147483648, Math.min(2147483647, Number(z))))));
+		// An opacity is its number between 0 and 1 (`.75` reads `0.75`).
+		const opacity = /^([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)(%?)$/i.exec(String(props.get("opacity") ?? "").trim());
+		if (opacity) m.set("opacity", v(String(Math.min(1, Math.max(0, Number(opacity[1]) / (opacity[2] ? 100 : 1))))));
 		const image = props.get("background-image");
 		if (image !== undefined) m.set("background-image", v(String(image).replace(/url\(\s*([^"')\s][^)]*?)\s*\)/g, 'url("$1")')));
 		// A transform resolves to the matrix a browser reports.
