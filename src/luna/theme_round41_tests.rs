@@ -398,6 +398,10 @@ fn a_sidebars_top_padding_holds_its_rows_down() {
 /// tall for TIDAL's 1183), so `100%` is the whole window here: the card
 /// ended 30 points above TIDAL's.
 #[test]
+#[cfg_attr(
+    target_os = "macos",
+    ignore = "the foot is TIDAL's on Windows, under its 30-point title bar; on macOS neither TIDAL nor Tidalfast has that row and the sidebar keeps 28 points for the traffic lights, and no capture of TIDAL on macOS says where the card ends there (the card ended 19 points lower)"
+)]
 fn a_sidebar_cards_own_height_ends_it() {
     let css = r#"/* {"name": "Card height"} */
 [class*="_bar_"] { margin-bottom: -2.5em; }
