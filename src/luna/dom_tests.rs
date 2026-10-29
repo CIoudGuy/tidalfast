@@ -730,6 +730,80 @@ R.found = {
     finish(luna, dir);
 }
 
+/// `querySelectorAll` and `querySelector` with descendant and child
+/// combinators match from the root down; what they find, and its order, is
+/// what matching each element from itself up finds, from the document, an
+/// element (whose own ancestors count), a detached subtree, a fragment and
+/// a template, over TIDAL's page and plugin markup with CSS-module classes,
+/// SVG's camelCase tags, `:scope`, `:is`, `:not`, `:has` and positions.
+#[test]
+fn queries_from_the_root_down_find_what_matching_upwards_finds() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const run = () => {
+	if (R.done || !document.querySelector('[data-test="footer-player"]')) return;
+	const box = document.createElement("section");
+	box.className = "plug _item_1234abc";
+	box.innerHTML = `
+		<div class="row a" data-x="1"><span class="t">one</span><a href="/track/1"><img src="x.png"></a>
+			<div class="row b"><span class="t">two</span><p><span>three</span></p></div></div>
+		<ul><li class="row">1</li><li>2</li><li class="row last"><span class="t">4</span></li></ul>
+		<svg viewBox="0 0 2 2"><defs><linearGradient id="g1"><stop></stop></linearGradient></defs><rect></rect></svg>
+		<div class="_wrapper_9999999"><div class="_artworkWrapper_abcdef1"><img><video></video></div></div>`;
+	const tpl = document.createElement("template");
+	const inTpl = document.createElement("div");
+	inTpl.className = "row";
+	inTpl.innerHTML = `<span class="t">in template</span>`;
+	tpl.content.appendChild(inTpl);
+	box.querySelector("ul").before(tpl);
+	document.querySelector("main")?.appendChild(box);
+	const detached = document.createElement("div");
+	detached.innerHTML = `<div class="row"><span class="t">d</span><div><span>e</span></div></div>`;
+	const frag = document.createDocumentFragment();
+	frag.append(detached.firstChild.cloneNode(true), document.createElement("span"));
+	const roots = { document, body: document.body, box, row: box.querySelector(".row.b"), detached, frag, tpl };
+	const sels = [
+		"*", "span", "div span", "div > span", ".row span", ".row > span", ".row .t", "section .row > .t",
+		"body div div span", "main section", "html > body", "#wimp div > div", "div *", "* > *",
+		'footer a[href*="/track/"]', 'a[href^="/track"] img', "[data-test] span", "[data-test=footer-player] button",
+		"[class*=_artworkWrapper_] :is(img, video)", "._item_5555555 .row", "._wrapper_1111111 img",
+		"svg linearGradient", "svg > defs stop", "defs > linearGradient > stop", "rect",
+		":scope > div", ":scope span", ":scope > .row > span", "div:not(.row) span", ".row:has(p) span",
+		"li:nth-child(2n+1)", "li:first-child, li.last span", "span, div span, .t", "p span, .row > a > img",
+		".row.a .row.b span", "div div div div", "ul > li > span.t", "section > div > span", "#nothing", ".none span",
+		"button, a", "[aria-label] span, nav a", "div:is(.a, .b) > span", "main *",
+	];
+	const bad = [];
+	let checked = 0;
+	for (const [name, root] of Object.entries(roots)) {
+		for (const sel of sels) {
+			const scope = root instanceof Element ? root : null;
+			const list = D.sel.compile(sel);
+			const want = D.descendants(root).filter((e) => D.sel.matches(e, list, scope));
+			const got = [...root.querySelectorAll(sel)];
+			const one = root.querySelector(sel);
+			checked++;
+			if (got.length !== want.length || got.some((e, i) => e !== want[i]) || one !== (want[0] ?? null)) bad.push(`${name} ${sel}: ${got.length} vs ${want.length}`);
+		}
+	}
+	R.found = box.querySelectorAll("span").length;
+	R.bad = bad;
+	R.checked = checked;
+	R.done = true;
+};
+new MutationObserver(run).observe(document.body, { subtree: true, childList: true });
+run();
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 20, |r| r["done"] == json!(true));
+    assert_eq!(r["bad"], json!([]), "{r}");
+    assert_eq!(r["checked"], json!(7 * 44), "{r}");
+    assert_eq!(r["found"], json!(5), "{r}");
+    finish(luna, dir);
+}
+
 /// A computed opacity is the number Chromium reports: `.75` reads `0.75`,
 /// a percentage its fraction, and a value past 1 or below 0 is clamped.
 /// The declared text came back as written (true-taste's `.75`).

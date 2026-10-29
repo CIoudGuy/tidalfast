@@ -2737,12 +2737,105 @@
 		touch();
 		const list = compileList(sel);
 		const scope = root instanceof Element ? root : null;
+		if (downward(list)) return qsaDown(root, list, scope, first);
 		const out = [];
 		someDescendant(root, (e) => {
 			if (!matchesList(e, list, scope)) return false;
 			out.push(e);
 			return !!first;
 		});
+		return out;
+	};
+	// A selector list whose combinators are all descendant and child ones
+	// (nearly every query a plugin makes: `footer a[href*="/track/"]`,
+	// `[data-test=new-now-playing] [class*=_artworkWrapper_] :is(img,
+	// video)`) is matched from the root down as the walk goes, not from each
+	// element up: every element carries which leading compounds of each
+	// selector it and its ancestors matched, so a compound is tried only
+	// where the ones before it hold, and no element's ancestors are walked
+	// again. TidalEQ asks for its cover every frame and tidal-genres for the
+	// playing song twice a second, each a walk of the whole page that tried
+	// the last compound on every element and walked up from every picture to
+	// the root. The elements found, and their order, are the bottom-up
+	// match's.
+	const downward = (list) => (list._down ??= list.every((x) => x.steps.length <= 30 && x.steps.every((st, i) => i === 0 || st.comb === " " || st.comb === ">")));
+	const qsaDown = (root, list, scope, first) => {
+		const K = list.length;
+		const ZERO = new Array(K).fill(0);
+		// Bit j of `own[k]`: the element matches the compounds 0 to j of
+		// selector k, its ancestors (`anc`) or its parent (`par`) the ones
+		// before as the combinators ask.
+		const own = new Array(K).fill(0);
+		const test = (e, anc, par) => {
+			let hit = false;
+			for (let k = 0; k < K; k++) {
+				const steps = list[k].steps;
+				let m = 0;
+				for (let j = 0; j < steps.length; j++) {
+					if (j > 0 && !(((steps[j].comb === ">" ? par[k] : anc[k]) >>> (j - 1)) & 1)) continue;
+					if (compoundTest(e, steps[j].c, scope)) m |= 1 << j;
+				}
+				own[k] = m;
+				if ((m >>> (steps.length - 1)) & 1) hit = true;
+			}
+			return hit;
+		};
+		// What the children of the element just tested start from.
+		let kidAnc = ZERO;
+		let kidPar = ZERO;
+		const descend = (anc) => {
+			kidAnc = anc;
+			kidPar = ZERO;
+			if (!own.some((m) => m !== 0)) return;
+			kidAnc = anc.map((m, k) => m | own[k]);
+			kidPar = own.slice();
+		};
+		// The root's own ancestors count (`div span` from an element finds a
+		// span whose div is outside it), as they do bottom-up; a document's
+		// or a fragment's children have no parent element.
+		let anc = ZERO;
+		let par = ZERO;
+		if (root instanceof Element) {
+			const chain = [];
+			for (let x = root; x; x = x.parentElement) chain.push(x);
+			for (let i = chain.length - 1; i >= 0; i--) {
+				test(chain[i], anc, par);
+				descend(anc);
+				anc = kidAnc;
+				par = kidPar;
+			}
+		}
+		const out = [];
+		const nodes = [];
+		const ancs = [];
+		const pars = [];
+		const push = (n, a, p) => {
+			let kids = n.childNodes;
+			// A template's content is a fragment: no parent element above it.
+			if (n.localName === "template" && n.content) {
+				kids = n.content.childNodes;
+				a = p = ZERO;
+			}
+			if (!kids) return;
+			for (let i = kids.length - 1; i >= 0; i--)
+				if (kids[i] instanceof Element) {
+					nodes.push(kids[i]);
+					ancs.push(a);
+					pars.push(p);
+				}
+		};
+		push(root, anc, par);
+		while (nodes.length) {
+			const e = nodes.pop();
+			const a = ancs.pop();
+			const p = pars.pop();
+			if (test(e, a, p)) {
+				out.push(e);
+				if (first) break;
+			}
+			descend(a);
+			push(e, kidAnc, kidPar);
+		}
 		return out;
 	};
 	const nodeList = (arr) => Object.assign(arr, { item: (i) => arr[i] ?? null });
