@@ -577,7 +577,12 @@ exact `Range` (`selectBetween`). The selected words keep their colour.
   `_dataContainer_66f4f40` on an album, `_dataContainer_9f47346` on a
   playlist) with `_metaLine_ > span.wave-text-capital-demi._metaItem_ed501cd
   [data-test=meta-release-date][data-wave-color=textSecondary]`, whose look
-  (colour, weight) the header's meta words take; `input[data-test=playlist-filter-input]`
+  (colour, weight) the header's meta words take, then on an album
+  `page-quality-badge` (`span.wave-badge.wave-badge-text.wave-text-badge-bold
+  .wave-badge-color-<max|high|default>[data-test=quality-badge-<max|high|low>]`
+  with TIDAL's word, `Max`, `High` or `Low`; the badge draws a plugin's
+  words, in capitals as TIDAL's sheet, and nothing when a plugin hides it);
+  `input[data-test=playlist-filter-input]`
   with the native filter text. On the Plugins page (TidaLuna's settings
   page) the `h1` text override and colour are drawn and what plugins append
   follows it; `._title_a453dad` is the title bar's name (`bar-title`), as in TIDAL.
@@ -1336,7 +1341,15 @@ once the taskbar is clicked).
   (`div._buttonContainer_a07db07`) > `shelf-previous:<i>`, `shelf-next:<i>`
   (`button._scrollingButton_6c853a9[title]`), `shelf-view-all:<i>`
   (`a._viewAllButton_4b4f90c[data-test=view-all-link]`) > `shelf-view-all-label:<i>`;
-  then the row `shelf:<i>` as before.
+  then the row `shelf:<i>` as before. An album's shelves are TIDAL's page
+  modules (since plugin round 15): `shelf-header:<i>`
+  (`div._defaultStyles_a1b9da9._headers_44301eb`) > `shelf-header-row:<i>`
+  (`div.tidal-ui__h-stack`) > `shelf-title-stack:<i>` (`div.tidal-ui__v-stack`)
+  > `shelf-title:<i>` (`h2.wave-text-subheadline-bold[data-wave-color=textDefault]`
+  with TIDAL's own title, "Related Artists", "More Albums by ..."), and
+  `shelf-buttons:<i>` (`div._arrowsContainer_6d3c121`) > `shelf-view-all-spacer:<i>`
+  (`div.tidal-ui__spacer`) > `shelf-view-all:<i>`; no Previous and Next
+  there. The heading draws the app's words until a plugin changes them.
 - `list:<l>:album-col` and `list:<l>:added-col` (with their `:label`) where
   the list shows those columns (TIDAL's ids for them are not known, so
   they carry none); `page-release-date` has the box of its words.
@@ -1585,6 +1598,19 @@ once the taskbar is clicked).
   renders them; it held one, the tier's, after the words. TIDAL's sheet
   shows one of them by the badge's tier, and a theme's fill and corners
   are drawn from that one.
+
+### Plugin round 15 (2026-10-29)
+
+- An album header's quality badge is an element, as TIDAL 2.46.0 draws it
+  after the release date in the meta line (captured; its bundle's badge:
+  `Max` for hi-res, `High` for lossless, `Low` for lossy). Before, the badge
+  was painted with no element, so plugins found nothing to translate or
+  hide there (korean-translation's `높음`).
+- An album's shelves (Other versions, More Albums by, Related Albums,
+  Related Artists) have the album page's module headers with TIDAL's own
+  titles, where they had the home page's horizontal-list header with
+  Tidalfast's words ("Related artists"), which plugins matching TIDAL's
+  words did not find.
 
 ### Plugin round 14 (2026-10-29)
 
