@@ -1568,6 +1568,63 @@ sent whole as JSON; and at rest, while a song plays, one tree a second
 (the player bar's time) costs the runtime about 18 ms (no theme) to
 20 ms (cotton candy), 2% of a core (`TIDALFAST_LUNA_STATS=1`).
 
+## Many plugins at once (plugin round 17, 2026-10-29)
+
+Release demo builds, off-screen at 1600 by 1000, BelowNormal, on a machine
+in use; before (tidal 88613a02 with the bench's warm-up variable) and after
+(the round's commits) interleaved, three runs each. "Eighteen plugins":
+audio-visualizer, radiant-lyrics, TidalEQ, Tidal Tags, tidal-genres,
+oneko, spinny-cover, up-next, playlist-indicator, scroll-to-playing,
+quick-queue, SongReleaseDate, total-play-time, VolumeScroll,
+HorizontalVolumeSlider, element-hider, cover-colored-ui and star-ratings,
+all running ("no plugins": Luna on with none). TidalEQ asks at start to
+open a pipe; the runs refuse it first (a dev script presses Enter on Deny),
+or its prompt would hold the page. Cycles a second of the process and of
+the runtime's (`luna`) thread over 20 s (`QueryThreadCycleTime`; about
+4.3 G is one core). The scroll bench's frame CPU p50 came out at either
+about 3 or about 6.5 ms from one run to the next of the same build (the
+second at the display's frame interval), so the window's thread is
+compared by its cycles.
+
+| Measure | Before | After |
+| --- | --- | --- |
+| Home, paused, eighteen plugins: Luna thread / process | 1.22 / 1.65 G | 0.39 / 0.89 G |
+| Home, playing, eighteen plugins: Luna thread / process | 1.30 / 1.72 G | 0.71 / 1.07 G |
+| Home, playing, no plugins: Luna thread | 0.10 G | 0.05 G |
+| Scrolling Home / an album, no plugins: Luna thread | 0.32 / 0.21 G | 0.21 / 0.13 G |
+| Scrolling with eighteen plugins: Luna thread | a full core | a full core |
+| Window's thread, any scenario | | the same within the runs' spread |
+
+Where it went (`TIDALFAST_LUNA_STATS` with phase timers in a probe build):
+
+- **`querySelector`.** A query tried its last compound on every element
+  and walked up from each candidate to the root: 4 to 5 ms for any query
+  over Home's 1,185 elements, 16 to 50 ms for TidalEQ's cover query, which
+  it makes every frame, and tidal-genres makes four twice a second. Lists
+  of descendant and child combinators now match from the root down: the
+  cover query 4 to 6 ms, the footer's 2 to 3 ms.
+- **The overlay.** With these plugins it is about 340 kB, 300 kB of it each
+  app element's listened event types; it was serialised twice, parsed into
+  a JSON value, copied and read. It is serialised once and read straight
+  into its type, and the listened types are worked out once a build from
+  each parent's (any node put in or taken out anywhere made every app
+  element's entry again).
+- **Reconciling the host tree.** About 20 ms a tree with no plugins while
+  a list scrolls (parsing 7, the elements 7, placing 3): an element whose
+  attributes are as they were is left alone, and trees after the first go
+  as their changes. 16 ms a tree after, in the same scripted scroll.
+
+What is left, found here: while a list scrolls with these plugins the
+runtime spends most of its time on overlay builds of about 0.6 s each, a
+cascade of the whole page after every change to its structure, because
+radiant-lyrics' and element-hider's sheets hold `:nth-child` rules and
+any structural selector makes every insertion recascade the page
+(`ix.structural` in `css.js`). The plugins then see the page change about
+once a second while it scrolls. With no plugins the runtime is still busy
+all the time while a list scrolls: a tree a frame (16 ms) and an overlay
+build after each change of structure (about 24 ms, mostly the cascade of
+the new rows) that comes out the same.
+
 ## Findings and decisions
 
 - **Luna's work follows changes, not the page.** With Luna on, a pass made

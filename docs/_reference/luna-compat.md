@@ -199,6 +199,14 @@ No other status changed. The checker was not run this round
 (nothing on its pages changed but the shelves' timing, and TIDAL's side
 cannot be recorded while the test machine's TIDAL runs without TidaLuna).
 
+Plugin round 17 (2026-10-29) measured eighteen plugins at once in the demo
+(see "Many plugins at once" in `performance.md`) and made the shared layer
+faster with the same results: `querySelector` from the root down, the
+overlay sent once and read directly, listened types worked out once a
+build, and host trees sent as their changes. Fixed for every plugin, with
+a test that fails without it: markup with a `<template>` parses (its
+closing tag threw a TypeError). No status changed.
+
 Open gaps (❌): TidalDJ and @imp/local-files, new in plugin round 14, and
 @visiuun/true-taste, new in plugin round 16 (see their rows). Before them: none. betterFullscreen's own view, open in plugin round 5,
 renders since plugin round 6 (TIDAL 2.46.0's now-playing and fullscreen

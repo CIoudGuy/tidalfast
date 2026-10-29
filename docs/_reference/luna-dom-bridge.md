@@ -19,7 +19,11 @@ children of `#wimp`, so `#wimp > div` is TIDAL 2.46.0's market theme box
 (`display: contents`) and `#wimp > div > div` the app shell.
 
 **Reconcile** (`Luna::sync_dom`). Syncs coalesce: only the newest tree is
-applied, always before any other message. Host elements are matched by key;
+applied, always before any other message. After the first, a tree goes to
+the document as its changes (`HostTree::wire`): an element with the same
+parent, tag, attributes, words and value as in the tree the document got
+before goes as its key and box, and `dom.js` takes the rest from that tree;
+a call that fails sends the next tree whole. Host elements are matched by key;
 attribute, class and text changes the host made since the last tree are
 applied (classes as a diff, so classes plugins added or removed stay), with
 real `MutationObserver` records. Host children are kept in tree order;
@@ -1599,6 +1603,26 @@ once the taskbar is clicked).
   renders them; it held one, the tier's, after the words. TIDAL's sheet
   shows one of them by the badge's tier, and a theme's fill and corners
   are drawn from that one.
+
+### Plugin round 17 (2026-10-29)
+
+A speed round with eighteen plugins at once; results unchanged, each
+checked by a test against the old path or the definition.
+
+- `querySelector`/`querySelectorAll` match a selector list whose
+  combinators are all descendant and child ones from the root down: each
+  element carries which leading compounds it and its ancestors matched, so
+  a compound is tried only where the ones before it hold. The root's own
+  ancestors count, a template's content starts afresh, and lists with `+`
+  or `~` match bottom-up as before.
+- The overlay goes to the app as the JSON made to compare it with the last
+  one (`callOpJson`), read straight into `DomOverlay`.
+- An app element's `listens` is worked out once a build from its parent's
+  set, and its entry is kept while its inputs and that set are the same
+  (any node put in or taken out anywhere made every entry again).
+- A host element whose attributes come as they came last time is left as
+  it is; host trees after the first go as their changes (above).
+- Markup with a `<template>` parses (its closing tag threw).
 
 ### Plugin round 15 (2026-10-29)
 
