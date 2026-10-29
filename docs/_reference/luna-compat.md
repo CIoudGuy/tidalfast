@@ -3298,6 +3298,53 @@ list panel's gradient under its `backdrop-filter: saturate()`, the
 Cotton Candy Nights list panel's border above the filter pill, and the
 playlist art button's `border-radius`.
 
+### Round 45 (a stopped style pass, TIDAL's page structure and its artwork modules, 2026-10-29)
+
+Found with the parity checker and fixed in the generic layer:
+
+- **A style pass the watchdog stops is done again.** The first style
+  pass of a page under a large theme (the adaptive Cotton Candy's
+  5,700-line sheet) can run past the runtime's watchdog on a slow or busy
+  machine or a debug build. The pass had already marked the page done
+  when it was stopped, so a page that then stayed as it was kept no theme
+  at all: the adaptive Cotton Candy's album page with no list panel and no
+  colours, on some builds and not others (round 44's "matched by one
+  build and not the next"). The pass is now tried again until one
+  finishes, going on from the work already done. Test:
+  `an_overlay_build_the_watchdog_stops_is_built_again`.
+- **The page's content is `main`'s second child, and the page its box's
+  first**, as in TIDAL 2.46.0 (a scroll sentinel comes first). A theme's
+  `div:nth-child(1) > div > div { border-style: none }`, meant for the
+  song rows' lines, so no longer takes the border off the list panel: the
+  Cotton Candy Nights colourways' playlist songs lie 2 points lower, where
+  TIDAL's are. Test: `a_div_chain_rule_reaches_the_list_panel_only_where_tidals_does`.
+- **A rule for one of TIDAL's `_artwork_` modules reaches that one
+  alone.** TIDAL has a dozen; the bar's cover is `_artwork_941d1cf` and a
+  playlist's header art `_artwork_1d717fe`. The cotton candy family's
+  `._artwork_b010eae { border-radius: 1em }` no longer rounds either.
+  Test: `a_rule_for_one_artwork_module_reaches_that_one_alone`.
+
+Totals (the round 43 checker state): pixels 2.55 % to 2.29 % of 305.6
+million compared pixels, 1.47 % to 1.32 % leaving out the menu page; no
+theme 0.75 % unchanged and no theme worse. Playlist pages 1.49 % to
+1.15 % on average (the Cotton Candy and Cotton Candy Nights colourways
+about 0.9 points each). Style: 826 to 786 differences over about 128,900
+anchor elements. Light scheme: the adaptive Cotton Candy 9.59 % to 1.21 %
+(album 17.6 % to 0.8 %), the adaptive Horchata 1.50 % to 0.69 %, Tidal
+Light 1.17 % unchanged. Hover pages 2.11 % unchanged. Most of the menu
+page's change is the checker's own: a hovered row's fill outlasts the
+pointer in some runs (in 11 themes' menu shots at the start, 3 at the
+end), because a change of `:hover` restyles the whole page and the
+pointer's leaving waits behind it on a debug build.
+
+Not done, largest first: a track row's line at TIDAL's fractional row
+places; a `:hover` change restyling only what it can reach instead of the
+whole page; Meteor Night's menu page (TIDAL's open menu adds an empty
+`span.context-menu` to the body, which the theme's `[class*="menu"]`
+rule gives a border, and TIDAL's whole page lies 20 points lower); the
+Lunallena themes' header bar on the collection page; a list panel's
+gradient under its `backdrop-filter: saturate()`.
+
 ### Round 28 (plugins in use, 2026-10-23)
 
 Sixteen popular plugins (Tidal Tags, tidal-genres, total-play-time,
