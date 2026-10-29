@@ -85,6 +85,9 @@ pub mod keys {
     pub const PAGE_SMALL_HEADER: &str = "page-small-header";
     pub const PAGE_META: &str = "page-meta-line";
     pub const PAGE_RELEASE: &str = "page-release-date";
+    /// An album header's quality badge after its release date
+    /// (`span.wave-badge[data-test=quality-badge-<tier>]`).
+    pub const PAGE_QUALITY: &str = "page-quality-badge";
     pub const PAGE_FILTER: &str = "page-filter-input";
     /// The pill round the page's filter field
     /// (`div._container_080b5dc._filter_f2e5a33`, `_contentFilter_2d85a1d`
@@ -663,6 +666,19 @@ pub mod keys {
     pub fn shelf_view_all_label(index: usize) -> String {
         format!("shelf-view-all-label:{index}")
     }
+    /// A page module's header row and its title's stack
+    /// (`div.tidal-ui__h-stack > div.tidal-ui__v-stack > h2`), and the
+    /// spacer View all sits in, on a page whose shelves are TIDAL's page
+    /// modules (an album's).
+    pub fn shelf_header_row(index: usize) -> String {
+        format!("shelf-header-row:{index}")
+    }
+    pub fn shelf_title_stack(index: usize) -> String {
+        format!("shelf-title-stack:{index}")
+    }
+    pub fn shelf_view_all_spacer(index: usize) -> String {
+        format!("shelf-view-all-spacer:{index}")
+    }
     /// The artist page's header, behind which the portrait is painted.
     pub const PAGE_ARTIST_HEADER: &str = "page-artist-header";
     /// `row:<list>:<index>`
@@ -942,6 +958,10 @@ fn shelf_header_nodes(
     module: Option<&str>,
     header: &ShelfHeader,
 ) {
+    if let Some(words) = &header.page_module {
+        page_module_header_nodes(out, i, wrap, words, header);
+        return;
+    }
     let key = keys::shelf_header(i);
     let mut node = el(key.clone(), Some(wrap), "div")
         .class("_headerContainer_5618a8d")
@@ -1001,6 +1021,77 @@ fn shelf_header_nodes(
             .at(*rect),
         );
     }
+}
+
+/// A page module's header as TIDAL 2.46.0's album page has it (captured):
+/// `div._defaultStyles_a1b9da9._headers_44301eb > div.tidal-ui__h-stack >
+/// div.tidal-ui__v-stack > h2.wave-text-subheadline-bold` with TIDAL's own
+/// title, then `div.tidal-ui__h-stack._arrowsContainer_6d3c121 >
+/// div.tidal-ui__spacer > a._viewAllButton_4b4f90c[data-test=view-all-link]
+/// > span` (no Previous and Next there).
+fn page_module_header_nodes(
+    out: &mut Vec<HostNode>,
+    i: usize,
+    wrap: &str,
+    words: &str,
+    header: &ShelfHeader,
+) {
+    let key = keys::shelf_header(i);
+    out.push(
+        el(key.clone(), Some(wrap), "div")
+            .class("_defaultStyles_a1b9da9 _headers_44301eb")
+            .at(header.rect),
+    );
+    let row = keys::shelf_header_row(i);
+    out.push(
+        el(row.clone(), Some(&key), "div")
+            .class("tidal-ui__h-stack css-1cjsosq")
+            .at(header.rect),
+    );
+    let stack = keys::shelf_title_stack(i);
+    out.push(
+        el(stack.clone(), Some(&row), "div")
+            .class("tidal-ui__v-stack css-1716k3v")
+            .at(header.title_rect),
+    );
+    out.push(
+        el(keys::shelf_title(i), Some(&stack), "h2")
+            .class("wave-text-subheadline-bold")
+            .attr("data-wave-color", "textDefault")
+            .attr("style", "font-weight: 600;")
+            .text(words)
+            .at(header.title_rect),
+    );
+    let Some((label, rect)) = &header.view_all else {
+        return;
+    };
+    out.push(
+        el(keys::shelf_buttons(i), Some(&row), "div")
+            .class("tidal-ui__h-stack css-6p5vpy _arrowsContainer_6d3c121")
+            .at(*rect),
+    );
+    let spacer = keys::shelf_view_all_spacer(i);
+    out.push(
+        el(spacer.clone(), Some(&keys::shelf_buttons(i)), "div")
+            .class("tidal-ui__spacer css-1athhm5")
+            .at(*rect),
+    );
+    out.push(
+        el(keys::shelf_view_all(i), Some(&spacer), "a")
+            .class("_viewAllButton_4b4f90c")
+            .test("view-all-link")
+            .at(*rect),
+    );
+    out.push(
+        el(
+            keys::shelf_view_all_label(i),
+            Some(&keys::shelf_view_all(i)),
+            "span",
+        )
+        .class("_marketText_1lyag_1 _semibold20_1lyag_246 _text20_1lyag_291")
+        .text(label.clone())
+        .at(*rect),
+    );
 }
 
 /// The controls over a card's cover as TIDAL 2.46.0 has them (they show
@@ -1569,6 +1660,9 @@ pub struct Page {
     pub shelf_headers: Vec<Option<ShelfHeader>>,
     /// The header of the shelf about to be registered.
     pub next_shelf_header: Option<ShelfHeader>,
+    /// TIDAL's own title of the page module the shelf about to be drawn
+    /// is ([`ShelfHeader::page_module`]).
+    pub next_shelf_page_module: Option<String>,
     /// What the card about to be drawn shows (its kind and id, its
     /// artists), when its page says so.
     pub next_card: Option<CardItem>,
@@ -1723,6 +1817,13 @@ pub struct ShelfHeader {
     pub next: Option<(Option<Rect>, bool)>,
     /// View all's words and box.
     pub view_all: Option<(String, Option<Rect>)>,
+    /// TIDAL's own title of the page module the shelf is, on a page whose
+    /// shelves are modules of TIDAL's page (an album's: Other versions,
+    /// More Albums by, Related Albums, Related Artists). The header then
+    /// has that module's markup, `div._headers_ > div.tidal-ui__h-stack >
+    /// div.tidal-ui__v-stack > h2.wave-text-subheadline-bold` with these
+    /// words, and View all in `div._arrowsContainer_ > div.tidal-ui__spacer`.
+    pub page_module: Option<String>,
 }
 
 /// `div._metaLine_ > span[data-test=meta-release-date]`.
@@ -1732,6 +1833,39 @@ pub struct MetaLine {
     /// The box of the release date's words.
     pub words: Option<Rect>,
     pub release_date: String,
+    /// The album's quality badge after the release date, where drawn.
+    pub badge: Option<MetaBadge>,
+}
+
+/// An album header's quality badge as TIDAL 2.46.0 draws it after the
+/// release date: `span.wave-badge.wave-badge-text.wave-text-badge-bold
+/// .wave-badge-color-<colour>[data-test=quality-badge-<tier>]` with its
+/// words (`Max`, `High` or `Low`; the sheet makes them capitals).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MetaBadge {
+    pub rect: Option<Rect>,
+    /// `max`, `high` or `low`.
+    pub tier: &'static str,
+}
+
+impl MetaBadge {
+    /// TIDAL's words for the tier (`quality_max`, `quality_high`,
+    /// `quality_low`).
+    pub fn words(&self) -> &'static str {
+        match self.tier {
+            "max" => "Max",
+            "high" => "High",
+            _ => "Low",
+        }
+    }
+
+    /// The badge's colour class: `max`, `high`, else `default`.
+    fn colour(&self) -> &'static str {
+        match self.tier {
+            "max" | "high" => self.tier,
+            _ => "default",
+        }
+    }
 }
 
 /// A pill in a page header: `button._marketButton_` with its label.
@@ -3616,6 +3750,16 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 .text(meta.release_date.clone())
                 .at(meta.words.or(meta.rect)),
         );
+        if let Some(badge) = &meta.badge {
+            out.push(
+                el(PAGE_QUALITY, Some(PAGE_META), "span")
+                    .class("wave-badge wave-badge-text wave-text-badge-bold")
+                    .class(&format!("wave-badge-color-{}", badge.colour()))
+                    .test(&format!("quality-badge-{}", badge.tier))
+                    .text(badge.words())
+                    .at(badge.rect),
+            );
+        }
     }
     // The header's art: `._coverArtContainer_2eafdf9 > ._coverArt_79d862c > img`
     // on an album; on a playlist TIDAL 2.46.0's `button._artwork_1d717fe >

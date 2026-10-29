@@ -4919,6 +4919,7 @@ fn section_header_parts(
             previous: buttons[0].map(|(b, e)| (r(b), e)),
             next: buttons[1].map(|(b, e)| (r(b), e)),
             view_all: view_all.map(|(label, link)| (label, r(link))),
+            page_module: None,
         });
     }
     (pressed, more_clicked)

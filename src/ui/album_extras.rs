@@ -389,6 +389,13 @@ pub fn shelves(
                 }
                 ui.add_space(40.0);
                 let title = shelf_title(locale, entry, album);
+                // TIDAL draws the module's own title ("Related Artists"),
+                // which is what plugins find in its page.
+                super::plugin_dom::shelf_page_module(if entry.shelf.title.is_empty() {
+                    &title
+                } else {
+                    &entry.shelf.title
+                });
                 let salt = format!("album-shelf-{id}-{index}");
                 let opened = ui
                     .scope(|ui| {

@@ -282,6 +282,7 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
     }
     let mut meta_top = y;
     let mut meta_text = None;
+    let mut badge_drawn = None;
     for (index, galley) in metas.into_iter().enumerate() {
         let text = hero.meta.get(index).map(String::as_str).unwrap_or("");
         let text_width = galley.size().x;
@@ -311,7 +312,17 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
             } else {
                 left + text_width + 8.0
             };
-            quality_badge(ui, pos2(x, y + extra + 8.0), badge);
+            // TIDAL's badge is an element after the release date: a
+            // plugin's words show on it, and one it hid is not painted.
+            let (words, gone) = super::plugin_dom::page_quality_words(badge.tier());
+            let at = pos2(x, y + extra + 8.0);
+            let rect = if gone {
+                // Its place, for the anchor; nothing painted.
+                Rect::from_min_size(pos2(at.x, at.y - 11.0), vec2(0.0, 22.0))
+            } else {
+                quality_badge(ui, at, badge, &words)
+            };
+            badge_drawn = Some((rect, badge.tier()));
         }
         y += 31.0 + extra;
     }
@@ -321,7 +332,7 @@ pub(super) fn hero(app: &mut App, ui: &mut egui::Ui, hero: Hero<'_>) {
             let line = Rect::from_min_size(pos2(left, meta_top), vec2(width, 16.0));
             (line, meta_text.unwrap_or(line), date.as_str())
         });
-        super::plugin_dom::page_header(data, meta);
+        super::plugin_dom::page_header(data, meta, badge_drawn);
         super::plugin_slots::at(
             ui,
             crate::luna::dom_anchors::keys::PAGE_DATA,
@@ -689,7 +700,7 @@ fn stacked_hero(
             let line = Rect::from_min_size(pos2(block.left(), meta_top), vec2(width, 16.0));
             (line, meta_text.unwrap_or(line), date.as_str())
         });
-        super::plugin_dom::page_header(data, meta);
+        super::plugin_dom::page_header(data, meta, None);
         super::plugin_slots::at(
             ui,
             crate::luna::dom_anchors::keys::PAGE_DATA,
@@ -808,16 +819,31 @@ impl QualityBadge {
             None
         }
     }
+
+    /// TIDAL's tier for the badge (its `data-test`, `quality-badge-high`).
+    pub fn tier(self) -> &'static str {
+        match self {
+            Self::Max => "max",
+            Self::High => "high",
+            Self::Low => "low",
+        }
+    }
 }
 
 /// TIDAL's quality badge: 22 high, radius 8, 8 either side of 8-point bold
 /// capitals tracked 0.96, the label's colour at 10 % behind it. `left_mid`
 /// is its left edge at its vertical centre.
-pub(super) fn quality_badge(ui: &egui::Ui, left_mid: egui::Pos2, badge: QualityBadge) {
-    let (label, color) = match badge {
-        QualityBadge::Max => ("MAX", egui::Color32::from_rgb(0xff, 0xd4, 0x32)),
-        QualityBadge::High => ("HIGH", egui::Color32::from_rgb(0x33, 0xff, 0xee)),
-        QualityBadge::Low => ("LOW", egui::Color32::from_gray(0xb3)),
+/// `label` is its words (TIDAL's, or a plugin's); returns its box.
+pub(super) fn quality_badge(
+    ui: &egui::Ui,
+    left_mid: egui::Pos2,
+    badge: QualityBadge,
+    label: &str,
+) -> Rect {
+    let color = match badge {
+        QualityBadge::Max => egui::Color32::from_rgb(0xff, 0xd4, 0x32),
+        QualityBadge::High => egui::Color32::from_rgb(0x33, 0xff, 0xee),
+        QualityBadge::Low => egui::Color32::from_gray(0xb3),
     };
     let mut job = egui::text::LayoutJob::default();
     job.append(
@@ -842,6 +868,7 @@ pub(super) fn quality_badge(ui: &egui::Ui, left_mid: egui::Pos2, badge: QualityB
         galley,
         color,
     );
+    rect
 }
 
 pub struct Actions<'a> {

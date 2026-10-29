@@ -1729,7 +1729,13 @@ pub fn page_title_text(native: &str) -> Cow<'_, str> {
 
 /// An album or playlist header: its `_dataContainer_` and, when it has one,
 /// the meta line (its box and its words') with the release date.
-pub fn page_header(data: Rect, meta: Option<(Rect, Rect, &str)>) {
+/// `badge`: the album's quality badge on that line, where drawn, and its
+/// tier (`max`, `high`, `low`).
+pub fn page_header(
+    data: Rect,
+    meta: Option<(Rect, Rect, &str)>,
+    badge: Option<(Rect, &'static str)>,
+) {
     note(|f| {
         if let Some(p) = f.page.as_mut() {
             p.data = rect(data);
@@ -1737,9 +1743,30 @@ pub fn page_header(data: Rect, meta: Option<(Rect, Rect, &str)>) {
                 rect: rect(r),
                 words: rect(words),
                 release_date: date.to_string(),
+                badge: badge.map(|(r, tier)| dom_anchors::MetaBadge {
+                    rect: rect(r),
+                    tier,
+                }),
             });
         }
     });
+}
+
+/// The album header's quality badge's words (TIDAL's `Max`, `High`, `Low`
+/// for `tier`, or a plugin's), in capitals as TIDAL's sheet sets them, and
+/// whether a plugin hid it.
+pub fn page_quality_words(tier: &str) -> (String, bool) {
+    let native = dom_anchors::MetaBadge {
+        tier: match tier {
+            "max" => "max",
+            "high" => "high",
+            _ => "low",
+        },
+        ..Default::default()
+    }
+    .words();
+    let key = dom_anchors::keys::PAGE_QUALITY;
+    (text(key, native).to_uppercase(), hidden(key))
 }
 
 /// The compact header pinned over an album, playlist or mix once its big
@@ -3903,10 +3930,23 @@ pub fn next_shelf_index() -> Option<usize> {
 
 /// The header of the shelf about to be registered by [`shelf_row`], as
 /// drawn (the app's own words).
-pub fn shelf_header(header: dom_anchors::ShelfHeader) {
+pub fn shelf_header(mut header: dom_anchors::ShelfHeader) {
     note(|f| {
         if let Some(p) = f.page.as_mut() {
+            header.page_module = p.next_shelf_page_module.take();
             p.next_shelf_header = Some(header);
+        }
+    });
+}
+
+/// The shelf about to be drawn is a module of TIDAL's page (an album's),
+/// `words` being TIDAL's own title for it: its header has that module's
+/// markup and words ([`dom_anchors::ShelfHeader::page_module`]); the words
+/// drawn stay the app's unless a plugin changes them.
+pub fn shelf_page_module(words: &str) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.next_shelf_page_module = Some(words.to_string());
         }
     });
 }

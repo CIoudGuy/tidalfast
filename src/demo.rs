@@ -9667,6 +9667,98 @@ mod tests {
         assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 
+    /// An album's header carries TIDAL 2.46.0's quality badge after its
+    /// release date (`span.wave-badge...[data-test=quality-badge-max]`
+    /// with TIDAL's word, Max), and its shelves are the album page's
+    /// modules: `div._headers_ > ... > h2.wave-text-subheadline-bold` with
+    /// TIDAL's own titles ("Related Artists"), and View all in the arrows
+    /// container. A plugin's words on the badge and on a heading are the
+    /// words drawn (korean-translation finds both by TIDAL's words); the
+    /// badge had no element and the headings were the home page's
+    /// `h2._headerText_` with Tidalfast's own words.
+    #[test]
+    fn an_albums_badge_and_shelf_headings_are_tidals_elements_and_words() {
+        use crate::luna::dom::{DomOverlay, HostOverride};
+        use crate::luna::dom_anchors::{attr, keys};
+        use crate::ui::plugin_dom;
+        let (ctx, mut app) = accessible_app("album-badge-modules");
+        app.open(Page::Album("alb0".into()));
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let node = |key: &str| tree.nodes.iter().find(|n| n.key == key).cloned();
+        let badge = node(keys::PAGE_QUALITY).expect("the album's badge is an element");
+        assert_eq!(badge.tag, "span");
+        assert_eq!(attr(&badge, "data-test"), Some("quality-badge-max"));
+        assert_eq!(
+            attr(&badge, "class"),
+            Some("wave-badge wave-badge-text wave-text-badge-bold wave-badge-color-max")
+        );
+        assert_eq!(badge.text.as_deref(), Some("Max"));
+        assert_eq!(badge.parent.as_deref(), Some(keys::PAGE_META));
+        let titles: Vec<_> = tree
+            .nodes
+            .iter()
+            .filter(|n| n.key.starts_with("shelf-title:"))
+            .collect();
+        let related = titles
+            .iter()
+            .find(|n| n.text.as_deref() == Some("Related Artists"))
+            .unwrap_or_else(|| panic!("TIDAL's Related Artists heading: {titles:?}"));
+        assert_eq!(related.tag, "h2");
+        assert_eq!(attr(related, "class"), Some("wave-text-subheadline-bold"));
+        let index: usize = related.key["shelf-title:".len()..].parse().unwrap();
+        assert_eq!(
+            node(&keys::shelf_header(index)).and_then(|n| attr(&n, "class").map(str::to_string)),
+            Some("_defaultStyles_a1b9da9 _headers_44301eb".to_string())
+        );
+        assert!(
+            titles
+                .iter()
+                .any(|n| n.text.as_deref() == Some("More Albums by Bonobo")),
+            "{titles:?}"
+        );
+        let view_all = node(&keys::shelf_view_all(index)).expect("View all");
+        assert_eq!(attr(&view_all, "data-test"), Some("view-all-link"));
+        assert_eq!(
+            view_all.parent.as_deref(),
+            Some(keys::shelf_view_all_spacer(index).as_str())
+        );
+        // A plugin's words on both are drawn.
+        plugin_dom::test_overlay(Some(DomOverlay {
+            version: 2,
+            hosts: [
+                (keys::PAGE_QUALITY.to_string(), "높음"),
+                (related.key.clone(), "연관 아티스트"),
+            ]
+            .into_iter()
+            .map(|(k, w)| {
+                (
+                    k,
+                    HostOverride {
+                        text: Some(w.to_string()),
+                        ..HostOverride::default()
+                    },
+                )
+            })
+            .collect(),
+            ..DomOverlay::default()
+        }));
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            shapes = tall_plugin_frame(&ctx, &mut app);
+        }
+        plugin_dom::test_overlay(None);
+        let drawn: Vec<String> = shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+                _ => None,
+            })
+            .collect();
+        app.backend.shutdown();
+        assert!(drawn.iter().any(|d| d == "높음"), "{drawn:?}");
+        assert!(drawn.iter().any(|d| d == "연관 아티스트"), "{drawn:?}");
+    }
+
     /// One frame of `app` in a tall window (every shelf of Home in view),
     /// with the anchor tree sent at its end.
     fn tall_plugin_frame(ctx: &egui::Context, app: &mut App) -> Vec<egui::epaint::ClippedShape> {
