@@ -693,6 +693,9 @@
 		// whether one of those looks at siblings: all an inline style
 		// change can reach beyond its element and what is inside it.
 		const hasStyleSteps = [];
+		// Each of those compounds whole, `:has(...)` and all: whether an
+		// element it may match does is what a change inside it can turn.
+		const hasWhole = [];
 		let styleSiblings = false;
 		const hasIn = (c) => c.pseudos.some((p) => p.name === "has" || (p.list ?? []).some((x) => x.steps.some((st) => hasIn(st.c))));
 		const attrNames = new Set();
@@ -754,6 +757,7 @@
 									// div:has(...)` on a div of the list) keeps its cascade.
 									const step = [...sel.steps.slice(0, j), { ...st, c: { ...st.c, pseudos: [] } }];
 									hasSteps.push(step);
+									hasWhole.push(sel.steps.slice(0, j + 1));
 									if (readsStyle) hasStyleSteps.push(step);
 								}
 					for (const sel of list) {
@@ -812,7 +816,7 @@
 		}
 		if (skipped && !warnedCss) L.callOp("log", { plugin: null, level: "warn", msg: `${skipped} style sheet(s) left out: plugin and theme CSS is capped at ${MAX_CSS_BYTES >> 20} MB` });
 		warnedCss = skipped > 0;
-		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, hover, hoverSiblings, hoverHas, hoverSubjects, styleAttr, structural, siblingSubjects: [...siblingSubjects.values()].sort((a, b) => b.deep - a.deep), hasSiblings, empty, hasSteps, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
+		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, hover, hoverSiblings, hoverHas, hoverSubjects, styleAttr, structural, siblingSubjects: [...siblingSubjects.values()].sort((a, b) => b.deep - a.deep), hasSiblings, empty, hasSteps, hasWhole, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
 		return index;
 	};
 	// `@keyframes` body -> [[offset 0..1, Map name -> value]], sorted.
@@ -896,8 +900,19 @@
 	let memoStyleGen = -1;
 	let memoStructGen = -1;
 	let memoHoverGen = -1;
+	// What the `:has(...)` compounds answered for an element (see `up` in
+	// cascade) when its cascade or the last change inside it was matched:
+	// what every cascade kept in its subtree was matched under. Forgotten
+	// with the subtree's cascades.
+	let hasAnswers = new WeakMap();
+	const answersOf = (ix, x) => {
+		let answers = "";
+		for (let i = 0; i < ix.hasSteps.length; i++) if (D.sel.matchSteps(x, ix.hasSteps[i], null)) answers += D.sel.matchSteps(x, ix.hasWhole[i], null) ? `${i}+` : `${i}-`;
+		return answers;
+	};
 	const forgetSubtree = (n) => {
 		memo.delete(n);
+		hasAnswers.delete(n);
 		pmemo.delete(n);
 		for (const c of n.childNodes ?? []) forgetSubtree(c);
 	};
@@ -924,6 +939,7 @@
 			D.cascadeResets = (D.cascadeResets ?? 0) + 1;
 			memo = new WeakMap();
 			pmemo = new WeakMap();
+			hasAnswers = new WeakMap();
 			memoIx = ix;
 			memoGen = D.domGen();
 			memoStyleGen = D.styleGen();
@@ -967,10 +983,17 @@
 			}
 			if (ix.hasSteps.length) {
 				const done = new Set();
+				// An ancestor a `:has` compound may match is matched again only
+				// when what the compound answers for it turned: a song's tags,
+				// a rating, any row a scroll brings in was a whole row matched
+				// again under scroll-to-playing's `[aria-rowindex]:has(a[href*=...])`.
 				const up = (a) => {
 					for (let x = a; x instanceof g.Element && !done.has(x); x = x.parentElement) {
 						done.add(x);
-						if (ix.hasSteps.some((st) => D.sel.matchSteps(x, st, null))) forgetSubtree(x);
+						const answers = answersOf(ix, x);
+						if (!answers || hasAnswers.get(x) === answers) continue;
+						forgetSubtree(x);
+						hasAnswers.set(x, answers);
 					}
 				};
 				for (const n of inserted) up(n.parentElement);
@@ -1015,6 +1038,10 @@
 		const out = cascadeNow(ix, el);
 		if (L.stat) L.stat("css: cascade one", t0);
 		memo.set(el, out);
+		if (ix.hasSteps.length && !hasAnswers.has(el)) {
+			const answers = answersOf(ix, el);
+			if (answers) hasAnswers.set(el, answers);
+		}
 		return out;
 	};
 	const cascadeNow = (ix, el) => {

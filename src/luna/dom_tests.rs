@@ -7036,6 +7036,126 @@ R.done = true;
     finish(luna, dir);
 }
 
+/// A node put into or taken out of an element a `:has(...)` compound may
+/// match leaves the cascades inside that element as they were when the
+/// compound's answer for it stays the same (a rating or tags added to each
+/// row a scroll brings in matched every row again under scroll-to-playing's
+/// `[aria-rowindex]:has(a[href*="/track/..."])`), and follows the answer
+/// when it turns; whatever a script does, the cascades kept are the ones a
+/// fresh match gives.
+#[test]
+fn a_change_inside_a_has_subject_keeps_its_cascades_while_the_answer_stays() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = `
+[aria-rowindex]:has(a[href*="/track/7"]) span { color: rgb(1, 2, 3); }
+[aria-rowindex]:has(a[href*="/track/7"]) { background-color: rgb(4, 5, 6); }
+.t li:has(> .e) i { margin-left: 1px; }
+.t div:has(.y):first-child b { opacity: 0.5; }
+.t .h:has(.c.x) .x { padding-top: 2px; }
+.t :not(:has(.a)) > u { width: 3px; }
+.t span { color: rgb(7, 7, 7); }
+`;
+document.head.append(st);
+// A list of rows, one of them playing.
+const list = document.createElement("div");
+list.className = "t";
+document.body.append(list);
+for (let i = 0; i < 30; i++) {
+	const row = document.createElement("div");
+	row.setAttribute("aria-rowindex", String(i));
+	row.innerHTML = `<div><a href="/track/${i}">t</a></div><div><span>a</span><span>b</span></div><div><span>c</span></div>`;
+	list.append(row);
+}
+const rows = [...list.children];
+const color = (e) => getComputedStyle(e).color;
+R.before = color(rows[7].querySelector("span"));
+for (const e of list.querySelectorAll("*")) color(e);
+// A plugin's rating in each row: only what it adds is matched.
+let runs = D.cascadeRuns ?? 0;
+for (const row of rows) {
+	const s = document.createElement("span");
+	s.className = "rating";
+	row.lastElementChild.append(s);
+	color(s);
+}
+for (const row of rows) for (const s of row.querySelectorAll("span")) color(s);
+R.ratingRuns = (D.cascadeRuns ?? 0) - runs;
+// The playing row's link changes: its row is matched again.
+rows[7].querySelector("a").setAttribute("href", "/track/70");
+R.stillPlaying = color(rows[7].querySelector("span"));
+rows[7].querySelector("a").setAttribute("href", "/track/x");
+R.after = color(rows[7].querySelector("span"));
+const link = document.createElement("a");
+link.setAttribute("href", "/track/7");
+rows[3].firstElementChild.append(link);
+R.added = color(rows[3].querySelector("span"));
+link.remove();
+R.removed = color(rows[3].querySelector("span"));
+// Anything else a script does: what is kept is what a fresh match gives.
+let seed = 5;
+const rnd = (n) => {
+	seed = (seed * 1103515245 + 12345) % 2147483648;
+	return seed % n;
+};
+const TAGS = ["div", "li", "b", "u", "span", "i", "a"];
+const CLS = ["a", "b", "c", "e", "x", "y", "h"];
+const make = () => {
+	const e = document.createElement(TAGS[rnd(TAGS.length)]);
+	for (const c of CLS) if (rnd(4) === 0) e.classList.add(c);
+	if (e.localName === "a") e.setAttribute("href", `/track/${rnd(2) ? 7 : 8}`);
+	return e;
+};
+const els = () => [list, ...list.querySelectorAll("*")];
+const show = (m) => (m ? JSON.stringify([...m]) : "null");
+let checks = 0;
+let differ = 0;
+for (let step = 0; step < 200; step++) {
+	const all = els();
+	const pick = () => all[rnd(all.length)];
+	const what = rnd(5);
+	const e = pick();
+	if (what === 0) e.append(make());
+	else if (what === 1) {
+		const p = pick();
+		p.insertBefore(make(), p.childNodes[rnd(p.childNodes.length + 1)] ?? null);
+	} else if (what === 2 && e !== list) e.remove();
+	else if (what === 3 && e !== list) {
+		const p = pick();
+		if (!e.contains(p)) p.insertBefore(e, p.firstChild);
+	} else if (what === 4) e.classList.toggle(CLS[rnd(CLS.length)]);
+	if (els().length > 400) for (const k of [...list.children].slice(0, 3)) k.remove();
+	for (const x of els()) {
+		checks++;
+		const kept = show(D.cascadeOf(x, false));
+		const fresh = show(D.cascadeOf(x, true));
+		if (kept !== fresh) {
+			differ++;
+			R.first ??= `step ${step}: <${x.localName} class="${x.className}"> kept ${kept}, fresh ${fresh}`;
+		}
+	}
+	if (step % 10 === 9) await new Promise((r) => setTimeout(r, 0));
+}
+R.checks = checks;
+R.differ = differ;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 60, |r| r["done"] == json!(true));
+    assert_eq!(r["before"], json!("rgb(1, 2, 3)"), "{r}");
+    // Thirty ratings, each matched once; not thirty rows of elements.
+    assert!(r["ratingRuns"].as_u64().unwrap() <= 40, "{r}");
+    assert_eq!(r["stillPlaying"], json!("rgb(1, 2, 3)"), "{r}");
+    assert_eq!(r["after"], json!("rgb(7, 7, 7)"), "{r}");
+    assert_eq!(r["added"], json!("rgb(1, 2, 3)"), "{r}");
+    assert_eq!(r["removed"], json!("rgb(7, 7, 7)"), "{r}");
+    assert!(r["checks"].as_u64().unwrap() > 10_000, "{r}");
+    assert_eq!(r["differ"], json!(0), "{r}");
+    finish(luna, dir);
+}
+
 /// The hovered element taken out of the document (the row under the
 /// pointer scrolled away) takes `:hover` from the elements that held it as
 /// it goes, as in a browser: whatever a script does to the nodes and
