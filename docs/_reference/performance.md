@@ -1697,6 +1697,46 @@ element, the text and the attribute values), which would need the tree's
 strings shared between frames; a frame's `Frame` is cloned once a send
 (about 50 us) to know the next frame is the same.
 
+## Plugins, speed round 21: overlay builds with eighteen plugins (2026-10-30)
+
+Remeasured with the 18 plugins of round 17 (release demo build, the large
+playlist, TidalEQ's prompt refused, the runtime's own statistics,
+`TIDALFAST_LUNA_STATS`). In the busiest ten seconds of the Luna thread
+(the page's first rows arriving) an overlay build took 200 ms and matched
+about 830 of the page's 920 elements every time. Two causes:
+
+- **A `:has` rule named every `div`.** radiant-lyrics' `[data-test=now-playing-lyrics]
+  > div:has(...)` was kept for the cascade as the bare compound `div`, so
+  each row a scroll brought in forgot the cascade of every `div` above it:
+  the list's whole subtree. The rule's own left side is kept now, so an
+  ancestor it does not reach keeps its cascade; one it reaches still
+  follows what is inside it. The kept-against-fresh test of round 48 has
+  `:has` rules with a bare tag and a context added, 36,000 comparisons,
+  none different.
+- **The hosts whose text can be selected** (a plugin's `user-select` rule
+  turns this on) walked each host's whole chain of ancestors. Each
+  element up the tree is asked once a build now; a test compares the set
+  with each host's own walk.
+
+| Ten seconds, 18 plugins | Before | After |
+| --- | --- | --- |
+| Overlay builds / their time | 16 / 3,203 ms | 24 / 1,526 ms |
+| Time of one build | 200 ms | 64 ms |
+| Elements matched from scratch | 13,302 | 6,115 |
+| Matching the hosts' user-select (inside a build) | about 18 ms | 2 ms |
+
+Not explained, and open: during the scripted playlist scroll with 18
+plugins the Luna thread uses a full core (2.03 s of processor time in
+every 2 s, before and after these changes), yet its own loop statistics
+count only 10 to 23 % of that as busy and the thread reconciles 11 host
+trees in ten seconds against 1,377 with no plugins (where the two figures
+agree, 96 %). Sampling the thread's instruction pointer puts 98 % of it in
+the executable's own code, in one 500 kB region (the JavaScript engine's)
+and not in a wait. The cycles of the window were therefore the same
+before and after (32.5 and 35 G in 8 s); the next step is a call-stack
+profile of that thread during the scroll, not another change to the
+overlay build.
+
 ## Findings and decisions
 
 - **Luna's work follows changes, not the page.** With Luna on, a pass made
