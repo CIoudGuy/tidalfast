@@ -7272,6 +7272,117 @@ R.done = true;
     finish(luna, dir);
 }
 
+/// The rules an element's own tag, id, classes and attributes rule out
+/// are worked out once for each kind of element, not tried on each: every
+/// element of a row a scroll brought in tried the twenty-odd
+/// `[class*=...]` rules a theme or plugin writes, each failing on the
+/// element itself. Whatever the elements and their attributes, an element
+/// gets the rules `matches` says it matches.
+#[test]
+fn rules_an_elements_own_attributes_rule_out_are_not_tried_on_each() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+let seed = 3;
+const rnd = (n) => {
+	seed = (seed * 1103515245 + 12345) % 2147483648;
+	return seed % n;
+};
+const SELS = [];
+for (let i = 0; i < 30; i++) SELS.push(`[class*="_zz${i}_"]`);
+SELS.push(
+	'[class^="_row"]',
+	'[class$="cell"]',
+	'[class~="b"]',
+	'[class|="lead"]',
+	'[class="a b"]',
+	'[class*="X" i]',
+	'div[data-k]',
+	'[data-k="1"]',
+	'[data-k^="2"] span',
+	'span[data-v*="q"]',
+	'[DATA-K="3"]',
+	'[style*="red"]',
+	'[style]',
+	'a[href$=".mp3"]',
+	':is(span, b)[data-v]',
+	'b:not([data-v="q"])',
+	'#one',
+	'#one.a',
+	'li.a.b',
+	'._row_1234567',
+	'[role="row"] [data-k]:first-child',
+	':where(.a)[data-v="xq"]',
+);
+const st = document.createElement("style");
+st.textContent = SELS.map((s, i) => `${s} { --r${i}: 1; }`).join("\n");
+document.head.append(st);
+const TAGS = ["div", "span", "b", "li", "a"];
+const CLASSES = ["a", "b", "a b", "_row_1234567 cell", "_rowx", "lead-in", "_zz3_ x", "Xy", "", "_zz17_"];
+const make = () => {
+	const e = document.createElement(TAGS[rnd(TAGS.length)]);
+	const c = CLASSES[rnd(CLASSES.length)];
+	if (c) e.setAttribute("class", c);
+	if (rnd(3) === 0) e.setAttribute("data-k", String(rnd(4)));
+	if (rnd(3) === 0) e.setAttribute("data-v", ["q", "xq", "z"][rnd(3)]);
+	if (rnd(5) === 0) e.setAttribute("id", "one");
+	if (rnd(6) === 0) e.setAttribute("role", "row");
+	if (rnd(6) === 0) e.style.color = ["red", "blue"][rnd(2)];
+	if (e.localName === "a" && rnd(2)) e.setAttribute("href", rnd(2) ? "/x.mp3" : "/y");
+	return e;
+};
+const box = document.createElement("div");
+document.body.append(box);
+for (let i = 0; i < 300; i++) {
+	const all = [box, ...box.querySelectorAll("*")];
+	all[rnd(all.length)].append(make());
+}
+// Many elements of one kind: each tries what its kind leaves.
+const same = [];
+for (let i = 0; i < 50; i++) {
+	const e = document.createElement("div");
+	e.setAttribute("class", "plain k");
+	box.append(e);
+	same.push(e);
+}
+const tried = D.candidatesTried ?? 0;
+for (const e of same) D.cascadeOf(e, true);
+R.perElement = ((D.candidatesTried ?? 0) - tried) / same.length;
+let checks = 0;
+let differ = 0;
+for (let step = 0; step < 10; step++) {
+	for (const e of box.querySelectorAll("*")) {
+		const got = D.cascadeOf(e, true);
+		for (let i = 0; i < SELS.length; i++) {
+			checks++;
+			if ((got?.has(`--r${i}`) ?? false) !== e.matches(SELS[i])) {
+				differ++;
+				R.first ??= `${SELS[i]} on ${e.outerHTML.slice(0, 120)}: cascade ${got?.has(`--r${i}`)}`;
+			}
+		}
+	}
+	const all = [...box.querySelectorAll("*")];
+	for (let k = 0; k < 30; k++) {
+		const e = all[rnd(all.length)];
+		const what = rnd(4);
+		if (what === 0) e.setAttribute("class", CLASSES[rnd(CLASSES.length)]);
+		else if (what === 1) e.setAttribute("data-k", String(rnd(4)));
+		else if (what === 2) e.style.color = ["red", "blue"][rnd(2)];
+		else e.append(make());
+	}
+}
+R.checks = checks;
+R.differ = differ;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 30, |r| r["done"] == json!(true));
+    assert!(r["perElement"].as_f64().unwrap() < 5.0, "{r}");
+    assert!(r["checks"].as_u64().unwrap() > 100_000, "{r}");
+    assert_eq!(r["differ"], json!(0), "{r}");
+    finish(luna, dir);
+}
+
 /// A rule whose selector list has `:hover` in only some of its selectors
 /// (radiant-lyrics' `.rl-wbw-word.rl-wbw-word-hover, .rl-wbw-word:hover`)
 /// restyles only what the pointer's move reaches, as one without the

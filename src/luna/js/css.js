@@ -717,6 +717,17 @@
 		let styleSiblings = false;
 		const hasIn = (c) => c.pseudos.some((p) => p.name === "has" || (p.list ?? []).some((x) => x.steps.some((st) => hasIn(st.c))));
 		const attrNames = new Set();
+		// The attributes read by the compounds rules end in, the `:has`
+		// compounds and the sibling subjects, and of those the ones whose
+		// value they test (see `kindOf`).
+		const ownAttrs = new Set();
+		const ownValued = new Set();
+		const ownReads = (c) => {
+			for (const a of c.attrs) {
+				ownAttrs.add(a.name.toLowerCase());
+				if (a.op !== null) ownValued.add(a.name.toLowerCase());
+			}
+		};
 		// The custom properties some declaration reads (`var(--x)`, in a rule,
 		// a pseudo-element's rule or a keyframe): setting one no rule reads
 		// changes no element's style.
@@ -802,6 +813,7 @@
 							p.size++;
 						}
 						const entry = { steps, spec: sel.spec, order: order++, decls, pluginOnly };
+						if (!last.pe) ownReads(steps.at(-1).c);
 						const key = keyOf(last);
 						if (!key) ix.any.push(entry);
 						else if (key[0] === "root") ix.root.push(entry);
@@ -854,9 +866,11 @@
 			}
 			walk(sh.cssRules);
 		}
+		for (const st of hasSteps) ownReads(st.at(-1).c);
+		for (const x of siblingSubjects.values()) ownReads(x.steps[0].c);
 		if (skipped && !warnedCss) L.callOp("log", { plugin: null, level: "warn", msg: `${skipped} style sheet(s) left out: plugin and theme CSS is capped at ${MAX_CSS_BYTES >> 20} MB` });
 		warnedCss = skipped > 0;
-		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, initials, hover, hoverSiblings, hoverHas, hoverSubjects, styleAttr, structural, siblingSubjects: [...siblingSubjects.values()].sort((a, b) => b.deep - a.deep), hasSiblings, empty, hasSteps, hasWhole, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
+		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, initials, hover, hoverSiblings, hoverHas, hoverSubjects, styleAttr, structural, siblingSubjects: [...siblingSubjects.values()].sort((a, b) => b.deep - a.deep), hasSiblings, empty, hasSteps, hasWhole, hasStyleSteps, styleSiblings, attrNames, ownAttrs, ownValued, varNames, bytes, size: order, pseudo, userSelect };
 		return index;
 	};
 	// `@keyframes` body -> [[offset 0..1, Map name -> value]], sorted.
@@ -927,6 +941,52 @@
 		return out;
 	};
 
+	// What an element's own tag, id, classes and attributes decide of the
+	// compounds rules end in, the `:has` compounds and the sibling
+	// subjects (pseudo-classes and what is round the element are matched
+	// after), worked out once for each kind of element: all those
+	// compounds read is in the kind's key (the attributes they name, with
+	// their values where one is tested). A row's every element tried some
+	// 20 `[class*=...]` rules a theme or plugin writes, and every ancestor
+	// of a change each `:has` compound, each failing on the element itself.
+	let kinds = new Map();
+	let kindsIx = null;
+	const kindOf = (ix, el) => {
+		if (kindsIx !== ix) {
+			kinds = new Map();
+			kindsIx = ix;
+		}
+		let key = `${el.localName}\u0001${el._attrs.get("id") ?? ""}\u0001${el._attrs.get("class") ?? ""}\u0001${el._style?.length && !el._attrs.has("style") ? 1 : 0}${el === g.document.documentElement ? "\u0001root" : ""}`;
+		for (const [k, v] of el._attrs) {
+			const lk = k.toLowerCase();
+			if (lk !== "id" && lk !== "class" && ix.ownAttrs.has(lk)) key += ix.ownValued.has(lk) ? `\u0001${k}=${v}` : `\u0001${k}`;
+		}
+		if (ix.ownAttrs.has("style")) key += `\u0002${el.getAttribute("style") ?? ""}`;
+		let kind = kinds.get(key);
+		if (!kind) {
+			if (kinds.size >= 20000) kinds.clear();
+			kind = { cands: null, has: null, sib: undefined };
+			kinds.set(key, kind);
+		}
+		return kind;
+	};
+	// The candidates of `el` its own tag, id, classes and attributes allow.
+	const kindCandidates = (ix, el) => {
+		const kind = kindOf(ix, el);
+		return (kind.cands ??= candidates(ix, el).filter((r) => D.sel.ownTest(el, r.steps.at(-1).c)));
+	};
+	// The `:has` compounds (their indexes) those allow.
+	const kindHas = (ix, el) => {
+		const kind = kindOf(ix, el);
+		return (kind.has ??= ix.hasSteps.flatMap((st, i) => (D.sel.ownTest(el, st.at(-1).c) ? [i] : [])));
+	};
+	// The first sibling subject that matches `el` (deep ones first), or null.
+	const kindSibling = (ix, el) => {
+		const kind = kindOf(ix, el);
+		if (kind.sib === undefined) kind.sib = ix.siblingSubjects.find((x) => D.sel.ownTest(el, x.steps[0].c)) ?? null;
+		return kind.sib;
+	};
+
 	// ---------------------------------------------------------------- cascade
 	// The winning declarations of `el`: Map name -> value (unresolved).
 	// Cascades by element, good while the document and the index stay as
@@ -947,9 +1007,10 @@
 	let hasAnswers = new WeakMap();
 	const answersOf = (ix, x) => {
 		let answers = "";
+		const asked = kindHas(ix, x);
 		// Counted for the tests that check what a change asks.
-		D.hasAnswerTests = (D.hasAnswerTests ?? 0) + ix.hasSteps.length;
-		for (let i = 0; i < ix.hasSteps.length; i++) if (D.sel.matchSteps(x, ix.hasSteps[i], null)) answers += D.sel.matchSteps(x, ix.hasWhole[i], null) ? `${i}+` : `${i}-`;
+		D.hasAnswerTests = (D.hasAnswerTests ?? 0) + asked.length;
+		for (const i of asked) if (D.sel.matchSteps(x, ix.hasSteps[i], null)) answers += D.sel.matchSteps(x, ix.hasWhole[i], null) ? `${i}+` : `${i}-`;
 		return answers;
 	};
 	// (`into`: a set that collects what was forgotten.)
@@ -1019,7 +1080,7 @@
 					for (const c of p.childNodes ?? []) {
 						if (!(c instanceof g.Element)) continue;
 						// Deep subjects come first: the first that matches decides.
-						const s = ix.siblingSubjects.find((x) => D.sel.matchSteps(c, x.steps, null));
+						const s = kindSibling(ix, c);
 						if (s?.deep) forgetSubtree(c, gone);
 						else if (s) {
 							memo.delete(c);
@@ -1098,7 +1159,7 @@
 		// Counted for the tests that check what a change keeps.
 		D.cascadeRuns = (D.cascadeRuns ?? 0) + 1;
 		const live = el.isConnected;
-		const tried = ix.size ? candidates(ix, el) : [];
+		const tried = ix.size ? kindCandidates(ix, el) : [];
 		// The rules matched against an element, counted for the same tests.
 		D.candidatesTried = (D.candidatesTried ?? 0) + tried.length;
 		const matched = tried.filter((r) => !(r.pluginOnly && el._hostKey !== undefined) && (!live || D.sel.ancestorsMayMatch(el, r.steps)) && D.sel.matchSteps(el, r.steps, null, live));

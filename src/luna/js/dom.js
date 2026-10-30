@@ -2734,6 +2734,14 @@
 		D.selectorWalks = (D.selectorWalks ?? 0) + 1;
 		return after(e, last);
 	};
+	// What an element's own tag, id, classes and attributes say of a
+	// compound (its pseudo-classes left out).
+	const owns = new WeakMap();
+	const ownTest = (e, c) => {
+		let own = owns.get(c);
+		if (!own) owns.set(c, (own = c.pseudos.length ? { ...c, pseudos: [] } : c));
+		return compoundTest(e, own, null);
+	};
 	const selCache = new Map();
 	const compileList = (sel) => {
 		sel = String(sel);
@@ -2752,7 +2760,7 @@
 		return l;
 	};
 	const matchesList = (e, list, scope) => list.some((x) => matchSteps(e, x.steps, scope));
-	D.sel = { parse: parseSelectors, compile: compileList, matches: matchesList, matchSteps, cmpSpec, SelErr, classToken, ancestorsMayMatch };
+	D.sel = { parse: parseSelectors, compile: compileList, matches: matchesList, matchSteps, cmpSpec, SelErr, classToken, ancestorsMayMatch, ownTest };
 	// The element descendants of `root` in document order, until `fn`
 	// answers true (then true). A loop with its own stack: a recursive
 	// generator costs a step per level for every element it yields, and
