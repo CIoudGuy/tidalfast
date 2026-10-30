@@ -1521,6 +1521,23 @@ review pass of the compatibility audit.
 
 ### Plugin rounds
 
+- **Plugin round 25 (2026-10-30).** A behaviour round after the speed
+  rounds. All 59 checked plugins were compared with TIDAL 2.47.0 and
+  TidaLuna 1.20.0-beta, each recorded afresh: no plugin got worse through
+  rounds 17 to 24, 49 of 59 at full parity on the bare records. The stores
+  are unchanged and TIDAL's bundle changed only in its build id. Fixed for
+  every plugin, each with a test that fails without it: an artist's page
+  and the search filters are TIDAL's elements. The page now has the
+  header's pills and captioned buttons (`[data-test=header-controls-wrapper]`,
+  `play-all`, `shuffle-all`, `favorite-button`, `mix-button`, `share-button`,
+  `more-button`), its shelves' `ARTIST_*` modules, Top Tracks' heading with
+  View all, the fan count (`follow-text-button`) and the biography's
+  paragraphs (`[data-test=biography] p`); the search page its
+  `[data-test=search-pills]` with `search-pill-*`. A plugin's words on them
+  are the words drawn and one it hides goes, so translators and text
+  plugins reach them (korean-translation 59 to 68 %, uwu-ifier 25 to 31 %).
+  Not elements yet: the pinned artist header's buttons, search results'
+  rows and top hits, and the track rows' buttons on an artist's page.
 - **Plugin round 18 (2026-10-30).** TIDAL's side of the checker recorded
   again in TIDAL 2.47.0 with TidaLuna 1.20.0-beta for round 17's eighteen
   plugins and TidalDJ, with an artist page and a search page added. Fixed
