@@ -5146,11 +5146,12 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .attr("aria-pressed", p.shuffle.to_string()),
     );
     out.push(titled(
-        button(PREVIOUS, "previous", "Previous", p.rect(P::Previous)),
+        button(PREVIOUS, "previous", "Previous", p.rect(P::Previous)).class("_skipButton_abe89ff"),
         "Previous",
     ));
     out.push(
         el(PLAY_WRAP, Some(CONTROLS), "div")
+            .class("_playButton_3afff86")
             .modules(&["playButtonWrapper"])
             .at(p.rect(P::Play)),
     );
@@ -5164,7 +5165,7 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
         ..play
     });
     out.push(titled(
-        button(NEXT, "next", "Next", p.rect(P::Next)),
+        button(NEXT, "next", "Next", p.rect(P::Next)).class("_skipButton_abe89ff"),
         "Next",
     ));
     out.push(

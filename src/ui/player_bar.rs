@@ -1384,7 +1384,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         // `button[aria-label="Play"] { background-color }`): a rounded box
         // behind the glyph, which takes the theme's colour on it. Nothing
         // changes without such a fill.
-        let ink = plugin_dom::bar_icon(keys::PLAY);
+        let ink = play_ink();
         let (bright, hover) = match plugin_dom::on().then(|| plugin_dom::fill(keys::PLAY)) {
             Some(Some(fill)) => {
                 let side = 32.0_f32.min(disc.width()).min(disc.height());
@@ -1982,6 +1982,15 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     let spacing = ui.spacing().item_spacing.x;
     let all: f32 = after.widths.iter().filter(|w| **w > 0.0).sum();
     (after.natives + all - spacing).max(0.0)
+}
+
+/// A theme's colour for the play glyph: the `svg`'s fill, else the button's
+/// `color`, which TIDAL's glyph takes (the Cotton Candy Nights family's
+/// `._playButton_ button { color }`).
+pub(crate) fn play_ink() -> Option<Color32> {
+    plugin_dom::on()
+        .then(|| plugin_dom::bar_icon(keys::PLAY).or_else(|| plugin_dom::color(keys::PLAY)))
+        .flatten()
 }
 
 /// A utility button's cell inside its [`UtilityBoxes`] box.

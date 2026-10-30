@@ -159,3 +159,20 @@ fn the_badges_words_and_box_take_a_themes_rules_as_tidals_do() {
     assert!(!flat.boxed, "{flat:?}");
     pd::test_overlay(None);
 }
+
+/// TIDAL's play glyph is `fill: currentColor`, so a theme's colour for the
+/// button colours it (the Cotton Candy Nights family's
+/// `._playButton_ button { color }`).
+#[test]
+fn a_themes_colour_for_the_play_button_colours_its_glyph() {
+    use crate::ui::player_bar::play_ink;
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::PLAY;
+    let css = r#"/* {"name": "Play ink"} */
+._playButton_3afff86 button { color: rgb(40, 50, 60); }
+"#;
+    let o = overlay_with("play-ink.css", css, &dom_anchors::sample_frame(), PLAY);
+    pd::test_overlay(Some((*o).clone()));
+    assert_eq!(play_ink(), Some(egui::Color32::from_rgb(40, 50, 60)));
+    pd::test_overlay(None);
+}
