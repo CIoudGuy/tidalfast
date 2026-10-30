@@ -709,6 +709,11 @@
 		// Each of those compounds whole, `:has(...)` and all: whether an
 		// element it may match does is what a change inside it can turn.
 		const hasWhole = [];
+		// Each one once: scroll-to-playing writes the same
+		// `[role="row"]:has(a[href*=...])` for each of a dozen subjects, and
+		// every ancestor of every row a scroll brought in was asked each.
+		const hasSeen = new Set();
+		const hasStyleSeen = new Set();
 		let styleSiblings = false;
 		const hasIn = (c) => c.pseudos.some((p) => p.name === "has" || (p.list ?? []).some((x) => x.steps.some((st) => hasIn(st.c))));
 		const attrNames = new Set();
@@ -772,9 +777,17 @@
 									// ancestor its left side does not reach (`.lyrics >
 									// div:has(...)` on a div of the list) keeps its cascade.
 									const step = [...sel.steps.slice(0, j), { ...st, c: { ...st.c, pseudos: [] } }];
-									hasSteps.push(step);
-									hasWhole.push(sel.steps.slice(0, j + 1));
-									if (readsStyle) hasStyleSteps.push(step);
+									const whole = sel.steps.slice(0, j + 1);
+									const key = JSON.stringify(whole);
+									if (!hasSeen.has(key)) {
+										hasSeen.add(key);
+										hasSteps.push(step);
+										hasWhole.push(whole);
+									}
+									if (readsStyle && !hasStyleSeen.has(key)) {
+										hasStyleSeen.add(key);
+										hasStyleSteps.push(step);
+									}
 								}
 					for (const sel of list) {
 						const last = sel.steps.at(-1).c;
@@ -934,14 +947,18 @@
 	let hasAnswers = new WeakMap();
 	const answersOf = (ix, x) => {
 		let answers = "";
+		// Counted for the tests that check what a change asks.
+		D.hasAnswerTests = (D.hasAnswerTests ?? 0) + ix.hasSteps.length;
 		for (let i = 0; i < ix.hasSteps.length; i++) if (D.sel.matchSteps(x, ix.hasSteps[i], null)) answers += D.sel.matchSteps(x, ix.hasWhole[i], null) ? `${i}+` : `${i}-`;
 		return answers;
 	};
-	const forgetSubtree = (n) => {
+	// (`into`: a set that collects what was forgotten.)
+	const forgetSubtree = (n, into) => {
 		memo.delete(n);
 		hasAnswers.delete(n);
 		pmemo.delete(n);
-		for (const c of n.childNodes ?? []) forgetSubtree(c);
+		into?.add(n);
+		for (const c of n.childNodes ?? []) forgetSubtree(c, into);
 	};
 	// Writes a declaration so the map's order is the cascade's: a property
 	// written again moves to the end (a Map keeps a key's first place), and
@@ -992,7 +1009,9 @@
 			const inserted = D.takeInserted();
 			const detached = D.takeDetached();
 			const reshaped = D.takeReshaped();
-			for (const n of inserted) forgetSubtree(n);
+			// What this pass forgot whole (with all inside it).
+			const gone = ix.hasSteps.length ? new Set() : undefined;
+			for (const n of inserted) forgetSubtree(n, gone);
 			if (ix.structural) {
 				const parents = new Set(reshaped);
 				if (ix.empty) for (const p of reshaped) if (p.parentNode) parents.add(p.parentNode);
@@ -1001,7 +1020,7 @@
 						if (!(c instanceof g.Element)) continue;
 						// Deep subjects come first: the first that matches decides.
 						const s = ix.siblingSubjects.find((x) => D.sel.matchSteps(c, x.steps, null));
-						if (s?.deep) forgetSubtree(c);
+						if (s?.deep) forgetSubtree(c, gone);
 						else if (s) {
 							memo.delete(c);
 							pmemo.delete(c);
@@ -1014,9 +1033,13 @@
 				// when what the compound answers for it turned: a song's tags,
 				// a rating, any row a scroll brings in was a whole row matched
 				// again under scroll-to-playing's `[aria-rowindex]:has(a[href*=...])`.
+				// One this pass forgot whole has nothing kept to forget: its
+				// cascade asks again (the ancestors inside a new row were each
+				// asked every `:has` compound).
 				const up = (a) => {
 					for (let x = a; x instanceof g.Element && !done.has(x); x = x.parentElement) {
 						done.add(x);
+						if (gone.has(x)) continue;
 						const answers = answersOf(ix, x);
 						if (!answers || hasAnswers.get(x) === answers) continue;
 						forgetSubtree(x);

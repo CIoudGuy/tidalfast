@@ -2326,7 +2326,8 @@
 							else if (name === "-webkit-slider-thumb" || name === "-moz-range-thumb") c.peName = "thumb";
 						}
 					} else if (name === "not" || name === "is" || name === "where" || name === "matches" || name === "any") c.pseudos.push({ name: name === "not" ? "not" : name === "where" ? "where" : "is", list: parseSelectors(arg ?? "") });
-					else if (name === "has") c.pseudos.push({ name, list: parseSelectors(arg ?? "", true) });
+					// `key`: the argument as written; the same one gives the same answer.
+					else if (name === "has") c.pseudos.push({ name, list: parseSelectors(arg ?? "", true), key: `:has(${arg ?? ""})` });
 					else if (name.startsWith("nth-")) c.pseudos.push({ name, nth: parseNth(arg ?? "") });
 					else if (name === "scope") c.scope = true;
 					else c.pseudos.push({ name, arg });
@@ -2598,8 +2599,12 @@
 				// (Only in the document: a detached tree changes silently.)
 				let m = e.isConnected ? hasMemo.get(e) : new Map();
 				if (!m) hasMemo.set(e, (m = new Map()));
-				let hit = m.get(p);
+				// (By the argument: scroll-to-playing repeats one in a dozen
+				// selectors, and each searched the row again.)
+				let hit = m.get(p.key ?? p);
 				if (hit === undefined) {
+					// Counted for the tests that check what is searched.
+					D.hasSearches = (D.hasSearches ?? 0) + 1;
 					hit = p.list.some((x) => {
 						const test = (cnd) => matchSteps(cnd, x.steps, e);
 						if (x.steps[1]?.comb === "+" || x.steps[1]?.comb === "~") {
@@ -2608,7 +2613,7 @@
 						}
 						return someDescendant(e, test);
 					});
-					m.set(p, hit);
+					m.set(p.key ?? p, hit);
 				}
 				return hit;
 			}

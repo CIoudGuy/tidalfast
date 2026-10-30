@@ -7156,6 +7156,122 @@ R.done = true;
     finish(luna, dir);
 }
 
+/// Each `:has(...)` compound is asked once of an element, however many
+/// selectors repeat it (scroll-to-playing writes the same
+/// `[role="row"]:has(a[href*=...])` for a dozen subjects), and not of the
+/// elements inside a subtree the same change brought in (their cascades
+/// ask it when they are matched): every ancestor of every row a scroll
+/// brought in was asked each repeat, and each repeat searched the row.
+/// Whatever a script does, the cascades kept are the ones a fresh match
+/// gives.
+#[test]
+fn rows_brought_in_ask_each_has_compound_once() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+let css = "";
+for (const t of ["a", "span", "b", "i", "u", "div", "li", "em"]) {
+	css += `[aria-rowindex]:has(a[href*="/track/7"]) ${t} { color: rgb(1, 2, 3); }\n`;
+	css += `[role="row"]:has(a[href*="/track/7"]):not(.q) ${t} { background-color: rgb(4, 5, 6); }\n`;
+}
+css += `.t li:has(> .e) i { margin-left: 1px; }\n.t div:has(.y):first-child b { opacity: 0.5; }\n.t span { color: rgb(7, 7, 7); }\n`;
+st.textContent = css;
+document.head.append(st);
+const list = document.createElement("div");
+list.className = "t";
+document.body.append(list);
+const color = (e) => getComputedStyle(e).color;
+// Rows put together after they are in the list, as a renderer may.
+const tests = D.hasAnswerTests ?? 0;
+const searches = D.hasSearches ?? 0;
+for (let i = 0; i < 20; i++) {
+	const row = document.createElement("div");
+	row.setAttribute("aria-rowindex", String(i));
+	row.setAttribute("role", "row");
+	list.append(row);
+	const cell = document.createElement("div");
+	row.append(cell);
+	const inner = document.createElement("div");
+	cell.append(inner);
+	const a = document.createElement("a");
+	a.setAttribute("href", `/track/${i}`);
+	inner.append(a);
+	const s = document.createElement("span");
+	inner.append(s);
+	for (const e of [row, cell, inner, a, s]) color(e);
+}
+R.perRow = ((D.hasAnswerTests ?? 0) - tests) / 20;
+R.searchesPerRow = ((D.hasSearches ?? 0) - searches) / 20;
+R.playing = color(list.children[7].querySelector("span"));
+R.other = color(list.children[3].querySelector("span"));
+let seed = 7;
+const rnd = (n) => {
+	seed = (seed * 1103515245 + 12345) % 2147483648;
+	return seed % n;
+};
+const TAGS = ["div", "li", "b", "u", "span", "i", "a"];
+const CLS = ["a", "b", "c", "e", "x", "y", "q"];
+const make = () => {
+	const e = document.createElement(TAGS[rnd(TAGS.length)]);
+	for (const c of CLS) if (rnd(4) === 0) e.classList.add(c);
+	if (e.localName === "a") e.setAttribute("href", `/track/${rnd(2) ? 7 : 8}`);
+	return e;
+};
+const els = () => [list, ...list.querySelectorAll("*")];
+const show = (m) => (m ? JSON.stringify([...m]) : "null");
+let checks = 0;
+let differ = 0;
+for (let step = 0; step < 150; step++) {
+	const all = els();
+	const pick = () => all[rnd(all.length)];
+	const what = rnd(6);
+	const e = pick();
+	if (what === 0) e.append(make());
+	else if (what === 1) {
+		// A subtree filled in after it is in place.
+		const n = make();
+		e.append(n);
+		n.append(make());
+		n.firstChild.append(make());
+	} else if (what === 2 && e !== list) e.remove();
+	else if (what === 3 && e !== list) {
+		const p = pick();
+		if (!e.contains(p)) p.insertBefore(e, p.firstChild);
+	} else if (what === 4) e.classList.toggle(CLS[rnd(CLS.length)]);
+	else if (what === 5 && e.localName === "a") e.setAttribute("href", `/track/${rnd(2) ? 7 : 9}`);
+	if (els().length > 400) for (const k of [...list.children].slice(0, 3)) k.remove();
+	for (const x of els()) {
+		checks++;
+		const kept = show(D.cascadeOf(x, false));
+		const fresh = show(D.cascadeOf(x, true));
+		if (kept !== fresh) {
+			differ++;
+			R.first ??= `step ${step}: <${x.localName} class="${x.className}"> kept ${kept}, fresh ${fresh}`;
+		}
+	}
+	if (step % 10 === 9) await new Promise((r) => setTimeout(r, 0));
+}
+R.checks = checks;
+R.differ = differ;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 60, |r| r["done"] == json!(true));
+    // Four compounds (two of them repeated for eight subjects each), asked
+    // of the row's five elements and the list's ancestors: not of each
+    // repeat, nor again of the elements inside the row.
+    assert!(r["perRow"].as_f64().unwrap() < 40.0, "{r}");
+    // One search of a row for each argument, not one for each selector
+    // that repeats it.
+    assert!(r["searchesPerRow"].as_f64().unwrap() < 6.0, "{r}");
+    assert_eq!(r["playing"], json!("rgb(1, 2, 3)"), "{r}");
+    assert_eq!(r["other"], json!("rgb(7, 7, 7)"), "{r}");
+    assert!(r["checks"].as_u64().unwrap() > 10_000, "{r}");
+    assert_eq!(r["differ"], json!(0), "{r}");
+    finish(luna, dir);
+}
+
 /// A rule whose selector list has `:hover` in only some of its selectors
 /// (radiant-lyrics' `.rl-wbw-word.rl-wbw-word-hover, .rl-wbw-word:hover`)
 /// restyles only what the pointer's move reaches, as one without the
