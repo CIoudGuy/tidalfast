@@ -4167,18 +4167,30 @@ pub fn track_list(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
                 .at(rect),
         );
     }
-    // TIDAL's virtual list holds each row two boxes down, in a box of its
-    // own after the header: `div > div[k] > div > div._tableRow_`. The
-    // cotton candy family's `div:nth-child(1) > div > div { border-style:
-    // none }` takes the line off the first rendered row only, as in TIDAL.
+    // TIDAL's list holds each row two boxes down, in a box of its own
+    // after the header. An album's rows are all there (TIDAL 2.47.0,
+    // captured): `div._nativeRowWrapper_20e35be > div[data-type=mediaItem]
+    // > div._tableRow_` (Cotton Candy Nights' play button rules are nested
+    // in `[class="_nativeRowWrapper_20e35be"]`, Synthwave '77 outlines
+    // `[data-type="mediaItem"]`); a playlist's virtual list places them,
+    // `div[style] > div[draggable] > div._tableRow_`. The cotton candy
+    // family's `div:nth-child(1) > div > div { border-style: none }` takes
+    // the line off the first rendered row only, as in TIDAL.
     let body = format!("{table}:rows");
     out.push(el(body.clone(), Some(&table), "div").at(list.rect));
     for row in &list.rows {
         let key = keys::row(&list.id, row.index);
         let slot = format!("{key}:slot");
         let inner = format!("{key}:inner");
-        out.push(el(slot.clone(), Some(&body), "div").at(row.rect));
-        out.push(el(inner.clone(), Some(&slot), "div").at(row.rect));
+        let native = list.id.starts_with("album:");
+        let mut wrapper = el(slot.clone(), Some(&body), "div");
+        let mut item = el(inner.clone(), Some(&slot), "div");
+        if native {
+            wrapper = wrapper.class("_nativeRowWrapper_20e35be");
+            item = item.attr("data-type", "mediaItem");
+        }
+        out.push(wrapper.at(row.rect));
+        out.push(item.attr("draggable", "true").at(row.rect));
         track_row(out, &inner, &list.id, row);
     }
 }
