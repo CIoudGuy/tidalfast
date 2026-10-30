@@ -320,6 +320,9 @@ const LOG_PUBLISH: Duration = Duration::from_millis(500);
 /// intervals while each overlay build takes a while) before the messages
 /// waiting get their turn.
 const TICK_BUDGET: Duration = Duration::from_millis(50);
+/// The longest the loop takes messages that keep arriving before the
+/// timers get their turn (see [`TICK_BUDGET`] for the other way round).
+const DRAIN_BUDGET: Duration = Duration::from_millis(50);
 
 fn push_log(logs: &mut VecDeque<LogLine>, level: LogLevel, mut message: String) {
     if logs.len() >= LOG_LINES {
@@ -6147,7 +6150,15 @@ fn run(
                     break;
                 }
                 let mut stop = false;
-                while let Ok(m) = rx.try_recv() {
+                // Input that keeps coming (a frame's tree, scroll and hover
+                // while a list scrolls) is taken for at most DRAIN_BUDGET
+                // before due timers, animation frames and promise jobs get
+                // their turn, as a browser's event loop runs them between
+                // its input tasks; else they wait for the input to stop.
+                let draining = Instant::now();
+                while draining.elapsed() < DRAIN_BUDGET
+                    && let Ok(m) = rx.try_recv()
+                {
                     stats.count(&m);
                     if !engine.handle(m) {
                         stop = true;

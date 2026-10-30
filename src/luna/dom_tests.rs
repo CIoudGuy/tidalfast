@@ -5787,6 +5787,53 @@ R.ready = true;
     finish(luna, dir);
 }
 
+/// Input that keeps arriving (a scrolling list sends a tree, `scroll` and
+/// `hover` every frame) does not hold the plugins' timers back until it
+/// stops: a timer that is due runs between the events, as a browser runs
+/// its timers between input tasks.
+#[test]
+fn a_due_timer_runs_while_input_keeps_arriving() {
+    const EVENTS: u64 = 300;
+    let (luna, _host, dir) = start(
+        r##"
+let heard = 0;
+// Each event holds the thread a little: the queue outruns the listener.
+document.addEventListener("keydown", () => {
+	heard++;
+	const until = Date.now() + 4;
+	while (Date.now() < until);
+});
+document.addEventListener("keyup", () => {
+	setTimeout(() => {
+		R.timerAfter = heard;
+	}, 0);
+});
+R.ready = true;
+"##,
+    );
+    luna.sync_dom(dom_anchors::build(&dom_anchors::sample_frame()));
+    results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
+    luna.sync(Duration::from_secs(10));
+    let event = |kind: &str| DomEvent {
+        target: DomTarget::Host(String::new()),
+        kind: kind.into(),
+        data: json!({}),
+    };
+    // The timer is set by the first event; the rest are queued behind it
+    // at once, faster than the listener takes them.
+    luna.dom_event(event("keyup"));
+    for _ in 0..EVENTS {
+        luna.dom_event(event("keydown"));
+    }
+    let r = results_until(&luna, &dir, 30, |r| r["timerAfter"].is_number());
+    let after = r["timerAfter"].as_u64().unwrap_or(EVENTS);
+    assert!(
+        after < EVENTS / 2,
+        "the timer waited for {after} of {EVENTS} queued events: {r}"
+    );
+    finish(luna, dir);
+}
+
 /// Input that queues up while a plugin holds the thread (a click, then the
 /// right-click) reaches the listeners in order, and the menu the
 /// right-click opens comes after its `contextmenu`, not after the click
