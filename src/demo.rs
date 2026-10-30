@@ -10294,6 +10294,20 @@ mod tests {
         )
     }
 
+    /// A plugin's `display: none` on an anchor.
+    fn hidden_anchor(key: String) -> (String, crate::luna::dom::HostOverride) {
+        (
+            key,
+            crate::luna::dom::HostOverride {
+                style: crate::luna::dom::Style {
+                    display: Some("none".into()),
+                    ..crate::luna::dom::Style::default()
+                },
+                ..crate::luna::dom::HostOverride::default()
+            },
+        )
+    }
+
     /// TIDAL 2.47.0's Top Tracks are a plain table, not its media table
     /// (captured): `table._trackList_a129abb > tbody >
     /// tr[data-test=tracklist-row--selected-false]` with
@@ -10365,6 +10379,108 @@ mod tests {
         for word in ["Twack uwu", "TITWE", "Awbum uwu"] {
             assert!(drawn.iter().any(|(t, _)| t == word), "{word}: {drawn:?}");
         }
+        app.backend.shutdown();
+    }
+
+    /// TIDAL 2.47.0 keeps an artist's pinned header in the page all the time
+    /// (captured): `div._smallHeader_383424b > div[data-test=
+    /// header-controls-scrolled]` with `play-all-scrolled` and
+    /// `shuffle-all-scrolled`, the name in `h2[data-test=title]`. Translators
+    /// and text plugins reach them before it pins, and what they leave is
+    /// drawn when it does. Follow's first match stays the big header's.
+    #[test]
+    fn an_artists_pinned_header_is_tidals_elements_and_words() {
+        use crate::luna::dom_anchors::{attr, keys};
+        let (ctx, mut app) = accessible_app("artist-pinned");
+        app.open(Page::Artist("art0".into()));
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let node = |key: String| tree.nodes.iter().find(|n| n.key == key).cloned();
+        let bar = node(keys::PINNED_ARTIST.to_string()).expect("the pinned header");
+        assert_eq!(attr(&bar, "class"), Some("_smallHeader_383424b"));
+        assert_eq!(bar.rect, None, "out of sight until it pins");
+        let controls = node(keys::PINNED_ARTIST_CONTROLS.to_string()).unwrap();
+        assert_eq!(
+            attr(&controls, "data-test"),
+            Some("header-controls-scrolled")
+        );
+        for (test, words) in [
+            ("play-all-scrolled", "Play"),
+            ("shuffle-all-scrolled", "Shuffle"),
+            ("mix-button", "Artist radio"),
+            ("more-button", "More"),
+        ] {
+            let button = node(keys::pinned_button(test)).unwrap_or_else(|| panic!("{test}"));
+            assert_eq!(attr(&button, "data-test"), Some(test));
+            assert_eq!(
+                node(keys::pinned_button_label(test))
+                    .and_then(|n| n.text)
+                    .as_deref(),
+                Some(words),
+                "{test}"
+            );
+        }
+        let follows =
+            |t: &&crate::luna::dom::HostNode| attr(t, "data-test") == Some("favorite-button");
+        assert_eq!(
+            tree.nodes.iter().find(follows).map(|n| n.key.clone()),
+            Some(keys::page_action("favorite-button")),
+            "the big header's Follow comes first"
+        );
+        crate::ui::plugin_dom::test_overlay(Some(crate::luna::dom::DomOverlay {
+            version: 2,
+            hosts: vec![
+                words_on(keys::pinned_button_label("play-all-scrolled"), "Pway"),
+                words_on(keys::PINNED_ARTIST_TITLE.to_string(), "Awtist"),
+                hidden_anchor(keys::pinned_button("share-button")),
+            ]
+            .into_iter()
+            .collect(),
+            ..crate::luna::dom::DomOverlay::default()
+        }));
+        let page = app.page().clone();
+        let mut shapes = Vec::new();
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1600.0, 900.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                crate::ui::plugin_dom::test_page_frame_for(&page);
+                crate::ui::show(&mut app, ui);
+                let area = ui.max_rect();
+                crate::ui::artist::sticky_header(&mut app, ui, area, "art0", 2000.0);
+            });
+            out.textures_delta.clear();
+            crate::ui::plugin_dom::end_frame(&ctx);
+            shapes = out.shapes;
+        }
+        let pinned = crate::ui::plugin_dom::test_sent_tree().expect("a tree was sent");
+        crate::ui::plugin_dom::test_overlay(None);
+        let drawn: Vec<String> = shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+                _ => None,
+            })
+            .collect();
+        for word in ["Pway", "Awtist"] {
+            assert!(drawn.iter().any(|t| t == word), "{word}: {drawn:?}");
+        }
+        let shown = pinned
+            .nodes
+            .iter()
+            .find(|n| n.key == keys::PINNED_ARTIST)
+            .unwrap();
+        assert!(shown.rect.is_some(), "it has a box while it shows");
+        let share = pinned
+            .nodes
+            .iter()
+            .find(|n| n.key == keys::pinned_button("share-button"))
+            .expect("a button a plugin hid stays described");
+        assert_eq!(share.rect, None);
         app.backend.shutdown();
     }
 

@@ -3560,6 +3560,55 @@ pub fn search_pill(test: &'static str, label: &str, r: Option<Rect>, lit: bool) 
     });
 }
 
+/// An artist's pinned header: its name and its buttons' words, in TIDAL's
+/// order, without boxes (where they are drawn is noted by
+/// [`pinned_artist_bar`] and [`pinned_artist_drawn`]).
+pub fn pinned_artist(title: &str, buttons: &[(&'static str, &str)]) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.pinned_artist = Some(dom_anchors::PinnedArtist {
+                title: title.to_string(),
+                buttons: buttons
+                    .iter()
+                    .map(|(test, label)| dom_anchors::PinnedButton {
+                        test,
+                        label: label.to_string(),
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
+            });
+        }
+    });
+}
+
+/// The pinned header shows: its bar, picture and name.
+pub fn pinned_artist_bar(bar: Rect, cover: Rect, title: Option<Rect>) {
+    note(|f| {
+        if let Some(pinned) = f.page.as_mut().and_then(|p| p.pinned_artist.as_mut()) {
+            pinned.rect = rect(bar);
+            pinned.cover = rect(cover);
+            pinned.title_rect = title.and_then(rect);
+        }
+    });
+}
+
+/// A button of the pinned header was drawn.
+pub fn pinned_artist_drawn(test: &str, r: Rect, icon: Option<Rect>, caption: Option<Rect>) {
+    note(|f| {
+        if let Some(button) = f
+            .page
+            .as_mut()
+            .and_then(|p| p.pinned_artist.as_mut())
+            .and_then(|pinned| pinned.buttons.iter_mut().find(|b| b.test == test))
+        {
+            button.rect = rect(r);
+            button.icon = icon.and_then(rect);
+            button.caption = caption.and_then(rect);
+        }
+    });
+}
+
 /// The label of a header pill as a plugin left it on the pill's DOM label
 /// (a translation plugin), else `native`.
 pub fn pill_label<'a>(primary: bool, native: &'a str) -> Cow<'a, str> {

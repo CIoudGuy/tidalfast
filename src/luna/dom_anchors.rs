@@ -751,6 +751,22 @@ pub mod keys {
     pub fn search_pill_label(test: &str) -> String {
         format!("search-pill:{test}:label")
     }
+    /// An artist's pinned header (`div._smallHeader_383424b`), there as in
+    /// TIDAL whether it is pinned or not: its picture, name and buttons.
+    pub const PINNED_ARTIST: &str = "pinned-artist";
+    pub const PINNED_ARTIST_COVER: &str = "pinned-artist-cover";
+    pub const PINNED_ARTIST_TEXT: &str = "pinned-artist-text";
+    pub const PINNED_ARTIST_TITLE: &str = "pinned-artist-title";
+    pub const PINNED_ARTIST_PRIMARY: &str = "pinned-artist-primary";
+    pub const PINNED_ARTIST_CONTROLS: &str = "pinned-artist-controls";
+    pub const PINNED_ARTIST_OVERFLOW: &str = "pinned-artist-overflow";
+    /// A button of that header, by its `data-test`, and its words.
+    pub fn pinned_button(test: &str) -> String {
+        format!("pinned-artist:{test}")
+    }
+    pub fn pinned_button_label(test: &str) -> String {
+        format!("pinned-artist:{test}:label")
+    }
     /// `row:<list>:<index>`
     pub fn row(list: &str, index: usize) -> String {
         row_key(list, index, None)
@@ -1802,6 +1818,8 @@ pub struct Page {
     pub section_heading: Option<SectionHeading>,
     /// The search filters, as drawn.
     pub search_pills: Vec<SearchPill>,
+    /// An artist's pinned header.
+    pub pinned_artist: Option<PinnedArtist>,
     /// Explore's icon links (`PAGE_LINKS`): each link's box and its words'.
     pub page_links: Vec<(Option<Rect>, Option<Rect>)>,
     /// Explore's rows of pills (genres, moods, decades): each row's box.
@@ -1830,6 +1848,27 @@ pub struct SectionHeading {
     pub title: String,
     pub title_rect: Option<Rect>,
     pub view_all: Option<(String, Option<Rect>)>,
+}
+
+/// An artist's pinned header: boxes only while it shows (TIDAL keeps it in
+/// the page, out of sight, the rest of the time).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PinnedArtist {
+    pub rect: Option<Rect>,
+    pub cover: Option<Rect>,
+    pub title: String,
+    pub title_rect: Option<Rect>,
+    /// In TIDAL's order, More last.
+    pub buttons: Vec<PinnedButton>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PinnedButton {
+    pub test: &'static str,
+    pub label: String,
+    pub rect: Option<Rect>,
+    pub icon: Option<Rect>,
+    pub caption: Option<Rect>,
 }
 
 /// A search filter: `a[data-test=search-pill-<name>]._marketButton_`.
@@ -3873,6 +3912,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         );
     }
     header_actions(out, &page.actions, &markup);
+    pinned_artist_nodes(out, page);
     if let Some(rect) = page.profile_picture {
         out.push(
             el(keys::PROFILE_PIC, Some(PAGE), "div")
@@ -4195,6 +4235,118 @@ fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction], markup: &He
                 .text(a.label.clone())
                 .at(a.caption),
         );
+    }
+}
+
+/// An artist's pinned header (TIDAL 2.47.0, captured): `div._smallHeader_
+/// 383424b` with `img[data-test=cover-art]`, `div._textContainer_a016e4d >
+/// h2[data-test=title]`, an empty `div._primaryButtons_2b378d9` and
+/// `div[data-test=header-controls-scrolled]._buttons_ff12873._scrolled_27b96eb`
+/// holding `div._overflowButtons_bff78b0` with the buttons, More outside it. Play
+/// and Shuffle are `play-all-scrolled` and `shuffle-all-scrolled`, their
+/// words `span._marketText_1lyag_1._paragraph20_1lyag_138`. It comes after
+/// the big header, whose Follow is the first `favorite-button` here too.
+fn pinned_artist_nodes(out: &mut Vec<HostNode>, page: &Page) {
+    use keys::*;
+    let Some(pinned) = &page.pinned_artist else {
+        return;
+    };
+    let parent = if page.artist_header.is_some() {
+        PAGE_ARTIST_HEADER
+    } else {
+        PAGE
+    };
+    let mut header = el(PINNED_ARTIST, Some(parent), "div")
+        .class("_smallHeader_383424b")
+        .at(pinned.rect);
+    if pinned.rect.is_some() {
+        header = header.modules(&["showHeader"]);
+    }
+    out.push(header);
+    out.push(
+        el(PINNED_ARTIST_COVER, Some(PINNED_ARTIST), "img")
+            .class("_image_7ba9b97")
+            .class("_image_145331a")
+            .test("cover-art")
+            .at(pinned.cover),
+    );
+    out.push(
+        el(PINNED_ARTIST_TEXT, Some(PINNED_ARTIST), "div")
+            .class("_textContainer_a016e4d")
+            .at(pinned.title_rect),
+    );
+    out.push(
+        el(PINNED_ARTIST_TITLE, Some(PINNED_ARTIST_TEXT), "h2")
+            .class("_marketText_1lyag_1 _heading20_1lyag_75 _titleText_57f26b9")
+            .test("title")
+            .text(pinned.title.clone())
+            .at(pinned.title_rect),
+    );
+    out.push(
+        el(PINNED_ARTIST_PRIMARY, Some(PINNED_ARTIST), "div").class("_primaryButtons_2b378d9"),
+    );
+    let buttons = pinned.buttons.iter().filter_map(|b| b.rect).reduce(union);
+    out.push(
+        el(PINNED_ARTIST_CONTROLS, Some(PINNED_ARTIST), "div")
+            .class("_buttons_ff12873")
+            .class("_scrolled_27b96eb")
+            .test("header-controls-scrolled")
+            .at(buttons),
+    );
+    let inside = pinned
+        .buttons
+        .iter()
+        .filter(|b| b.test != "more-button")
+        .filter_map(|b| b.rect)
+        .reduce(union);
+    out.push(
+        el(PINNED_ARTIST_OVERFLOW, Some(PINNED_ARTIST_CONTROLS), "div")
+            .class("_overflowButtons_bff78b0")
+            .at(inside),
+    );
+    for b in &pinned.buttons {
+        let key = pinned_button(b.test);
+        let parent = if b.test == "more-button" {
+            PINNED_ARTIST_CONTROLS
+        } else {
+            PINNED_ARTIST_OVERFLOW
+        };
+        let link = b.test == "mix-button";
+        let mut button = el(key.clone(), Some(parent), if link { "a" } else { "button" })
+            .test(b.test)
+            .at(b.rect);
+        button = if link {
+            button.class("_button_b988d60").class("_link_6a45a19")
+        } else {
+            button
+                .class("_button_94c5125")
+                .class("_clean_af1ce7e")
+                .class("_medium_c24bed2")
+                .class("_button_b988d60")
+                .attr("type", "button")
+                .attr("data-type", "button")
+        };
+        out.push(button);
+        out.push(
+            el(format!("{key}:icon"), Some(&key), "svg")
+                .class("_icon_77f3f89")
+                .class("_icon_29252d0")
+                .at(b.icon),
+        );
+        let mut label = el(pinned_button_label(b.test), Some(&key), "span");
+        label = if b.test.ends_with("-scrolled") {
+            label
+                .class("_marketText_1lyag_1")
+                .class("_paragraph20_1lyag_138")
+        } else if link {
+            label
+                .class("_marketText_1lyag_1")
+                .class("_semibold10_1lyag_264")
+                .class("_text_0e64cb5")
+        } else {
+            label.class("_text_0e64cb5")
+        };
+        out.push(label.text(b.label.clone()).at(b.caption));
     }
 }
 

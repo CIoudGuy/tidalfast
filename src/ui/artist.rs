@@ -1636,9 +1636,6 @@ pub fn sticky_header(app: &mut App, ui: &mut egui::Ui, area: Rect, id: &str, scr
         scrolled >= STICKY_AFTER,
         crate::motion::tidal::HEADER,
     );
-    if fade <= 0.0 {
-        return;
-    }
     let Some(artist) = app
         .artist_pages
         .get(id)
@@ -1647,6 +1644,30 @@ pub fn sticky_header(app: &mut App, ui: &mut egui::Ui, area: Rect, id: &str, scr
     else {
         return;
     };
+    // TIDAL keeps this header in the page, out of sight until it pins: its
+    // words are elements for plugins all the time.
+    if super::plugin_dom::on() && app.own_artist_id() != Some(id) {
+        let locale = app.locale;
+        let follow = if app.is_saved(&artist.uri).unwrap_or(false) {
+            pgettext(locale, "artist", "Following")
+        } else {
+            pgettext(locale, "artist", "Follow")
+        };
+        super::plugin_dom::pinned_artist(
+            &artist.name,
+            &[
+                ("play-all-scrolled", gettext(locale, "Play").as_ref()),
+                ("shuffle-all-scrolled", gettext(locale, "Shuffle").as_ref()),
+                ("favorite-button", follow.as_ref()),
+                ("mix-button", gettext(locale, "Artist radio").as_ref()),
+                ("share-button", gettext(locale, "Share").as_ref()),
+                ("more-button", gettext(locale, "More").as_ref()),
+            ],
+        );
+    }
+    if fade <= 0.0 {
+        return;
+    }
     let followers = app
         .artist_pages
         .get(id)
@@ -1715,24 +1736,32 @@ pub fn sticky_header(app: &mut App, ui: &mut egui::Ui, area: Rect, id: &str, scr
     let row = &mut row;
     row.spacing_mut().item_spacing.x = 16.0;
     let art = app.art_px(super::sticky::COVER);
-    widgets::cover(
+    let picture = super::plugin_dom::picture(|| keys::PINNED_ARTIST_COVER);
+    let cover = widgets::cover(
         row,
         &palette,
-        pick_image(&artist.images, art),
+        picture
+            .as_deref()
+            .or_else(|| pick_image(&artist.images, art)),
         super::sticky::COVER,
         super::sticky::COVER / 2.0,
         Icon::User,
     );
+    let mut title_rect = None;
     if fit.text {
         row.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(&artist.name)
-                        .font(theme::bold(20.0))
-                        .color(palette.text),
+            let name = super::plugin_dom::text(keys::PINNED_ARTIST_TITLE, &artist.name);
+            title_rect = Some(
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(name.as_ref())
+                            .font(theme::bold(20.0))
+                            .color(palette.text),
+                    )
+                    .truncate(),
                 )
-                .truncate(),
+                .rect,
             );
             if let Some(count) = followers {
                 ui.add(
@@ -1750,6 +1779,7 @@ pub fn sticky_header(app: &mut App, ui: &mut egui::Ui, area: Rect, id: &str, scr
             }
         });
     }
+    super::plugin_dom::pinned_artist_bar(bar, cover, title_rect);
     let following = app.is_saved(&artist.uri).unwrap_or(false);
     let right_rect = Rect::from_min_max(
         pos2((inner.right() - controls).max(inner.left()), inner.top()),
@@ -1787,34 +1817,29 @@ pub fn sticky_header(app: &mut App, ui: &mut egui::Ui, area: Rect, id: &str, scr
         let ui = &mut right;
         ui.spacing_mut().item_spacing.x = 0.0;
         super::collection::set_button_width(ui, fit.button_width, fit.labels);
-        let more = super::collection::captioned_button(
-            ui,
-            &palette,
-            Icon::Ellipsis,
-            &gettext(locale, "More"),
-        );
-        egui::Popup::menu(&more)
-            .frame(widgets::menu_frame(&palette))
-            .show(|ui| widgets::artist_menu(ui, app, &artist));
-        if fit.share {
-            let share = super::collection::captioned_button(
-                ui,
-                &palette,
-                Icon::Share,
-                &gettext(locale, "Share"),
-            );
+        let button = |ui: &mut egui::Ui, test, icon, caption: &str| {
+            pinned_button(ui, test, icon, caption, palette.text)
+        };
+        if let Some(more) = button(ui, "more-button", Icon::Ellipsis, &gettext(locale, "More")) {
+            egui::Popup::menu(&more)
+                .frame(widgets::menu_frame(&palette))
+                .show(|ui| widgets::artist_menu(ui, app, &artist));
+        }
+        if fit.share
+            && let Some(share) = button(ui, "share-button", Icon::Share, &gettext(locale, "Share"))
+        {
             let opts = super::menus::ShareOpts::for_uri(&artist.uri, false);
             egui::Popup::menu(&share)
                 .frame(widgets::menu_frame(&palette))
                 .show(|ui| super::menus::share_items(ui, app, &artist.uri, &opts));
         }
-        if super::collection::captioned_button(
+        if button(
             ui,
-            &palette,
+            "mix-button",
             Icon::Radio,
             &gettext(locale, "Artist radio"),
         )
-        .clicked()
+        .is_some_and(|r| r.clicked())
         {
             app.actions
                 .push(Action::Open(Page::Radio(artist.uri.clone())));
@@ -1832,32 +1857,27 @@ pub fn sticky_header(app: &mut App, ui: &mut egui::Ui, area: Rect, id: &str, scr
                 palette.text,
             )
         };
-        let follow = super::collection::captioned_button_tinted(ui, icon, &caption, color);
-        let follow = if fit.labels {
-            follow
-        } else {
-            follow.on_hover_text(caption.as_ref())
-        };
-        if follow.clicked() {
+        if pinned_button(ui, "favorite-button", icon, &caption, color).is_some_and(|r| r.clicked())
+        {
             app.actions.push(Action::ToggleSaved(artist.uri.clone()));
         }
-        if super::collection::captioned_button(
+        if button(
             ui,
-            &palette,
+            "shuffle-all-scrolled",
             Icon::Shuffle,
             &gettext(locale, "Shuffle"),
         )
-        .clicked()
+        .is_some_and(|r| r.clicked())
         {
             app.actions.push(Action::ShufflePlay(artist.uri.clone()));
         }
-        if super::collection::captioned_button(
+        if button(
             ui,
-            &palette,
+            "play-all-scrolled",
             Icon::PlayFilled,
             &gettext(locale, "Play"),
         )
-        .clicked()
+        .is_some_and(|r| r.clicked())
         {
             app.actions.push(Action::PlayContext {
                 uri: artist.uri.clone(),
@@ -1867,6 +1887,33 @@ pub fn sticky_header(app: &mut App, ui: &mut egui::Ui, area: Rect, id: &str, scr
         }
         super::collection::clear_button_style(ui);
     }
+}
+
+/// A button of the pinned header, TIDAL's element: a plugin's words are
+/// drawn and one it hides goes.
+fn pinned_button(
+    ui: &mut egui::Ui,
+    test: &'static str,
+    icon: Icon,
+    caption: &str,
+    tint: egui::Color32,
+) -> Option<egui::Response> {
+    let words = super::plugin_dom::text(&keys::pinned_button_label(test), caption);
+    let drawn = super::plugin_dom::anchored(ui, &keys::pinned_button(test), |ui| {
+        let mut drawn = super::collection::captioned_parts(
+            ui,
+            icon,
+            &words,
+            tint,
+            [super::plugin_dom::Shown::Drawn; 2],
+        );
+        if super::collection::icon_only(ui) {
+            drawn.response = drawn.response.on_hover_text(words.as_ref());
+        }
+        drawn
+    })?;
+    super::plugin_dom::pinned_artist_drawn(test, drawn.response.rect, drawn.icon, drawn.caption);
+    Some(drawn.response)
 }
 
 /// A playlist card on the artist page: the playlist and its curator.
