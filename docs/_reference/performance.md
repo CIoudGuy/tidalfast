@@ -1869,6 +1869,53 @@ answers for the ancestors of the rows' changed elements (about 2 % of the
 thread), and hover changes that forget a whole row (up to 2,500 elements
 a window).
 
+## Plugins, speed round 24: what a hover reaches, and what makes a kind (2026-10-30)
+
+Round 23 left the kind key, the `:has` answers of changed elements'
+ancestors, and hover changes that forget whole rows. A probe of the same
+scripted scroll, with the pointer resting over the list, measured each
+by what it counts as well as by time, because the scroll's runs differ a
+lot in how many builds they make.
+
+- **A hover change restyles what its rules can reach.** A `:hover` on the
+  element a selector ends in restyles that element alone (what inherits
+  from it follows in the style walk). `[role="row"]:hover .btn` restyles
+  the row's elements its last compound can match, `.a:hover + .b` and
+  `.a:hover ~ .b` the same in the sibling or siblings after it. Only a
+  `:hover` inside another pseudo-class's argument still forgets
+  everything inside the element. quick-queue's four row selectors forgot
+  both rows each time the pointer crossed one, every cell matched again
+  for a button.
+- **Values that pass the same tests make one kind.** The kind key held
+  the id and every tested attribute's value. TIDAL's `titleCell-123`, the
+  rating stars' ids and each row's `href` and `data-track-id` made nearly
+  every element a scroll brought in a new kind, each worked out again from
+  all the rules. The key now holds which tests a value passes, and an id
+  only when a compound names it.
+
+Making that change showed a mistake in round 23's key: a compound that is
+all `:is(...)` or `:where(...)` of one selector is indexed by that
+selector, and the key did not read it, so `:is([data-x])` could be lost on
+an element sharing a kind with one without the attribute. The key reads
+those compounds now.
+
+| Ten seconds of the scroll, 18 plugins (medians of 3 runs) | Before | After |
+| --- | --- | --- |
+| Elements a hover change forgot (the window it falls in) | 1,200 to 3,300 | 8 to 52 |
+| Kinds worked out while the list scrolls | about 2,800 | 0 or 1 |
+| Matching one element | 113 us | 74 us |
+| Styling one new element (matching and the bookkeeping before it) | 155 us | 112 us |
+
+Build counts swung between 13 and 28 a window in both, so they say nothing
+here. Working out what a hover reaches takes about 0.5 ms a move, against
+the 2 to 3 ms of matching it saves. Measured on one release build that
+loads its JavaScript from a folder, the variants interleaved.
+
+The `:has` answers of changed elements' ancestors were left as they are:
+about 130 ms of a ten-second window both before and after, at most 1.3 %
+of the thread, and skipping them would need the DOM layer to record which
+attribute changed.
+
 ## Findings and decisions
 
 - **Luna's work follows changes, not the page.** With Luna on, a pass made
