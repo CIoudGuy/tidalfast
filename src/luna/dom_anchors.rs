@@ -266,6 +266,24 @@ pub mod keys {
     pub const VOLUME_RANGE: &str = "volume-range";
     pub const MUTE: &str = "mute";
     pub const QUEUE: &str = "queue-button";
+    /// The bar's buttons with their `svg._icon_77f3f89 > use`, which themes
+    /// fill (Tidal Light's, the Cotton Candy Nights family's
+    /// `._icon_77f3f89 { fill }`): button, `svg`, `use`.
+    pub const BAR_ICONS: [(&str, &str, &str); 9] = [
+        (SHUFFLE, "shuffle:icon", "shuffle:icon:use"),
+        (PREVIOUS, "previous:icon", "previous:icon:use"),
+        (PLAY, "play-pause:icon", "play-pause:icon:use"),
+        (NEXT, "next:icon", "next:icon:use"),
+        (REPEAT, "repeat:icon", "repeat:icon:use"),
+        (QUEUE, "queue-button:icon", "queue-button:icon:use"),
+        (SOUND_OUTPUT, "sound-output:icon", "sound-output:icon:use"),
+        (MUTE, "mute:icon", "mute:icon:use"),
+        (
+            MINI_PLAYER,
+            "mini-player-button:icon",
+            "mini-player-button:icon:use",
+        ),
+    ];
     /// The sound output button after the queue's
     /// (`button._soundOutputButton_a6d011c.withBackground[data-test=select-device]`).
     pub const SOUND_OUTPUT: &str = "sound-output";
@@ -5303,6 +5321,10 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .attr("title", "Compact mode")
             .at(p.rect(P::MiniPlayer)),
     );
+    for (button, icon, icon_use) in BAR_ICONS {
+        out.push(el(icon, Some(button), "svg").modules(&["icon"]));
+        out.push(el(icon_use, Some(icon), "use"));
+    }
     // TIDAL 2.46.0's quality badge, the utility container's second child
     // (`div._qualityBadgeContainer_b9ec6fa > a[data-test=quality-badge-*]`,
     // captured; Tidal Tags colours the container). A song whose stream has

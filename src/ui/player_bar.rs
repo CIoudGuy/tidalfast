@@ -1304,7 +1304,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     // color }`) while the control works.
     let themed_glyph = |key: &str| {
         (enabled && plugin_dom::on())
-            .then(|| plugin_dom::color(key))
+            .then(|| plugin_dom::bar_icon(key).or_else(|| plugin_dom::color(key)))
             .flatten()
     };
     let shuffle_color =
@@ -1325,7 +1325,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
             // `._shuffleButton_[aria-checked=true] svg { width: 14px }`.
             if shuffle { 14.0 } else { 16.0 },
             shuffle_color,
-            palette.text,
+            plugin_dom::bar_icon(keys::SHUFFLE).unwrap_or(palette.text),
             &gettext(app.locale, "Shuffle"),
         );
         button.widget_info(|| {
@@ -1344,7 +1344,11 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
 
     // A theme's colour for the skip glyphs (Tidal TUI's `[data-test=next]
     // { color: transparent }` leaves only Play and the clock in TIDAL).
-    let skip_glyph = |key: &str| plugin_dom::on().then(|| plugin_dom::color(key)).flatten();
+    let skip_glyph = |key: &str| {
+        plugin_dom::on()
+            .then(|| plugin_dom::bar_icon(key).or_else(|| plugin_dom::color(key)))
+            .flatten()
+    };
     let previous_slot = slot(1);
     plugin_dom::player_part(PlayerPart::Previous, previous_slot);
     let mut cell = centered(ui, previous_slot, 1);
@@ -1380,6 +1384,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         // `button[aria-label="Play"] { background-color }`): a rounded box
         // behind the glyph, which takes the theme's colour on it. Nothing
         // changes without such a fill.
+        let ink = plugin_dom::bar_icon(keys::PLAY);
         let (bright, hover) = match plugin_dom::on().then(|| plugin_dom::fill(keys::PLAY)) {
             Some(Some(fill)) => {
                 let side = 32.0_f32.min(disc.width()).min(disc.height());
@@ -1389,10 +1394,10 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
                     egui::CornerRadius::same(radius.clamp(0.0, 16.0) as u8),
                     fill,
                 );
-                let ink = plugin_dom::color(keys::PLAY).unwrap_or(bright);
+                let ink = ink.or(plugin_dom::color(keys::PLAY)).unwrap_or(bright);
                 (ink, ink)
             }
-            _ => (bright, palette.text),
+            _ => (ink.unwrap_or(bright), ink.unwrap_or(palette.text)),
         };
         if theme::player_icon_button(
             &mut cell,
@@ -1467,7 +1472,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
             repeat_icon,
             16.0,
             repeat_color,
-            palette.text,
+            plugin_dom::bar_icon(keys::REPEAT).unwrap_or(palette.text),
             &tooltip,
         )
     });
@@ -2035,7 +2040,11 @@ pub(crate) fn progress_fill() -> Option<Color32> {
 /// lays the queue and sound output buttons too.
 pub(crate) fn utility_glyph(key: &str) -> Option<Color32> {
     plugin_dom::on()
-        .then(|| plugin_dom::color(key).or_else(|| plugin_dom::color(keys::MINI_PLAYER)))
+        .then(|| {
+            plugin_dom::bar_icon(key)
+                .or_else(|| plugin_dom::color(key))
+                .or_else(|| plugin_dom::color(keys::MINI_PLAYER))
+        })
         .flatten()
 }
 

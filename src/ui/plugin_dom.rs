@@ -3639,6 +3639,19 @@ pub fn icon_fill(icon: &str, icon_use: &str) -> Option<Color32> {
     fill(icon_use).or_else(|| fill(icon))
 }
 
+/// The colour a theme fills the glyph of the bar's button `key` with: its
+/// `svg`'s, which beats the button's `color` as TIDAL's `fill: currentColor`
+/// gives way to a theme's `fill`. `None` without one.
+pub fn bar_icon(key: &str) -> Option<Color32> {
+    if !on() {
+        return None;
+    }
+    let (_, icon, icon_use) = dom_anchors::keys::BAR_ICONS
+        .iter()
+        .find(|(button, ..)| *button == key)?;
+    icon_fill(icon, icon_use)
+}
+
 /// The colour a theme gives one of the sidebar's icons (`key`, its `svg`):
 /// its `fill`, else its `color`. `None` without one.
 pub fn sidebar_icon(key: &str) -> Option<Color32> {
