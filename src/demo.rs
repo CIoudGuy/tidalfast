@@ -10484,6 +10484,115 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// TIDAL 2.47.0's top results are elements (captured):
+    /// `div[data-test=search-results] ... div[data-test=
+    /// search-results-top-hits] > div[data-test=search-results-top-hit-<id>] >
+    /// ... > article[data-test=list-item-album]`, with the title in
+    /// `a[data-test=grid-item-detail-text-title-link]`, the year in
+    /// `span[data-test=meta-release-date]` and a hidden link that says the
+    /// kind. A plugin's words are drawn; a row it hides goes, with no gap.
+    #[test]
+    fn the_top_results_are_tidals_elements_and_words() {
+        use crate::luna::dom_anchors::{attr, keys};
+        let (ctx, mut app) = accessible_app("search-hits");
+        apply_flags(&mut app, Some("search"), Some("search"));
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let node = |key: String| tree.nodes.iter().find(|n| n.key == key).cloned();
+        assert_eq!(
+            node(keys::SEARCH_RESULTS.to_string())
+                .and_then(|n| attr(&n, "data-test").map(str::to_string))
+                .as_deref(),
+            Some("search-results")
+        );
+        assert_eq!(
+            node(keys::SEARCH_PILLS.to_string()).and_then(|n| n.parent),
+            Some(keys::SEARCH_PILLS_BOX.to_string())
+        );
+        let tests: Vec<&str> = tree
+            .nodes
+            .iter()
+            .filter_map(|n| attr(n, "data-test"))
+            .collect();
+        for test in [
+            "search-results-top",
+            "search-results-top-hits",
+            "cell-cover",
+            "grid-item-detail-text-title-link",
+            "list-item-artist",
+            "list-item-album",
+            "list-item-track",
+            "list-item-playlist",
+            "meta-release-date",
+            "grid-item-meta-item-count",
+            "playlist-creator-text",
+            "grid-item-detail-text-title-artist",
+        ] {
+            assert!(tests.contains(&test), "{test}: {tests:?}");
+        }
+        let hits: Vec<_> = tree
+            .nodes
+            .iter()
+            .filter(|n| {
+                attr(n, "data-test").is_some_and(|t| {
+                    t.starts_with("search-results-top-hit-")
+                        && !t.ends_with("-cell")
+                        && !t.ends_with("-link")
+                }) && attr(n, "class") == Some("_topHit_0cb5475")
+            })
+            .collect();
+        assert!(hits.len() > 2, "{hits:?}");
+        let album = tree
+            .nodes
+            .iter()
+            .find(|n| attr(n, "data-test") == Some("list-item-album"))
+            .unwrap()
+            .key
+            .clone();
+        let index: usize = album.split(':').nth(1).unwrap().parse().unwrap();
+        let part = |name: &str| keys::search_hit_part(index, name);
+        let title = node(part("title")).and_then(|n| n.text).unwrap();
+        assert_eq!(
+            node(part("link-words")).and_then(|n| n.text).as_deref(),
+            Some("album")
+        );
+        let kind = node(part("kind-words")).and_then(|n| n.text).unwrap();
+        let drawn = words_under_plugin(
+            &ctx,
+            &mut app,
+            vec![
+                words_on(part("title"), "Awbum uwu"),
+                words_on(part("kind-words"), "Awbum"),
+                words_on(part("meta"), "1999 uwu"),
+                words_on(part("name:0"), "Awtist"),
+            ],
+        );
+        for word in ["Awbum uwu", "Awbum", "1999 uwu", "Awtist"] {
+            assert!(drawn.iter().any(|(t, _)| t == word), "{word}: {drawn:?}");
+        }
+        assert!(!drawn.iter().any(|(t, _)| *t == title), "{drawn:?}");
+        assert!(!kind.is_empty());
+        let top_of = |drawn: &[(String, egui::Rect)], word: &str| {
+            drawn.iter().find(|(t, _)| t == word).map(|(_, r)| r.top())
+        };
+        let next = node(keys::search_hit_part(index + 1, "title"))
+            .and_then(|n| n.text)
+            .unwrap();
+        let before = top_of(&words_under_plugin(&ctx, &mut app, Vec::new()), &next).unwrap();
+        let hosts = vec![hidden_anchor(keys::search_hit(index))];
+        let drawn = words_under_plugin(&ctx, &mut app, hosts.clone());
+        assert!(!drawn.iter().any(|(t, _)| *t == title), "{drawn:?}");
+        let after = drawn.iter().find(|(t, _)| *t == next).unwrap().1.top();
+        assert!(after < before - 40.0, "{after} after {before}");
+        assert!(
+            tree_under_plugin(&ctx, &mut app, hosts)
+                .nodes
+                .iter()
+                .any(|n| n.key == keys::search_hit(index)),
+            "the hidden row stays described"
+        );
+        app.backend.shutdown();
+    }
+
     /// Home's own title (`div._pageHeader_1d2b3ad > h1._title_2d8da11`,
     /// "Home", which TIDAL's CSS shows only in a narrow window, so it has no
     /// box) and its vibe tabs (`div[data-test=vibe-tab-static|editorial|

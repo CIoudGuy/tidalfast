@@ -3560,6 +3560,21 @@ pub fn search_pill(test: &'static str, label: &str, r: Option<Rect>, lit: bool) 
     });
 }
 
+/// A row of the search page's top results was drawn (`rect: None`: a plugin
+/// hid it).
+pub fn search_hit(hit: dom_anchors::SearchHit) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.search_hits.push(hit);
+        }
+    });
+}
+
+/// A box in the anchors' terms.
+pub fn anchor_rect(r: Rect) -> Option<crate::luna::dom::Rect> {
+    rect(r)
+}
+
 /// An artist's pinned header: its name and its buttons' words, in TIDAL's
 /// order, without boxes (where they are drawn is noted by
 /// [`pinned_artist_bar`] and [`pinned_artist_drawn`]).

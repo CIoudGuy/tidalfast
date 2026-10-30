@@ -742,6 +742,22 @@ pub mod keys {
     pub const PAGE_SECTION_TITLE: &str = "page-section-title";
     pub const PAGE_SECTION_ALL: &str = "page-section-all";
     pub const PAGE_SECTION_ALL_TEXT: &str = "page-section-all-text";
+    /// `div[data-test=search-results]`, the search page's box, down to the
+    /// filters' row and to the top results' list.
+    pub const SEARCH_RESULTS: &str = "search-results";
+    pub const SEARCH_TOP: &str = "search-results-top";
+    pub const SEARCH_HEAD: &str = "search-results-head";
+    pub const SEARCH_PILLS_AREA: &str = "search-pills-area";
+    pub const SEARCH_PILLS_BOX: &str = "search-pills-box";
+    pub const SEARCH_RESULTS_BOX: &str = "search-results-box";
+    pub const SEARCH_HITS: &str = "search-results-top-hits";
+    /// A row of the top results, by its place in the list, and a part of it.
+    pub fn search_hit(index: usize) -> String {
+        format!("search-hit:{index}")
+    }
+    pub fn search_hit_part(index: usize, part: &str) -> String {
+        format!("search-hit:{index}:{part}")
+    }
     /// `div[data-test=search-pills]._searchPills_`, the search filters.
     pub const SEARCH_PILLS: &str = "search-pills";
     /// A search filter, by its `data-test`, and its words.
@@ -1820,6 +1836,8 @@ pub struct Page {
     pub search_pills: Vec<SearchPill>,
     /// An artist's pinned header.
     pub pinned_artist: Option<PinnedArtist>,
+    /// The search page's top results, the rows on screen.
+    pub search_hits: Vec<SearchHit>,
     /// Explore's icon links (`PAGE_LINKS`): each link's box and its words'.
     pub page_links: Vec<(Option<Rect>, Option<Rect>)>,
     /// Explore's rows of pills (genres, moods, decades): each row's box.
@@ -1848,6 +1866,34 @@ pub struct SectionHeading {
     pub title: String,
     pub title_rect: Option<Rect>,
     pub view_all: Option<(String, Option<Rect>)>,
+}
+
+/// A row of the search page's top results.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SearchHit {
+    /// Its place in the list.
+    pub index: usize,
+    /// TIDAL's id of the item.
+    pub id: String,
+    /// `artist`, `track`, `album`, `playlist` or `video`.
+    pub kind: &'static str,
+    /// `None`: a plugin hid the row.
+    pub rect: Option<Rect>,
+    pub image: Option<Rect>,
+    pub title: String,
+    pub title_rect: Option<Rect>,
+    pub href: String,
+    pub explicit: bool,
+    /// The song's or album's quality (`audio-quality--LOSSLESS`).
+    pub quality: Option<String>,
+    /// The kind in words, the line's first ("Album"); none on an artist.
+    pub kind_words: Option<String>,
+    /// The names after it, with where they lead.
+    pub names: Vec<(String, Option<String>)>,
+    pub detail_rect: Option<Rect>,
+    /// The line under them: a year, a track count, a length.
+    pub meta: Option<String>,
+    pub meta_rect: Option<Rect>,
 }
 
 /// An artist's pinned header: boxes only while it shows (TIDAL keeps it in
@@ -3454,7 +3500,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     }
     artist_meta_nodes(out, page);
     section_heading_nodes(out, page);
-    search_pill_nodes(out, page);
+    search_nodes(out, page);
     // Shelves: `._feed_ > div > ._cardContainer_092d53a` on the home page
     // (`_cardContainer_8d57d95` elsewhere), the row themes space with
     // `column-gap`, `margin-bottom` and `padding-top` and dim the covers of
@@ -4505,20 +4551,320 @@ fn section_heading_nodes(out: &mut Vec<HostNode>, page: &Page) {
     }
 }
 
-/// The search filters (TIDAL 2.47.0, captured): `div[data-test=search-pills]
-/// ._searchPills_039e9e7 > a[data-test=search-pill-<name>]._marketButton_
-/// ._small_ > span._label_`.
-fn search_pill_nodes(out: &mut Vec<HostNode>, page: &Page) {
-    if page.search_pills.is_empty() {
+/// The search page (TIDAL 2.47.0, captured): `div[data-test=search-results]
+/// ._resultsPageWrapper_9e61f8e.search-results > div[data-test=search-results-top]`
+/// holding the filters' row and the results.
+fn search_nodes(out: &mut Vec<HostNode>, page: &Page) {
+    use keys::*;
+    if page.search_pills.is_empty() && page.search_hits.is_empty() {
         return;
     }
-    let row = page
+    let pills = page
         .search_pills
         .iter()
         .filter_map(|p| p.rect)
         .reduce(union);
+    let hits = page.search_hits.iter().filter_map(|h| h.rect).reduce(union);
+    let all = pills.into_iter().chain(hits).reduce(union);
     out.push(
-        el(keys::SEARCH_PILLS, Some(keys::PAGE), "div")
+        el(SEARCH_RESULTS, Some(PAGE), "div")
+            .test("search-results")
+            .class("_resultsPageWrapper_9e61f8e")
+            .class("search-results")
+            .at(all),
+    );
+    out.push(
+        el(SEARCH_TOP, Some(SEARCH_RESULTS), "div")
+            .test("search-results-top")
+            .at(all),
+    );
+    out.push(
+        el(SEARCH_HEAD, Some(SEARCH_TOP), "div")
+            .class("_container_711d272")
+            .at(pills),
+    );
+    out.push(
+        el(SEARCH_PILLS_AREA, Some(SEARCH_HEAD), "div")
+            .class("_pillsScrollArea_beede44")
+            .at(pills),
+    );
+    out.push(el(SEARCH_PILLS_BOX, Some(SEARCH_PILLS_AREA), "div"));
+    search_pill_nodes(out, page, pills);
+    if page.search_hits.is_empty() {
+        return;
+    }
+    out.push(
+        el(SEARCH_RESULTS_BOX, Some(SEARCH_TOP), "div")
+            .class("_resultsContainer_029905a")
+            .at(hits),
+    );
+    out.push(
+        el(SEARCH_HITS, Some(SEARCH_RESULTS_BOX), "div")
+            .test("search-results-top-hits")
+            .class("_container_ca7c764")
+            .at(hits),
+    );
+    for hit in &page.search_hits {
+        search_hit_nodes(out, hit);
+    }
+}
+
+/// A row of the top results (TIDAL 2.47.0, captured):
+/// `div[data-test=search-results-top-hit-<id>]._topHit_0cb5475 >
+/// div._fullWidth_4ed2f04 > span[data-test=search-results-top-hit-<id>-cell] >
+/// article[data-test=list-item-<kind>]._cell_00209c9._cellContainer_af71977`
+/// with the cover's box and `div._cellTextContainer_16f1dce`; after the
+/// `div._fullWidth_`, a hidden link that says the kind. An artist's picture
+/// sits in `div.css-gbkia9`, any other in `div.css-1tk08rl`.
+fn search_hit_nodes(out: &mut Vec<HostNode>, hit: &SearchHit) {
+    use keys::*;
+    let part = |name: &str| search_hit_part(hit.index, name);
+    let root = search_hit(hit.index);
+    let test = format!("search-results-top-hit-{}", hit.id);
+    out.push(
+        el(root.clone(), Some(SEARCH_HITS), "div")
+            .test(&test)
+            .class("_topHit_0cb5475")
+            .at(hit.rect),
+    );
+    out.push(
+        el(part("full"), Some(&root), "div")
+            .class("_fullWidth_4ed2f04")
+            .at(hit.rect),
+    );
+    out.push(
+        el(part("cell"), Some(&part("full")), "span")
+            .test(&format!("{test}-cell"))
+            .attr("data-type", "cell")
+            .at(hit.rect),
+    );
+    out.push(
+        el(part("article"), Some(&part("cell")), "article")
+            .test(&format!("list-item-{}", hit.kind))
+            .class("_cell_00209c9")
+            .class("_cellContainer_af71977")
+            .at(hit.rect),
+    );
+    // The cover: boxes of TIDAL's design system down to the link.
+    out.push(
+        el(part("geometry"), Some(&part("article")), "div")
+            .class("tidal-ui__geometry")
+            .class("css-kb5cm1")
+            .at(hit.image),
+    );
+    out.push(
+        el(part("cover"), Some(&part("geometry")), "a")
+            .class("_cellContainer_c39825b")
+            .class("_link_6a45a19")
+            .test("cell-cover")
+            .attr("role", "group")
+            .attr("aria-label", hit.title.clone())
+            .attr("href", hit.href.clone())
+            .at(hit.image),
+    );
+    out.push(
+        el(part("image-box"), Some(&part("cover")), "div")
+            .class("tidal-ui__geometry")
+            .class("css-4d6l5a")
+            .at(hit.image),
+    );
+    out.push(
+        el(part("image-inner"), Some(&part("image-box")), "div")
+            .class("css-16luxag")
+            .at(hit.image),
+    );
+    out.push(
+        el(part("image-cell"), Some(&part("image-inner")), "div")
+            .class(if hit.kind == "artist" {
+                "css-gbkia9"
+            } else {
+                "css-1tk08rl"
+            })
+            .at(hit.image),
+    );
+    out.push(
+        el(part("img"), Some(&part("image-cell")), "img")
+            .class("_cellImage_0ef8dd3")
+            .class("_image_145331a")
+            .at(hit.image),
+    );
+    out.push(
+        el(part("hover"), Some(&part("cover")), "div")
+            .class("fx-hover-controls")
+            .class("_fxHoverControls_cb86dc6")
+            .at(hit.image),
+    );
+    out.push(
+        el(part("play"), Some(&part("hover")), "button")
+            .class("_noPadding_9cb3eea")
+            .class("_iconButton_4b3ed40")
+            .class("_notCircleIcon_dad7d82")
+            .test("play-button")
+            .attr("aria-label", "Play")
+            .attr("title", "Play")
+            .attr("data-type", "button__play"),
+    );
+    out.push(
+        el(part("text"), Some(&part("article")), "div")
+            .class("_cellTextContainer_16f1dce")
+            .at(hit.title_rect),
+    );
+    out.push(
+        el(part("title-grid"), Some(&part("text")), "div")
+            .class("_cellDefaultTextGrid_dc16263")
+            .at(hit.title_rect),
+    );
+    out.push(
+        el(part("title-link"), Some(&part("title-grid")), "a")
+            .class("_link_6a45a19")
+            .test("grid-item-detail-text-title-link")
+            .attr("aria-label", hit.title.clone())
+            .attr("title", hit.title.clone())
+            .attr("href", hit.href.clone())
+            .at(hit.title_rect),
+    );
+    out.push(
+        el(part("title-box"), Some(&part("title-link")), "div")
+            .class("_titleContainer_7908df3")
+            .at(hit.title_rect),
+    );
+    let quality = format!(
+        "audio-quality--{}",
+        hit.quality.as_deref().unwrap_or("undefined")
+    );
+    out.push(
+        el(part("title"), Some(&part("title-box")), "span")
+            .class("wave-text-description-demi")
+            .class(&quality)
+            .class("_title_e58df15")
+            .text(hit.title.clone())
+            .at(hit.title_rect),
+    );
+    if hit.explicit {
+        out.push(
+            el(part("explicit"), Some(&part("title-box")), "i")
+                .class("_badge_57d1ccb _badge_4b2a5b6 _explicitBadge_b93510b")
+                .test("explicit-badge")
+                .attr("title", "Explicit"),
+        );
+    }
+    search_hit_detail(out, hit);
+    out.push(
+        el(part("spacer"), Some(&part("text")), "div")
+            .class("tidal-ui__spacer")
+            .class("css-1jh7os")
+            .at(hit.meta_rect),
+    );
+    out.push(
+        el(part("meta-box"), Some(&part("spacer")), "div")
+            .class("_metaContainer_3980a6e")
+            .at(hit.meta_rect),
+    );
+    if let Some(meta) = &hit.meta {
+        let mut line = el(part("meta"), Some(&part("meta-box")), "span")
+            .class("wave-text-capital-demi")
+            .class("meta-title");
+        match hit.kind {
+            "album" => line = line.test("meta-release-date"),
+            "playlist" => line = line.test("grid-item-meta-item-count"),
+            _ => {}
+        }
+        out.push(line.text(meta.clone()).at(hit.meta_rect));
+    }
+    out.push(el(part("buttons"), Some(&part("article")), "div").class("_buttonContainer_18edbb9"));
+    out.push(
+        el(part("link"), Some(&root), "a")
+            .class("_link_222030a")
+            .class("_link_6a45a19")
+            .class("_disableUnderline_8e517ad")
+            .test(&format!("{test}-link"))
+            .attr("href", hit.href.clone()),
+    );
+    out.push(
+        el(part("link-words"), Some(&part("link")), "span")
+            .class("_visuallyHidden_af361da")
+            .text(hit.kind),
+    );
+}
+
+/// The line under a row's title. A song's or album's: `div._detailContainer_`
+/// in `span._cellDefaultTextGrid_ > span._descriptionText_`, with the kind, a
+/// dot and the artists; a playlist's holds the kind itself, then the dot and
+/// `span[data-test=playlist-creator-text]`; a video's only the artists; an
+/// artist's is empty.
+fn search_hit_detail(out: &mut Vec<HostNode>, hit: &SearchHit) {
+    use keys::*;
+    let part = |name: &str| search_hit_part(hit.index, name);
+    let grid = el(part("kind"), Some(&part("text")), "span")
+        .class("wave-text-description-medium")
+        .class("_cellDefaultTextGrid_dc16263")
+        .at(hit.detail_rect);
+    let description = |parent: &str| {
+        el(part("description"), Some(parent), "span")
+            .class("wave-text-description-demi")
+            .class("_descriptionText_f6de630")
+            .at(hit.detail_rect)
+    };
+    if hit.kind == "playlist" {
+        out.push(grid.text(hit.kind_words.clone().unwrap_or_default()));
+        out.push(el(part("dot"), Some(&part("kind")), "span").text("·"));
+        out.push(description(&part("kind")));
+        out.push(el(part("names"), Some(&part("description")), "span"));
+        if let Some((name, _)) = hit.names.first() {
+            out.push(
+                el(part("name:0"), Some(&part("names")), "span")
+                    .class("playlist-creator")
+                    .class("_artistCreatorText_b699bdf")
+                    .test("playlist-creator-text")
+                    .text(name.clone()),
+            );
+        }
+        return;
+    }
+    out.push(grid);
+    if hit.kind == "artist" {
+        out.push(description(&part("kind")).class("_artistCellDetail_cc0ea7c"));
+        return;
+    }
+    out.push(description(&part("kind")));
+    let mut parent = part("description");
+    if hit.kind != "video" {
+        out.push(
+            el(part("detail"), Some(&parent), "div")
+                .class("detailHighlightCell")
+                .class("_detailContainer_bdc1262")
+                .at(hit.detail_rect),
+        );
+        parent = part("detail");
+        out.push(
+            el(part("kind-words"), Some(&parent), "span")
+                .text(hit.kind_words.clone().unwrap_or_default()),
+        );
+        out.push(el(part("dot"), Some(&parent), "span").text("·"));
+    }
+    out.push(el(part("names"), Some(&parent), "span"));
+    out.push(el(part("names-link"), Some(&part("names")), "span").class("artist-link"));
+    for (i, (name, href)) in hit.names.iter().enumerate() {
+        let mut link = el(part(&format!("name:{i}")), Some(&part("names-link")), "a")
+            .class("_item_39605ae")
+            .class("_link_6a45a19")
+            .test("grid-item-detail-text-title-artist")
+            .attr("aria-label", name.clone())
+            .attr("title", name.clone())
+            .text(name.clone());
+        if let Some(href) = href {
+            link = link.attr("href", href.clone());
+        }
+        out.push(link);
+    }
+}
+
+/// The search filters (TIDAL 2.47.0, captured): `div[data-test=search-pills]
+/// ._searchPills_039e9e7 > a[data-test=search-pill-<name>]._marketButton_
+/// ._small_ > span._label_`.
+fn search_pill_nodes(out: &mut Vec<HostNode>, page: &Page, row: Option<Rect>) {
+    out.push(
+        el(keys::SEARCH_PILLS, Some(keys::SEARCH_PILLS_BOX), "div")
             .test("search-pills")
             .class("_searchPills_039e9e7")
             .at(row),

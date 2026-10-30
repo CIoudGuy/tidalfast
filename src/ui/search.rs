@@ -440,6 +440,11 @@ fn recent(app: &mut App, ui: &mut egui::Ui) {
 
 /// What a TIDAL top-results row shows and does.
 struct ResultRow<'a> {
+    /// The item's id and TIDAL's word for its kind (`list-item-<kind>`).
+    id: String,
+    kind_id: &'static str,
+    /// A song's quality, for the title's `audio-quality--<quality>`.
+    quality: Option<String>,
     image: Option<String>,
     round: bool,
     title: &'a str,
@@ -599,6 +604,9 @@ fn all(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
     for (index, (_, row)) in rows.iter().enumerate() {
         let spec = match row {
             ResultRowOwned::Artist(artist) => ResultRow {
+                id: artist.id.clone(),
+                kind_id: "artist",
+                quality: None,
                 image: pick_image(&artist.images, art).map(str::to_string),
                 round: true,
                 title: &artist.name,
@@ -613,6 +621,9 @@ fn all(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
                 menu: RowMenu::Artist(artist),
             },
             ResultRowOwned::Album(album) => ResultRow {
+                id: album.id.clone(),
+                kind_id: "album",
+                quality: None,
                 image: pick_image(&album.images, art).map(str::to_string),
                 round: false,
                 title: &album.name,
@@ -631,6 +642,9 @@ fn all(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
                 menu: RowMenu::Album(album),
             },
             ResultRowOwned::Track(track) | ResultRowOwned::Upload(track) => ResultRow {
+                id: super::plugin_dom::uri_id(&track.uri),
+                kind_id: "track",
+                quality: track.audio_quality.clone(),
                 image: track.image(art).map(str::to_string),
                 round: false,
                 title: &track.name,
@@ -666,6 +680,9 @@ fn all(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
                 menu: RowMenu::Track(track),
             },
             ResultRowOwned::Playlist(playlist) => ResultRow {
+                id: playlist.id.clone(),
+                kind_id: "playlist",
+                quality: None,
                 image: pick_image(&playlist.images, art).map(str::to_string),
                 round: false,
                 title: &playlist.name,
@@ -686,6 +703,9 @@ fn all(app: &mut App, ui: &mut egui::Ui, results: &SearchResults) {
                 menu: RowMenu::Playlist(playlist),
             },
             ResultRowOwned::Video(video) => ResultRow {
+                id: video.id.clone(),
+                kind_id: "video",
+                quality: None,
                 image: pick_image(&video.images, art).map(str::to_string),
                 round: false,
                 title: &video.name,
@@ -720,6 +740,18 @@ enum ResultRowOwned {
 /// an album's year in capitals. The text block starts at the image's top
 /// for three lines, 8 down for two and 18 for the name alone.
 fn result_row(app: &mut App, ui: &mut egui::Ui, index: usize, row: ResultRow<'_>) {
+    use crate::luna::dom_anchors::keys;
+    let luna = super::plugin_dom::on();
+    let part = |name: &str| keys::search_hit_part(index, name);
+    // TIDAL's row is elements: a plugin's words are drawn and a row it hides
+    // goes, leaving no gap.
+    if luna
+        && (super::plugin_dom::hidden(&keys::search_hit(index))
+            || super::plugin_dom::hidden(&part("article")))
+    {
+        super::plugin_dom::search_hit(hit_of(index, &row, None, None, None, None, None));
+        return;
+    }
     let palette = app.palette;
     let secondary = egui::Color32::from_rgb(0xaf, 0xaf, 0xb6);
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 80.0), Sense::click());
@@ -737,10 +769,11 @@ fn result_row(app: &mut App, ui: &mut egui::Ui, index: usize, row: ResultRow<'_>
         );
     }
     let image = Rect::from_min_size(rect.min + vec2(8.0, 8.0), Vec2::splat(64.0));
+    let picture = super::plugin_dom::picture(|| part("img"));
     widgets::paint_cover(
         ui,
         &palette,
-        row.image.as_deref(),
+        picture.as_deref().or(row.image.as_deref()),
         image,
         if row.round { 32.0 } else { 3.0 },
         if row.round { Icon::User } else { Icon::Music },
@@ -769,6 +802,16 @@ fn result_row(app: &mut App, ui: &mut egui::Ui, index: usize, row: ResultRow<'_>
     let left = image.right() + 16.0;
     let width = (rect.right() - 60.0 - left).max(0.0);
     let line_rect = |y: f32| Rect::from_min_size(pos2(left, y), vec2(width, 20.0));
+    let title_rect = line_rect(y);
+    let mut detail_rect = None;
+    let mut meta_rect = None;
+    let say = |name: &str, native: &str| -> String {
+        if luna {
+            super::plugin_dom::text(&part(name), native).into_owned()
+        } else {
+            native.to_string()
+        }
+    };
     {
         let mut child = ui.new_child(
             egui::UiBuilder::new()
@@ -782,7 +825,12 @@ fn result_row(app: &mut App, ui: &mut egui::Ui, index: usize, row: ResultRow<'_>
         } else {
             palette.text
         };
-        theme::text(&mut child, row.title, theme::semibold(14.0), ink);
+        theme::text(
+            &mut child,
+            say("title", row.title),
+            theme::semibold(14.0),
+            ink,
+        );
         if row.explicit {
             widgets::explicit_badge(&mut child, &palette);
         }
@@ -796,6 +844,7 @@ fn result_row(app: &mut App, ui: &mut egui::Ui, index: usize, row: ResultRow<'_>
     }
     y += 20.0;
     if let Some(kind) = &row.kind {
+        detail_rect = Some(line_rect(y));
         let mut child = ui.new_child(
             egui::UiBuilder::new()
                 .max_rect(line_rect(y))
@@ -804,12 +853,18 @@ fn result_row(app: &mut App, ui: &mut egui::Ui, index: usize, row: ResultRow<'_>
         child.set_clip_rect(line_rect(y).intersect(ui.clip_rect()));
         child.spacing_mut().item_spacing.x = 0.0;
         let font = theme::semibold(14.0);
-        theme::text(&mut child, kind, font.clone(), secondary);
+        let kind_part = if row.kind_id == "playlist" {
+            "kind"
+        } else {
+            "kind-words"
+        };
+        theme::text(&mut child, say(kind_part, kind), font.clone(), secondary);
         theme::text(&mut child, "  ·  ", font.clone(), secondary);
         for (position, (name, page)) in row.names.iter().enumerate() {
             if position > 0 {
                 theme::text(&mut child, ", ", font.clone(), secondary);
             }
+            let name = say(&format!("name:{position}"), name);
             match page {
                 Some(page) => {
                     if theme::link(&mut child, name, font.clone(), secondary).clicked() {
@@ -817,16 +872,17 @@ fn result_row(app: &mut App, ui: &mut egui::Ui, index: usize, row: ResultRow<'_>
                     }
                 }
                 None => {
-                    theme::text(&mut child, name, font.clone(), secondary);
+                    theme::text(&mut child, &name, font.clone(), secondary);
                 }
             }
         }
         y += 28.0;
     }
     if let Some(meta) = &row.meta {
+        meta_rect = Some(Rect::from_min_size(pos2(left, y), vec2(width, 16.0)));
         let mut job = egui::text::LayoutJob::default();
         job.append(
-            &meta.to_uppercase(),
+            &say("meta", &meta.to_uppercase()),
             0.0,
             egui::TextFormat {
                 font_id: theme::semibold(10.0),
@@ -838,6 +894,17 @@ fn result_row(app: &mut App, ui: &mut egui::Ui, index: usize, row: ResultRow<'_>
         let galley = ui.painter().layout_job(job);
         let top = y + (16.0 - galley.size().y) / 2.0;
         ui.painter().galley(pos2(left, top), galley, secondary);
+    }
+    if luna {
+        super::plugin_dom::search_hit(hit_of(
+            index,
+            &row,
+            Some(rect),
+            Some(image),
+            Some(title_rect),
+            detail_rect,
+            meta_rect,
+        ));
     }
     if response.clicked() {
         match row.action {
@@ -862,6 +929,46 @@ fn result_row(app: &mut App, ui: &mut egui::Ui, index: usize, row: ResultRow<'_>
             RowMenu::None => ui.close(),
         });
     theme::focus_ring(ui, &response);
+}
+
+/// What a row's elements say. The boxes are `None` for a row a plugin hid.
+fn hit_of(
+    index: usize,
+    row: &ResultRow<'_>,
+    rect: Option<Rect>,
+    image: Option<Rect>,
+    title: Option<Rect>,
+    detail: Option<Rect>,
+    meta: Option<Rect>,
+) -> crate::luna::dom_anchors::SearchHit {
+    use super::plugin_dom::anchor_rect;
+    let href = |page: &Page| match page {
+        Page::Artist(id) => format!("/artist/{id}"),
+        Page::Album(id) => format!("/album/{id}"),
+        Page::Playlist(id) => format!("/playlist/{id}"),
+        _ => String::new(),
+    };
+    crate::luna::dom_anchors::SearchHit {
+        index,
+        id: row.id.clone(),
+        kind: row.kind_id,
+        rect: rect.and_then(anchor_rect),
+        image: image.and_then(anchor_rect),
+        title: row.title.to_string(),
+        title_rect: title.and_then(anchor_rect),
+        href: format!("/{}/{}", row.kind_id, row.id),
+        explicit: row.explicit,
+        quality: row.quality.clone(),
+        kind_words: row.kind.clone(),
+        names: row
+            .names
+            .iter()
+            .map(|(name, page)| (name.clone(), page.as_ref().map(href)))
+            .collect(),
+        detail_rect: detail.and_then(anchor_rect),
+        meta: row.meta.as_ref().map(|meta| meta.to_uppercase()),
+        meta_rect: meta.and_then(anchor_rect),
+    }
 }
 
 fn songs(
