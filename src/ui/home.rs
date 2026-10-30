@@ -599,7 +599,7 @@ fn card_item(item: &ShelfItem) -> crate::luna::dom_anchors::CardItem {
             track.id.clone().unwrap_or_default(),
             artists(&track.artists),
         ),
-        ShelfItem::Video(video) => (CardKind::Track, video.id.clone(), Vec::new()),
+        ShelfItem::Video(video) => (CardKind::Video, video.id.clone(), Vec::new()),
     };
     CardItem {
         kind,

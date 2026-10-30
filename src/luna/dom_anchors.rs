@@ -723,6 +723,8 @@ pub mod keys {
     /// `button[data-test=follow-text-button]` on that line, and its words.
     pub const PAGE_ARTIST_FANS: &str = "page-artist-fans";
     pub const PAGE_ARTIST_FANS_TEXT: &str = "page-artist-fans-text";
+    /// The plain `div` round the biography and "Read more".
+    pub const PAGE_ARTIST_ABOUT: &str = "page-artist-about";
     /// `div[data-test=biography]._biography_`, its text box, and "Read more"
     /// with its words.
     pub const PAGE_BIOGRAPHY: &str = "page-biography";
@@ -1308,6 +1310,7 @@ fn card_buttons(out: &mut Vec<HostNode>, i: usize, card: &GridCard, collection: 
         CardKind::Artist => (format!("play-button-{}", item.id), false),
         CardKind::Playlist => (format!("playlist-play-button-{}", item.id), true),
         CardKind::Mix => (format!("mix-card-{}-play-button", item.id), true),
+        CardKind::Video => (format!("video-play-button-{}", item.id), true),
         CardKind::Track => return,
     };
     out.push(
@@ -2022,6 +2025,7 @@ pub enum CardKind {
     Mix,
     Artist,
     Track,
+    Video,
 }
 
 impl CardKind {
@@ -2033,6 +2037,7 @@ impl CardKind {
             CardKind::Playlist => Some("playlist"),
             CardKind::Mix => Some("mix"),
             CardKind::Artist => Some("artist"),
+            CardKind::Video => Some("video"),
             CardKind::Track => None,
         }
     }
@@ -3385,6 +3390,10 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     if page.feed {
         node = node.class("_feed_412931c");
     }
+    // An artist's page box (TIDAL 2.47.0, captured).
+    if page.page_id.as_deref() == Some("artist") {
+        node = node.test("artist-profile");
+    }
     if let Some(id) = &page.page_id {
         node = node.attr("data-track--page-id", id.clone());
         // TIDAL's name of the page (`[data-test-page-name="playlist"]`).
@@ -4487,9 +4496,18 @@ fn artist_meta_nodes(out: &mut Vec<HostNode>, page: &Page) {
                 .at(*rect),
         );
     }
+    if meta.biography.is_some() || meta.read_more.is_some() {
+        let about = meta
+            .biography
+            .iter()
+            .filter_map(|(rect, _)| *rect)
+            .chain(meta.read_more.iter().filter_map(|(_, rect)| *rect))
+            .reduce(union);
+        out.push(el(PAGE_ARTIST_ABOUT, Some(PAGE), "div").at(about));
+    }
     if let Some((rect, paragraphs)) = &meta.biography {
         out.push(
-            el(PAGE_BIOGRAPHY, Some(PAGE), "div")
+            el(PAGE_BIOGRAPHY, Some(PAGE_ARTIST_ABOUT), "div")
                 .test("biography")
                 .class("_biography_3066ef2")
                 .at(*rect),
@@ -4509,7 +4527,7 @@ fn artist_meta_nodes(out: &mut Vec<HostNode>, page: &Page) {
         }
     }
     if let Some((label, rect)) = &meta.read_more {
-        out.push(link(el(PAGE_READ_MORE, Some(PAGE), "button")).at(*rect));
+        out.push(link(el(PAGE_READ_MORE, Some(PAGE_ARTIST_ABOUT), "button")).at(*rect));
         out.push(
             el(PAGE_READ_MORE_TEXT, Some(PAGE_READ_MORE), "span")
                 .class("_underline_zmuq1_1")

@@ -10308,6 +10308,44 @@ mod tests {
         )
     }
 
+    /// An artist's shelves hold TIDAL's cards (captured):
+    /// `div[data-test=album-card-<id>]`, `artist-card-<id>` and
+    /// `playlist-card-<uuid>`, with `play-button-<id>` on them, not the
+    /// `grid-item` of a card nothing is known about.
+    #[test]
+    fn an_artists_shelves_hold_tidals_cards() {
+        use crate::luna::dom_anchors::attr;
+        let (ctx, mut app) = accessible_app("artist-cards");
+        app.open(Page::Artist("art0".into()));
+        app.artist_pages.get_mut("art0").unwrap().modules =
+            Loadable::Loaded(crate::api::models::ArtistModules {
+                playlists: vec![playlist(0)],
+                ..Default::default()
+            });
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let tests: Vec<&str> = tree
+            .nodes
+            .iter()
+            .filter_map(|n| attr(n, "data-test"))
+            .collect();
+        for prefix in [
+            "album-card-",
+            "artist-card-",
+            "playlist-card-",
+            "play-button-",
+            "playlist-play-button-",
+            "favorite-button-",
+        ] {
+            assert!(
+                tests.iter().any(|t| t.starts_with(prefix)),
+                "{prefix}: {tests:?}"
+            );
+        }
+        assert!(!tests.contains(&"grid-item"), "{tests:?}");
+        assert!(tests.contains(&"artist-profile"), "{tests:?}");
+        app.backend.shutdown();
+    }
+
     /// TIDAL 2.47.0's Top Tracks are a plain table, not its media table
     /// (captured): `table._trackList_a129abb > tbody >
     /// tr[data-test=tracklist-row--selected-false]` with

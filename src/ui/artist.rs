@@ -6,7 +6,7 @@ use crate::api::bio::{self, BioPiece, BioTarget};
 use crate::api::models::{Album, Artist, PlayableItem, pick_image};
 use crate::app::App;
 use crate::i18n::{gettext, ngettext, pgettext};
-use crate::luna::dom_anchors::keys;
+use crate::luna::dom_anchors::{CardItem, CardKind, keys};
 use crate::model::{Action, ArtistSection, Dialog, DiscographyFilter, Loadable, Page, RowContext};
 use crate::theme::{self, Icon};
 use crate::util;
@@ -294,6 +294,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                             let context_here = app.playing_context_is(artist.uri.as_str());
                             let playing_here = context_here && app.believed_playing();
                             let card_art = app.art_px(widgets::CARD_ART);
+                            super::plugin_dom::next_card(CardItem {
+                                kind: CardKind::Artist,
+                                id: artist.id.clone(),
+                                ..CardItem::default()
+                            });
                             let card = widgets::card(
                                 ui,
                                 app,
@@ -1167,6 +1172,13 @@ fn release_card(app: &mut App, ui: &mut egui::Ui, album: &Album) {
     let context_here = app.playing_context_is(album.uri.as_str());
     let playing_here = context_here && app.believed_playing();
     let card_art = app.art_px(widgets::CARD_ART);
+    // TIDAL's card id, so `album-card-<id>` and its buttons are there.
+    super::plugin_dom::next_card(CardItem {
+        kind: CardKind::Album,
+        id: album.id.clone(),
+        artists: Vec::new(),
+        saved: app.is_saved(&album.uri),
+    });
     let card = widgets::card(
         ui,
         app,
@@ -1923,6 +1935,12 @@ fn playlist_card(app: &mut App, ui: &mut egui::Ui, playlist: &crate::api::models
     let playing_here = context_here && app.believed_playing();
     let card_art = app.art_px(widgets::CARD_ART);
     let curator = app.creator_subtitle(playlist);
+    super::plugin_dom::next_card(CardItem {
+        kind: CardKind::Playlist,
+        id: playlist.id.clone(),
+        artists: Vec::new(),
+        saved: app.is_saved(&playlist.uri),
+    });
     let card = widgets::card(
         ui,
         app,
