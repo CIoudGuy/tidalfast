@@ -351,6 +351,8 @@ pub struct LoadSpec {
     /// With shuffle, the context songs after the starting one in the order
     /// they should play (a saved session's); the rest follow shuffled.
     pub order: Vec<String>,
+    /// With `order`, the context songs this shuffle already played.
+    pub played: Vec<String>,
     /// Songs that play in place of the context when it cannot be read or
     /// does not hold `offset_uri`.
     pub fallback: Vec<String>,

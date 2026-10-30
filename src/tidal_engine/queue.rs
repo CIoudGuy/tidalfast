@@ -371,9 +371,12 @@ impl Queue {
     /// Makes a freshly shuffled order follow `hint`: the songs after the
     /// playing one, as a saved session had them. Songs the hint lacks stay
     /// behind it in their shuffled order; ones it names twice need two
-    /// copies in the context.
-    pub fn follow_order(&mut self, hint: &[String]) {
-        if !self.shuffle || hint.is_empty() || self.pos != Some(0) || self.order.is_empty() {
+    /// copies in the context. Songs of `played` already played in this
+    /// shuffle, so they go before the playing one and do not play again
+    /// (a Repeat all round still holds them).
+    pub fn follow_order(&mut self, hint: &[String], played: &[String]) {
+        let empty = hint.is_empty() && played.is_empty();
+        if !self.shuffle || empty || self.pos != Some(0) || self.order.is_empty() {
             return;
         }
         // The songs the order holds, by uri, the first to play last in
@@ -385,17 +388,27 @@ impl Queue {
                 .or_default()
                 .push(*index);
         }
-        let mut order = vec![self.order[0]];
         let mut used = vec![false; self.context.len()];
         used[self.order[0]] = true;
-        for uri in hint {
-            if let Some(index) = by_uri.get_mut(uri.as_str()).and_then(Vec::pop) {
-                used[index] = true;
-                order.push(index);
+        let mut take = |uris: &[String]| {
+            let mut taken = Vec::new();
+            for uri in uris {
+                if let Some(index) = by_uri.get_mut(uri.as_str()).and_then(Vec::pop) {
+                    used[index] = true;
+                    taken.push(index);
+                }
             }
-        }
+            taken
+        };
+        // What the hint says is still to come wins over `played`.
+        let ahead = take(hint);
+        let mut order = take(played);
+        let pos = order.len();
+        order.push(self.order[0]);
+        order.extend(ahead);
         order.extend(self.order.iter().copied().filter(|index| !used[*index]));
         self.order = order;
+        self.pos = Some(pos);
         self.recent_from = self.order.len();
         self.next_round = None;
         self.prepare_round();
@@ -1207,7 +1220,7 @@ mod tests {
             .iter()
             .map(|n| format!("tidal:track:{n}"))
             .collect();
-        queue.follow_order(&hint);
+        queue.follow_order(&hint, &[]);
         assert_eq!(uri(queue.advance(false)), "tidal:track:9");
         assert_eq!(uri(queue.advance(false)), "tidal:track:2");
         assert_eq!(uri(queue.advance(false)), "tidal:track:7");
@@ -1222,8 +1235,45 @@ mod tests {
         // Songs gone from the context are ignored.
         let mut queue = Queue::seeded(7);
         queue.load(None, album(3), Start::Index(0), true);
-        queue.follow_order(&["tidal:track:99".into(), "tidal:track:3".into()]);
+        queue.follow_order(&["tidal:track:99".into(), "tidal:track:3".into()], &[]);
         assert_eq!(uri(queue.advance(false)), "tidal:track:3");
+    }
+
+    /// A resumed shuffle finishes the songs left: those heard before the
+    /// restart do not come round again, while Repeat all still has them.
+    #[test]
+    fn a_saved_shuffle_does_not_play_its_heard_songs_again() {
+        let uris = |ids: &[u32]| {
+            ids.iter()
+                .map(|id| format!("tidal:track:{id}"))
+                .collect::<Vec<_>>()
+        };
+        let mut queue = Queue::seeded(7);
+        queue
+            .load(None, album(6), Start::Uri("tidal:track:4".into()), true)
+            .unwrap();
+        queue.follow_order(&uris(&[2, 6]), &uris(&[1, 3, 6]));
+        assert_eq!(uri(queue.advance(false)), "tidal:track:2");
+        assert_eq!(uri(queue.advance(false)), "tidal:track:6", "still to come");
+        assert_eq!(uri(queue.advance(false)), "tidal:track:5", "never heard");
+        assert!(matches!(queue.advance(false), Advance::NeedAutoplay));
+
+        // Nothing left in the saved order still means nothing left to hear.
+        let mut queue = Queue::seeded(7);
+        queue
+            .load(None, album(3), Start::Uri("tidal:track:3".into()), true)
+            .unwrap();
+        queue.follow_order(&[], &uris(&[1, 2]));
+        assert!(matches!(queue.advance(false), Advance::NeedAutoplay));
+
+        // Repeat all goes round the whole context again.
+        let mut queue = Queue::seeded(7);
+        queue
+            .load(None, album(3), Start::Uri("tidal:track:3".into()), true)
+            .unwrap();
+        queue.follow_order(&[], &uris(&[1, 2]));
+        queue.set_repeat(RepeatMode::Context);
+        assert!(matches!(queue.advance(false), Advance::Track(_)));
     }
 
     #[test]

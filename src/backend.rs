@@ -3415,6 +3415,7 @@ pub fn load_spec(request: &PlayRequest, shuffle: Option<bool>) -> LoadSpec {
         repeat: None,
         autoplay: false,
         order: request.shuffle_order.clone(),
+        played: request.played_uris.clone(),
         fallback: request.fallback_uris.clone(),
     }
 }

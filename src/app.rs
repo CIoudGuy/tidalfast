@@ -9602,6 +9602,9 @@ impl App {
         };
         request.position_ms = self.resume_position_ms;
         request.shuffle_order = std::mem::take(&mut self.resume_order);
+        if self.shuffle_wanted {
+            request.played_uris = self.queue_history.iter().map(|t| t.uri.clone()).collect();
+        }
         let list = request.context_uri.is_none() && saved.len() > 1;
         self.play_request(request, false);
         // The list is the queue; the context it came from still names it.
@@ -13950,6 +13953,7 @@ fn local_load(request: &PlayRequest, shuffle: bool) -> LoadSpec {
         repeat: None,
         autoplay: false,
         order: request.shuffle_order.clone(),
+        played: request.played_uris.clone(),
         fallback: request.fallback_uris.clone(),
     }
 }
@@ -16586,6 +16590,25 @@ mod tests {
         };
         let app = app_with_session("no-song-view", &session);
         assert!(!app.now_playing_view);
+        finish_session_app(app);
+    }
+
+    /// A saved shuffle tells the engine what it already played, so those
+    /// songs do not come round again.
+    #[test]
+    fn a_resumed_shuffle_names_the_songs_it_played() {
+        let mut session = remembered_session();
+        session.shuffle_on = true;
+        session.last_history = vec![Track {
+            uri: "tidal:track:one".into(),
+            ..Track::default()
+        }];
+        let mut app = app_with_session("resume-played", &session);
+        app.queued_play = None;
+        assert!(app.resume_last());
+        let request = app.queued_play.clone().expect("held for the engine");
+        assert_eq!(request.played_uris, ["tidal:track:one"]);
+        assert_eq!(local_load(&request, true).played, ["tidal:track:one"]);
         finish_session_app(app);
     }
 

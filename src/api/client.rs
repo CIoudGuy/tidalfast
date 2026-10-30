@@ -69,6 +69,8 @@ pub struct PlayRequest {
     /// A shuffled play order to resume: the context songs after the chosen
     /// one, as they were due to play. Songs missing from it follow shuffled.
     pub shuffle_order: Vec<String>,
+    /// With `shuffle_order`, the songs this shuffle already played.
+    pub played_uris: Vec<String>,
     /// Songs to play instead when the context cannot be read again or no
     /// longer holds the chosen one: the chosen song and those after it.
     pub fallback_uris: Vec<String>,

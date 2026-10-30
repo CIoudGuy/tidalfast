@@ -64,7 +64,8 @@ While another collection plays, toggling Shuffle changes that playback's mode
 without switching to the page's collection. The queue then reflects the new
 play order.
 
-A shuffle plays each recording once: a song listed again under another track
+A shuffle plays each recording once, also across a restart: resuming finishes
+the songs left and does not play the ones in History again. A song listed again under another track
 id or album (same ISRC, or without an ISRC the same title and first artist
 within two seconds, an explicit and a clean version counting as one) is
 left out, also when later pages join. Tidalfast keeps the last 200 songs

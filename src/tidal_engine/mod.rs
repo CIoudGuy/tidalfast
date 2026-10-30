@@ -1128,7 +1128,7 @@ impl Core {
             // A context of nothing but blocked songs has nothing to play
             // either, unless the listener named one.
             let first = first.filter(|first| named || !queue.blocked().hit(first));
-            queue.follow_order(&spec.order);
+            queue.follow_order(&spec.order, &spec.played);
             // A station plays on like autoplay's continuation.
             queue.set_autoplay(spec.autoplay);
             if let (None, Some(before)) = (&first, before) {
@@ -2500,6 +2500,7 @@ fn streams_in_pages(spec: &LoadSpec) -> bool {
     !spec.autoplay
         && spec.fallback.is_empty()
         && spec.order.is_empty()
+        && spec.played.is_empty()
         && spec.context_uri.as_deref().is_some_and(|context| {
             context != OFFLINE_CONTEXT
                 && !matches!(crate::util::uri_kind(context), Some("track" | "video"))
