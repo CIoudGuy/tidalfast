@@ -1650,6 +1650,36 @@ moves, class and text changes (0 of about 36,000 differ; the same check
 on the demo page under the real theme, 0 of 71,520), and
 `a_sibling_rule_restyles_only_the_siblings_it_reaches`.
 
+### Twinkling stars: registered properties animated (theme round 50, 2026-10-30)
+
+Twelve themes (Cotton Candy Nights' family, Astronaut Ice Cream,
+Calavera) fade stars on the main container by animating registered custom
+properties
+(`@property --star1`, `@keyframes blink` over 10 to 17 s). A box whose
+animation moves such a property that its pictures read has those layers
+made again with the new value, at most once a fiftieth of the animation
+(200 ms for the 10 s twinkle; between 33 and 250 ms; twice that out of
+focus or saving energy; none while the window cannot be seen; none with
+less motion asked for), and only while the value changed (the last values
+and layers are kept per box). Every other box keeps its layers for the
+overlay.
+
+Cost at rest, Astronaut Ice Cream on Home, release demo build at 1400 by
+900, off-screen and BelowNormal, millions of cycles over 20 s (three runs
+each; `QueryThreadCycleTime`, as in "Themes at rest"):
+
+| | Before (stars lit, still) | After (stars twinkling) |
+|---|---|---|
+| Process | 2,722 to 2,917 | 3,629 to 4,019 |
+| Window's thread | 635 to 654 | 1,224 to 1,359 |
+| GL driver's thread | 239 to 254 | 427 to 456 |
+| `luna` thread | 884 to 941 | 908 to 1,044 |
+
+About 45 million cycles a second more, 1 % of a core at 4.5 GHz: five
+frames a second of the whole window (about 6 million cycles each). The
+runtime's thread is unchanged (the values never leave the window's
+thread). Chromium draws the same animation at the display's rate.
+
 ## Plugins, speed round 20: the window's thread (2026-10-30)
 
 Round 17 measured about 0.9 ms of drawing a frame that plugin elements

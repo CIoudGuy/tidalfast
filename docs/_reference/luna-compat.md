@@ -3561,6 +3561,67 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 50 (registered properties, library row colours, 2026-10-30)
+
+Found with the parity checker on TIDAL 2.47.0's pages and its stylesheet,
+fixed in the generic layer:
+
+- **A custom property `@property` registers has its initial value, and
+  its animation eases it.** Cotton Candy Nights' and Astronaut Ice Cream's
+  stars (12 themes) are `hsla(56, 100%, 90%, var(--star1))` dots with
+  `@property --star1 { syntax: '<percentage>'; initial-value: 0% }` and
+  `@keyframes blink` taking it from 5 % to 100 % and back. Tidalfast read
+  the unset variable as nothing, so the stars were opaque and never
+  twinkled. The runtime now hands the painter each typed registration's
+  `initial-value` (under `@property --name` in the root variables, which
+  `var()` falls back to before its own fallback), and a box whose
+  animation moves a registered number, length, percentage or colour that
+  its pictures read has those layers made again with the eased value, a
+  fiftieth of the animation apart (between 33 and 250 ms; angles stay with
+  the gradients' own turning). Still, as the checker settles TIDAL's page,
+  the stars are hidden there and here. Tests:
+  `a_registered_property_starts_at_its_initial_value_and_its_animation_eases_it`,
+  `registered_colours_and_lengths_ease_and_the_rest_is_left_out`.
+- **Library rows and My Collection's links keep TIDAL's own colour against
+  a lighter rule.** TIDAL colours them by class (`._contentItem_684cbbe`,
+  `._submenuItem_3d0e609` and the open one's `_selected_` / `_active_`),
+  so Cotton Candy Nights' `a { color }` leaves them grey there; here it
+  coloured them. TIDAL's sheet now has those rules with `color: revert`
+  (Tidalfast draws TIDAL's colours itself), so a rule as heavy as TIDAL's
+  still colours them. The hover rules are left out: a `:hover` rule in
+  TIDAL's sheet would make the runtime follow the pointer with no theme
+  too. Test:
+  `a_lighter_link_rule_leaves_library_rows_and_collection_links_tidals_colour`.
+
+Totals: style differences 770 -> 666 (the library rows' and collection
+links' colours in the Cotton Candy Nights family, 104 items, none new);
+dark pixels 1.26 % of 305.1 million compared both (the stars are dots of a
+point or two: about 1,000 pixels fewer over nine themes, Pop Rocks 273;
+no theme 0.69 %, no theme worse). Light unchanged (adaptive Cotton Candy
+0.61 %, adaptive Horchata 0.45 %, Tidal Light 1.15 %), hover pages 2.04 %
+both. The twinkle's cost is in `performance.md`.
+
+Checked and not changed: the remaining cotton candy style groups are the
+checker's pairing, not Tidalfast. TIDAL's captured album page has no cards
+(the module below the list is not loaded), so `card-subtitle-part` was
+paired with the track rows' artist links, which share the classes. The
+playlist's second row was paired with TIDAL's first (data-index 0) once its
+own slot was not found, so the first row's "extra" border is the second
+row's real one; Tidalfast's first row has none, as in TIDAL. The playlist
+list (`list:playlist`) was paired with TIDAL's `_tableContainer_` by
+`data-test`; the anchor that stands for that container (`list-panel-inner`)
+has the theme's `translateY(-1.6em)` as TIDAL has. The search pill's
+`backdrop-filter`: TIDAL with no theme has `blur(20px) saturate(180%)`
+under its 75 % pill too, which shows while the page scrolls under the
+fixed header; Tidalfast's own pill has no blur with Luna off, so drawing
+TIDAL's value only under a theme, or for every pill, is an app design
+choice left to the maintainer. Its `revert` (Tidalfast's own pill) would
+match the cascade but draw the cotton candy pill with no blur at all,
+further from TIDAL than the theme's `blur(10px)`. Scale animations
+(`@keyframes bounc { 38% { scale: 1.044 } }`, a 0.2 s pop on hover) are the
+only other keyframes the themes use; Tidalfast has no `scale` property for
+a theme's box, still or animated.
+
 ### Round 49 (pinned cover, bar title, library row fills, search pill, 2026-10-30)
 
 Found with the parity checker on TIDAL 2.47.0's pages and its stylesheet,
