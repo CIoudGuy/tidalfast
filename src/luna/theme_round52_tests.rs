@@ -86,3 +86,32 @@ fn a_themes_icon_fill_reaches_the_bars_glyphs_over_the_buttons_colour() {
     );
     pd::test_overlay(None);
 }
+
+/// TIDAL's progress bar is a rail, `._range_`, with the played part inside
+/// it, `._indicator_[data-test=progress-indicator]`. The anchors had one box
+/// for both, so a theme's `._indicator_` colour reached nothing and its
+/// `._range_` colour (the family's see-through rail) was drawn as the played
+/// part, and the rail stayed the app's.
+#[test]
+fn a_themes_rail_and_played_part_are_two_boxes() {
+    use crate::ui::player_bar::progress_fill;
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{PROGRESS_INDICATOR, PROGRESS_RANGE};
+    let css = r#"/* {"name": "Rail"} */
+._range_ce0e571 { background-color: rgb(1, 2, 3); color: rgb(1, 2, 3); }
+._indicator_46d3a9b { background: rgb(4, 5, 6); color: rgb(4, 5, 6); }
+"#;
+    let o = overlay_with(
+        "rail.css",
+        css,
+        &dom_anchors::sample_frame(),
+        PROGRESS_INDICATOR,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    assert_eq!(
+        pd::fill(PROGRESS_RANGE),
+        Some(egui::Color32::from_rgb(1, 2, 3))
+    );
+    assert_eq!(progress_fill(), Some(egui::Color32::from_rgb(4, 5, 6)));
+    pd::test_overlay(None);
+}

@@ -15,7 +15,7 @@ use crate::luna::dom::Position;
 use crate::luna::dom_anchors::{self, PlayerPart, keys};
 
 use super::quality_pill::PillTone;
-use super::widgets::{SliderEvent, thin_slider};
+use super::widgets::{SliderEvent, railed_slider};
 use super::{plugin_dom, plugin_slots};
 
 /// The palette the bar draws its words and icons in. Over the now-playing
@@ -1564,7 +1564,8 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     }
     // A plugin that plays its own item (AltPlay's Jellyfin song) hides the
     // range and lays its own bar over the progress element.
-    let plugin_bar = plugin_dom::hidden(keys::PROGRESS_RANGE);
+    let plugin_bar =
+        plugin_dom::hidden(keys::PROGRESS_RANGE) || plugin_dom::hidden(keys::PROGRESS_INDICATOR);
     let slider_event = if plugin_bar {
         plugin_slots::positioned_in(&mut slider_ui, keys::PROGRESS_BAR);
         SliderEvent::None
@@ -1581,7 +1582,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
             }
             None => &palette,
         };
-        thin_slider(
+        railed_slider(
             &mut slider_ui,
             palette,
             egui::Id::new("seek-slider"),
@@ -1589,6 +1590,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
             fraction,
             slider_width,
             None,
+            plugin_dom::fill(keys::PROGRESS_RANGE),
         )
     };
     match slider_event {
@@ -2026,12 +2028,12 @@ fn in_box<R>(ui: &mut egui::Ui, size: Vec2, add: impl FnOnce(&mut egui::Ui) -> R
 }
 
 /// The progress fill's colour: a theme's background for the fill itself
-/// (`[data-test=progress-indicator]`: Lunallena's and Giorgeous's 7 %
+/// (`._indicator_[data-test=progress-indicator]`: Lunallena's and Giorgeous's 7 %
 /// white, none under Tidal TUI, whose colour variable has no value), else
 /// `#progressBar`'s colour, which TIDAL's fill takes (`currentColor`: Tidal
 /// Tags tints it with the quality's colour). `None` keeps the app's.
 pub(crate) fn progress_fill() -> Option<Color32> {
-    plugin_dom::fill(keys::PROGRESS_RANGE).or_else(|| plugin_dom::color(keys::PROGRESS_BAR))
+    plugin_dom::fill(keys::PROGRESS_INDICATOR).or_else(|| plugin_dom::color(keys::PROGRESS_BAR))
 }
 
 /// A theme's colour for a button on the bar's right (Cotton Candy

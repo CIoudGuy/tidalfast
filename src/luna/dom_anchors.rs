@@ -253,7 +253,10 @@ pub mod keys {
     pub const CURRENT_TIME_WRAP: &str = "current-time-wrap";
     pub const CURRENT_TIME: &str = "current-time";
     pub const PROGRESS_BAR: &str = "progress-bar";
+    /// The rail, `._range_`, and the part played inside it,
+    /// `._indicator_[data-test=progress-indicator]`.
     pub const PROGRESS_RANGE: &str = "progress-range";
+    pub const PROGRESS_INDICATOR: &str = "progress-indicator";
     pub const PROGRESS_KNOB: &str = "progress-knob";
     pub const DURATION_WRAP: &str = "duration-wrap";
     pub const DURATION: &str = "duration";
@@ -838,6 +841,7 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("nowPlayingContainer", "_nowPlayingContainer_378ac1a"),
     ("progressBarWrapper", "_progressBarWrapper_f1fad6d"),
     ("range", "_range_ce0e571"),
+    ("indicator", "_indicator_46d3a9b"),
     ("searchField", "_searchField_b2eb7f7"),
     ("sidebarWrapper", "_sidebarWrapper_2f256ce"),
     ("solidHeader", "_solidHeader_2b3f298"),
@@ -5225,7 +5229,14 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     );
     out.push(
         el(PROGRESS_RANGE, Some(PROGRESS_BAR), "div")
+            .class("_fillingBlock_4ec6ec0")
             .modules(&["range"])
+            .at(p.rect(P::Progress)),
+    );
+    out.push(
+        el(PROGRESS_INDICATOR, Some(PROGRESS_RANGE), "div")
+            .class("_fillingBlock_4ec6ec0")
+            .modules(&["indicator"])
             .test("progress-indicator")
             .at(p.rect(P::Progress)),
     );

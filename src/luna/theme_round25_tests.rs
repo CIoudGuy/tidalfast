@@ -640,7 +640,7 @@ fn the_progress_fill_takes_the_themes_background_for_it() {
             name,
             css,
             dom_anchors::sample_tree(),
-            dom_anchors::keys::PROGRESS_RANGE,
+            dom_anchors::keys::PROGRESS_INDICATOR,
         );
         pd::test_overlay(Some((*o).clone()));
         let c = progress_fill();

@@ -5417,6 +5417,21 @@ pub fn thin_slider(
     width: f32,
     wheel_step: Option<f32>,
 ) -> SliderEvent {
+    railed_slider(ui, palette, id, label, value, width, wheel_step, None)
+}
+
+/// [`thin_slider`] with a theme's colour for its rail.
+#[allow(clippy::too_many_arguments)]
+pub fn railed_slider(
+    ui: &mut Ui,
+    palette: &Palette,
+    id: egui::Id,
+    label: &str,
+    value: f32,
+    width: f32,
+    wheel_step: Option<f32>,
+    rail: Option<Color32>,
+) -> SliderEvent {
     let (_, rect) = ui.allocate_space(vec2(width, 16.0));
     let response = ui.interact(rect, id, Sense::click_and_drag());
     let dragging_value = ui.data(|data| data.get_temp::<f32>(id));
@@ -5516,7 +5531,8 @@ pub fn thin_slider(
         } else {
             Color32::from_black_alpha(40)
         };
-        ui.painter().rect_filled(bar, 2.0, track_color);
+        ui.painter()
+            .rect_filled(bar, 2.0, rail.unwrap_or(track_color));
         let filled = Rect::from_min_max(
             bar.min,
             pos2(bar.left() + bar.width() * shown.clamp(0.0, 1.0), bar.max.y),
