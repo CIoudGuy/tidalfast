@@ -74,7 +74,7 @@ pub(super) fn volume(
                 ui,
                 volume_icon(shown),
                 16.0,
-                glyph.unwrap_or(palette.secondary),
+                glyph.unwrap_or(super::player_bar::rest_ink(&palette)),
                 glyph.unwrap_or(palette.text),
                 &if shown == 0 {
                     gettext(app.locale, "Unmute")
@@ -364,7 +364,7 @@ pub(super) fn sound_output(app: &mut App, ui: &mut egui::Ui) -> egui::Response {
         glyph.unwrap_or(if open {
             palette.text
         } else {
-            palette.secondary
+            super::player_bar::rest_ink(&palette)
         }),
         glyph.unwrap_or(palette.text),
         &gettext(app.locale, "Sound output"),

@@ -33,6 +33,17 @@ pub(super) fn bar_palette(app: &App, ctx: &egui::Context) -> crate::theme::Palet
     }
 }
 
+/// The bar's icons at rest (shuffle, repeat, the "…", the utility buttons):
+/// TIDAL's `--market-core-text-20-color`, `#ffffff8c`, is see-through, so
+/// over the bar's glass it reads lighter than the grey a black page gives.
+pub(super) fn rest_ink(palette: &crate::theme::Palette) -> Color32 {
+    if palette.tidal_dark() {
+        Color32::from_white_alpha(0x8c)
+    } else {
+        palette.secondary
+    }
+}
+
 pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
     // TIDAL: #282828 at 75 % over the page, a white 8 % line on top. The
@@ -1174,7 +1185,7 @@ fn now_playing_block(
             &mut more_ui,
             Icon::Ellipsis,
             14.0,
-            themed_more.unwrap_or(palette.secondary),
+            themed_more.unwrap_or(rest_ink(&palette)),
             themed_more.unwrap_or(palette.text),
             &gettext(app.locale, "More"),
         );
@@ -1308,7 +1319,7 @@ fn transport(
     let shuffle = now.map_or_else(|| app.playing_context_shuffle(), |now| now.shuffle);
     let repeat = now.map_or_else(|| app.idle_repeat(), |now| now.repeat);
     let dim = if enabled {
-        palette.secondary
+        rest_ink(&palette)
     } else {
         palette.dim
     };
@@ -1863,7 +1874,7 @@ fn extras(
                 compact_color.unwrap_or(if app.compact_mode {
                     palette.text
                 } else {
-                    palette.secondary
+                    rest_ink(&palette)
                 }),
                 compact_color.unwrap_or(palette.text),
                 &gettext(app.locale, "Compact mode"),
@@ -1971,7 +1982,7 @@ fn extras(
                 queue_color.unwrap_or(if queue_open {
                     palette.text
                 } else {
-                    palette.secondary
+                    rest_ink(&palette)
                 }),
                 queue_color.unwrap_or(palette.text),
                 &gettext(app.locale, "Queue"),
@@ -2227,7 +2238,27 @@ pub(crate) fn quality_badge(format: &crate::tidal_engine::StreamFormat) -> Optio
 
 #[cfg(test)]
 mod side_tests {
-    use super::sides;
+    use super::{rest_ink, sides};
+
+    /// TIDAL's `#ffffff8c` is see-through: 153 over the bar's grey, where the
+    /// opaque grey the same colour gives on a black page reads darker. A
+    /// theme's palette keeps its own.
+    #[test]
+    fn the_bars_resting_icons_are_see_through() {
+        let dark = crate::theme::Palette::dark();
+        let over = crate::motion::blend(
+            egui::Color32::from_rgb(30, 30, 30),
+            rest_ink(&dark).to_opaque(),
+            f32::from(rest_ink(&dark).a()) / 255.0,
+        );
+        assert!((i32::from(over.r()) - 153).abs() <= 1, "{over:?}");
+        let themed = crate::theme::Palette {
+            themed: true,
+            own_surfaces: false,
+            ..dark
+        };
+        assert_eq!(rest_ink(&themed), themed.secondary);
+    }
 
     /// Several Luna player-bar plugins together (up-next, total-play-time,
     /// mode buttons) widen both sides evenly instead of covering the
