@@ -3578,6 +3578,81 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 52 (the player bar: TIDAL's glyphs, the utility row, the rail, the badge, 2026-10-30)
+
+Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
+TIDAL. Fixed in the generic layer; everything here shows with no theme too
+where it says so.
+
+- **The bar's utility row is laid out as TIDAL's flex row.** Four 32-point
+  boxes 8 apart, the box's right edge 16 from the badge, its padding and
+  border inside that, its height the tallest button's. The row had a fixed
+  step of 40, the card was grown outward by its padding from a 40-point
+  row and reached over the badge (168 wide against 160 under the cotton
+  candy family). A theme's `width`, `height`, `min-width` and `gap` now make
+  the row (the family's 30-point buttons, with the sound output held at 32
+  by TIDAL's `._soundOutputButton_ { min-width: 32px }`), and the anchor's
+  box is the row's, not the row and the badge. With no theme the buttons
+  moved a point left, onto TIDAL's. Test:
+  `a_themes_button_sizes_make_the_utility_box_as_in_tidal`.
+- **The bar draws TIDAL's own glyphs.** Thirteen sprites from TIDAL 2.47.0's
+  page (`player__*`, now `assets/icons/player-*.svg`) replace the stroked
+  icons, at TIDAL's sizes: 16 for the utility buttons, shuffle, skip and
+  repeat, 14 for an active shuffle, 22 for play and pause. Shuffle and
+  repeat stand 12 from the skip buttons on a whole pixel (they stood 8 off,
+  half a point left). No theme needed. Test:
+  `the_transport_is_spaced_as_in_tidal`.
+- **A theme's `fill` reaches the bar's glyphs.** The buttons hold TIDAL's
+  `svg._icon_77f3f89 > use`; `._icon_77f3f89 { fill }` (Tidal Light, the
+  Cotton Candy Nights family) beats the button's `color`, as there. The
+  play and skip anchors carry TIDAL's `_playButton_` and `_skipButton_`
+  classes, so `._playButton_ button { color }` colours the play glyph. Tests:
+  `a_themes_icon_fill_reaches_the_bars_glyphs_over_the_buttons_colour`,
+  `a_themes_colour_for_the_play_button_colours_its_glyph`.
+- **The progress bar is two boxes, as in TIDAL.** `._range_` is the rail,
+  `._indicator_[data-test=progress-indicator]` the played part inside it.
+  One anchor stood for both: `._indicator_` colours reached nothing, and
+  `._range_` colours, see-through in the family, were drawn as the played
+  part, while the rail stayed the app's. The captures are at 0:00, so the
+  checker sees the rail only; the played part is proved by the test.
+  Test: `a_themes_rail_and_played_part_are_two_boxes`.
+- **The quality badge takes a theme's picture and words.** A
+  `background-image` on `._badge_` or the tier's gradient draws the whole
+  look (Tidal Light's radial gradient, border, shadows), not a flat fill; a
+  `::before` meant for the pointer does not count. The words are TIDAL's
+  `span._marketText_._paragraph10_._badgeText_`, the tier's colour in TIDAL's
+  sheet, so `._marketText_ { color: ... !important }` reaches them and a
+  plain rule does not. A radial gradient centred outside its box keeps to
+  the box's corners. Tests:
+  `the_badges_words_and_box_take_a_themes_rules_as_tidals_do`,
+  `a_radial_centred_outside_its_box_stays_in_its_corners`.
+
+Totals, all the app's own: dark pixels 1.25 % -> 1.17 % of 305.2 million
+compared, no theme 0.69 -> 0.67 %, no theme worse; Cotton Candy Single 1.50
+-> 1.32 %, adaptive Astronaut 1.99 -> 1.87 %, Sugarcoat 3.36 -> 3.24 %, the
+cotton candy family about 0.1 lower each. Light: Tidal Light 1.15 -> 1.07 %,
+adaptive Cotton Candy 0.59 -> 0.54 %, adaptive Horchata 0.45 -> 0.42 %. Hover
+pages 1.42 -> 1.37 %. Style differences 414 -> 446: nothing got worse, 3
+items went, 35 are new because the svgs and the played part are now elements
+the checker compares (their `fill` is drawn from the button's colour, so the
+report calls those missing; the indicator's transform is the capture's 0:00).
+
+No checker correction this round.
+
+What the no-theme baseline still holds is data or left on purpose: the bar's
+track card, liked hearts, explicit badges, the sound output's pressed disc
+(the capture has it pressed, the demo not), the second line of the badge
+(the bit rate), the always-shown page scroll bar.
+
+Still open: Abyss Neptune's album rows (a border on the row's box makes TIDAL's
+pitch 50 against 48; the list's row height does not take it, 2 themes); a
+square light edge behind Tidal Light's badge, cause not found; TIDAL's
+`gap: 4px` under 992 wide is not followed (the row keeps 8); the bar's glass
+under Tidal Light shows the blurred page in TIDAL and is flat here; the row
+add button's `+` is a little thinner than TIDAL's; the album page's Report
+action, which the native page lacks. The search pill's blur still waits on the
+maintainer.
+
 ### Round 51 (transforms of native parts, album row boxes, the checker's pairing, 2026-10-30)
 
 Found with the parity checker on TIDAL 2.47.0's pages, fixed in the
