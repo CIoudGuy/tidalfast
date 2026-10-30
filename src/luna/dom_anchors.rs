@@ -3272,6 +3272,18 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
                 .class("_artworkImage_5bde5a4")
                 .at(side.thumbs[j]),
         );
+        // The play button TIDAL shows over the picture under the pointer
+        // (2.47.0, in its records): `div._overlay_aab3645 >
+        // button._playButton_eb70a43`, titled Play. Tidalfast draws none.
+        let overlay = format!("{}:overlay", keys::thumb(j));
+        out.push(el(overlay.clone(), Some(&keys::thumb(j)), "div").class("_overlay_aab3645"));
+        out.push(
+            el(format!("{overlay}:play"), Some(&overlay), "button")
+                .class("_playButton_eb70a43")
+                .attr("aria-label", "Play")
+                .attr("title", "Play")
+                .attr("type", "button"),
+        );
     };
     for (i, (rect, selected)) in side.rows.iter().enumerate() {
         // A link in TIDAL (`a[href*='/playlist/']`): Black Glow's `a,
@@ -7027,6 +7039,24 @@ mod tests {
     /// carries TIDAL's fixed 240 whatever width the user dragged Tidalfast's
     /// sidebar to, the rail its own width, and the container row the
     /// variables with the real width.
+    /// TIDAL 2.47.0 keeps a play button in each library row's picture, shown
+    /// under the pointer (in its records): a translator names it there.
+    #[test]
+    fn a_library_rows_picture_holds_tidals_play_button() {
+        let mut frame = sample_frame();
+        frame.sidebar.thumbs = vec![Some([10.0, 100.0, 40.0, 40.0])];
+        let tree = build(&frame);
+        let play = tree
+            .nodes
+            .iter()
+            .find(|n| n.key == format!("{}:overlay:play", keys::thumb(0)))
+            .expect("the play button");
+        assert_eq!(attr(play, "class"), Some("_playButton_eb70a43"));
+        assert_eq!(attr(play, "aria-label"), Some("Play"));
+        assert_eq!(attr(play, "title"), Some("Play"));
+        assert_eq!(play.rect, None);
+    }
+
     #[test]
     fn the_sidebar_wrapper_carries_tidals_width_and_the_row_the_width_variables() {
         let style = |frame: &Frame, key: &str| {
