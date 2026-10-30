@@ -3561,6 +3561,63 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 49 (pinned cover, bar title, library row fills, search pill, 2026-10-30)
+
+Found with the parity checker on TIDAL 2.47.0's pages and its stylesheet,
+fixed in the generic layer:
+
+- **An album's pinned header carries its cover.** TIDAL's compact header
+  over a scrolled album holds `div.tidal-ui__geometry.css-kb5cm1.
+  _coverArt_79d862c > ... > img[data-test=cover-art]`; Tidalfast's anchor
+  had nothing inside it, so Giorgeous's and Sunken Tidal's
+  `[class^="_smallHeader_"] [class*="tidal-ui__geometry"]
+  [class*="_coverArt_"] { scale: 1.3; margin-right: 15px }` never reached
+  the cover. The bar now draws the cover grown about its centre, with the
+  theme's corners, shadows and filter, and the title moved by the margin.
+  A playlist's pinned header is other markup in TIDAL
+  (`_bar_ > _artwork_ > _smallCoverArt_`), which those rules do not reach,
+  so it gets no album cover anchor. Test:
+  `theme_rules_on_the_pinned_headers_cover_reach_it`.
+- **The player bar's title keeps the theme's colour where the theme's card
+  round it is drawn.** The colour gave way when it did not read over the
+  bar's own fill, a guard for themes that colour the words for a box
+  Tidalfast did not paint; Sugarcoat's near-white title on its dark glass
+  card was drawn dark. Test:
+  `the_title_keeps_the_themes_colour_over_the_themes_card`.
+- **A library row's hover and open fills are TIDAL's tokens.** TIDAL
+  2.47.0 fills `._contentItem_:hover` with `--market-core-surface-10-color`
+  and `._contentItem_._selected_` with `--market-core-fill-30-color`
+  (white at 15 % in dark mode), whatever colours a theme gives the app;
+  Tidalfast made them from the theme's palette, so the open playlist on
+  TidalCustomTheme's pink sidebar was darker than the sidebar instead of
+  lighter. A theme that sets the tokens still gets its own. Test:
+  `the_open_playlists_row_takes_tidals_veil_under_a_theme`.
+- **The search pill keeps TIDAL's rule against a shadow.** TIDAL gives
+  the pill `box-shadow: none` three classes deep, so the cotton candy
+  family's one-class drop shadow on `._container_f1be359` does not reach
+  it there. Test: `a_lighter_rule_does_not_give_the_search_pill_a_shadow`.
+
+Totals: dark pixels 1.27 % -> 1.26 % of 303.9 million compared (no theme
+0.69 % both, no theme worse; Sunken Tidal 3.54 -> 3.31, TidalCustomTheme
+1.66 -> 1.55, Sugarcoat 3.47 -> 3.39); style differences 782 -> 770.
+Light unchanged (adaptive Cotton Candy 0.61 %, adaptive Horchata 0.45 %,
+Tidal Light 1.15 %); hover pages 2.06 % -> 2.04 % (the library row under
+the pointer: Meteor Night 3.03 -> 2.60, Sugarcoat 2.99 -> 2.71). The
+title colour (the checker masks words) and the pinned cover (not in the
+checker's pages) were checked on the shots and by their tests.
+
+Not done: the player bar card's place in the checker is data (TIDAL's
+capture plays another song, so the card's width and the words differ).
+The cotton candy astronaut's stars: `@property --star1 { initial-value:
+0% }` and `animation: blink ... infinite` twinkle them in TIDAL; Tidalfast
+animates only angle variables, so its stars stay lit (the checker's still
+captures show none in TIDAL). The open search pill's
+`backdrop-filter`: TIDAL's own `blur(20px) saturate(180%)` beats the cotton
+candy family's lighter `blur(10px)`, but adding TIDAL's value would give
+the pill a backdrop with no theme too. Tidalfast's page scroll bar shows
+only while scrolling, TIDAL's always (no theme too). The Lunallena header
+tab and Meteor Night's menu line, as in round 48.
+
 ### Round 48 (sibling rules restyle less, moved boxes, 2026-10-30)
 
 Found with the parity checker (TIDAL 2.47.0's pages, its replay's boxes
