@@ -4941,9 +4941,23 @@ pub fn track_list(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
             .modules(&["table"])
             .at(list.rect),
     );
+    // An album's heading row has a box round it, as its rows have (TIDAL
+    // 2.47.0: `div._nativeRowWrapper_20e35be > div._tableHeader_`; Abyss
+    // Neptune's `[data-test=media-table] > div > div > div` lines both).
     let header = format!("{table}:header");
+    let header_parent = if list.id.starts_with("album:") {
+        let wrapper = format!("{table}:head");
+        out.push(
+            el(wrapper.clone(), Some(&table), "div")
+                .class("_nativeRowWrapper_20e35be")
+                .at(list.header_rect),
+        );
+        wrapper
+    } else {
+        table.clone()
+    };
     out.push(
-        el(header.clone(), Some(&table), "div")
+        el(header.clone(), Some(&header_parent), "div")
             .attr("role", "row")
             .modules(&["tableHeader"])
             .class("_smallText_a636ed6")

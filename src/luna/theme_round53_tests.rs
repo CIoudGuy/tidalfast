@@ -104,3 +104,30 @@ fn a_clear_bar_glass_keeps_tidals_blur() {
     }
     pd::test_overlay(None);
 }
+
+/// An album's rows and heading row lie in the page's flow, each in a box
+/// (`[data-test=media-table] > div > div > div` in TIDAL's album table): a
+/// theme's border on that box pushes what follows down, as Abyss Neptune's
+/// does to a pitch of 50. The rows stayed 48 apart and the heading had no box
+/// a rule could reach.
+#[test]
+fn a_border_on_an_albums_row_boxes_moves_the_rows() {
+    use crate::ui::plugin_dom as pd;
+    let frame = dom_anchors::sample_frame();
+    let list = frame.lists[0].id.clone();
+    assert!(list.starts_with("album:"), "{list}");
+    let header = format!("{}:header", dom_anchors::keys::list(&list));
+    let css = r#"/* {"name": "Row boxes"} */
+._nativeRowWrapper_20e35be > div { border: 1px solid rgb(7, 8, 9) !important; }
+"#;
+    let o = overlay_when("row-boxes.css", css, &frame, |o| o.hosts.contains_key(&header));
+    pd::test_overlay(Some((*o).clone()));
+    let ink = egui::Color32::from_rgb(7, 8, 9);
+    assert_eq!(
+        crate::ui::widgets::table_header_border(Some(&list)),
+        Some(([1.0; 4], ink, 0.0))
+    );
+    let row = crate::ui::widgets::row_wrapper_borders(&list, 0);
+    assert!(row.contains(&([1.0; 4], ink, 0.0)), "{row:?}");
+    pd::test_overlay(None);
+}

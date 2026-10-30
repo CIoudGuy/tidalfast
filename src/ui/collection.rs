@@ -2626,8 +2626,20 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
         table.items_revision,
     );
     let show_cover = table.show_cover;
-    // TIDAL's 48-point rows; `track_row` draws them at this height.
-    let row_height = theme::COMPACT_ROW_HEIGHT;
+    // TIDAL's 48-point rows; `track_row` draws them at this height. An
+    // album's rows lie in the page's flow, so a theme's border on the box
+    // round each one pushes the next down (Abyss Neptune's 1 point: 50
+    // apart); a playlist's virtual list places its rows itself, every 48.
+    // Read as each row is drawn, for the next frame.
+    let list_id = super::plugin_dom::list_id(&table.context);
+    let row_border_id = egui::Id::new(("album-row-border", list_id));
+    let in_flow = super::plugin_dom::on() && list_id.starts_with("album:");
+    let row_border = in_flow
+        .then(|| ui.data(|d| d.get_temp::<f32>(row_border_id)))
+        .flatten()
+        .unwrap_or(0.0);
+    let row_height = theme::COMPACT_ROW_HEIGHT + row_border;
+    let mut row_border_seen = 0.0_f32;
     let skeleton_columns = skeleton::Columns {
         numbered: table.numbered,
         cover: show_cover,
@@ -2659,7 +2671,9 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
         }
         // A theme's panel behind the whole list, its header row included
         // (TIDAL's `.TRACK_LIST` holds both), painted before them.
-        let header = if grouped { 0.0 } else { 36.0 };
+        let header_border = widgets::table_header_border(Some(list_id))
+            .map_or(0.0, |(sides, ..)| sides[0] + sides[2]);
+        let header = if grouped { 0.0 } else { 36.0 + header_border };
         let panel = egui::Rect::from_min_size(
             ui.cursor().min,
             egui::vec2(
@@ -2843,6 +2857,11 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
             },
             crate::motion::seconds(ui.ctx(), 0.12),
         );
+        if in_flow {
+            for (sides, ..) in widgets::row_wrapper_borders(list_id, actual_index) {
+                row_border_seen = row_border_seen.max(sides[0] + sides[2]);
+            }
+        }
         let (response, asked) = widgets::track_row_response(
             ui,
             app,
@@ -2879,7 +2898,7 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
             pick = Some((row, asked));
         }
     };
-    match &volume_layout {
+    let mut draw_rows = |ui: &mut egui::Ui| match &volume_layout {
         Some(layout) => virtual_segments(ui, layout, |ui, segment, height| match segment {
             Segment::Heading(number) => volume_heading(ui, &palette, locale, number, height),
             Segment::Header(number) => {
@@ -2905,6 +2924,15 @@ fn table_body(app: &mut App, ui: &mut egui::Ui, table: Table<'_>) {
             Segment::Row { row, first } => draw_row(ui, row, first),
         }),
         None => widgets::virtual_rows(ui, rows, row_height, |ui, row| draw_row(ui, row, 0)),
+    };
+    if row_border > 0.0 {
+        widgets::with_row_height(ui, row_height, &mut draw_rows);
+    } else {
+        draw_rows(ui);
+    }
+    if in_flow && row_border_seen != row_border {
+        ui.data_mut(|d| d.insert_temp(row_border_id, row_border_seen));
+        ui.ctx().request_repaint();
     }
     if let Some(column) = grouped_header_clicked {
         sort_by_header(app, &table.page, sort, column);

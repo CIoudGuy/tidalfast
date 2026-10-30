@@ -2733,12 +2733,19 @@ pub fn table_header(
 ) -> Option<crate::model::SortColumn> {
     use crate::model::SortColumn;
     let width = ui.available_width();
-    // TIDAL: 36 high, 12-point semibold capitals in white at 60 %.
-    let (rect, _) = ui.allocate_exact_size(vec2(width, 36.0), Sense::hover());
     // Luna: the list's heading row (`list:<l>:header`) and its column
     // headings, whose words a plugin may rewrite or hide (uwu-ifier's
     // "Titwe"); drawn in TIDAL's capitals.
     let list_key = list.map(crate::luna::dom_anchors::keys::list);
+    // A theme's border on the row is round its 36 points.
+    let border = table_header_border(list);
+    let [top, bottom] = border.as_ref().map_or([0.0; 2], |(s, ..)| [s[0], s[2]]);
+    // TIDAL: 36 high, 12-point semibold capitals in white at 60 %.
+    let (outer, _) = ui.allocate_exact_size(vec2(width, 36.0 + top + bottom), Sense::hover());
+    if let Some((sides, color, radius)) = border {
+        paint_border(ui.painter(), outer, sides, color, radius);
+    }
+    let rect = Rect::from_min_size(outer.min + vec2(0.0, top), vec2(width, 36.0));
     let mut time_rect = None;
     let mut album_rect = None;
     let mut added_rect = None;
@@ -2983,7 +2990,7 @@ pub fn table_header(
     if let Some(list) = list {
         super::plugin_dom::list_header(
             list,
-            rect,
+            outer,
             super::plugin_dom::ListHeadings {
                 time: time_rect,
                 album: album_rect,
@@ -2994,6 +3001,14 @@ pub fn table_header(
         );
     }
     clicked
+}
+
+/// A theme's border on `list`'s heading row. An album's table is in the
+/// page's flow, so it takes room; a theme's rule also reaches a playlist's
+/// heading, which is laid out the same.
+pub(crate) fn table_header_border(list: Option<&str>) -> Option<([f32; 4], Color32, f32)> {
+    let key = crate::luna::dom_anchors::keys::list(list?);
+    super::plugin_dom::box_border(&format!("{key}:header"))
 }
 
 /// A theme's borders on the boxes TIDAL's virtual list wraps a track row

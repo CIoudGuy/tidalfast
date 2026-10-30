@@ -3622,16 +3622,17 @@ mod tests {
             }
             tree.expect("screen-reader tree")
         };
-        let find = |tree: &egui::accesskit::TreeUpdate, label: &str, role: Role| -> Option<Bounds> {
-            tree.nodes
-                .iter()
-                .find(|(_, node)| {
-                    node.label() == Some(label)
-                        && node.role() == role
-                        && node.bounds().is_some_and(|bounds| bounds.y0 > 700.0)
-                })
-                .and_then(|(_, node)| node.bounds())
-        };
+        let find =
+            |tree: &egui::accesskit::TreeUpdate, label: &str, role: Role| -> Option<Bounds> {
+                tree.nodes
+                    .iter()
+                    .find(|(_, node)| {
+                        node.label() == Some(label)
+                            && node.role() == role
+                            && node.bounds().is_some_and(|bounds| bounds.y0 > 700.0)
+                    })
+                    .and_then(|(_, node)| node.bounds())
+            };
         let shown = |tree: &egui::accesskit::TreeUpdate, label: &str, role: Role| {
             find(tree, label, role).unwrap_or_else(|| panic!("{label} is not in the bar"))
         };
@@ -3654,7 +3655,8 @@ mod tests {
             let previous = shown(&tree, "Previous", Role::Button);
             assert_eq!(middle(previous) - middle(shuffle), outer + 4.0, "{width}");
             assert_eq!(
-                shown(&tree, "Compact mode", Role::Button).x0 - shown(&tree, "Queue", Role::Button).x0,
+                shown(&tree, "Compact mode", Role::Button).x0
+                    - shown(&tree, "Queue", Role::Button).x0,
                 buttons,
                 "{width}"
             );
@@ -3682,6 +3684,81 @@ mod tests {
         assert_eq!(words(&at(769.0)), 86.0);
         assert_eq!(words(&at(768.0)), 18.0);
         app.backend.shutdown();
+    }
+
+    /// An album's rows lie in the page's flow: a border on the box round each
+    /// (Abyss Neptune's, on `[data-test=media-table] > div > div > div`) makes
+    /// them 50 apart, and the one on the heading row moves them all down. A
+    /// playlist's rows are placed by its virtual list and stay 48 apart.
+    #[test]
+    fn a_border_on_an_albums_row_boxes_sets_the_rows_pitch() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let boxed = || HostOverride {
+            style: Style {
+                border: Some("1px solid rgb(7, 8, 9)".into()),
+                ..Style::default()
+            },
+            ..HostOverride::default()
+        };
+        let ink = egui::Color32::from_rgb(7, 8, 9);
+        fn walk(shape: &egui::Shape, ink: egui::Color32, found: &mut Vec<f32>) {
+            match shape {
+                egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, ink, found)),
+                egui::Shape::Rect(r) if r.stroke.color == ink => found.push(r.rect.top()),
+                _ => {}
+            }
+        }
+        let tops = |list: &str, page: &str, version: u64| {
+            let (ctx, mut app) = accessible_app(&format!("row-pitch-{version}"));
+            apply_flags(&mut app, Some(page), Some("long-album"));
+            let mut o = DomOverlay {
+                version,
+                ..DomOverlay::default()
+            };
+            o.hosts
+                .insert(format!("{}:header", keys::list(list)), boxed());
+            for i in 0..20 {
+                o.hosts.insert(keys::row_cell(list, i, "inner"), boxed());
+            }
+            plugin_dom::test_overlay(Some(o));
+            let mut last = Vec::new();
+            for _ in 0..4 {
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(1400.0, 1000.0),
+                        )),
+                        ..Default::default()
+                    },
+                    |ui| crate::ui::show(&mut app, ui),
+                );
+                output.textures_delta.clear();
+                last = output.shapes;
+            }
+            let mut found = Vec::new();
+            for s in &last {
+                walk(&s.shape, ink, &mut found);
+            }
+            found.sort_by(f32::total_cmp);
+            plugin_dom::test_overlay(None);
+            app.backend.shutdown();
+            found
+        };
+        let steps = |found: &[f32]| {
+            (
+                found[1] - found[0],
+                found[2] - found[1],
+                found[3] - found[2],
+            )
+        };
+        assert_eq!(
+            steps(&tops("album:alb0", "album:alb0", 1)),
+            (38.0, 50.0, 50.0)
+        );
+        assert_eq!(steps(&tops("playlist:pl0", "playlist:pl0", 2)).1, 48.0);
     }
 
     #[test]
