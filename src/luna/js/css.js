@@ -539,6 +539,17 @@
 					// drop shadow on every `._container_f1be359`) does not
 					// reach it in TIDAL, a rule as deep or deeper does.
 					":is(._container_cb5cbe4 ._searchFieldWithPopover_267e090) .searchFieldWithinSearchFieldWithPopover { box-shadow: none; }\n" +
+					// TIDAL 2.47.0 colours its library rows and My Collection's
+					// links by class (`._contentItem_684cbbe`, `._submenuItem_
+					// 3d0e609`, the open one's `_selected_` or `_active_`: its
+					// grey and white tokens), so a theme's lighter rule (Cotton
+					// Candy Nights' `a { color }`) does not reach them there, a
+					// rule as heavy does. Tidalfast draws those colours itself:
+					// `revert` leaves them to it.
+					"._contentItem_684cbbe { color: revert; }\n" +
+					"._contentItem_684cbbe._selected_ae83ba5 { color: revert; }\n" +
+					"._submenuItem_3d0e609 { color: revert; }\n" +
+					"._submenuItem_3d0e609._active_c099c70 { color: revert; }\n" +
 					`._container_b3e8f28 { background: ${PANEL_GLASS}; border: ${PANEL_BORDER}; }`,
 			);
 		}
@@ -2198,7 +2209,9 @@
 			for (const [k, v] of d) {
 				if (k.startsWith("--")) continue;
 				const r = resolveVars(v, vars);
-				if (r !== "inherit") props.set(k, r);
+				// `revert` (TIDAL's own value, which Tidalfast draws) keeps
+				// what the element inherits or TIDAL's look gives it.
+				if (r !== "inherit" && !/^\s*revert(-layer)?\s*$/i.test(r)) props.set(k, r);
 			}
 		}
 		const res = { props, vars, base: null, look };

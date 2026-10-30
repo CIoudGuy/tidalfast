@@ -132,3 +132,68 @@ fn a_registered_property_starts_at_its_initial_value_and_its_animation_eases_it(
         "{held:?}"
     );
 }
+
+/// TIDAL 2.47.0 colours its library rows and My Collection's links by
+/// class (`._contentItem_684cbbe { color: var(--market-core-text-20-color)
+/// }`, `._submenuItem_3d0e609`, the open one's `_selected_` / `_active_`),
+/// so Cotton Candy Nights' `a { color }` leaves them grey there while it
+/// colours other links. Tidalfast gave them the theme's colour. A rule as
+/// heavy as TIDAL's still colours them.
+#[test]
+fn a_lighter_link_rule_leaves_library_rows_and_collection_links_tidals_colour() {
+    use dom_anchors::keys::{MAIN_CONTAINER, lib_row, sidebar_item};
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.rows = vec![
+        (Some([16.0, 400.0, 208.0, 56.0]), false),
+        (Some([16.0, 456.0, 208.0, 56.0]), true),
+    ];
+    frame.sidebar.items.push(dom_anchors::SidebarItem {
+        test: "sidebar-collection-menu".into(),
+        label: "Collection".into(),
+        href: Some("/my-collection".into()),
+        selected: false,
+        rect: Some([16.0, 300.0, 208.0, 40.0]),
+    });
+    frame.sidebar.collection = None;
+    frame.sidebar.submenu = ["albums", "tracks"]
+        .iter()
+        .enumerate()
+        .map(|(i, page)| dom_anchors::SubmenuItem {
+            test: format!("sidebar-collection-{page}"),
+            label: page.to_string(),
+            href: format!("/my-collection/{page}"),
+            active: i == 0,
+            rect: Some([16.0, 600.0 + 40.0 * i as f32, 208.0, 40.0]),
+        })
+        .collect();
+    let tree = dom_anchors::build(&frame);
+    let colours = |name: &str, css: &str| {
+        let (luna, o) = overlay_with(name, css, tree.clone(), MAIN_CONTAINER);
+        luna.shutdown();
+        let keys = [
+            lib_row(0),
+            lib_row(1),
+            sidebar_item("sidebar-collection-albums"),
+            sidebar_item("sidebar-collection-tracks"),
+        ];
+        keys.map(|k| o.hosts.get(&k).and_then(|h| h.style.color.clone()))
+    };
+    let light = colours(
+        "light-links.css",
+        "/* {\"name\": \"Light links\"} */
+._mainContainer_6519c30 { color: rgb(1, 2, 3); }
+a { color: rgb(241, 232, 255); }
+",
+    );
+    assert_eq!(light, [None, None, None, None]);
+    let heavy = colours(
+        "heavy-links.css",
+        "/* {\"name\": \"Heavy links\"} */
+._mainContainer_6519c30 { color: rgb(1, 2, 3); }
+._contentItem_684cbbe, ._submenuItem_3d0e609 { color: rgb(241, 232, 255); }
+",
+    );
+    // The open row and page keep TIDAL's own heavier rule.
+    let want = Some("rgb(241, 232, 255)".to_string());
+    assert_eq!(heavy, [want.clone(), None, None, want]);
+}
