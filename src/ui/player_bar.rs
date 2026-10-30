@@ -366,6 +366,30 @@ fn words_width(title: f32, subtitle: f32, plugin_line: f32, room: f32) -> f32 {
 
 /// A plugin hid every artist link of the line (AltPlay hides them and
 /// writes its own text beside), so none of them is drawn.
+/// The colour of the bar's title: the theme's, as TIDAL draws it, where
+/// the theme's card round the words (`._trackContent_`) is drawn under
+/// them, since the theme coloured them for that card (Sugarcoat's light
+/// words on its dark glass). With no card drawn the theme's colour stays
+/// only where it reads over the bar (`bar`, laid over `window`): a theme
+/// may colour the words for a box Tidalfast does not paint. Else `native`.
+fn title_color(
+    themed: Option<Color32>,
+    card_drawn: bool,
+    bar: impl FnOnce() -> Color32,
+    window: Color32,
+    native: Color32,
+) -> Color32 {
+    themed
+        .and_then(|c| {
+            if card_drawn {
+                Some(c)
+            } else {
+                plugin_dom::readable_text(c, bar(), window)
+            }
+        })
+        .unwrap_or(native)
+}
+
 fn artists_hidden(artists: &[crate::api::models::ArtistRef]) -> bool {
     !artists.is_empty()
         && (0..artists.len()).all(|i| plugin_dom::hidden(&format!("{}:{i}", keys::ARTIST)))
@@ -776,13 +800,13 @@ fn now_playing_block(
         text @ std::borrow::Cow::Owned(_) => text,
         _ => plugin_dom::text(keys::TITLE_LINK, &shown),
     };
-    let title_color = plugin_dom::color(keys::TITLE_SPAN)
-        .or_else(|| plugin_dom::color(keys::TITLE_LINK))
-        .and_then(|c| {
-            let bar = plugin_dom::surface(keys::FOOTER, palette.panel);
-            plugin_dom::readable_text(c, bar, palette.window)
-        })
-        .unwrap_or(palette.text);
+    let title_color = title_color(
+        plugin_dom::color(keys::TITLE_SPAN).or_else(|| plugin_dom::color(keys::TITLE_LINK)),
+        card.is_some(),
+        || plugin_dom::surface(keys::FOOTER, palette.panel),
+        palette.window,
+        palette.text,
+    );
     let title_hidden = [keys::TITLE, keys::TITLE_LINK, keys::TITLE_SPAN]
         .into_iter()
         .any(plugin_dom::hidden);
@@ -2088,6 +2112,29 @@ pub(super) fn progress_step_wait(
     let step: u32 = if per_pixel <= 500.0 { 500 } else { 1000 };
     let wait = step - position % step + 30;
     Some(std::time::Duration::from_millis(u64::from(wait.max(50))))
+}
+
+#[cfg(test)]
+mod title_color_tests {
+    use super::title_color;
+    use egui::Color32;
+
+    /// Sugarcoat colours the bar's title near white for its dark glass card
+    /// round the words; its bar's own fill, a light pink, reads as too pale
+    /// for it. TIDAL draws the words white on the card, and so does
+    /// Tidalfast now that it draws the card: before, the light words gave
+    /// way to the app's dark text. With no card drawn the pale words still
+    /// give way.
+    #[test]
+    fn the_title_keeps_the_themes_colour_over_the_themes_card() {
+        let words = Color32::from_rgb(255, 251, 237);
+        let bar = || Color32::from_rgba_unmultiplied(255, 156, 194, 163);
+        let window = Color32::from_rgb(250, 230, 238);
+        let native = Color32::from_rgb(20, 20, 20);
+        assert_eq!(title_color(Some(words), true, bar, window, native), words);
+        assert_eq!(title_color(Some(words), false, bar, window, native), native);
+        assert_eq!(title_color(None, true, bar, window, native), native);
+    }
 }
 
 #[cfg(test)]
