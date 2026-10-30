@@ -1650,6 +1650,53 @@ moves, class and text changes (0 of about 36,000 differ; the same check
 on the demo page under the real theme, 0 of 71,520), and
 `a_sibling_rule_restyles_only_the_siblings_it_reaches`.
 
+## Plugins, speed round 20: the window's thread (2026-10-30)
+
+Round 17 measured about 0.9 ms of drawing a frame that plugin elements
+add on the window's thread and did not say where it goes. Timers round
+each part of the frame in a release demo build (the 18 plugins of round
+17, the large playlist scrolling, `TIDALFAST_BENCH_WARMUP=20`, TidalEQ's
+prompt refused) gave, in microseconds a frame:
+
+| Part | Luna on, no plugins | 18 plugins |
+| --- | --- | --- |
+| The page (`ui::show`) | 1,440 to 2,140 | 2,190 to 2,890 |
+| Building the anchor tree (`dom_anchors::build`) | 710 to 920 | 740 to 890 |
+| Everything else in the frame's Luna part | about 120 | about 160 |
+
+- **The plugin elements' own drawing is the page's extra 0.7 to 0.8 ms,
+  and it is flat.** Thirty-six boxes a frame, a fifth of a millisecond
+  for the box code (`draw_box`), then scroll boxes, each element's motion
+  state, positioned elements and the style parsing (about a tenth of it,
+  with `resolve_vars` copying a string that has no variable in it). No
+  one part is more than a third of the extra and what each does is
+  layout and painting through egui, so nothing was changed there.
+- **The anchor tree is the biggest single cost, and plugins or not.** It
+  is built again in every frame a list scrolls, and the rows are about
+  0.5 ms of its 0.7 (about twenty-five elements a row,
+  each with a key, a parent, a tag and attributes, each its own copy).
+  Tags and attribute names are literals, so they are borrowed now
+  (`Cow<'static, str>`), and a row's keys are written into one
+  allocation instead of formatted. The JSON plugins are sent is the same
+  (the tree of four large frames, thirty extra rows each, compared byte
+  for byte before and after the tags change; the keys are tested against
+  `format!`), and a test pins that tags and names are not copies.
+
+Release demo build, three interleaved runs, medians (the window's thread in
+G cycles per second, frame CPU p50 in ms), before and after:
+
+| Run | Before | After |
+| --- | --- | --- |
+| Playlist scroll, Luna on, no plugins: thread / p50 | 2.07 / 2.71 | 1.82 / 2.49 |
+| Playlist scroll, 18 plugins: thread / p50 | 3.04 / 4.26 | 2.96 / 3.91 |
+| Album scroll, 18 plugins: thread / p50 | 2.33 / 2.79 | 2.25 / 2.71 |
+| Album scroll, no plugins: thread / p50 | 1.06 / 1.34 | 1.03 / 1.36 |
+
+Left open: the tree's remaining copies (a key and a parent for each
+element, the text and the attribute values), which would need the tree's
+strings shared between frames; a frame's `Frame` is cloned once a send
+(about 50 us) to know the next frame is the same.
+
 ## Findings and decisions
 
 - **Luna's work follows changes, not the page.** With Luna on, a pass made
