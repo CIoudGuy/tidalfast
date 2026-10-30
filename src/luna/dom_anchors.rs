@@ -2324,8 +2324,16 @@ pub fn build(frame: &Frame) -> HostTree {
         }
         None => keys::MAIN_CONTENT,
     };
+    let artist_page = frame
+        .page
+        .as_ref()
+        .is_some_and(|p| p.page_id.as_deref() == Some("artist"));
     for list in &frame.lists {
-        track_list(&mut out, list_parent, list);
+        if artist_page && list.id.starts_with("artist:") {
+            artist_track_table(&mut out, list_parent, list);
+        } else {
+            track_list(&mut out, list_parent, list);
+        }
     }
     // After the page: TIDAL's page box is `div.mainContent`'s first child.
     theme_roles(&mut out);
@@ -4524,6 +4532,258 @@ pub fn track_list(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
         out.push(item.attr("draggable", "true").at(row.rect));
         track_row(out, &inner, &list.id, row);
     }
+}
+
+/// An artist's Top Tracks (TIDAL 2.47.0, captured), not TIDAL's media table
+/// but a plain `table._trackList_a129abb > thead > tr > th > span.wave-text-
+/// caption-demi` and `tbody > tr[data-test=tracklist-row--selected-false]
+/// ._rowContainer_ebb4cfc`, so `div[data-test=tracklist-row]` finds nothing
+/// on this page. The keys are the media table's: what the rows draw from
+/// them does not depend on the markup.
+fn artist_track_table(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
+    let table = keys::list(&list.id);
+    out.push(
+        el(table.clone(), Some(parent), "table")
+            .class("_trackList_a129abb")
+            .at(list.rect),
+    );
+    let head = format!("{table}:header");
+    let head_row = format!("{table}:header-row");
+    out.push(el(head.clone(), Some(&table), "thead").at(list.header_rect));
+    out.push(el(head_row.clone(), Some(&head), "tr").at(list.header_rect));
+    let headings = [
+        ("image-col", None, None, None),
+        ("title-col", None, Some("TITLE"), None),
+        ("artist-col", None, Some("ARTIST"), None),
+        (
+            "album-col",
+            Some("_albumColumn_c27d9b5"),
+            list.album_header_rect.map(|_| "ALBUM"),
+            list.album_header_rect,
+        ),
+        (
+            "time-col",
+            Some("_timeColumn_8597490"),
+            Some("TIME"),
+            list.time_header_rect,
+        ),
+        ("buttons-col", None, None, None),
+    ];
+    for (cell, class, words, rect) in headings {
+        let key = format!("{table}:{cell}");
+        let mut heading = el(key.clone(), Some(&head_row), "th").at(rect);
+        if let Some(class) = class {
+            heading = heading.class(class);
+        }
+        out.push(heading);
+        if let Some(words) = words {
+            out.push(
+                el(format!("{key}:label"), Some(&key), "span")
+                    .class("wave-text-caption-demi")
+                    .text(words)
+                    .at(rect),
+            );
+        }
+    }
+    let body = format!("{table}:rows");
+    out.push(el(body.clone(), Some(&table), "tbody").at(list.rect));
+    for row in &list.rows {
+        artist_track_row(out, &body, &list.id, row);
+    }
+}
+
+/// A row of [`artist_track_table`] (TIDAL 2.47.0, captured): the cover is
+/// the row's play button, the artists are there twice (in the title's
+/// cell for a narrow window) and the buttons have tests of their own.
+fn artist_track_row(out: &mut Vec<HostNode>, parent: &str, list: &str, row: &TrackRow) {
+    let key = keys::row(list, row.index);
+    let cell = |name: &str| keys::row_cell(list, row.index, name);
+    let mut node = el(key.clone(), Some(parent), "tr")
+        .class("_rowContainer_ebb4cfc")
+        .test(&format!("tracklist-row--selected-{}", row.selected))
+        .attr("data-track-id", row.track_id.clone())
+        .attr("data-index", row.index.to_string())
+        .attr("data-test-is-playing", row.playing.to_string())
+        .at(row.rect);
+    if row.selected {
+        node = node.attr("aria-selected", "true");
+    }
+    if row.playing {
+        node = node
+            .class("_tableRowIsPlaying_a59b9fa")
+            .attr("data-playing", "true");
+    }
+    out.push(node);
+    if row.image_rect.is_some() {
+        out.push(
+            el(cell("image-col"), Some(&key), "td")
+                .class("_imageColumn_b092fce")
+                .at(row.image_rect),
+        );
+        out.push(
+            el(cell("image"), Some(&cell("image-col")), "button")
+                .class("_imageContainer_c364a1f")
+                .test(&format!("image-container-track-{}", row.track_id))
+                .attr("aria-label", "Play")
+                .at(row.image_rect),
+        );
+        out.push(
+            el(cell("image-img"), Some(&cell("image")), "img")
+                .class("_image_145331a")
+                .at(row.image_rect),
+        );
+        out.push(
+            el(cell("image-icon"), Some(&cell("image")), "div")
+                .class("_iconWrapper_90b1b8c")
+                .at(row.image_rect),
+        );
+    }
+    let link = |key: String, parent: &str, a: &Link| {
+        el(key, Some(parent), "a")
+            .class("_item_39605ae")
+            .class("_link_6a45a19")
+            .test("grid-item-detail-text-title-artist")
+            .attr("aria-label", a.name.clone())
+            .attr("title", a.name.clone())
+            .attr("href", format!("/artist/{}", a.id))
+            .text(a.name.clone())
+    };
+    let title = cell("title");
+    out.push(
+        el(title.clone(), Some(&key), "td")
+            .class("_titleColumn_6ea01af")
+            .at(row.title_rect),
+    );
+    let title_wrap = cell("title-wrap");
+    out.push(
+        el(title_wrap.clone(), Some(&title), "div")
+            .class("_textAndBadges_571ba9c")
+            .at(row.title_rect),
+    );
+    out.push(
+        el(cell("title-text"), Some(&title_wrap), "span")
+            .class("wave-text-description-medium")
+            .class("_title_29c2df5")
+            .text(row.title.clone())
+            .at(row.title_rect),
+    );
+    if row.explicit {
+        out.push(
+            el(cell("explicit"), Some(&title_wrap), "i")
+                .class("_badge_57d1ccb _explicitBadge_b93510b")
+                .test("explicit-badge")
+                .attr("title", "Explicit"),
+        );
+    }
+    // The title cell's own copy of the artists, which TIDAL shows only in a
+    // narrow window.
+    out.push(el(cell("title-artists"), Some(&title), "div").class("_artistInTitleColumn_70efb8b"));
+    out.push(
+        el(
+            cell("title-artists-text"),
+            Some(&cell("title-artists")),
+            "span",
+        )
+        .class("_artists_7ff7103"),
+    );
+    for (i, a) in row.artists.iter().enumerate() {
+        out.push(link(
+            cell(&format!("title-artist:{i}")),
+            &cell("title-artists-text"),
+            a,
+        ));
+    }
+    let artist = cell("artist");
+    out.push(
+        el(artist.clone(), Some(&key), "td")
+            .class("_artistColumn_bdedbdc")
+            .at(row.artist_rect),
+    );
+    let artist_text = cell("artist-text");
+    out.push(
+        el(artist_text.clone(), Some(&artist), "span")
+            .class("wave-text-description-medium")
+            .class("_artistColumnText_94b4400")
+            .at(row.artist_rect),
+    );
+    for (i, a) in row.artists.iter().enumerate() {
+        out.push(link(format!("{artist}:{i}"), &artist_text, a));
+    }
+    if let Some(album) = &row.album {
+        out.push(el(cell("album"), Some(&key), "td").class("_albumColumn_06244a0"));
+        out.push(
+            el(cell("album-text"), Some(&cell("album")), "span")
+                .class("wave-text-description-medium"),
+        );
+        out.push(
+            el(cell("album-link"), Some(&cell("album-text")), "a")
+                .class("_link_6a45a19")
+                .test("table-cell-album")
+                .attr("aria-label", album.name.clone())
+                .attr("title", album.name.clone())
+                .attr("href", format!("/album/{}", album.id))
+                .text(album.name.clone()),
+        );
+    }
+    out.push(
+        el(cell("duration"), Some(&key), "td")
+            .class("_timeColumn_3cd7564")
+            .text(row.duration.map(format_time).unwrap_or_default())
+            .at(row.duration_rect),
+    );
+    let context = cell("context");
+    out.push(
+        el(context.clone(), Some(&key), "td")
+            .class("_buttonColumn_8079e7d")
+            .at(row.actions_rect),
+    );
+    let [menu, add, heart] = row.buttons;
+    out.push(
+        el(cell("menu"), Some(&context), "button")
+            .class("_button_a3412d0")
+            .class("_contextButton_8b81bec")
+            .test(&format!(
+                "tracklist-id-{}-context-menu-button",
+                row.track_id
+            ))
+            .attr("aria-label", "Show options")
+            .attr("title", "Show options")
+            .attr("data-type", "contextmenu-open")
+            .at(menu.or(row.actions_rect)),
+    );
+    out.push(
+        el(cell("add"), Some(&context), "button")
+            .class("_button_c25ce4d")
+            .class("_addButton_4866183")
+            .test("tracklist-add-to-playlist")
+            .attr("aria-label", "Add to playlist")
+            .attr("title", "Add to playlist")
+            .attr("data-type", "media-table__row--add-to-playlist")
+            .at(add),
+    );
+    let saved = row.saved == Some(true);
+    out.push(
+        el(cell("favorite"), Some(&context), "button")
+            .class("_button_c372e89")
+            .class(if saved {
+                "_favorite_e54272d"
+            } else {
+                "_gray_c82f8e6"
+            })
+            .class("_favoriteButton_4a8bf40")
+            .test(&format!("tracklist-save-item-{}", row.track_id))
+            .attr("role", "switch")
+            .attr("aria-checked", saved.to_string())
+            .attr(
+                "aria-label",
+                if saved {
+                    "Remove from My Collection"
+                } else {
+                    "Add to My Collection"
+                },
+            )
+            .at(heart),
+    );
 }
 
 /// `div[data-test=tracklist-row]` and its cells, in `parent`.

@@ -10283,6 +10283,91 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// A plugin's words on an anchor.
+    fn words_on(key: String, text: &str) -> (String, crate::luna::dom::HostOverride) {
+        (
+            key,
+            crate::luna::dom::HostOverride {
+                text: Some(text.to_string()),
+                ..crate::luna::dom::HostOverride::default()
+            },
+        )
+    }
+
+    /// TIDAL 2.47.0's Top Tracks are a plain table, not its media table
+    /// (captured): `table._trackList_a129abb > tbody >
+    /// tr[data-test=tracklist-row--selected-false]` with
+    /// `button[data-test=image-container-track-<id>]`, `a[data-test=
+    /// table-cell-album]` and the buttons `tracklist-add-to-playlist` and
+    /// `tracklist-save-item-<id>`. A plugin that decorates
+    /// `div[data-test=tracklist-row]` finds nothing here in TIDAL, one that
+    /// walks the words finds them, and the words it leaves are drawn.
+    #[test]
+    fn an_artists_top_tracks_are_tidals_table() {
+        use crate::luna::dom_anchors::{attr, keys};
+        let (ctx, mut app) = accessible_app("artist-table");
+        app.open(Page::Artist("art0".into()));
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let tests: Vec<&str> = tree
+            .nodes
+            .iter()
+            .filter_map(|n| attr(n, "data-test"))
+            .collect();
+        assert!(!tests.contains(&"tracklist-row"), "{tests:?}");
+        assert!(!tests.contains(&"media-table"), "{tests:?}");
+        let row = tree
+            .nodes
+            .iter()
+            .find(|n| attr(n, "data-test") == Some("tracklist-row--selected-false"))
+            .expect("a Top Tracks row");
+        assert_eq!(row.tag, "tr");
+        let id = attr(row, "data-track-id")
+            .expect("the row's song")
+            .to_string();
+        let list = "artist:art0";
+        let node = |key: String| tree.nodes.iter().find(|n| n.key == key).cloned();
+        let test_of = |cell: &str| {
+            node(keys::row_cell(list, 0, cell))
+                .and_then(|n| attr(&n, "data-test").map(str::to_string))
+        };
+        assert_eq!(
+            test_of("image").as_deref(),
+            Some(format!("image-container-track-{id}").as_str())
+        );
+        assert_eq!(test_of("album-link").as_deref(), Some("table-cell-album"));
+        assert_eq!(test_of("add").as_deref(), Some("tracklist-add-to-playlist"));
+        assert_eq!(
+            test_of("favorite").as_deref(),
+            Some(format!("tracklist-save-item-{id}").as_str())
+        );
+        assert_eq!(
+            test_of("menu").as_deref(),
+            Some(format!("tracklist-id-{id}-context-menu-button").as_str())
+        );
+        assert_eq!(
+            test_of("artist:0").as_deref(),
+            Some("grid-item-detail-text-title-artist")
+        );
+        let table = node(keys::list(list)).expect("the table");
+        assert_eq!(table.tag, "table");
+        let heading = node(format!("{}:title-col:label", keys::list(list))).expect("TITLE");
+        assert_eq!(heading.text.as_deref(), Some("TITLE"));
+        assert_eq!(attr(&heading, "class"), Some("wave-text-caption-demi"));
+        let drawn = words_under_plugin(
+            &ctx,
+            &mut app,
+            vec![
+                words_on(keys::row_cell(list, 0, "title-text"), "Twack uwu"),
+                words_on(format!("{}:title-col:label", keys::list(list)), "Titwe"),
+                words_on(keys::row_cell(list, 0, "album-link"), "Awbum uwu"),
+            ],
+        );
+        for word in ["Twack uwu", "TITWE", "Awbum uwu"] {
+            assert!(drawn.iter().any(|(t, _)| t == word), "{word}: {drawn:?}");
+        }
+        app.backend.shutdown();
+    }
+
     /// Home's own title (`div._pageHeader_1d2b3ad > h1._title_2d8da11`,
     /// "Home", which TIDAL's CSS shows only in a narrow window, so it has no
     /// box) and its vibe tabs (`div[data-test=vibe-tab-static|editorial|
