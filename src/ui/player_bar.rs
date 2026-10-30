@@ -206,12 +206,13 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             } else {
                 0.0
             };
-            let side = sides(width, need);
+            let rules = BarRules::at(ui.ctx().content_rect().width());
+            let side = sides(width, need, rules.column_gap);
             let cy = rect.center().y;
             let left = Rect::from_min_max(rect.min, pos2(rect.left() + side, rect.bottom()));
             let center = Rect::from_min_max(
-                pos2(rect.left() + side, rect.top()),
-                pos2(rect.right() - side, rect.bottom()),
+                pos2(rect.left() + side + rules.column_gap, rect.top()),
+                pos2(rect.right() - side - rules.column_gap, rect.bottom()),
             );
 
             // egui's cross-axis centring is unreliable across nested layouts of
@@ -219,7 +220,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             // is sized to its content and centred on the bar's midline.
             // The sides' content must stay clear of the transport buttons:
             // it may use what the centre has beyond them.
-            let slack = slack(center.width());
+            let slack = slack(center.width()) + rules.column_gap;
             // The track info ends before the seek row's start time: what
             // plugins add at its end (up-next's pill) takes room from the
             // title, as TIDAL's flex row does, and is left out whole when
@@ -229,19 +230,19 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             // input; the others keep their places, as TIDAL's grid does.
             let left_reach = match plugin_dom::shown(keys::TRACK_INFO) {
                 plugin_dom::Shown::Drawn => {
-                    now_playing_block(app, ui, left, slack, tail_limit, now.as_ref())
+                    now_playing_block(app, ui, left, rules, slack, tail_limit, now.as_ref())
                 }
                 plugin_dom::Shown::Invisible => {
                     ui.scope(|ui| {
                         ui.set_invisible();
-                        now_playing_block(app, ui, left, slack, tail_limit, now.as_ref())
+                        now_playing_block(app, ui, left, rules, slack, tail_limit, now.as_ref())
                     })
                     .inner
                 }
                 plugin_dom::Shown::Gone => left.left(),
             };
 
-            transport(app, ui, now.as_ref(), center);
+            transport(app, ui, now.as_ref(), center, rules);
 
             let right_band =
                 Rect::from_min_size(pos2(rect.right() - side, cy - 20.0), vec2(side, 40.0));
@@ -256,7 +257,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     if shown == plugin_dom::Shown::Invisible {
                         right_ui.set_invisible();
                     }
-                    extras(app, &mut right_ui, now.as_ref(), side + slack)
+                    extras(app, &mut right_ui, now.as_ref(), side + slack, rules)
                 }
             };
             if plugin_dom::on() {
@@ -395,11 +396,49 @@ fn artists_hidden(artists: &[crate::api::models::ArtistRef]) -> bool {
         && (0..artists.len()).all(|i| plugin_dom::hidden(&format!("{}:{i}", keys::ARTIST)))
 }
 
-/// The width of each side of a bar `width` wide: 30 % within 200 to 420,
+/// What TIDAL's sheet changes in the bar by the window's width.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct BarRules {
+    /// `._player_ { gap }`, between the grid's three columns.
+    column_gap: f32,
+    /// `._playbackControls_ { gap }`: shuffle and repeat to the skip buttons.
+    controls_gap: f32,
+    /// `._utilityButtons_ { gap }`.
+    utility_gap: f32,
+    /// `._trackContent_ { gap }`: the words to the heart.
+    words_gap: f32,
+    /// `._qualityBadgeContainer_` is shown.
+    badge: bool,
+    /// `._actions_ ._blockButton_, ._contextMenuButton_` are shown.
+    track_menu: bool,
+    /// `._artworkContainer_` is shown.
+    cover: bool,
+}
+
+impl BarRules {
+    /// The rules of a window `width` wide: TIDAL's `@media (width <= 992px)`
+    /// and `(width <= 768px)`. Its `(width <= 576px)` bar, a phone's, is
+    /// below the window's own least width (`window::MAIN_MIN_SIZE`).
+    fn at(width: f32) -> Self {
+        let narrow = width <= 992.0;
+        Self {
+            column_gap: if narrow { 16.0 } else { 32.0 },
+            controls_gap: if narrow { 8.0 } else { 12.0 },
+            utility_gap: if narrow { 4.0 } else { 8.0 },
+            words_gap: if narrow { 8.0 } else { 24.0 },
+            badge: !narrow,
+            track_menu: !narrow,
+            cover: width > 768.0,
+        }
+    }
+}
+
+/// The width of each side of a bar `width` wide, inside its padding:
+/// TIDAL's `grid-template-columns: 1fr 1.5fr 1fr` with `gap` between them,
 /// or what plugins `need` up to leaving the centre [`centre_least`].
-fn sides(width: f32, need: f32) -> f32 {
-    let side = (width * 0.3).clamp(200.0, 420.0);
-    side.max(need.min((width - centre_least(width)) / 2.0))
+fn sides(width: f32, need: f32, gap: f32) -> f32 {
+    let side = (width - 2.0 * gap) / 3.5;
+    side.max(need.min((width - centre_least(width)) / 2.0 - gap))
 }
 
 /// The least the centre keeps when plugins widen the sides: the seek bar
@@ -427,6 +466,8 @@ fn slack(center_width: f32) -> f32 {
 /// and what is put before the queue button) goes first.
 const RIGHT_ITEMS: usize = 13;
 const PILL: usize = 1;
+const QUALITY_APPENDED: usize = 2;
+const QUALITY_PREPENDED: usize = 3;
 const RIGHT_RANK: [u8; RIGHT_ITEMS] = [3, 0, 2, 2, 1, 1, 1, 1, 1, 1, 1, 3, 3];
 
 /// What the right side measured last frame: the room its native buttons
@@ -571,6 +612,7 @@ fn now_playing_block(
     app: &mut App,
     ui: &mut egui::Ui,
     region: Rect,
+    rules: BarRules,
     slack: f32,
     tail_limit: f32,
     now: Option<&NowPlaying>,
@@ -583,8 +625,12 @@ fn now_playing_block(
     let cover_rect = Rect::from_min_size(pos2(region.left(), cy - 26.0), Vec2::splat(52.0));
 
     let Some(now) = now else {
-        super::widgets::paint_cover(ui, &palette, None, cover_rect, 6.0, Icon::Music, None);
-        let text_left = cover_rect.right() + 12.0;
+        let text_left = if rules.cover {
+            super::widgets::paint_cover(ui, &palette, None, cover_rect, 6.0, Icon::Music, None);
+            cover_rect.right() + 12.0
+        } else {
+            region.left()
+        };
         let text_rect = Rect::from_min_size(
             pos2(text_left, cy - 17.0),
             vec2((region.right() - text_left - 8.0).max(40.0), 34.0),
@@ -617,7 +663,7 @@ fn now_playing_block(
         .filter(|src| Some(src.as_str()) != now.art_url.as_deref());
     // TIDAL: while the now-playing view shows the cover large, the bar
     // leaves it out and its words move to the left.
-    let cover_shown = !app.now_playing_view;
+    let cover_shown = !app.now_playing_view && rules.cover;
     if cover_shown {
         super::widgets::playing_cover(
             ui,
@@ -696,20 +742,34 @@ fn now_playing_block(
             app.actions.push(Action::SettingsChanged);
         }
     }
-    let heart_width = 72.0;
     // TIDAL: a song of a mix or radio has "Don't play this" between the
     // heart and the "…".
     let block = app.can_block_playing_track();
-    let more_shift = if block { 56.0 } else { 28.0 };
+    let block = block && rules.track_menu;
+    let more_shift = match (rules.track_menu, block) {
+        (false, _) => 0.0,
+        (true, false) => 28.0,
+        (true, true) => 56.0,
+    };
+    // TIDAL: the heart stands `._trackContent_`'s gap past the words, the
+    // 24-point heart and "…" 4 apart.
+    let heart_width = rules.words_gap + 24.0 + more_shift;
     // Room for plugin elements: after the "…" up to the transport, and
     // for those on the title's and artist's lines up to where the heart
     // can stand (it never stands past the region's end).
     let reachable = x_range(region.left(), region.right() + slack);
-    let line_room = x_range(region.left(), region.right() - 64.0 - (more_shift - 28.0));
+    let line_room = x_range(
+        region.left(),
+        region.right() - rules.words_gap - 12.0 - more_shift,
+    );
     let text_left = if cover_shown {
         cover_rect.right() + 16.0
-    } else {
+    } else if rules.cover {
         region.left() + now_playing_text_inset()
+    } else {
+        // Left out at this width: the words stand where it stood, and
+        // TIDAL's `transform: none !important` holds them there.
+        region.left()
     };
     // A theme's card round the words, the heart and the "…"
     // (`._trackContent_`): TIDAL's flex row puts the card where the words
@@ -744,7 +804,8 @@ fn now_playing_block(
             (width(keys::TRACK_INFO, Position::Append), tail_limit),
         ] {
             let Some(w) = item else { continue };
-            if let Some(room) = words_fit(limit, text_left, more_shift, taken + w) {
+            let after_words = rules.words_gap + 24.0 + 12.0 + more_shift;
+            if let Some(room) = words_fit(limit, text_left, after_words, taken + w) {
                 taken += w;
                 cap = Some(cap.map_or(room, |c: f32| c.min(room)));
             }
@@ -991,8 +1052,8 @@ fn now_playing_block(
         let plugin_line = (line_end - text_left).max(0.0);
         words_width(title.size().x, subtitle.size().x, plugin_line, text_width)
     };
-    // TIDAL: 24-point heart and "…" 4 apart, 32 past the words.
-    let heart_x = (text_left + natural + 44.0).min(region.right() - 44.0 - (more_shift - 28.0));
+    let heart_x =
+        (text_left + natural + rules.words_gap + 12.0).min(region.right() - 16.0 - more_shift);
     let heart_rect = Rect::from_center_size(pos2(heart_x, cy), Vec2::splat(24.0));
     // The card holds the words, the heart and the "…" beside the title.
     if let Some((card, slot)) = card {
@@ -1096,7 +1157,7 @@ fn now_playing_block(
     ) {
         reach = reach.max(r.right());
     }
-    if let Some(item) = &song {
+    if let Some(item) = song.as_ref().filter(|_| rules.track_menu) {
         let more_rect = heart_rect.translate(vec2(more_shift, 0.0));
         let mut more_ui = ui.new_child(
             UiBuilder::new()
@@ -1126,7 +1187,7 @@ fn now_playing_block(
     // What sits on the title's and artist's lines pushes the heart and the
     // "…" past it: the side asks for room for them too.
     if line_end > region.left() {
-        reach = reach.max(line_end + 64.0 + (more_shift - 28.0));
+        reach = reach.max(line_end + rules.words_gap + 12.0 + more_shift);
     }
     reach
 }
@@ -1175,7 +1236,7 @@ const LEAST_WORDS: f32 = 24.0;
 /// The width of the seek bar in a centre `width` wide: TIDAL's 704 points
 /// once there is room, leaving the times beside it.
 fn slider_width(width: f32) -> f32 {
-    (width - 112.0).clamp(120.0, 704.0)
+    (width - 96.0).clamp(120.0, 704.0)
 }
 
 /// Where the seek row's start time begins in the centre `region`.
@@ -1184,12 +1245,12 @@ fn seek_start(region: Rect) -> f32 {
 }
 
 /// How wide the title's column may be beside the cover so that `tail`
-/// (plugin elements after the "…") still ends by `limit`: the actions
-/// after the words take 68 and `more_shift` (the heart's place, the
-/// "…" and their gaps). `None` (no room asked: what is there is left out
-/// whole) when even the least words leave it no room.
-fn words_fit(limit: f32, text_left: f32, more_shift: f32, tail: f32) -> Option<f32> {
-    let room = limit - tail - text_left - 68.0 - more_shift;
+/// (plugin elements after the "…") still ends by `limit`: `after_words`
+/// is what the actions take past the words (the heart's place, the "…" and
+/// their gaps). `None` (no room asked: what is there is left out whole)
+/// when even the least words leave it no room.
+fn words_fit(limit: f32, text_left: f32, after_words: f32, tail: f32) -> Option<f32> {
+    let room = limit - tail - text_left - after_words;
     (room >= LEAST_WORDS).then_some(room)
 }
 
@@ -1222,7 +1283,13 @@ fn source_line(app: &mut App, ui: &mut egui::Ui, from: &crate::model::PlayingFro
     }
 }
 
-fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region: Rect) {
+fn transport(
+    app: &mut App,
+    ui: &mut egui::Ui,
+    now: Option<&NowPlaying>,
+    region: Rect,
+    rules: BarRules,
+) {
     let palette = bar_palette(app, ui.ctx());
     // Everything here is placed with explicit rects: egui's implicit rows
     // centre each widget in the row height known when it is added, which
@@ -1246,10 +1313,10 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     };
     let bright = if enabled { palette.text } else { palette.dim };
 
-    // TIDAL: shuffle and repeat 32, 12 from previous, play and next, which
-    // are 40 and 8 apart.
+    // TIDAL: shuffle and repeat 32, `._playbackControls_`'s gap from
+    // previous and next, which with play are 40 and 8 apart.
     let widths = [32.0, 40.0, 40.0, 40.0, 32.0];
-    let gaps = [12.0, 8.0, 8.0, 12.0];
+    let gaps = [rules.controls_gap, 8.0, 8.0, rules.controls_gap];
     // A button a plugin left out (`display: none`) takes no room and the
     // others close up round the centre, as in TIDAL's flex row; one it hid
     // (`visibility: hidden`) keeps its room with nothing drawn.
@@ -1644,7 +1711,13 @@ fn time_text(
 /// Elements that do not fit in `budget` are left out, plugins' before the
 /// buttons (see [`RIGHT_RANK`]); returns the width the run would take with
 /// none left out.
-fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f32) -> f32 {
+fn extras(
+    app: &mut App,
+    ui: &mut egui::Ui,
+    now: Option<&NowPlaying>,
+    budget: f32,
+    rules: BarRules,
+) -> f32 {
     let palette = bar_palette(app, ui.ctx());
     let fit_id = egui::Id::new("player-bar-right-fit");
     let before: RightFit = ui.data(|d| d.get_temp(fit_id)).unwrap_or_default();
@@ -1654,6 +1727,13 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         widths: [-1.0; RIGHT_ITEMS],
         drawn: 0.0,
     };
+    // `._qualityBadgeContainer_ { display: none }` takes what is in the badge
+    // along; it asks for no room, so it costs the bar nothing.
+    if !rules.badge {
+        run.shown[PILL] = false;
+        run.shown[QUALITY_APPENDED] = false;
+        run.shown[QUALITY_PREPENDED] = false;
+    }
     // A theme's card behind the buttons (`._utilityButtons_`), filled once
     // they are laid out; the quality pill to their right stays outside it.
     let card = plugin_dom::part_card(keys::UTILITY_BUTTONS);
@@ -1669,7 +1749,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         if app.local.output.bit_perfect {
             badge.detail = format!("{} · {}", badge.detail, gettext(app.locale, "Bit-perfect"));
         }
-        run.slot(ui, 2, keys::QUALITY, Position::Append);
+        run.slot(ui, QUALITY_APPENDED, keys::QUALITY, Position::Append);
         // Plugins may write their own text into the badge's label span
         // (Tidal Tags: the stream's format) and colour the badge.
         let label = match plugin_dom::text(keys::QUALITY_LABEL, &badge.label) {
@@ -1722,9 +1802,16 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         if show_pill {
             run.drawn += run.widths[PILL];
         }
+        if !rules.badge {
+            run.widths[PILL] = 0.0;
+        }
         // Tidal Tags and the like put their tags in front of the pill.
-        run.slot(ui, 3, keys::QUALITY, Position::Prepend);
+        run.slot(ui, QUALITY_PREPENDED, keys::QUALITY, Position::Prepend);
         // Between the buttons' box and the badge's.
+        if !rules.badge {
+            run.widths[QUALITY_APPENDED] = 0.0;
+            run.widths[QUALITY_PREPENDED] = 0.0;
+        }
         run.slot(ui, 8, keys::UTILITY_BUTTONS, Position::After);
         // TIDAL's badge reads the pill's words, except where the pill names
         // the tier for want of figures (TIDAL's then read its fallback).
@@ -1759,7 +1846,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     // it out as they do there.
     let buttons_right = ui.cursor().right();
     ui.add_space(inset[1]);
-    let gap = plugin_dom::column_gap(keys::UTILITY_BUTTONS).unwrap_or(8.0);
+    let gap = plugin_dom::column_gap(keys::UTILITY_BUTTONS).unwrap_or(rules.utility_gap);
     ui.spacing_mut().item_spacing.x = gap;
     let boxes = UtilityBoxes::read();
     run.slot(ui, 4, keys::UTILITY_BUTTONS, Position::Append);
@@ -2146,17 +2233,18 @@ mod side_tests {
     /// progress bar's times, but the transport keeps 320 points.
     #[test]
     fn plugin_content_widens_the_sides_down_to_a_minimum_centre() {
-        assert_eq!(sides(1280.0, 0.0), 384.0);
-        assert_eq!(sides(1280.0, 300.0), 384.0);
+        // TIDAL's grid, 1fr 1.5fr 1fr with 32 between the columns.
+        assert_eq!(sides(1280.0, 0.0, 32.0), 1216.0 / 3.5);
+        assert_eq!(sides(1280.0, 300.0, 32.0), 1216.0 / 3.5);
         // The centre keeps the seek bar's share of a window: 42 % of the
         // bar up to 816 points (TIDAL's 704-point bar and its times).
-        assert_eq!(sides(1280.0, 430.0), 384.0);
-        assert_eq!(sides(1280.0, 900.0), 384.0);
-        assert_eq!(sides(2000.0, 0.0), 420.0);
-        assert_eq!(sides(2000.0, 500.0), 500.0);
-        assert_eq!(sides(2000.0, 900.0), 592.0);
-        assert_eq!(sides(600.0, 0.0), 200.0);
-        assert_eq!(sides(600.0, 400.0), 200.0);
+        assert_eq!(sides(1280.0, 430.0, 32.0), 1216.0 / 3.5);
+        assert_eq!(sides(1280.0, 900.0, 32.0), 1216.0 / 3.5);
+        assert_eq!(sides(2000.0, 0.0, 32.0), 1936.0 / 3.5);
+        assert_eq!(sides(2000.0, 500.0, 32.0), 1936.0 / 3.5);
+        assert_eq!(sides(2000.0, 900.0, 32.0), 560.0);
+        assert_eq!(sides(600.0, 0.0, 16.0), 568.0 / 3.5);
+        assert_eq!(sides(600.0, 400.0, 16.0), 568.0 / 3.5);
     }
 }
 
@@ -3193,9 +3281,18 @@ mod narrow_tests {
             down.last().is_some_and(|last| last.len() < MARKS.len()),
             "items are left out at the narrowest: {down:?}"
         );
-        for pair in down.windows(2) {
+        // At 992 TIDAL's rules close the gaps and leave out the "…" and the
+        // badge, at 768 the cover, which gives room back: the order holds
+        // on each side of those.
+        for pair in widths.iter().zip(&down).collect::<Vec<_>>().windows(2) {
+            let [(wider, before), (narrower, after)] = pair else {
+                continue;
+            };
+            if [992.0, 768.0].iter().any(|at| **wider > *at && **narrower <= *at) {
+                continue;
+            }
             assert!(
-                pair[1].iter().all(|name| pair[0].contains(name)),
+                after.iter().all(|name| before.contains(name)),
                 "an item came back as the bar narrowed: {pair:?}"
             );
         }
@@ -3204,7 +3301,7 @@ mod narrow_tests {
 
     /// A plugin's text before the queue button goes before the quality
     /// pill, which is TIDAL's own: in a bar with room for one of them, the
-    /// pill stays.
+    /// pill stays. (At 992 and under TIDAL leaves the pill out itself.)
     #[test]
     fn plugin_text_leaves_a_narrowing_bar_before_the_quality_pill() {
         let (ctx, mut app) = setup();
@@ -3219,7 +3316,7 @@ mod narrow_tests {
         }));
         crate::demo::apply_flags(&mut app, Some("home"), Some("quality-pill"));
         let mut only_pill = false;
-        for width in (700..=1500).step_by(10) {
+        for width in (1000..=1500).step_by(10) {
             let found = settled(&ctx, &mut app, width as f32);
             let has = |s: &str| found.iter().any(|(text, _)| text.contains(s));
             let (pill, text) = (has("16-bit"), has("TOTAL-00:09:34"));

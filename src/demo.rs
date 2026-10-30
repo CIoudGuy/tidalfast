@@ -3585,6 +3585,105 @@ mod tests {
         assert_eq!(steps, [48.0, 48.0, 48.0, 48.0], "{centers:?}");
     }
 
+    /// The bar at TIDAL's window widths, the numbers read from its page
+    /// replayed at each width: `grid-template-columns: 1fr 1.5fr 1fr` makes
+    /// the seek bar, and `@media (width <= 992px)` closes the gaps and
+    /// leaves out the badge and the "…", `(width <= 768px)` the cover.
+    #[test]
+    fn the_bar_follows_tidals_rules_by_the_windows_width() {
+        use egui::accesskit::{Rect as Bounds, Role};
+        let (ctx, mut app) = accessible_app("bar-widths");
+        super::play_here(&mut app);
+        app.local.playback = crate::player::Playback::Paused;
+        app.local.format = Some(crate::tidal_engine::StreamFormat {
+            codec: "flac".into(),
+            sample_rate: 44_100,
+            bit_depth: Some(16),
+            channels: 2,
+            quality: Some(crate::tidal_engine::Quality::Lossless),
+            ..Default::default()
+        });
+        let title = app.now_playing().unwrap().title;
+        let mut at = |width: f32| {
+            let mut tree = None;
+            for _ in 0..4 {
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(width, 800.0),
+                        )),
+                        ..Default::default()
+                    },
+                    |ui| app.frame_ui(ui),
+                );
+                output.textures_delta.clear();
+                tree = output.platform_output.accesskit_update;
+            }
+            tree.expect("screen-reader tree")
+        };
+        let find = |tree: &egui::accesskit::TreeUpdate, label: &str, role: Role| -> Option<Bounds> {
+            tree.nodes
+                .iter()
+                .find(|(_, node)| {
+                    node.label() == Some(label)
+                        && node.role() == role
+                        && node.bounds().is_some_and(|bounds| bounds.y0 > 700.0)
+                })
+                .and_then(|(_, node)| node.bounds())
+        };
+        let shown = |tree: &egui::accesskit::TreeUpdate, label: &str, role: Role| {
+            find(tree, label, role).unwrap_or_else(|| panic!("{label} is not in the bar"))
+        };
+        let seek = "Playback position (%)";
+        // (window, seek bar, previous to shuffle, compact to queue)
+        for (width, bar, outer, buttons) in [
+            (1400.0, 461.0, 44.0, 120.0),
+            (1000.0, 290.0, 44.0, 120.0),
+            (992.0, 300.0, 40.0, 108.0),
+            (800.0, 218.0, 40.0, 108.0),
+        ] {
+            let tree = at(width);
+            let slider = shown(&tree, seek, Role::Slider);
+            assert!(
+                (slider.x1 - slider.x0 - bar).abs() < 1.0,
+                "{width}: {slider:?}"
+            );
+            let middle = |b: Bounds| (b.x0 + b.x1) / 2.0;
+            let shuffle = shown(&tree, "Shuffle", Role::CheckBox);
+            let previous = shown(&tree, "Previous", Role::Button);
+            assert_eq!(middle(previous) - middle(shuffle), outer + 4.0, "{width}");
+            assert_eq!(
+                shown(&tree, "Compact mode", Role::Button).x0 - shown(&tree, "Queue", Role::Button).x0,
+                buttons,
+                "{width}"
+            );
+        }
+        let wide = at(1000.0);
+        assert!(find(&wide, "16-bit 44.1kHz", Role::Button).is_some());
+        assert!(find(&wide, "More", Role::Button).is_some());
+        let narrow = at(992.0);
+        assert!(find(&narrow, "16-bit 44.1kHz", Role::Button).is_none());
+        assert!(find(&narrow, "More", Role::Button).is_none());
+        // With no badge the buttons reach the bar's padding.
+        let compact = shown(&narrow, "Compact mode", Role::Button);
+        assert_eq!((compact.x0 + compact.x1) / 2.0, 992.0 - 18.0 - 16.0);
+        let words = |tree: &egui::accesskit::TreeUpdate| {
+            tree.nodes
+                .iter()
+                .find(|(_, node)| {
+                    node.label() == Some(title.as_str())
+                        && node.bounds().is_some_and(|bounds| bounds.y0 > 700.0)
+                })
+                .and_then(|(_, node)| node.bounds())
+                .expect("the title in the bar")
+                .x0
+        };
+        assert_eq!(words(&at(769.0)), 86.0);
+        assert_eq!(words(&at(768.0)), 18.0);
+        app.backend.shutdown();
+    }
+
     #[test]
     fn player_bar_right_side_follows_tidals_order() {
         use egui::accesskit::Role;
