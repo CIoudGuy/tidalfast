@@ -3769,12 +3769,25 @@ fn quality_badge_uncached(gradient: &'static str) -> Option<ThemedBadge> {
             css::length(&v, 14.0, 0.0, [0.0, 0.0])
         })
     };
+    // Its own picture, not a `::before` that shows only under the pointer
+    // (the cotton candy family's `._high_:before`).
+    let pictured = |key: &str| {
+        host(key, |h, _| {
+            Some(
+                h.style
+                    .background_image
+                    .as_deref()
+                    .is_some_and(|v| v != "none"),
+            )
+        })
+        .unwrap_or(false)
+    };
     let badge = ThemedBadge {
         fill: layer(QUALITY_BADGE),
         layer: layer(gradient),
         radius: radius(gradient).or_else(|| radius(QUALITY_BADGE)),
-        boxed: paints_box(QUALITY_BADGE),
-        gradient: paints_box(gradient).then_some(gradient),
+        boxed: pictured(QUALITY_BADGE),
+        gradient: pictured(gradient).then_some(gradient),
     };
     (badge.fill.is_some() || badge.layer.is_some() || badge.boxed || badge.gradient.is_some())
         .then_some(badge)

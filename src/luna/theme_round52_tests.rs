@@ -145,7 +145,8 @@ fn the_badges_words_and_box_take_a_themes_rules_as_tidals_do() {
     pd::test_overlay(None);
     let css = r#"/* {"name": "Plain"} */
 ._marketText_1lyag_1 { color: rgb(10, 20, 30); }
-._badge_7b2911e { color: rgb(1, 1, 1); }
+._badge_7b2911e { background-color: rgb(20, 20, 40); color: rgb(1, 1, 1); }
+._high_4b5525b:before { background: rgb(0, 0, 255); }
 "#;
     let o = overlay_with("plain.css", css, &frame(), QUALITY_TEXT);
     pd::test_overlay(Some((*o).clone()));
@@ -153,5 +154,8 @@ fn the_badges_words_and_box_take_a_themes_rules_as_tidals_do() {
         pd::color(QUALITY_TEXT),
         Some(egui::Color32::from_rgb(0x16, 0xd8, 0xa7))
     );
+    // A `::before` for the pointer is not the badge's look.
+    let flat = pd::quality_badge("LOSSLESS").expect("the theme's badge");
+    assert!(!flat.boxed, "{flat:?}");
     pd::test_overlay(None);
 }
