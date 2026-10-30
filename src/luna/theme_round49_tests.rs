@@ -2,7 +2,74 @@
 //! demo's pages, with made-up themes (their own values, TIDAL's classes and
 //! anchors only).
 
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
 use super::dom::DomOverlay;
+use super::*;
+
+/// Installs `css` as a theme over `tree` and returns the overlay once the
+/// theme reached it and gave `key` a colour.
+fn overlay_with(
+    name: &str,
+    css: &str,
+    tree: super::dom::HostTree,
+    key: &str,
+) -> (Luna, Arc<DomOverlay>) {
+    let files: Files = Arc::default();
+    files
+        .lock()
+        .unwrap()
+        .insert(format!("/{name}"), css.as_bytes().to_vec());
+    let base = serve(files);
+    let data = temp_dir(name);
+    let luna = Luna::start(config(&data), Arc::new(MockHost::default())).unwrap();
+    luna.install_theme(&format!("{base}/{name}"));
+    let end = Instant::now() + Duration::from_secs(20);
+    let o = loop {
+        luna.sync_dom(tree.clone());
+        luna.sync(Duration::from_secs(5));
+        let o = luna.dom_overlay();
+        if o.css_bytes > 0 && o.hosts.get(key).is_some_and(|h| h.style.color.is_some()) {
+            break o;
+        }
+        assert!(Instant::now() < end, "{key:?} was never styled");
+        std::thread::sleep(Duration::from_millis(30));
+    };
+    (luna, o)
+}
+
+/// TIDAL 2.47.0 gives its search pill no shadow by a rule three classes
+/// deep (`:is(._container_cb5cbe4 ._searchFieldWithPopover_267e090)
+/// .searchFieldWithinSearchFieldWithPopover { box-shadow: none }`), so a
+/// theme's one-class rule for the pill's `._container_f1be359` (the
+/// cotton candy family's drop shadow) leaves it without one, while a
+/// theme rule as deep wins. Tidalfast drew the lighter rule's shadow.
+#[test]
+fn a_lighter_rule_does_not_give_the_search_pill_a_shadow() {
+    use dom_anchors::keys::SEARCH_FIELD;
+    let shadow = |css: &str, name: &str| {
+        let (luna, o) = overlay_with(name, css, dom_anchors::sample_tree(), SEARCH_FIELD);
+        let s = o.hosts[SEARCH_FIELD].style.box_shadow.clone();
+        luna.shutdown();
+        s.unwrap_or_default()
+    };
+    let light = shadow(
+        "/* {\"name\": \"Light\"} */
+._container_f1be359 { box-shadow: 0 4px 8px rgb(255, 0, 0); color: rgb(1, 2, 3); }
+",
+        "light-shadow.css",
+    );
+    assert!(!light.contains("255"), "{light}");
+    let deep = shadow(
+        "/* {\"name\": \"Deep\"} */
+._container_f1be359 { color: rgb(1, 2, 3); }
+:is(._container_cb5cbe4 ._searchFieldWithPopover_267e090) .searchFieldWithinSearchFieldWithPopover { box-shadow: 0 0 4px rgb(0, 0, 255); }
+",
+        "deep-shadow.css",
+    );
+    assert!(deep.contains("255"), "{deep}");
+}
 
 /// TIDAL 2.47.0 fills the open playlist's library row with its own
 /// `--market-core-fill-30-color` (white at 15 % in dark mode) whatever

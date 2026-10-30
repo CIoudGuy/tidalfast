@@ -533,6 +533,12 @@
 					// title text: `em` in a theme's lengths for it is 32
 					// (the cotton candy family's `translateY(-.4em)` is 12.8).
 					":where(.wave-text-title-bold) { font-size: 32px; }\n" +
+					// The search pill has no shadow of its own (TIDAL 2.47.0's
+					// rule, three classes deep): a theme's lighter rule for the
+					// pill's `._container_` class (the cotton candy family's
+					// drop shadow on every `._container_f1be359`) does not
+					// reach it in TIDAL, a rule as deep or deeper does.
+					":is(._container_cb5cbe4 ._searchFieldWithPopover_267e090) .searchFieldWithinSearchFieldWithPopover { box-shadow: none; }\n" +
 					`._container_b3e8f28 { background: ${PANEL_GLASS}; border: ${PANEL_BORDER}; }`,
 			);
 		}
