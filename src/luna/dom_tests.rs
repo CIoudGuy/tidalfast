@@ -6747,6 +6747,77 @@ R.done = true;
     finish(luna, dir);
 }
 
+/// A `:has` rule whose subject is a bare tag after a context
+/// (radiant-lyrics' `[data-test=now-playing-lyrics] > div:has(...)`) made
+/// every row a list scroll brought in restyle the whole page: each `div`
+/// above the row matched the tag alone, and the list's own subtree went
+/// with it. An ancestor the rule's left side does not reach keeps its
+/// cascade; one it reaches still follows what is inside it.
+#[test]
+fn a_has_rule_forgets_only_the_ancestors_its_context_reaches() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = ".lyr > div:has(.on) { color: rgb(1, 2, 3); } .lyr > div:has(.on) span { margin-left: 2px; }";
+document.head.append(st);
+const lyr = document.createElement("div");
+lyr.className = "lyr";
+const inner = document.createElement("div");
+inner.append(document.createElement("span"));
+lyr.append(inner);
+const list = document.createElement("div");
+list.className = "list";
+const row = () => {
+	const r = document.createElement("div");
+	for (let i = 0; i < 5; i++) r.append(document.createElement("span"));
+	return r;
+};
+for (let i = 0; i < 60; i++) list.append(row());
+document.body.append(lyr, list);
+const all = () => [lyr, ...lyr.querySelectorAll("*"), list, ...list.querySelectorAll("*")];
+const look = () => all().map((e) => getComputedStyle(e).color + "/" + getComputedStyle(e).marginLeft);
+look();
+R.total = all().length;
+let runs = D.cascadeRuns ?? 0;
+list.prepend(row());
+look();
+R.prependRuns = (D.cascadeRuns ?? 0) - runs;
+runs = D.cascadeRuns ?? 0;
+list.children[3].querySelector("span").append(document.createElement("i"));
+look();
+R.deepRuns = (D.cascadeRuns ?? 0) - runs;
+const marker = document.createElement("b");
+marker.className = "on";
+inner.append(marker);
+R.before = getComputedStyle(inner).color;
+R.after = look()[1];
+R.spanAfter = getComputedStyle(lyr.querySelector("span")).marginLeft;
+marker.remove();
+R.gone = getComputedStyle(inner).color + "/" + getComputedStyle(lyr.querySelector("span")).marginLeft;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    let total = r["total"].as_u64().unwrap();
+    for what in ["prependRuns", "deepRuns"] {
+        let n = r[what].as_u64().unwrap();
+        assert!(
+            n * 3 < total,
+            "{what}: {n} of the page's {total} elements restyled: {r}"
+        );
+    }
+    // What the rule reaches still follows its `:has`.
+    assert_eq!(r["before"], json!("rgb(1, 2, 3)"), "{r}");
+    assert_eq!(r["spanAfter"], json!("2px"), "{r}");
+    assert!(!r["gone"].as_str().unwrap().ends_with("/2px"), "{r}");
+    assert!(
+        !r["gone"].as_str().unwrap().starts_with("rgb(1, 2, 3)"),
+        "{r}"
+    );
+    finish(luna, dir);
+}
+
 /// Whatever a script does to the nodes (inserts, removes, moves, class
 /// changes, text that empties or fills a node), the cascades kept after a
 /// sibling-aware restyle are the ones a fresh match gives, under rules on
@@ -6781,6 +6852,10 @@ st.textContent = `
 .t .h:has(.c) span:nth-child(2) { flex-grow: 2; }
 .t .h:has(> .b:last-child) { flex-shrink: 3; }
 .t .x:has(.y):first-child i { order: 4; }
+.t > div:has(.c) i { order: 5; }
+.t .h > li:has(> .a) b { order: 6; }
+.t .h div:has(.y) .x { order: 7; }
+.t li:has(.e) { order: 8; }
 .t .x { color: rgb(9, 9, 9); }
 `;
 document.head.append(st);

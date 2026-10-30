@@ -746,9 +746,13 @@
 					if (!userSelect && decls.some((d) => /^(-webkit-)?user-select$/.test(d.name))) userSelect = true;
 					if (r._sel.includes(":has("))
 						for (const sel of list)
-							for (const st of sel.steps)
+							for (const [j, st] of sel.steps.entries())
 								if (hasIn(st.c)) {
-									const step = [{ c: { ...st.c, pseudos: [] } }];
+									// The selector as far as this compound, with the
+									// compound's own pseudo-classes left out: an
+									// ancestor its left side does not reach (`.lyrics >
+									// div:has(...)` on a div of the list) keeps its cascade.
+									const step = [...sel.steps.slice(0, j), { ...st, c: { ...st.c, pseudos: [] } }];
 									hasSteps.push(step);
 									if (readsStyle) hasStyleSteps.push(step);
 								}
