@@ -60,6 +60,8 @@ fn context_rereadable(context: &str) -> bool {
 }
 /// How many previous songs the queue panel's History keeps.
 pub const HISTORY_MAX: usize = 100;
+/// How long after Previous a song of History counts as stepped back to.
+const HISTORY_BACK_HOLD: Duration = Duration::from_secs(10);
 
 /// How many upcoming shuffled songs the session keeps.
 const SESSION_ORDER_LEN: usize = 100;
@@ -714,6 +716,9 @@ pub struct App {
     /// The song that was playing when a new context started: it belongs to
     /// the old context and never enters the new History.
     history_ignore: Option<String>,
+    /// When Previous was last pressed: a song of History landed on soon
+    /// after is a step back, and any other is simply playing again.
+    history_back: Option<Instant>,
     /// The artist a play started from, so its name outlives the page.
     artist_hint: Option<(String, String)>,
     last_now_playing_uri: Option<String>,
@@ -1262,6 +1267,7 @@ impl App {
             queue_history: session.last_history.clone(),
             history_prev: None,
             history_ignore: None,
+            history_back: None,
             artist_hint: None,
             last_now_playing_uri: None,
             last_now_playing_sequence: 0,
@@ -11002,6 +11008,7 @@ impl App {
                 self.step_resume(true);
             }
             Action::Next => {
+                self.history_back = None;
                 // Move the queue head to the playing row immediately. Do not
                 // pop when there is no active playback target.
                 let target = self.target();
@@ -11038,6 +11045,7 @@ impl App {
                     self.intent_track = None;
                 }
                 self.queue_start_pending = Some(self.target());
+                self.history_back = Some(Instant::now());
                 match self.target() {
                     Target::Local => self.backend.player(PlayerCommand::Previous),
                     Target::Remote(device_id) => self.remote(RemoteAction::Previous, device_id),
@@ -13107,7 +13115,9 @@ impl App {
     /// Keeps the queue panel's History current the moment the playing song
     /// changes: the song just left goes to the end of History (newest last).
     /// Landing on a song already in History (Previous, or a click on a row)
-    /// drops that song and the newer ones instead, so nothing repeats.
+    /// drops that song and the newer ones instead, so nothing repeats. A
+    /// song of History that plays again going forward, as a shuffled round
+    /// after a restart can bring it, joins History like any other.
     fn note_history_track(&mut self, now: Option<&NowPlaying>) {
         let Some(now) = now else { return };
         if self.history_ignore.as_deref() == Some(now.uri.as_str()) {
@@ -13126,7 +13136,11 @@ impl App {
         if let Some(prev) = self.history_prev.take()
             && prev.uri != now.uri
         {
-            match self.queue_history.iter().rposition(|t| t.uri == now.uri) {
+            let back = self
+                .history_back
+                .is_some_and(|at| at.elapsed() < HISTORY_BACK_HOLD);
+            let landed = self.queue_history.iter().rposition(|t| t.uri == now.uri);
+            match landed.filter(|_| back) {
                 Some(at) => self.queue_history.truncate(at),
                 None => {
                     self.queue_history.push(prev);
@@ -28677,6 +28691,50 @@ mod tests {
             &ctx,
         );
         assert!(app.shuffle_wanted);
+    }
+
+    /// A song of History that comes round again going forward does not
+    /// cut History; Previous landing on one still steps back through it.
+    #[test]
+    fn history_is_trimmed_by_previous_and_not_by_a_song_playing_again() {
+        let ctx = egui::Context::default();
+        let mut app = headless_app();
+        let now = |app: &mut App, id: &str| {
+            app.track_cache.insert(
+                id.into(),
+                Track {
+                    id: Some(id.into()),
+                    uri: format!("tidal:track:{id}"),
+                    ..Track::default()
+                },
+            );
+            let now = app
+                .cached_track_preview(&format!("tidal:track:{id}"), 0)
+                .expect("the song as shown");
+            app.note_history_track(Some(&now));
+        };
+        let history = |app: &App| {
+            app.queue_history
+                .iter()
+                .map(|track| track.uri.trim_start_matches("tidal:track:").to_string())
+                .collect::<Vec<_>>()
+        };
+        for id in ["1", "2", "3", "4"] {
+            now(&mut app, id);
+        }
+        assert_eq!(history(&app), ["1", "2", "3"]);
+        // Next lands on 2, which comes round again in the shuffle.
+        app.apply(Action::Next, &ctx);
+        now(&mut app, "2");
+        assert_eq!(history(&app), ["1", "2", "3", "4"], "nothing is lost");
+        // Previous steps back to the 4 that played before it.
+        app.apply(Action::Previous, &ctx);
+        now(&mut app, "4");
+        assert_eq!(history(&app), ["1", "2", "3"]);
+        // Next after Previous is forward again.
+        app.apply(Action::Next, &ctx);
+        now(&mut app, "1");
+        assert_eq!(history(&app), ["1", "2", "3", "4"]);
     }
 
     /// A row of a sorted or filtered view of the playing context stays in
