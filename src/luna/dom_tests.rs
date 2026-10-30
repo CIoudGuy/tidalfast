@@ -7457,6 +7457,85 @@ R.done = true;
     finish(luna, dir);
 }
 
+/// A hover change restyles what its rules can reach, as Chromium's
+/// invalidation sets say: a row's `:hover` on the row alone restyles the
+/// row (what inherits from it follows), `[role="row"]:hover .btn` the
+/// row's buttons, and `.row:hover + .row .btn` the next row's, not every
+/// cell of every row the pointer crossed (and of every row after it).
+/// The cascades kept are the ones a fresh match gives.
+#[test]
+fn a_hover_change_restyles_only_the_elements_its_rules_can_reach() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = `
+.t .row:hover { background-color: rgb(1, 2, 3); }
+.t [role="row"]:hover .btn { opacity: 1; }
+.t .row:hover + .row .btn { color: rgb(4, 5, 6); }
+.t .btn { opacity: 0; }
+`;
+document.head.append(st);
+const root = document.createElement("div");
+root.className = "t";
+document.body.append(root);
+for (let i = 0; i < 30; i++) {
+	const row = document.createElement("div");
+	row.className = "row";
+	row.setAttribute("role", "row");
+	row.innerHTML = "<div><span>1</span><span>t</span></div><div><i></i><i></i><i></i></div><div><b class='btn'></b></div><div><span>a</span><span>b</span><span>c</span></div>";
+	root.append(row);
+}
+const rows = [...root.children];
+D.loadedDirty();
+D.flush();
+const hover = (e) => D.event(e ? { target: { kind: "node", id: e._vid }, type: "hover", data: null } : { target: { kind: "host", id: "" }, type: "hover", data: null });
+const all = () => [document.documentElement, ...document.documentElement.querySelectorAll("*")];
+const look = (e) => getComputedStyle(e).backgroundColor + " " + getComputedStyle(e.querySelector(".btn")).opacity + " " + getComputedStyle(e.querySelector(".btn")).color;
+for (const e of all()) getComputedStyle(e);
+R.ids = rows.every((w) => w._vid !== undefined) && rows.every((w) => w.querySelector("span")._vid !== undefined);
+const resets = D.cascadeResets ?? 0;
+const runs = D.cascadeRuns ?? 0;
+const seen = [];
+for (const i of [3, 4, 10, 4]) {
+	hover(rows[i].querySelector("span"));
+	for (const e of all()) getComputedStyle(e);
+	seen.push([look(rows[i]), look(rows[i + 1]), look(rows[i + 2])].join(" | "));
+}
+hover(null);
+for (const e of all()) getComputedStyle(e);
+seen.push(look(rows[4]) + " | " + look(rows[5]));
+R.seen = seen;
+R.resets = (D.cascadeResets ?? 0) - resets;
+R.runs = (D.cascadeRuns ?? 0) - runs;
+let differ = 0;
+for (const e of all()) if (JSON.stringify([...(D.cascadeOf(e, false) ?? [])]) !== JSON.stringify([...(D.cascadeOf(e, true) ?? [])])) differ++;
+R.differ = differ;
+R.total = all().length;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 30, |r| r["done"] == json!(true));
+    assert_eq!(r["ids"], json!(true), "{r}");
+    let lit = "rgb(1, 2, 3) 1 rgb(255, 255, 255)";
+    let next = "rgba(0, 0, 0, 0) 0 rgb(4, 5, 6)";
+    let off = "rgba(0, 0, 0, 0) 0 rgb(255, 255, 255)";
+    let seen = format!("{lit} | {next} | {off}");
+    assert_eq!(
+        r["seen"],
+        json!([seen, seen, seen, seen, format!("{off} | {off}")]),
+        "{r}"
+    );
+    assert_eq!(r["resets"], json!(0), "{r}");
+    assert_eq!(r["differ"], json!(0), "{r}");
+    // Five moves, each the row left and the row reached, their buttons
+    // and the next rows' buttons (the span and the cells hold `:hover`
+    // too, but no rule asks them): about 30, not the 17 elements of each
+    // row crossed and of every row after it (over 1,000).
+    assert!(r["runs"].as_u64().unwrap() <= 40, "{r}");
+    finish(luna, dir);
+}
+
 /// The hovered element taken out of the document (the row under the
 /// pointer scrolled away) takes `:hover` from the elements that held it as
 /// it goes, as in a browser: whatever a script does to the nodes and
@@ -7476,6 +7555,8 @@ st.textContent = `
 .t .a:hover ~ .c span { opacity: 0.5; }
 .t li:hover > i { margin-left: 1px; }
 .t :hover > .y { padding-top: 2px; }
+.t .b:is(.c:hover *) { margin-top: 3px; }
+.t .c:not(:hover) { padding-left: 1px; }
 .t .x { color: rgb(9, 9, 9); }
 `;
 document.head.append(st);

@@ -626,20 +626,44 @@
 		const initials = new Map();
 		registered.clear();
 		let hover = false;
-		// A `:hover` with a sibling combinator in the same selector (`.a:hover
-		// + .b`): a hover change reaches the siblings after an element; one
-		// inside `:has(...)`: it may reach any ancestor, and so anything.
-		let hoverSiblings = false;
+		// A `:hover` inside `:has(...)`: it may reach any ancestor, and so
+		// anything.
 		let hoverHas = false;
 		// The compounds that hold `:hover` (also those in an `:is(...)` or
 		// `:not(...)`), their pseudo-classes and pseudo-element left out: only
 		// an element one of them matches can change a match when it gains or
-		// loses the pointer.
-		const hoverSubjects = [];
+		// loses the pointer. Each with what that change can restyle, as
+		// Chromium's invalidation sets say: `self`, the element alone
+		// (`.a:hover`; what inherits from it follows in the walk); `down`,
+		// the elements inside it that the selector's last compound can match
+		// (`[role="row"]:hover .btn`, not the row's other cells); `next` and
+		// `side`, the same in and inside the sibling after it (`.a:hover +
+		// .b`) or all those after it (`.a:hover ~ .b`); `whole`,
+		// everything inside it and, with `sib`, in and inside the siblings
+		// after it (a `:hover` in a pseudo-class's argument, `:is(.a:hover)
+		// .b`).
+		const hoverReach = new Map();
 		const readsHover = (c) => c.pseudos.some((p) => p.name === "hover" || [...(p.list ?? []), ...(p.nth?.of ?? [])].some((x) => x.steps.some((st) => readsHover(st.c))));
-		const hoverSubjectsOf = (c, out) => {
-			if (c.pseudos.some((p) => p.name === "hover")) out.push({ ...c, pseudos: [], pe: false });
-			for (const p of c.pseudos) for (const x of p.list ?? []) for (const st of x.steps) hoverSubjectsOf(st.c, out);
+		const hoverOwn = (c) => ({ ...c, pseudos: [], pe: false, scope: false });
+		const hoverKey = (c) => [c.tag, c.ids, c.classes, c.attrs];
+		// One object for each subject, so a row's nine `...:hover .btn`
+		// selectors test the button once.
+		const hoverSubjectObjs = new Map();
+		const hoverSubject = (c) => {
+			const own = hoverOwn(c);
+			const key = JSON.stringify(hoverKey(own));
+			if (!hoverSubjectObjs.has(key)) hoverSubjectObjs.set(key, own);
+			return hoverSubjectObjs.get(key);
+		};
+		const hoverAt = (c, how, subject, sib, found) => {
+			if (c.pseudos.some((p) => p.name === "hover")) {
+				const h = { c: hoverOwn(c), how, subject: how === "down" || how === "side" || how === "next" ? subject : null, sib: how === "whole" && sib };
+				const key = JSON.stringify([hoverKey(h.c), h.how, h.subject && hoverKey(h.subject), h.sib]);
+				if (!hoverReach.has(key)) hoverReach.set(key, h);
+				found.n++;
+			}
+			for (const p of c.pseudos)
+				for (const x of p.list ?? []) x.steps.forEach((st, j) => hoverAt(st.c, how === "self" && j === x.steps.length - 1 ? "self" : "whole", null, sib, found));
 		};
 		// Some rule sets `user-select` (copy-lyrics makes the lyrics
 		// selectable): the hosts it reaches are marked.
@@ -751,17 +775,21 @@
 					if (!list) continue;
 					if (r._sel.includes(":hover")) {
 						hover = true;
-						if (/[+~]/.test(r._sel)) hoverSiblings = true;
 						if (r._sel.includes(":has(")) hoverHas = true;
+						const sib = /[+~]/.test(r._sel);
 						for (const sel of list) {
-							const found = [];
-							for (const st of sel.steps) hoverSubjectsOf(st.c, found);
+							const found = { n: 0 };
+							const last = sel.steps.length - 1;
+							const subject = hoverSubject(sel.steps[last].c);
+							sel.steps.forEach((st, i) => {
+								const next = sel.steps[i + 1]?.comb;
+								hoverAt(st.c, i === last ? "self" : next === "+" ? "next" : next === "~" ? "side" : "down", subject, sib, found);
+							});
 							// One this cannot see (`:nth-child(2 of :hover)`): any
 							// element. A selector of the list without `:hover`
 							// (radiant-lyrics' `.rl-wbw-word.rl-wbw-word-hover,
 							// .rl-wbw-word:hover`) leaves hover changes to the others.
-							if (!found.length && sel.steps.some((st) => readsHover(st.c))) hoverHas = true;
-							hoverSubjects.push(...found);
+							if (!found.n && sel.steps.some((st) => readsHover(st.c))) hoverHas = true;
 						}
 					}
 					const readsStyle = /\[\s*style\b/i.test(r._sel);
@@ -867,10 +895,14 @@
 			walk(sh.cssRules);
 		}
 		for (const st of hasSteps) ownReads(st.at(-1).c);
+		for (const h of hoverReach.values()) {
+			ownReads(h.c);
+			if (h.subject) ownReads(h.subject);
+		}
 		for (const x of siblingSubjects.values()) ownReads(x.steps[0].c);
 		if (skipped && !warnedCss) L.callOp("log", { plugin: null, level: "warn", msg: `${skipped} style sheet(s) left out: plugin and theme CSS is capped at ${MAX_CSS_BYTES >> 20} MB` });
 		warnedCss = skipped > 0;
-		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, initials, hover, hoverSiblings, hoverHas, hoverSubjects, styleAttr, structural, siblingSubjects: [...siblingSubjects.values()].sort((a, b) => b.deep - a.deep), hasSiblings, empty, hasSteps, hasWhole, hasStyleSteps, styleSiblings, attrNames, ownAttrs, ownValued, varNames, bytes, size: order, pseudo, userSelect };
+		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, initials, hover, hoverHas, hoverReach: [...hoverReach.values()], hoverSubjects: [...new Map([...hoverReach.values()].map((h) => [JSON.stringify(hoverKey(h.c)), h.c])).values()], styleAttr, structural, siblingSubjects: [...siblingSubjects.values()].sort((a, b) => b.deep - a.deep), hasSiblings, empty, hasSteps, hasWhole, hasStyleSteps, styleSiblings, attrNames, ownAttrs, ownValued, varNames, bytes, size: order, pseudo, userSelect };
 		return index;
 	};
 	// `@keyframes` body -> [[offset 0..1, Map name -> value]], sorted.
@@ -965,7 +997,7 @@
 		let kind = kinds.get(key);
 		if (!kind) {
 			if (kinds.size >= 20000) kinds.clear();
-			kind = { cands: null, has: null, sib: undefined };
+			kind = { cands: null, has: null, sib: undefined, hover: null };
 			kinds.set(key, kind);
 		}
 		return kind;
@@ -985,6 +1017,12 @@
 		const kind = kindOf(ix, el);
 		if (kind.sib === undefined) kind.sib = ix.siblingSubjects.find((x) => D.sel.ownTest(el, x.steps[0].c)) ?? null;
 		return kind.sib;
+	};
+
+	// The `:hover` compounds (`hoverReach` entries) those allow.
+	const kindHover = (ix, el) => {
+		const kind = kindOf(ix, el);
+		return (kind.hover ??= ix.hoverReach.filter((h) => D.sel.ownTest(el, h.c)));
 	};
 
 	// ---------------------------------------------------------------- cascade
@@ -1020,6 +1058,61 @@
 		pmemo.delete(n);
 		into?.add(n);
 		for (const c of n.childNodes ?? []) forgetSubtree(c, into);
+	};
+	// The elements whose `:hover` state changed (each one a `:hover`
+	// compound matches): what each compound's change reaches (`hoverReach`
+	// in the index) is forgotten, and every other element keeps its cascade.
+	// A row's `[role="row"]:hover .btn` forgot the whole row before, each
+	// cell and what is in it matched again for the one button.
+	const forgetHover = (ix, changed) => {
+		const down = new Map();
+		const side = new Map();
+		const next = new Map();
+		const into = (m, x, s) => {
+			let a = m.get(x);
+			if (!a) m.set(x, (a = new Set()));
+			a.add(s);
+		};
+		for (const x of changed) {
+			if (!(x instanceof g.Element)) continue;
+			for (const h of kindHover(ix, x)) {
+				if (h.how === "self") {
+					memo.delete(x);
+					pmemo.delete(x);
+				} else if (h.how === "down") into(down, x, h.subject);
+				else if (h.how === "side") into(side, x, h.subject);
+				else if (h.how === "next") into(next, x, h.subject);
+				else {
+					forgetSubtree(x);
+					if (h.sib) for (let n = x.nextSibling; n; n = n.nextSibling) forgetSubtree(n);
+				}
+			}
+		}
+		const forgetIn = (n, subjects) => {
+			for (const s of subjects)
+				if (D.sel.ownTest(n, s)) {
+					memo.delete(n);
+					pmemo.delete(n);
+					break;
+				}
+			for (const c of n.childNodes) if (c instanceof g.Element) forgetIn(c, subjects);
+		};
+		for (const [x, subjects] of down) {
+			// One inside another that asks the same: done there.
+			let covered = false;
+			for (let y = x.parentElement; y && !covered; y = y.parentElement) {
+				const above = down.get(y);
+				if (above && [...subjects].every((s) => above.has(s))) covered = true;
+			}
+			if (!covered) for (const c of x.childNodes) if (c instanceof g.Element) forgetIn(c, subjects);
+		}
+		for (const [x, subjects] of side) for (let n = x.nextSibling; n; n = n.nextSibling) if (n instanceof g.Element) forgetIn(n, subjects);
+		for (const [x, subjects] of next)
+			for (let n = x.nextSibling; n; n = n.nextSibling)
+				if (n instanceof g.Element) {
+					forgetIn(n, subjects);
+					break;
+				}
 	};
 	// Writes a declaration so the map's order is the cascade's: a property
 	// written again moves to the end (a Map keeps a key's first place), and
@@ -1139,10 +1232,7 @@
 			// The pointer moved: what the elements whose `:hover` changed hold,
 			// and the siblings after them where a rule reads those.
 			memoHoverGen = D.hoverGen();
-			for (const e of D.takeHoverTops()) {
-				forgetSubtree(e);
-				if (ix.hoverSiblings) for (let n = e.nextSibling; n; n = n.nextSibling) forgetSubtree(n);
-			}
+			forgetHover(ix, D.takeHoverTops());
 		}
 		if (memo.has(el)) return memo.get(el);
 		const t0 = L.stat ? Date.now() : 0;

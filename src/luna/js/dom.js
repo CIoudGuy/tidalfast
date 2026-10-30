@@ -251,9 +251,9 @@
 	// whose `:hover` state changes (those over the old one and not the new
 	// one, and the other way round) that a compound reading `:hover` can
 	// match (`subjects`), and what a selector can reach from them, can match
-	// differently: what is inside them, and (css.js decides) the siblings
-	// after them. The highest of each side holds the others, so those two
-	// are handed over and every other element keeps its cascade, as
+	// differently: each of them is handed over, and css.js forgets what the
+	// compounds it matches reach (the element, what is inside it, the
+	// siblings after it) while every other element keeps its cascade, as
 	// Chromium invalidates a hover change; a row's hover restyled the whole
 	// page before.
 	let hoverGen = 0;
@@ -266,12 +266,11 @@
 		};
 		const overWas = chain(was);
 		const overNow = chain(now);
-		const top = (e, other) => {
-			let t = null;
-			for (let x = e; x && !other.has(x); x = x.parentElement) if (subjects.some((c) => compoundTest(x, c, null))) t = x;
-			return t;
+		const add = (e, other) => {
+			for (let x = e; x && !other.has(x); x = x.parentElement) if (subjects.some((c) => compoundTest(x, c, null))) hoverTops.add(x);
 		};
-		for (const t of [top(was, overNow), top(now, overWas)]) if (t) hoverTops.add(t);
+		add(was, overNow);
+		add(now, overWas);
 		hoverGen++;
 		contentDirty();
 	};
