@@ -22,12 +22,12 @@ fn what_a_moved_list_box_holds_lies_on_whole_pixels_from_it() {
         &ctx,
         &mut app,
         DomOverlay {
-            version: 1,
+            version: 48_001,
             ..DomOverlay::default()
         },
     );
     let mut o = r41::styled("moved-list.css", css, &plain, keys::LIST_PANEL);
-    o.version = 2;
+    o.version = 48_002;
     let moved = r41::drawn(&ctx, &mut app, o);
     app.backend.shutdown();
     let top = |tree: &super::dom::HostTree, key: &str| {
@@ -72,12 +72,12 @@ fn a_moved_box_is_drawn_where_its_transform_puts_it() {
         &ctx,
         &mut app,
         DomOverlay {
-            version: 1,
+            version: 48_001,
             ..DomOverlay::default()
         },
     );
     let mut o = r41::styled("moved-list.css", css, &plain, keys::LIST_PANEL);
-    o.version = 2;
+    o.version = 48_002;
     let moved = r41::drawn(&ctx, &mut app, o.clone());
     let panel = moved
         .nodes
