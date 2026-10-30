@@ -624,6 +624,7 @@
 		// an element one of them matches can change a match when it gains or
 		// loses the pointer.
 		const hoverSubjects = [];
+		const readsHover = (c) => c.pseudos.some((p) => p.name === "hover" || [...(p.list ?? []), ...(p.nth?.of ?? [])].some((x) => x.steps.some((st) => readsHover(st.c))));
 		const hoverSubjectsOf = (c, out) => {
 			if (c.pseudos.some((p) => p.name === "hover")) out.push({ ...c, pseudos: [], pe: false });
 			for (const p of c.pseudos) for (const x of p.list ?? []) for (const st of x.steps) hoverSubjectsOf(st.c, out);
@@ -727,8 +728,11 @@
 						for (const sel of list) {
 							const found = [];
 							for (const st of sel.steps) hoverSubjectsOf(st.c, found);
-							// One this cannot see (`:nth-child(2 of :hover)`): any element.
-							if (!found.length) hoverHas = true;
+							// One this cannot see (`:nth-child(2 of :hover)`): any
+							// element. A selector of the list without `:hover`
+							// (radiant-lyrics' `.rl-wbw-word.rl-wbw-word-hover,
+							// .rl-wbw-word:hover`) leaves hover changes to the others.
+							if (!found.length && sel.steps.some((st) => readsHover(st.c))) hoverHas = true;
 							hoverSubjects.push(...found);
 						}
 					}

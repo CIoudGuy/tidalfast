@@ -7156,6 +7156,80 @@ R.done = true;
     finish(luna, dir);
 }
 
+/// A rule whose selector list has `:hover` in only some of its selectors
+/// (radiant-lyrics' `.rl-wbw-word.rl-wbw-word-hover, .rl-wbw-word:hover`)
+/// restyles only what the pointer's move reaches, as one without the
+/// other selectors does: the selectors without `:hover` cannot match
+/// differently when it moves. Each move restyled the whole page before.
+#[test]
+fn a_hover_rule_listed_with_selectors_without_hover_restyles_only_what_it_reaches() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = `
+.t .w.w-hover, .t .w:hover { color: rgb(1, 2, 3); }
+.t .w { color: rgb(9, 9, 9); }
+`;
+document.head.append(st);
+const root = document.createElement("div");
+root.className = "t";
+document.body.append(root);
+for (let i = 0; i < 40; i++) {
+	const w = document.createElement("div");
+	w.className = i === 5 ? "w w-hover" : "w";
+	w.innerHTML = "<span>a</span><span>b</span>";
+	root.append(w);
+}
+const ws = [...root.children];
+D.loadedDirty();
+D.flush();
+const color = (e) => getComputedStyle(e).color;
+const hover = (e) => D.event(e ? { target: { kind: "node", id: e._vid }, type: "hover", data: null } : { target: { kind: "host", id: "" }, type: "hover", data: null });
+const all = () => [document.documentElement, ...document.documentElement.querySelectorAll("*")];
+for (const e of all()) color(e);
+const resets = D.cascadeResets ?? 0;
+const runs = D.cascadeRuns ?? 0;
+R.ids = ws.every((w) => w._vid !== undefined);
+const seen = [];
+for (const i of [1, 2, 9, 30, 2]) {
+	hover(ws[i]);
+	seen.push([color(ws[i]), color(ws[i === 2 ? 1 : 2]), color(ws[5])].join(" / "));
+}
+hover(null);
+seen.push(color(ws[2]));
+R.seen = seen;
+R.resets = (D.cascadeResets ?? 0) - resets;
+R.runs = (D.cascadeRuns ?? 0) - runs;
+let differ = 0;
+for (const e of all()) if (JSON.stringify([...(D.cascadeOf(e, false) ?? [])]) !== JSON.stringify([...(D.cascadeOf(e, true) ?? [])])) differ++;
+R.differ = differ;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 30, |r| r["done"] == json!(true));
+    assert_eq!(r["ids"], json!(true), "{r}");
+    let (lit, unlit) = ("rgb(1, 2, 3)", "rgb(9, 9, 9)");
+    assert_eq!(
+        r["seen"],
+        json!([
+            format!("{lit} / {unlit} / {lit}"),
+            format!("{lit} / {unlit} / {lit}"),
+            format!("{lit} / {unlit} / {lit}"),
+            format!("{lit} / {unlit} / {lit}"),
+            format!("{lit} / {unlit} / {lit}"),
+            unlit
+        ]),
+        "{r}"
+    );
+    assert_eq!(r["resets"], json!(0), "{r}");
+    // Six moves, each the element left and the one reached with what is
+    // in them; not the page's 120 elements each time.
+    assert!(r["runs"].as_u64().unwrap() < 60, "{r}");
+    assert_eq!(r["differ"], json!(0), "{r}");
+    finish(luna, dir);
+}
+
 /// The hovered element taken out of the document (the row under the
 /// pointer scrolled away) takes `:hover` from the elements that held it as
 /// it goes, as in a browser: whatever a script does to the nodes and
