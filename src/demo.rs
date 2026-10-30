@@ -3549,6 +3549,42 @@ mod tests {
     /// TIDAL's right side, left to right: play queue, sound output,
     /// volume, compact mode, then the quality pill at the far right. No
     /// lyrics button; the volume slider waits for the pointer.
+    /// TIDAL's `._playbackControls_ { gap: 12px }` round
+    /// `._centerControls_ { gap: 8px }`: shuffle and repeat stand further
+    /// off than previous, play and next do from each other.
+    #[test]
+    fn the_transport_is_spaced_as_in_tidal() {
+        use egui::accesskit::Role;
+        let (ctx, mut app) = accessible_app("transport-gaps");
+        super::play_here(&mut app);
+        app.local.playback = crate::player::Playback::Paused;
+        accessible_frame(&ctx, &mut app, vec![]);
+        let tree = accessible_frame(&ctx, &mut app, vec![]);
+        let center = |label: &str, role: Role| {
+            let bounds = tree
+                .nodes
+                .iter()
+                .find(|(_, node)| {
+                    node.label() == Some(label)
+                        && node.role() == role
+                        && node.bounds().is_some_and(|bounds| bounds.y0 > 700.0)
+                })
+                .and_then(|(_, node)| node.bounds())
+                .unwrap_or_else(|| panic!("{label} is not in the player bar"));
+            (bounds.x0 + bounds.x1) / 2.0
+        };
+        let centers = [
+            center("Shuffle", Role::CheckBox),
+            center("Previous", Role::Button),
+            center("Play", Role::Button),
+            center("Next", Role::Button),
+            center("Repeat", Role::Button),
+        ];
+        // 32-point shuffle and repeat, 40-point skip and play buttons.
+        let steps: Vec<f64> = centers.windows(2).map(|p| p[1] - p[0]).collect();
+        assert_eq!(steps, [48.0, 48.0, 48.0, 48.0], "{centers:?}");
+    }
+
     #[test]
     fn player_bar_right_side_follows_tidals_order() {
         use egui::accesskit::Role;

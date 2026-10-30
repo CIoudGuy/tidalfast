@@ -1249,7 +1249,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     // TIDAL: shuffle and repeat 32, 12 from previous, play and next, which
     // are 40 and 8 apart.
     let widths = [32.0, 40.0, 40.0, 40.0, 32.0];
-    let gaps = [8.0, 8.0, 8.0, 8.0];
+    let gaps = [12.0, 8.0, 8.0, 12.0];
     // A button a plugin left out (`display: none`) takes no room and the
     // others close up round the centre, as in TIDAL's flex row; one it hid
     // (`visibility: hidden`) keeps its room with nothing drawn.
@@ -1266,7 +1266,11 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     // The gap after a button, none after the last one kept.
     let gap_after = |i: usize| {
         let more = (i + 1..widths.len()).any(|next| !gone(next));
-        if more { gaps[i.min(gaps.len() - 1)] } else { 0.0 }
+        if more {
+            gaps[i.min(gaps.len() - 1)]
+        } else {
+            0.0
+        }
     };
     let total: f32 = (0..widths.len())
         .filter(|i| !gone(*i))
