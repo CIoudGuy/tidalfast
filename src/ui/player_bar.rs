@@ -1640,7 +1640,6 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     // A theme's card behind the buttons (`._utilityButtons_`), filled once
     // they are laid out; the quality pill to their right stays outside it.
     let card = plugin_dom::part_card(keys::UTILITY_BUTTONS);
-    let mut pill_left = None;
     ui.spacing_mut().item_spacing.x = 10.0;
     // Right to left: Luna slots are added in reverse visual order.
     run.slot(ui, 0, keys::UTILITY, Position::Append);
@@ -1696,7 +1695,6 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
             if let Some(label) = super::quality_pill::label_rect(pill_ui) {
                 plugin_dom::player_part(PlayerPart::QualityLabel, label);
             }
-            pill_left = Some(pill.rect.left());
         }
         if pill.clicked() {
             super::settings::open_on(pill_ui.ctx(), super::settings::SettingsTab::Playback);
@@ -1733,24 +1731,39 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     // The buttons' box from here: its card under them, and what the theme
     // scales with it (the cotton candy family's `scale(1.04)`).
     let buttons_start = plugin_dom::shapes_mark(ui);
+    let inset = card.as_ref().map_or([0.0; 4], |c| {
+        plugin_dom::card_inset(keys::UTILITY_BUTTONS, c)
+    });
     let card = card.map(|c| (c, ui.painter().add(Shape::Noop)));
+    // TIDAL's row: `._utilityButtons_ { gap: 8px }` of 32-point buttons,
+    // inside the box's padding and border, the box's right edge 16 points
+    // from the badge. A theme's sizes (the cotton candy family's 30-point
+    // buttons, the sound output held at 32 by its `min-width`) and gap lay
+    // it out as they do there.
+    let buttons_right = ui.cursor().right();
+    ui.add_space(inset[1]);
+    let gap = plugin_dom::column_gap(keys::UTILITY_BUTTONS).unwrap_or(8.0);
+    ui.spacing_mut().item_spacing.x = gap;
+    let boxes = UtilityBoxes::read();
     run.slot(ui, 4, keys::UTILITY_BUTTONS, Position::Append);
     // TIDAL's compact mode: the small player window.
     let compact_color = utility_glyph(keys::MINI_PLAYER);
     // Each button a plugin hid is left out or keeps its room empty.
     let compact = plugin_dom::anchored(ui, keys::MINI_PLAYER, |ui| {
-        theme::player_icon_button(
-            ui,
-            Icon::PictureInPicture,
-            18.0,
-            compact_color.unwrap_or(if app.compact_mode {
-                palette.text
-            } else {
-                palette.secondary
-            }),
-            compact_color.unwrap_or(palette.text),
-            &gettext(app.locale, "Compact mode"),
-        )
+        in_box(ui, boxes.compact, |ui| {
+            theme::player_icon_button(
+                ui,
+                Icon::PictureInPicture,
+                18.0,
+                compact_color.unwrap_or(if app.compact_mode {
+                    palette.text
+                } else {
+                    palette.secondary
+                }),
+                compact_color.unwrap_or(palette.text),
+                &gettext(app.locale, "Compact mode"),
+            )
+        })
     });
     if compact.as_ref().is_some_and(egui::Response::clicked) {
         app.actions.push(Action::ToggleCompactMode);
@@ -1779,7 +1792,9 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     // TIDAL: the speaker alone; its slider pops up above it under the
     // pointer.
     let controls = plugin_dom::anchored(ui, keys::MUTE, |ui| {
-        super::player_utility::volume(app, ui, shown, adjustable, native_range, !plugin_wheel)
+        in_box(ui, boxes.volume, |ui| {
+            super::player_utility::volume(app, ui, shown, adjustable, native_range, !plugin_wheel)
+        })
     });
     if let Some(controls) = controls {
         if controls.button.clicked() {
@@ -1830,7 +1845,9 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     // (OneClickLyrics' `sliderContainer.before(button)`).
     run.slot(ui, 6, keys::SOUND_OUTPUT, Position::After);
     if let Some(output) = plugin_dom::anchored(ui, keys::SOUND_OUTPUT, |ui| {
-        super::player_utility::sound_output(app, ui)
+        in_box(ui, boxes.output, |ui| {
+            super::player_utility::sound_output(app, ui)
+        })
     }) {
         plugin_dom::player_part(PlayerPart::SoundOutput, output.rect);
     }
@@ -1841,18 +1858,20 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     let disc = ui.painter().add(egui::Shape::Noop);
     let queue_color = utility_glyph(keys::QUEUE);
     let queue_button = plugin_dom::anchored(ui, keys::QUEUE, |ui| {
-        theme::player_icon_button(
-            ui,
-            Icon::QueueLines,
-            18.0,
-            queue_color.unwrap_or(if queue_open {
-                palette.text
-            } else {
-                palette.secondary
-            }),
-            queue_color.unwrap_or(palette.text),
-            &gettext(app.locale, "Queue"),
-        )
+        in_box(ui, boxes.queue, |ui| {
+            theme::player_icon_button(
+                ui,
+                Icon::QueueLines,
+                18.0,
+                queue_color.unwrap_or(if queue_open {
+                    palette.text
+                } else {
+                    palette.secondary
+                }),
+                queue_color.unwrap_or(palette.text),
+                &gettext(app.locale, "Queue"),
+            )
+        })
     });
     if let Some(queue_button) = queue_button {
         // A theme's background for the button (Tidal TUI's `[data-test=
@@ -1862,10 +1881,9 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
             .flatten();
         if queue_open && plugin_dom::on() && plugin_dom::paints_box(keys::QUEUE) {
             // A theme's box for TIDAL's pressed button (`._activeButton_122ab25`:
-            // the cotton candy family's rounded gradient) in TIDAL's 32-point
-            // button, the glyph drawn again over it.
-            let r =
-                egui::Rect::from_center_size(queue_button.rect.center(), egui::Vec2::splat(32.0));
+            // the cotton candy family's rounded gradient) in the button's
+            // box, the glyph drawn again over it.
+            let r = egui::Rect::from_center_size(queue_button.rect.center(), boxes.queue);
             plugin_dom::paint_themed_box(ui, keys::QUEUE, r, egui::CornerRadius::same(16));
             Icon::QueueLines
                 .image(queue_color.unwrap_or(palette.text), 18.0)
@@ -1915,17 +1933,19 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     }
     run.slot(ui, 11, keys::UTILITY_BUTTONS, Position::Prepend);
     let buttons_end = plugin_dom::shapes_mark(ui);
+    let buttons_left = ui.cursor().right() + gap;
+    ui.add_space(inset[3]);
     run.slot(ui, 12, keys::UTILITY, Position::Prepend);
-    plugin_dom::player_part(PlayerPart::UtilityButtons, ui.min_rect());
-    let mut buttons = ui.min_rect();
-    if let Some(x) = pill_left {
-        buttons.max.x = buttons.max.x.min(x - 6.0);
-    }
-    let mut buttons_box = buttons;
+    // The row's height is its tallest button's, about the bar's middle.
+    let buttons = Rect::from_x_y_ranges(
+        buttons_left..=(buttons_right - inset[1]).max(buttons_left),
+        egui::Rangef::point(ui.min_rect().center().y).expand(boxes.height() / 2.0),
+    );
+    let [t, r, b, l] = inset;
+    let buttons_box = Rect::from_min_max(buttons.min - vec2(l, t), buttons.max + vec2(r, b));
+    plugin_dom::player_part(PlayerPart::UtilityButtons, buttons_box);
     if let Some((card, slot)) = card {
         plugin_dom::paint_card(ui, slot, keys::UTILITY_BUTTONS, &card, buttons);
-        let [t, r, b, l] = plugin_dom::card_inset(keys::UTILITY_BUTTONS, &card);
-        buttons_box = Rect::from_min_max(buttons.min - vec2(l, t), buttons.max + vec2(r, b));
     }
     plugin_dom::scale_shapes(
         ui,
@@ -1945,6 +1965,49 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     let spacing = ui.spacing().item_spacing.x;
     let all: f32 = after.widths.iter().filter(|w| **w > 0.0).sum();
     (after.natives + all - spacing).max(0.0)
+}
+
+/// A utility button's cell inside its [`UtilityBoxes`] box.
+const UTILITY_CELL: f32 = 18.0 + theme::ICON_BUTTON_PAD;
+
+/// The boxes TIDAL gives the bar's utility buttons, with a theme's sizes:
+/// `._utilityButtons_ button { width: 32px; height: 32px }`,
+/// `._soundOutputButton_ { min-width: 32px; min-height: 32px }`.
+#[derive(Clone, Copy)]
+struct UtilityBoxes {
+    queue: Vec2,
+    output: Vec2,
+    volume: Vec2,
+    compact: Vec2,
+}
+
+impl UtilityBoxes {
+    fn read() -> Self {
+        let size = |key| plugin_dom::box_size(key, Vec2::splat(32.0));
+        Self {
+            queue: size(keys::QUEUE),
+            output: size(keys::SOUND_OUTPUT),
+            volume: size(keys::MUTE),
+            compact: size(keys::MINI_PLAYER),
+        }
+    }
+
+    fn height(&self) -> f32 {
+        [self.queue, self.output, self.volume, self.compact]
+            .map(|size| size.y)
+            .into_iter()
+            .fold(0.0, f32::max)
+    }
+}
+
+/// Lays a utility button's cell in the middle of its box, the rest of the
+/// box's width either side of it.
+fn in_box<R>(ui: &mut egui::Ui, size: Vec2, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let side = ((size.x - UTILITY_CELL) / 2.0).max(0.0);
+    ui.add_space(side);
+    let inner = add(ui);
+    ui.add_space(side);
+    inner
 }
 
 /// The progress fill's colour: a theme's background for the fill itself

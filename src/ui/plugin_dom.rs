@@ -6122,6 +6122,44 @@ pub fn width(key: &str) -> Option<f32> {
     })
 }
 
+/// The box a theme's `width` and `height` give anchor `key`, each held by
+/// its `min-` side, in points: `native` for what no rule sets.
+pub fn box_size(key: &str, native: egui::Vec2) -> egui::Vec2 {
+    host(key, |h, vars| {
+        let read = |v: &Option<String>| {
+            let v = css::resolve_vars(v.as_deref()?, vars);
+            css::length(&v, 14.0, 0.0, [0.0, 0.0])
+        };
+        let side = |size: &Option<String>, min: &Option<String>, native: f32| {
+            let side = read(size).unwrap_or(native);
+            read(min)
+                .map_or(side, |min| side.max(min))
+                .clamp(0.0, 256.0)
+        };
+        Some(egui::vec2(
+            side(&h.style.width, &h.style.min_width, native.x),
+            side(&h.style.height, &h.style.min_height, native.y),
+        ))
+    })
+    .unwrap_or(native)
+}
+
+/// A theme's gap between anchor `key`'s columns in points (`column-gap`,
+/// else `gap`'s column side, its last value).
+pub fn column_gap(key: &str) -> Option<f32> {
+    host(key, |h, vars| {
+        let read = |v: &str| {
+            let v = css::resolve_vars(v, vars);
+            css::length(&v, 14.0, 0.0, [0.0, 0.0])
+        };
+        h.style.column_gap.as_deref().and_then(read).or_else(|| {
+            let gap = css::resolve_vars(h.style.gap.as_deref()?, vars);
+            read(gap.split_whitespace().last()?)
+        })
+    })
+    .map(|gap| gap.clamp(0.0, 64.0))
+}
+
 /// A plugin's `padding-right` and `min-width` for an anchor, in points
 /// (radiant-lyrics' Lyrics tab: room on its right for its sparkle).
 pub fn padding_right_and_min_width(key: &str) -> (Option<f32>, Option<f32>) {

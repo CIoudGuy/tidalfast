@@ -20100,6 +20100,116 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// The bar's utility row is laid out as TIDAL's flex row: a theme's
+    /// button sizes and gap and the box's padding make the box, whose right
+    /// edge stays 16 points from the badge, its height its tallest button's
+    /// and its padding. Before, the buttons kept their native step and the
+    /// card reached over the badge.
+    #[test]
+    fn a_themes_button_sizes_make_the_utility_box_as_in_tidal() {
+        use crate::luna::dom::{DomOverlay, HostOverride, Style};
+        use crate::luna::dom_anchors::keys;
+        use crate::ui::plugin_dom;
+        let size = egui::vec2(1400.0, 900.0);
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            ..Default::default()
+        };
+        let fill = egui::Color32::from_rgb(4, 5, 6);
+        fn walk(shape: &egui::Shape, fill: egui::Color32, found: &mut Vec<egui::Rect>) {
+            match shape {
+                egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, fill, found)),
+                egui::Shape::Rect(r) if r.fill == fill => found.push(r.rect),
+                _ => {}
+            }
+        }
+        let (ctx, mut app) = accessible_app("utility-box");
+        super::play_here(&mut app);
+        app.local.playback = crate::player::Playback::Paused;
+        app.local.format = Some(crate::tidal_engine::StreamFormat {
+            codec: "flac".into(),
+            sample_rate: 44_100,
+            bit_depth: Some(16),
+            channels: 2,
+            quality: Some(crate::tidal_engine::Quality::Lossless),
+            ..Default::default()
+        });
+        let mut card = |version: u64, overlay: &dyn Fn(&mut DomOverlay)| {
+            let mut o = DomOverlay {
+                version,
+                ..DomOverlay::default()
+            };
+            o.hosts.insert(
+                keys::UTILITY_BUTTONS.into(),
+                HostOverride {
+                    style: Style {
+                        background_color: Some("rgb(4, 5, 6)".into()),
+                        padding: Some("4px".into()),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            );
+            overlay(&mut o);
+            plugin_dom::test_overlay(Some(o));
+            let mut last = Vec::new();
+            for _ in 0..3 {
+                let mut out = ctx.run_ui(input.clone(), |ui| crate::ui::show(&mut app, ui));
+                out.textures_delta.clear();
+                last = out.shapes;
+            }
+            let mut found = Vec::new();
+            for s in &last {
+                walk(&s.shape, fill, &mut found);
+            }
+            assert_eq!(found.len(), 1, "one card behind the buttons");
+            found[0]
+        };
+        // TIDAL's own row: four 32-point buttons 8 apart.
+        let plain = card(1, &|_| {});
+        assert_eq!(plain.width(), 4.0 * 32.0 + 3.0 * 8.0 + 8.0, "{plain:?}");
+        assert_eq!(plain.height(), 32.0 + 8.0, "{plain:?}");
+        // The cotton candy family's 30-point buttons; the sound output keeps
+        // TIDAL's `min-width: 32px`; a theme's gap.
+        let themed = card(2, &|o| {
+            for key in [
+                keys::QUEUE,
+                keys::SOUND_OUTPUT,
+                keys::MUTE,
+                keys::MINI_PLAYER,
+            ] {
+                let (min_width, min_height) = if key == keys::SOUND_OUTPUT {
+                    (Some("32px".to_string()), Some("32px".to_string()))
+                } else {
+                    (None, None)
+                };
+                o.hosts.insert(
+                    key.into(),
+                    HostOverride {
+                        style: Style {
+                            width: Some("30px".into()),
+                            height: Some("30px".into()),
+                            min_width,
+                            min_height,
+                            ..Style::default()
+                        },
+                        ..HostOverride::default()
+                    },
+                );
+            }
+            o.hosts
+                .get_mut(keys::UTILITY_BUTTONS)
+                .expect("the card")
+                .style
+                .gap = Some("6px".into());
+        });
+        assert_eq!(themed.width(), 122.0 + 3.0 * 6.0 + 8.0, "{themed:?}");
+        assert_eq!(themed.height(), 32.0 + 8.0, "{themed:?}");
+        assert_eq!(themed.right(), plain.right(), "the badge's side stays");
+        plugin_dom::test_overlay(None);
+        app.backend.shutdown();
+    }
+
     /// Lunallena's header is a tab over the page's top, 30vw wide and
     /// centred, pulled 80 up so that only its foot shows, with its controls
     /// hidden until the pointer is on it; its sidebar slides 47 out to the

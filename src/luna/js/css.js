@@ -512,6 +512,7 @@
 					// that copy its class.
 					'[class^="_utilityButtons_"] > button:where(:not(.withBackground)) { display: flex; width: 32px; height: 32px; padding: 1px 6px; border: 0; background-color: transparent; align-items: center; justify-content: center; cursor: pointer; }\n' +
 					'[class^="_utilityButtons_"] > button svg { width: 16px; height: 16px; }\n' +
+					"._soundOutputButton_a6d011c { min-width: 32px; min-height: 32px; }\n" +
 					// A disabled button in the player is at half strength
 					// (TIDAL 2.46.0's own rule): OneClickLyrics' button for a
 					// song without words.
