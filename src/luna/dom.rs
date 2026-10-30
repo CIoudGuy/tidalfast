@@ -224,6 +224,9 @@ pub struct Style {
     pub justify_content: Option<String>,
     pub cursor: Option<String>,
     pub transform: Option<String>,
+    /// `transform-origin` (`left top`, `30% 0`): the point a `scale` keeps
+    /// in place; the box's centre while unset.
+    pub transform_origin: Option<String>,
     pub filter: Option<String>,
     /// `backdrop-filter` (`blur(12px)`): frosted glass over what is painted
     /// behind the box.

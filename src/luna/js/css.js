@@ -1385,7 +1385,7 @@
 	// the playing playlist's name the other names' colour, not the accent).
 	const UNSET_INHERITED = { "font-size": "14px", "font-weight": "500", "line-height": "20px", color: "inherit" };
 	const UNSET_INITIAL = { "background-color": "transparent", "background-image": "none", "border-radius": "0px", "box-shadow": "none" };
-	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "margin-left", "margin-right", "column-gap", "row-gap", "padding-top", "padding-left", "padding-right", "padding-bottom", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "align-self", "justify-content", "cursor", "transform", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "outline-offset", "border-color", "letter-spacing", "text-transform", "fill", "white-space", "flex", "flex-wrap", "order", "pointer-events", "background-position", "background-size", "background-repeat", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns", "overflow-y", "list-style-type", "scrollbar-width", "border-image"]);
+	const STYLE_FIELDS = new Set(["display", "visibility", "color", "background-color", "background-image", "font-family", "font-size", "font-weight", "font-style", "text-decoration", "padding", "margin", "margin-top", "margin-bottom", "margin-left", "margin-right", "column-gap", "row-gap", "padding-top", "padding-left", "padding-right", "padding-bottom", "border", "border-radius", "opacity", "width", "height", "gap", "flex-direction", "align-items", "align-self", "justify-content", "cursor", "transform", "transform-origin", "filter", "position", "top", "right", "bottom", "left", "z-index", "box-shadow", "min-width", "max-width", "min-height", "max-height", "text-align", "line-height", "overflow", "outline", "outline-offset", "border-color", "letter-spacing", "text-transform", "fill", "white-space", "flex", "flex-wrap", "order", "pointer-events", "background-position", "background-size", "background-repeat", "image-rendering", "text-shadow", "text-overflow", "object-fit", "grid-template-columns", "overflow-y", "list-style-type", "scrollbar-width", "border-image"]);
 	const ANIM_LONG = ["animation-name", "animation-duration", "animation-delay", "animation-iteration-count", "animation-direction", "animation-timing-function", "animation-play-state", "animation-fill-mode"];
 	const seconds = (t) => (/ms$/i.test(t) ? parseFloat(t) / 1000 : parseFloat(t));
 	// A timing function as one word for the lists below: lower case, no spaces
@@ -2051,6 +2051,10 @@
 				const frame = toStyle(decls, vars, null) ?? {};
 				// `--rotate: 360deg`: a custom property an animation moves.
 				for (const [k, v] of decls) if (k.startsWith("--")) (frame.custom ??= {})[k] = String(v).trim();
+				// A frame of the `scale` property (folded into `transform`
+				// above) scales on top of the box's own `transform`, where
+				// a `transform` frame takes its place: kept apart.
+				if (decls.has("scale")) (frame.custom ??= {}).scale = resolveVars(String(decls.get("scale")), vars).trim();
 				// A keyframe's own easing, for the interval after it.
 				if (decls.has("animation-timing-function")) (frame.custom ??= {})["animation-timing-function"] = timingWord(resolveVars(decls.get("animation-timing-function"), vars));
 				return [off, frame];

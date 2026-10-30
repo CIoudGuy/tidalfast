@@ -1301,27 +1301,32 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     let shuffle_color =
         themed_glyph(keys::SHUFFLE).unwrap_or(if shuffle { palette.text } else { dim });
     let shuffle_slot = slot(0);
-    if shuffle && drawn(0) {
-        ui.painter()
-            .circle_filled(shuffle_slot.center(), 16.0, Color32::from_white_alpha(26));
-    }
     plugin_dom::player_part(PlayerPart::Shuffle, shuffle_slot);
-    let mut cell = centered(ui, shuffle_slot, 0);
-    let shuffle_button = theme::player_icon_button(
-        &mut cell,
-        Icon::Shuffle,
-        16.0,
-        shuffle_color,
-        palette.text,
-        &gettext(app.locale, "Shuffle"),
-    );
-    shuffle_button.widget_info(|| {
-        egui::WidgetInfo::selected(
-            egui::WidgetType::Checkbox,
-            cell.is_enabled(),
-            shuffle,
-            gettext(app.locale, "Shuffle"),
-        )
+    // The button as the theme scales it (the cotton candy family's
+    // `._shuffleButton_ { transform: scale(.9) }`).
+    let shuffle_button = plugin_dom::scaled(ui, keys::SHUFFLE, shuffle_slot, |ui| {
+        if shuffle && drawn(0) {
+            ui.painter()
+                .circle_filled(shuffle_slot.center(), 16.0, Color32::from_white_alpha(26));
+        }
+        let mut cell = centered(ui, shuffle_slot, 0);
+        let button = theme::player_icon_button(
+            &mut cell,
+            Icon::Shuffle,
+            16.0,
+            shuffle_color,
+            palette.text,
+            &gettext(app.locale, "Shuffle"),
+        );
+        button.widget_info(|| {
+            egui::WidgetInfo::selected(
+                egui::WidgetType::Checkbox,
+                cell.is_enabled(),
+                shuffle,
+                gettext(app.locale, "Shuffle"),
+            )
+        });
+        button
     });
     if shuffle_button.clicked() {
         app.actions.push(Action::ToggleShuffle);
@@ -1440,22 +1445,23 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     };
     let repeat_color = themed_glyph(keys::REPEAT).unwrap_or(repeat_color);
     let repeat_slot = slot(4);
-    if repeat != RepeatMode::Off && drawn(4) {
-        ui.painter()
-            .circle_filled(repeat_slot.center(), 16.0, Color32::from_white_alpha(26));
-    }
     plugin_dom::player_part(PlayerPart::Repeat, repeat_slot);
-    let mut cell = centered(ui, repeat_slot, 4);
-    if theme::player_icon_button(
-        &mut cell,
-        repeat_icon,
-        16.0,
-        repeat_color,
-        palette.text,
-        &tooltip,
-    )
-    .clicked()
-    {
+    let repeat_button = plugin_dom::scaled(ui, keys::REPEAT, repeat_slot, |ui| {
+        if repeat != RepeatMode::Off && drawn(4) {
+            ui.painter()
+                .circle_filled(repeat_slot.center(), 16.0, Color32::from_white_alpha(26));
+        }
+        let mut cell = centered(ui, repeat_slot, 4);
+        theme::player_icon_button(
+            &mut cell,
+            repeat_icon,
+            16.0,
+            repeat_color,
+            palette.text,
+            &tooltip,
+        )
+    });
+    if repeat_button.clicked() {
         app.actions.push(Action::CycleRepeat);
     }
 
@@ -1493,14 +1499,14 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     // bar hides TIDAL's).
     let time_shown = |key: &str| plugin_dom::shown(key) == plugin_dom::Shown::Drawn;
     if time_shown(keys::CURRENT_TIME) {
-        ui.painter().text(
+        time_text(
+            ui,
+            [keys::CURRENT_TIME_WRAP, keys::CURRENT_TIME],
             pos2(seek_start(region), row_cy),
-            egui::Align2::LEFT_CENTER,
             plugin_dom::text(
                 keys::CURRENT_TIME,
                 &util::format_duration_ms(shown_position),
             ),
-            theme::regular(12.0),
             time_color,
         );
     }
@@ -1582,14 +1588,35 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         SliderEvent::None => {}
     }
     if time_shown(keys::DURATION) {
-        ui.painter().text(
+        time_text(
+            ui,
+            [keys::DURATION_WRAP, keys::DURATION],
             pos2(slider_left + slider_width + 16.0, row_cy),
-            egui::Align2::LEFT_CENTER,
             plugin_dom::text(keys::DURATION, &util::format_duration_ms(duration)),
-            theme::regular(12.0),
             time_color,
         );
     }
+}
+
+/// One of the progress row's times, its left middle at `at`, as the theme
+/// scales its two boxes (`keys`: the wrapper and the time, the cotton
+/// candy family's `scale(.96)` on each) about the words' box.
+fn time_text(
+    ui: &mut egui::Ui,
+    keys: [&str; 2],
+    at: egui::Pos2,
+    text: impl ToString,
+    color: Color32,
+) {
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_string(), theme::regular(12.0), color);
+    let r = egui::Align2::LEFT_CENTER.anchor_size(at, galley.size());
+    plugin_dom::scaled(ui, keys[0], r, |ui| {
+        plugin_dom::scaled(ui, keys[1], r, |ui| {
+            ui.painter().galley(r.min, galley, color);
+        });
+    });
 }
 
 /// The bar's right side, TIDAL's order from left to right: play queue,
@@ -1612,8 +1639,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
     };
     // A theme's card behind the buttons (`._utilityButtons_`), filled once
     // they are laid out; the quality pill to their right stays outside it.
-    let card =
-        plugin_dom::part_card(keys::UTILITY_BUTTONS).map(|c| (c, ui.painter().add(Shape::Noop)));
+    let card = plugin_dom::part_card(keys::UTILITY_BUTTONS);
     let mut pill_left = None;
     ui.spacing_mut().item_spacing.x = 10.0;
     // Right to left: Luna slots are added in reverse visual order.
@@ -1704,6 +1730,10 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
             }
         });
     }
+    // The buttons' box from here: its card under them, and what the theme
+    // scales with it (the cotton candy family's `scale(1.04)`).
+    let buttons_start = plugin_dom::shapes_mark(ui);
+    let card = card.map(|c| (c, ui.painter().add(Shape::Noop)));
     run.slot(ui, 4, keys::UTILITY_BUTTONS, Position::Append);
     // TIDAL's compact mode: the small player window.
     let compact_color = utility_glyph(keys::MINI_PLAYER);
@@ -1884,15 +1914,25 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         }
     }
     run.slot(ui, 11, keys::UTILITY_BUTTONS, Position::Prepend);
+    let buttons_end = plugin_dom::shapes_mark(ui);
     run.slot(ui, 12, keys::UTILITY, Position::Prepend);
     plugin_dom::player_part(PlayerPart::UtilityButtons, ui.min_rect());
-    if let Some((card, slot)) = card {
-        let mut buttons = ui.min_rect();
-        if let Some(x) = pill_left {
-            buttons.max.x = buttons.max.x.min(x - 6.0);
-        }
-        plugin_dom::paint_card(ui, slot, keys::UTILITY_BUTTONS, &card, buttons);
+    let mut buttons = ui.min_rect();
+    if let Some(x) = pill_left {
+        buttons.max.x = buttons.max.x.min(x - 6.0);
     }
+    let mut buttons_box = buttons;
+    if let Some((card, slot)) = card {
+        plugin_dom::paint_card(ui, slot, keys::UTILITY_BUTTONS, &card, buttons);
+        let [t, r, b, l] = plugin_dom::card_inset(keys::UTILITY_BUTTONS, &card);
+        buttons_box = Rect::from_min_max(buttons.min - vec2(l, t), buttons.max + vec2(r, b));
+    }
+    plugin_dom::scale_shapes(
+        ui,
+        keys::UTILITY_BUTTONS,
+        buttons_start..buttons_end,
+        buttons_box,
+    );
     let after = RightFit {
         natives: (start - ui.cursor().right() - run.drawn).max(0.0),
         widths: run.widths,

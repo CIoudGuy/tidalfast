@@ -65,7 +65,8 @@ pub struct AnchorLook {
     pub uppercase: Option<bool>,
     /// The box's `padding`, top right bottom left, in points.
     pub padding: Option<[f32; 4]>,
-    /// The box's `transform: scale()`.
+    /// The box's `transform: scale()` (and its `scale`, which the runtime
+    /// folds into the `transform`): every scale in it, multiplied.
     pub scale: Option<f32>,
     /// The box's `transform: translate()`.
     pub translate: egui::Vec2,
@@ -190,7 +191,7 @@ pub(super) fn look_of(
     let transform = s.transform.as_deref().map(|t| css::resolve_vars(t, vars));
     let scale = transform
         .as_deref()
-        .and_then(|t| super::function_factor(t, "scale"));
+        .and_then(super::super::theme_motion::transform_scale);
     let translate = transform
         .as_deref()
         .map_or(egui::Vec2::ZERO, |t| super::translation_em(t, em));
@@ -333,6 +334,199 @@ pub fn paint_anchor_box(
     let look = anchor_look(key)?;
     paint_look(ui, key, &look, r, native);
     Some(look)
+}
+
+/// Draws a native part with `add` as the theme's `transform` moves and
+/// scales its anchor `key`: everything `add` paints (the box, its words
+/// and icons) scaled about the box's `transform-origin` in `r` (its centre
+/// unless set) and moved by its translations, as Chromium draws a box with
+/// a `transform` (its `scale` and `translate` properties included, which
+/// the runtime folds into it): its room in the layout and where it takes
+/// the pointer stay as they were. The scale the box's animations give it
+/// now (a `scale` keyframe as the pointer comes onto it) and its
+/// `transition` on the way between states are followed. With no transform
+/// `add` draws as it would. Turns are left out.
+pub fn scaled<R>(ui: &mut egui::Ui, key: &str, r: Rect, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let start = shapes_mark(ui);
+    let out = add(ui);
+    scale_shapes(ui, key, start..shapes_mark(ui), r);
+    out
+}
+
+/// Where the next shape painted in `ui`'s layer goes, for [`scale_shapes`].
+pub fn shapes_mark(ui: &egui::Ui) -> egui::layers::ShapeIdx {
+    let layer = ui.layer_id();
+    ui.ctx().graphics_mut(|g| g.entry(layer).next_idx())
+}
+
+/// [`scaled`] for a part whose box is known only once it is drawn (the
+/// player bar's `._utilityButtons_`, as wide as its buttons): transforms
+/// the shapes `ui`'s layer got in `range` as the theme transforms anchor
+/// `key`, its box `r`.
+pub fn scale_shapes(
+    ui: &egui::Ui,
+    key: &str,
+    range: std::ops::Range<egui::layers::ShapeIdx>,
+    r: Rect,
+) {
+    let Some(t) = box_transform(ui.ctx(), key, r) else {
+        return;
+    };
+    // The shapes move, their clip stays where it is on the screen, as an
+    // ancestor's clip does for a transformed box.
+    let layer = ui.layer_id();
+    ui.ctx().graphics_mut(|g| {
+        let list = g.entry(layer);
+        for i in range.start.0..range.end.0.min(list.next_idx().0) {
+            list.mutate_shape(egui::layers::ShapeIdx(i), |c| c.shape.transform(t));
+        }
+    });
+}
+
+/// The transform the theme gives anchor `key` now, its box `r`, on the
+/// screen: `None` while it leaves the box where it is.
+pub fn box_transform(ctx: &egui::Context, key: &str, r: Rect) -> Option<egui::emath::TSTransform> {
+    use egui::emath::TSTransform;
+    let found = super::with(|s| {
+        let h = s.overlay.hosts.get(key)?;
+        if !super::on() || h.hidden() {
+            return None;
+        }
+        let st = &h.style;
+        if st.transform.is_none() && st.animation.is_none() {
+            return None;
+        }
+        let written = st
+            .transform
+            .as_deref()
+            .map(|t| css::resolve_vars(t, &s.vars))
+            .unwrap_or_default();
+        let own = super::super::theme_motion::transform_scale(&written).unwrap_or(1.0);
+        let animated = super::super::theme_motion::scale(ctx, key, st, &s.overlay.keyframes, own);
+        Some((
+            written,
+            own,
+            animated.unwrap_or(own),
+            super::moving(st, "transform"),
+            st.transform_origin.clone(),
+        ))
+    })?;
+    let (written, own, k, spec, origin) = found;
+    let k = super::host_moved(key, "scale", Some(k), spec, |m| &mut m.numbers)?;
+    // The written transform, function by function, about the origin; a
+    // scale its animation or transition has elsewhere now scales on top.
+    let mut m = TSTransform::IDENTITY;
+    let lower = written.to_ascii_lowercase();
+    let mut rest = lower.as_str();
+    let len = |v: &str, reference: f32| {
+        css::length(v.trim(), 14.0, reference, super::viewport()).filter(|l| l.is_finite())
+    };
+    while let Some(open) = rest.find('(') {
+        let name = rest[..open]
+            .trim()
+            .rsplit([' ', ')'])
+            .next()
+            .unwrap_or("")
+            .trim();
+        let Some(close) = rest[open..].find(')') else {
+            break;
+        };
+        let args: Vec<&str> = rest[open + 1..open + close]
+            .split([',', ' '])
+            .map(str::trim)
+            .filter(|a| !a.is_empty())
+            .collect();
+        rest = &rest[open + close + 1..];
+        let arg =
+            |i: usize, reference: f32| args.get(i).and_then(|a| len(a, reference)).unwrap_or(0.0);
+        let step = match name {
+            "translate" | "translate3d" => {
+                TSTransform::from_translation(egui::vec2(arg(0, r.width()), arg(1, r.height())))
+            }
+            "translatex" => TSTransform::from_translation(egui::vec2(arg(0, r.width()), 0.0)),
+            "translatey" => TSTransform::from_translation(egui::vec2(0.0, arg(0, r.height()))),
+            "scale" | "scale3d" => {
+                match super::super::theme_motion::scale_property(
+                    &args[..args.len().min(2)].join(" "),
+                ) {
+                    Some(k) => TSTransform::from_scaling(k),
+                    None => continue,
+                }
+            }
+            _ => continue,
+        };
+        m = m * step;
+    }
+    if own > 0.0 && (k - own).abs() > 1e-4 {
+        m = TSTransform::from_scaling((k / own).clamp(0.0, 8.0)) * m;
+    }
+    if !m.scaling.is_finite() || !m.translation.is_finite() {
+        return None;
+    }
+    let moved = (m.scaling - 1.0).abs() > 1e-4 || m.translation.length() > 1e-3;
+    if !moved {
+        return None;
+    }
+    let at = origin_in(origin.as_deref(), r).to_vec2();
+    Some(TSTransform::from_translation(at) * m * TSTransform::from_translation(-at))
+}
+
+/// The point `transform-origin` names in `r` (keywords, percentages and
+/// lengths, `x y`; one value sets x, or y for `top` / `bottom`); the
+/// centre while unset.
+fn origin_in(value: Option<&str>, r: Rect) -> egui::Pos2 {
+    let mut x = 0.5_f32;
+    let mut y = 0.5_f32;
+    let mut px: Option<f32> = None;
+    let mut py: Option<f32> = None;
+    let Some(value) = value else {
+        return r.center();
+    };
+    let words: Vec<String> = value
+        .trim()
+        .trim_end_matches("!important")
+        .split_whitespace()
+        .map(str::to_ascii_lowercase)
+        .collect();
+    // Keywords name their own axis; the rest are x then y.
+    let mut axis = 0;
+    for w in &words {
+        match w.as_str() {
+            "left" => x = 0.0,
+            "right" => x = 1.0,
+            "top" => y = 0.0,
+            "bottom" => y = 1.0,
+            "center" => {}
+            other => {
+                let v = if let Some(p) = other.strip_suffix('%') {
+                    p.parse::<f32>().ok().map(|n| (n / 100.0, None))
+                } else {
+                    css::length(other, 14.0, f32::NAN, [0.0, 0.0])
+                        .filter(|l| l.is_finite())
+                        .map(|l| (0.0, Some(l)))
+                };
+                if let Some((f, l)) = v {
+                    if axis == 0 {
+                        x = f;
+                        px = l;
+                    } else {
+                        y = f;
+                        py = l;
+                    }
+                }
+            }
+        }
+        if !matches!(w.as_str(), "top" | "bottom") {
+            axis += 1;
+        }
+        if axis > 1 {
+            break;
+        }
+    }
+    egui::pos2(
+        r.left() + px.unwrap_or(r.width() * x),
+        r.top() + py.unwrap_or(r.height() * y),
+    )
 }
 
 /// [`paint_anchor_box`] with a look already read.

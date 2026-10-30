@@ -35,9 +35,10 @@ use super::plugin_slots::css;
 #[path = "anchor_look.rs"]
 mod anchor_look;
 pub use anchor_look::{
-    AnchorLook, MENU_BOX_MARK, SUBMENU_BOX_MARK, anchor_look, card_inset, look_text, mark_opacity,
-    menu_box_looks, menu_see_through, paint_anchor_box, paint_card, paint_look,
-    paint_look_with_fill, paint_part, paint_sides, paints_beyond_fill, part_card, submenu_box_look,
+    AnchorLook, MENU_BOX_MARK, SUBMENU_BOX_MARK, anchor_look, box_transform, card_inset, look_text,
+    mark_opacity, menu_box_looks, menu_see_through, paint_anchor_box, paint_card, paint_look,
+    paint_look_with_fill, paint_part, paint_sides, paints_beyond_fill, part_card, scale_shapes,
+    scaled, shapes_mark, submenu_box_look,
 };
 #[cfg(any(test, feature = "demo"))]
 #[path = "look_dump.rs"]

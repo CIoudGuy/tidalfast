@@ -3269,7 +3269,17 @@ fn tidal_row_cells(
         } else {
             Icon::PlayFilled
         };
-        theme::paint_icon(ui, icon, number, 16.0, palette.text);
+        // As the theme scales the button (the cotton candy family's
+        // `._playButton_4942431 { transform: scale(.8) }`).
+        match list {
+            Some(l) => {
+                let key = crate::luna::dom_anchors::keys::row_cell(l, row.index, "play");
+                super::plugin_dom::scaled(ui, &key, number, |ui| {
+                    theme::paint_icon(ui, icon, number, 16.0, palette.text);
+                });
+            }
+            None => theme::paint_icon(ui, icon, number, 16.0, palette.text),
+        }
     } else if playing {
         theme::paint_icon(ui, Icon::AudioLines, number, 16.0, palette.accent);
     } else if drawn("index-number") {

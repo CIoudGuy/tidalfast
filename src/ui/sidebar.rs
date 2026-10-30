@@ -1641,55 +1641,62 @@ fn nav_row(
             selected,
         );
         let color = crate::motion::blend(idle_nav_ink(palette), palette.text, hover.max(selected));
-        // The theme's whole box for the row (`._navigationItem_`: fill,
-        // gradients, corners, borders, shadows and the inset glow, in its
-        // `:hover` and `_selected_` states), else TIDAL's pill.
-        let look = super::plugin_dom::paint_part(ui, &key, rect, CornerRadius::same(12), fill);
-        let color = super::plugin_dom::look_text(&key, look.as_deref(), color);
-        let icon_rect =
-            Rect::from_center_size(pos2(rect.left() + 20.0, rect.center().y), Vec2::splat(18.0));
-        // A theme's colour for the row's `svg` (TidalCustomTheme's dark
-        // red), else the row's.
-        let ink = super::plugin_dom::sidebar_icon(
-            &crate::luna::dom_anchors::keys::sidebar_item_icon(test),
-        )
-        .unwrap_or(color);
-        let shows = |key: &str| super::plugin_dom::shown(key) == super::plugin_dom::Shown::Drawn;
-        if shows(&crate::luna::dom_anchors::keys::sidebar_item_icon(test)) {
-            icon.image(ink, 18.0).paint_at(ui, icon_rect);
-        }
-        // A theme's colour for the row's words themselves.
-        let label_key = crate::luna::dom_anchors::keys::sidebar_item_label(test);
-        let words = super::plugin_dom::look_text(
-            &label_key,
-            super::plugin_dom::anchor_look(&label_key).as_deref(),
-            color,
-        );
-        if shows(&label_key) {
-            ui.painter().text(
-                pos2(rect.left() + 40.0, rect.center().y),
-                egui::Align2::LEFT_CENTER,
-                label,
-                theme::semibold(14.0),
-                words,
+        // The row, its icon, words and chevron as the theme scales the
+        // row (the cotton candy family's `scale(.98)`).
+        super::plugin_dom::scaled(ui, &key, rect, |ui| {
+            // The theme's whole box for the row (`._navigationItem_`: fill,
+            // gradients, corners, borders, shadows and the inset glow, in its
+            // `:hover` and `_selected_` states), else TIDAL's pill.
+            let look = super::plugin_dom::paint_part(ui, &key, rect, CornerRadius::same(12), fill);
+            let color = super::plugin_dom::look_text(&key, look.as_deref(), color);
+            let icon_rect = Rect::from_center_size(
+                pos2(rect.left() + 20.0, rect.center().y),
+                Vec2::splat(18.0),
             );
-        }
-        if chevron && shows(&crate::luna::dom_anchors::keys::sidebar_item_arrow(test)) {
-            // A theme's colour for TIDAL's `svg._arrowRight_` (Tidal
-            // Light's black): its `fill`, else its `color`, as for the
-            // row's icon.
+            // A theme's colour for the row's `svg` (TidalCustomTheme's dark
+            // red), else the row's.
             let ink = super::plugin_dom::sidebar_icon(
-                &crate::luna::dom_anchors::keys::sidebar_item_arrow(test),
+                &crate::luna::dom_anchors::keys::sidebar_item_icon(test),
             )
-            .unwrap_or(palette.tertiary());
-            Icon::ChevronRight.image(ink, 16.0).paint_at(
-                ui,
-                Rect::from_center_size(
-                    pos2(rect.right() - 16.0, rect.center().y),
-                    Vec2::splat(16.0),
-                ),
+            .unwrap_or(color);
+            let shows =
+                |key: &str| super::plugin_dom::shown(key) == super::plugin_dom::Shown::Drawn;
+            if shows(&crate::luna::dom_anchors::keys::sidebar_item_icon(test)) {
+                icon.image(ink, 18.0).paint_at(ui, icon_rect);
+            }
+            // A theme's colour for the row's words themselves.
+            let label_key = crate::luna::dom_anchors::keys::sidebar_item_label(test);
+            let words = super::plugin_dom::look_text(
+                &label_key,
+                super::plugin_dom::anchor_look(&label_key).as_deref(),
+                color,
             );
-        }
+            if shows(&label_key) {
+                ui.painter().text(
+                    pos2(rect.left() + 40.0, rect.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    label,
+                    theme::semibold(14.0),
+                    words,
+                );
+            }
+            if chevron && shows(&crate::luna::dom_anchors::keys::sidebar_item_arrow(test)) {
+                // A theme's colour for TIDAL's `svg._arrowRight_` (Tidal
+                // Light's black): its `fill`, else its `color`, as for the
+                // row's icon.
+                let ink = super::plugin_dom::sidebar_icon(
+                    &crate::luna::dom_anchors::keys::sidebar_item_arrow(test),
+                )
+                .unwrap_or(palette.tertiary());
+                Icon::ChevronRight.image(ink, 16.0).paint_at(
+                    ui,
+                    Rect::from_center_size(
+                        pos2(rect.right() - 16.0, rect.center().y),
+                        Vec2::splat(16.0),
+                    ),
+                );
+            }
+        });
     }
     response.widget_info(|| {
         egui::WidgetInfo::selected(egui::WidgetType::Button, ui.is_enabled(), active, label)
@@ -4346,6 +4353,103 @@ mod nav_label_tests {
         assert!(glowing > flat + 4, "inset glow: {flat} -> {glowing}");
         let (shadowed, _) = shapes(Some("0 0 1em rgba(0, 0, 0, .4)"));
         assert!(shadowed > flat + 4, "outer shadow: {flat} -> {shadowed}");
+    }
+
+    /// A theme's `transform` on `._navigationItem_` (the cotton candy
+    /// family's and Sugarcoat's `scale(.98) translateX(-.1em)`) scales the
+    /// whole row about its `transform-origin`, its centre unless set, and
+    /// moves it: its pill and its words, as Chromium draws a transformed
+    /// box. The scale was read and never drawn, so the rows kept their full
+    /// size and place.
+    #[test]
+    fn a_navigation_rows_scale_draws_the_row_and_its_words_smaller() {
+        use crate::luna::dom::Style;
+        let pink = |c: egui::Color32| c.r() > 200 && c.g() < 230 && c.b() > 200;
+        let drawn = |transform: Option<&str>, origin: Option<&str>| {
+            let mut overlay = DomOverlay {
+                version: 5101,
+                ..DomOverlay::default()
+            };
+            overlay.hosts.insert(
+                crate::luna::dom_anchors::keys::sidebar_item("sidebar-music"),
+                HostOverride {
+                    style: Style {
+                        background_color: Some("rgb(250, 200, 240)".into()),
+                        transform: transform.map(str::to_string),
+                        transform_origin: origin.map(str::to_string),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            );
+            super::super::plugin_dom::test_overlay(Some(overlay));
+            let ctx = egui::Context::default();
+            crate::theme::install(&ctx);
+            let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                nav_row(
+                    ui,
+                    &Palette::dark(),
+                    "sidebar-music",
+                    Icon::Music,
+                    "Music",
+                    true,
+                    false,
+                );
+            });
+            out.textures_delta.clear();
+            super::super::plugin_dom::test_overlay(None);
+            let pill = out
+                .shapes
+                .iter()
+                .find_map(|c| match &c.shape {
+                    egui::Shape::Rect(r) if pink(r.fill) => Some(r.rect),
+                    _ => None,
+                })
+                .expect("the theme's fill");
+            let words = out
+                .shapes
+                .iter()
+                .find_map(|c| match &c.shape {
+                    egui::Shape::Text(t) if t.galley.text() == "Music" => {
+                        Some(t.galley.rect.size())
+                    }
+                    _ => None,
+                })
+                .expect("the row's words");
+            (pill, words)
+        };
+        let (own, own_words) = drawn(None, None);
+        let (half, half_words) = drawn(Some("scale(.5)"), None);
+        assert!(
+            (half.width() - own.width() / 2.0).abs() < 0.5
+                && (half.height() - own.height() / 2.0).abs() < 0.5,
+            "half the size: {own:?} -> {half:?}"
+        );
+        assert!(
+            (half.center() - own.center()).length() < 0.5,
+            "about its centre: {own:?} -> {half:?}"
+        );
+        assert!(
+            (half_words.x - own_words.x / 2.0).abs() < 1.0,
+            "its words too: {own_words:?} -> {half_words:?}"
+        );
+        // The `scale` property, which the runtime folds into the transform,
+        // and the corner `transform-origin` names.
+        let (corner, _) = drawn(Some("scale(.5) translateX(0px)"), Some("left top"));
+        assert!(
+            (corner.min - own.min).length() < 0.5
+                && (corner.width() - own.width() / 2.0).abs() < 0.5,
+            "about its top left corner: {own:?} -> {corner:?}"
+        );
+        // A translation after the scale moves the row by the scaled
+        // length, as a transform list applies (Sugarcoat's `scale(.98)
+        // translateX(-.1em)`).
+        let (moved, _) = drawn(Some("scale(.5) translateX(10px)"), None);
+        assert!(
+            (moved.center().x - own.center().x - 5.0).abs() < 0.5
+                && (moved.width() - own.width() / 2.0).abs() < 0.5,
+            "moved by half its translation: {own:?} -> {moved:?}"
+        );
     }
 
     /// Collection's chevron is an icon: TIDAL paints it in its `fill` (the

@@ -208,6 +208,106 @@ pub fn angle(
     found
 }
 
+/// The scale the box's running animations give it now, when one of them
+/// moves its `scale` (the cotton candy family's and Sugarcoat's `bounc`,
+/// `0% { scale: 1 } 38% { scale: 1.044 } 100% { scale: .96 }` over a
+/// fifth of a second as the pointer comes onto a button) or the scale of
+/// its `transform`. As in Chromium a `scale` frame scales on top of the
+/// box's own `transform` (`own`, the factor that has), a `transform` frame
+/// takes its place; a frame without one stands at the box's own value. A
+/// frame is asked for every sixtieth of the animation (16 to 250 ms).
+pub fn scale(
+    ctx: &egui::Context,
+    key: &str,
+    style: &Style,
+    keyframes: &BTreeMap<String, Vec<(f32, Style)>>,
+    own: f32,
+) -> Option<f32> {
+    let mut found = None;
+    running(
+        ctx,
+        key,
+        style,
+        keyframes,
+        |dur| ((dur * 1000.0 / 60.0) as u64).clamp(16, 250),
+        |frames, a, p| {
+            let property = frames
+                .iter()
+                .any(|(_, s)| s.custom.as_ref().is_some_and(|c| c.contains_key("scale")));
+            let frames: Vec<_> = frames
+                .iter()
+                .filter_map(|(offset, s)| {
+                    let k = if property {
+                        s.custom
+                            .as_ref()?
+                            .get("scale")
+                            .and_then(|v| scale_property(v))?
+                    } else {
+                        s.transform.as_deref().and_then(transform_scale)?
+                    };
+                    Some((*offset, k, css_motion::keyframe_timing(s)))
+                })
+                .collect();
+            if frames.is_empty() {
+                return false;
+            }
+            let base = if property { 1.0 } else { own };
+            let k = css_motion::Track { frames }.at(p, &base, &a.timing);
+            found = Some(if property { k * own } else { k });
+            true
+        },
+    );
+    found
+}
+
+/// The factor of a `scale` property's value (`1.044`, `110%`, `1.1 1.1`;
+/// two different axes are taken as their mean, as for a box's
+/// `transform`), none for `none`.
+pub fn scale_property(value: &str) -> Option<f32> {
+    let mut axes = value.split_whitespace().map(|a| match a.strip_suffix('%') {
+        Some(p) => p.parse::<f32>().ok().map(|n| n / 100.0),
+        None => a.parse::<f32>().ok(),
+    });
+    let x = axes.next()??;
+    let y = axes.next().flatten().unwrap_or(x);
+    let k = (x + y) / 2.0;
+    k.is_finite().then_some(k)
+}
+
+/// The scale of a `transform` value: the product of its `scale()` and
+/// `scale3d()` (two different axes taken as their mean); none when it has
+/// no scale.
+pub fn transform_scale(transform: &str) -> Option<f32> {
+    let lower = transform.to_ascii_lowercase();
+    let mut rest = lower.as_str();
+    let mut total: Option<f32> = None;
+    while let Some(open) = rest.find('(') {
+        let name = rest[..open]
+            .trim()
+            .rsplit([' ', ')'])
+            .next()
+            .unwrap_or("")
+            .trim();
+        let Some(close) = rest[open..].find(')') else {
+            break;
+        };
+        let args = &rest[open + 1..open + close];
+        if matches!(name, "scale" | "scale3d") {
+            let axes: Vec<&str> = args
+                .split([',', ' '])
+                .map(str::trim)
+                .filter(|a| !a.is_empty())
+                .take(2)
+                .collect();
+            if let Some(k) = scale_property(&axes.join(" ")) {
+                total = Some(total.unwrap_or(1.0) * k);
+            }
+        }
+        rest = &rest[open + close + 1..];
+    }
+    total
+}
+
 /// The values the box's running animations give the custom properties
 /// `@property` registers with a type (Cotton Candy Nights' stars,
 /// `@property --star1 { syntax: '<percentage>'; initial-value: 0% }` and
@@ -579,6 +679,73 @@ mod tests {
         });
         out.textures_delta.clear();
         assert_eq!(other, None);
+    }
+
+    /// The `bounc` keyframes (`0% { scale: 1 } 38% { scale: 1.044 } 100% {
+    /// scale: .96 }`, once over a fifth of a second) scale a box on top of
+    /// its own `transform: scale(.7)`, as in Chromium; a `transform` frame
+    /// takes the box's own scale's place; once over, nothing is moved.
+    #[test]
+    fn a_scale_keyframe_scales_on_top_of_the_boxs_own_transform() {
+        let frame = |offset: f32, scale: Option<&str>, transform: Option<&str>| {
+            (
+                offset,
+                Style {
+                    transform: transform.map(str::to_string),
+                    custom: scale.map(|v| BTreeMap::from([("scale".to_string(), v.to_string())])),
+                    ..Style::default()
+                },
+            )
+        };
+        let keyframes = BTreeMap::from([
+            (
+                "bounc".to_string(),
+                vec![
+                    frame(0.0, Some("1.0"), Some("scale(1.0)")),
+                    frame(0.38, Some("1.044"), Some("scale(1.044)")),
+                    frame(1.0, Some(".96"), Some("scale(.96)")),
+                ],
+            ),
+            (
+                "grow".to_string(),
+                vec![
+                    frame(0.0, None, Some("scale(1)")),
+                    frame(1.0, None, Some("scale(2)")),
+                ],
+            ),
+        ]);
+        let style = |name: &str| Style {
+            transform: Some("scale(.7)".into()),
+            animation: Some(format!("{name} 0.2 0 1 normal linear running none")),
+            ..Style::default()
+        };
+        let ctx = egui::Context::default();
+        let mut seen = Vec::new();
+        for time in [10.0, 10.076, 10.19, 10.5] {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    time: Some(time),
+                    ..Default::default()
+                },
+                |ui| {
+                    seen.push((
+                        scale(ui.ctx(), "button", &style("bounc"), &keyframes, 0.7),
+                        scale(ui.ctx(), "pill", &style("grow"), &keyframes, 0.7),
+                    ));
+                },
+            );
+            out.textures_delta.clear();
+        }
+        let near = |got: Option<f32>, want: f32| got.is_some_and(|g| (g - want).abs() < 0.005);
+        assert!(near(seen[0].0, 0.7), "{seen:?}");
+        assert!(near(seen[1].0, 0.7 * 1.044), "{seen:?}");
+        assert!(near(seen[2].0, 0.7 * 0.967), "{seen:?}");
+        assert!(near(seen[1].1, 1.38), "transform frames replace: {seen:?}");
+        assert_eq!(seen[3], (None, None), "over");
+        assert_eq!(transform_scale("scale(.98) translateX(-.1em)"), Some(0.98));
+        assert_eq!(transform_scale("scale(2) scale(1.5, 1.5)"), Some(3.0));
+        assert_eq!(transform_scale("translateY(2px)"), None);
+        assert_eq!(scale_property("110%"), Some(1.1));
     }
 
     /// A registered colour or length eases between its keyframes; an angle,
