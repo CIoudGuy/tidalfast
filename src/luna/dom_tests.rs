@@ -7035,3 +7035,114 @@ R.done = true;
     assert_eq!(r["resets"], json!(0), "{r}");
     finish(luna, dir);
 }
+
+/// The hovered element taken out of the document (the row under the
+/// pointer scrolled away) takes `:hover` from the elements that held it as
+/// it goes, as in a browser: whatever a script does to the nodes and
+/// wherever the pointer goes, the cascades kept are the ones a fresh match
+/// gives, and the next hover event no longer restyles the whole page (with
+/// eighteen plugins a full restyle a second while a list scrolled).
+#[test]
+fn kept_cascades_equal_fresh_ones_when_the_hovered_element_goes() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = `
+.t .h:hover { color: rgb(1, 0, 0); }
+.t .h:hover .x { background-color: rgb(2, 0, 0); }
+.t .a:hover + .b { border-top-color: rgb(3, 0, 0); }
+.t .a:hover ~ .c span { opacity: 0.5; }
+.t li:hover > i { margin-left: 1px; }
+.t :hover > .y { padding-top: 2px; }
+.t .x { color: rgb(9, 9, 9); }
+`;
+document.head.append(st);
+let seed = 11;
+const rnd = (n) => {
+	seed = (seed * 1103515245 + 12345) % 2147483648;
+	return seed % n;
+};
+const TAGS = ["div", "li", "b", "span", "i"];
+const CLS = ["a", "b", "c", "x", "y", "h"];
+const make = () => {
+	const e = document.createElement(TAGS[rnd(TAGS.length)]);
+	for (const c of CLS) if (rnd(3) === 0) e.classList.add(c);
+	return e;
+};
+const root = document.createElement("div");
+root.className = "t h";
+document.body.append(root);
+const els = () => [root, ...root.querySelectorAll("*")];
+for (let i = 0; i < 60; i++) {
+	const all = els();
+	all[rnd(all.length)].append(make());
+}
+// Hover events name an element by the id an overlay build gives it.
+const build = () => {
+	D.loadedDirty();
+	D.flush();
+};
+let hovered = null;
+const hover = (e) => {
+	if (e) build();
+	if (e && e._vid === undefined) return false;
+	D.event(e ? { target: { kind: "node", id: e._vid }, type: "hover", data: null } : { target: { kind: "host", id: "" }, type: "hover", data: null });
+	hovered = e;
+	return true;
+};
+const show = (m) => (m ? JSON.stringify([...m]) : "null");
+let checks = 0;
+let differ = 0;
+let gone = 0;
+const check = (step) => {
+	for (const e of els()) {
+		checks++;
+		const kept = show(D.cascadeOf(e, false));
+		const fresh = show(D.cascadeOf(e, true));
+		if (kept !== fresh) {
+			differ++;
+			R.first ??= `step ${step}: <${e.localName} class="${e.className}"> kept ${kept}, fresh ${fresh}`;
+		}
+	}
+};
+check(-1);
+const resets = D.cascadeResets ?? 0;
+for (let step = 0; step < 300; step++) {
+	const all = els();
+	const pick = () => all[rnd(all.length)];
+	const what = rnd(7);
+	const e = pick();
+	if (what === 0) e.append(make());
+	else if (what === 1 && e !== root) e.remove();
+	else if (what === 2) e.classList.toggle(CLS[rnd(CLS.length)]);
+	else if (what === 3 || what === 4) hover(pick());
+	else if (what === 5 && hovered?.isConnected && hovered !== root) {
+		// The hovered element, or one above it, taken out; or its parent's
+		// children replaced.
+		let x = hovered;
+		for (let k = rnd(3); k > 0 && x.parentElement !== root && x.parentElement; k--) x = x.parentElement;
+		gone++;
+		if (rnd(3) === 0) x.parentElement.innerHTML = "<i class='a h'></i><span class='x'></span>";
+		else if (rnd(2) === 0) x.parentElement.textContent = "";
+		else x.remove();
+	} else if (what === 6) hover(null);
+	if (els().length > 120) for (const k of [...root.children].slice(0, 2)) k.remove();
+	if (els().length < 20) for (let i = 0; i < 20; i++) pick().append(make());
+	check(step);
+	if (step % 10 === 9) await new Promise((r) => setTimeout(r, 0));
+}
+R.checks = checks;
+R.differ = differ;
+R.gone = gone;
+R.resets = (D.cascadeResets ?? 0) - resets;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 60, |r| r["done"] == json!(true));
+    assert!(r["checks"].as_u64().unwrap() > 10_000, "{r}");
+    assert!(r["gone"].as_u64().unwrap() >= 10, "{r}");
+    assert_eq!(r["differ"], json!(0), "{r}");
+    assert_eq!(r["resets"], json!(0), "{r}");
+    finish(luna, dir);
+}

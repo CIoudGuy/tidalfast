@@ -916,6 +916,9 @@
 		m.set(name, value);
 	};
 	const cascade = (ix, el) => {
+		// The hovered element left the document: what lost `:hover` with it
+		// is handed over with the hover changes (below).
+		D.loseHover(ix.hover && !ix.hoverHas ? ix.hoverSubjects : null);
 		if (memoIx !== ix || memoGen !== D.domGen() || (memoStructGen !== D.structGen() && ix.hasSiblings)) {
 			if (L.stat) L.stat(memoIx !== ix ? "recascade: css" : memoGen !== D.domGen() ? "recascade: dom" : "recascade: structure", Date.now());
 			D.cascadeResets = (D.cascadeResets ?? 0) + 1;

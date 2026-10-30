@@ -275,6 +275,28 @@
 		hoverGen++;
 		contentDirty();
 	};
+	// The hovered element taken out of the document (the row under the
+	// pointer scrolled away): the elements that held it lose `:hover` as it
+	// goes, so the chain it had then is kept (`unhover`) and css.js forgets,
+	// before it uses any cascade, those a `:hover` compound matches, with
+	// what is inside them (`loseHover`). The next hover event restyled the
+	// whole page instead, and until it came the chain kept its hover look.
+	let hoverLost = null;
+	const unhover = (c) => {
+		if (!hovered || !(c instanceof Element) || !c.isConnected || !(c === hovered || c.contains(hovered))) return;
+		hoverLost ??= new Set();
+		for (let x = hovered; x; x = x.parentElement) hoverLost.add(x);
+	};
+	D.loseHover = (subjects) => {
+		if (!hoverLost) return;
+		const lost = hoverLost;
+		hoverLost = null;
+		// No `:hover` rule, or one any element may answer (the next hover
+		// event restyles the page then).
+		if (!subjects) return;
+		for (const x of lost) if (subjects.some((c) => compoundTest(x, c, null))) hoverTops.add(x);
+		hoverGen++;
+	};
 	D.hoverGen = () => hoverGen;
 	D.takeHoverTops = () => {
 		const out = [...hoverTops];
@@ -734,6 +756,7 @@
 			if (i < 0) return c;
 			const prev = this.childNodes[i - 1] ?? null;
 			const next = this.childNodes[i + 1] ?? null;
+			unhover(c);
 			this.childNodes.splice(i, 1);
 			c.parentNode = null;
 			if (c._hostKey !== undefined && !reconciling) c._pluginRemoved = true;
@@ -803,6 +826,7 @@
 			if ((only.length === 0 && same === "") || (only.length === 1 && only[0] instanceof Text && only[0]._data === same)) return;
 			const removed = [...this.childNodes];
 			for (const c of removed) {
+				unhover(c);
 				c.parentNode = null;
 				if (c._hostKey !== undefined && !reconciling) c._pluginRemoved = true;
 			}
@@ -1603,6 +1627,7 @@
 			const nodes = parseHTML(String(v ?? ""), this.namespaceURI === SVG_NS || this.localName === "svg", this.localName);
 			const removed = [...this.childNodes];
 			for (const c of removed) {
+				unhover(c);
 				c.parentNode = null;
 				if (c._hostKey !== undefined && !reconciling) c._pluginRemoved = true;
 			}
@@ -3952,8 +3977,9 @@
 				const was = hovered;
 				hovered = el;
 				const reach = L.css?.hoverReach?.() ?? null;
-				if (reach === "all" || (reach && was && !was.isConnected)) markDirty();
-				else if (reach) hoverMoved(was, el, reach);
+				if (reach === "all") markDirty();
+				// One taken out of the document lost its hover as it went.
+				else if (reach) hoverMoved(was?.isConnected ? was : null, el, reach);
 			}
 			return;
 		}
