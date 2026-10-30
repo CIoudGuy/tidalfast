@@ -2558,6 +2558,13 @@
 			a = elClasses(e).str;
 			v = t.cval ??= canonClasses(v) + (/\s$/.test(v) ? " " : "");
 		}
+		return valueTest(a, v, t);
+	};
+	// Whether an attribute's value passes a test of it (`[href*="/album/"]`;
+	// not the class attribute's, which `attrTest` reads as the element's
+	// classes).
+	const attrValueTest = (a, t) => (t.op === null ? true : valueTest(String(a), t.val, t));
+	const valueTest = (a, v, t) => {
 		if (t.ci) {
 			a = a.toLowerCase();
 			v = v.toLowerCase();
@@ -2759,7 +2766,7 @@
 		return l;
 	};
 	const matchesList = (e, list, scope) => list.some((x) => matchSteps(e, x.steps, scope));
-	D.sel = { parse: parseSelectors, compile: compileList, matches: matchesList, matchSteps, cmpSpec, SelErr, classToken, ancestorsMayMatch, ownTest };
+	D.sel = { parse: parseSelectors, compile: compileList, matches: matchesList, matchSteps, cmpSpec, SelErr, classToken, ancestorsMayMatch, ownTest, attrValueTest };
 	// The element descendants of `root` in document order, until `fn`
 	// answers true (then true). A loop with its own stack: a recursive
 	// generator costs a step per level for every element it yields, and

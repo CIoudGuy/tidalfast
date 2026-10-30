@@ -743,13 +743,20 @@
 		const attrNames = new Set();
 		// The attributes read by the compounds rules end in, the `:has`
 		// compounds and the sibling subjects, and of those the ones whose
-		// value they test (see `kindOf`).
+		// value they test, with the tests, and the ids they name (see
+		// `kindOf`).
 		const ownAttrs = new Set();
-		const ownValued = new Set();
+		const ownTests = new Map();
+		const ownIds = new Set();
 		const ownReads = (c) => {
+			for (const id of c.ids) ownIds.add(id);
 			for (const a of c.attrs) {
-				ownAttrs.add(a.name.toLowerCase());
-				if (a.op !== null) ownValued.add(a.name.toLowerCase());
+				const name = a.name.toLowerCase();
+				ownAttrs.add(name);
+				if (a.op === null) continue;
+				let tests = ownTests.get(name);
+				if (!tests) ownTests.set(name, (tests = new Map()));
+				tests.set(JSON.stringify([a.op, a.val, !!a.ci]), a);
 			}
 		};
 		// The custom properties some declaration reads (`var(--x)`, in a rule,
@@ -902,7 +909,7 @@
 		for (const x of siblingSubjects.values()) ownReads(x.steps[0].c);
 		if (skipped && !warnedCss) L.callOp("log", { plugin: null, level: "warn", msg: `${skipped} style sheet(s) left out: plugin and theme CSS is capped at ${MAX_CSS_BYTES >> 20} MB` });
 		warnedCss = skipped > 0;
-		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, initials, hover, hoverHas, hoverReach: [...hoverReach.values()], hoverSubjects: [...new Map([...hoverReach.values()].map((h) => [JSON.stringify(hoverKey(h.c)), h.c])).values()], styleAttr, structural, siblingSubjects: [...siblingSubjects.values()].sort((a, b) => b.deep - a.deep), hasSiblings, empty, hasSteps, hasWhole, hasStyleSteps, styleSiblings, attrNames, ownAttrs, ownValued, varNames, bytes, size: order, pseudo, userSelect };
+		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, initials, hover, hoverHas, hoverReach: [...hoverReach.values()], hoverSubjects: [...new Map([...hoverReach.values()].map((h) => [JSON.stringify(hoverKey(h.c)), h.c])).values()], styleAttr, structural, siblingSubjects: [...siblingSubjects.values()].sort((a, b) => b.deep - a.deep), hasSiblings, empty, hasSteps, hasWhole, hasStyleSteps, styleSiblings, attrNames, ownAttrs, ownIds, ownTests: new Map([...ownTests].map(([k, m]) => [k, [...m.values()]])), varNames, bytes, size: order, pseudo, userSelect };
 		return index;
 	};
 	// `@keyframes` body -> [[offset 0..1, Map name -> value]], sorted.
@@ -977,26 +984,51 @@
 	// compounds rules end in, the `:has` compounds and the sibling
 	// subjects (pseudo-classes and what is round the element are matched
 	// after), worked out once for each kind of element: all those
-	// compounds read is in the kind's key (the attributes they name, with
-	// their values where one is tested). A row's every element tried some
-	// 20 `[class*=...]` rules a theme or plugin writes, and every ancestor
-	// of a change each `:has` compound, each failing on the element itself.
+	// compounds read is in the kind's key (the attributes they name, and
+	// where one's value is tested, which of the tests it passes: a row's
+	// `href` or `data-track-id`, its own in every row, is one kind for the
+	// plugins' `a[href*="/album/"]`; an id no compound names, TIDAL's
+	// `titleCell-123` in every row, the same). A row's every element tried
+	// some 20 `[class*=...]` rules a theme or plugin writes, and every
+	// ancestor of a change each `:has` compound, each failing on the element
+	// itself.
 	let kinds = new Map();
 	let kindsIx = null;
+	// For each tested attribute, what its values pass: value -> "0110".
+	let passes = new Map();
+	const passed = (name, tests, v) => {
+		let m = passes.get(name);
+		if (!m) passes.set(name, (m = new Map()));
+		let bits = m.get(v);
+		if (bits === undefined) {
+			if (m.size >= 5000) m.clear();
+			bits = "";
+			for (const t of tests) bits += D.sel.attrValueTest(v, t) ? "1" : "0";
+			m.set(v, bits);
+		}
+		return bits;
+	};
 	const kindOf = (ix, el) => {
 		if (kindsIx !== ix) {
 			kinds = new Map();
+			passes = new Map();
 			kindsIx = ix;
 		}
-		let key = `${el.localName}\u0001${el._attrs.get("id") ?? ""}\u0001${el._attrs.get("class") ?? ""}\u0001${el._style?.length && !el._attrs.has("style") ? 1 : 0}${el === g.document.documentElement ? "\u0001root" : ""}`;
+		const id = el._attrs.get("id");
+		const idKey = id === undefined ? "\u0003" : ix.ownIds.has(id) ? id : `\u0004${ix.ownTests.has("id") ? passed("id", ix.ownTests.get("id"), id) : ""}`;
+		let key = `${el.localName}\u0001${idKey}\u0001${el._attrs.get("class") ?? ""}\u0001${el._style?.length && !el._attrs.has("style") ? 1 : 0}${el === g.document.documentElement ? "\u0001root" : ""}`;
 		for (const [k, v] of el._attrs) {
 			const lk = k.toLowerCase();
-			if (lk !== "id" && lk !== "class" && ix.ownAttrs.has(lk)) key += ix.ownValued.has(lk) ? `\u0001${k}=${v}` : `\u0001${k}`;
+			if (lk === "id" || lk === "class" || !ix.ownAttrs.has(lk)) continue;
+			const tests = ix.ownTests.get(lk);
+			key += tests ? `\u0001${k}=${passed(lk, tests, v)}` : `\u0001${k}`;
 		}
 		if (ix.ownAttrs.has("style")) key += `\u0002${el.getAttribute("style") ?? ""}`;
 		let kind = kinds.get(key);
 		if (!kind) {
 			if (kinds.size >= 20000) kinds.clear();
+			// Counted for the tests that check what makes a kind.
+			D.kindsMade = (D.kindsMade ?? 0) + 1;
 			kind = { cands: null, has: null, sib: undefined, hover: null };
 			kinds.set(key, kind);
 		}

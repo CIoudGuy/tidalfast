@@ -7383,6 +7383,74 @@ R.done = true;
     finish(luna, dir);
 }
 
+/// An attribute whose value a rule tests makes one kind of element of all
+/// the values that pass the same tests, and an id no rule names one of all
+/// those ids: a row's link, its `data-track-id` and TIDAL's
+/// `titleCell-123`, each its own in every row, made a new kind of every
+/// element that holds them (each worked out again from all the rules)
+/// under the plugins' `a[href*="/album/"]` and `[data-track-id="..."]`.
+/// Whatever the values, an element gets the rules `matches` says it
+/// matches.
+#[test]
+fn values_that_pass_the_same_attribute_tests_make_one_kind_of_element() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const SELS = [
+	'a[href*="/album/"]',
+	'a[href$="/7"]',
+	'[href^="/ALBUM" i]',
+	'[data-track-id="7"]',
+	'div[data-track-id]',
+	'[data-track-id|="1"]',
+	'[aria-label~="Play"]',
+	'[aria-label="Play 3"] span',
+	'[data-k]',
+	'#cell-7',
+	'[id^="cell-1"] b',
+	'div[id]',
+];
+const st = document.createElement("style");
+st.textContent = SELS.map((s, i) => `${s} { --r${i}: 1; }`).join("\n");
+document.head.append(st);
+const box = document.createElement("div");
+document.body.append(box);
+for (let i = 0; i < 200; i++) {
+	const row = document.createElement("div");
+	row.setAttribute("data-track-id", i % 50 === 0 ? `1-${i}` : String(i));
+	row.setAttribute("aria-label", `Play ${i}`);
+	row.innerHTML = `<a href="${i % 3 ? "/album/" : "/artist/"}${i}">t</a><span data-k="${i}">x</span><div id="cell-${i}"><b>c</b></div>`;
+	box.append(row);
+}
+const made = D.kindsMade ?? 0;
+for (const e of box.querySelectorAll("*")) D.cascadeOf(e, true);
+R.kinds = (D.kindsMade ?? 0) - made;
+let checks = 0;
+let differ = 0;
+for (const e of [box, ...box.querySelectorAll("*")]) {
+	const got = D.cascadeOf(e, true);
+	for (let i = 0; i < SELS.length; i++) {
+		checks++;
+		if ((got?.has(`--r${i}`) ?? false) !== e.matches(SELS[i])) {
+			differ++;
+			R.first ??= `${SELS[i]} on ${e.outerHTML.slice(0, 120)}: cascade ${got?.has(`--r${i}`)}`;
+		}
+	}
+}
+R.checks = checks;
+R.differ = differ;
+R.done = true;
+"##,
+    );
+    let r = results_until(&luna, &dir, 30, |r| r["done"] == json!(true));
+    assert_eq!(r["differ"], json!(0), "{r}");
+    assert!(r["checks"].as_u64().unwrap() > 5_000, "{r}");
+    // A handful of kinds (rows, links, spans, by the tests they pass), not
+    // one for each of the 1,000 elements.
+    assert!(r["kinds"].as_u64().unwrap() < 20, "{r}");
+    finish(luna, dir);
+}
+
 /// A rule whose selector list has `:hover` in only some of its selectors
 /// (radiant-lyrics' `.rl-wbw-word.rl-wbw-word-hover, .rl-wbw-word:hover`)
 /// restyles only what the pointer's move reaches, as one without the
