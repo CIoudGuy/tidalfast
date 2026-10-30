@@ -79,6 +79,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let backdrop = (over_view <= 0.0)
         .then(|| plugin_dom::backdrop_fill(keys::FOOTER))
         .flatten()
+        .or_else(plugin_dom::bar_glass_backdrop)
         .and_then(|(backdrop, own)| {
             let own = plugin_dom::footer_under_glass(own?, palette.window);
             (own.a() < 255).then_some((backdrop, own))

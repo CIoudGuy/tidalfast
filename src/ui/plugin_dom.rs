@@ -6004,6 +6004,34 @@ pub fn backdrop_fill(key: &str) -> Option<(Arc<super::backdrop::Backdrop>, Optio
     Some((backdrop, look.fill))
 }
 
+/// TIDAL's bar glass with only its colour cleared: the glass is the bar's
+/// `::after`, `backdrop-filter: var(--frosted-glass-nav-blur)` in TIDAL's
+/// sheet, and a theme's `background: transparent` for it (Tidal Light's)
+/// leaves that filter, so the page shows blurred through the bar, under the
+/// bar's own fill. `None` for a glass the theme keeps ([`footer_glass`]),
+/// one it colours, and one whose filter it set: that is its own rule.
+pub fn bar_glass_backdrop() -> Option<(Arc<super::backdrop::Backdrop>, Option<Color32>)> {
+    if !on() || !super::backdrop::available() {
+        return None;
+    }
+    host(dom_anchors::keys::FOOTER, |h, vars| {
+        let after = h.after.as_ref()?;
+        let clear = style_color(after, |s| s.background_color.as_ref(), vars)
+            .is_some_and(|c| c.a() == 0)
+            && after.background_image.is_none();
+        if !clear || after.backdrop_filter.is_some() || after.hidden() || h.hidden() {
+            return None;
+        }
+        let filter = css::resolve_vars(
+            "var(--frosted-glass-nav-blur, blur(20px) saturate(180%))",
+            vars,
+        );
+        let backdrop = super::backdrop::Backdrop::parse(&filter)?;
+        let own = unveiled_fill(h, vars).unwrap_or(Color32::TRANSPARENT);
+        Some((Arc::new(backdrop), Some(own)))
+    })
+}
+
 /// The `backdrop-filter` of a box (or of its `::before` / `::after`, a
 /// glass laid over the whole box), resolved, where backdrop filters are
 /// drawn; `None` elsewhere and for a filter that changes nothing.
