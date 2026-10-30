@@ -1737,6 +1737,62 @@ before and after (32.5 and 35 G in 8 s); the next step is a call-stack
 profile of that thread during the scroll, not another change to the
 overlay build.
 
+## Plugins, speed round 22: the Luna thread while a list scrolls (2026-10-30)
+
+Round 21 left open why the Luna thread used a full core during the
+scripted playlist scroll with the 18 plugins while its own statistics
+counted 10 to 23 % of it. A probe of the loop (the thread's cycles in
+the timers, the wait for a message and the handling of messages, every
+2 s) found one turn of the loop that never ended: the loop takes the
+messages waiting after the one that woke it, and while a list scrolls
+each frame sends a tree, a `scroll` and a `hover` faster than the
+listeners take them. No timer, animation frame or promise job ran until
+the scroll stopped, and the statistics report at the top of the loop,
+so the window was never reported (the 10 to 23 % were the windows
+before it). The loop now takes messages for at most 50 ms before the
+due timers get their turn, as a browser runs its timers between input
+tasks.
+
+With the timers running, the runtime's statistics show what fills the
+thread: overlay builds of the rows each scroll brings in, built as fast
+as they come, as with no plugins (where the trees of every frame fill
+it). Three causes made builds match more than the new rows; each now
+matches what the change can reach, and a test compares the kept
+cascades with fresh ones after random changes:
+
+- **A rule list with `:hover` in only some of its selectors** (radiant-lyrics'
+  `.rl-wbw-word.rl-wbw-word-hover, .rl-wbw-word:hover`) was taken for a
+  `:hover` the runtime cannot place, so every change of the element under
+  the pointer restyled the whole page. The selectors without `:hover` are
+  now left out of that decision.
+- **The hovered element taken out of the document** (the row under the
+  pointer scrolled away) restyled the whole page at the next hover event,
+  and until it came its old ancestors kept their hover look. The chain it
+  had is kept as it goes, and only what a `:hover` compound matches in it
+  is matched again.
+- **A change inside an element a `:has(...)` compound may match**
+  (scroll-to-playing's `[aria-rowindex]:has(a[href*="/track/..."])` on
+  every row) matched the whole element again, so each rating or tag a
+  plugin put into a new row matched that row twice. It is matched again
+  now only when what the compound answers for it turns.
+
+| Ten seconds of the scroll, 18 plugins | Before | After |
+| --- | --- | --- |
+| Turns of the loop (2 s) | 0 (one turn for the whole scroll) | 25 to 50 |
+| Plugin timers run | none until the scroll stopped | 105 to 141 |
+| Overlay builds (time of one) | 11 to 22 (215 to 280 ms) | 14 to 24 (173 to 235 ms) |
+| Elements matched again (not new) | 2,550 to 3,940 | 150 to 2,190 |
+| Whole restyles from the pointer | 8 to 10 | 0 |
+
+"Before" for the last three rows is the build with only the first change
+(the loop never reported otherwise); two runs each. The thread still
+uses a full core while the list scrolls: that is the pipeline running
+as fast as the trees come, with or without plugins, and each build now
+reaches the screen sooner. Still open: about 2,000 elements a window
+matched again from `:has` and inline-style changes in the later part of
+the scroll, and the matching of new rows itself (about 150 us an element
+with these plugins' rules).
+
 ## Findings and decisions
 
 - **Luna's work follows changes, not the page.** With Luna on, a pass made
