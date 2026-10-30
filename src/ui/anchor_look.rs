@@ -475,6 +475,43 @@ fn paint_with(
     native: CornerRadius,
     native_fill: Color32,
 ) {
+    // A box with a `transform` is drawn where the transform puts it, a
+    // fraction of a pixel included, its edges shaded where they cross a
+    // pixel: Chromium lays it out and moves it as a whole, where it puts
+    // an unmoved box's edges on whole pixels (the cotton candy family's
+    // `translateY(-1.1em)` song list box: its border from 490.6, not 491).
+    if look.translate != egui::Vec2::ZERO {
+        let layer = ui.layer_id();
+        let start = ui.ctx().graphics_mut(|g| g.entry(layer).next_idx());
+        paint_box(ui, key, look, r, native, native_fill);
+        ui.ctx().graphics_mut(|g| {
+            let list = g.entry(layer);
+            for i in start.0..list.next_idx().0 {
+                list.mutate_shape(egui::layers::ShapeIdx(i), |c| unsnap(&mut c.shape));
+            }
+        });
+    } else {
+        paint_box(ui, key, look, r, native, native_fill);
+    }
+}
+
+/// Every rectangle in `shape` drawn where it is, not on whole pixels.
+fn unsnap(shape: &mut egui::Shape) {
+    match shape {
+        egui::Shape::Rect(rect) => rect.round_to_pixels = Some(false),
+        egui::Shape::Vec(shapes) => shapes.iter_mut().for_each(unsnap),
+        _ => {}
+    }
+}
+
+fn paint_box(
+    ui: &egui::Ui,
+    key: &str,
+    look: &AnchorLook,
+    r: Rect,
+    native: CornerRadius,
+    native_fill: Color32,
+) {
     let corner = look.corners_or(native);
     let painter = ui.painter();
     // What lies behind the box, filtered, before anything of the box.
