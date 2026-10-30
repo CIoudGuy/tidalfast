@@ -693,12 +693,29 @@ pub mod keys {
     pub const PAGE_ARTIST_HEADER: &str = "page-artist-header";
     /// `row:<list>:<index>`
     pub fn row(list: &str, index: usize) -> String {
-        format!("row:{list}:{index}")
+        row_key(list, index, None)
     }
     /// A cell of a row: `row:<list>:<index>:<cell>` (`title`, `title-text`,
     /// `artist`, `duration`, `context`, `actions`).
     pub fn row_cell(list: &str, index: usize, cell: &str) -> String {
-        format!("row:{list}:{index}:{cell}")
+        row_key(list, index, Some(cell))
+    }
+
+    /// `row:<list>:<index>[:<cell>]`, written into one allocation: a list
+    /// scrolling under Luna names about thirty of them for each row on
+    /// screen in every frame, and `format!` took a share of the frame.
+    fn row_key(list: &str, index: usize, cell: Option<&str>) -> String {
+        use std::fmt::Write;
+        let mut key = String::with_capacity(list.len() + cell.map_or(0, str::len) + 16);
+        key.push_str("row:");
+        key.push_str(list);
+        key.push(':');
+        let _ = write!(key, "{index}");
+        if let Some(cell) = cell {
+            key.push(':');
+            key.push_str(cell);
+        }
+        key
     }
     /// `now-playing-tab:<name>` (`button[data-test=toggle-<name>]` in the
     /// now-playing header); its label is `now-playing-tab:<name>:span`.
@@ -1374,18 +1391,18 @@ fn card_word_nodes(out: &mut Vec<HostNode>, i: usize, card: &GridCard, words: &C
 }
 
 /// A new host node.
-pub fn el(key: impl Into<String>, parent: Option<&str>, tag: &str) -> HostNode {
+pub fn el(key: impl Into<String>, parent: Option<&str>, tag: &'static str) -> HostNode {
     HostNode {
         key: key.into(),
         parent: parent.map(str::to_string),
-        tag: tag.to_string(),
+        tag: tag.into(),
         ..HostNode::default()
     }
 }
 
 /// Builder methods on [`HostNode`].
 pub trait NodeBuild: Sized {
-    fn attr(self, name: &str, value: impl Into<String>) -> Self;
+    fn attr(self, name: &'static str, value: impl Into<String>) -> Self;
     /// Append CSS-module classes (`_name_<hash>`), in order.
     fn modules(self, names: &[&str]) -> Self;
     /// Append plain classes (`nowPlayingVisible`, `mainContent`).
@@ -1402,11 +1419,11 @@ pub trait NodeBuild: Sized {
 }
 
 impl NodeBuild for HostNode {
-    fn attr(mut self, name: &str, value: impl Into<String>) -> Self {
+    fn attr(mut self, name: &'static str, value: impl Into<String>) -> Self {
         let value = value.into();
         match self.attrs.iter_mut().find(|(n, _)| n == name) {
             Some(slot) => slot.1 = value,
-            None => self.attrs.push((name.to_string(), value)),
+            None => self.attrs.push((name.into(), value)),
         }
         self
     }
@@ -5792,6 +5809,49 @@ mod tests {
     }
 
     #[test]
+    fn row_keys_are_what_format_wrote() {
+        for list in ["album:alb0", "playlist:pl1", "queue", ""] {
+            for index in [0usize, 7, 10, 12345, usize::MAX] {
+                assert_eq!(keys::row(list, index), format!("row:{list}:{index}"));
+                for cell in ["title", "title-text", "index-overlay", ""] {
+                    assert_eq!(
+                        keys::row_cell(list, index, cell),
+                        format!("row:{list}:{index}:{cell}")
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_trees_tags_and_attribute_names_are_literals_not_copies() {
+        let tree = sample_tree();
+        assert!(tree.nodes.len() > 100);
+        for node in &tree.nodes {
+            assert!(
+                matches!(node.tag, std::borrow::Cow::Borrowed(_)),
+                "{} copies its tag",
+                node.key
+            );
+            for (name, _) in &node.attrs {
+                assert!(
+                    matches!(name, std::borrow::Cow::Borrowed(_)),
+                    "{} copies the attribute {name}",
+                    node.key
+                );
+            }
+        }
+        // What plugins are sent is the same JSON as with owned strings.
+        let row = find(&tree, &keys::row("album:55", 0));
+        let json = serde_json::to_value(row).unwrap();
+        assert_eq!(json["tag"], "div");
+        assert_eq!(
+            json["attrs"][0],
+            serde_json::json!(["class", attr(row, "class").unwrap()])
+        );
+    }
+
+    #[test]
     fn sample_tree_has_unique_keys_and_parents_first() {
         let tree = sample_tree();
         let mut seen = HashSet::new();
@@ -6202,7 +6262,7 @@ mod tests {
                     .nodes
                     .iter()
                     .filter(|n| n.parent.as_deref() == Some(keys::QUALITY_BADGE))
-                    .map(|n| (n.tag.as_str(), attr(n, "class").unwrap_or_default()))
+                    .map(|n| (&*n.tag, attr(n, "class").unwrap_or_default()))
                     .collect();
                 assert_eq!(
                     children,
@@ -6529,7 +6589,7 @@ mod tests {
         let tree = build(&frame);
         let fs = find(&tree, keys::NP_FULLSCREEN);
         assert_eq!(
-            (fs.tag.as_str(), fs.parent.as_deref()),
+            (&*fs.tag, fs.parent.as_deref()),
             ("section", Some(keys::SHELL))
         );
         assert_eq!(classes(&tree, keys::NP_FULLSCREEN), "_fullscreen_236d61b");
@@ -6543,7 +6603,7 @@ mod tests {
         assert_eq!(attr(view, "data-test"), Some("new-now-playing"));
         let docked = find(&tree, keys::NOW_PLAYING);
         assert_eq!(
-            (docked.tag.as_str(), docked.parent.as_deref()),
+            (&*docked.tag, docked.parent.as_deref()),
             ("section", Some(keys::SHELL))
         );
         assert_eq!(attr(docked, "id"), Some("nowPlaying"));

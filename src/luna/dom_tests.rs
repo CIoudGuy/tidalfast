@@ -922,7 +922,7 @@ const id = setInterval(look, 30);
 unloads.add(() => clearInterval(id));
 "##,
     );
-    fn shell(t: &mut HostTree) -> &mut Vec<(String, String)> {
+    fn shell(t: &mut HostTree) -> &mut Vec<(std::borrow::Cow<'static, str>, String)> {
         &mut node(t, keys::SHELL).attrs
     }
     let t0 = tree();
@@ -6069,7 +6069,7 @@ const wait = setInterval(() => {
     luna.sync_dom(tree());
     results_until(&luna, &dir, 10, |r| r["ready"] == json!(true));
     let mut t = tree();
-    let el = |key: &str, parent: &str, tag: &str, test: &str| super::dom::HostNode {
+    let el = |key: &str, parent: &str, tag: &'static str, test: &str| super::dom::HostNode {
         key: key.into(),
         parent: Some(parent.into()),
         tag: tag.into(),

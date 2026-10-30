@@ -53,7 +53,12 @@ pub fn looks_report(tree: &HostTree) -> Value {
             o.insert("tag".into(), json!(n.tag));
             o.insert(
                 "attrs".into(),
-                Value::Object(n.attrs.iter().map(|(k, v)| (k.clone(), json!(v))).collect()),
+                Value::Object(
+                    n.attrs
+                        .iter()
+                        .map(|(k, v)| (k.to_string(), json!(v)))
+                        .collect(),
+                ),
             );
             if let Some(r) = &n.rect {
                 o.insert("rect".into(), json!(r));

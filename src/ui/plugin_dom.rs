@@ -1152,7 +1152,7 @@ fn paint_host_labels(ctx: &egui::Context, s: &mut State) {
                 .iter()
                 .map(|n| {
                     let words = n.text.as_deref().is_some_and(|t| !t.trim().is_empty());
-                    (n.key.as_str(), (n.tag.as_str(), words))
+                    (n.key.as_str(), (&*n.tag, words))
                 })
                 .collect()
         });

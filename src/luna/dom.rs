@@ -22,6 +22,7 @@
 //! Every anchor and selector this supports is listed in
 //! `docs/_reference/luna-dom-bridge.md`.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -39,12 +40,14 @@ pub struct HostNode {
     /// The parent's `key`; `None` for children of `#wimp` (the app root).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
-    /// Tag name (`div`, `button`, `span`, `img`, `input`, ...).
-    pub tag: String,
+    /// Tag name (`div`, `button`, `span`, `img`, `input`, ...). A name the
+    /// UI writes as a literal is borrowed, not allocated: a tree is built
+    /// for most frames.
+    pub tag: Cow<'static, str>,
     /// Attributes, including `class`, `id`, `data-test`, `aria-*`,
     /// `data-track-id` and the like.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub attrs: Vec<(String, String)>,
+    pub attrs: Vec<(Cow<'static, str>, String)>,
     /// Text content of this element itself (children are separate nodes).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
