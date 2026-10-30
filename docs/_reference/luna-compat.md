@@ -3561,6 +3561,51 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 48 (sibling rules restyle less, moved boxes, 2026-10-30)
+
+Found with the parity checker (TIDAL 2.47.0's pages, its replay's boxes
+read to a hundredth of a point) and a timed probe, fixed in the generic
+layer:
+
+- **A sibling or position rule restyles the siblings it reaches, not the
+  page.** Nearly every theme, and radiant-lyrics, has a rule with
+  `:nth-child`, `:first-child`, `:empty`, `+` or `~`; each node that came,
+  went or changed class made the whole page match again (with eighteen
+  plugins about 0.6 s an overlay build while a list scrolled). Only the
+  children of the changed node a sibling or position compound can match
+  are matched again now, as Chromium does; the demo album page under a
+  cotton candy theme: 1,194 elements and ~457 ms a moved row -> 254 and
+  ~134 ms (debug build). Tests:
+  `kept_cascades_equal_fresh_ones_after_any_change` (kept and fresh
+  cascades agree through 400 random changes) and
+  `a_sibling_rule_restyles_only_the_siblings_it_reaches`.
+- **What a moved song list box holds lies on whole pixels from it.**
+  Chromium paints what is inside a box with a `transform` on whole
+  pixels from the box: under the cotton candy family's
+  `translateY(-1.1em)` on the album's list box the songs lie 97.19 (or
+  105.59) below it and are painted 97 (106) below. Round 47's "rows a few
+  tenths off" was this; the rows' layout boxes agree to 0.02. Test:
+  `what_a_moved_list_box_holds_lies_on_whole_pixels_from_it`.
+- **A box with a `transform` is drawn where the transform puts it**, its
+  edges shaded across the pixels they cross, not put on whole pixels (the
+  same list box's border from 490.6, not 491). Test:
+  `a_moved_box_is_drawn_where_its_transform_puts_it`.
+
+Totals: dark pixels 1.44 % -> 1.27 % of 305.1 million compared (no theme
+0.69 % both, no theme worse; the album rows' group 375k -> 131k pixels),
+the cotton candy night and astronaut themes 0.6 to 0.9 points better;
+style differences unchanged (780). Light: adaptive Cotton Candy 0.66 % ->
+0.61 %, adaptive Horchata 0.51 % -> 0.45 %, Tidal Light 1.15 % both;
+hover pages 2.08 % -> 2.06 %.
+
+Not done: the Lunallena themes' header tab. TIDAL 2.47.0's header is
+`position: fixed` and the collection page keeps its 56 points under it
+(the title at 110 with or without the theme), where Tidalfast lays the
+page under the part of the tab that shows (43 higher); but on the album
+page TIDAL's own page lies 29 higher under the theme, so changing the
+tab model alone would move the album page the wrong way. Meteor Night's
+menu line (no place for in-flow inline content above the app).
+
 ### Round 28 (plugins in use, 2026-10-23)
 
 Sixteen popular plugins (Tidal Tags, tidal-genres, total-play-time,

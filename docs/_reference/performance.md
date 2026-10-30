@@ -1620,10 +1620,35 @@ cascade of the whole page after every change to its structure, because
 radiant-lyrics' and element-hider's sheets hold `:nth-child` rules and
 any structural selector makes every insertion recascade the page
 (`ix.structural` in `css.js`). The plugins then see the page change about
-once a second while it scrolls. With no plugins the runtime is still busy
+once a second while it scrolls. (Theme round 48 restyles only the
+siblings such a rule reaches: see "Sibling and position rules" below.)
+With no plugins the runtime is still busy
 all the time while a list scrolls: a tree a frame (16 ms) and an overlay
 build after each change of structure (about 24 ms, mostly the cascade of
 the new rows) that comes out the same.
+
+### Sibling and position rules (theme round 48, 2026-10-30)
+
+A rule that reads siblings or position (`:nth-child`, `:first-child`,
+`:empty`, `+`, `~`) is in nearly every theme and in radiant-lyrics, and
+it made every node that came, went or changed class match the whole page
+again. Now, as Chromium invalidates siblings, only the children of a node
+whose children changed are matched again where a compound next to `+`/`~`
+or with a position pseudo-class can match them, with what is inside them
+only where a later step of the selector reaches inside (with `:empty`,
+the node and its siblings too). A `:has(...)` that reads siblings still
+matches the page again.
+
+| Demo album page, a row moved, cotton candy theme + radiant-lyrics' rules (debug build, 15 moves) | Before | After |
+|---|---|---|
+| Elements matched again | 1,194 | 254 |
+| Overlay build, median | 457 ms | 134 ms |
+
+Tests: `kept_cascades_equal_fresh_ones_after_any_change` compares every
+kept cascade with a fresh match through 400 random inserts, removals,
+moves, class and text changes (0 of about 36,000 differ; the same check
+on the demo page under the real theme, 0 of 71,520), and
+`a_sibling_rule_restyles_only_the_siblings_it_reaches`.
 
 ## Findings and decisions
 
