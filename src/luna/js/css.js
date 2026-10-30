@@ -1829,17 +1829,24 @@
 		// The hosts whose text can be selected: the nearest `user-select`
 		// up the tree says so (`auto` looks further up), as a browser has it.
 		const selectable = new Set();
-		if (D.hosts && ix.userSelect)
-			for (const el of D.hosts.values()) {
-				if (!el.isConnected) continue;
-				for (let n = el; n instanceof g.Element; n = n.parentNode) {
+		if (D.hosts && ix.userSelect) {
+			// What each element up the tree says, worked out once: every host
+			// walked its own chain to the top (the whole page's chains with
+			// a plugin's `user-select` rule, a tenth of an overlay build).
+			const said = new Map();
+			const saysSelectable = (n) => {
+				if (!(n instanceof g.Element)) return false;
+				let v = said.get(n);
+				if (v === undefined) {
 					const d = cascade(ix, n);
-					const v = String(d?.get("user-select") ?? d?.get("-webkit-user-select") ?? "auto").replace(/!important/i, "").trim().toLowerCase();
-					if (v === "auto") continue;
-					if (v !== "none") selectable.add(el);
-					break;
+					const u = String(d?.get("user-select") ?? d?.get("-webkit-user-select") ?? "auto").replace(/!important/i, "").trim().toLowerCase();
+					v = u === "auto" ? saysSelectable(n.parentNode) : u !== "none";
+					said.set(n, v);
 				}
-			}
+				return v;
+			};
+			for (const el of D.hosts.values()) if (el.isConnected && saysSelectable(el)) selectable.add(el);
+		}
 		return { styles, vars, page, wimpFill, fonts: ix.fonts, bytes: ix.bytes, keyframes, hover: ix.hover, pseudo, boxes, selectable };
 	};
 	// For the tests that count what a build works out again.

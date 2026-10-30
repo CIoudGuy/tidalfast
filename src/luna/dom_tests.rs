@@ -4284,6 +4284,64 @@ R.ready = true;
     finish(luna, dir);
 }
 
+/// The hosts whose text can be selected are those whose nearest `user-select`
+/// up the tree (the element's own, else its parent's, `auto` looking
+/// further) is not `none`. It is worked out once for each element a build
+/// sees, not by every host over its whole chain; the set is the one every
+/// host's own walk gives, under rules at the page, a panel and a host.
+#[test]
+fn the_selectable_hosts_are_those_whose_nearest_user_select_allows_it() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = `
+body { user-select: none; }
+[data-test="footer-player"] { user-select: auto; }
+[data-test="footer-track-title"] { user-select: text; }
+[data-test="footer-artist-name"] { -webkit-user-select: all; }
+[data-test="tracklist-row"] { user-select: none; }
+[data-test="tracklist-row"] [data-test="track-info"] { user-select: contain; }
+`;
+document.head.append(st);
+const poll = () => {
+	if (!D.hosts || D.hosts.size < 10) return setTimeout(poll, 20);
+	const said = (el) => {
+		for (let n = el; n instanceof Element; n = n.parentNode) {
+			const d = D.cascadeOf(n, true);
+			const v = String(d?.get("user-select") ?? d?.get("-webkit-user-select") ?? "auto").replace(/!important/i, "").trim().toLowerCase();
+			if (v === "auto") continue;
+			return v !== "none";
+		}
+		return false;
+	};
+	const got = D.computeOverlayStyles().selectable;
+	let yes = 0;
+	let no = 0;
+	const wrong = [];
+	for (const [key, el] of D.hosts) {
+		if (!el.isConnected) continue;
+		const want = said(el);
+		if (want) yes++;
+		else no++;
+		if (got.has(el) !== want) wrong.push(key);
+	}
+	R.yes = yes;
+	R.no = no;
+	R.wrong = wrong;
+	R.done = true;
+};
+poll();
+"##,
+    );
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
+    assert_eq!(r["wrong"], json!([]), "{r}");
+    assert!(r["yes"].as_u64().unwrap() > 0, "{r}");
+    assert!(r["no"].as_u64().unwrap() > 0, "{r}");
+    finish(luna, dir);
+}
+
 /// copy-lyrics' drag, as a browser selects it: the UI says where in the
 /// lines' text the press and the release were (`textPoint`, UTF-16
 /// offsets), and the selection holds exactly the characters between them,
