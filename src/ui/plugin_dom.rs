@@ -2024,6 +2024,46 @@ pub fn token_queue_fill() -> Option<Color32> {
     Some(queue_fill_from(base))
 }
 
+/// A library row's fill under the pointer and while its page is open, as
+/// TIDAL 2.47.0's own rules give them whatever the theme's colours are:
+/// `._contentItem_:hover { background-color: var(--market-core-surface-10-
+/// color) }` (#141414 in dark mode, white in light) and `._contentItem_.
+/// _selected_ { background-color: var(--market-core-fill-30-color) }`
+/// (white at 15 % in dark mode, black at 15 % in light), or the values a
+/// theme gives those tokens. TIDAL's mode is the app's, not the theme
+/// palette's: a theme that paints the sidebar pink keeps dark mode's white
+/// veil on the open playlist (measured on TIDAL running TidalCustomTheme,
+/// Sugarcoat and Sunken Tidal). `None` while Luna is off.
+pub fn library_row_fills() -> Option<(Color32, Color32)> {
+    if !on() {
+        return None;
+    }
+    Some(with(|s| {
+        let light = s.frame.light;
+        let vars = &s.overlay.vars;
+        let mode = if light { "light" } else { "dark" };
+        let token = |name: &str| {
+            [
+                format!("--market-core-{name}-color"),
+                format!("--market-core-{name}-{mode}-mode-color"),
+            ]
+            .iter()
+            .find_map(|k| css::color(&css::resolve_vars(vars.get(k)?, vars)))
+        };
+        let hover = token("surface-10").unwrap_or(if light {
+            Color32::WHITE
+        } else {
+            Color32::from_rgb(0x14, 0x14, 0x14)
+        });
+        let selected = token("fill-30").unwrap_or(if light {
+            Color32::from_black_alpha(38)
+        } else {
+            Color32::from_white_alpha(38)
+        });
+        (hover, selected)
+    }))
+}
+
 /// The document's own fill under a theme: TIDAL 2.46.0's `body {
 /// background: var(--wave-color-solid-base-fill) }`, as the theme sets
 /// the token (Catppuccin Mocha's `#1e1e2e`). It shows where no box of the

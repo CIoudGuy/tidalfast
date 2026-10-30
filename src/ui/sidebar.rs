@@ -2738,10 +2738,16 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                     } else {
                         ui
                     };
+                    // Under a theme, TIDAL's own fills for the row, which
+                    // the theme's colours do not change (with none, the
+                    // app's own, as with Luna off).
+                    let (hover_fill, selected_fill) = super::plugin_dom::library_row_fills()
+                        .filter(|_| palette.themed)
+                        .unwrap_or((palette.nav_hover(), palette.nav_selected()));
                     let fill = if active {
-                        palette.nav_selected()
+                        selected_fill
                     } else {
-                        palette.nav_hover().gamma_multiply(hover)
+                        hover_fill.gamma_multiply(hover)
                     };
                     let fill = if active || hover > 0.0 {
                         fill
