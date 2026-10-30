@@ -6,6 +6,7 @@ use crate::api::bio::{self, BioPiece, BioTarget};
 use crate::api::models::{Album, Artist, PlayableItem, pick_image};
 use crate::app::App;
 use crate::i18n::{gettext, ngettext, pgettext};
+use crate::luna::dom_anchors::keys;
 use crate::model::{Action, ArtistSection, Dialog, DiscographyFilter, Loadable, Page, RowContext};
 use crate::theme::{self, Icon};
 use crate::util;
@@ -14,8 +15,8 @@ use egui::{Rect, Sense, pos2, vec2};
 
 use super::collection::{
     Actions, HERO_TOP, HeaderButtons, Table, actions_row, allocate_header, captioned_button,
-    captioned_button_tinted, clear_button_style, header_fit, header_pill_width, icon_only,
-    remember_table_items, set_button_style, table, table_items_hit,
+    clear_button_style, header_action, header_fit, header_pill_width, remember_table_items,
+    set_button_style, table, table_items_hit,
 };
 use super::skeleton;
 use super::widgets::{self, TrackRow};
@@ -57,15 +58,23 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
             };
             let (heading, _) =
                 ui.allocate_exact_size(egui::vec2(ui.available_width(), 26.0), Sense::hover());
+            // TIDAL's heading and View all are elements: a plugin's words on
+            // them are drawn.
+            let title = gettext(locale, "Top Tracks");
             ui.painter().text(
                 pos2(heading.left(), heading.center().y),
                 egui::Align2::LEFT_CENTER,
-                super::plugin_dom::subheadline_case(&gettext(locale, "Top Tracks")),
+                super::plugin_dom::subheadline_case(&super::plugin_dom::text(
+                    keys::PAGE_SECTION_TITLE,
+                    &title,
+                )),
                 super::plugin_dom::subheadline_font(19.0),
                 super::plugin_dom::subheadline_color(palette.text),
             );
+            let mut view_all_rect = None;
+            let all_label = gettext(locale, "View all");
             if more {
-                let label = gettext(locale, "View all");
+                let label = super::plugin_dom::text(keys::PAGE_SECTION_ALL_TEXT, &all_label);
                 let galley = ui.painter().layout_no_wrap(
                     label.to_string(),
                     theme::semibold(14.0),
@@ -75,6 +84,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                     pos2(heading.right() - galley.size().x, heading.center().y - 11.0),
                     vec2(galley.size().x, 22.0),
                 );
+                view_all_rect = Some(rect);
                 let response = ui.interact(rect, ui.id().with("top-tracks-all"), Sense::click());
                 response.widget_info(|| {
                     egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label.as_ref())
@@ -98,6 +108,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                         .push(Action::Open(Page::ArtistTopTracks(id.to_string())));
                 }
             }
+            super::plugin_dom::section_heading(
+                heading,
+                &title,
+                heading,
+                view_all_rect.map(|r| (all_label.as_ref(), r)),
+            );
             ui.add_space(16.0);
             match &page.top_tracks {
                 Loadable::Loaded(tracks) if !tracks.is_empty() => {
@@ -206,6 +222,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                 let view_all = gettext(locale, "View all");
                 let overflows =
                     playlists.len() > widgets::CardSizing::FEED.columns(ui.available_width());
+                super::plugin_dom::shelf_module("ARTIST_PLAYLIST");
                 let opened = widgets::shelf_more(
                     ui,
                     &palette,
@@ -234,6 +251,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                 let view_all = gettext(locale, "View all");
                 let sizing = super::videos::SHELF_SIZING;
                 let overflows = videos.len() > sizing.columns(ui.available_width());
+                super::plugin_dom::shelf_module("ARTIST_VIDEOS");
                 let opened = widgets::shelf_sized(
                     ui,
                     &palette,
@@ -264,6 +282,7 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, id: &str) {
                 let view_all = gettext(locale, "View all");
                 let overflows =
                     related.len() > widgets::CardSizing::FEED.columns(ui.available_width());
+                super::plugin_dom::shelf_module("ARTIST_SIMILAR_ARTISTS");
                 let opened = widgets::shelf_more(
                     ui,
                     &palette,
@@ -509,13 +528,18 @@ fn artist_hero_own(
         } else {
             followers_label(locale, count)
         };
-        ui.painter().text(
-            pos2(fans.left(), fans.center().y),
-            egui::Align2::LEFT_CENTER,
-            label,
-            theme::semibold(16.0),
-            palette.secondary,
-        );
+        // TIDAL's count is an element: a plugin's words are drawn, and one
+        // that hides it leaves its room empty.
+        if !super::plugin_dom::hidden(keys::PAGE_ARTIST_FANS_TEXT) {
+            ui.painter().text(
+                pos2(fans.left(), fans.center().y),
+                egui::Align2::LEFT_CENTER,
+                super::plugin_dom::text(keys::PAGE_ARTIST_FANS_TEXT, &label),
+                theme::semibold(16.0),
+                palette.secondary,
+            );
+        }
+        super::plugin_dom::artist_fans(fans, &label);
     } else {
         ui.add_space(24.0);
     }
@@ -536,7 +560,24 @@ fn artist_bio(app: &mut App, ui: &mut egui::Ui, id: &str, page: &crate::model::A
     let top = ui.cursor().top();
     ui.add_space(4.0);
     let width = ui.available_width().min(680.0);
-    let pieces = flatten(&bio::parse(&bio.text));
+    // TIDAL's biography is elements, a `p` for each paragraph: a plugin's
+    // words on one replace it (its links go with the old words).
+    let paragraphs = bio::parse(&bio.text);
+    let plain: Vec<String> = paragraphs.iter().map(|p| plain_text(p)).collect();
+    let paragraphs: Vec<Vec<BioPiece>> = paragraphs
+        .into_iter()
+        .zip(&plain)
+        .enumerate()
+        .map(|(i, (pieces, native))| {
+            let words = super::plugin_dom::text(&keys::page_biography_p(i), native);
+            if words == native.as_str() {
+                pieces
+            } else {
+                vec![BioPiece::Text(words.into_owned())]
+            }
+        })
+        .collect();
+    let pieces = flatten(&paragraphs);
     if pieces.is_empty() {
         return 0.0;
     }
@@ -549,17 +590,37 @@ fn artist_bio(app: &mut App, ui: &mut egui::Ui, id: &str, page: &crate::model::A
         width,
         Some(2),
     );
+    let text_top = ui.cursor().top();
     let (truncated, target) = bio_text(ui, job, &links, palette.text.gamma_multiply(0.8));
     open_target(app, target, false);
+    let text_box = Rect::from_min_max(
+        pos2(ui.cursor().left(), text_top),
+        pos2(ui.cursor().left() + width, ui.cursor().top()),
+    );
+    let mut read_more = None;
+    let label = gettext(app.locale, "Read more");
     if truncated {
-        let label = gettext(app.locale, "Read more");
-        let response = theme::link(ui, label.as_ref(), theme::semibold(16.0), palette.text);
+        let words = super::plugin_dom::text(keys::PAGE_READ_MORE_TEXT, &label);
+        let response = theme::link(ui, words.as_ref(), theme::semibold(16.0), palette.text);
+        read_more = Some((label.as_ref(), response.rect));
         if response.clicked() {
             app.actions
                 .push(Action::ShowDialog(Dialog::ArtistBio { id: id.to_string() }));
         }
     }
+    super::plugin_dom::artist_biography(text_box, plain, read_more);
     ui.cursor().top() - top
+}
+
+/// A biography paragraph's words without its links.
+fn plain_text(pieces: &[BioPiece]) -> String {
+    pieces
+        .iter()
+        .map(|piece| match piece {
+            BioPiece::Text(text) => text.as_str(),
+            BioPiece::Link { text, .. } => text.as_str(),
+        })
+        .collect()
 }
 
 /// Follows a biography link; `close` shuts the Biography dialog with it.
@@ -852,9 +913,15 @@ fn artist_actions(app: &mut App, ui: &mut egui::Ui, artist: &Artist, bio_height:
     } else {
         gettext(locale, "Play")
     };
-    if header_pill_width(ui_row, &palette, Icon::PlayFilled, &label, true, fit.pill_w).clicked()
-        && !pending
-    {
+    // TIDAL's pills and captioned buttons are its elements: plugins read
+    // and rewrite their words and can hide them, as on an album.
+    let play = super::plugin_dom::anchored(ui_row, keys::PAGE_PLAY, |ui| {
+        header_pill_width(ui, &palette, Icon::PlayFilled, &label, true, fit.pill_w)
+    });
+    if play.is_none() {
+        super::plugin_dom::page_button(true, None, &label);
+    }
+    if play.is_some_and(|r| r.clicked()) && !pending {
         app.actions.push(Action::PlayContext {
             uri: artist.uri.clone(),
             offset_uri: None,
@@ -863,17 +930,21 @@ fn artist_actions(app: &mut App, ui: &mut egui::Ui, artist: &Artist, bio_height:
     }
     // TIDAL's Shuffle plays the artist afresh in shuffled order, with
     // shuffle on; the player bar's icon is the switch for the mode.
-    if header_pill_width(
-        ui_row,
-        &palette,
-        Icon::Shuffle,
-        &gettext(locale, "Shuffle"),
-        false,
-        fit.pill_w,
-    )
-    .clicked()
-        && !pending
-    {
+    let shuffle_label = gettext(locale, "Shuffle");
+    let shuffle = super::plugin_dom::anchored(ui_row, keys::PAGE_SHUFFLE, |ui| {
+        header_pill_width(
+            ui,
+            &palette,
+            Icon::Shuffle,
+            &shuffle_label,
+            false,
+            fit.pill_w,
+        )
+    });
+    if shuffle.is_none() {
+        super::plugin_dom::page_button(false, None, &shuffle_label);
+    }
+    if shuffle.is_some_and(|r| r.clicked()) && !pending {
         app.actions.push(Action::ShufflePlay(artist.uri.clone()));
     }
     let mut right = ui_row.new_child(
@@ -885,22 +956,45 @@ fn artist_actions(app: &mut App, ui: &mut egui::Ui, artist: &Artist, bio_height:
     {
         let ui = &mut right;
         ui.spacing_mut().item_spacing.x = fit.btn_gap;
-        if fit.keeps_more() {
-            let more = captioned_button(ui, &palette, Icon::Ellipsis, &gettext(locale, "More"));
+        if fit.keeps_more()
+            && let Some(more) = header_action(
+                ui,
+                "more-button",
+                Icon::Ellipsis,
+                &gettext(locale, "More"),
+                palette.text,
+                None,
+            )
+        {
             egui::Popup::menu(&more)
                 .frame(widgets::menu_frame(&palette))
                 .show(|ui| widgets::artist_menu(ui, app, artist));
         }
-        if fit.share {
-            let share = captioned_button(ui, &palette, Icon::Share, &gettext(locale, "Share"));
+        if fit.share
+            && let Some(share) = header_action(
+                ui,
+                "share-button",
+                Icon::Share,
+                &gettext(locale, "Share"),
+                palette.text,
+                None,
+            )
+        {
             let opts = super::menus::ShareOpts::for_uri(&artist.uri, false);
             egui::Popup::menu(&share)
                 .frame(widgets::menu_frame(&palette))
                 .show(|ui| super::menus::share_items(ui, app, &artist.uri, &opts));
         }
         if fit.keeps_all()
-            && captioned_button(ui, &palette, Icon::Radio, &gettext(locale, "Artist radio"))
-                .clicked()
+            && header_action(
+                ui,
+                "mix-button",
+                Icon::Radio,
+                &gettext(locale, "Artist radio"),
+                palette.text,
+                None,
+            )
+            .is_some_and(|r| r.clicked())
         {
             app.actions
                 .push(Action::Open(Page::Radio(artist.uri.clone())));
@@ -919,13 +1013,9 @@ fn artist_actions(app: &mut App, ui: &mut egui::Ui, artist: &Artist, bio_height:
                 palette.text,
             )
         };
-        let follow = captioned_button_tinted(ui, icon, &caption, color);
-        let follow = if icon_only(ui) {
-            follow.on_hover_text(caption.as_ref())
-        } else {
-            follow
-        };
-        if follow.clicked() {
+        if header_action(ui, "favorite-button", icon, &caption, color, None)
+            .is_some_and(|r| r.clicked())
+        {
             app.actions.push(Action::ToggleSaved(artist.uri.clone()));
         }
     }
@@ -1025,6 +1115,7 @@ fn discography(app: &mut App, ui: &mut egui::Ui, id: &str, page: &crate::model::
         // TIDAL's View all: only when the shelf has more than a row.
         let view_all = gettext(locale, "View all");
         let overflows = releases.len() > widgets::CardSizing::FEED.columns(ui.available_width());
+        super::plugin_dom::shelf_module(section_module(section));
         let opened = widgets::shelf_more(
             ui,
             &palette,
@@ -1049,6 +1140,19 @@ fn discography(app: &mut App, ui: &mut egui::Ui, id: &str, page: &crate::model::
             widgets::error_row(ui, app, &error, None);
             break;
         }
+    }
+}
+
+/// TIDAL's module of a discography shelf
+/// (`horizontal-list--ARTIST_ALBUMS-header`).
+fn section_module(section: ArtistSection) -> &'static str {
+    match section {
+        ArtistSection::Albums => "ARTIST_ALBUMS",
+        ArtistSection::Singles => "ARTIST_TOP_SINGLES",
+        ArtistSection::Compilations => "ARTIST_COMPILATIONS",
+        ArtistSection::LiveAlbums => "ARTIST_LIVE_ALBUMS",
+        ArtistSection::AppearsOn => "ARTIST_APPEARS_ON",
+        _ => "",
     }
 }
 

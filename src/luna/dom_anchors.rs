@@ -697,6 +697,30 @@ pub mod keys {
     }
     /// The artist page's header, behind which the portrait is painted.
     pub const PAGE_ARTIST_HEADER: &str = "page-artist-header";
+    /// `div[data-test=artist-meta]._metaText_`, the fan count's line.
+    pub const PAGE_ARTIST_META: &str = "page-artist-meta";
+    /// `button[data-test=follow-text-button]` on that line, and its words.
+    pub const PAGE_ARTIST_FANS: &str = "page-artist-fans";
+    pub const PAGE_ARTIST_FANS_TEXT: &str = "page-artist-fans-text";
+    /// `div[data-test=biography]._biography_`, its text box, and "Read more"
+    /// with its words.
+    pub const PAGE_BIOGRAPHY: &str = "page-biography";
+    pub const PAGE_BIOGRAPHY_TEXT: &str = "page-biography-text";
+    pub const PAGE_READ_MORE: &str = "page-read-more";
+    pub const PAGE_READ_MORE_TEXT: &str = "page-read-more-text";
+    /// A paragraph of the biography (`p`).
+    pub fn page_biography_p(index: usize) -> String {
+        format!("page-biography-p:{index}")
+    }
+    /// The artist's Top Tracks heading: `div._headerContainer_ec27150 >
+    /// div._textContainer_ > div._headerTitleContainer_ > h2`, and its
+    /// View all with the words.
+    pub const PAGE_SECTION_HEAD: &str = "page-section-head";
+    pub const PAGE_SECTION_TEXT: &str = "page-section-text";
+    pub const PAGE_SECTION_TITLE_BOX: &str = "page-section-title-box";
+    pub const PAGE_SECTION_TITLE: &str = "page-section-title";
+    pub const PAGE_SECTION_ALL: &str = "page-section-all";
+    pub const PAGE_SECTION_ALL_TEXT: &str = "page-section-all-text";
     /// `row:<list>:<index>`
     pub fn row(list: &str, index: usize) -> String {
         row_key(list, index, None)
@@ -871,8 +895,15 @@ const PAGE_LITERALS: &[&str] = &[
 /// `[class="_smallButtons_5c1ea50"] { [data-wave-color="textDefault"] {
 /// color } }` colours an album's captions, not a playlist's, whose box is
 /// `_smallButtons_1da13ba _actionSmallButtons_6ce346a`). Other pages keep
-/// the album's captioned buttons and no class of their own.
+/// the album's captioned buttons and no class of their own. An artist's
+/// (2.47.0, captured): `div[data-test=header-controls-wrapper]
+/// ._actionContainer_7bd364b > div._primaryButtons_2b378d9` holds the pills
+/// and `div[data-test=header-controls]._buttons_ff12873` the captioned
+/// buttons, each `svg` and `span._text_0e64cb5` straight in the button.
 struct HeaderMarkup {
+    controls_test: &'static str,
+    small_test: Option<&'static str>,
+    artist: bool,
     controls: Option<&'static str>,
     primary: Option<&'static str>,
     pills: Option<&'static str>,
@@ -883,7 +914,21 @@ struct HeaderMarkup {
 
 fn header_markup(page_id: Option<&str>) -> HeaderMarkup {
     match page_id {
+        Some("artist") => HeaderMarkup {
+            controls_test: "header-controls-wrapper",
+            small_test: Some("header-controls"),
+            artist: true,
+            controls: Some("_actionContainer_7bd364b"),
+            primary: None,
+            pills: Some("_primaryButtons_2b378d9"),
+            pill: Some("_button_b988d60"),
+            small: &["_buttons_ff12873"],
+            overflow: "_overflowButtons_bff78b0",
+        },
         Some("album") => HeaderMarkup {
+            controls_test: "header-controls",
+            small_test: None,
+            artist: false,
             controls: Some("_actionContainer_5bb1c14"),
             primary: Some("_primaryActions_097c7f3"),
             pills: Some("_container_84abbc3"),
@@ -892,6 +937,9 @@ fn header_markup(page_id: Option<&str>) -> HeaderMarkup {
             overflow: "_overflowButtons_246e699",
         },
         Some("playlist") => HeaderMarkup {
+            controls_test: "header-controls",
+            small_test: None,
+            artist: false,
             controls: Some("_actionContainer_334aa3b"),
             primary: None,
             pills: Some("_container_5a08754"),
@@ -900,6 +948,9 @@ fn header_markup(page_id: Option<&str>) -> HeaderMarkup {
             overflow: "_overflowButtons_aee4e69",
         },
         _ => HeaderMarkup {
+            controls_test: "header-controls",
+            small_test: None,
+            artist: false,
             controls: None,
             primary: None,
             pills: None,
@@ -1714,6 +1765,10 @@ pub struct Page {
     pub open_shelf: Option<usize>,
     /// The artist page's header (`div._artistHeader_`): the portrait's box.
     pub artist_header: Option<Rect>,
+    /// The fan count's line and the biography under the artist's name.
+    pub artist_meta: Option<ArtistMeta>,
+    /// The heading of a section that is not a shelf (Top Tracks).
+    pub section_heading: Option<SectionHeading>,
     /// Explore's icon links (`PAGE_LINKS`): each link's box and its words'.
     pub page_links: Vec<(Option<Rect>, Option<Rect>)>,
     /// Explore's rows of pills (genres, moods, decades): each row's box.
@@ -1722,6 +1777,26 @@ pub struct Page {
     pub cloud_pills: Vec<(usize, Option<Rect>)>,
     /// Home's vibe tabs, as drawn.
     pub vibe_tabs: Vec<VibeTab>,
+}
+
+/// An artist's fan count and biography, as drawn.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ArtistMeta {
+    /// The fan count's words and box.
+    pub fans: Option<(String, Option<Rect>)>,
+    /// The biography's box and its paragraphs, plain.
+    pub biography: Option<(Option<Rect>, Vec<String>)>,
+    /// "Read more", while the biography is cut.
+    pub read_more: Option<(String, Option<Rect>)>,
+}
+
+/// A heading with View all that is not a shelf's.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SectionHeading {
+    pub rect: Option<Rect>,
+    pub title: String,
+    pub title_rect: Option<Rect>,
+    pub view_all: Option<(String, Option<Rect>)>,
 }
 
 /// A tab of Home's vibe switcher: `div[data-test=vibe-tab-<name>]
@@ -3283,9 +3358,12 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         out.push(
             el(PAGE_ARTIST_HEADER, Some(PAGE), "div")
                 .modules(&["artistHeader"])
+                .test("artist-profile-header")
                 .at(Some(rect)),
         );
     }
+    artist_meta_nodes(out, page);
+    section_heading_nodes(out, page);
     // Shelves: `._feed_ > div > ._cardContainer_092d53a` on the home page
     // (`_cardContainer_8d57d95` elsewhere), the row themes space with
     // `column-gap`, `margin-bottom` and `padding-top` and dim the covers of
@@ -3660,7 +3738,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
             .filter_map(|b| b.rect)
             .chain(page.actions.iter().filter_map(|a| a.rect));
         let mut controls = el(PAGE_HEADER_CONTROLS, Some(PAGE), "div")
-            .test("header-controls")
+            .test(markup.controls_test)
             .at(around(&mut all));
         if let Some(class) = markup.controls {
             controls = controls.class(class);
@@ -3961,14 +4039,16 @@ fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction], markup: &He
         return;
     }
     // TIDAL's order, whatever order the header drew them in.
-    const ORDER: [&str; 7] = [
+    const ORDER: [&str; 9] = [
         "edit-button",
         "public-toggle-button",
         "favorite-button",
+        "mix-button",
         "credits-button",
         "share-button",
         "report-button",
         "show-context-menu-button",
+        "more-button",
     ];
     let mut sorted: Vec<&HeaderAction> = actions.iter().collect();
     sorted.sort_by_key(|a| {
@@ -3996,9 +4076,16 @@ fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction], markup: &He
     for class in markup.small {
         small = small.class(class);
     }
+    if let Some(test) = markup.small_test {
+        small = small.test(test);
+    }
     out.push(small);
-    let outside =
-        |a: &&HeaderAction| a.test == "show-context-menu-button" || a.test == "report-button";
+    // An artist's Report stays with the overflow buttons (its More does not).
+    let outside = |a: &&HeaderAction| {
+        a.test == "show-context-menu-button"
+            || a.test == "more-button"
+            || (a.test == "report-button" && !markup.artist)
+    };
     let overflow: Vec<&HeaderAction> = sorted.iter().copied().filter(|a| !outside(a)).collect();
     if !overflow.is_empty() {
         out.push(
@@ -4014,6 +4101,10 @@ fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction], markup: &He
         } else {
             PAGE_OVERFLOW_BUTTONS
         };
+        if markup.artist {
+            artist_action_nodes(out, a, &key, parent);
+            continue;
+        }
         let mut button = el(key.clone(), Some(parent), "button")
             .class("_buttonStates_91bed47")
             .test(&a.test)
@@ -4051,6 +4142,161 @@ fn header_actions(out: &mut Vec<HostNode>, actions: &[HeaderAction], markup: &He
                 .attr("data-wave-color", "textDefault")
                 .text(a.label.clone())
                 .at(a.caption),
+        );
+    }
+}
+
+/// A captioned button of an artist's header (TIDAL 2.47.0, captured):
+/// `button._button_94c5125._clean_af1ce7e._medium_c24bed2._button_b988d60`
+/// (Artist radio is `a._button_b988d60._link_6a45a19`) with `svg._icon_77f3f89`
+/// and `span._text_0e64cb5` straight inside.
+fn artist_action_nodes(out: &mut Vec<HostNode>, a: &HeaderAction, key: &str, parent: &str) {
+    let link = a.test == "mix-button";
+    let mut button = el(
+        key.to_string(),
+        Some(parent),
+        if link { "a" } else { "button" },
+    )
+    .test(&a.test)
+    .at(a.rect);
+    button = if link {
+        button.class("_button_b988d60").class("_link_6a45a19")
+    } else {
+        button
+            .class("_button_94c5125")
+            .class("_clean_af1ce7e")
+            .class("_medium_c24bed2")
+            .class("_button_b988d60")
+            .attr("type", "button")
+            .attr("data-type", "button")
+    };
+    out.push(button);
+    out.push(
+        el(format!("{key}:icon"), Some(key), "svg")
+            .class("_icon_77f3f89")
+            .class("_icon_29252d0")
+            .at(a.icon),
+    );
+    let mut label = el(keys::page_action_label(&a.test), Some(key), "span");
+    if link {
+        label = label
+            .class("_marketText_1lyag_1")
+            .class("_semibold10_1lyag_264");
+    }
+    out.push(
+        label
+            .class("_text_0e64cb5")
+            .text(a.label.clone())
+            .at(a.caption),
+    );
+}
+
+/// An artist's fan count and biography under the name (TIDAL 2.47.0,
+/// captured): `div[data-test=artist-meta]._metaText_9f5231f >
+/// button[data-test=follow-text-button] > span._underline_zmuq1_1`, then
+/// `div > div[data-test=biography]._biography_3066ef2 > div > p` for each
+/// paragraph and "Read more" beside it.
+fn artist_meta_nodes(out: &mut Vec<HostNode>, page: &Page) {
+    use keys::*;
+    let Some(meta) = &page.artist_meta else {
+        return;
+    };
+    let link = |node: HostNode| {
+        node.class("_marketLink_zmuq1_1")
+            .class("_medium_zmuq1_4")
+            .class("_standalone_zmuq1_2")
+    };
+    if let Some((label, rect)) = &meta.fans {
+        out.push(
+            el(PAGE_ARTIST_META, Some(PAGE), "div")
+                .test("artist-meta")
+                .class("_metaText_9f5231f")
+                .at(*rect),
+        );
+        out.push(
+            link(el(PAGE_ARTIST_FANS, Some(PAGE_ARTIST_META), "button"))
+                .test("follow-text-button")
+                .at(*rect),
+        );
+        out.push(
+            el(PAGE_ARTIST_FANS_TEXT, Some(PAGE_ARTIST_FANS), "span")
+                .class("_underline_zmuq1_1")
+                .text(label.clone())
+                .at(*rect),
+        );
+    }
+    if let Some((rect, paragraphs)) = &meta.biography {
+        out.push(
+            el(PAGE_BIOGRAPHY, Some(PAGE), "div")
+                .test("biography")
+                .class("_biography_3066ef2")
+                .at(*rect),
+        );
+        out.push(
+            el(PAGE_BIOGRAPHY_TEXT, Some(PAGE_BIOGRAPHY), "div")
+                .class("_marketText_1lyag_1")
+                .class("_semibold20_1lyag_246")
+                .at(*rect),
+        );
+        for (i, words) in paragraphs.iter().enumerate() {
+            out.push(
+                el(keys::page_biography_p(i), Some(PAGE_BIOGRAPHY_TEXT), "p")
+                    .text(words.clone())
+                    .at(if i == 0 { *rect } else { None }),
+            );
+        }
+    }
+    if let Some((label, rect)) = &meta.read_more {
+        out.push(link(el(PAGE_READ_MORE, Some(PAGE), "button")).at(*rect));
+        out.push(
+            el(PAGE_READ_MORE_TEXT, Some(PAGE_READ_MORE), "span")
+                .class("_underline_zmuq1_1")
+                .text(label.clone())
+                .at(*rect),
+        );
+    }
+}
+
+/// A section's heading with View all (an artist's Top Tracks, TIDAL 2.47.0,
+/// captured).
+fn section_heading_nodes(out: &mut Vec<HostNode>, page: &Page) {
+    use keys::*;
+    let Some(head) = &page.section_heading else {
+        return;
+    };
+    out.push(
+        el(PAGE_SECTION_HEAD, Some(PAGE), "div")
+            .class("_headerContainer_ec27150")
+            .at(head.rect),
+    );
+    out.push(
+        el(PAGE_SECTION_TEXT, Some(PAGE_SECTION_HEAD), "div")
+            .class("_textContainer_04b4e77")
+            .at(head.title_rect),
+    );
+    out.push(
+        el(PAGE_SECTION_TITLE_BOX, Some(PAGE_SECTION_TEXT), "div")
+            .class("_headerTitleContainer_5be64f3")
+            .at(head.title_rect),
+    );
+    out.push(
+        el(PAGE_SECTION_TITLE, Some(PAGE_SECTION_TITLE_BOX), "h2")
+            .class("_marketText_1lyag_1 _heading20_1lyag_75 _headerTitle_81ef015")
+            .text(head.title.clone())
+            .at(head.title_rect),
+    );
+    if let Some((label, rect)) = &head.view_all {
+        out.push(
+            el(PAGE_SECTION_ALL, Some(PAGE_SECTION_HEAD), "a")
+                .class("_viewAllButton_4b4f90c")
+                .test("view-all-link")
+                .at(*rect),
+        );
+        out.push(
+            el(PAGE_SECTION_ALL_TEXT, Some(PAGE_SECTION_ALL), "span")
+                .class("_marketText_1lyag_1 _semibold20_1lyag_246 _text20_1lyag_291")
+                .text(label.clone())
+                .at(*rect),
         );
     }
 }

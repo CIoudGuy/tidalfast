@@ -3511,6 +3511,41 @@ pub fn page_action(
     });
 }
 
+/// An artist's fan count was drawn in `r`, as `label` says it.
+pub fn artist_fans(r: Rect, label: &str) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.artist_meta.get_or_insert_default().fans = Some((label.to_string(), rect(r)));
+        }
+    });
+}
+
+/// An artist's biography was drawn in `r`: its paragraphs, plain, and
+/// "Read more" with its box while it is cut.
+pub fn artist_biography(r: Rect, paragraphs: Vec<String>, read_more: Option<(&str, Rect)>) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            let meta = p.artist_meta.get_or_insert_default();
+            meta.biography = Some((rect(r), paragraphs));
+            meta.read_more = read_more.map(|(words, r)| (words.to_string(), rect(r)));
+        }
+    });
+}
+
+/// The heading of a section that is not a shelf, with its View all.
+pub fn section_heading(r: Rect, title: &str, title_rect: Rect, view_all: Option<(&str, Rect)>) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.section_heading = Some(dom_anchors::SectionHeading {
+                rect: rect(r),
+                title: title.to_string(),
+                title_rect: rect(title_rect),
+                view_all: view_all.map(|(words, r)| (words.to_string(), rect(r))),
+            });
+        }
+    });
+}
+
 /// The label of a header pill as a plugin left it on the pill's DOM label
 /// (a translation plugin), else `native`.
 pub fn pill_label<'a>(primary: bool, native: &'a str) -> Cow<'a, str> {

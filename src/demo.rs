@@ -9992,6 +9992,26 @@ mod tests {
         plugin_dom::test_sent_tree().expect("a tree was sent")
     }
 
+    /// The tree sent while a plugin changes the anchors in `hosts`.
+    fn tree_under_plugin(
+        ctx: &egui::Context,
+        app: &mut App,
+        hosts: Vec<(String, crate::luna::dom::HostOverride)>,
+    ) -> crate::luna::dom::HostTree {
+        use crate::ui::plugin_dom;
+        plugin_dom::test_overlay(Some(crate::luna::dom::DomOverlay {
+            version: 2,
+            hosts: hosts.into_iter().collect(),
+            ..crate::luna::dom::DomOverlay::default()
+        }));
+        for _ in 0..3 {
+            tall_plugin_frame(ctx, app);
+        }
+        let tree = plugin_dom::test_sent_tree().expect("a tree was sent");
+        plugin_dom::test_overlay(None);
+        tree
+    }
+
     /// The words drawn, and where, while a plugin changes the anchors in
     /// `hosts`.
     fn words_under_plugin(
@@ -10020,6 +10040,147 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    /// TIDAL 2.47.0's artist page is elements (captured): the pills and
+    /// captioned buttons under `[data-test=header-controls-wrapper]`, the
+    /// shelves' modules, Top Tracks' heading, the fan count and the
+    /// biography's paragraphs. Translators and text plugins walk them in
+    /// TIDAL (korean-translation, uwu-ifier); Tidalfast had none of them on
+    /// this page. A plugin's words are the words drawn; a button it hides
+    /// goes and stays in the document.
+    #[test]
+    fn an_artists_page_is_tidals_elements_and_words() {
+        use crate::luna::dom::{HostOverride, Style};
+        use crate::luna::dom_anchors::{attr, keys};
+        let (ctx, mut app) = accessible_app("artist-elements");
+        app.open(Page::Artist("art0".into()));
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let node = |key: &str| tree.nodes.iter().find(|n| n.key == key).cloned();
+        let test_of = |key: &str| node(key).and_then(|n| attr(&n, "data-test").map(str::to_string));
+        assert_eq!(
+            test_of(keys::PAGE_HEADER_CONTROLS).as_deref(),
+            Some("header-controls-wrapper")
+        );
+        assert_eq!(test_of(keys::PAGE_PLAY).as_deref(), Some("play-all"));
+        assert_eq!(test_of(keys::PAGE_SHUFFLE).as_deref(), Some("shuffle-all"));
+        assert_eq!(
+            test_of(keys::PAGE_SMALL_BUTTONS).as_deref(),
+            Some("header-controls")
+        );
+        assert_eq!(
+            test_of(keys::PAGE_ARTIST_HEADER).as_deref(),
+            Some("artist-profile-header")
+        );
+        for (button, words) in [
+            ("favorite-button", "Following"),
+            ("mix-button", "Artist radio"),
+            ("share-button", "Share"),
+            ("more-button", "More"),
+        ] {
+            let key = keys::page_action(button);
+            assert_eq!(test_of(&key).as_deref(), Some(button));
+            assert_eq!(
+                node(&keys::page_action_label(button)).and_then(|n| n.text),
+                Some(words.to_string()),
+                "{button}"
+            );
+        }
+        assert_eq!(node(&keys::page_action("mix-button")).unwrap().tag, "a");
+        let headers: Vec<_> = tree
+            .nodes
+            .iter()
+            .filter_map(|n| attr(n, "data-test"))
+            .filter(|t| t.starts_with("horizontal-list--ARTIST_"))
+            .collect();
+        for module in [
+            "ARTIST_ALBUMS",
+            "ARTIST_TOP_SINGLES",
+            "ARTIST_SIMILAR_ARTISTS",
+        ] {
+            let header = format!("horizontal-list--{module}-header");
+            assert!(headers.contains(&header.as_str()), "{header}: {headers:?}");
+        }
+        assert_eq!(
+            node(keys::PAGE_SECTION_TITLE)
+                .and_then(|n| n.text)
+                .as_deref(),
+            Some("Top Tracks")
+        );
+        assert_eq!(
+            test_of(keys::PAGE_SECTION_ALL).as_deref(),
+            Some("view-all-link")
+        );
+        assert_eq!(
+            test_of(keys::PAGE_ARTIST_META).as_deref(),
+            Some("artist-meta")
+        );
+        assert_eq!(
+            test_of(keys::PAGE_ARTIST_FANS).as_deref(),
+            Some("follow-text-button")
+        );
+        assert_eq!(test_of(keys::PAGE_BIOGRAPHY).as_deref(), Some("biography"));
+        let first = node(&keys::page_biography_p(0)).expect("the biography's first paragraph");
+        assert_eq!(first.tag, "p");
+        assert!(first.text.is_some_and(|t| !t.is_empty()));
+        assert!(
+            node(keys::PAGE_ARTIST_FANS_TEXT)
+                .and_then(|n| n.text)
+                .is_some_and(|t| !t.is_empty())
+        );
+
+        let words = |key: String, text: &str| {
+            (
+                key,
+                HostOverride {
+                    text: Some(text.to_string()),
+                    ..HostOverride::default()
+                },
+            )
+        };
+        let hide = |key: String| {
+            (
+                key,
+                HostOverride {
+                    style: Style {
+                        display: Some("none".into()),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            )
+        };
+        let hosts = vec![
+            words(keys::PAGE_PLAY_LABEL.to_string(), "Pway"),
+            words(keys::page_action_label("favorite-button"), "Fowwow"),
+            words(keys::page_action_label("mix-button"), "Awtist wadio"),
+            words(keys::PAGE_SECTION_TITLE.to_string(), "Top Twacks"),
+            words(keys::PAGE_ARTIST_FANS_TEXT.to_string(), "7 fwiends"),
+            words(keys::page_biography_p(0), "Bio uwu"),
+            hide(keys::page_action("share-button")),
+        ];
+        let drawn = words_under_plugin(&ctx, &mut app, hosts);
+        for word in ["Pway", "Fowwow", "Awtist wadio", "Top Twacks", "7 fwiends"] {
+            assert!(drawn.iter().any(|(t, _)| t == word), "{word}: {drawn:?}");
+        }
+        assert!(
+            drawn.iter().any(|(t, _)| t.contains("Bio uwu")),
+            "{drawn:?}"
+        );
+        assert!(!drawn.iter().any(|(t, _)| t == "Share"), "{drawn:?}");
+        // The hidden button stays described, so the plugin's rule still has
+        // an element to hold and it does not come back on the next frame.
+        assert!(
+            tree_under_plugin(
+                &ctx,
+                &mut app,
+                vec![hide(keys::page_action("share-button"))]
+            )
+            .nodes
+            .iter()
+            .any(|n| n.key == keys::page_action("share-button")),
+        );
+        app.backend.shutdown();
     }
 
     /// Home's own title (`div._pageHeader_1d2b3ad > h1._title_2d8da11`,
