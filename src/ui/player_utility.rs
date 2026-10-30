@@ -26,9 +26,9 @@ const VOLUME_TRACK: f32 = 75.0;
 /// speaker under half.
 pub(super) fn volume_icon(percent: u8) -> Icon {
     match percent {
-        0 => Icon::VolumeX,
-        1..=49 => Icon::Volume1,
-        _ => Icon::Volume2,
+        0 => Icon::PlayerVolumeMute,
+        1..=49 => Icon::PlayerVolumeMid,
+        _ => Icon::PlayerVolume,
     }
 }
 
@@ -73,7 +73,7 @@ pub(super) fn volume(
             theme::player_icon_button(
                 ui,
                 volume_icon(shown),
-                18.0,
+                16.0,
                 glyph.unwrap_or(palette.secondary),
                 glyph.unwrap_or(palette.text),
                 &if shown == 0 {
@@ -359,8 +359,8 @@ pub(super) fn sound_output(app: &mut App, ui: &mut egui::Ui) -> egui::Response {
     let glyph = super::player_bar::utility_glyph(crate::luna::dom_anchors::keys::SOUND_OUTPUT);
     let button = theme::player_icon_button(
         ui,
-        Icon::Speaker,
-        18.0,
+        Icon::PlayerOutput,
+        16.0,
         glyph.unwrap_or(if open {
             palette.text
         } else {
@@ -637,9 +637,9 @@ mod tests {
 
     #[test]
     fn the_speaker_follows_tidals_steps() {
-        assert_eq!(volume_icon(0), Icon::VolumeX);
-        assert_eq!(volume_icon(49), Icon::Volume1);
-        assert_eq!(volume_icon(50), Icon::Volume2);
-        assert_eq!(volume_icon(100), Icon::Volume2);
+        assert_eq!(volume_icon(0), Icon::PlayerVolumeMute);
+        assert_eq!(volume_icon(49), Icon::PlayerVolumeMid);
+        assert_eq!(volume_icon(50), Icon::PlayerVolume);
+        assert_eq!(volume_icon(100), Icon::PlayerVolume);
     }
 }

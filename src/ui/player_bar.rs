@@ -1246,9 +1246,10 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     };
     let bright = if enabled { palette.text } else { palette.dim };
 
-    // TIDAL: shuffle and repeat 32, previous, play and next 40, 8 apart.
+    // TIDAL: shuffle and repeat 32, 12 from previous, play and next, which
+    // are 40 and 8 apart.
     let widths = [32.0, 40.0, 40.0, 40.0, 32.0];
-    let gap = 8.0;
+    let gaps = [8.0, 8.0, 8.0, 8.0];
     // A button a plugin left out (`display: none`) takes no room and the
     // others close up round the centre, as in TIDAL's flex row; one it hid
     // (`visibility: hidden`) keeps its room with nothing drawn.
@@ -1262,20 +1263,24 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     .map(plugin_dom::shown);
     let gone = |i: usize| parts[i] == plugin_dom::Shown::Gone;
     let drawn = |i: usize| parts[i] == plugin_dom::Shown::Drawn;
-    let kept = (0..widths.len()).filter(|i| !gone(*i)).count();
+    // The gap after a button, none after the last one kept.
+    let gap_after = |i: usize| {
+        let more = (i + 1..widths.len()).any(|next| !gone(next));
+        if more { gaps[i.min(gaps.len() - 1)] } else { 0.0 }
+    };
     let total: f32 = (0..widths.len())
         .filter(|i| !gone(*i))
-        .map(|i| widths[i])
-        .sum::<f32>()
-        + gap * kept.saturating_sub(1) as f32;
-    let mut x = region.center().x - total / 2.0;
+        .map(|i| widths[i] + gap_after(i))
+        .sum();
+    // Chromium places a box on a whole pixel.
+    let mut x = (region.center().x - total / 2.0).round();
     let mut slot = |i: usize| {
         if gone(i) {
             return Rect::from_center_size(pos2(x, cy), vec2(0.0, 40.0));
         }
         let width = widths[i];
         let rect = Rect::from_center_size(pos2(x + width / 2.0, cy), vec2(width, 40.0));
-        x += width + gap;
+        x += width + gap_after(i);
         rect
     };
     let centered = |ui: &mut egui::Ui, rect: Rect, i: usize| {
@@ -1312,8 +1317,9 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         let mut cell = centered(ui, shuffle_slot, 0);
         let button = theme::player_icon_button(
             &mut cell,
-            Icon::Shuffle,
-            16.0,
+            Icon::PlayerShuffle,
+            // `._shuffleButton_[aria-checked=true] svg { width: 14px }`.
+            if shuffle { 14.0 } else { 16.0 },
             shuffle_color,
             palette.text,
             &gettext(app.locale, "Shuffle"),
@@ -1341,7 +1347,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     let previous_color = skip_glyph(keys::PREVIOUS);
     if theme::player_icon_button(
         &mut cell,
-        Icon::SkipBackFilled,
+        Icon::PlayerPrevious,
         16.0,
         previous_color.unwrap_or(bright),
         previous_color.unwrap_or(palette.text),
@@ -1361,9 +1367,9 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         theme::spinner(&mut cell, 22.0, palette.text);
     } else {
         let icon = if playing {
-            Icon::PauseFilled
+            Icon::PlayerPause
         } else {
-            Icon::PlayFilled
+            Icon::PlayerPlay
         };
         let mut cell = centered(ui, disc, 2);
         // A theme's fill for the button (Mocha Blue's
@@ -1387,7 +1393,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
         if theme::player_icon_button(
             &mut cell,
             icon,
-            24.0,
+            22.0,
             bright,
             hover,
             &if playing {
@@ -1418,7 +1424,7 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     let next_color = skip_glyph(keys::NEXT);
     if theme::player_icon_button(
         &mut cell,
-        Icon::SkipForwardFilled,
+        Icon::PlayerNext,
         16.0,
         next_color.unwrap_or(bright),
         next_color.unwrap_or(palette.text),
@@ -1431,14 +1437,14 @@ fn transport(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, region:
     }
 
     let (repeat_icon, repeat_color, tooltip) = match repeat {
-        RepeatMode::Off => (Icon::Repeat, dim, gettext(app.locale, "Repeat")),
+        RepeatMode::Off => (Icon::PlayerRepeat, dim, gettext(app.locale, "Repeat")),
         RepeatMode::Context => (
-            Icon::Repeat,
+            Icon::PlayerRepeat,
             palette.text,
             gettext(app.locale, "Repeat one"),
         ),
         RepeatMode::Track => (
-            Icon::Repeat1,
+            Icon::PlayerRepeatOnce,
             palette.text,
             gettext(app.locale, "Repeat off"),
         ),
@@ -1753,8 +1759,8 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         in_box(ui, boxes.compact, |ui| {
             theme::player_icon_button(
                 ui,
-                Icon::PictureInPicture,
-                18.0,
+                Icon::PlayerCompact,
+                16.0,
                 compact_color.unwrap_or(if app.compact_mode {
                     palette.text
                 } else {
@@ -1861,8 +1867,8 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
         in_box(ui, boxes.queue, |ui| {
             theme::player_icon_button(
                 ui,
-                Icon::QueueLines,
-                18.0,
+                Icon::PlayerQueue,
+                16.0,
                 queue_color.unwrap_or(if queue_open {
                     palette.text
                 } else {
@@ -1885,11 +1891,11 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
             // box, the glyph drawn again over it.
             let r = egui::Rect::from_center_size(queue_button.rect.center(), boxes.queue);
             plugin_dom::paint_themed_box(ui, keys::QUEUE, r, egui::CornerRadius::same(16));
-            Icon::QueueLines
-                .image(queue_color.unwrap_or(palette.text), 18.0)
+            Icon::PlayerQueue
+                .image(queue_color.unwrap_or(palette.text), 16.0)
                 .paint_at(
                     ui,
-                    egui::Rect::from_center_size(r.center(), egui::Vec2::splat(18.0)),
+                    egui::Rect::from_center_size(r.center(), egui::Vec2::splat(16.0)),
                 );
         } else if queue_open && disc_fill.is_none_or(|c| c.a() > 0) {
             ui.painter().set(
@@ -1968,7 +1974,7 @@ fn extras(app: &mut App, ui: &mut egui::Ui, now: Option<&NowPlaying>, budget: f3
 }
 
 /// A utility button's cell inside its [`UtilityBoxes`] box.
-const UTILITY_CELL: f32 = 18.0 + theme::ICON_BUTTON_PAD;
+const UTILITY_CELL: f32 = 16.0 + theme::ICON_BUTTON_PAD;
 
 /// The boxes TIDAL gives the bar's utility buttons, with a theme's sizes:
 /// `._utilityButtons_ button { width: 32px; height: 32px }`,
