@@ -3546,6 +3546,20 @@ pub fn section_heading(r: Rect, title: &str, title_rect: Rect, view_all: Option<
     });
 }
 
+/// A search filter was drawn in `r` (`None`: a plugin hid it).
+pub fn search_pill(test: &'static str, label: &str, r: Option<Rect>, lit: bool) {
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.search_pills.push(dom_anchors::SearchPill {
+                test,
+                label: label.to_string(),
+                rect: r.and_then(rect),
+                lit,
+            });
+        }
+    });
+}
+
 /// The label of a header pill as a plugin left it on the pill's DOM label
 /// (a translation plugin), else `native`.
 pub fn pill_label<'a>(primary: bool, native: &'a str) -> Cow<'a, str> {

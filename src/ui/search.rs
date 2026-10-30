@@ -173,6 +173,19 @@ pub fn shown_did_you_mean(results: &SearchResults, committed: &str) -> Option<St
         .map(str::to_string)
 }
 
+/// TIDAL's `data-test` of a search filter.
+fn pill_test(filter: SearchFilter) -> &'static str {
+    match filter {
+        SearchFilter::All => "search-pill-top",
+        SearchFilter::Songs => "search-pill-tracks",
+        SearchFilter::Artists => "search-pill-artists",
+        SearchFilter::Albums => "search-pill-albums",
+        SearchFilter::Playlists => "search-pill-playlists",
+        SearchFilter::Uploads => "search-pill-uploads",
+        SearchFilter::Videos => "search-pill-videos",
+    }
+}
+
 /// The room TIDAL's pill row keeps under the 40-point pills (its wrapper is
 /// 52 high): where the scrollbar's thumb shows while the row is scrolled.
 const PILLS_ROOM: f32 = 12.0;
@@ -209,7 +222,21 @@ fn filter_pills(
                     // the top results every pill is grey.
                     let selected = *filter == current;
                     let lit = selected && *filter != SearchFilter::All;
-                    if widgets::tidal_pill_lit(ui, label, selected, lit).clicked() {
+                    // TIDAL's pill is an element: a plugin's words are drawn
+                    // and one it hides goes.
+                    let test = pill_test(*filter);
+                    let key = crate::luna::dom_anchors::keys::search_pill(test);
+                    if super::plugin_dom::hidden(&key) {
+                        super::plugin_dom::search_pill(test, label, None, lit);
+                        continue;
+                    }
+                    let words = super::plugin_dom::text(
+                        &crate::luna::dom_anchors::keys::search_pill_label(test),
+                        label,
+                    );
+                    let pill = widgets::tidal_pill_lit(ui, &words, selected, lit);
+                    super::plugin_dom::search_pill(test, label, Some(pill.rect), lit);
+                    if pill.clicked() {
                         chosen = Some(*filter);
                     }
                 }

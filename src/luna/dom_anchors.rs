@@ -721,6 +721,15 @@ pub mod keys {
     pub const PAGE_SECTION_TITLE: &str = "page-section-title";
     pub const PAGE_SECTION_ALL: &str = "page-section-all";
     pub const PAGE_SECTION_ALL_TEXT: &str = "page-section-all-text";
+    /// `div[data-test=search-pills]._searchPills_`, the search filters.
+    pub const SEARCH_PILLS: &str = "search-pills";
+    /// A search filter, by its `data-test`, and its words.
+    pub fn search_pill(test: &str) -> String {
+        format!("search-pill:{test}")
+    }
+    pub fn search_pill_label(test: &str) -> String {
+        format!("search-pill:{test}:label")
+    }
     /// `row:<list>:<index>`
     pub fn row(list: &str, index: usize) -> String {
         row_key(list, index, None)
@@ -1769,6 +1778,8 @@ pub struct Page {
     pub artist_meta: Option<ArtistMeta>,
     /// The heading of a section that is not a shelf (Top Tracks).
     pub section_heading: Option<SectionHeading>,
+    /// The search filters, as drawn.
+    pub search_pills: Vec<SearchPill>,
     /// Explore's icon links (`PAGE_LINKS`): each link's box and its words'.
     pub page_links: Vec<(Option<Rect>, Option<Rect>)>,
     /// Explore's rows of pills (genres, moods, decades): each row's box.
@@ -1797,6 +1808,16 @@ pub struct SectionHeading {
     pub title: String,
     pub title_rect: Option<Rect>,
     pub view_all: Option<(String, Option<Rect>)>,
+}
+
+/// A search filter: `a[data-test=search-pill-<name>]._marketButton_`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SearchPill {
+    pub test: &'static str,
+    pub label: String,
+    pub rect: Option<Rect>,
+    /// Drawn as chosen (`_primary_`, else `_secondary_`).
+    pub lit: bool,
 }
 
 /// A tab of Home's vibe switcher: `div[data-test=vibe-tab-<name>]
@@ -3364,6 +3385,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     }
     artist_meta_nodes(out, page);
     section_heading_nodes(out, page);
+    search_pill_nodes(out, page);
     // Shelves: `._feed_ > div > ._cardContainer_092d53a` on the home page
     // (`_cardContainer_8d57d95` elsewhere), the row themes space with
     // `column-gap`, `margin-bottom` and `padding-top` and dim the covers of
@@ -4297,6 +4319,47 @@ fn section_heading_nodes(out: &mut Vec<HostNode>, page: &Page) {
                 .class("_marketText_1lyag_1 _semibold20_1lyag_246 _text20_1lyag_291")
                 .text(label.clone())
                 .at(*rect),
+        );
+    }
+}
+
+/// The search filters (TIDAL 2.47.0, captured): `div[data-test=search-pills]
+/// ._searchPills_039e9e7 > a[data-test=search-pill-<name>]._marketButton_
+/// ._small_ > span._label_`.
+fn search_pill_nodes(out: &mut Vec<HostNode>, page: &Page) {
+    if page.search_pills.is_empty() {
+        return;
+    }
+    let row = page
+        .search_pills
+        .iter()
+        .filter_map(|p| p.rect)
+        .reduce(union);
+    out.push(
+        el(keys::SEARCH_PILLS, Some(keys::PAGE), "div")
+            .test("search-pills")
+            .class("_searchPills_039e9e7")
+            .at(row),
+    );
+    for pill in &page.search_pills {
+        let key = keys::search_pill(pill.test);
+        out.push(
+            el(key.clone(), Some(keys::SEARCH_PILLS), "a")
+                .class("_marketButton_1d16h_1")
+                .class(if pill.lit {
+                    "_primary_1d16h_6"
+                } else {
+                    "_secondary_1d16h_7"
+                })
+                .class("_small_1d16h_3")
+                .test(pill.test)
+                .at(pill.rect),
+        );
+        out.push(
+            el(keys::search_pill_label(pill.test), Some(&key), "span")
+                .class("_label_1d16h_1")
+                .text(pill.label.clone())
+                .at(pill.rect),
         );
     }
 }

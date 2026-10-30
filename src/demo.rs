@@ -10183,6 +10183,70 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// TIDAL 2.47.0's search filters are elements (captured):
+    /// `div[data-test=search-pills]._searchPills_039e9e7 >
+    /// a[data-test=search-pill-tracks]._marketButton_ > span._label_`. A
+    /// plugin's words are drawn; one it hides goes and stays in the document.
+    #[test]
+    fn the_search_filters_are_tidals_elements_and_words() {
+        use crate::luna::dom::{HostOverride, Style};
+        use crate::luna::dom_anchors::{attr, keys};
+        let (ctx, mut app) = accessible_app("search-pills");
+        apply_flags(&mut app, Some("search"), Some("search"));
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let node = |key: String| tree.nodes.iter().find(|n| n.key == key).cloned();
+        let row = node(keys::SEARCH_PILLS.to_string()).expect("the filters' row");
+        assert_eq!(attr(&row, "data-test"), Some("search-pills"));
+        assert_eq!(attr(&row, "class"), Some("_searchPills_039e9e7"));
+        for test in [
+            "search-pill-top",
+            "search-pill-tracks",
+            "search-pill-albums",
+        ] {
+            let pill = node(keys::search_pill(test)).unwrap_or_else(|| panic!("{test}"));
+            assert_eq!(pill.tag, "a");
+            assert_eq!(attr(&pill, "data-test"), Some(test));
+            assert!(
+                node(keys::search_pill_label(test))
+                    .and_then(|n| n.text)
+                    .is_some_and(|t| !t.is_empty()),
+                "{test}"
+            );
+        }
+        let albums = node(keys::search_pill_label("search-pill-albums"))
+            .and_then(|n| n.text)
+            .unwrap();
+        let hosts = vec![
+            (
+                keys::search_pill_label("search-pill-tracks"),
+                HostOverride {
+                    text: Some("Twacks".to_string()),
+                    ..HostOverride::default()
+                },
+            ),
+            (
+                keys::search_pill("search-pill-albums"),
+                HostOverride {
+                    style: Style {
+                        display: Some("none".into()),
+                        ..Style::default()
+                    },
+                    ..HostOverride::default()
+                },
+            ),
+        ];
+        let drawn = words_under_plugin(&ctx, &mut app, hosts.clone());
+        assert!(drawn.iter().any(|(t, _)| t == "Twacks"), "{drawn:?}");
+        assert!(!drawn.iter().any(|(t, _)| *t == albums), "{drawn:?}");
+        assert!(
+            tree_under_plugin(&ctx, &mut app, hosts)
+                .nodes
+                .iter()
+                .any(|n| n.key == keys::search_pill("search-pill-albums"))
+        );
+        app.backend.shutdown();
+    }
+
     /// Home's own title (`div._pageHeader_1d2b3ad > h1._title_2d8da11`,
     /// "Home", which TIDAL's CSS shows only in a narrow window, so it has no
     /// box) and its vibe tabs (`div[data-test=vibe-tab-static|editorial|
