@@ -3561,6 +3561,80 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 51 (transforms of native parts, album row boxes, the checker's pairing, 2026-10-30)
+
+Found with the parity checker on TIDAL 2.47.0's pages, fixed in the
+generic layer:
+
+- **A theme's `transform` scales and moves a native part as Chromium draws
+  it.** The runtime folded `scale`, `translate` and `transform` into one
+  value, and the anchor look read its scale, but nothing drew it: the
+  cotton candy family's and Sugarcoat's navigation rows (`scale(.98)
+  translateX(-.1em)`), shuffle and repeat (`scale(.9)`), the bar's
+  utility buttons (`scale(1.04)`), the times (`scale(.96)` on the time and
+  its wrapper) and a row's Play (`scale(.8)`) were drawn full size and in
+  place. Those parts now draw through one helper (`plugin_dom::scaled`, or
+  `scale_shapes` for the utility buttons, whose box is known only once its
+  buttons are laid out): everything the part paints, box, words and icons,
+  is scaled about the box's `transform-origin` (now carried in the style;
+  the centre unless set) and moved by its translations, in the order the
+  transform lists them. Its room in the layout and where it takes the
+  pointer stay as they were, as in Chromium. A `scale` keyframe (the
+  family's `bounc`, `0% { scale: 1 } 38% { scale: 1.044 } 100% { scale:
+  .96 }` over a fifth of a second as the pointer comes onto a button)
+  scales on top of the box's own transform, a `transform` keyframe takes
+  its place (the runtime keeps a `scale` frame apart for that), and a
+  `transition` on `transform` eases the scale between states (shuffle's
+  `scale(.9)` to `scale(.93)` on hover). Turns are left out on native
+  parts. Tests: `a_navigation_rows_scale_draws_the_row_and_its_words_smaller`,
+  `a_scale_keyframe_scales_on_top_of_the_boxs_own_transform`.
+- **An album's song rows sit in TIDAL 2.47.0's row boxes.** TIDAL 2.47.0
+  holds each row of an album as `div._nativeRowWrapper_20e35be >
+  div[data-type=mediaItem] > div._tableRow_`; a playlist's virtual list
+  keeps `div[style] > div[draggable] > div._tableRow_`. The anchors had
+  bare boxes for both, so Cotton Candy Nights' and Astronaut Ice Cream's
+  row Play rules, nested in `[class="_nativeRowWrapper_20e35be"]`
+  (`scale(.8)`, rounded corners, the hover fill), and Synthwave '77's
+  `[data-type="mediaItem"]` outline reached nothing. Test:
+  `a_rule_in_the_row_wrapper_reaches_the_rows_cells`.
+
+The checker's pairing (private tool, `match.js`) was fixed first, so the
+style numbers show only real differences: a find by `data-test` under a
+named ancestor TIDAL's page lacks is no longer paired (the album page's
+cards, which the capture does not have, took the track rows' artist links,
+which share their `data-test`); a find in the whole page takes an element
+no other anchor took (the list box and its inner box both carry
+`data-test=media-table`, TIDAL has one); rows pair by TIDAL's `data-index`
+(Tidalfast's row boxes are not TIDAL's, so from the second row on each row
+was compared with the row two above it). Style differences on the same
+build: 666 -> 445; nothing real was dropped (the items gone are those three
+groups; two row heart colours are new, the demo's liked songs against the
+capture's).
+
+Totals: style 445 -> 414 (the row Play's scale and corners in 12 themes, 24 items; the navigation rows' transform, 5; none new); dark pixels 1.26 % -> 1.25 % of
+305.1 million compared (no theme 0.69 % both; the cotton candy family
+0.01 to 0.07 points lower each, Sugarcoat 3.39 -> 3.36; Cotton Candy
+Single 1.48 -> 1.50 and adaptive Astronaut 1.98 -> 1.99: their utility
+card is wider than TIDAL's before the scale, so scaling it as TIDAL does
+widens the gap: the buttons' spacing, not the scale). Light: adaptive
+Cotton Candy 0.61 -> 0.59 %, adaptive Horchata 0.45 %, Tidal Light 1.15 %
+unchanged. Hover pages: the checker's replay now hovers the song under
+the pointer in the theme's own layout, not the one under it with no
+theme (the row above Tidalfast's on themes that move the list): 2.04 ->
+1.42 %, hover-row 7.4 to 9 % -> 0.97 to 2.8 % on the cotton candy family,
+Sugarcoat and Tidal TUI. The round's own change there is small: Sugarcoat
+2.89 -> 2.86 %, the other themes equal. The `bounc` keyframes run for a
+fifth of a second and end where they began, so no settled shot shows
+them; the test does.
+
+Still open: the search pill's blur (the maintainer's call, Round 50);
+Lunallena's header tab, Meteor Night's menu line, the always-shown page
+scroll bar and the right-click menu's entries, left open on purpose. The
+largest pixel groups that remain are data or native layout, not a theme's
+translation: the bar's track card (the capture plays another song), the
+library rows' subtitles (the same with no theme), card cells on the
+collection page, and the utility card's width.
+
 ### Round 50 (registered properties, library row colours, 2026-10-30)
 
 Found with the parity checker on TIDAL 2.47.0's pages and its stylesheet,
