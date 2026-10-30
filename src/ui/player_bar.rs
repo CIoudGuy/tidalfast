@@ -1504,6 +1504,7 @@ fn transport(
                 .layout(Layout::top_down(Align::Min)),
         );
         plugin_slots::positioned_in(&mut over, keys::PLAY_WRAP);
+        plugin_slots::positioned_in(&mut over, keys::PLAY_INNER);
     }
 
     let next_slot = slot(3);

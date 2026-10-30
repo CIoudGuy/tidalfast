@@ -247,6 +247,16 @@ pub mod keys {
     /// plugin that takes the transport over (AltPlay) lays a round element
     /// over it with `inset: 0`.
     pub const PLAY_WRAP: &str = "play-pause-wrap";
+    /// `div._playbackButton_c00b950._playButtonInner_03d539f` in that box,
+    /// the button's own parent.
+    pub const PLAY_INNER: &str = "play-pause-inner";
+    /// `div._centerControls_527ef93`: previous, play and next, between
+    /// shuffle and repeat.
+    pub const CENTER_CONTROLS: &str = "center-controls";
+    /// `div._skipButtonWrapper_dc2a3e5._previousWrapper_17b7a1c` round
+    /// previous, `div._skipButtonWrapper_dc2a3e5` round next.
+    pub const PREVIOUS_WRAP: &str = "previous-wrap";
+    pub const NEXT_WRAP: &str = "next-wrap";
     pub const NEXT: &str = "next";
     pub const REPEAT: &str = "repeat";
     pub const PROGRESS: &str = "progress";
@@ -5968,14 +5978,47 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
             .attr("aria-checked", p.shuffle.to_string())
             .attr("aria-pressed", p.shuffle.to_string()),
     );
-    out.push(titled(
-        button(PREVIOUS, "previous", "Previous", p.rect(P::Previous)).class("_skipButton_abe89ff"),
-        "Previous",
-    ));
+    // TIDAL 2.47.0 (captured): previous, play and next stand in a box of
+    // their own, each in its wrapper (the Cotton Candy Nights family's
+    // `[class="_skipButtonWrapper_dc2a3e5"] ._icon_77f3f89 { fill }`).
+    let center = [P::Previous, P::Play, P::Next]
+        .into_iter()
+        .filter_map(|part| p.rect(part))
+        .reduce(|a, b| {
+            let right = (a[0] + a[2]).max(b[0] + b[2]);
+            let bottom = (a[1] + a[3]).max(b[1] + b[3]);
+            let (x, y) = (a[0].min(b[0]), a[1].min(b[1]));
+            [x, y, right - x, bottom - y]
+        });
     out.push(
-        el(PLAY_WRAP, Some(CONTROLS), "div")
+        el(CENTER_CONTROLS, Some(CONTROLS), "div")
+            .class("_centerControls_527ef93")
+            .at(center),
+    );
+    out.push(
+        el(PREVIOUS_WRAP, Some(CENTER_CONTROLS), "div")
+            .class("_skipButtonWrapper_dc2a3e5")
+            .class("_previousWrapper_17b7a1c")
+            .at(p.rect(P::Previous)),
+    );
+    out.push(HostNode {
+        parent: Some(PREVIOUS_WRAP.to_string()),
+        ..titled(
+            button(PREVIOUS, "previous", "Previous", p.rect(P::Previous))
+                .class("_skipButton_abe89ff"),
+            "Previous",
+        )
+    });
+    out.push(
+        el(PLAY_WRAP, Some(CENTER_CONTROLS), "div")
             .class("_playButton_3afff86")
             .modules(&["playButtonWrapper"])
+            .at(p.rect(P::Play)),
+    );
+    out.push(
+        el(PLAY_INNER, Some(PLAY_WRAP), "div")
+            .class("_playbackButton_c00b950")
+            .class("_playButtonInner_03d539f")
             .at(p.rect(P::Play)),
     );
     let play = if p.playing {
@@ -5984,13 +6027,21 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
         titled(button(PLAY, "play", "Play", p.rect(P::Play)), "Play")
     };
     out.push(HostNode {
-        parent: Some(PLAY_WRAP.to_string()),
+        parent: Some(PLAY_INNER.to_string()),
         ..play
     });
-    out.push(titled(
-        button(NEXT, "next", "Next", p.rect(P::Next)).class("_skipButton_abe89ff"),
-        "Next",
-    ));
+    out.push(
+        el(NEXT_WRAP, Some(CENTER_CONTROLS), "div")
+            .class("_skipButtonWrapper_dc2a3e5")
+            .at(p.rect(P::Next)),
+    );
+    out.push(HostNode {
+        parent: Some(NEXT_WRAP.to_string()),
+        ..titled(
+            button(NEXT, "next", "Next", p.rect(P::Next)).class("_skipButton_abe89ff"),
+            "Next",
+        )
+    });
     out.push(
         button(REPEAT, "repeat", "Repeat", p.rect(P::Repeat))
             .modules(&["repeatButton"])
@@ -7669,11 +7720,11 @@ mod tests {
         }
         let tree = build(&frame);
         let wrap = find(&tree, keys::PLAY_WRAP);
-        assert_eq!(wrap.parent.as_deref(), Some(keys::CONTROLS));
+        assert_eq!(wrap.parent.as_deref(), Some(keys::CENTER_CONTROLS));
         assert_eq!(wrap.rect, r);
         assert_eq!(
             find(&tree, keys::PLAY).parent.as_deref(),
-            Some(keys::PLAY_WRAP)
+            Some(keys::PLAY_INNER)
         );
     }
 

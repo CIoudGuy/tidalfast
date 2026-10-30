@@ -131,3 +131,44 @@ fn a_border_on_an_albums_row_boxes_moves_the_rows() {
     assert!(row.contains(&([1.0; 4], ink, 0.0)), "{row:?}");
     pd::test_overlay(None);
 }
+
+/// TIDAL's previous, play and next stand in wrappers of their own in
+/// `._centerControls_`, and themes reach their glyphs through those (the
+/// Cotton Candy Nights family's exact-class selectors). The anchors had the
+/// buttons straight in the controls, so such a rule reached nothing and the
+/// glyphs kept the button's colour.
+#[test]
+fn a_themes_rule_on_the_transports_wrappers_reaches_its_glyphs() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{BAR_ICONS, NEXT, PLAY, PREVIOUS};
+    let css = r#"/* {"name": "Transport wrappers"} */
+[class="_player_8c80ae6 _notFullscreen_60c5a14"] {
+    [class="_playbackButton_c00b950 _playButtonInner_03d539f"],
+    [class="_skipButtonWrapper_dc2a3e5"],
+    [class="_skipButtonWrapper_dc2a3e5 _previousWrapper_17b7a1c"] {
+        ._icon_77f3f89 { fill: rgb(21, 22, 23) !important; }
+    }
+}
+._centerControls_527ef93 > div > button { color: rgb(1, 2, 3); }
+"#;
+    let icon = BAR_ICONS.iter().find(|(b, ..)| *b == NEXT).unwrap().1;
+    let o = overlay_when(
+        "wrappers.css",
+        css,
+        &dom_anchors::sample_frame(),
+        |o: &DomOverlay| o.hosts.get(icon).is_some_and(|h| h.style.fill.is_some()),
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let ink = egui::Color32::from_rgb(21, 22, 23);
+    for button in [PREVIOUS, PLAY, NEXT] {
+        assert_eq!(pd::bar_icon(button), Some(ink), "{button}");
+    }
+    for button in [PREVIOUS, NEXT] {
+        assert_eq!(
+            pd::color(button),
+            Some(egui::Color32::from_rgb(1, 2, 3)),
+            "{button}"
+        );
+    }
+    pd::test_overlay(None);
+}

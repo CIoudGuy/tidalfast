@@ -1924,11 +1924,11 @@ go();
     luna.sync_dom(tree());
     let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
     assert!(
-        r["parent"].as_str().unwrap().contains("playButtonWrapper"),
+        r["parent"].as_str().unwrap().contains("_playButtonInner_"),
         "{r}"
     );
     let o = overlay_until(&luna, 10, |o| {
-        !o.clicks.is_empty() && o.at(keys::PLAY_WRAP, Position::Append).count() == 1
+        !o.clicks.is_empty() && o.at(keys::PLAY_INNER, Position::Append).count() == 1
     });
     assert_eq!(o.clicks.last().unwrap().0, keys::PLAY);
     finish(luna, dir);
@@ -2021,7 +2021,7 @@ const go = () => {
 	const q = (s) => { try { return document.querySelectorAll(s).length; } catch (e) { return "ERR " + e.message; } };
 	R.counts = {
 		has: q('[role="row"]:has(> * [data-test="table-cell-title"])'),
-		scope: document.querySelector('[data-type="media-table"]').querySelectorAll(":scope > [role=row], :scope > div > div > div > [role=row]").length,
+		scope: document.querySelector('[data-type="media-table"]').querySelectorAll(":scope > div > [role=row], :scope > div > div > div > [role=row]").length,
 		is: q(':is(#footerPlayer, #sidebar) a'),
 		where: q(':where([data-test="tracklist-row"]):not([data-index="0"])'),
 		nth: q('[data-test="tracklist-row"]:nth-child(2n+1)'),
@@ -2047,7 +2047,7 @@ new MutationObserver(go).observe(document.body, { childList: true, subtree: true
     let r = results_until(&luna, &dir, 10, |r| r["done"] == json!(true));
     let c = &r["counts"];
     assert_eq!(c["has"], json!(3), "{c}");
-    // The header row, and the rows inside TIDAL's virtual list
+    // The header row in its box, and the rows inside TIDAL's list
     // (`div > div[k] > div > row`).
     assert_eq!(c["scope"], json!(4), "{c}");
     assert!(c["is"].as_u64().unwrap() >= 2, "{c}");
@@ -2849,7 +2849,7 @@ setInterval(() => {
 		album: q('[data-test^="album-card-"] img')?.className ?? null,
 		mix: q('[data-test^="mix-card-"] img')?.getAttribute("data-test") ?? null,
 		tile: q("#playlist-shortcut > img")?.className ?? null,
-		heading: q('[data-test="media-table"] > [role="row"]')?.className ?? null,
+		heading: q('[data-test="media-table"] > div > [role="row"]')?.className ?? null,
 		play: q('[data-test="play-all"]')?.getAttribute("aria-label") ?? "none",
 		shuffle: q('[data-test="shuffle-all"]')?.getAttribute("aria-label") ?? "none",
 		filter: q('[data-test="playlist-filter-input"]')?.getAttribute("aria-label") ?? null,
