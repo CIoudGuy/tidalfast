@@ -351,6 +351,22 @@ pub fn show(app: &mut App, ui: &mut egui::Ui, area: Rect) {
     buttons(app, &mut right, &actions, &fit, locale);
 }
 
+/// Where the bar's cover is drawn and where its title starts, from the
+/// cover's layout box `cover` and what a theme made of the cover (its
+/// style and the room its `margin-right` asks): a `scale` grows it about
+/// its centre and a `translate` moves it, neither moving the title, which
+/// starts 16 points (TIDAL's gap) and the margin after the box.
+pub fn identity_layout(
+    cover: Rect,
+    themed: Option<&(super::plugin_dom::CoverStyle, f32)>,
+) -> (Rect, f32) {
+    let Some((style, after)) = themed else {
+        return (cover, cover.right() + 16.0);
+    };
+    let drawn = Rect::from_center_size(cover.center() + style.offset, cover.size() * style.scale);
+    (drawn, cover.right() + 16.0 + after)
+}
+
 /// The cover, the title and who made it.
 fn paint_identity(app: &mut App, ui: &mut egui::Ui, hero: &HeroNote, rect: Rect, fit: &Fit) {
     let palette = app.palette;
@@ -358,25 +374,50 @@ fn paint_identity(app: &mut App, ui: &mut egui::Ui, hero: &HeroNote, rect: Rect,
         pos2(rect.left(), rect.center().y - COVER / 2.0),
         Vec2::splat(COVER),
     );
-    let radius = if hero.round { COVER / 2.0 } else { 4.0 };
-    if hero.liked {
-        super::sidebar::liked_cover(ui, cover, radius);
+    // A theme's rules on an album's cover (Giorgeous's `scale: 1.3` and
+    // `margin-right: 15px`) grow it about its centre and push the title
+    // along; its layout box stays where it was.
+    let themed = super::plugin_dom::small_header_cover(cover);
+    let (drawn, left) = identity_layout(cover, themed.as_ref());
+    let style = themed.as_ref().map(|(style, _)| style);
+    let radius = if hero.round {
+        drawn.width() / 2.0
     } else {
-        let art = app.backend.art().clone();
-        widgets::paint_cover(
-            ui,
-            &palette,
-            hero.cover.as_deref(),
-            cover,
-            radius,
-            if hero.round { Icon::User } else { Icon::Music },
-            Some(&art),
-        );
+        style.and_then(|s| s.radius).unwrap_or(4.0)
+    };
+    let opacity = style.map_or(1.0, |s| s.opacity);
+    if opacity > 0.0 {
+        let mut art_ui = ui.new_child(egui::UiBuilder::new().max_rect(ui.max_rect()));
+        art_ui.set_clip_rect(ui.clip_rect());
+        art_ui.multiply_opacity(opacity);
+        for shadow in style.map(|s| s.shadows.as_slice()).unwrap_or_default() {
+            art_ui
+                .painter()
+                .add(shadow.as_shape(drawn, egui::CornerRadius::same(radius as u8)));
+        }
+        if hero.liked {
+            super::sidebar::liked_cover(&art_ui, drawn, radius);
+        } else {
+            let art = app.backend.art().clone();
+            widgets::paint_cover_with_thumbnail(
+                &art_ui,
+                &palette,
+                widgets::CoverSources {
+                    requested: hero.cover.as_deref(),
+                    filter: style.and_then(|s| s.filter.as_ref()),
+                    held: style.is_some(),
+                    ..Default::default()
+                },
+                drawn,
+                radius,
+                if hero.round { Icon::User } else { Icon::Music },
+                Some(&art),
+            );
+        }
     }
     if !fit.text {
         return;
     }
-    let left = cover.right() + 16.0;
     let width = (rect.right() - left).max(0.0);
     let text = Rect::from_min_max(pos2(left, rect.top()), pos2(left + width, rect.bottom()));
     let mut column = ui.new_child(

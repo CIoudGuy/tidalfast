@@ -4401,6 +4401,47 @@ pub fn byline_picture(r: Rect, url: Option<&str>) {
     });
 }
 
+/// The pinned header's cover is drawn in `r`: gives an album's its
+/// anchors (TIDAL's `._smallHeader_ > ._coverArt_ > img`) and returns what
+/// a theme made of them, with the room its `margin-right` asks after it
+/// (Giorgeous's and Sunken Tidal's larger cover, 15 points from the
+/// title). `None` while no theme styles it, and on other pages, whose
+/// pinned header TIDAL builds otherwise.
+pub fn small_header_cover(r: Rect) -> Option<(CoverStyle, f32)> {
+    use dom_anchors::keys::{PAGE_SMALL_HEADER_COVER, PAGE_SMALL_HEADER_COVER_IMG};
+    if !on() {
+        return None;
+    }
+    let mut album = false;
+    note(|f| {
+        if let Some(p) = f.page.as_mut() {
+            p.small_header_cover = rect(r);
+            album = p.page_id.as_deref() == Some("album");
+        }
+    });
+    if !album {
+        return None;
+    }
+    let slot = usize::MAX - 9;
+    let style = match theme_boxes(|b| b.covers.get(&slot).cloned()) {
+        Some(hit) => hit,
+        None => {
+            let made = cover_style_uncached(&[
+                PAGE_SMALL_HEADER_COVER.to_string(),
+                PAGE_SMALL_HEADER_COVER_IMG.to_string(),
+            ]);
+            theme_boxes(|b| b.covers.insert(slot, made.clone()));
+            made
+        }
+    };
+    let after = margins(PAGE_SMALL_HEADER_COVER)[1].unwrap_or(0.0);
+    match style {
+        Some(style) => Some((style, after)),
+        None if after != 0.0 => Some((CoverStyle::plain(), after)),
+        None => None,
+    }
+}
+
 pub fn hero_cover(r: Rect, radio: bool) -> Option<CoverStyle> {
     use dom_anchors::keys::{HERO_COVER, HERO_COVER_ART, HERO_COVER_IMG};
     if !on() {
@@ -4526,18 +4567,25 @@ fn circle_radius(value: &str) -> bool {
         .is_some_and(|p| p >= 50.0)
 }
 
+impl CoverStyle {
+    /// A cover as drawn: no theme's corners, shadows, filter or transform.
+    pub fn plain() -> Self {
+        Self {
+            radius: None,
+            opacity: 1.0,
+            scale: 1.0,
+            offset: egui::Vec2::ZERO,
+            shadows: Vec::new(),
+            filter: None,
+            transition: None,
+            portrait: None,
+        }
+    }
+}
+
 fn cover_style_uncached(boxes: &[String]) -> Option<CoverStyle> {
     let viewport = viewport();
-    let mut style = CoverStyle {
-        radius: None,
-        opacity: 1.0,
-        scale: 1.0,
-        offset: egui::Vec2::ZERO,
-        shadows: Vec::new(),
-        filter: None,
-        transition: None,
-        portrait: None,
-    };
+    let mut style = CoverStyle::plain();
     let mut filters = String::new();
     let mut any = false;
     let mut hidden = false;

@@ -83,6 +83,12 @@ pub mod keys {
     pub const PAGE_DETAIL: &str = "page-detail";
     pub const PAGE_DATA: &str = "page-data";
     pub const PAGE_SMALL_HEADER: &str = "page-small-header";
+    /// The pinned header's cover on an album (TIDAL 2.47.0:
+    /// `div._smallHeader_f2c3791 > div.tidal-ui__geometry.css-kb5cm1.
+    /// _coverArt_79d862c > div > div > img._cellImage_0ef8dd3[data-test=
+    /// cover-art]`) and its picture.
+    pub const PAGE_SMALL_HEADER_COVER: &str = "page-small-header-cover";
+    pub const PAGE_SMALL_HEADER_COVER_IMG: &str = "page-small-header-cover-img";
     pub const PAGE_META: &str = "page-meta-line";
     pub const PAGE_RELEASE: &str = "page-release-date";
     /// An album header's quality badge after its release date
@@ -1651,6 +1657,8 @@ pub struct Page {
     /// away (`div.content-header > div._smallHeader_._showHeader_`), while
     /// it shows.
     pub small_header: Option<Rect>,
+    /// The pinned header's cover, while the header shows.
+    pub small_header_cover: Option<Rect>,
     /// The header's meta line (`_metaLine_`) with its release date.
     pub meta: Option<MetaLine>,
     /// The page's filter field (`input[data-test=playlist-filter-input]`).
@@ -3787,6 +3795,38 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
                 .modules(&["smallHeader", "showHeader"])
                 .at(Some(bar)),
         );
+        // An album's pinned header shows its cover first, as TIDAL 2.47.0
+        // draws it (captured): Giorgeous's and Sunken Tidal's
+        // `[class^="_smallHeader_"] [class*="tidal-ui__geometry"]
+        // [class*="_coverArt_"] { scale: 1.3 }` are for it. A playlist's
+        // is other markup (`_bar_ > _artwork_ > _smallCoverArt_`), which
+        // those rules do not reach.
+        if let Some(cover) = page.small_header_cover
+            && page.page_id.as_deref() == Some("album")
+        {
+            out.push(
+                el(
+                    keys::PAGE_SMALL_HEADER_COVER,
+                    Some(keys::PAGE_SMALL_HEADER),
+                    "div",
+                )
+                .class("tidal-ui__geometry")
+                .class("css-kb5cm1")
+                .class("_coverArt_79d862c")
+                .at(Some(cover)),
+            );
+            out.push(
+                el(
+                    keys::PAGE_SMALL_HEADER_COVER_IMG,
+                    Some(keys::PAGE_SMALL_HEADER_COVER),
+                    "img",
+                )
+                .class("_cellImage_0ef8dd3")
+                .class("_image_145331a")
+                .test("cover-art")
+                .at(Some(cover)),
+            );
+        }
     }
     if let Some(meta) = &page.meta {
         out.push(

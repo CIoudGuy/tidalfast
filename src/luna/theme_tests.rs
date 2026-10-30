@@ -924,6 +924,96 @@ img,
     let _ = std::fs::remove_dir_all(&data);
 }
 
+/// Giorgeous's and Sunken Tidal's rule on the cover in the header pinned
+/// over a scrolled album: TIDAL 2.47.0 puts the cover inside the pinned
+/// header (`._smallHeader_ > .tidal-ui__geometry._coverArt_ > img`), so the
+/// cover grows 1.3 times about its centre, loses its shadow, and the title
+/// moves 15 points along. Before, the anchor had no cover inside it and
+/// the bar's cover stayed as drawn. A playlist's pinned header is other
+/// markup in TIDAL, which the rule does not reach.
+#[test]
+fn theme_rules_on_the_pinned_headers_cover_reach_it() {
+    use crate::ui::plugin_dom::{
+        small_header_cover, test_overlay, test_page_frame_as, test_viewport,
+    };
+    let css = r#"/* {"name": "PinnedCover"} */
+[class^="_smallHeader_"] [class*="tidal-ui__geometry"][class*="_coverArt_"] {
+    scale: 1.3;
+    box-shadow: none;
+    margin-right: 15px;
+}
+"#;
+    let files: Files = Arc::default();
+    files
+        .lock()
+        .unwrap()
+        .insert("/pinnedcover.css".into(), css.as_bytes().to_vec());
+    let base = serve(files);
+    let data = temp_dir("theme-pinned-cover");
+    let luna = Luna::start(config(&data), Arc::new(MockHost::default())).unwrap();
+    use dom_anchors::keys::*;
+    let bar = [240.0, 0.0, 1040.0, 88.0];
+    let cover = [272.0, 12.0, 64.0, 64.0];
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(page) = frame.page.as_mut() {
+        assert_eq!(page.page_id.as_deref(), Some("album"));
+        page.small_header = Some(bar);
+        page.small_header_cover = Some(cover);
+    }
+    let tree = dom_anchors::build(&frame);
+    // A playlist's pinned header carries no album cover.
+    let mut playlist = frame.clone();
+    if let Some(page) = playlist.page.as_mut() {
+        page.page_id = Some("playlist".into());
+    }
+    let playlist_tree = dom_anchors::build(&playlist);
+    assert!(
+        playlist_tree
+            .nodes
+            .iter()
+            .all(|n| n.key != PAGE_SMALL_HEADER_COVER)
+    );
+    luna.install_theme(&format!("{base}/pinnedcover.css"));
+    let end = Instant::now() + Duration::from_secs(20);
+    let mut o = loop {
+        luna.sync_dom(tree.clone());
+        luna.sync(Duration::from_secs(5));
+        let o = luna.dom_overlay();
+        if o.css_bytes > 0 && o.hosts.contains_key(PAGE_SMALL_HEADER_COVER) {
+            break (*o).clone();
+        }
+        assert!(Instant::now() < end, "the pinned cover was never styled");
+        std::thread::sleep(Duration::from_millis(30));
+    };
+    // Looks are kept by overlay version on this thread: a version of its
+    // own, after a clean state, so no other test's look is read here.
+    test_overlay(None);
+    o.version = 4_901;
+    test_overlay(Some(o));
+    test_viewport([1400.0, 900.0]);
+    test_page_frame_as("album");
+    let r = egui::Rect::from_min_size(egui::pos2(272.0, 12.0), egui::Vec2::splat(64.0));
+    let themed = small_header_cover(r).expect("a themed pinned cover");
+    assert_eq!(themed.0.scale, 1.3);
+    assert!(themed.0.shadows.is_empty());
+    assert_eq!(themed.1, 15.0);
+    let (drawn, title) = crate::ui::sticky::identity_layout(r, Some(&themed));
+    assert_eq!(drawn.center(), r.center());
+    assert!((drawn.width() - 83.2).abs() < 0.01, "{drawn:?}");
+    assert_eq!(title, r.right() + 16.0 + 15.0);
+    // The same overlay on a playlist page: no album cover there.
+    test_page_frame_as("playlist");
+    assert!(small_header_cover(r).is_none());
+    test_overlay(None);
+    assert!(small_header_cover(r).is_none());
+    assert_eq!(
+        crate::ui::sticky::identity_layout(r, None),
+        (r, r.right() + 16.0)
+    );
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&data);
+}
+
 /// Lunallena's covers: dimmed in a card container, full and grown under the
 /// pointer. The pointer is over the picture inside the cover box, and
 /// `:hover` of the box's rule applies to it (an element and its ancestors).
