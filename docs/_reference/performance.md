@@ -1823,6 +1823,52 @@ matched again from `:has` and inline-style changes in the later part of
 the scroll, and the matching of new rows itself (about 150 us an element
 with these plugins' rules).
 
+## Plugins, speed round 23: styling the rows a scroll brings in (2026-10-30)
+
+Round 22 left the matching of each new row's elements, about 150 us an
+element with the 18 plugins, and the `:has` bookkeeping around it. A
+probe of the scripted playlist scroll split that cost. An element tried
+about 35 candidate rules and matched 0.2 of them: some 20 of the
+candidates were the `[class*=...]` rules the plugins write, each failing
+on the element's own class. The `:has` bookkeeping cost as much as the
+matching: the plugins' sheets hold 16 `:has` compounds, most of them
+scroll-to-playing's same `[role="row"]:has(a[href*=...])` written once
+for each subject, and every ancestor of every changed element, the
+elements inside a new row included, was asked each of them, each repeat
+searching the row again. Two changes, each with a test that compares the
+kept results with fresh ones (or with `matches`) after random changes:
+
+- **Each `:has` compound once.** Repeats of one compound are asked once,
+  an argument already searched for an element is not searched again for
+  another selector, and the elements inside a subtree the same change
+  brought in are not asked at all (their own cascade asks).
+- **What an element's own attributes rule out, once for each kind of
+  element.** The rules, `:has` compounds and sibling subjects whose last
+  compound an element's tag, id, classes and attributes cannot match are
+  worked out once for each combination of those (with the values of the
+  attributes those compounds test), and left out without being tried:
+  about 4 candidates an element now.
+
+| Ten seconds of the scroll, 18 plugins (medians of 3 runs, 2 windows each) | Before | `:has` once | Both |
+| --- | --- | --- | --- |
+| Styling one new element (matching and the bookkeeping before it) | 246 us | 189 us | 145 us |
+| Matching alone | 148 us | 143 us | 106 us |
+| Overlay builds (time of one) | 15 (241 ms) | 21.5 (171 ms) | 19.5 (161 ms) |
+| Style walk of one build | 150 ms | 95 ms | 85 ms |
+
+The thread still uses a full core while the list scrolls (the pipeline
+builds as fast as rows come), so the saving shows as more and shorter
+builds. Measured on one release build that loads its JavaScript from a
+folder, all variants interleaved. Tried and left out: testing a
+compound's `:has` after the rest of its selector (radiant-lyrics'
+`[data-test=now-playing-lyrics] > div:has(...)` searched each row's
+divs) made no difference that the runs could show. The inline-style
+restyles round 22 saw did not show in these runs. Still open: building
+each element's kind key (a quarter to a third of the matching now), the `:has`
+answers for the ancestors of the rows' changed elements (about 2 % of the
+thread), and hover changes that forget a whole row (up to 2,500 elements
+a window).
+
 ## Findings and decisions
 
 - **Luna's work follows changes, not the page.** With Luna on, a pass made
