@@ -5394,6 +5394,8 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
         }
         out.push(
             el(QUALITY_TEXT, Some(QUALITY_BADGE), "span")
+                .class("_marketText_1lyag_1")
+                .class("_paragraph10_1lyag_156")
                 .modules(&["badgeText"])
                 .at(p.rect(P::QualityLabel)),
         );
@@ -6664,7 +6666,10 @@ mod tests {
                         ("div", "_gradientLow_3f9bc0d"),
                         ("div", "_gradientHigh_87f2c3b"),
                         ("div", "_gradientMax_9111fba"),
-                        ("span", "_badgeText_1c9dd30"),
+                        (
+                            "span",
+                            "_marketText_1lyag_1 _paragraph10_1lyag_156 _badgeText_1c9dd30",
+                        ),
                         ("div", "_glowEffect_74c5e85"),
                     ],
                     "{quality}"

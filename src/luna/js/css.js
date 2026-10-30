@@ -512,6 +512,11 @@
 					// that copy its class.
 					'[class^="_utilityButtons_"] > button:where(:not(.withBackground)) { display: flex; width: 32px; height: 32px; padding: 1px 6px; border: 0; background-color: transparent; align-items: center; justify-content: center; cursor: pointer; }\n' +
 					'[class^="_utilityButtons_"] > button svg { width: 16px; height: 16px; }\n' +
+					// The badge's words take the tier's colour over a theme's rule
+					// on all of TIDAL's text (`._marketText_ { color }`).
+					":root { --market-core-teal-text-color: #16d8a7; --market-core-yellow-text-color: #ffd432; }\n" +
+					"._high_4b5525b ._badgeText_1c9dd30 { color: var(--market-core-teal-text-color); }\n" +
+					"._max_894bc7c ._badgeText_1c9dd30 { color: var(--market-core-yellow-text-color); }\n" +
 					"._soundOutputButton_a6d011c { min-width: 32px; min-height: 32px; }\n" +
 					// A disabled button in the player is at half strength
 					// (TIDAL 2.46.0's own rule): OneClickLyrics' button for a

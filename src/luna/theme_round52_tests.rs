@@ -115,3 +115,43 @@ fn a_themes_rail_and_played_part_are_two_boxes() {
     assert_eq!(progress_fill(), Some(egui::Color32::from_rgb(4, 5, 6)));
     pd::test_overlay(None);
 }
+
+/// TIDAL's badge words are `span._marketText_._paragraph10_._badgeText_`:
+/// a rule that beats the tier's colour (Tidal Light's `._marketText_
+/// { color: ... !important }`) colours them, a plain one on all text does
+/// not, and a theme's gradient, border and shadows on `._badge_` draw whole.
+#[test]
+fn the_badges_words_and_box_take_a_themes_rules_as_tidals_do() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::QUALITY_TEXT;
+    let frame = || {
+        let mut frame = dom_anchors::sample_frame();
+        let bar = frame.player.as_mut().expect("the bar");
+        bar.quality = Some("LOSSLESS".into());
+        frame
+    };
+    let css = r#"/* {"name": "Words"} */
+._marketText_1lyag_1 { color: rgb(10, 20, 30) !important; }
+._badge_7b2911e { background-image: linear-gradient(90deg, rgb(1, 2, 3), rgb(4, 5, 6)); color: rgb(1, 1, 1); }
+"#;
+    let o = overlay_with("words.css", css, &frame(), QUALITY_TEXT);
+    pd::test_overlay(Some((*o).clone()));
+    assert_eq!(
+        pd::color(QUALITY_TEXT),
+        Some(egui::Color32::from_rgb(10, 20, 30))
+    );
+    let themed = pd::quality_badge("LOSSLESS").expect("the theme's badge");
+    assert!(themed.boxed, "{themed:?}");
+    pd::test_overlay(None);
+    let css = r#"/* {"name": "Plain"} */
+._marketText_1lyag_1 { color: rgb(10, 20, 30); }
+._badge_7b2911e { color: rgb(1, 1, 1); }
+"#;
+    let o = overlay_with("plain.css", css, &frame(), QUALITY_TEXT);
+    pd::test_overlay(Some((*o).clone()));
+    assert_eq!(
+        pd::color(QUALITY_TEXT),
+        Some(egui::Color32::from_rgb(0x16, 0xd8, 0xa7))
+    );
+    pd::test_overlay(None);
+}

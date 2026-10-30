@@ -168,8 +168,26 @@ pub(crate) fn show(
             .clamp(0.0, HEIGHT / 2.0);
         let radius = CornerRadius::same(r.round() as u8);
         let painter = ui.painter();
-        for fill in [themed.fill, themed.layer].into_iter().flatten() {
+        use super::plugin_dom::paint_themed_box;
+        if themed.boxed {
+            paint_themed_box(
+                ui,
+                crate::luna::dom_anchors::keys::QUALITY_BADGE,
+                rect,
+                radius,
+            );
+        } else if let Some(fill) = themed.fill {
             painter.rect_filled(rect, radius, fill);
+        }
+        match themed.gradient {
+            Some(gradient) => {
+                paint_themed_box(ui, gradient, rect, radius);
+            }
+            None => {
+                if let Some(fill) = themed.layer {
+                    painter.rect_filled(rect, radius, fill);
+                }
+            }
         }
         label_and_parts(ui, rect, galley, text_color, parts, inside_id);
     } else if ui.is_rect_visible(rect) {

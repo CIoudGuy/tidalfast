@@ -3760,7 +3760,7 @@ fn theme_boxes<R>(f: impl FnOnce(&mut ThemeBoxes) -> R) -> R {
     })
 }
 
-fn quality_badge_uncached(gradient: &str) -> Option<ThemedBadge> {
+fn quality_badge_uncached(gradient: &'static str) -> Option<ThemedBadge> {
     use dom_anchors::keys::QUALITY_BADGE;
     let layer = |key: &str| host(key, pill_fill).filter(|c| c.a() > 0);
     let radius = |key: &str| {
@@ -3773,8 +3773,11 @@ fn quality_badge_uncached(gradient: &str) -> Option<ThemedBadge> {
         fill: layer(QUALITY_BADGE),
         layer: layer(gradient),
         radius: radius(gradient).or_else(|| radius(QUALITY_BADGE)),
+        boxed: paints_box(QUALITY_BADGE),
+        gradient: paints_box(gradient).then_some(gradient),
     };
-    (badge.fill.is_some() || badge.layer.is_some()).then_some(badge)
+    (badge.fill.is_some() || badge.layer.is_some() || badge.boxed || badge.gradient.is_some())
+        .then_some(badge)
 }
 
 /// A card of a shelf or grid drawn at `r` (an artist's when `artist`):
@@ -4951,6 +4954,11 @@ pub struct ThemedBadge {
     pub layer: Option<Color32>,
     /// Corner radius in points (the gradient's, else the badge's).
     pub radius: Option<f32>,
+    /// The badge's look goes beyond a flat fill (Tidal Light's gradient,
+    /// border and shadows): drawn whole.
+    pub boxed: bool,
+    /// The tier gradient's anchor, when it paints a look of its own.
+    pub gradient: Option<&'static str>,
 }
 
 /// A theme's colours for a header pill (see [`header_pill`]).
@@ -9497,7 +9505,12 @@ fn radial_mesh(
         rings.push((reach + 0.01, color));
     }
     let mut mesh = egui::Mesh::default();
-    mesh.colored_vertex(center, rings[0].1);
+    // A centre outside the box (`at 60% 107%`) is pulled in with the rings,
+    // or the fan to it would paint past the box's corners.
+    mesh.colored_vertex(
+        corner.map_or(center, |corner| into_rounded(center, r, corner)),
+        rings[0].1,
+    );
     let mut count = 0u32;
     // The first colour fills out to its stop when that is past the centre.
     let first = usize::from(rings[0].0 <= 0.0);
@@ -10499,6 +10512,22 @@ mod tests {
     /// An elliptical radial gradient with its stop positions, drawn in a
     /// rounded box, keeps every ring inside the corners, and its stops'
     /// places along the ray are those of the plain gradient.
+    #[test]
+    fn a_radial_centred_outside_its_box_stays_in_its_corners() {
+        let r = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(120.0, 40.0));
+        let corner = egui::CornerRadius::same(20);
+        let mesh = radial_box_mesh(
+            "radial-gradient(ellipse 60% 170% at 60% 107%, #e6e6e6 0%, #fff 50%, #eee 100%)",
+            r,
+            Some(corner),
+        )
+        .expect("the gradient");
+        for v in &mesh.vertices {
+            let inside = into_rounded(v.pos, r, corner);
+            assert!((inside - v.pos).length() < 0.01, "{:?}", v.pos);
+        }
+    }
+
     #[test]
     fn an_ellipse_radial_follows_rounded_corners() {
         let r = Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(200.0, 100.0));
