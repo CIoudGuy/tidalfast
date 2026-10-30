@@ -10945,13 +10945,24 @@ impl App {
                         self.cache_track_from_context(&context_uri, uri);
                     }
                     let request = PlayRequest::tracks(uris).starting_at_index(index);
-                    let (kept_since, same) = (
-                        self.history_since,
-                        self.playing_context_uri().as_deref() == Some(context_uri.as_str()),
-                    );
+                    // Its songs play as a list, but it is still the same
+                    // context, so History stays.
+                    let kept = (self.playing_context_uri().as_deref()
+                        == Some(context_uri.as_str()))
+                    .then(|| {
+                        (
+                            self.history_since,
+                            self.queue_history.clone(),
+                            self.history_prev.clone(),
+                            self.history_ignore.clone(),
+                        )
+                    });
                     self.play_request(request, false);
-                    if same {
-                        self.history_since = kept_since;
+                    if let Some((since, history, prev, ignore)) = kept {
+                        self.history_since = since;
+                        self.queue_history = history;
+                        self.history_prev = prev;
+                        self.history_ignore = ignore;
                     }
                     self.note_recent_context(&context_uri);
                     self.assumed_context = Some(AssumedContext {
@@ -28666,6 +28677,54 @@ mod tests {
             &ctx,
         );
         assert!(app.shuffle_wanted);
+    }
+
+    /// A row of a sorted or filtered view of the playing context stays in
+    /// that context, so History stays too, and the song left joins it.
+    #[test]
+    fn a_row_of_a_view_of_the_playing_context_keeps_history() {
+        let ctx = egui::Context::default();
+        let mut app = headless_app();
+        app.apply(
+            Action::PlayContext {
+                uri: "tidal:album:alb1".into(),
+                offset_uri: None,
+                offset_index: None,
+            },
+            &ctx,
+        );
+        let earlier = Track {
+            id: Some("1".into()),
+            uri: "tidal:track:1".into(),
+            ..Track::default()
+        };
+        let left = Track {
+            id: Some("2".into()),
+            uri: "tidal:track:2".into(),
+            ..Track::default()
+        };
+        app.queue_history = vec![earlier];
+        app.history_prev = Some(left);
+        let uris: std::sync::Arc<[String]> =
+            ["tidal:track:3", "tidal:track:4"].map(String::from).into();
+        app.apply(
+            Action::PlayFromRow {
+                context: RowContext::View {
+                    uris,
+                    context_uri: "tidal:album:alb1".into(),
+                    editable_playlist: None,
+                },
+                uri: "tidal:track:4".into(),
+                index: 1,
+            },
+            &ctx,
+        );
+        assert_eq!(app.queue_history.len(), 1, "History stays");
+        assert_eq!(
+            app.history_prev.as_ref().map(|track| track.uri.as_str()),
+            Some("tidal:track:2"),
+            "the song left still joins it when the row starts"
+        );
     }
 
     /// A new context starts with an empty History; the same context keeps

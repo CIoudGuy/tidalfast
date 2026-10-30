@@ -42,7 +42,8 @@ as in TIDAL.
 A song in an artist's Popular tracks plays the artist from that song, all of
 their songs as the artist's **Play** does, under the artist's name; not only
 the songs shown.
-A new context starts with an empty History in the play queue panel, which
+A new context starts with an empty History in the play queue panel (a row of
+a sorted or filtered view of the playing context is not a new one), which
 lists only songs played since (up to 100, newest last, saved with the
 session). The song just left joins History the moment the song changes;
 clicking a row goes back to it in the same context; the listening history
