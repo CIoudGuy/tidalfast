@@ -7409,6 +7409,9 @@ const SELS = [
 	'#cell-7',
 	'[id^="cell-1"] b',
 	'div[id]',
+	':is(#cell-9)',
+	':is([data-only])',
+	':where([data-track-id="9"])',
 ];
 const st = document.createElement("style");
 st.textContent = SELS.map((s, i) => `${s} { --r${i}: 1; }`).join("\n");
@@ -7419,6 +7422,7 @@ for (let i = 0; i < 200; i++) {
 	const row = document.createElement("div");
 	row.setAttribute("data-track-id", i % 50 === 0 ? `1-${i}` : String(i));
 	row.setAttribute("aria-label", `Play ${i}`);
+	if (i % 2) row.setAttribute("data-only", "");
 	row.innerHTML = `<a href="${i % 3 ? "/album/" : "/artist/"}${i}">t</a><span data-k="${i}">x</span><div id="cell-${i}"><b>c</b></div>`;
 	box.append(row);
 }

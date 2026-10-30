@@ -758,6 +758,9 @@
 				if (!tests) ownTests.set(name, (tests = new Map()));
 				tests.set(JSON.stringify([a.op, a.val, !!a.ci]), a);
 			}
+			// A compound that is all `:is(...)` or `:where(...)` of one
+			// selector is indexed by that selector's own (see `keyOf`).
+			for (const p of c.pseudos) if ((p.name === "is" || p.name === "where") && p.list?.length === 1) ownReads(p.list[0].steps.at(-1).c);
 		};
 		// The custom properties some declaration reads (`var(--x)`, in a rule,
 		// a pseudo-element's rule or a keyframe): setting one no rule reads
