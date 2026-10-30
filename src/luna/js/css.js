@@ -612,6 +612,7 @@
 		const pseudo = { before: pseudoIx(), after: pseudoIx(), track: pseudoIx(), thumb: pseudoIx(), selection: pseudoIx() };
 		const fonts = [];
 		const keyframes = new Map();
+		const initials = new Map();
 		registered.clear();
 		let hover = false;
 		// A `:hover` with a sibling combinator in the same selector (`.a:hover
@@ -800,6 +801,17 @@
 					for (const [, decls] of frames) for (const k of decls.keys()) if (k.startsWith("--")) registered.add(k);
 				} else if (r instanceof CSSOtherRule && r.name === "property" && r._prelude.startsWith("--")) {
 					registered.add(r._prelude.trim());
+					// A typed registration's `initial-value` is the property's
+					// value wherever nothing sets it (`--star1: 0%` until an
+					// animation moves it); `syntax: "*"` has no initial value.
+					const desc = new Map();
+					for (const d of String(r._body ?? "").split(";")) {
+						const at = d.indexOf(":");
+						if (at > 0) desc.set(d.slice(0, at).trim().toLowerCase(), d.slice(at + 1).trim());
+					}
+					const syntax = (desc.get("syntax") ?? "").replace(/^["']|["']$/g, "").trim();
+					const initial = desc.get("initial-value");
+					if (initial && syntax && syntax !== "*") initials.set(r._prelude.trim(), initial);
 				}
 			}
 		};
@@ -820,7 +832,7 @@
 		}
 		if (skipped && !warnedCss) L.callOp("log", { plugin: null, level: "warn", msg: `${skipped} style sheet(s) left out: plugin and theme CSS is capped at ${MAX_CSS_BYTES >> 20} MB` });
 		warnedCss = skipped > 0;
-		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, hover, hoverSiblings, hoverHas, hoverSubjects, styleAttr, structural, siblingSubjects: [...siblingSubjects.values()].sort((a, b) => b.deep - a.deep), hasSiblings, empty, hasSteps, hasWhole, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
+		index = { byId, byClass, byTag, byAttr, any, root, fonts, keyframes, initials, hover, hoverSiblings, hoverHas, hoverSubjects, styleAttr, structural, siblingSubjects: [...siblingSubjects.values()].sort((a, b) => b.deep - a.deep), hasSiblings, empty, hasSteps, hasWhole, hasStyleSteps, styleSiblings, attrNames, varNames, bytes, size: order, pseudo, userSelect };
 		return index;
 	};
 	// `@keyframes` body -> [[offset 0..1, Map name -> value]], sorted.
@@ -1795,14 +1807,18 @@
 		const t3 = L.stat ? Date.now() : 0;
 		let vars;
 		const last = rootMemo;
-		let same = last !== null && last.src.size === rootVars.size;
+		let same = last !== null && last.ix === ix && last.src.size === rootVars.size;
 		if (same) for (const [k, v] of rootVars) if (last.src.get(k) !== v) { same = false; break; }
 		if (same) vars = last.vars;
 		else {
 			D.rootResolves = (D.rootResolves ?? 0) + 1;
 			vars = {};
 			for (const [k, v] of rootVars) vars[k] = resolveVars(v, rootVars).trim();
-			rootMemo = { src: rootVars, vars, keyframes: new Map() };
+			// `@property` initial values, under a key no custom property can
+			// have: the painter's `var()` falls back to them (see
+			// `plugin_slots::css::resolve_vars`).
+			for (const [k, v] of ix.initials) vars[`@property ${k}`] = v;
+			rootMemo = { src: rootVars, vars, keyframes: new Map(), ix };
 		}
 		if (L.stat) L.stat("css: root vars", t3);
 		// The @keyframes the styled elements use, as [offset, style] lists

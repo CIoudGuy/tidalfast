@@ -98,6 +98,8 @@ mod theme_round47_tests;
 mod theme_round48_tests;
 #[path = "theme_round49_tests.rs"]
 mod theme_round49_tests;
+#[path = "theme_round50_tests.rs"]
+mod theme_round50_tests;
 #[path = "theme_tests.rs"]
 mod theme_tests;
 #[path = "tidal247_tests.rs"]

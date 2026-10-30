@@ -43,8 +43,12 @@ pub(crate) mod css {
                 [name, rest @ ..] => (name.trim().to_string(), Some(rest.join(","))),
                 [] => (String::new(), None),
             };
+            // A property `@property` registers with an `initial-value` has
+            // that value where nothing sets it, ahead of the fallback (the
+            // runtime keeps it under `@property --name`).
             let replacement = vars
                 .get(&name)
+                .or_else(|| vars.get(&format!("@property {name}")))
                 .cloned()
                 .or(fallback.map(|f| f.trim().to_string()))
                 .unwrap_or_default();

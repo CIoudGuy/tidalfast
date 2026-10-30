@@ -191,6 +191,10 @@ struct State {
     /// Anchors' box layers, parsed for this overlay version and window size
     /// (a layer's `vw` and `vh` are the window's).
     box_layers: Option<(u64, [f32; 2], BoxLayerCache)>,
+    /// Box layers whose `var()`s an animation moves (a registered
+    /// `--star1` fading): the values they were made with, per anchor. Only
+    /// the last values are kept; cleared with [`State::box_layers`].
+    moving_layers: HashMap<String, MovingLayers>,
     /// The theme's badge, bar cards and grid cards and every anchor's look,
     /// parsed for this overlay version and window size. A resize leaves the
     /// overlay as it was (its rules say `20vh` at any size), so the size is
@@ -7743,6 +7747,10 @@ type LayoutCache = (
 /// Parsed box layers by anchor key.
 type BoxLayerCache = BTreeMap<String, Arc<Vec<BoxLayer>>>;
 
+/// An anchor's box layers made with the values an animation gave its
+/// registered custom properties (name, CSS value), and those values.
+type MovingLayers = (Vec<(String, String)>, Arc<Vec<BoxLayer>>);
+
 /// One thing a theme paints on an anchor's box, in painting order.
 #[derive(Clone, Debug, PartialEq)]
 pub enum BoxLayer {
@@ -8050,9 +8058,45 @@ fn paint_layers(
             .is_none_or(|(v, at, _)| *v != version || *at != viewport)
         {
             s.box_layers = Some((version, viewport, BTreeMap::new()));
+            s.moving_layers.clear();
         }
         let host = s.overlay.hosts.get(key)?;
         let vars = s.vars.clone();
+        // Registered custom properties an animation of the box moves, when
+        // its pictures read variables: those layers are made again for each
+        // new value (the last kept), the others once per overlay.
+        let reads = |st: &Style| {
+            st.background_image
+                .as_deref()
+                .is_some_and(|i| i.contains("var("))
+        };
+        let moving = (host.style.animation.is_some()
+            && (reads(&host.style)
+                || host.before.as_ref().is_some_and(reads)
+                || host.after.as_ref().is_some_and(reads)))
+        .then(|| {
+            super::theme_motion::custom_values(
+                ui.ctx(),
+                key,
+                &host.style,
+                &s.overlay.keyframes,
+                &vars,
+            )
+        })
+        .filter(|v| !v.is_empty());
+        if let Some(values) = moving {
+            if let Some((at, layers)) = s.moving_layers.get(key)
+                && *at == values
+            {
+                return Some(layers.clone());
+            }
+            let mut moved = (*vars).clone();
+            moved.extend(values.iter().cloned());
+            let layers = Arc::new(box_layers(host, &moved, viewport));
+            s.moving_layers
+                .insert(key.to_string(), (values, layers.clone()));
+            return Some(layers);
+        }
         let cache = &mut s.box_layers.as_mut()?.2;
         Some(
             cache

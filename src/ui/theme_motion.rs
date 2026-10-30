@@ -208,6 +208,107 @@ pub fn angle(
     found
 }
 
+/// The values the box's running animations give the custom properties
+/// `@property` registers with a type (Cotton Candy Nights' stars,
+/// `@property --star1 { syntax: '<percentage>'; initial-value: 0% }` and
+/// `@keyframes blink { 50% { --star1: 100% } }`), as CSS text, for
+/// `var()` to read in place of the initial value: numbers with a unit
+/// (the same in every keyframe) and colours, eased as a browser eases a
+/// typed property. Angles are left to [`angle`] (the gradients they turn
+/// keep their `var()`), unregistered properties to the cascade (CSS
+/// flips them, it does not ease them). `vars` holds the registrations
+/// (the runtime's `@property --name` entries). A frame is asked for every
+/// fiftieth of the animation (between 33 and 250 ms): a star fading in
+/// over five seconds changes by four percent a step, five times a second.
+pub fn custom_values(
+    ctx: &egui::Context,
+    key: &str,
+    style: &Style,
+    keyframes: &BTreeMap<String, Vec<(f32, Style)>>,
+    vars: &BTreeMap<String, String>,
+) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    running(
+        ctx,
+        key,
+        style,
+        keyframes,
+        |dur| ((dur * 20.0) as u64).clamp(33, 250),
+        |frames, a, p| {
+            let mut names: Vec<&str> = frames
+                .iter()
+                .filter_map(|(_, s)| s.custom.as_ref())
+                .flat_map(|c| c.keys())
+                .map(String::as_str)
+                .filter(|n| n.starts_with("--"))
+                .collect();
+            names.sort_unstable();
+            names.dedup();
+            let mut moved = false;
+            for name in names {
+                let Some(initial) = vars.get(&format!("@property {name}")) else {
+                    continue;
+                };
+                let values = frames.iter().filter_map(|(offset, s)| {
+                    let v = s.custom.as_ref()?.get(name)?;
+                    Some((*offset, v.as_str(), css_motion::keyframe_timing(s)))
+                });
+                let value = if let Some((own, unit)) = number(initial) {
+                    let frames: Option<Vec<_>> = values
+                        .map(|(o, v, t)| match number(v) {
+                            Some((n, u)) if u == unit => Some((o, n, t)),
+                            _ => None,
+                        })
+                        .collect();
+                    let Some(frames) = frames.filter(|f| !f.is_empty()) else {
+                        continue;
+                    };
+                    let n = css_motion::Track { frames }.at(p, &own, &a.timing);
+                    format!("{}{unit}", (n * 1000.0).round() / 1000.0)
+                } else if let Some(own) = super::plugin_slots::css::color(initial) {
+                    let frames: Option<Vec<_>> = values
+                        .map(|(o, v, t)| Some((o, super::plugin_slots::css::color(v)?, t)))
+                        .collect();
+                    let Some(frames) = frames.filter(|f| !f.is_empty()) else {
+                        continue;
+                    };
+                    let [r, g, b, alpha] = css_motion::Track { frames }
+                        .at(p, &own, &a.timing)
+                        .to_srgba_unmultiplied();
+                    format!("rgba({r}, {g}, {b}, {:.3})", f32::from(alpha) / 255.0)
+                } else {
+                    continue;
+                };
+                out.retain(|(n, _)| n != name);
+                out.push((name.to_string(), value));
+                moved = true;
+            }
+            moved
+        },
+    );
+    out
+}
+
+/// A CSS number and its unit (`5%`, `.7px`, `2`); none for angles, which
+/// [`angle`] turns, and for anything else.
+fn number(value: &str) -> Option<(f32, &str)> {
+    let v = value.trim();
+    let at = v
+        .find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | '-' | '+' | 'e' | 'E')))
+        .unwrap_or(v.len());
+    // `e` of a unit (`em`) is not an exponent.
+    let at = if v[..at].ends_with(['e', 'E']) && !v[at..].is_empty() {
+        at - 1
+    } else {
+        at
+    };
+    let n = v[..at].parse::<f32>().ok()?;
+    let unit = v[at..].trim();
+    let angle = ["deg", "turn", "rad", "grad"].contains(&unit.to_ascii_lowercase().as_str());
+    let plain = unit.is_empty() || unit == "%" || unit.bytes().all(|b| b.is_ascii_alphabetic());
+    (!angle && plain).then_some((n, unit))
+}
+
 /// Runs `use_frames(keyframes, animation, progress)` for each animation of
 /// `style` that shows now (progress 0 to 1 with its direction, before the
 /// keyframes' easing); when it returns true the animation is the one that
@@ -478,6 +579,87 @@ mod tests {
         });
         out.textures_delta.clear();
         assert_eq!(other, None);
+    }
+
+    /// A registered colour or length eases between its keyframes; an angle,
+    /// an unregistered property and keyframes in another unit are left out.
+    #[test]
+    fn registered_colours_and_lengths_ease_and_the_rest_is_left_out() {
+        let frame = |offset: f32, pairs: &[(&str, &str)]| {
+            (
+                offset,
+                Style {
+                    custom: Some(
+                        pairs
+                            .iter()
+                            .map(|(k, v)| (k.to_string(), v.to_string()))
+                            .collect(),
+                    ),
+                    ..Style::default()
+                },
+            )
+        };
+        let keyframes = BTreeMap::from([(
+            "glow".to_string(),
+            vec![
+                frame(
+                    0.0,
+                    &[
+                        ("--tint", "rgb(0, 0, 0)"),
+                        ("--gap", "0px"),
+                        ("--turn", "0deg"),
+                        ("--free", "1px"),
+                        ("--mixed", "0px"),
+                    ],
+                ),
+                frame(
+                    1.0,
+                    &[
+                        ("--tint", "rgb(200, 100, 50)"),
+                        ("--gap", "10px"),
+                        ("--turn", "90deg"),
+                        ("--free", "3px"),
+                        ("--mixed", "1em"),
+                    ],
+                ),
+            ],
+        )]);
+        let vars = BTreeMap::from(
+            [
+                ("@property --tint", "black"),
+                ("@property --gap", "0px"),
+                ("@property --turn", "0deg"),
+                ("@property --mixed", "0px"),
+            ]
+            .map(|(k, v)| (k.to_string(), v.to_string())),
+        );
+        let style = Style {
+            animation: Some("glow 10 0 infinite normal linear running".into()),
+            ..Style::default()
+        };
+        let ctx = egui::Context::default();
+        let mut seen = Vec::new();
+        for time in [0.0, 5.0] {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    time: Some(time),
+                    ..Default::default()
+                },
+                |ui| seen.push(custom_values(ui.ctx(), "box", &style, &keyframes, &vars)),
+            );
+            out.textures_delta.clear();
+        }
+        let half: BTreeMap<String, String> = seen[1].iter().cloned().collect();
+        assert_eq!(
+            half.get("--gap").map(String::as_str),
+            Some("5px"),
+            "{half:?}"
+        );
+        let tint = half
+            .get("--tint")
+            .and_then(|v| super::super::plugin_slots::css::color(v));
+        assert_eq!(tint, Some(egui::Color32::from_rgb(100, 50, 25)), "{half:?}");
+        assert_eq!(half.len(), 2, "{half:?}");
     }
 
     #[test]
