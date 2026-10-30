@@ -5430,7 +5430,7 @@ dependencies = [
 
 [[package]]
 name = "tidalfast"
-version = "1.2.0"
+version = "1.2.1-alpha.1"
 dependencies = [
  "alsa",
  "anyhow",
