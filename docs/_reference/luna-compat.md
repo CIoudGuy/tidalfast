@@ -1538,6 +1538,30 @@ review pass of the compatibility audit.
   plugins reach them (korean-translation 59 to 68 %, uwu-ifier 25 to 31 %).
   Not elements yet: the pinned artist header's buttons, search results'
   rows and top hits, and the track rows' buttons on an artist's page.
+- **Plugin round 26 (2026-10-30).** Worked from the 2.47.0 records and
+  captures of round 25; TIDAL itself was not run. Fixed for every plugin,
+  each with a test that fails without it: an artist's Top Tracks are
+  TIDAL's plain table (`table._trackList_ > tbody >
+  tr[data-test=tracklist-row--selected-false]`, with
+  `image-container-track-<id>`, `table-cell-album`,
+  `tracklist-add-to-playlist` and `tracklist-save-item-<id>`), so a plugin
+  that decorates `div[data-test=tracklist-row]` finds nothing there, as in
+  TIDAL; the artist's pinned header is in the page all the time
+  (`header-controls-scrolled`, `play-all-scrolled`,
+  `shuffle-all-scrolled`); the search page has its top results
+  (`search-results-top-hit-<id>`, `article[data-test=list-item-<kind>]`)
+  for the rows on screen; a library row's picture holds its play button;
+  an artist's shelves hold `album-card-<id>`, `artist-card-<id>` and
+  `playlist-card-<uuid>`. korean-translation 68 to 76 %, uwu-ifier 31 to
+  38 %, the others unchanged: 49 of 59 at full parity, 68 % pooled.
+  What the app draws without a plugin is pixel for pixel the same.
+  Still not elements: an artist's video cards (`video-card-<id>`). No
+  counterpart here because the app does not draw them: an artist's
+  Report button and Social links, the search rows' "Single by", the
+  track menu's Credits and "Last used". Radiant Lyrics' animated cover
+  needs HLS with H.264 decoding (its player reports HLS unsupported), so
+  it stays out. The now-playing tabs a plugin copies keep the look of
+  the tabs Tidalfast draws beside them (TidalEQ's two tabs).
 - **Plugin round 18 (2026-10-30).** TIDAL's side of the checker recorded
   again in TIDAL 2.47.0 with TidaLuna 1.20.0-beta for round 17's eighteen
   plugins and TidalDJ, with an artist page and a search page added. Fixed

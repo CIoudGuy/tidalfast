@@ -350,6 +350,19 @@ A node whose parent is `None` is a child of `#wimp`; the runtime provides
 | `row:<list>:<index>:duration` | `div[data-test=duration]` (`m:ss`) | duration | |
 | `row:<list>:<index>:context` > `:actions` | `div._contextColumn_ > div._flexWrapper_` | | actions Prepend (quick-queue), left of the "..."; the widest row's widens every row's buttons column, as TIDAL's grid does, and the other columns make room |
 
+An artist's Top Tracks use the same keys with TIDAL 2.47.0's markup for that
+table instead: `table._trackList_a129abb > tbody >
+tr[data-test=tracklist-row--selected-<bool>]._rowContainer_ebb4cfc`, with
+`button[data-test=image-container-track-<id>]`, `a[data-test=table-cell-album]`,
+`tracklist-id-<id>-context-menu-button`, `tracklist-add-to-playlist` and
+`tracklist-save-item-<id>`; `div[data-test=tracklist-row]` finds nothing there,
+as in TIDAL. The artist's pinned header (`pinned-artist`,
+`div._smallHeader_383424b`, `header-controls-scrolled`, `play-all-scrolled`,
+`shuffle-all-scrolled`) is in the tree all the time, without boxes until it
+pins. The search page is `search-results > search-results-top`, its top
+results `search-hit:<index>` for the rows on screen
+(`search-results-top-hit-<id>` down to `article[data-test=list-item-<kind>]`).
+
 ### Now playing and lyrics (`now_playing.rs`, `lyrics.rs`)
 
 | Key | Element | Native widget | Slots drawn |
