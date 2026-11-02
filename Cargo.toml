@@ -312,10 +312,12 @@ opt-level = 2
 # Sense::drag and DragValue fixes, and transparent child viewports on Windows
 # with glow, emilk/egui#8423) with right-to-left runs shaped in their bidi
 # direction and digits shaped left to right in text without right-to-left
-# letters (emilk/egui#8577), eframe pacing Wayland frames by the compositor's
-# frame callbacks so a window the compositor stops showing never blocks in a
-# vsync swap (emilk/egui#8631, #266), each emoji cluster laid out one emoji
-# wide, egui's clipboard sharing its Wayland data device with winit's file
+# letters (emilk/egui#8577) and wrapped from their logical start, with the
+# caret, arrow keys and selection right in them (crmne/egui#2), winit's IME
+# surrounding-text deletion forwarded (crmne/egui#4), eframe pacing Wayland
+# frames by the compositor's frame callbacks so a window the compositor stops
+# showing never blocks in a vsync swap (emilk/egui#8631, #266), each emoji
+# cluster laid out one emoji wide, egui's clipboard sharing its Wayland data device with winit's file
 # drops (#614), accesskit focus on a widget drawn a frame later
 # (emilk/egui#8621), a compatibility profile when a core GL context fails
 # (emilk/egui#8655), and the zoom factor saved with the window size so a
@@ -337,16 +339,16 @@ opt-level = 2
 # without allocating, and the crmne/winit pin below. Every egui crate comes
 # from the same revision so they share one emath and epaint.
 # Move to crmne/egui again once it carries these changes.
-ecolor = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
-eframe = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
-egui = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
-egui-wgpu = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
-egui-winit = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
-egui_extras = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
-egui_glow = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
-emath = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
-epaint = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
-epaint_default_fonts = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df76dea1e7d4d6ad969dc54e4819743c65e3" }
+ecolor = { git = "https://github.com/CIoudGuy/egui", rev = "ace78490e32ecffb97e799b0210bc55d665e73d3" }
+eframe = { git = "https://github.com/CIoudGuy/egui", rev = "ace78490e32ecffb97e799b0210bc55d665e73d3" }
+egui = { git = "https://github.com/CIoudGuy/egui", rev = "ace78490e32ecffb97e799b0210bc55d665e73d3" }
+egui-wgpu = { git = "https://github.com/CIoudGuy/egui", rev = "ace78490e32ecffb97e799b0210bc55d665e73d3" }
+egui-winit = { git = "https://github.com/CIoudGuy/egui", rev = "ace78490e32ecffb97e799b0210bc55d665e73d3" }
+egui_extras = { git = "https://github.com/CIoudGuy/egui", rev = "ace78490e32ecffb97e799b0210bc55d665e73d3" }
+egui_glow = { git = "https://github.com/CIoudGuy/egui", rev = "ace78490e32ecffb97e799b0210bc55d665e73d3" }
+emath = { git = "https://github.com/CIoudGuy/egui", rev = "ace78490e32ecffb97e799b0210bc55d665e73d3" }
+epaint = { git = "https://github.com/CIoudGuy/egui", rev = "ace78490e32ecffb97e799b0210bc55d665e73d3" }
+epaint_default_fonts = { git = "https://github.com/CIoudGuy/egui", rev = "ace78490e32ecffb97e799b0210bc55d665e73d3" }
 # crmne/winit apps-0.30, shared with the same apps: winit 0.30.13 plus Wayland
 # `Occluded` for the xdg-shell suspended state with commits on the app's behalf
 # while it isn't presenting (rust-windowing/winit#4709, #4710), macOS Quit
@@ -358,7 +360,9 @@ epaint_default_fonts = { git = "https://github.com/CIoudGuy/egui", rev = "ab59df
 # AppKit finished launching before it, as when the app starts in the tray,
 # and file drag and drop on Wayland through the one data device egui's
 # clipboard also uses, since Hyprland gives the clipboard and drags only to an
-# app's first data device (#614). eframe from the fork above calls the
+# app's first data device (#614), the Wayland clipboard's MIME bytes read on
+# that same device (#7), and on macOS the typed character replaced when the
+# accent picker commits (#5). eframe from the fork above calls the
 # Occluded API and shares that device. Move both forks together with the
 # other apps.
-winit = { git = "https://github.com/crmne/winit", rev = "0bed9dc0a7db02590a279fb8bac795fa39ee6948" }
+winit = { git = "https://github.com/crmne/winit", rev = "59ebfb727b8c83fcd28f8ca59c3733e32b4b4e9b" }

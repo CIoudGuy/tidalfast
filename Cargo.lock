@@ -1302,7 +1302,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "dpi"
 version = "0.1.1"
-source = "git+https://github.com/crmne/winit?rev=0bed9dc0a7db02590a279fb8bac795fa39ee6948#0bed9dc0a7db02590a279fb8bac795fa39ee6948"
+source = "git+https://github.com/crmne/winit?rev=59ebfb727b8c83fcd28f8ca59c3733e32b4b4e9b#59ebfb727b8c83fcd28f8ca59c3733e32b4b4e9b"
 
 [[package]]
 name = "dpi"
@@ -1313,7 +1313,7 @@ checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 [[package]]
 name = "ecolor"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=ab59df76dea1e7d4d6ad969dc54e4819743c65e3#ab59df76dea1e7d4d6ad969dc54e4819743c65e3"
+source = "git+https://github.com/CIoudGuy/egui?rev=ace78490e32ecffb97e799b0210bc55d665e73d3#ace78490e32ecffb97e799b0210bc55d665e73d3"
 dependencies = [
  "bytemuck",
  "emath",
@@ -1323,7 +1323,7 @@ dependencies = [
 [[package]]
 name = "eframe"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=ab59df76dea1e7d4d6ad969dc54e4819743c65e3#ab59df76dea1e7d4d6ad969dc54e4819743c65e3"
+source = "git+https://github.com/CIoudGuy/egui?rev=ace78490e32ecffb97e799b0210bc55d665e73d3#ace78490e32ecffb97e799b0210bc55d665e73d3"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -1358,7 +1358,7 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=ab59df76dea1e7d4d6ad969dc54e4819743c65e3#ab59df76dea1e7d4d6ad969dc54e4819743c65e3"
+source = "git+https://github.com/CIoudGuy/egui?rev=ace78490e32ecffb97e799b0210bc55d665e73d3#ace78490e32ecffb97e799b0210bc55d665e73d3"
 dependencies = [
  "accesskit",
  "ahash",
@@ -1379,7 +1379,7 @@ dependencies = [
 [[package]]
 name = "egui-wgpu"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=ab59df76dea1e7d4d6ad969dc54e4819743c65e3#ab59df76dea1e7d4d6ad969dc54e4819743c65e3"
+source = "git+https://github.com/CIoudGuy/egui?rev=ace78490e32ecffb97e799b0210bc55d665e73d3#ace78490e32ecffb97e799b0210bc55d665e73d3"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -1398,7 +1398,7 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=ab59df76dea1e7d4d6ad969dc54e4819743c65e3#ab59df76dea1e7d4d6ad969dc54e4819743c65e3"
+source = "git+https://github.com/CIoudGuy/egui?rev=ace78490e32ecffb97e799b0210bc55d665e73d3#ace78490e32ecffb97e799b0210bc55d665e73d3"
 dependencies = [
  "accesskit_winit",
  "arboard",
@@ -1420,7 +1420,7 @@ dependencies = [
 [[package]]
 name = "egui_extras"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=ab59df76dea1e7d4d6ad969dc54e4819743c65e3#ab59df76dea1e7d4d6ad969dc54e4819743c65e3"
+source = "git+https://github.com/CIoudGuy/egui?rev=ace78490e32ecffb97e799b0210bc55d665e73d3#ace78490e32ecffb97e799b0210bc55d665e73d3"
 dependencies = [
  "ahash",
  "egui",
@@ -1436,7 +1436,7 @@ dependencies = [
 [[package]]
 name = "egui_glow"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=ab59df76dea1e7d4d6ad969dc54e4819743c65e3#ab59df76dea1e7d4d6ad969dc54e4819743c65e3"
+source = "git+https://github.com/CIoudGuy/egui?rev=ace78490e32ecffb97e799b0210bc55d665e73d3#ace78490e32ecffb97e799b0210bc55d665e73d3"
 dependencies = [
  "bytemuck",
  "egui",
@@ -1455,7 +1455,7 @@ checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
 [[package]]
 name = "emath"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=ab59df76dea1e7d4d6ad969dc54e4819743c65e3#ab59df76dea1e7d4d6ad969dc54e4819743c65e3"
+source = "git+https://github.com/CIoudGuy/egui?rev=ace78490e32ecffb97e799b0210bc55d665e73d3#ace78490e32ecffb97e799b0210bc55d665e73d3"
 dependencies = [
  "bytemuck",
  "serde",
@@ -1554,7 +1554,7 @@ dependencies = [
 [[package]]
 name = "epaint"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=ab59df76dea1e7d4d6ad969dc54e4819743c65e3#ab59df76dea1e7d4d6ad969dc54e4819743c65e3"
+source = "git+https://github.com/CIoudGuy/egui?rev=ace78490e32ecffb97e799b0210bc55d665e73d3#ace78490e32ecffb97e799b0210bc55d665e73d3"
 dependencies = [
  "ahash",
  "bytemuck",
@@ -1580,7 +1580,7 @@ dependencies = [
 [[package]]
 name = "epaint_default_fonts"
 version = "0.36.2"
-source = "git+https://github.com/CIoudGuy/egui?rev=ab59df76dea1e7d4d6ad969dc54e4819743c65e3#ab59df76dea1e7d4d6ad969dc54e4819743c65e3"
+source = "git+https://github.com/CIoudGuy/egui?rev=ace78490e32ecffb97e799b0210bc55d665e73d3#ace78490e32ecffb97e799b0210bc55d665e73d3"
 
 [[package]]
 name = "equivalent"
@@ -6848,7 +6848,7 @@ checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 [[package]]
 name = "winit"
 version = "0.30.13"
-source = "git+https://github.com/crmne/winit?rev=0bed9dc0a7db02590a279fb8bac795fa39ee6948#0bed9dc0a7db02590a279fb8bac795fa39ee6948"
+source = "git+https://github.com/crmne/winit?rev=59ebfb727b8c83fcd28f8ca59c3733e32b4b4e9b#59ebfb727b8c83fcd28f8ca59c3733e32b4b4e9b"
 dependencies = [
  "ahash",
  "android-activity",

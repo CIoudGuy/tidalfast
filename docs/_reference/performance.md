@@ -1358,7 +1358,7 @@ a second. What it showed:
   again every frame (fastframe's, not changed here).
 
 Changes in the fork (CIoudGuy/egui, branch `tidalfast`, 36760640 to
-ab59df76), each measured on its own with the same profile:
+ace78490), each measured on its own with the same profile:
 
 | Commit | Change | Measured |
 | --- | --- | --- |
@@ -1369,6 +1369,7 @@ ab59df76), each measured on its own with the same profile:
 | 81b3c975 | egui's texture loader finds a loaded texture by the borrowed address, and `has_extension` reads the name's last dot instead of parsing a path | image loading 27 to 21 to 25 us a frame scrolling (80 images) |
 | d45c9a3e | a blurred fill (a shadow, a glow) fades as a Gaussian with half the blur as standard deviation, as CSS draws a box-shadow; its mesh is kept with the buffers above while its size stays | see "Shadows and rounded corners" below; tessellation with cotton candy within the runs' spread (cached) |
 | ab59df76 | rounded rectangles keep the corner radius asked for (egui added 0.4) | see below |
+| ace78490 | crmne's right-to-left wrapping, caret and selection work (crmne/egui#2), the IME surrounding-text deletion (#4), crmne/winit 59ebfb72 | scroll p50 0.72 to 0.75 ms before and after (three runs each); laying out a new line, unoptimized test build with optimized dependencies: Latin 22 to 21 us, Hebrew 87 to 87, Arabic 151 to 114 |
 
 Before (tidal 56024542) against after (the eguiperf2 branch: the fork at
 ab59df76, the playlist set kept, glyphs antialiased across only on

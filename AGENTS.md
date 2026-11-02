@@ -52,9 +52,11 @@ These instructions add implementation constraints for coding agents.
   visuals are replaced (`theme::apply_to_style`). The fork blurs a shadow
   (`Shadow::blur`, a fill's `RectShape::blur_width`) as CSS blurs a
   box-shadow, so give it the theme's or TIDAL's CSS blur radius as it is.
-- The egui fork shapes right-to-left runs in their own direction but leaves
-  them in logical order. Pass logical text to `crate::bidi`, which reorders
-  the laid-out runs; never reorder the string before layout.
+- The egui fork shapes right-to-left runs in their own direction, wraps them
+  from their logical start, keeps the caret, arrow keys and selection right in
+  them, but leaves the runs of a laid-out row in logical order. Pass logical
+  text to `crate::bidi`, which reorders the laid-out runs and cuts its own rows
+  (whole words, a mark at the cut); never reorder the string before layout.
 
 Read `docs/_reference/how-it-connects.md` and
 `docs/_reference/tidal-api.md` before changing authentication, TIDAL requests,
