@@ -25,11 +25,12 @@ pub enum PlaybackState {
 }
 
 impl PlaybackState {
-    /// The string TIDAL's redux store uses.
+    /// The string TIDAL's redux store uses. Its player has no paused state
+    /// of its own: a paused song is `NOT_PLAYING`.
     pub fn as_tidal(self) -> &'static str {
         match self {
             PlaybackState::Playing => "PLAYING",
-            PlaybackState::Paused => "PAUSED",
+            PlaybackState::Paused => "NOT_PLAYING",
             PlaybackState::Stalled => "STALLED",
             PlaybackState::Idle => "IDLE",
             PlaybackState::NotPlaying => "NOT_PLAYING",

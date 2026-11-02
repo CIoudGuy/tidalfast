@@ -631,3 +631,30 @@ R.ready = true;
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// TIDAL's player has no "PAUSED": a paused song is `NOT_PLAYING` in the
+/// store (`playbackState` and `desiredPlaybackState`, which TIDAL's own
+/// footer shows as `data-test-playback-state`) and in the
+/// `SET_PLAYBACK_STATE` it dispatches. Plugins compare against that word
+/// (`state === "NOT_PLAYING"`).
+#[test]
+fn a_paused_song_is_not_playing_in_the_store_and_in_the_action() {
+    let snap = PlaybackSnapshot {
+        state: PlaybackState::Paused,
+        desired_state: PlaybackState::Paused,
+        ..Default::default()
+    };
+    assert_eq!(
+        super::redux::event_action(&LunaEvent::PlaybackState(PlaybackState::Paused), &snap),
+        Some((
+            "playbackControls/SET_PLAYBACK_STATE".into(),
+            json!("NOT_PLAYING")
+        ))
+    );
+    let state = super::redux::redux_state(&snap);
+    assert_eq!(state["playbackControls"]["playbackState"], "NOT_PLAYING");
+    assert_eq!(
+        state["playbackControls"]["desiredPlaybackState"],
+        "NOT_PLAYING"
+    );
+}
