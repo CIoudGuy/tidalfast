@@ -1657,11 +1657,8 @@ fn nav_row(
             active,
             crate::motion::tidal::HOVER,
         );
-        let fill = crate::motion::blend(
-            palette.nav_hover().gamma_multiply(hover),
-            palette.nav_selected(),
-            selected,
-        );
+        let (hover_fill, selected_fill) = row_fills(palette);
+        let fill = crate::motion::blend(hover_fill.gamma_multiply(hover), selected_fill, selected);
         let color = crate::motion::blend(idle_nav_ink(palette), palette.text, hover.max(selected));
         // The row, its icon, words and chevron as the theme scales the
         // row (the cotton candy family's `scale(.98)`).
@@ -1780,11 +1777,8 @@ fn rail_button(
             active,
             crate::motion::tidal::HOVER,
         );
-        let fill = crate::motion::blend(
-            palette.nav_hover().gamma_multiply(hover),
-            palette.nav_selected(),
-            selected,
-        );
+        let (hover_fill, selected_fill) = row_fills(palette);
+        let fill = crate::motion::blend(hover_fill.gamma_multiply(hover), selected_fill, selected);
         if fill.a() > 0 {
             ui.painter().rect_filled(rect, CornerRadius::same(12), fill);
         }
@@ -2289,6 +2283,15 @@ fn navigation(app: &mut App, ui: &mut egui::Ui) {
     }
 }
 
+/// A sidebar row's fill under the pointer and while its page is open: under
+/// a theme TIDAL's own, which the theme's colours do not change (with none,
+/// the app's own, as with Luna off).
+fn row_fills(palette: &Palette) -> (egui::Color32, egui::Color32) {
+    super::plugin_dom::library_row_fills()
+        .filter(|_| palette.themed)
+        .unwrap_or((palette.nav_hover(), palette.nav_selected()))
+}
+
 /// The box of the "All playlists" heading in `header`: TIDAL's
 /// `_sectionHeader_`, 10 in from the left, 12 from the right.
 fn heading_box(ui: &egui::Ui, palette: &Palette, header: Rect) {
@@ -2780,12 +2783,7 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                     } else {
                         ui
                     };
-                    // Under a theme, TIDAL's own fills for the row, which
-                    // the theme's colours do not change (with none, the
-                    // app's own, as with Luna off).
-                    let (hover_fill, selected_fill) = super::plugin_dom::library_row_fills()
-                        .filter(|_| palette.themed)
-                        .unwrap_or((palette.nav_hover(), palette.nav_selected()));
+                    let (hover_fill, selected_fill) = row_fills(&palette);
                     let fill = if active {
                         selected_fill
                     } else {
@@ -4245,6 +4243,26 @@ mod ordering_tests {
 #[cfg(test)]
 mod rail_tests {
     use super::*;
+
+    /// A navigation row's fills under a theme are TIDAL's tokens, whatever
+    /// the theme's colours are, as a library row's are: white at 15 % on the
+    /// open row (Sunken Tidal's Collection row was the palette's own grey).
+    #[test]
+    fn a_navigation_rows_fills_are_tidals_under_a_theme() {
+        use crate::ui::plugin_dom as pd;
+        let mut palette = Palette::dark();
+        palette.themed = true;
+        palette.own_surfaces = false;
+        pd::test_overlay(Some(crate::luna::dom::DomOverlay {
+            version: 1,
+            ..Default::default()
+        }));
+        let (hover, selected) = row_fills(&palette);
+        let tidal = pd::library_row_fills().expect("Luna is on");
+        pd::test_overlay(None);
+        assert_eq!((hover, selected), tidal);
+        assert_eq!(selected, egui::Color32::from_white_alpha(38));
+    }
 
     /// Under a theme an idle navigation row is TIDAL's 55 % of the panel's
     /// words, whatever the panel's second lines are; without one it keeps
