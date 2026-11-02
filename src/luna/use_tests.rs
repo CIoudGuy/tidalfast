@@ -442,3 +442,74 @@ R.ready = true;
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+fn key_press(luna: &Luna, key: &str, ctrl: bool, alt: bool) {
+    luna.dom_event(super::dom::DomEvent {
+        target: super::dom::DomTarget::Host(String::new()),
+        kind: "keydown".into(),
+        data: json!({ "key": key, "ctrlKey": ctrl, "altKey": alt }),
+    });
+    luna.sync(Duration::from_secs(10));
+    std::thread::sleep(Duration::from_millis(150));
+    luna.sync(Duration::from_secs(10));
+}
+
+/// Input a plugin takes for itself (an Electron shortcut, `window` and
+/// `document` key listeners): each press reaches it once, nothing reaches
+/// it while it is disabled, and enabling it leaves one copy of each.
+#[test]
+fn shortcuts_and_key_listeners_follow_the_plugin_through_disable_and_enable() {
+    let (luna, dir) = start(
+        r##"
+const n = await native("Compat/keys.native.ts", `"use strict";
+const { globalShortcut } = require("electron");
+exports.reg = () => globalShortcut.register("Alt+F15", () => globalThis.__sc = (globalThis.__sc ?? 0) + 1);
+exports.n = () => globalThis.__sc ?? 0;
+exports.has = () => globalShortcut.isRegistered("Alt+F15");
+`);
+R.reg = (R.reg ?? []).concat(await n("reg"));
+const bump = (k) => (R[k] = (R[k] ?? 0) + 1);
+const onWindow = (e) => e.key === "q" && bump("window");
+const onDoc = (e) => e.key === "q" && bump("doc");
+window.addEventListener("keydown", onWindow);
+document.addEventListener("keydown", onDoc);
+unloads.add(() => { window.removeEventListener("keydown", onWindow); document.removeEventListener("keydown", onDoc); });
+R.api = async () => 0;
+lib.safeInterval(unloads, async () => { R.sc = await n("n"); R.has = await n("has"); }, 30);
+R.ready = true;
+"##,
+    );
+    wait_for(&luna, &dir, "ready");
+    let heard = || (count(&dir, "window"), count(&dir, "doc"));
+    let sc = |luna: &Luna| {
+        luna.sync(Duration::from_secs(10));
+        std::thread::sleep(Duration::from_millis(200));
+        luna.sync(Duration::from_secs(10));
+        count(&dir, "sc")
+    };
+    key_press(&luna, "q", false, false);
+    key_press(&luna, "F15", false, true);
+    key_press(&luna, "F15", false, false);
+    assert_eq!(heard(), (1, 1), "{}", results(&dir));
+    assert_eq!(sc(&luna), 1, "{}", results(&dir));
+    assert_eq!(results(&dir)["has"], json!(true));
+
+    luna.set_enabled("Compat", false);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "Compat").unwrap().status == PluginStatus::Disabled
+    });
+    key_press(&luna, "q", false, false);
+    key_press(&luna, "F15", false, true);
+    assert_eq!(heard(), (1, 1), "heard while disabled {}", results(&dir));
+
+    luna.set_enabled("Compat", true);
+    wait_for(&luna, &dir, "ready");
+    key_press(&luna, "q", false, false);
+    key_press(&luna, "F15", false, true);
+    assert_eq!(heard(), (2, 2), "{}", results(&dir));
+    // The native part starts fresh with each run: one press, one call.
+    assert_eq!(sc(&luna), 1, "{}", results(&dir));
+    assert_eq!(results(&dir)["has"], json!(true));
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
