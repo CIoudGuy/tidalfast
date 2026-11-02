@@ -3589,12 +3589,13 @@ fn folder_item_id(item: &Value, data: &Value) -> String {
         .unwrap_or_default()
 }
 
-/// The body that adds songs or videos to a playlist (`POST
-/// playlists/{id}/relationships/items`; `kind` is `tracks` or `videos`).
+/// openapi's `accessType` for a playlist's public switch.
 fn access_type(public: bool) -> &'static str {
     if public { "PUBLIC" } else { "UNLISTED" }
 }
 
+/// The body that adds songs or videos to a playlist (`POST
+/// playlists/{id}/relationships/items`; `kind` is `tracks` or `videos`).
 fn playlist_items_body(kind: &str, ids: &[&str]) -> Value {
     serde_json::json!({
         "data": ids.iter().map(|id| serde_json::json!({"id": id, "type": kind})).collect::<Vec<_>>(),
