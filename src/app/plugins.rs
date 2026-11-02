@@ -529,8 +529,21 @@ impl App {
             } else {
                 Vec::new()
             };
+            // The song advancing drops the head of the rows. TIDAL's queue
+            // keeps its elements and moves its index, and sends no queue
+            // action for it, so plugins that were up to date are not told.
+            let advanced = now.is_some()
+                && self.plugins.seen.queue_rows.len() > 1
+                && self.plugins.seen.queue_rows[1..]
+                    .iter()
+                    .map(|row| row.id.as_str())
+                    .eq(rows.iter().map(|row| row.id.as_str()));
+            let told = self.plugins.seen.queue == Some(self.plugins.seen.queue_made);
             self.plugins.seen.queue_rows = Arc::new(rows);
             self.plugins.seen.queue_made += 1;
+            if advanced && told {
+                self.plugins.seen.queue = Some(self.plugins.seen.queue_made);
+            }
         }
         let items_key = (self.plugins.seen.queue_made, self.track_cache.len());
         if self.plugins.seen.items_key != Some(items_key) {
@@ -2969,8 +2982,10 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
         );
         app.queue = queue(1, 2..8);
         assert_eq!(step(&mut app, &now), said(&["playQueue/RESET 7"]));
-        // The next song: one transition, its time from the start, the
-        // queue's rows without the song that began.
+        // The next song: one transition and its time from the start. TIDAL
+        // moves its queue's index and says nothing of the queue; here the
+        // rows are made again without the song that began, and plugins are
+        // not told of a queue change that is the song advancing.
         now.uri = "tidal:track:2".into();
         now.id = Some("2".into());
         now.position_ms = 0;
@@ -2981,7 +2996,6 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
             said(&[
                 "playbackControls/MEDIA_PRODUCT_TRANSITION \"2\"",
                 "playbackControls/TIME_UPDATE 0",
-                "playQueue/RESET 6",
             ])
         );
         // Repeat one: the same song again is a transition again, as TIDAL
