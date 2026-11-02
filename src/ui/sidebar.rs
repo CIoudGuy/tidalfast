@@ -2839,27 +2839,22 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
                     };
                     let indent = f32::from(entry.depth) * 14.0;
                     if let Some((_, collapsed, _)) = &entry.folder {
-                        let chevron = if *collapsed {
-                            Icon::ChevronRight
-                        } else {
-                            Icon::ChevronDown
-                        };
+                        // TIDAL's `._thumbnail_` with its folder glyph.
+                        // TIDAL opens a folder as a page; here it opens in
+                        // the list, and the glyph is the chevron while open.
                         let left = rect.left() + LIBRARY_ITEM_PADDING + indent;
-                        chevron.image(palette.secondary, 16.0).paint_at(
-                            ui,
-                            Rect::from_center_size(
-                                pos2(left + 8.0, rect.center().y),
-                                Vec2::splat(16.0),
-                            ),
+                        let plate = Rect::from_center_size(
+                            pos2(left + ROW_ART / 2.0, rect.center().y),
+                            Vec2::splat(ROW_ART),
                         );
-                        Icon::Library.image(palette.secondary, 20.0).paint_at(
+                        let (fill, ink) = folder_plate(&palette);
+                        ui.painter().rect_filled(plate, CornerRadius::same(2), fill);
+                        let (glyph, size) = folder_glyph(*collapsed);
+                        glyph.image(ink, size).paint_at(
                             ui,
-                            Rect::from_center_size(
-                                pos2(left + 30.0, rect.center().y),
-                                Vec2::splat(20.0),
-                            ),
+                            Rect::from_center_size(plate.center(), Vec2::splat(size)),
                         );
-                        let text_left = left + 46.0;
+                        let text_left = plate.right() + 12.0;
                         let text_right = rect.right() - LIBRARY_ITEM_PADDING;
                         let painter = ui.painter().with_clip_rect(Rect::from_min_max(
                             pos2(text_left, rect.top()),
@@ -3016,6 +3011,29 @@ fn contents(app: &mut App, ui: &mut egui::Ui, grid_art: Option<Rect>) {
 
 const EXPANDED_ART_GAP: f32 = 10.0;
 const LIBRARY_ITEM_PADDING: f32 = 8.0;
+
+/// A folder row's plate and its glyph's ink: TIDAL's `._thumbnail_` (#1c1c1c)
+/// and `._fallbackIcon_` (white at 35 %).
+fn folder_plate(palette: &Palette) -> (egui::Color32, egui::Color32) {
+    if palette.tidal_dark() {
+        (
+            egui::Color32::from_rgb(28, 28, 28),
+            egui::Color32::from_white_alpha(89),
+        )
+    } else {
+        (palette.surface, palette.secondary)
+    }
+}
+
+/// A folder row's glyph and its size: TIDAL's folder, 32 points, while
+/// rolled up.
+fn folder_glyph(collapsed: bool) -> (Icon, f32) {
+    if collapsed {
+        (Icon::Folder, 32.0)
+    } else {
+        (Icon::ChevronDown, 16.0)
+    }
+}
 /// The cover of a list row.
 const ROW_ART: f32 = 36.0;
 const GRID_MIN_CARD_WIDTH: f32 = 108.0;
@@ -3658,6 +3676,20 @@ mod ordering_tests {
             .iter()
             .map(|entry| (entry.name.clone(), entry.depth))
             .collect()
+    }
+
+    #[test]
+    fn a_rolled_up_folder_row_is_tidals_plate_and_glyph() {
+        use egui::Color32;
+        assert_eq!(
+            folder_plate(&Palette::dark()),
+            (Color32::from_rgb(28, 28, 28), Color32::from_white_alpha(89))
+        );
+        assert_eq!(folder_glyph(true).1, 32.0);
+        assert!(matches!(folder_glyph(true).0, Icon::Folder));
+        assert!(matches!(folder_glyph(false).0, Icon::ChevronDown));
+        let svg = include_str!("../../assets/icons/sidebar-folder.svg");
+        assert!(svg.contains("M9.457 4.004A7 7 0 0 0 9.133 4H5.24"));
     }
 
     #[test]
