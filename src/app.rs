@@ -7479,20 +7479,26 @@ impl App {
             ApiResponse::PlaylistUpdated { id, result, .. } => {
                 self.playlist_write_answered();
                 match result {
+                    // The shown state already says so; reading the playlist
+                    // again could only bring back the answer from before.
                     Ok(()) => {
                         self.confirm_done(&format!("playlist-update:{id}"));
+                        self.store_library_cache();
+                    }
+                    Err(error) => {
+                        self.confirm_failed(
+                            &format!("playlist-update:{id}"),
+                            // Translators: {error} is an error message.
+                            gettext(self.locale, "Couldn't update the playlist: {error}")
+                                .replace("{error}", &error.to_string()),
+                        );
+                        // What is shown is not what TIDAL has: read it again.
                         self.playlist_pages.remove(&id);
                         self.load_playlists();
                         if matches!(self.page(), Page::Playlist(current) if *current == id) {
                             self.ensure_loaded(Page::Playlist(id));
                         }
                     }
-                    Err(error) => self.confirm_failed(
-                        &format!("playlist-update:{id}"),
-                        // Translators: {error} is an error message.
-                        gettext(self.locale, "Couldn't update the playlist: {error}")
-                            .replace("{error}", &error.to_string()),
-                    ),
                 }
             }
             ApiResponse::ContextSongs {
@@ -11414,6 +11420,7 @@ impl App {
                     || changes.description.is_some()
                     || changes.public.is_some()
                 {
+                    self.show_playlist_details(&id, &changes);
                     self.playlist_write_sent();
                     self.confirm(
                         format!("playlist-update:{id}"),
@@ -12252,6 +12259,31 @@ impl App {
             description: (!cleared && description != original_description).then_some(description),
             public: public
                 .filter(|public| original.is_none_or(|playlist| playlist.public != Some(*public))),
+        }
+    }
+
+    /// Shows a playlist's saved details wherever it is held, before TIDAL
+    /// has answered.
+    fn show_playlist_details(&mut self, id: &str, changes: &PlaylistDetailChanges) {
+        let page = self
+            .playlist_pages
+            .get_mut(id)
+            .and_then(|page| page.playlist.get_mut());
+        let listed = self
+            .library
+            .playlists
+            .get_mut()
+            .and_then(|playlists| playlists.iter_mut().find(|playlist| playlist.id == id));
+        for playlist in [page, listed].into_iter().flatten() {
+            if let Some(name) = &changes.name {
+                playlist.name.clone_from(name);
+            }
+            if let Some(description) = &changes.description {
+                playlist.description = Some(description.clone());
+            }
+            if let Some(public) = changes.public {
+                playlist.public = Some(public);
+            }
         }
     }
 
@@ -15021,6 +15053,73 @@ mod tests {
         assert_eq!(save(&mut app, Some(false)), Some(false));
     }
 
+    /// A saved name and description show at once, on the page and in the
+    /// list; TIDAL's yes reads nothing again, and its no brings back what
+    /// TIDAL has.
+    #[test]
+    fn a_renamed_playlist_shows_its_name_at_once_and_a_refusal_reads_it_again() {
+        let mut app = headless_app();
+        let ctx = egui::Context::default();
+        let held = Playlist {
+            id: "pl1".into(),
+            name: "Mix".into(),
+            ..Playlist::default()
+        };
+        app.library.playlists = Loadable::Loaded(vec![held.clone()]);
+        app.playlist_pages.entry("pl1".into()).or_default().playlist = Loadable::Loaded(held);
+        let shown = |app: &App| {
+            let page = app.playlist_pages["pl1"].playlist.get().unwrap();
+            let listed = &app.library.playlists.get().unwrap()[0];
+            assert_eq!(page.name, listed.name, "one name everywhere");
+            assert_eq!(page.description, listed.description);
+            (page.name.clone(), page.description.clone())
+        };
+        let save = |app: &mut App, name: &str| {
+            app.apply(
+                Action::UpdatePlaylist {
+                    id: "pl1".into(),
+                    name: name.into(),
+                    description: "Words".into(),
+                    public: None,
+                },
+                &ctx,
+            );
+            app.backend.take_playlist_add_requests();
+        };
+        save(&mut app, "Renamed");
+        assert_eq!(
+            shown(&app),
+            ("Renamed".into(), Some("Words".into())),
+            "shown before TIDAL answers"
+        );
+        app.handle_api(ApiResponse::PlaylistUpdated {
+            id: "pl1".into(),
+            visibility: None,
+            result: Ok(()),
+        });
+        assert_eq!(shown(&app), ("Renamed".into(), Some("Words".into())));
+        assert!(
+            app.library.playlists_loading_since.is_none(),
+            "a read could only bring back the name from before"
+        );
+
+        save(&mut app, "Refused");
+        app.handle_api(ApiResponse::PlaylistUpdated {
+            id: "pl1".into(),
+            visibility: None,
+            result: Err(crate::api::ApiError::Status {
+                status: 403,
+                message: "nope".into(),
+            }),
+        });
+        assert!(
+            !app.playlist_pages.contains_key("pl1"),
+            "what was shown goes, and what TIDAL has is read again"
+        );
+        assert!(app.library.playlists_loading_since.is_some());
+        assert!(matches!(app.toasts.last().unwrap().kind, ToastKind::Error));
+    }
+
     /// The visibility switch shows its result at once, says so, and is put
     /// back with an error when TIDAL refuses.
     #[test]
@@ -15202,14 +15301,16 @@ mod tests {
     fn saving_playlist_details_sends_only_what_changed() {
         let mut app = headless_app();
         let ctx = egui::Context::default();
-        app.library.playlists = Loadable::Loaded(vec![Playlist {
-            id: "pl1".into(),
-            name: "Mix".into(),
-            description: Some("<b>Old</b> notes".into()),
-            public: Some(true),
-            ..Playlist::default()
-        }]);
         let save = |app: &mut App, name: &str, description: &str, public| {
+            // Each save starts from the same playlist: what one shows would
+            // be the next one's "before".
+            app.library.playlists = Loadable::Loaded(vec![Playlist {
+                id: "pl1".into(),
+                name: "Mix".into(),
+                description: Some("<b>Old</b> notes".into()),
+                public: Some(true),
+                ..Playlist::default()
+            }]);
             app.apply(
                 Action::UpdatePlaylist {
                     id: "pl1".into(),
