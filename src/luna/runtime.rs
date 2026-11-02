@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::child::{self, ChildHub};
-use super::dom::{DomEvent, DomOverlay};
+use super::dom::{DomEvent, DomOverlay, Style, VNode};
 use super::fork::{FromChild, Reply as ForkReply, Route as ForkRoute, ToChild};
 use super::host::{HostCommand, LunaEvent, LunaHost, NetRequest, NetVerdict, NotifyLevel};
 use super::net::{NetHub, Target};
@@ -1242,6 +1242,40 @@ fn publish_overlay(inner: &S, mut ov: DomOverlay) -> Result<Value, String> {
     Ok(Value::Bool(moved))
 }
 
+/// `dom.overlay_styles`: the published overlay with the styles of some
+/// plugin elements replaced, all that changed when a plugin moved its own
+/// element (the runtime then has nothing to parse but those styles).
+/// `"missing"` when one is not in it: dom.js then sends the whole overlay.
+fn patch_overlay(inner: &S, styles: Vec<(u64, Style)>) -> Result<Value, String> {
+    fn restyle(nodes: &mut [VNode], styles: &mut HashMap<u64, Style>) {
+        for n in nodes {
+            if let Some(s) = styles.remove(&n.id) {
+                n.style = s;
+            }
+            // Only the first overlay that shows an element has it.
+            n.from = None;
+            restyle(&mut n.children, styles);
+        }
+    }
+    let cur = {
+        let cell = inner.borrow().overlay.clone();
+        let Ok(cur) = cell.lock() else {
+            return Ok(Value::Null);
+        };
+        cur.clone()
+    };
+    let mut ov = (*cur).clone();
+    let mut styles: HashMap<u64, Style> = styles.into_iter().collect();
+    for at in &mut ov.injected {
+        restyle(&mut at.nodes, &mut styles);
+    }
+    if styles.is_empty() {
+        publish_overlay(inner, ov)
+    } else {
+        Ok(json!("missing"))
+    }
+}
+
 fn op_sync(inner: &S, who: Who, name: &str, arg: &str) -> String {
     if name == "dom.overlay" && arg.len() > MAX_OVERLAY_BYTES {
         return json!({ "err": "the plugins' page is too large to show" }).to_string();
@@ -1252,6 +1286,17 @@ fn op_sync(inner: &S, who: Who, name: &str, arg: &str) -> String {
         let out = match serde_json::from_str::<DomOverlay>(arg) {
             Ok(ov) => publish_overlay(inner, ov),
             Err(e) => Err(format!("overlay: {e}")),
+        };
+        return match out {
+            Ok(v) => json!({ "ok": v }),
+            Err(e) => json!({ "err": e }),
+        }
+        .to_string();
+    }
+    if name == "dom.overlay_styles" {
+        let out = match serde_json::from_str::<Vec<(u64, Style)>>(arg) {
+            Ok(styles) => patch_overlay(inner, styles),
+            Err(e) => Err(format!("overlay styles: {e}")),
         };
         return match out {
             Ok(v) => json!({ "ok": v }),

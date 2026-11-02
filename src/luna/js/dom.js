@@ -38,12 +38,16 @@
 	D.domGen = () => domGen;
 	// Bumped by anything a frame changes (see animation frames).
 	let frameWork = 0;
+	// What has to go out next is more than `stylePatch` below: the whole
+	// overlay is built.
+	let wholeDue = true;
 	const markDirty = () => {
 		// TIDALFAST_LUNA_STATS: who makes every cascade start over.
 		if (L.stat) L.stat(`restyle by ${L.pluginFromStack?.() ?? "host"}`, Date.now());
 		domGen++;
 		frameWork++;
 		dirty = true;
+		wholeDue = true;
 		if (flushQueued) return;
 		flushQueued = true;
 		const wait = Math.max(0, 33 - (Date.now() - lastFlush));
@@ -65,6 +69,10 @@
 		contentDirty();
 	};
 	const contentDirty = () => {
+		wholeDue = true;
+		flushDue();
+	};
+	const flushDue = () => {
 		frameWork++;
 		dirty = true;
 		if (flushQueued) return;
@@ -77,11 +85,19 @@
 	// of a page was a whole-page restyle as it came in, the page's first
 	// one under a large theme again and again.
 	D.loadedDirty = () => contentDirty();
+	// A plugin's own element whose inline style changed (a sprite's frame, an
+	// animation loop moving it) changes that element and what inherits from
+	// it, nothing else of the 350 kB overlay: the styles go out alone
+	// (`sendStyles`) unless something else changed too. oneko's sleeping cat
+	// made a whole build, about 50 ms with 18 plugins, four times a second.
+	const stylePatch = new Set();
 	const markStyleDirty = (el) => {
 		restyled.add(el);
 		styleGen++;
 		noteLayout(el);
-		contentDirty();
+		if (L.page || el._hostKey !== undefined || el === html || el === body || el === wimp) return contentDirty();
+		stylePatch.add(el);
+		flushDue();
 	};
 	// The host rewrote an app element's inline style (`before` held its
 	// declarations) and every property that changed is a custom property no
@@ -4123,6 +4139,7 @@
 		}
 		if (!(n instanceof Element) || SKIP.has(n.localName)) return null;
 		const v = { id: vidOf(n), tag: n.localName };
+		shownNodes.set(n, v);
 		const attrs = [];
 		for (const k of n._attrs.keys()) if (k !== "style") attrs.push([k, n.getAttribute(k)]);
 		if (attrs.length) v.attrs = attrs;
@@ -4198,9 +4215,37 @@
 		return n._vid;
 	};
 	const isHost = (n) => n._hostKey !== undefined;
+	// The elements of the last build, by element.
+	let shownNodes = new Map();
+	// `stylePatch`'s new styles alone, on the overlay that went out last.
+	// False when that cannot say it (see `restyle` in css.js): an element
+	// the build drew in another way (`hiddenBy`, what `buildVNode` works out
+	// from a style) or that it did not draw, or an overlay that has gone.
+	const sendStyles = () => {
+		const changed = L.css?.restyle?.(stylePatch);
+		if (!changed) return false;
+		const out = [];
+		for (const [el, st] of changed) {
+			const v = shownNodes.get(el);
+			if (!v || /^(svg|input|textarea|select)$/.test(v.tag)) return false;
+			if (L.stringify(v.style ?? null) === L.stringify(st ?? null)) continue;
+			if (st) v.style = st;
+			else delete v.style;
+			out.push([v.id, st ?? {}]);
+		}
+		if (!out.length) return true;
+		const moved = L.callOpJson("dom.overlay_styles", L.stringify(out));
+		if (moved === "missing") return false;
+		if (moved === true) boxesPending = true;
+		// The next build's JSON differs from the last one's, whatever it says.
+		lastJson = "";
+		D.stylePatches = (D.stylePatches ?? 0) + 1;
+		return true;
+	};
 	const build = () => {
 		// Counted for the tests that check what a change builds again.
 		D.overlayBuilds = (D.overlayBuilds ?? 0) + 1;
+		shownNodes = new Map();
 		// Elements this build shows for the first time get their first style
 		// here: no earlier pass to start a transition from.
 		fresh.clear();
@@ -4301,7 +4346,10 @@
 				// Inside an app element CSS hides, a plugin's element is
 				// hidden with it.
 				const style = hiddenBy(parent, k, v.style);
-				if (style !== v.style) v.style = style;
+				if (style !== v.style) {
+					v.style = style;
+					shownNodes.delete(k);
+				}
 				push(anchor, pos, v);
 			});
 		};
@@ -4456,14 +4504,32 @@
 		// stop are kept, so the next try goes on from there.
 		const retry = L.internalTimeout(() => {
 			dirty = true;
+			wholeDue = true;
 			layoutDirty ||= layout;
 			D.flush();
 		}, 33);
 		checkGeometry();
+		if (!wholeDue && stylePatch.size) {
+			let sent = false;
+			try {
+				sent = sendStyles();
+			} catch (err) {
+				L.reportError(err);
+			}
+			if (sent) {
+				L.clearInternal(retry);
+				stylePatch.clear();
+				return;
+			}
+		}
+		// Before the build: a change while it runs asks for the next one.
+		wholeDue = false;
+		stylePatch.clear();
 		let ov;
 		try {
 			ov = build();
 		} catch (err) {
+			wholeDue = true;
 			L.clearInternal(retry);
 			L.reportError(err);
 			return;
@@ -4479,6 +4545,7 @@
 			// The JSON just made is what goes, not a second one of the same.
 			if (L.callOpJson("dom.overlay", json) === true) boxesPending = true;
 		} catch (err) {
+			wholeDue = true;
 			L.reportError(err);
 		}
 		if (L.stat) L.stat(`overlay sent (~${Math.round(json.length / 1000)} kB)`, t1);
@@ -4513,6 +4580,7 @@
 				return handleEvent(arg) ?? null;
 			case "flush":
 				dirty = true;
+				wholeDue = true;
 				return void D.flush();
 			case "stopped":
 				return void stopped(arg.name ?? null);

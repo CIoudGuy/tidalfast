@@ -7720,3 +7720,121 @@ R.done = true;
     assert_eq!(r["resets"], json!(0), "{r}");
     finish(luna, dir);
 }
+
+/// A plugin's own element restyled (a sprite's frame, an element moved each
+/// step of a loop) changes that element and what takes a value from it: the
+/// overlay is not built again for that, and comes out as a whole build makes
+/// it. Each step below is followed by a whole build: when that one changes
+/// nothing the patched overlay was already what it makes, so every step is
+/// one published overlay. A build still comes when the styles cannot say
+/// what changed.
+#[test]
+fn a_plugin_elements_inline_style_goes_out_without_a_build() {
+    let (luna, _host, dir) = start(
+        r##"
+const D = globalThis.__lunaTestDom;
+const st = document.createElement("style");
+st.textContent = '.boxed::before { content: "x"; color: red; } @keyframes k { from { opacity: 0; } to { opacity: 1; } }';
+document.head.append(st);
+const make = (id, tag = "div", parent = document.body) => {
+	const e = document.createElement(tag);
+	e.id = id;
+	e.style.position = "fixed";
+	parent.append(e);
+	return e;
+};
+const sprite = make("sprite");
+const bare = make("bare");
+bare.style.opacity = "0.25";
+const wrap = make("wrap");
+wrap.style.setProperty("--tint", "rgb(1, 2, 3)");
+const kid = make("kid", "span", wrap);
+kid.style.backgroundColor = "var(--tint)";
+const ani = make("ani");
+const boxed = make("boxed");
+boxed.className = "boxed";
+const input = make("box", "input");
+const steps = [
+	[1, () => (sprite.style.left = "101px")],
+	[1, () => (sprite.style.left = "102px")],
+	[1, () => {
+		sprite.style.top = "5px";
+		bare.style.opacity = "0.5";
+	}],
+	[1, () => wrap.style.setProperty("--tint", "rgb(4, 5, 6)")],
+	[1, () => bare.removeAttribute("style")],
+	[1, () => sprite.setAttribute("style", "position: fixed; left: 103px")],
+	[0, () => (ani.style.animation = "k 1s")],
+	[0, () => (boxed.style.color = "rgb(7, 8, 9)")],
+	[0, () => (input.style.width = "77px")],
+	[0, () => {
+		sprite.style.left = "104px";
+		sprite.textContent = "words";
+	}],
+	[0, () => {
+		const reads = document.createElement("style");
+		reads.textContent = '[style] > i { color: red; }';
+		document.head.append(reads);
+	}],
+	[0, () => (sprite.style.left = "105px")],
+];
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+setTimeout(async () => {
+	const got = [];
+	for (const [, step] of steps) {
+		const p = D.stylePatches ?? 0;
+		const b = D.overlayBuilds;
+		step();
+		await wait(150);
+		got.push([(D.stylePatches ?? 0) - p, D.overlayBuilds - b]);
+		D.markDirty();
+		await wait(150);
+	}
+	R.want = steps.map(([patch]) => (patch ? [1, 0] : [0, 1]));
+	R.got = got;
+	R.done = true;
+}, 600);
+"##,
+    );
+    // Every overlay published from the first step on.
+    let left = |o: &DomOverlay, v: &str| {
+        overlay_vnode(o, &|n| {
+            n.attrs.iter().any(|(k, x)| k == "id" && x == "sprite")
+        })
+        .is_some_and(|n| n.style.left.as_deref() == Some(v))
+    };
+    let mut seen: Vec<Arc<DomOverlay>> = Vec::new();
+    let end = Instant::now() + Duration::from_secs(30);
+    let r = loop {
+        let o = luna.dom_overlay();
+        if seen.last().is_none_or(|l| l.version != o.version) {
+            seen.push(o);
+        }
+        let r = dom_results(&dir);
+        if r["done"] == json!(true) {
+            break r;
+        }
+        assert!(Instant::now() < end, "timed out: {r}");
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    assert_eq!(r["got"], r["want"], "{r}");
+    let first = seen
+        .iter()
+        .position(|o| left(o, "101px"))
+        .expect("first step");
+    assert_eq!(seen.len() - first, 12, "a whole build changed an overlay");
+    let o = seen.last().unwrap();
+    assert!(left(o, "105px"), "{o:?}");
+    let by = |id: &'static str| {
+        overlay_vnode(o, &move |n| {
+            n.attrs.iter().any(|(k, x)| k == "id" && x == id)
+        })
+        .unwrap()
+    };
+    assert_eq!(
+        by("kid").style.background_color.as_deref(),
+        Some("rgb(4, 5, 6)")
+    );
+    assert_eq!(by("bare").style, Default::default());
+    finish(luna, dir);
+}

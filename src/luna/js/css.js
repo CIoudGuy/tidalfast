@@ -1936,6 +1936,62 @@
 	];
 	const NO_VARS = new Map(TIDAL_VARS);
 	let rootMemo = null;
+	// Same declarations, variables and inherited style as last time: the
+	// same result, and the same objects, so the children's cache holds too.
+	// Only what changed is resolved again.
+	const resolved = (el, decls, vars, parentStyle) => {
+		const cc = el._cc;
+		if (cc && cc.decls === decls && cc.vars === vars && cc.parent === parentStyle) return cc;
+		let myVars = vars;
+		if (decls) {
+			let own = null;
+			for (const [k, v] of decls)
+				if (k.startsWith("--")) {
+					own ??= new Map(vars);
+					own.set(k, v);
+				}
+			if (own) myVars = own;
+		}
+		const st = decls ? toStyle(decls, myVars, parentStyle) : null;
+		const inh = st ? { ...(parentStyle ?? {}), ...pickInherited(st) } : parentStyle;
+		return (el._cc = { decls, vars, parent: parentStyle, myVars, st, inh });
+	};
+	// The last `compute`'s index and what `restyle` keeps up to date in it.
+	let computed = null;
+	// What the last `compute` would say now that the inline styles of `els`,
+	// plugin elements, are all that changed: the new styles by element, each
+	// of `els` and whatever inside it inherits differently. Null when that
+	// is not all a build would work out again: a rule reads `style`, the page
+	// changed in another way since, or an app element, an animation (its
+	// keyframes are the overlay's) or a `::before`/`::after` box is involved.
+	const restyle = (els) => {
+		const ix = buildIndex();
+		if (!computed || computed.ix !== ix || ix.styleAttr) return null;
+		if (memoIx !== ix || memoGen !== D.domGen() || memoStructGen !== D.structGen() || memoHoverGen !== D.hoverGen()) return null;
+		const { styles, boxes } = computed;
+		const ownPseudo = ix.pseudo.before.size > 0 || ix.pseudo.after.size > 0;
+		const roots = ROOTS();
+		const changed = new Map();
+		const visit = (el, vars, parentStyle) => {
+			if (el._hostKey !== undefined || el._before || roots.includes(el)) return false;
+			const was = el._cc;
+			const next = resolved(el, cascade(ix, el), vars, parentStyle);
+			if (next === was) return true;
+			const st = next.st;
+			if (st?.animation || was?.st?.animation) return false;
+			if (ownPseudo && (boxes.has(el) || ownPseudoOf(ix, el))) return false;
+			if (st) styles.set(el, st);
+			else styles.delete(el);
+			changed.set(el, st);
+			for (const c of el.childNodes) if (c instanceof g.Element && c.localName !== "head" && c.localName !== "style" && c.localName !== "script" && !visit(c, next.myVars, next.inh)) return false;
+			return true;
+		};
+		for (const el of els) {
+			const up = el.parentElement?._cc;
+			if (!up || !el.isConnected || !visit(el, up.myVars, up.inh)) return null;
+		}
+		return changed;
+	};
 	const compute = () => {
 		const t0 = L.stat ? Date.now() : 0;
 		const ix = buildIndex();
@@ -1958,28 +2014,7 @@
 		const walk = (el, vars, parentStyle) => {
 			if (L.stat) L.stat("css: visit", Date.now());
 			const decls = cascade(ix, el);
-			// Same declarations, variables and inherited style as last time:
-			// the same result, and the same objects, so the children's cache
-			// holds too. Only what changed is resolved again.
-			const cc = el._cc;
-			let myVars, st, inh;
-			if (cc && cc.decls === decls && cc.vars === vars && cc.parent === parentStyle) {
-				({ myVars, st, inh } = cc);
-			} else {
-				myVars = vars;
-				if (decls) {
-					let own = null;
-					for (const [k, v] of decls)
-						if (k.startsWith("--")) {
-							own ??= new Map(vars);
-							own.set(k, v);
-						}
-					if (own) myVars = own;
-				}
-				st = decls ? toStyle(decls, myVars, parentStyle) : null;
-				inh = st ? { ...(parentStyle ?? {}), ...pickInherited(st) } : parentStyle;
-				el._cc = { decls, vars, parent: parentStyle, myVars, st, inh };
-			}
+			const { myVars, st, inh } = resolved(el, decls, vars, parentStyle);
 			if (st) styles.set(el, st);
 			if (decls && el._hostKey !== undefined && /^none$/i.test(String(decls.get("--img") ?? "").trim())) imgNone.push(el);
 			if (ownPseudo && el._hostKey === undefined && !roots.includes(el)) {
@@ -2127,6 +2162,7 @@
 			};
 			for (const el of D.hosts.values()) if (el.isConnected && saysSelectable(el)) selectable.add(el);
 		}
+		computed = { ix, styles, boxes };
 		return { styles, vars, page, wimpFill, fonts: ix.fonts, bytes: ix.bytes, keyframes, hover: ix.hover, pseudo, boxes, selectable };
 	};
 	// For the tests that count what a build works out again.
@@ -2685,5 +2721,5 @@
 	const varsRead = () => index?.varNames ?? null;
 	// Whether a rule looks at siblings, children or position: then a changed
 	// class can change what matches outside the element's own subtree.
-	L.css = { setUserAgentSheet, panelGlass: PANEL_GLASS, panelBorder: PANEL_BORDER, parse: parseRules, sheetOf, documentSheets, compute, computedStyle, cascaded, styleNow, splitDecls, usesHover, hoverReach, attrMatters, varsRead, rangeParts };
+	L.css = { setUserAgentSheet, panelGlass: PANEL_GLASS, panelBorder: PANEL_BORDER, parse: parseRules, sheetOf, documentSheets, compute, restyle, computedStyle, cascaded, styleNow, splitDecls, usesHover, hoverReach, attrMatters, varsRead, rangeParts };
 })();
