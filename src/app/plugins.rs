@@ -532,12 +532,15 @@ impl App {
             // The song advancing drops the head of the rows. TIDAL's queue
             // keeps its elements and moves its index, and sends no queue
             // action for it, so plugins that were up to date are not told.
+            // Songs the queue gets to keep its length may come with it.
+            let was = &self.plugins.seen.queue_rows;
             let advanced = now.is_some()
-                && self.plugins.seen.queue_rows.len() > 1
-                && self.plugins.seen.queue_rows[1..]
+                && was.len() > 1
+                && rows.len() >= was.len() - 1
+                && was[1..]
                     .iter()
-                    .map(|row| row.id.as_str())
-                    .eq(rows.iter().map(|row| row.id.as_str()));
+                    .zip(rows.iter())
+                    .all(|(was, now)| was.id == now.id);
             let told = self.plugins.seen.queue == Some(self.plugins.seen.queue_made);
             self.plugins.seen.queue_rows = Arc::new(rows);
             self.plugins.seen.queue_made += 1;
@@ -1081,10 +1084,10 @@ impl App {
         let search = crate::plugins::gate::page_search(self.page());
         let track_sequence = self.local.track_sequence;
         let seek_sequence = self.local.seek_sequence;
+        let engine_position_ms = self.local.position_ms;
         let mut events = Vec::new();
         let seen = &mut self.plugins.seen;
         if let Some(now) = now {
-            let engine_position_ms = self.local.position_ms;
             let occurrence = (now.uri.clone(), track_sequence);
             if seen.track.as_ref() != Some(&occurrence) {
                 seen.track = Some(occurrence);
@@ -2997,7 +3000,7 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
         now.uri = "tidal:track:2".into();
         now.id = Some("2".into());
         now.position_ms = 0;
-        app.queue = queue(2, 3..8);
+        app.queue = queue(2, 3..9);
         app.local.track_sequence += 1;
         assert_eq!(
             step(&mut app, &now),
