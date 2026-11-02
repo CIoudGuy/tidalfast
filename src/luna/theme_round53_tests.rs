@@ -132,6 +132,28 @@ fn a_border_on_an_albums_row_boxes_moves_the_rows() {
     pd::test_overlay(None);
 }
 
+/// `aside#sidebar` is TIDAL 2.47.0's `_sidebar_4927556 _newSidebar_f871cc1`.
+/// A theme's rule for an older build's `_sidebar_` module matches nothing
+/// there and must not reach the sidebar here either; both of TIDAL's own do.
+#[test]
+fn only_tidals_own_sidebar_module_reaches_the_sidebar() {
+    use dom_anchors::keys::SIDEBAR_NAV;
+    let css = r#"/* {"name": "Old sidebar"} */
+._sidebar_54f18f3 { background: rgb(1, 2, 3); }
+._sidebar_4927556 { color: rgb(4, 5, 6); }
+._newSidebar_f871cc1 { border-radius: 3px; }
+"#;
+    let o = overlay_when(
+        "old-sidebar.css",
+        css,
+        &dom_anchors::sample_frame(),
+        |o: &DomOverlay| o.hosts.get(SIDEBAR_NAV).is_some_and(|h| h.style.color.is_some()),
+    );
+    let host = o.hosts.get(SIDEBAR_NAV).unwrap();
+    assert_eq!(host.style.background_color, None);
+    assert!(host.style.border_radius.is_some());
+}
+
 /// `#footerPlayer` is the box that holds the bar's parts: a theme's
 /// `transform` moves them, its `width` and border give them other room
 /// (they stayed where they were, with only the bar's look moved). In TIDAL

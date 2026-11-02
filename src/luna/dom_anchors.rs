@@ -887,6 +887,12 @@ const LITERAL_CLASSES: &[(&str, &str)] = &[
     ("range", "_range_ce0e571"),
     ("indicator", "_indicator_46d3a9b"),
     ("searchField", "_searchField_b2eb7f7"),
+    // TIDAL 2.47.0's `aside#sidebar._sidebar_4927556._newSidebar_f871cc1`
+    // (captured). Older builds' `_sidebar_` modules match nothing there:
+    // Tidal Light's `._sidebar_54f18f3` is one shade, and its
+    // `._newSidebar_f871cc1` the shade TIDAL's sidebar has.
+    ("newSidebar", "_newSidebar_f871cc1"),
+    ("sidebar", "_sidebar_4927556"),
     ("sidebarWrapper", "_sidebarWrapper_2f256ce"),
     ("solidHeader", "_solidHeader_2b3f298"),
     ("syncButton", "_syncButton_8b33227"),
@@ -3055,7 +3061,7 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
     out.push(
         el(SIDEBAR_NAV, Some(SIDEBAR), "aside")
             .id("sidebar")
-            .modules(&["sidebar"])
+            .modules(&["sidebar", "newSidebar"])
             .attr("aria-label", "Navigation sidebar")
             .at(side.rect),
     );
