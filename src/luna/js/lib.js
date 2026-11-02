@@ -1069,7 +1069,11 @@
 	let lastFormatKey = "";
 	let formatWatch = null;
 	const watchFormats = () => {
-		formatWatch ??= reduxStore.subscribe(() => formatState());
+		if (formatWatch) return;
+		const watch = () => formatState();
+		formatWatch = reduxStore.subscribe(watch);
+		// The first plugin to ask started it, but it serves all of them.
+		L.disownSubscriber(watch);
 	};
 	const formatState = () => {
 		const ctx = PlayState.playbackContext;

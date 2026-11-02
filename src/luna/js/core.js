@@ -1216,6 +1216,9 @@
 		};
 		return unload;
 	};
+	// A subscription the library itself makes when a plugin first needs it
+	// (shared by every plugin from then on) belongs to no plugin.
+	L.disownSubscriber = (fn) => void subscriberOwners.delete(fn);
 	// A stopped plugin's store subscriptions and IPC listeners go with it.
 	const dropListenersOf = (plugin) => {
 		for (const [fn, p] of [...subscriberOwners])

@@ -312,3 +312,61 @@ R.ready = true;
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A plugin is told the format the engine plays at (`withFormat`) whichever
+/// plugin first asked the library to watch for it, even after that plugin
+/// is disabled.
+#[test]
+fn format_listeners_hear_the_engine_after_the_first_asker_is_disabled() {
+    let host = Arc::new(MockHost::default());
+    {
+        let mut snap = host.snap.lock().unwrap();
+        snap.queue = vec![QueueEntry {
+            id: "1".into(),
+            uid: "u1".into(),
+            kind: "track".into(),
+        }]
+        .into();
+        snap.current_index = Some(0);
+        snap.state = PlaybackState::Playing;
+        snap.desired_state = PlaybackState::Playing;
+    }
+    let (luna, dir) = start_on(
+        r##"
+R.ready = false;
+lib.redux.intercept("probe/ADD", unloads, async () => {
+	const m = await lib.MediaItem.fromId(1);
+	m.withFormat(unloads, undefined, (f) => (R.rate = f.sampleRate));
+	R.added = true;
+});
+R.ready = true;
+"##,
+        host.clone(),
+    );
+    wait_for(&luna, &dir, "ready");
+    install_other(
+        &luna,
+        "Other",
+        r##"const m = await lib.MediaItem.fromId(1);
+m.withFormat(unloads, undefined, () => {});"##,
+    );
+    wait_until(&luna, 10, |s| {
+        plugin(s, "Other").is_some_and(|p| p.status == PluginStatus::Running)
+    });
+    tidal_action(&luna, "probe/ADD", json!(null));
+    wait_for(&luna, &dir, "added");
+    luna.set_enabled("Other", false);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "Other").unwrap().status == PluginStatus::Disabled
+    });
+    host.snap.lock().unwrap().sample_rate = Some(96000);
+    luna.event(LunaEvent::Position(1.0));
+    let end = Instant::now() + Duration::from_secs(10);
+    while count(&dir, "rate") == 0 && Instant::now() < end {
+        luna.sync(Duration::from_secs(10));
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(count(&dir, "rate"), 96000, "{}", results(&dir));
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
