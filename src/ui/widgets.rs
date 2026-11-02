@@ -3749,7 +3749,7 @@ fn tidal_row_cells(
         );
         let add = row_icon_button(
             &mut child,
-            Icon::Plus,
+            ROW_ADD,
             quiet,
             palette.text,
             &gettext(app.locale, "Add to playlist"),
@@ -3790,6 +3790,15 @@ fn tidal_row_cells(
     number
 }
 
+/// A row's "Add to playlist" glyph, TIDAL's `general__add`.
+const ROW_ADD: Icon = Icon::RowAdd;
+
+/// The size a row button draws `icon` at: 16, and TIDAL's `+`
+/// (`general__add`, a 12 by 1.5 cross in its 24-point box) fills the button.
+fn row_glyph(icon: Icon) -> f32 {
+    if icon == Icon::RowAdd { 24.0 } else { 16.0 }
+}
+
 /// A 24-point row button with a 16-point glyph.
 pub(crate) fn row_icon_button(
     ui: &mut Ui,
@@ -3811,7 +3820,7 @@ pub(crate) fn row_icon_button(
         hover,
         crate::motion::tidal::ICON,
     );
-    theme::paint_icon(ui, icon, rect, 16.0, color);
+    theme::paint_icon(ui, icon, rect, row_glyph(icon), color);
     theme::focus_ring(ui, &response);
     response.on_hover_text(tooltip)
 }
@@ -6652,6 +6661,20 @@ fn repaint_when_relative_date_changes(ui: &egui::Ui, added: &str) {
 mod tests {
     use super::*;
     use crate::app::{App, AppOptions};
+
+    /// A row's `+` is TIDAL's own glyph in its 24-point box, a cross 12 long
+    /// and 1.5 thick: Lucide's at 16 is 9.3 long and 1.3 thick.
+    #[test]
+    fn a_rows_add_button_is_tidals_cross() {
+        let ctx = egui::Context::default();
+        let image = ROW_ADD.image(Color32::WHITE, 24.0);
+        let uri = image.source(&ctx);
+        assert!(format!("{uri:?}").contains("row-add"), "{uri:?}");
+        assert_eq!(row_glyph(ROW_ADD), 24.0);
+        assert_eq!(row_glyph(Icon::Check), 16.0);
+        let svg = include_str!("../../assets/icons/row-add.svg");
+        assert!(svg.contains("M18 11.25h-5.25V6h-1.5v5.25H6v1.5h5.25V18h1.5v-5.25H18z"));
+    }
 
     /// An artist's picture stays round however wide its card: one 330
     /// wide (alone in a narrow page beside the open queue) has corners of

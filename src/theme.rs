@@ -813,6 +813,7 @@ fastframe_icons::icons! {
         Refresh => lucide "refresh-cw",
         Repeat => "repeat",
         Repeat1 => "repeat-1",
+        RowAdd => "row-add",
         Search => lucide "search",
         Settings => lucide "settings",
         Share => "share",
