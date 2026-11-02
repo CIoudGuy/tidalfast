@@ -1651,32 +1651,27 @@ impl TidalClient {
         reply
     }
 
+    /// A new playlist, as TIDAL's dialog makes it. TIDAL's "Private" is
+    /// `UNLISTED`: not listed, open to who has the link.
     pub async fn create_playlist(
         &self,
         name: &str,
         public: bool,
         description: &str,
     ) -> Result<Playlist> {
-        let reply = self
-            .send(
-                Call::new(
-                    Method::PUT,
-                    self.v2("my-collection/playlists/folders/create-playlist"),
-                )
-                .query("name", name)
-                .query("description", description)
-                .query("folderId", "root")
-                .query("isPublic", public),
-            )
-            .await?;
-        let created: CreatedPlaylist = decode(&reply.body)?;
-        let mut playlist = convert::playlist(created.data);
-        if playlist.owner.id.is_none() {
-            let user = self.user_id()?.to_string();
-            playlist.owner.uri = Some(convert::uri("user", &user));
-            playlist.owner.id = Some(user);
+        let mut attributes = serde_json::json!({ "name": name, "accessType": access_type(public) });
+        if !description.is_empty() {
+            attributes["description"] = description.into();
         }
-        Ok(playlist)
+        let body = serde_json::json!({ "data": { "type": "playlists", "attributes": attributes } });
+        let reply = self
+            .send(Call::new(Method::POST, self.openapi("playlists")).json_api(&body))
+            .await?;
+        let document: Value = decode(&reply.body)?;
+        Ok(convert::openapi_playlist(
+            &document["data"],
+            self.user_id()?.to_string(),
+        ))
     }
 
     /// Renames, redescribes, or publishes a playlist; `None` keeps a field.
@@ -1687,40 +1682,26 @@ impl TidalClient {
         description: Option<&str>,
         public: Option<bool>,
     ) -> Result<()> {
-        if name.is_some() || description.is_some() {
-            // TIDAL takes both fields together.
-            let current = if name.is_none() || description.is_none() {
-                Some(self.playlist(id).await?)
-            } else {
-                None
-            };
-            let title = name
-                .map(str::to_string)
-                .or_else(|| current.as_ref().map(|playlist| playlist.name.clone()))
-                .unwrap_or_default();
-            let text = description
-                .map(str::to_string)
-                .or_else(|| {
-                    current
-                        .as_ref()
-                        .and_then(|playlist| playlist.description.clone())
-                })
-                .unwrap_or_default();
-            self.send(
-                Call::new(Method::POST, self.v1(&format!("playlists/{id}")))
-                    .form("title", title)
-                    .form("description", text),
-            )
-            .await?;
+        let mut attributes = serde_json::Map::new();
+        if let Some(name) = name {
+            attributes.insert("name".into(), name.into());
+        }
+        if let Some(description) = description {
+            attributes.insert("description".into(), description.into());
         }
         if let Some(public) = public {
-            let action = if public { "set-public" } else { "set-private" };
-            self.send(Call::new(
-                Method::PUT,
-                self.v2(&format!("playlists/{id}/{action}")),
-            ))
-            .await?;
+            attributes.insert("accessType".into(), access_type(public).into());
         }
+        if attributes.is_empty() {
+            return Ok(());
+        }
+        let body = serde_json::json!({
+            "data": { "id": id, "type": "playlists", "attributes": attributes }
+        });
+        self.send(
+            Call::new(Method::PATCH, self.openapi(&format!("playlists/{id}"))).json_api(&body),
+        )
+        .await?;
         Ok(())
     }
 
@@ -3351,12 +3332,6 @@ struct CombinedPlaylist {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
-struct CreatedPlaylist {
-    data: RawPlaylist,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
 struct MixId {
     #[serde(deserialize_with = "convert::id_string")]
     id: String,
@@ -3575,6 +3550,10 @@ fn folder_item_id(item: &Value, data: &Value) -> String {
 
 /// The body that adds songs or videos to a playlist (`POST
 /// playlists/{id}/relationships/items`; `kind` is `tracks` or `videos`).
+fn access_type(public: bool) -> &'static str {
+    if public { "PUBLIC" } else { "UNLISTED" }
+}
+
 fn playlist_items_body(kind: &str, ids: &[&str]) -> Value {
     serde_json::json!({
         "data": ids.iter().map(|id| serde_json::json!({"id": id, "type": kind})).collect::<Vec<_>>(),

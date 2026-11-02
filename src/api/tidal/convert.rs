@@ -593,6 +593,29 @@ pub(crate) fn openapi_video(
     })
 }
 
+/// A `playlists` resource of an openapi document. `user` is the account a
+/// playlist it made belongs to; its other details are not in the resource.
+pub(crate) fn openapi_playlist(resource: &serde_json::Value, user: String) -> Playlist {
+    let attributes = &resource["attributes"];
+    playlist(RawPlaylist {
+        uuid: id_of(resource).unwrap_or_default(),
+        title: attributes["name"].as_str().unwrap_or_default().to_string(),
+        description: attributes["description"].as_str().map(str::to_string),
+        number_of_tracks: attributes["numberOfItems"].as_u64().map(|n| n as u32),
+        duration: attributes["duration"].as_str().and_then(duration_seconds),
+        creator: Some(RawCreator {
+            id: user,
+            name: None,
+        }),
+        public_playlist: attributes["accessType"]
+            .as_str()
+            .map(|kind| kind == "PUBLIC"),
+        url: sharing_link(attributes),
+        last_updated: attributes["lastModifiedAt"].as_str().map(str::to_string),
+        ..RawPlaylist::default()
+    })
+}
+
 /// The `TIDAL_SHARING` address of `attributes.externalLinks`.
 fn sharing_link(attributes: &serde_json::Value) -> Option<String> {
     attributes["externalLinks"]

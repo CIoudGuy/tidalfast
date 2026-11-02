@@ -43,6 +43,14 @@ const SUGGESTED_VIDEOS: &str = r#"{
   "links": {"self": "/videos/441699021/relationships/suggestedVideos"}
 }"#;
 
+const CREATED_PLAYLIST: &str = r#"{
+  "data": {"id": "835c91e8-8128-457e-b412-c30618637746", "type": "playlists",
+    "attributes": {"accessType": "UNLISTED", "name": "Tidalfast test", "numberOfItems": 0, "duration": "PT0S",
+      "lastModifiedAt": "2026-11-02T04:41:34.055Z",
+      "externalLinks": [{"href": "https://listen.tidal.com/playlist/835c91e8", "meta": {"type": "TIDAL_SHARING"}}]}},
+  "links": {"self": "/playlists/835c91e8-8128-457e-b412-c30618637746"}
+}"#;
+
 #[tokio::test]
 async fn related_artists_are_tidals_similar_artists_read_by_cursor() {
     let (base, seen) = script(vec![
@@ -137,5 +145,83 @@ async fn similar_videos_are_tidals_suggested_videos() {
         seen[0].starts_with("GET /videos/441699021/relationships/suggestedVideos?"),
         "{}",
         seen[0]
+    );
+}
+
+#[tokio::test]
+async fn a_playlist_is_created_as_tidals_dialog_creates_it() {
+    let (base, seen) = script(vec![
+        reply("201 Created", "", CREATED_PLAYLIST),
+        reply("201 Created", "", CREATED_PLAYLIST),
+    ])
+    .await;
+    let client = client(&base, refresher());
+    let playlist = client
+        .create_playlist("Tidalfast test", false, "")
+        .await
+        .unwrap();
+    assert_eq!(playlist.id, "835c91e8-8128-457e-b412-c30618637746");
+    assert_eq!(playlist.name, "Tidalfast test");
+    assert_eq!(playlist.public, Some(false));
+    assert_eq!(
+        playlist.owner.id.as_deref(),
+        Some(client.user_id().unwrap().to_string().as_str()),
+        "the account owns what it made"
+    );
+    client
+        .create_playlist("Public", true, "Words")
+        .await
+        .unwrap();
+    let seen = seen.lock().unwrap();
+    assert!(seen[0].starts_with("POST /playlists"), "{}", seen[0]);
+    assert!(
+        seen[0].contains(r#""accessType":"UNLISTED""#),
+        "{}",
+        seen[0]
+    );
+    assert!(!seen[0].contains("description"), "{}", seen[0]);
+    assert!(seen[1].contains(r#""accessType":"PUBLIC""#), "{}", seen[1]);
+    assert!(seen[1].contains(r#""description":"Words""#), "{}", seen[1]);
+}
+
+#[tokio::test]
+async fn a_playlist_changes_only_the_fields_named_and_asks_for_nothing_first() {
+    let (base, seen) = script(vec![
+        reply("200 OK", "", "{}"),
+        reply("200 OK", "", "{}"),
+        reply("403 Forbidden", "", "{}"),
+    ])
+    .await;
+    let client = client(&base, refresher());
+    client
+        .update_playlist("p-1", Some("New"), None, None)
+        .await
+        .unwrap();
+    client
+        .update_playlist("p-1", None, None, Some(true))
+        .await
+        .unwrap();
+    client
+        .update_playlist("p-1", None, None, None)
+        .await
+        .unwrap();
+    assert!(
+        client
+            .update_playlist("p-1", None, None, Some(false))
+            .await
+            .is_err(),
+        "a refusal is an error, so the shown state can be put back"
+    );
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 3, "{seen:?}");
+    assert!(seen[0].starts_with("PATCH /playlists/p-1"), "{}", seen[0]);
+    assert!(seen[0].contains(r#""name":"New""#), "{}", seen[0]);
+    assert!(!seen[0].contains("description"), "{}", seen[0]);
+    assert!(!seen[0].contains("accessType"), "{}", seen[0]);
+    assert!(seen[1].contains(r#""accessType":"PUBLIC""#), "{}", seen[1]);
+    assert!(
+        seen[2].contains(r#""accessType":"UNLISTED""#),
+        "{}",
+        seen[2]
     );
 }

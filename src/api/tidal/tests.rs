@@ -709,35 +709,6 @@ async fn blocked_songs_and_artists_are_read_with_names_and_a_song_is_unblocked()
 }
 
 #[tokio::test]
-async fn a_playlist_is_made_public_or_private_with_a_v2_put() {
-    let (base, seen) = script(vec![
-        reply("200 OK", "", "{}"),
-        reply("200 OK", "", "{}"),
-        reply("403 Forbidden", "", "{}"),
-    ])
-    .await;
-    let client = client(&base, refresher());
-    client
-        .update_playlist("p-1", None, None, Some(true))
-        .await
-        .unwrap();
-    client
-        .update_playlist("p-1", None, None, Some(false))
-        .await
-        .unwrap();
-    assert!(
-        client
-            .update_playlist("p-1", None, None, Some(false))
-            .await
-            .is_err(),
-        "a refusal is an error, so the shown state can be put back"
-    );
-    let seen = seen.lock().unwrap();
-    assert!(seen[0].starts_with("PUT /playlists/p-1/set-public"));
-    assert!(seen[1].starts_with("PUT /playlists/p-1/set-private"));
-}
-
-#[tokio::test]
 async fn playback_info_becomes_a_stream() {
     let (base, seen) = script(vec![reply(
         "200 OK",

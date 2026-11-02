@@ -444,7 +444,7 @@ fn created_id(body: &str) -> Result<(String, Value)> {
 }
 
 impl TidalClient {
-    fn openapi(&self, path: &str) -> String {
+    pub(super) fn openapi(&self, path: &str) -> String {
         format!("{}/{path}", self.openapi_base)
     }
 
