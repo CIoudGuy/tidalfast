@@ -437,6 +437,21 @@
 		return Object.assign(list, { item: (i) => list[i] ?? null });
 	};
 
+	// TIDAL's rules that join the cascade only while a theme's sheet is in the
+	// document: the look with no theme is Tidalfast's own, which leaves them
+	// out. The search pill's frosted glass (TIDAL 2.47.0's rule, three
+	// classes deep) is drawn under a theme alone, the maintainer's decision.
+	let themedTidal = null;
+	const themedTidalSheet = () => {
+		if (!themedTidal) {
+			themedTidal = new CSSStyleSheet();
+			themedTidal.replaceSync(
+				":is(._container_cb5cbe4 ._searchFieldWithPopover_267e090) .searchFieldWithinSearchFieldWithPopover { backdrop-filter: var(--frosted-glass-nav-blur, blur(20px) saturate(180%)); }",
+			);
+		}
+		return themedTidal;
+	};
+
 	// ---------------------------------------------------------------- rule index
 	// What TIDAL's own stylesheet does to its containers that a plugin can
 	// take over by copying their class: the fullscreen now-playing container
@@ -610,7 +625,8 @@
 		const els = styleElements();
 		// A plugin window's page has only its own sheets: TIDAL's are the
 		// app page's.
-		const sheets = [...(L.page ? [userAgentSheet].filter(Boolean) : [tidalSheet(), looksSheet()]), ...els.map(sheetOf), ...(g.document.adoptedStyleSheets ?? [])];
+		const themed = !L.page && els.some((el) => el.hasAttribute?.("data-luna-theme"));
+		const sheets = [...(L.page ? [userAgentSheet].filter(Boolean) : [tidalSheet(), looksSheet()]), ...(themed ? [themedTidalSheet()] : []), ...els.map(sheetOf), ...(g.document.adoptedStyleSheets ?? [])];
 		const srcKey = `${key}|${els.length}|${sheets.map((s) => (s._src ?? "").length).join(",")}`;
 		if (index && srcKey === indexKey) return index;
 		indexKey = srcKey;
@@ -900,7 +916,7 @@
 			if (!sh || sh.disabled) continue;
 			if (sh._media && !D.evalMedia(sh._media)) continue;
 			pluginOnly = sh === looks;
-			if (sh !== tidal && sh !== looks) {
+			if (sh !== tidal && sh !== themedTidal && sh !== looks) {
 				const size = (sh._src ?? "").length || sh.cssRules.reduce((n, r) => n + (r.cssText?.length ?? 0), 0);
 				if (bytes + size > MAX_CSS_BYTES) {
 					skipped++;
