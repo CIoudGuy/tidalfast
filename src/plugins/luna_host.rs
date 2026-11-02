@@ -592,7 +592,7 @@ impl LunaHost for AppHost {
         let quality = quality
             .filter(|q| q.chars().all(|c| c.is_ascii_uppercase() || c == '_'))
             .unwrap_or("LOSSLESS");
-        let mut info = self.get(
+        let answer = self.get(
             format!("tracks/{}/playbackinfo", numeric(id)?),
             vec![
                 ("audioquality", quality.to_string()),
@@ -600,26 +600,21 @@ impl LunaHost for AppHost {
                 ("assetpresentation", "FULL".into()),
             ],
         )?;
-        // Plugins get the format, never the stream itself: what the manifest
-        // says about the codec and bit rate is kept (as `stream`), its URLs
-        // and keys never leave. A single file's size is asked of the server
-        // (as TidaLuna does), for its bit rate.
-        if let Some(o) = info.as_object_mut() {
-            let manifest = o.remove("manifest");
-            let manifest = manifest.as_ref().and_then(Value::as_str);
-            if let Some(mut stream) = manifest.map(stream_summary) {
-                if let Some(url) = manifest.and_then(bts_url)
-                    && let Some(tidal) = self.tidal.as_ref()
-                    && let Some(bytes) = tidal
-                        .block_on(move |client| async move {
-                            Ok::<_, crate::api::client::ApiError>(client.stream_size(&url).await)
-                        })
-                        .flatten()
-                {
-                    stream["bytes"] = json!(bytes);
-                }
-                o.insert("stream".into(), stream);
-            }
+        let mut info = stream_info(&answer);
+        // A single file's size is asked of the server (as TidaLuna does),
+        // for its bit rate.
+        if let Some(url) = answer
+            .get("manifest")
+            .and_then(Value::as_str)
+            .and_then(bts_url)
+            && let Some(tidal) = self.tidal.as_ref()
+            && let Some(bytes) = tidal
+                .block_on(move |client| async move {
+                    Ok::<_, crate::api::client::ApiError>(client.stream_size(&url).await)
+                })
+                .flatten()
+        {
+            info["stream"]["bytes"] = json!(bytes);
         }
         Some(info)
     }
@@ -866,6 +861,27 @@ impl LunaHost for AppHost {
         }
     }
 
+    /// A read of a playback answer as the account: the app makes it with
+    /// its session, and only a plugin the user allowed to save audio (the
+    /// runtime checked) sees more than the format.
+    fn stream_read(&self, plugin: Option<&str>, request: &NetRequest, whole: bool) -> NetVerdict {
+        match self.account_call(plugin, request, "read") {
+            NetVerdict::Respond {
+                status,
+                headers,
+                body,
+            } if !whole && !body.is_empty() => NetVerdict::Respond {
+                status,
+                headers,
+                body: serde_json::from_slice(&body)
+                    .map_or_else(|_| json!({}), |answer| stream_info(&answer))
+                    .to_string()
+                    .into_bytes(),
+            },
+            answer => answer,
+        }
+    }
+
     /// The runtime's state or the plugins' overlay changed: the window
     /// paints it (the frame reads both as it starts), now or, in the
     /// background, with its next pass ([`AppHost::change_delay`]).
@@ -922,6 +938,9 @@ impl LunaHost for AppHost {
                             "plugins can read the account through TIDAL's API, and change its playlists and favourites, nothing else".into(),
                         ),
                     };
+                }
+                if stream_path(&path) {
+                    return NetVerdict::ReadStream;
                 }
                 self.account_call(plugin, request, "read")
             }
@@ -1112,6 +1131,66 @@ fn account_api(url: &str) -> Option<(Api, String, Query)> {
         .or_else(|| tidal_v2_collection(url).map(|(path, query)| (Api::V2, path, query)))
 }
 
+/// A path as a server reads it: decoded, in one case, cut at its separators.
+fn path_words(path: &str) -> Vec<String> {
+    percent_encoding::percent_decode_str(path)
+        .decode_utf8_lossy()
+        .to_ascii_lowercase()
+        .split(['/', ';'])
+        .map(str::to_string)
+        .collect()
+}
+
+/// Whether a call under TIDAL's v1 reads a song's or video's playback answer
+/// (`tracks/{id}/playbackinfo`, `videos/{id}/urlpostpaywall`, ...), however
+/// it is spelled. Nothing a user names ever stands in a v1 path.
+fn stream_path(path: &str) -> bool {
+    path_words(path).iter().any(|word| {
+        ["playbackinfo", "urlpostpaywall", "streamurl", "offlineurl"]
+            .iter()
+            .any(|name| word.contains(name))
+    })
+}
+
+/// What any plugin may read of a playback answer. A list of what is open
+/// rather than of what is not: a field TIDAL adds stays closed.
+const STREAM_INFO_FIELDS: [&str; 20] = [
+    "trackId",
+    "videoId",
+    "assetPresentation",
+    "audioMode",
+    "audioQuality",
+    "videoQuality",
+    "soundQuality",
+    "streamType",
+    "manifestMimeType",
+    "bitDepth",
+    "sampleRate",
+    "codec",
+    "codecs",
+    "albumReplayGain",
+    "albumPeakAmplitude",
+    "trackReplayGain",
+    "trackPeakAmplitude",
+    "status",
+    "subStatus",
+    "userMessage",
+];
+
+/// A playback answer as any plugin reads it: the format, never the stream.
+/// What the manifest says about the codec and bit rate is kept (as `stream`);
+/// its addresses and keys never leave.
+fn stream_info(answer: &Value) -> Value {
+    let mut info: serde_json::Map<String, Value> = STREAM_INFO_FIELDS
+        .iter()
+        .filter_map(|field| Some(((*field).to_string(), answer.get(*field)?.clone())))
+        .collect();
+    if let Some(manifest) = answer.get("manifest").and_then(Value::as_str) {
+        info.insert("stream".into(), stream_summary(manifest));
+    }
+    Value::Object(info)
+}
+
 /// Why a plugin's call to openapi as the account is refused.
 const OPEN_API_REFUSED: &str = "TIDAL's streams stay behind the save-audio permission, and plugins use TIDAL's API with GET, POST, PATCH, PUT and DELETE only";
 
@@ -1140,11 +1219,22 @@ fn open_api_target(url: &str) -> Option<String> {
 /// the one thing left out: a plugin gets TIDAL's audio only through the
 /// save-audio permission, which never shows it a stream's address.
 fn open_api_open(method: &str, target: &str) -> bool {
-    let resource = target.split(['/', '?']).next().unwrap_or_default();
     matches!(
         method.to_ascii_uppercase().as_str(),
         "GET" | "HEAD" | "POST" | "PATCH" | "PUT" | "DELETE"
-    ) && !matches!(resource, "trackManifests" | "videoManifests")
+    ) && !open_api_names_a_manifest(target)
+}
+
+/// Whether an openapi call reaches a stream's manifest, however it is
+/// spelled: in its path, or asked along by `include`.
+fn open_api_names_a_manifest(target: &str) -> bool {
+    let manifest = |word: &str| matches!(word, "trackmanifests" | "videomanifests");
+    let (path, query) = target.split_once('?').unwrap_or((target, ""));
+    path_words(path).iter().any(|word| manifest(word))
+        || url::form_urlencoded::parse(query.as_bytes()).any(|(name, value)| {
+            name.eq_ignore_ascii_case("include")
+                && value.to_ascii_lowercase().split([',', '.']).any(manifest)
+        })
 }
 
 /// The plugin's headers TIDAL reads on an openapi call. The placeholder
@@ -1446,6 +1536,85 @@ mod tests {
             Some(Some("x".to_string()))
         );
         assert_eq!(open_api_playlist_changed("userCollectionAlbums/me"), None);
+    }
+
+    /// A manifest stays behind however its address is spelled, and what
+    /// only looks like one (a search for the word) goes on.
+    #[test]
+    fn openapi_refuses_a_manifest_in_any_spelling() {
+        for target in [
+            "trackManifests/1",
+            "TrackManifests/1",
+            "track%4Danifests/1",
+            "/trackManifests/1",
+            "videoManifests/1?manifestType=HLS",
+            "video%4Danifests%2F1",
+            "tracks/1/relationships/trackManifests",
+            "tracks/1?include=trackManifests",
+            "tracks/1?include=albums,Track%4Danifests",
+        ] {
+            assert!(!open_api_open("GET", target), "{target}");
+        }
+        for target in [
+            "tracks/1/relationships/similarTracks",
+            "searchResults/manifest/relationships/tracks",
+            "tracks/1?include=albums",
+        ] {
+            assert!(open_api_open("GET", target), "{target}");
+        }
+    }
+
+    /// Reads of a playback answer are told apart from the v1 reads plugins
+    /// make all day, which keep going straight through.
+    #[test]
+    fn only_a_playback_answer_counts_as_a_stream() {
+        for path in [
+            "tracks/1/playbackinfo",
+            "tracks/1/playbackinfopostpaywall",
+            "tracks/1/playbackinfopostpaywall/v4",
+            "videos/1/urlpostpaywall",
+            "videos/1/streamUrl",
+            "tracks/1/offlineUrl",
+            "tracks/1%2Fplayback%69nfo",
+            "tracks/1/PLAYBACKINFO;a=b",
+        ] {
+            assert!(stream_path(path), "{path}");
+        }
+        for path in [
+            "tracks/1",
+            "tracks/1/radio",
+            "tracks/1/lyrics",
+            "videos/1",
+            "playlists/x/items",
+            "users/1/favorites/tracks",
+            "search/tracks",
+        ] {
+            assert!(!stream_path(path), "{path}");
+        }
+    }
+
+    /// The format of a stream, and nothing a field TIDAL adds might carry.
+    #[test]
+    fn a_playback_answer_keeps_only_its_format() {
+        use base64::Engine as _;
+        let manifest = base64::engine::general_purpose::STANDARD
+            .encode(r#"{"mimeType":"audio/flac","codecs":"flac","urls":["https://x/y"]}"#);
+        let info = stream_info(&json!({
+            "audioQuality": "LOSSLESS",
+            "bitDepth": 24,
+            "manifest": manifest,
+            "manifestHash": "h",
+            "somethingNew": "https://x/y",
+        }));
+        assert_eq!(
+            info,
+            json!({
+                "audioQuality": "LOSSLESS",
+                "bitDepth": 24,
+                "stream": { "mimeType": "audio/flac", "codec": "flac", "encrypted": false },
+            })
+        );
+        assert_eq!(stream_info(&json!(["a list"])), json!({}));
     }
 
     #[test]

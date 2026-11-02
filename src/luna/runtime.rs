@@ -2296,7 +2296,10 @@ It is installed and switched on; what it may do is asked when it does it, and it
                 _ => None,
             };
             let target = match host.outbound(Some(&plugin), &req) {
-                NetVerdict::Allow | NetVerdict::Respond { .. } | NetVerdict::AskOpenApi => target,
+                NetVerdict::Allow
+                | NetVerdict::Respond { .. }
+                | NetVerdict::AskOpenApi
+                | NetVerdict::ReadStream => target,
                 NetVerdict::Deny(why) | NetVerdict::Ask(why) => {
                     return Err(format!("ECONNREFUSED: {why}"));
                 }
@@ -2330,7 +2333,8 @@ It is installed and switched on; what it may do is asked when it does it, and it
                 NetVerdict::Allow
                 | NetVerdict::Respond { .. }
                 | NetVerdict::Redirect(_)
-                | NetVerdict::AskOpenApi => {}
+                | NetVerdict::AskOpenApi
+                | NetVerdict::ReadStream => {}
                 NetVerdict::Deny(why) | NetVerdict::Ask(why) => {
                     return Err(format!("EACCES: {why}"));
                 }
@@ -3066,6 +3070,13 @@ fn op_async_run(
                             NetVerdict::Deny(denied(&access))
                         }
                     }
+                    // A stream's format is any plugin's; the stream itself
+                    // only a plugin the user allowed to save audio.
+                    NetVerdict::ReadStream => {
+                        let access = super::Access::SaveAudio;
+                        let whole = plugin.is_some_and(|p| grants.permits.allowed(p, &access));
+                        host.stream_read(plugin, &request, whole)
+                    }
                     verdict => verdict,
                 }
             };
@@ -3427,7 +3438,7 @@ fn fetch(
             }
             // The worker's `ask` answers these; a request that skipped it
             // goes nowhere.
-            NetVerdict::AskOpenApi => {
+            NetVerdict::AskOpenApi | NetVerdict::ReadStream => {
                 return Err("fetch failed: not allowed".into());
             }
             NetVerdict::Respond {

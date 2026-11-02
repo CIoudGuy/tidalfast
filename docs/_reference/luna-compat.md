@@ -562,8 +562,9 @@ Transfer and never imported. Code: `src/luna/permits.rs`, the prompt in
   (no `countryCode` added, `userCollection*` refuses one), and only `Accept`,
   `Idempotency-Key`, `If-Match` and `If-None-Match` go with it, never the
   placeholder. `trackManifests` and `videoManifests` stay refused, allowed or
-  not: streams are behind the save-audio permission, which never shows an
-  address. A write to `playlists` refreshes the app's lists. The runtime
+  not, however spelled (percent-encoded, in another case, after a doubled
+  slash, or named in `include`): streams are behind the save-audio permission.
+  A write to `playlists` refreshes the app's lists. The runtime
   checks the answer again before the app makes the call, and a forked script
   is refused. Logs get the method, path and status, never the query or an
   answer. A call with a token of the plugin's own is any other request and
@@ -595,8 +596,19 @@ Transfer and never imported. Code: `src/luna/permits.rs`, the prompt in
   `fetchMediaItemStream`). The prompt says the plugin will save TIDAL streams
   as files and that this may break TIDAL's terms of use. Only an unencrypted
   stream, the one the app would play: protected streams (Dolby Atmos, any
-  DRM) are refused where the app asks TIDAL and nothing is decrypted; the
-  plugin never sees a stream URL. `download` writes only where the user
+  DRM) are refused where the app asks TIDAL and nothing is decrypted.
+  `download` and `fetchMediaItemStream` never show the plugin a stream URL.
+  A read of TIDAL's playback answer with the headers of
+  `TidalApi.getAuthHeaders()` (`tracks/{id}` or `videos/{id}`, then
+  `playbackinfo`, `playbackinfopostpaywall`, `urlpostpaywall`, `streamurl` or
+  `offlineurl`, however spelled) asks nothing and answers according to this
+  permission: without it the format only (`audioQuality`, `bitDepth`,
+  `sampleRate`, `codec`, `manifestMimeType`, the replay gain and the like,
+  and the manifest's codec as `stream`, the fields in `STREAM_INFO_FIELDS`),
+  with it TIDAL's answer as it came, manifest included. Tests:
+  `account_read_tests.rs`. A plugin given the TIDAL sign-in holds the token
+  and can ask TIDAL for anything itself; that is what that prompt warns of.
+  `download` writes only where the user
   picked for that plugin in a file dialog; a folder the plugin names without
   that gets a folder dialog first (once per folder), and the file takes the
   extension its bytes have (`.m4a` for a DASH stream). It is written as
@@ -1569,10 +1581,16 @@ review pass of the compatibility audit.
   (`video-card-<id>`, `video-play-button-<id>`; the demo artist has no videos,
   so the parity numbers do not show it), and an artist's BPM and KEY headings
   are `th._bpmColumn_3455955` and `th._keyColumn_5b80b57`. What TIDAL's rows
-  hold under them was not captured, so the rows are unchanged. Not done:
-  `GET /v1/tracks/{id}/playbackinfo` with the placeholder headers still goes
-  through the app unfiltered, which lets a plugin see a manifest without the
-  save-audio question.
+  hold under them was not captured, so the rows are unchanged.
+- **Plugin round 29 (2026-11-02).** A plugin's read of TIDAL's playback answer
+  with the placeholder headers handed over the manifest without any
+  permission (shown by a synthetic plugin against a made-up TIDAL); it now
+  answers with the format alone unless the plugin may save audio. Songs and
+  videos, every legacy address, and `TidalApi.playbackInfo` keep to one list
+  of open fields. Openapi's manifests are refused in every spelling. Store
+  plugins read quality through `MediaItem.playbackInfo` and
+  `TidalApi.playbackInfo`, and none fetches the address itself (TidalEQ only
+  names it to clear a cache), so none changes.
 - **Plugin round 26 (2026-10-30).** Worked from the 2.47.0 records and
   captures of round 25; TIDAL itself was not run. Fixed for every plugin,
   each with a test that fails without it: an artist's Top Tracks are

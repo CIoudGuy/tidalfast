@@ -380,6 +380,11 @@ pub enum NetVerdict {
     /// the user has allowed that plugin [`super::Access::OpenApi`]; the
     /// runtime then asks [`LunaHost::open_api_call`] to carry it out.
     AskOpenApi,
+    /// A read of a song's or video's playback answer as the account: the
+    /// runtime says whether the plugin may see it whole
+    /// ([`super::Access::SaveAudio`]) and asks [`LunaHost::stream_read`] to
+    /// carry it out. Nothing is asked of the user.
+    ReadStream,
 }
 
 /// A native file dialog a plugin asked for (Electron's
@@ -519,6 +524,16 @@ pub trait LunaHost: Send + Sync + 'static {
     /// the plugin gets. The default refuses.
     fn open_api_call(&self, _plugin: Option<&str>, _request: &NetRequest) -> NetVerdict {
         NetVerdict::Deny("plugins cannot use TIDAL's API as the account here".into())
+    }
+    /// Carry out a read of a playback answer ([`NetVerdict::ReadStream`]):
+    /// TIDAL's answer as it came when `whole`, its format alone otherwise.
+    fn stream_read(
+        &self,
+        _plugin: Option<&str>,
+        _request: &NetRequest,
+        _whole: bool,
+    ) -> NetVerdict {
+        NetVerdict::Deny("plugins cannot read streams here".into())
     }
     /// A native open or save dialog for a plugin (on a worker thread; it
     /// returns when the user has chosen). The paths chosen, or `None` when

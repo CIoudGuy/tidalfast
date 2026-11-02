@@ -51,6 +51,15 @@ impl ApiGateway {
         }
     }
 
+    /// A gateway around an existing client, for a test.
+    #[cfg(test)]
+    pub(crate) fn with_client(client: TidalClient) -> Self {
+        Self {
+            state: tokio::sync::watch::channel((0, SessionState::Unavailable)).0,
+            tidal: RwLock::new(Arc::new(client)),
+        }
+    }
+
     pub fn state(&self) -> SessionState {
         self.state.borrow().1.clone()
     }

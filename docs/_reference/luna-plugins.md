@@ -65,6 +65,11 @@ limits" in `luna-compat.md`; the 2026-10-21 review's tests are in
   however spelled; the token never reaches logs or plugin storage. TIDAL's
   official API (`openapi.tidal.com`) as the account is a permission of its
   own: the app makes those calls, so the plugin never holds the token.
+- **Streams.** A plugin reads a song's or video's format, never its manifest
+  or stream address, unless the user allowed it to save TIDAL audio; then a
+  read of TIDAL's playback answer comes back whole. TIDAL's protected
+  streams are never decrypted. A plugin given the sign-in holds the token,
+  so this stops at that permission.
 - **Network.** A plugin may reach the network, the local network and this
   computer, as TidaLuna's Node code can (AltPlay reaches the user's own
   media server); every redirect hop is put to the same policy. Plugins,

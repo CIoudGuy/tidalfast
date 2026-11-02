@@ -11,6 +11,8 @@ use serde_json::{Value, json};
 
 use super::*;
 
+#[path = "account_read_tests.rs"]
+mod account_read_tests;
 #[path = "child_flow_tests.rs"]
 mod child_flow_tests;
 #[path = "fork_tests.rs"]

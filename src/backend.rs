@@ -1098,6 +1098,17 @@ pub use fastframe_shell::Waker;
 pub struct TidalAccess(Arc<std::sync::OnceLock<(Arc<ApiGateway>, RuntimeGate)>>);
 
 impl TidalAccess {
+    /// Access to a signed-in `client`, for a test that runs the real host
+    /// against a made-up TIDAL.
+    #[cfg(test)]
+    pub(crate) fn for_tests(client: TidalClient, runtime: RuntimeGate) -> Self {
+        let access = Self::default();
+        let api = Arc::new(ApiGateway::with_client(client));
+        api.install(AccountId::new("test"));
+        let _ = access.0.set((api, runtime));
+        access
+    }
+
     /// Run `f` against the TIDAL client once the account is ready. Blocks;
     /// never call it on the UI thread or inside the async runtime. `None`
     /// as well once the app is closing.
