@@ -288,15 +288,21 @@ v1: `GET search?query=<q>&types=ARTISTS,ALBUMS,TRACKS,VIDEOS,PLAYLISTS&limit=50&
   - Not found: how TIDAL's own apps add an opened item (the web player sits behind a bot check; no write was tried on a live account). If that call is ever captured, the list can sync. Until then it is local only.
 
 ### 2.7 Lyrics [V]
-`GET tracks/{id}/lyrics?countryCode=XX` -> 200
-```json
-{ "trackId": 123, "lyricsProvider": "Musixmatch", "providerCommontrackId": "12345", "providerLyricsId": "678",
-  "lyrics": "plain text\nwith newlines", "subtitles": "[00:05.67]First line\n[00:09.10]Second line", "isRightToLeft": false }
+Tidalfast reads TIDAL's lyrics from the track's JSON:API relationship, as TIDAL 2.47.0 does (its bundle reads `lyrics` resources: `tracks/{id}?include=lyrics` and `lyrics/{id}`; the v1 path is no longer in it):
 ```
-- `subtitles` is LRC with `[mm:ss.xx]` stamps (two-digit hundredths); it can be absent/empty when only plain `lyrics` exist, and `lyrics` can be empty when only subtitles exist (mare handles both; treat all provider/id fields as optional).
-  Lines are not guaranteed sorted, and multi-stamp lines like `[01:02.34][02:18.56]Same hook` occur (expand them, then sort). Tolerate `[mm:ss.xxx]`.
-- 404 = no lyrics; do not retry. Rights-restricted lyrics may return 401/403 [?].
-- Official API equivalent: `GET https://openapi.tidal.com/v2/tracks/{id}/relationships/lyrics` (JSON:API, `include=lyrics`).
+GET https://openapi.tidal.com/v2/tracks/{id}/relationships/lyrics?include=lyrics&countryCode=XX
+```
+```json
+{ "data": [{ "id": "FVBtkVjT1s9v...", "type": "lyrics" }],
+  "included": [{ "id": "FVBtkVjT1s9v...", "type": "lyrics", "attributes": {
+    "text": "plain text\nwith newlines", "lrcText": "[00:45.52]First line\n[00:51.77]Second line",
+    "direction": "LEFT_TO_RIGHT" | "RIGHT_TO_LEFT", "technicalStatus": "PENDING" | "PROCESSING" | "ERROR" | "OK",
+    "provider": { "name": "MUSIXMATCH", "source": "THIRD_PARTY", "commonTrackId": "12345", "lyricsId": "678" } } }] }
+```
+- A track without lyrics answers 200 with `data: []` (v1 answered 404). 401/403 count as none, as they did on v1.
+- `lrcText` is LRC with `[mm:ss.xx]` stamps; it can be absent when only plain `text` exists, and the other way round. Lines are not guaranteed sorted, and multi-stamp lines like `[01:02.34][02:18.56]Same hook` occur (expand them, then sort).
+- Checked live 2026-11-02 on the test profile (`The Weeknd`, track 22228136, Max account, signed-in session token, no extra scope): the old `GET tracks/{id}/lyrics` and this read carry the same words and stamps, 86 timed lines parsed by `TidalClient::lyrics`, about 170 ms each way. Against `subtitles`, `lrcText` has no space after a stamp and has blank lines between verses, so plugins (`MediaItem.lyrics()`, `TidalClient::lyrics_for_plugin`) get the resource rewritten to v1's `{trackId, lyrics, subtitles, isRightToLeft, lyricsProvider, providerCommontrackId, providerLyricsId}`, line for line the old `subtitles`. Track 77646168 (no lyrics): `Ok(None)`.
+- A plugin's own `v1` request for `tracks/{id}/lyrics` still goes to v1: that is the plugin's call, not Tidalfast's.
 
 ### 2.8 Pages (home / explore / mixes) [V]
 Legacy page endpoints: `GET pages/<slug>?countryCode=XX&deviceType=BROWSER[&locale=en_US]`.

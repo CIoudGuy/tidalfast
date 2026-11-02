@@ -3013,8 +3013,6 @@ impl TidalClient {
 
     // ---- lyrics and playback ---------------------------------------------------
 
-    /// The track's lyrics, synced when TIDAL has timings. `None` when TIDAL
-    /// has none.
     /// A track's credits (`tracks/{id}/credits`), with the release year and
     /// the label line from the track itself, as TIDAL's now-playing view
     /// lists them.
@@ -3035,21 +3033,42 @@ impl TidalClient {
         Ok(parsed)
     }
 
+    /// The track's lyrics, synced when TIDAL has timings. `None` when TIDAL
+    /// has none.
     pub async fn lyrics(&self, track_id: &str) -> Result<Option<crate::lyrics::Lyrics>> {
-        let raw: Option<RawLyrics> = match self
-            .get_optional(Call::new(
-                Method::GET,
-                self.v1(&format!("tracks/{track_id}/lyrics")),
-            ))
-            .await
-        {
-            // Rights-restricted lyrics answer 401/403: there are none to show.
+        Ok(self.track_lyrics(track_id).await?.and_then(lyrics))
+    }
+
+    /// The track's `lyrics` resource as a plugin expects TIDAL's words:
+    /// `lyrics`, `subtitles` in LRC, `isRightToLeft` and the provider.
+    pub async fn lyrics_for_plugin(&self, track_id: &str) -> Result<Option<Value>> {
+        let found = self.track_lyrics(track_id).await?;
+        Ok(found.map(|found| lyrics_for_plugin(track_id, &found)))
+    }
+
+    /// The attributes of the track's `lyrics` resource, as TIDAL's apps read
+    /// them. `None` when it has none: an empty relationship, or refused for
+    /// rights (401/403).
+    async fn track_lyrics(&self, track_id: &str) -> Result<Option<Value>> {
+        let call = Call::new(
+            Method::GET,
+            format!(
+                "{}/tracks/{track_id}/relationships/lyrics",
+                self.openapi_base
+            ),
+        )
+        .query("include", "lyrics");
+        let document: Option<Value> = match self.get_optional(call).await {
             Err(ApiError::Status {
                 status: 401 | 403, ..
             }) => None,
             other => other?,
         };
-        Ok(raw.and_then(lyrics))
+        Ok(document.and_then(|document| {
+            let document = jsonapi::Document::new(&document);
+            let resource = document.resources().into_iter().next()?;
+            Some(resource["attributes"].clone())
+        }))
     }
 
     /// A playable stream for a track. The quality reported is what TIDAL
@@ -3546,23 +3565,16 @@ fn last_updated(body: &str) -> Option<String> {
     }
 }
 
-#[derive(Debug, Default, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-struct RawLyrics {
-    lyrics: Option<String>,
-    subtitles: Option<String>,
-}
-
-/// TIDAL's lyrics in the shape the lyrics panel reads: LRC subtitles when
-/// present (sorted, multi-stamp lines expanded), else plain lines.
-fn lyrics(raw: RawLyrics) -> Option<crate::lyrics::Lyrics> {
+/// TIDAL's lyrics in the shape the lyrics panel reads: LRC when present
+/// (sorted, multi-stamp lines expanded), else plain lines. `attributes` are
+/// the `lyrics` resource's.
+fn lyrics(attributes: Value) -> Option<crate::lyrics::Lyrics> {
     use crate::lyrics::{Line, Lyrics};
-    if let Some(subtitles) = raw
-        .subtitles
-        .as_deref()
+    if let Some(timed) = attributes["lrcText"]
+        .as_str()
         .filter(|text| !text.trim().is_empty())
     {
-        let lines: Vec<Line> = crate::lyrics::parse_lrc(subtitles)
+        let lines: Vec<Line> = crate::lyrics::parse_lrc(timed)
             .into_iter()
             .filter(|line| !line.text.is_empty())
             .collect();
@@ -3574,7 +3586,9 @@ fn lyrics(raw: RawLyrics) -> Option<crate::lyrics::Lyrics> {
             });
         }
     }
-    let plain = raw.lyrics.filter(|text| !text.trim().is_empty())?;
+    let plain = attributes["text"]
+        .as_str()
+        .filter(|text| !text.trim().is_empty())?;
     let lines: Vec<Line> = plain
         .lines()
         .map(|line| Line {
@@ -3586,6 +3600,33 @@ fn lyrics(raw: RawLyrics) -> Option<crate::lyrics::Lyrics> {
         lines,
         synced: false,
         instrumental: false,
+    })
+}
+
+/// A `lyrics` resource in the shape TIDAL's client hands plugins: its LRC
+/// has a space after each line's stamp and no blank lines between verses,
+/// where the resource has neither.
+fn lyrics_for_plugin(track_id: &str, attributes: &Value) -> Value {
+    let subtitles = attributes["lrcText"].as_str().map(|text| {
+        let lines: Vec<String> = text
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| match line.rfind(']') {
+                Some(end) => format!("{} {}", &line[..=end], line[end + 1..].trim_start()),
+                None => line.to_string(),
+            })
+            .collect();
+        lines.join("\n")
+    });
+    let provider = &attributes["provider"];
+    serde_json::json!({
+        "trackId": track_id.parse::<u64>().ok(),
+        "lyrics": attributes["text"],
+        "subtitles": subtitles,
+        "isRightToLeft": attributes["direction"] == "RIGHT_TO_LEFT",
+        "lyricsProvider": provider["name"],
+        "providerCommontrackId": provider["commonTrackId"],
+        "providerLyricsId": provider["lyricsId"],
     })
 }
 

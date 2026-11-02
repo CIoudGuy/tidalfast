@@ -312,6 +312,15 @@ impl AppHost {
         self.tidal_pace.wait();
         tidal.block_on(move |client| async move { client.v1_json(&path, &query).await })
     }
+
+    /// TIDAL's words for a track, as a plugin reads them.
+    fn tidal_lyrics(&self, id: String) -> Option<Value> {
+        let tidal = self.tidal.as_ref()?;
+        self.tidal_pace.wait();
+        tidal
+            .block_on(move |client| async move { client.lyrics_for_plugin(&id).await })
+            .flatten()
+    }
 }
 
 /// What a playback manifest says about the stream, without its address:
@@ -547,7 +556,7 @@ impl LunaHost for AppHost {
         // where TIDAL has none): a plugin's lyrics agree with the app's
         // Lyrics tab, as in TIDAL, where both are TIDAL's.
         numeric(id)
-            .and_then(|n| self.get(format!("tracks/{n}/lyrics"), Vec::new()))
+            .and_then(|n| self.tidal_lyrics(n.to_string()))
             .or_else(|| self.app_lyrics(id, APP_LYRICS_WAIT))
     }
 

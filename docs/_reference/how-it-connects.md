@@ -44,9 +44,9 @@ and the account's store country, which goes on every catalog request.
 
 | Surface | Base URL | Used for |
 | --- | --- | --- |
-| Legacy v1 | `https://api.tidal.com/v1/` | Catalog, favourites, playlists, search, lyrics, pages, `playbackinfopostpaywall`, logout |
+| Legacy v1 | `https://api.tidal.com/v1/` | Catalog, favourites, playlists, search, pages, `playbackinfopostpaywall`, logout |
 | Internal v2 | `https://api.tidal.com/v2/` | The library (folders, favourite playlists and mixes), Home feed, and the Feed with its count of new items |
-| OpenAPI v2 | `https://openapi.tidal.com/v2/` | `trackManifests`, the stream for Lossless; Save for Later; Upload (your uploaded releases, their tracks and details) |
+| OpenAPI v2 | `https://openapi.tidal.com/v2/` | `trackManifests`, the stream for Lossless; lyrics; Save for Later; Upload (your uploaded releases, their tracks and details) |
 | Images | `https://resources.tidal.com/images/` and `https://images.tidal.com/` | Cover art and mix artwork |
 
 Everything is plain HTTPS with `Authorization: Bearer <token>`. The responses

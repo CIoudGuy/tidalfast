@@ -212,7 +212,9 @@ fn search_maps_every_section_and_the_top_hit() {
 
 #[test]
 fn synced_lyrics_become_sorted_timed_lines() {
-    let lyrics = lyrics(fixture(include_str!("fixtures/lyrics.json"))).unwrap();
+    let document: Value = fixture(include_str!("fixtures/lyrics.json"));
+    let attributes = document["included"][0]["attributes"].clone();
+    let lyrics = lyrics(attributes).unwrap();
     assert!(lyrics.synced);
     let times: Vec<Option<u32>> = lyrics.lines.iter().map(|line| line.at_ms).collect();
     assert_eq!(
@@ -220,14 +222,78 @@ fn synced_lyrics_become_sorted_timed_lines() {
         [Some(28_120), Some(31_400), Some(62_340), Some(138_560)]
     );
     assert_eq!(lyrics.lines[3].text, "We are up all night to get lucky");
-    let plain = super::lyrics(RawLyrics {
-        lyrics: Some("one\ntwo".into()),
-        subtitles: Some(String::new()),
-    })
-    .unwrap();
+    let plain = super::lyrics(serde_json::json!({"text": "one\ntwo", "lrcText": ""})).unwrap();
     assert!(!plain.synced);
     assert_eq!(plain.lines.len(), 2);
-    assert!(super::lyrics(RawLyrics::default()).is_none());
+    assert!(super::lyrics(serde_json::json!({})).is_none());
+}
+
+#[tokio::test]
+async fn lyrics_come_from_the_tracks_openapi_relationship() {
+    let (base, seen) = script(vec![
+        reply("200 OK", "", include_str!("fixtures/lyrics.json")),
+        reply("200 OK", "", r#"{"data":[],"links":{"self":"/x"}}"#),
+        reply("403 Forbidden", "", "{}"),
+        reply("500 Internal Server Error", "", "{}"),
+        reply("500 Internal Server Error", "", "{}"),
+        reply("500 Internal Server Error", "", "{}"),
+        reply("500 Internal Server Error", "", "{}"),
+    ])
+    .await;
+    let client = client(&base, refresher());
+    assert!(client.lyrics("7").await.unwrap().unwrap().synced);
+    // None, or none for rights: nothing to show, and the panel goes on.
+    assert!(client.lyrics("8").await.unwrap().is_none());
+    assert!(client.lyrics("9").await.unwrap().is_none());
+    // A server failure is an error, with no second source.
+    assert!(client.lyrics("10").await.is_err());
+    let seen = seen.lock().unwrap();
+    assert!(
+        seen[0].starts_with("GET /tracks/7/relationships/lyrics?")
+            && seen[0].contains("include=lyrics"),
+        "{}",
+        seen[0]
+    );
+    assert!(
+        seen.iter()
+            .all(|line| line.contains("/relationships/lyrics"))
+    );
+}
+
+#[test]
+fn plugins_read_the_lyrics_resource_in_the_shape_tidals_client_gives_them() {
+    let document: Value = fixture(include_str!("fixtures/lyrics.json"));
+    let words = lyrics_for_plugin("77646168", &document["included"][0]["attributes"]);
+    assert_eq!(words["trackId"], 77646168);
+    assert_eq!(
+        words["lyrics"],
+        "Like the legend of the phoenix\nAll ends with beginnings"
+    );
+    let subtitles = words["subtitles"].as_str().unwrap();
+    assert!(
+        subtitles.starts_with("[00:28.12] Like the legend"),
+        "{subtitles}"
+    );
+    assert!(
+        subtitles.contains("[01:02.34][02:18.56] We are up"),
+        "{subtitles}"
+    );
+    assert!(
+        subtitles.ends_with("[00:05.00] "),
+        "a stamp alone has its space too"
+    );
+    assert_eq!(words["isRightToLeft"], false);
+    assert_eq!(words["lyricsProvider"], "MUSIXMATCH");
+    assert_eq!(words["providerCommontrackId"], "12345");
+    assert_eq!(words["providerLyricsId"], "678");
+    let spaced = serde_json::json!({"lrcText": "[00:01.00]One\n\n[00:02.00]Two"});
+    assert_eq!(
+        lyrics_for_plugin("1", &spaced)["subtitles"],
+        "[00:01.00] One\n[00:02.00] Two"
+    );
+    let rtl = serde_json::json!({"direction": "RIGHT_TO_LEFT", "text": "x"});
+    assert_eq!(lyrics_for_plugin("1", &rtl)["isRightToLeft"], true);
+    assert!(lyrics_for_plugin("1", &rtl)["subtitles"].is_null());
 }
 
 #[test]

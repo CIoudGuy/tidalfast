@@ -1,9 +1,17 @@
 {
- "trackId": 77646168,
- "lyricsProvider": "Musixmatch",
- "providerCommontrackId": "12345",
- "providerLyricsId": "678",
- "lyrics": "Like the legend of the phoenix\nAll ends with beginnings",
- "subtitles": "[00:28.12]Like the legend of the phoenix\n[00:31.40]All ends with beginnings\n[01:02.34][02:18.56]We are up all night to get lucky\n[00:05.00]",
- "isRightToLeft": false
+ "data": [{"id": "FVBtkVjT1s9vJJZ0", "type": "lyrics"}],
+ "included": [
+  {
+   "id": "FVBtkVjT1s9vJJZ0",
+   "type": "lyrics",
+   "attributes": {
+    "direction": "LEFT_TO_RIGHT",
+    "lrcText": "[00:28.12]Like the legend of the phoenix\n[00:31.40]All ends with beginnings\n[01:02.34][02:18.56]We are up all night to get lucky\n[00:05.00]",
+    "provider": {"commonTrackId": "12345", "lyricsId": "678", "name": "MUSIXMATCH", "source": "THIRD_PARTY"},
+    "technicalStatus": "OK",
+    "text": "Like the legend of the phoenix\nAll ends with beginnings"
+   }
+  }
+ ],
+ "links": {"self": "/tracks/77646168/relationships/lyrics?countryCode=US"}
 }

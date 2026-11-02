@@ -59,7 +59,6 @@ impl<'a> Document<'a> {
 
     /// `data` resolved to the included resources, for a `relationships/...`
     /// read.
-    #[cfg_attr(not(test), expect(dead_code))]
     pub fn resources(&self) -> Vec<&'a Value> {
         self.data()
             .into_iter()
