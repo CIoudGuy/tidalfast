@@ -3678,6 +3678,60 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 55 (one-sided borders, rules of no weight, the menu's empty span, 2026-11-02)
+
+Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
+TIDAL. Fixed in the generic layer, each with a made-up theme in the test.
+
+- **A side's shorthand alone is the box's border.** `border-right: 1px solid
+  ...` with no `border` on the box, or after `border: none`, was dropped: the
+  edges of Meteor Night, Catppuccin Mocha Blue, Sunken Tidal, Synthwave '77,
+  Giorgeous. A colour's numbers (`rgb(255 255 255 / 10%)`) are no longer read
+  as a width. Test: `a_sides_shorthand_alone_is_the_boxs_border`.
+- **Corners, shadows and colours TIDAL sets by a class of its own are out of
+  reach of a rule of no weight** (`* { border-radius: 0 }`, `button { color }`),
+  as round 54 did for some colours. The classes are the ones the capture's
+  sheets set the property on. A menu's title and a card's title link stay out
+  of the list: their colour follows a token or the parent. Test:
+  `a_rule_of_no_weight_leaves_what_tidals_classes_set`.
+- **A floating bar's `height` is its box.** Lunallena's bar is 100 high, 12
+  above where it stood, and this, not the demo's grid, was what round 54 saw on
+  Lunallena macOS: 2.65 % -> 1.04 %. Test: `a_floating_bars_height_is_its_box`.
+- **`span.context-menu` is in the shell while a menu is open.** An empty inline
+  box takes no line, and a side of its own (padding, border, left or right)
+  gives it one of 20 points, which lowers the sidebar and the page and not the
+  bar. That was Meteor Night's page standing 20 lower with a menu open, which
+  round 47 left open. Its panel is always there, of no height with no line: a
+  panel that came and went changed the ids of what followed it and closed the
+  menu. Test: `a_side_on_the_menus_empty_span_opens_a_line_above_the_shell`.
+- **A box on a row's title is the words' box,** a flex item: as wide as the
+  words and its border, 20 and its border high, in the middle of the row
+  (Meteor Night's `[class*="active"]`). Test:
+  `a_box_on_a_rows_title_is_as_wide_as_its_words`.
+
+Look with no theme: a rolled-up folder in the sidebar is TIDAL's row, a 36-point
+plate (`#1c1c1c`, 2 round) with its 32-point folder glyph at 35 % white, where
+a chevron and the library icon stood, and its words start 12 past the plate. An
+open folder shows a chevron on the plate: TIDAL opens a folder as a page, so it
+has no such state. Nothing else. Test:
+`a_rolled_up_folder_row_is_tidals_plate_and_glyph`.
+
+Numbers against the round's base: dark 1.06 % -> 0.96 % of 305 million, no theme
+0.66 % -> 0.57 %, style 300 -> 211, hover 1.23 % -> 1.13 %. Lunallena macOS 2.65
+-> 1.04, Lunallena Visible Sidebar 2.53 -> 1.81, Lunallena 1.65 -> 0.99, Meteor
+Night 2.71 -> 1.70 (with a menu open 5.50 -> 1.91), Giorgeous 1.48 -> 1.20. Light:
+Tidal Light 0.67 % as it was, adaptive Cotton Candy 0.56 % -> 0.49 %, Horchata
+0.43 % -> 0.37 %. CPU, release demo at rest on Home, 20 s, 3 runs: Cotton Candy
+process 3,077 to 3,160 million cycles.
+
+Worse: Abyss Neptune 1.54 -> 1.56: its sidebar's new edge, one point off TIDAL's
+column.
+
+Still open: the checker compares Lunallena's album and playlist pages hardly at
+all (`pictures` leaves out 97 %, the page's full-window backdrop); dark row titles
+look heavier than TIDAL's on pale pages (text rendering); `--wave-border-radius`
+tokens do not reach the queue button or the search field (Giorgeous, Lunallena).
+
 ### Round 54 (the search pill's glass, TIDAL's rules under a theme, the header, menus, 2026-11-02)
 
 Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
