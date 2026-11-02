@@ -1142,4 +1142,53 @@ mod tests {
         });
         output.textures_delta.clear();
     }
+
+    /// The fork wraps a right-to-left run from its logical start: the first
+    /// row of a plain epaint wrap holds the first words and keeps a bracket
+    /// pair together, where it once broke after the opening bracket's word
+    /// and left the closing one on the next row. [`layout`] still cuts rows
+    /// itself (whole words, a mark at the cut), and must agree here.
+    #[test]
+    fn plain_wrap_of_a_right_to_left_run_starts_at_its_start() {
+        let ctx = egui::Context::default();
+        crate::theme::install(&ctx);
+        ctx.run_ui(egui::RawInput::default(), |_| {})
+            .textures_delta
+            .clear();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let painter = ui.painter();
+            let font = FontId::proportional(14.0);
+            let text = "שיר ישן (גרסה חיה) של הלהקה הגדולה בעולם כולו ועוד מילים";
+            let plain = painter.layout_job(LayoutJob::simple(
+                text.to_owned(),
+                font.clone(),
+                Color32::WHITE,
+                130.0,
+            ));
+            // What a row holds, as its letters in sorted order: where the
+            // rows break is the question, not how they are laid out.
+            let letters = |chars: &mut dyn Iterator<Item = char>| {
+                let mut letters: Vec<char> = chars.filter(|c| !c.is_whitespace()).collect();
+                letters.sort_unstable();
+                letters
+            };
+            let rows: Vec<Vec<char>> = plain
+                .rows
+                .iter()
+                .map(|placed| letters(&mut placed.row.glyphs.iter().map(|glyph| glyph.chr)))
+                .collect();
+            let first = letters(&mut "שיר ישן (גרסה חיה)".chars());
+            let second = letters(&mut "של הלהקה הגדולה".chars());
+            assert_eq!(rows[0], first, "{:?}", plain.text());
+            assert_eq!(rows[1], second, "{:?}", plain.text());
+            let ours = layout(painter, text, font, Color32::WHITE, 130.0, 8, None);
+            let ours: Vec<Vec<char>> = ours
+                .text()
+                .split('\n')
+                .map(|line| letters(&mut line.chars()))
+                .collect();
+            assert_eq!(&ours[..2], &rows[..2], "layout and the fork cut alike");
+        });
+        output.textures_delta.clear();
+    }
 }
