@@ -108,6 +108,15 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     let signed_in = app.is_connected() && app.user.is_some();
     let connecting = matches!(app.auth, AuthStatus::Connecting | AuthStatus::Starting)
         || (app.is_connected() && app.user.is_none());
+    // Over the page's own background, like the title bar it pushes down.
+    // Always there, of no height with no line: a panel that came and went
+    // would change the ids of what follows, and close the open menu.
+    egui::Panel::top("context-menu-line")
+        .exact_size(plugin_dom::context_menu_line())
+        .resizable(false)
+        .show_separator_line(false)
+        .frame(egui::Frame::NONE)
+        .show(ui, |_| ());
     titlebar::show(app, ui);
     if !signed_in {
         login::show(app, ui, connecting);

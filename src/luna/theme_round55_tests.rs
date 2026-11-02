@@ -40,6 +40,68 @@ fn overlay_when(
     }
 }
 
+/// TIDAL's `span.context-menu` is there while a menu is open, in the shell
+/// before the main container. Empty, it takes no room; a side of its own, as
+/// a rule like `[class*="menu"] { border-right }` gives it, opens a line of
+/// 20 above the sidebar and the page (Edge on the capture). Top and bottom
+/// edges alone do not, nor does a rule that leaves it no box.
+#[test]
+fn a_side_on_the_menus_empty_span_opens_a_line_above_the_shell() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{CONTEXT_MENU_LINE, FOOTER, MAIN_CONTAINER, SHELL};
+    let frame = dom_anchors::sample_frame();
+    let tree = dom_anchors::build(&frame);
+    let index = |key: &str| tree.nodes.iter().position(|n| n.key == key).unwrap();
+    assert!(index(CONTEXT_MENU_LINE) < index(MAIN_CONTAINER));
+    assert_eq!(
+        tree.nodes[index(CONTEXT_MENU_LINE)].parent.as_deref(),
+        Some(SHELL)
+    );
+    let mut closed = frame.clone();
+    closed.context_menu = None;
+    assert!(
+        !dom_anchors::build(&closed)
+            .nodes
+            .iter()
+            .any(|n| n.key == CONTEXT_MENU_LINE)
+    );
+
+    for (name, rule, line) in [
+        (
+            "line-right.css",
+            "[class*=\"menu\"] { border-right: 1px solid rgba(1, 2, 3, 0.5); }",
+            20.0,
+        ),
+        ("line-pad.css", ".context-menu { padding-left: 3px; }", 20.0),
+        (
+            "line-top.css",
+            ".context-menu { border-top: 1px solid rgb(1, 2, 3); padding-top: 5px; }",
+            0.0,
+        ),
+        (
+            "line-gone.css",
+            ".context-menu { display: none; border-right: 1px solid rgb(1, 2, 3); }",
+            0.0,
+        ),
+        (
+            "line-fill.css",
+            ".context-menu { background-color: rgb(1, 2, 3); }",
+            0.0,
+        ),
+    ] {
+        let css = format!(
+            "/* {{\"name\": \"{name}\"}} */ ._player_8c80ae6 {{ color: rgb(1, 2, 3); }} {rule}"
+        );
+        let o = overlay_when(name, &css, &frame, |o| {
+            o.hosts.contains_key(FOOTER) && o.hosts.contains_key(CONTEXT_MENU_LINE)
+        });
+        pd::test_overlay(Some((*o).clone()));
+        let got = pd::context_menu_line();
+        pd::test_overlay(None);
+        assert_eq!(got, line, "{name}");
+    }
+}
+
 /// A side's shorthand is a border by itself, with none on the box before it
 /// or after `border: none`: the sidebar's edge and the bar's top line of
 /// several themes went undrawn. The side stands alone in the box's widths.

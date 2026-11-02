@@ -486,6 +486,9 @@ pub mod keys {
     pub const STORE_SEARCH_FIELD: &str = "theme-roles:store-search";
     pub const STORE_SEARCH_INPUT: &str = "theme-roles:store-search-input";
     /// The same popover around the open context menu.
+    /// TIDAL's empty `span.context-menu`, in the shell before the main
+    /// container while a menu is open (captured).
+    pub const CONTEXT_MENU_LINE: &str = "context-menu-line";
     pub const CONTEXT_MENU_BOX: &str = "contextmenu-box";
 
     /// `sidebar:<data-test>`
@@ -2797,6 +2800,9 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     // cotton candy family's `#wimp > div > div > div._mainContainer_
     // 6519c30._hasPlayer_57557c6 > div._bar_5b9ac59._smallText_a636ed6 {
     // backdrop-filter: blur(3px) }`).
+    if frame.context_menu.is_some() {
+        out.push(el(CONTEXT_MENU_LINE, Some(SHELL), "span").class("context-menu"));
+    }
     let mut container = el(MAIN_CONTAINER, Some(SHELL), "div").modules(&["mainContainer"]);
     if has_player {
         container = container.class("_hasPlayer_57557c6");
@@ -7970,6 +7976,7 @@ mod tests {
         assert_eq!(
             order,
             [
+                keys::CONTEXT_MENU_LINE,
                 keys::MAIN_CONTAINER,
                 keys::NP_FULLSCREEN,
                 keys::NOW_PLAYING,

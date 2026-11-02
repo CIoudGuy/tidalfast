@@ -529,6 +529,34 @@ fn origin_in(value: Option<&str>, r: Rect) -> egui::Pos2 {
     )
 }
 
+/// The room TIDAL's `span.context-menu` takes above the main container while
+/// a menu is open. It is an empty inline box, which takes no line until
+/// something gives it a side: padding or a border on its left or right
+/// (measured in Edge on the capture, top and bottom edges alone give none). The line is the 20 points of TIDAL's `line-height`, the bar stays
+/// where it is, and so a theme's `[class*="menu"] { border-right }` lowers
+/// the sidebar and the page for as long as the menu is open.
+pub fn context_menu_line() -> f32 {
+    const LINE: f32 = 20.0;
+    let key = crate::luna::dom_anchors::keys::CONTEXT_MENU_LINE;
+    let Some(look) = anchor_look(key) else {
+        return 0.0;
+    };
+    let inset = card_inset(key, &look);
+    let inline = host(key, |h, _| {
+        Some(
+            h.style
+                .display
+                .as_deref()
+                .is_none_or(|d| d.trim() == "inline"),
+        )
+    });
+    if inline == Some(true) && (inset[1] > 0.0 || inset[3] > 0.0) {
+        LINE
+    } else {
+        0.0
+    }
+}
+
 /// [`paint_anchor_box`] with a look already read.
 pub fn paint_look(ui: &egui::Ui, key: &str, look: &AnchorLook, r: Rect, native: CornerRadius) {
     paint_with(ui, key, look, r, native, Color32::TRANSPARENT);
