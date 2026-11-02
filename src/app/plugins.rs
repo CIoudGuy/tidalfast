@@ -1103,16 +1103,33 @@ impl App {
         let track_sequence = self.local.track_sequence;
         let seek_sequence = self.local.seek_sequence;
         let engine_position_ms = self.local.position_ms;
+        let engine_uri = self.local.track.as_ref().map(|t| t.uri.clone());
         let mut events = Vec::new();
         let seen = &mut self.plugins.seen;
         if let Some(now) = now {
-            let occurrence = (now.uri.clone(), track_sequence);
+            // A song the app shows before the engine has it (the one just
+            // asked for, or the remembered one shown paused at the start) is
+            // not yet an occurrence of the engine's: it has no sequence.
+            let provisional = now.local && engine_uri.as_deref() != Some(now.uri.as_str());
+            let occurrence = (
+                now.uri.clone(),
+                if provisional { 0 } else { track_sequence },
+            );
             if seen.track.as_ref() != Some(&occurrence) {
+                // The engine opening the song that was shown first is that
+                // song, which plugins were told of when it was shown: TIDAL's
+                // player sends one transition for it.
+                let opening = seen.track_provisional
+                    && !provisional
+                    && seen.track.as_ref().is_some_and(|(uri, _)| *uri == now.uri);
                 seen.track = Some(occurrence);
-                if let Some(id) = tidal_id(&now.uri, "track") {
-                    events.push(LunaEvent::TrackChanged { id });
+                seen.track_provisional = provisional;
+                if !opening {
+                    if let Some(id) = tidal_id(&now.uri, "track") {
+                        events.push(LunaEvent::TrackChanged { id });
+                    }
+                    seen.position_s = None;
                 }
-                seen.position_s = None;
             }
             if seen.seek_sequence != Some(seek_sequence) {
                 if seen.seek_sequence.is_some() {
@@ -2950,6 +2967,10 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
         };
         let said = |lines: &[&str]| lines.iter().map(|l| l.to_string()).collect::<Vec<_>>();
         app.queue = queue(1, 2..6);
+        app.local.track = Some(crate::player::LocalTrack {
+            uri: "tidal:track:1".into(),
+            ..Default::default()
+        });
         assert_eq!(
             step(&mut app, &now),
             said(&[
@@ -3016,6 +3037,10 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
         // rows are made again without the song that began, and plugins are
         // not told of a queue change that is the song advancing.
         now.uri = "tidal:track:2".into();
+        app.local.track = Some(crate::player::LocalTrack {
+            uri: "tidal:track:2".into(),
+            ..Default::default()
+        });
         now.id = Some("2".into());
         now.position_ms = 0;
         app.queue = queue(2, 3..8);
@@ -3042,6 +3067,72 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
                 "playbackControls/MEDIA_PRODUCT_TRANSITION \"2\"",
                 "playbackControls/TIME_UPDATE 0",
             ])
+        );
+        // The song remembered from the last run: shown paused before
+        // anything plays, then opened by the engine when the user starts
+        // it. TIDAL's player announces its song once (it restores its queue
+        // once), not once for what is shown and again as the engine opens
+        // it, and the queue's change is the loaded queue replacing the
+        // remembered one, once.
+        app.luna_sync(None, window);
+        app.queue = Loadable::NotLoaded;
+        app.resume_track = Some("tidal:track:7".into());
+        app.resume_upcoming = vec!["tidal:track:8".into(), "tidal:track:9".into()];
+        now.uri = "tidal:track:7".into();
+        now.id = Some("7".into());
+        now.position_ms = 5_000;
+        now.playing = false;
+        now.resuming = true;
+        app.local.track = None;
+        let shown = step(&mut app, &now);
+        now.resuming = false;
+        now.playing = true;
+        app.local.track_sequence += 1;
+        app.local.track = Some(crate::player::LocalTrack {
+            uri: "tidal:track:7".into(),
+            ..Default::default()
+        });
+        app.queue = queue(7, 8..14);
+        let opened = step(&mut app, &now);
+        let transitions: Vec<&String> = shown
+            .iter()
+            .chain(&opened)
+            .filter(|l| l.starts_with("playbackControls/MEDIA_PRODUCT_TRANSITION"))
+            .collect();
+        assert_eq!(
+            transitions,
+            vec!["playbackControls/MEDIA_PRODUCT_TRANSITION \"7\""],
+            "one transition for the remembered song, shown and then opened"
+        );
+        assert!(
+            opened
+                .iter()
+                .all(|l| !l.starts_with("playbackControls/TIME_UPDATE")),
+            "the position is not told again as the engine opens the song: {opened:?}"
+        );
+        // A song asked for while another plays is shown at once and then
+        // opened by the engine: one transition, at the pass it is shown.
+        now.uri = "tidal:track:11".into();
+        now.id = Some("11".into());
+        now.position_ms = 0;
+        now.loading = true;
+        let asked = step(&mut app, &now);
+        now.loading = false;
+        app.local.track_sequence += 1;
+        app.local.track = Some(crate::player::LocalTrack {
+            uri: "tidal:track:11".into(),
+            ..Default::default()
+        });
+        let started = step(&mut app, &now);
+        let transitions: Vec<&String> = asked
+            .iter()
+            .chain(&started)
+            .filter(|l| l.starts_with("playbackControls/MEDIA_PRODUCT_TRANSITION"))
+            .collect();
+        assert_eq!(
+            transitions,
+            vec!["playbackControls/MEDIA_PRODUCT_TRANSITION \"11\""],
+            "one transition for the song asked for, shown and then opened"
         );
         // A plugin reloaded while the song plays (a store update) hears the
         // next change once, not twice, and nothing it heard before again.

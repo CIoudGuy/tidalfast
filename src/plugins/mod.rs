@@ -23,6 +23,9 @@ pub(crate) struct Seen {
     /// The window's focus plugins were last told about.
     pub focused: Option<bool>,
     pub track: Option<(String, u64)>,
+    /// The song in [`Seen::track`] was shown before the engine had it: the
+    /// engine opening it is the same song, not another transition.
+    pub track_provisional: bool,
     pub state: Option<crate::luna::PlaybackState>,
     pub volume: Option<u8>,
     pub shuffle: Option<bool>,
