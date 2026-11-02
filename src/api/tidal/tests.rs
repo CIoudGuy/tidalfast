@@ -7,6 +7,7 @@ mod catalogue;
 mod creators;
 mod dnd;
 mod folders;
+mod openapi_moves;
 mod playlist_video;
 
 fn fixture<T: DeserializeOwned>(text: &str) -> T {

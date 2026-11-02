@@ -61,6 +61,8 @@ const MAX_RETRY_AFTER: Duration = Duration::from_secs(30);
 const FIRST_BACKOFF: Duration = Duration::from_millis(500);
 /// TIDAL lists playlist and album items 100 at a time.
 const ITEMS_LIMIT: u32 = 100;
+/// How many similar artists the artist page holds, as v1 listed about.
+const RELATED_ARTISTS: usize = 50;
 /// An artist page module's "View all" lists 50 at a time (100 answers 400).
 const MODULE_LIMIT: u32 = 50;
 const SEARCH_LIMIT: u32 = 25;
@@ -2640,16 +2642,41 @@ impl TidalClient {
         Ok(document.as_ref().and_then(followers_of))
     }
 
+    /// The artists TIDAL's own artist page lists under Fans Also Like, in
+    /// its order (`ARTIST_SIMILAR_ARTISTS` holds the same names; v1's
+    /// `artists/{id}/similar` is another, older list). Read 20 at a time up
+    /// to [`RELATED_ARTISTS`].
     pub async fn related_artists(&self, id: &str) -> Result<Vec<Artist>> {
-        let page: Option<RawPage<RawArtist>> = self
-            .get_optional(
-                Call::new(Method::GET, self.v1(&format!("artists/{id}/similar")))
-                    .query("limit", 50),
-            )
-            .await?;
-        Ok(page
-            .map(|page| page.items.into_iter().map(convert::artist).collect())
-            .unwrap_or_default())
+        let url = format!(
+            "{}/artists/{id}/relationships/similarArtists",
+            self.openapi_base
+        );
+        let mut artists = Vec::new();
+        let mut cursor: Option<String> = None;
+        loop {
+            let mut call = Call::new(Method::GET, url.clone())
+                .query("include", "similarArtists,similarArtists.profileArt");
+            if let Some(cursor) = &cursor {
+                call = call.query("page[cursor]", cursor);
+            }
+            let Some(page) = self.get_optional::<Value>(call).await? else {
+                break;
+            };
+            let document = jsonapi::Document::new(&page);
+            let found = document.resources();
+            let empty = found.is_empty();
+            artists.extend(
+                found
+                    .into_iter()
+                    .map(|artist| convert::openapi_artist(&document, artist)),
+            );
+            cursor = jsonapi::next_cursor(&page);
+            if cursor.is_none() || empty || artists.len() >= RELATED_ARTISTS {
+                break;
+            }
+        }
+        artists.truncate(RELATED_ARTISTS);
+        Ok(artists)
     }
 
     /// A mix's title and artwork.

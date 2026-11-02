@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Deserializer};
 
+use super::jsonapi::{Document, artwork_uuid, id_of};
 use crate::api::models::{
     Album, Artist, ArtistRef, AudioAnalysis, Copyright, ExternalIds, ExternalUrls, Image, Mix,
     Owner, Page, Playlist, Track, TrackCount,
@@ -577,6 +578,35 @@ pub(crate) fn artist(raw: RawArtist) -> Artist {
         genres: Vec::new(),
         followers: None,
     }
+}
+
+/// An `artists` resource of an openapi document.
+pub(crate) fn openapi_artist(document: &Document, resource: &serde_json::Value) -> Artist {
+    let attributes = &resource["attributes"];
+    artist(RawArtist {
+        id: id_of(resource).unwrap_or_default(),
+        name: attributes["name"].as_str().unwrap_or_default().to_string(),
+        picture: document
+            .related(resource, "profileArt")
+            .first()
+            .and_then(|art| artwork_uuid(art)),
+        // 0 to 1 here, 0 to 100 on v1.
+        popularity: attributes["popularity"]
+            .as_f64()
+            .map(|share| (share * 100.0).round() as u32),
+        url: sharing_link(attributes),
+        ..RawArtist::default()
+    })
+}
+
+/// The `TIDAL_SHARING` address of `attributes.externalLinks`.
+fn sharing_link(attributes: &serde_json::Value) -> Option<String> {
+    attributes["externalLinks"]
+        .as_array()?
+        .iter()
+        .find(|link| link["meta"]["type"] == "TIDAL_SHARING")
+        .and_then(|link| link["href"].as_str())
+        .map(str::to_string)
 }
 
 /// TIDAL's ALBUM / EP / SINGLE as the album_type the interface groups by.
