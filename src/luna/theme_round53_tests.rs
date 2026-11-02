@@ -62,7 +62,10 @@ fn a_clear_bar_glass_keeps_tidals_blur() {
     let o = overlay_when("clear-glass.css", css, &dom_anchors::sample_frame(), after);
     pd::test_overlay(Some((*o).clone()));
     let (filter, own) = pd::bar_glass_backdrop().expect("TIDAL's blur stays");
-    assert_eq!(filter.blur, backdrop::Backdrop::parse("blur(9px)").unwrap().blur);
+    assert_eq!(
+        filter.blur,
+        backdrop::Backdrop::parse("blur(9px)").unwrap().blur
+    );
     assert_eq!(
         own,
         Some(egui::Color32::from_rgba_unmultiplied(10, 20, 30, 64))
@@ -71,7 +74,12 @@ fn a_clear_bar_glass_keeps_tidals_blur() {
     let css = r#"/* {"name": "Clear glass 2"} */
 ._player_8c80ae6:after { background: transparent; }
 "#;
-    let o = overlay_when("clear-glass-2.css", css, &dom_anchors::sample_frame(), after);
+    let o = overlay_when(
+        "clear-glass-2.css",
+        css,
+        &dom_anchors::sample_frame(),
+        after,
+    );
     pd::test_overlay(Some((*o).clone()));
     let (filter, _) = pd::bar_glass_backdrop().expect("TIDAL's blur stays");
     assert_eq!(
@@ -120,7 +128,9 @@ fn a_border_on_an_albums_row_boxes_moves_the_rows() {
     let css = r#"/* {"name": "Row boxes"} */
 ._nativeRowWrapper_20e35be > div { border: 1px solid rgb(7, 8, 9) !important; }
 "#;
-    let o = overlay_when("row-boxes.css", css, &frame, |o| o.hosts.contains_key(&header));
+    let o = overlay_when("row-boxes.css", css, &frame, |o| {
+        o.hosts.contains_key(&header)
+    });
     pd::test_overlay(Some((*o).clone()));
     let ink = egui::Color32::from_rgb(7, 8, 9);
     assert_eq!(
@@ -147,11 +157,55 @@ fn only_tidals_own_sidebar_module_reaches_the_sidebar() {
         "old-sidebar.css",
         css,
         &dom_anchors::sample_frame(),
-        |o: &DomOverlay| o.hosts.get(SIDEBAR_NAV).is_some_and(|h| h.style.color.is_some()),
+        |o: &DomOverlay| {
+            o.hosts
+                .get(SIDEBAR_NAV)
+                .is_some_and(|h| h.style.color.is_some())
+        },
     );
     let host = o.hosts.get(SIDEBAR_NAV).unwrap();
     assert_eq!(host.style.background_color, None);
     assert!(host.style.border_radius.is_some());
+}
+
+/// TIDAL's "All playlists" heading is a box of its own, in the black of
+/// `--market-core-fill-black-color`, which a sidebar a theme colours shows;
+/// a rule for the box wins, and a light sidebar has no such black.
+#[test]
+fn the_library_headings_box_has_tidals_black() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::SIDEBAR;
+    let colored = |o: &DomOverlay| o.hosts.get(SIDEBAR).is_some_and(|h| !h.style.is_empty());
+    let css = r#"/* {"name": "Coloured sidebar"} */
+._sidebarWrapper_2f256ce { background: rgb(30, 40, 50); }
+"#;
+    let o = overlay_when(
+        "colored-sidebar.css",
+        css,
+        &dom_anchors::sample_frame(),
+        colored,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    assert_eq!(pd::library_heading_box(true), Some(egui::Color32::BLACK));
+    assert_eq!(pd::library_heading_box(false), None);
+    let css = r#"/* {"name": "Heading box"} */
+._sidebarWrapper_2f256ce { background: rgb(30, 40, 50); }
+._sectionHeader_ca54638 { background: rgb(7, 8, 9); }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.heading = Some([10.0, 100.0, 160.0, 22.0]);
+    let heading = |o: &DomOverlay| {
+        o.hosts
+            .get(dom_anchors::keys::LIB_HEADING)
+            .is_some_and(|h| !h.style.is_empty())
+    };
+    let o = overlay_when("heading-box.css", css, &frame, heading);
+    pd::test_overlay(Some((*o).clone()));
+    assert_eq!(
+        pd::library_heading_box(true),
+        Some(egui::Color32::from_rgb(7, 8, 9))
+    );
+    pd::test_overlay(None);
 }
 
 /// `#footerPlayer` is the box that holds the bar's parts: a theme's
@@ -178,7 +232,9 @@ fn a_theme_moves_the_bars_parts_with_its_box() {
     pd::test_overlay(Some((*o).clone()));
     let view = egui::vec2(1000.0, 800.0);
     let bar = egui::Rect::from_min_max(egui::pos2(18.0, 712.0), egui::pos2(982.0, 800.0));
-    let (outer, inner) = pd::footer_box(view).expect("the theme's box").place(bar, 18.0);
+    let (outer, inner) = pd::footer_box(view)
+        .expect("the theme's box")
+        .place(bar, 18.0);
     assert_eq!(outer.min, egui::pos2(-2.0, 714.0));
     assert!((outer.width() - 1005.0).abs() < 0.01, "{outer:?}");
     assert_eq!(inner.min, egui::pos2(18.0, 714.0));

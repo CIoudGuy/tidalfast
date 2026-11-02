@@ -703,6 +703,14 @@ fn rail(app: &mut App, ui: &mut egui::Ui) {
 
     // "All playlists" shrinks to its create button.
     let (header, _) = ui.allocate_exact_size(vec2(ui.available_width(), 54.0), Sense::hover());
+    if let Some(fill) = super::plugin_dom::library_heading_box(palette.dark) {
+        // TIDAL's `_sectionHeader_`, 10 in from the left, 12 from the right.
+        let r = Rect::from_min_max(
+            pos2(header.left() + 10.0, header.top()),
+            pos2(header.right() - 12.0, header.bottom()),
+        );
+        ui.painter().rect_filled(r, 0.0, fill);
+    }
     let create = Rect::from_center_size(
         pos2(header.center().x, header.top() + 35.0),
         Vec2::splat(24.0),

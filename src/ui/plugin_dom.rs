@@ -1848,7 +1848,11 @@ pub(crate) fn outer_shadow_shape(
     let mut rings = Vec::new();
     // The rings go outward from the shadow's own box. What a moved shadow's
     // box shows past the casting box lies inside them.
-    let edge = if spread > 0.0 || blur <= 0.0 { 1.0 } else { 0.5 };
+    let edge = if spread > 0.0 || blur <= 0.0 {
+        1.0
+    } else {
+        0.5
+    };
     let band = shadow_band(r, corner, offset, shadow.color, edge, blur);
     if !band.is_empty() {
         rings.push(egui::Shape::mesh(band));
@@ -3184,6 +3188,22 @@ fn nav_style_now(key: &str) -> Option<NavStyle> {
         ..NavStyle::default()
     };
     (style != NavStyle::default()).then_some(style)
+}
+
+/// The box of the "All playlists" heading in a dark sidebar: TIDAL's
+/// `background-color: var(--market-core-fill-black-color)`, or a theme's
+/// fill. The sidebar is that black with no theme, and a theme that colours
+/// the sidebar alone shows a black band there.
+pub fn library_heading_box(dark: bool) -> Option<Color32> {
+    if !on() || !dark {
+        return None;
+    }
+    let tidal = with(|s| {
+        let v = css::resolve_vars("var(--market-core-fill-black-color, #000)", &s.vars);
+        css::colors_in(&v).first().copied()
+    })
+    .unwrap_or(Color32::BLACK);
+    Some(surface(dom_anchors::keys::LIB_HEADING, tidal)).filter(|c| c.a() > 0)
 }
 
 /// The "All playlists" heading is drawn in `r`: gives it TIDAL's anchors
