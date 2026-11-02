@@ -3637,6 +3637,99 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 53 (the bar's rules by width, its box and glass, rounded pictures, moved shadows, 2026-11-02)
+
+Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
+TIDAL. Fixed in the generic layer, each with a made-up theme in the test.
+
+- **The bar follows TIDAL's rules by the window's width.** `1fr 1.5fr 1fr`
+  with its gap makes the seek bar at every width, at 992 and under the gaps
+  close and the badge, block and "..." leave, at 768 the cover, and the heart
+  stands 24 past the words. Below 576 is not done (under the window's 760
+  minimum). No theme needed. Test: `the_bar_follows_tidals_rules_by_the_windows_width`.
+- **The bar's resting icons are see-through,** TIDAL's `#ffffff8c`: 153 over
+  the bar's grey, where the opaque grey a black page gives was 140. Dark
+  palette only. Test: `the_bars_resting_icons_are_see_through`.
+- **A border on the box round an album's rows and heading takes room,** as
+  they lie in the page's flow (Abyss Neptune's row pitch is 50, its heading
+  38). Test: `a_border_on_an_albums_row_boxes_moves_the_rows`.
+- **Previous, play and next stand in TIDAL's wrappers**
+  (`._centerControls_`, `._skipButtonWrapper_`, `._playButtonInner_`), so the
+  Cotton Candy Nights family's exact-class rules reach their glyphs: those 22
+  fill items were real. Test:
+  `a_themes_rule_on_the_transports_wrappers_reaches_its_glyphs`.
+- **A radial gradient in a rounded box is cut at the edge.** Its points were
+  pulled in to the edge, and on a pill, a radius of half the height, the
+  corners' centres lie on the middle line and the top ones were read as
+  bottom ones: Tidal Light's badge kept a square top half. Pulling in also
+  pressed the middle's colour along the rim. Tests:
+  `a_pills_four_corners_are_all_pulled_in`,
+  `a_radial_in_a_pill_is_cut_at_the_edge_not_pressed_to_it`.
+- **A shadow moved off its box shows past it.** The rings start at the
+  shadow's own edge, so what it shows beyond the box was a hole, and a hard
+  shadow with no blur drew nothing. Test:
+  `a_moved_shadow_fills_what_it_shows_past_its_box`.
+- **`#footerPlayer` holds the bar's parts.** Its `transform`, `width` and
+  border move them and give them room (Tidal Light's `width: 100.3%`,
+  `translate(-2px, 2px)` and 2-point border); only the bar's look knew. Test:
+  `a_theme_moves_the_bars_parts_with_its_box`.
+- **A cleared TIDAL glass has the page under it.** TIDAL's `#main` and
+  sidebar run on under its fixed bar, and a theme that clears the colour of
+  the bar's `::after` keeps its `backdrop-filter`: the blurred page shows
+  through (Tidal Light: the filter had only the window's colour). A
+  `backdrop-filter` a theme sets on the bar itself is left as it was: TIDAL
+  shows black through TidalCustomTheme's, reason not known. Test:
+  `the_page_runs_on_under_a_bar_that_filters_it`.
+- **`aside#sidebar` has TIDAL's classes,** `_sidebar_4927556` and
+  `_newSidebar_f871cc1`, literally: Tidal Light's `._newSidebar_` shade
+  reached nothing, and its `._sidebar_54f18f3`, an older build's, did. Test:
+  `only_tidals_own_sidebar_module_reaches_the_sidebar`.
+- **The Collection button has no `aria-current`,** as captured: Meteor
+  Night's `[aria-current="page"]` box and glow do not reach it. Test:
+  `only_the_links_of_the_sidebar_are_the_current_page`.
+- **The "All playlists" heading is a box,** TIDAL's
+  `--market-core-fill-black-color` or a theme's fill: a black band on a
+  sidebar a theme colours. Test: `the_library_headings_box_has_tidals_black`.
+
+Look with no theme, narrow and normal, dark: the seek bar and transport
+follow TIDAL's grid under about 1800 wide (the seek bar up to 16 wider at
+normal sizes), heart and "..." 8 nearer the words, at 992 and under the gaps,
+badge, block and "..." go, at 768 the cover, resting bar icons 140 -> 153.
+Light: the same layout; the icons are as they were.
+
+Checker correction (private): an icon's fill is read from the look, then the
+style a rule reached it with; an icon no rule reached whose button paints
+TIDAL's fill is kind `button`, apart. The corrected base stays 446: 231 items
+already apart moved to `button`, none left the total.
+
+Numbers against the round's base: dark 1.17 % -> 1.18 % of 305.2 million, no
+theme 0.67 % -> 0.66 %, style 446 -> 417; Abyss Neptune 1.99 -> 1.54, Meteor
+Night 5.38 -> 5.24, Sugarcoat 3.24 -> 3.19; light Tidal Light 1.07 % -> 0.67 %;
+hover 1.37 % -> 1.33 %. Narrow, the bar alone, differing pixels: 960 no theme
+1501 -> 960, Cotton Candy 11871 -> 5344, Sugarcoat 15022 -> 8238; 780 no theme
+1790 -> 918, Cotton Candy 4675 -> 2198.
+
+Worse: the cotton candy families by about 0.03 each, which is why the dark
+total rose (light: adaptive Cotton Candy 0.54 -> 0.56, Horchata 0.42 -> 0.43).
+Data, checked on crops: their track card now ends at the heart, 24 past the
+words, as in TIDAL, and the demo's title is shorter than the capture's. Abyss
+Neptune's macOS black variant 4.30 -> 4.57: its page stands 10 low
+(`#main`'s margin with its padding), its rows now at TIDAL's pitch all 11 off,
+where some met by chance.
+
+CPU, Cotton Candy on Home at rest, release demo, 20 s, 3 runs: process 4,008 to
+4,479 million cycles, main thread 734 to 790, against round 52's 4,146 to 5,108
+and 638 to 821: within the noise. Tidal Light: process about 1,580.
+
+Still open: that variant's page offset; `* { color }` (Meteor Night: a rule of
+no specificity loses to TIDAL's own class rules on most words, the anchors have
+none, so it wins here); the glass stand-in over the page on themes that keep
+TIDAL's glass (Cotton Candy Single's bar is a greyer shade of TIDAL's blue);
+TIDAL's black through TidalCustomTheme's filtered bar; the row add button's
+`+`; the album page's Report action. Nothing real is left in `main-content`
+under the cotton candy family: what the group holds is the capture's extra
+columns and queue. The search pill's blur still waits on the maintainer.
+
 ### Round 52 (the player bar: TIDAL's glyphs, the utility row, the rail, the badge, 2026-10-30)
 
 Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
