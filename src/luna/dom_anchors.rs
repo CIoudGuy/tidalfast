@@ -1079,6 +1079,22 @@ fn page_data_class(page_id: Option<&str>) -> String {
     }
 }
 
+/// TIDAL's name of the page in `#main`'s `data-test-page-name`. The
+/// collection's pages share one (`my-collection`, next to
+/// `data-track--page-id^="mycollection_"`).
+fn page_test_name(id: &str) -> Option<&str> {
+    if id.starts_with("mycollection_") {
+        Some("my-collection")
+    } else if matches!(
+        id,
+        "playlist" | "album" | "artist" | "mix" | "home" | "feed" | "explore"
+    ) {
+        Some(id)
+    } else {
+        None
+    }
+}
+
 /// The CSS-module class for `name`: `_name_<7 hex>`, the literal hash when a
 /// plugin hard-codes one, else a stable hash of the name.
 pub fn module_class(name: &str) -> String {
@@ -2877,6 +2893,14 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
         .modules(&["main"])
         .class("_hasDockedPlayer_b3ed021")
         .at(main_rect(frame));
+    if let Some(name) = frame
+        .page
+        .as_ref()
+        .and_then(|p| p.page_id.as_deref())
+        .and_then(page_test_name)
+    {
+        main = main.attr("data-test-page-name", name);
+    }
     if docked_view {
         main = main.class("_nowPlayingVisible_b1bf3e8");
     }
@@ -3420,22 +3444,6 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
     }
     if let Some(id) = &page.page_id {
         node = node.attr("data-track--page-id", id.clone());
-        // TIDAL's name of the page (`[data-test-page-name="playlist"]`).
-        // The collection's pages share one name (`my-collection`, next to
-        // `data-track--page-id^="mycollection_"`).
-        let name = if id.starts_with("mycollection_") {
-            Some("my-collection")
-        } else if matches!(
-            id.as_str(),
-            "playlist" | "album" | "artist" | "mix" | "home" | "feed" | "explore"
-        ) {
-            Some(id.as_str())
-        } else {
-            None
-        };
-        if let Some(name) = name {
-            node = node.attr("data-test-page-name", name);
-        }
     }
     if let Some(test) = &page.test {
         node = node.test(test);

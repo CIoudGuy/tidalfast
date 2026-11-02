@@ -243,3 +243,22 @@ fn a_universal_colour_loses_to_tidals_own_colours() {
     });
     assert!(color(&o, ARTIST).is_some_and(|c| c.contains("9, 8, 7")));
 }
+
+/// `data-test-page-name` is `#main`'s own attribute in TIDAL, so a theme's
+/// `[data-test-page-name="album"] { margin-top }` takes the place of its
+/// `[data-test="main"] { margin-top }` on that page. It stood on the page's
+/// box inside: `#main` kept the other margin and the page stood 10 low.
+#[test]
+fn the_pages_name_stands_on_main() {
+    use dom_anchors::keys::MAIN;
+    let mut frame = dom_anchors::sample_frame();
+    let page = frame.page.get_or_insert_default();
+    page.page_id = Some("album".into());
+    let css = "/* {\"name\": \"Two margins\"} */\n\
+        [data-test=\"main\"] { margin-top: 66px; }\n\
+        [data-test-page-name=\"album\"] { margin-top: 56px; }\n";
+    let o = overlay_when("two-margins.css", css, &frame, |o| {
+        o.hosts.contains_key(MAIN)
+    });
+    assert_eq!(o.hosts[MAIN].style.margin_top.as_deref(), Some("56px"),);
+}
