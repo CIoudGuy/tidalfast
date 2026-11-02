@@ -7898,6 +7898,54 @@ pub fn footer_glass() -> bool {
     .unwrap_or(false)
 }
 
+/// A theme's box for a bar that stays on the window's edge: `#footerPlayer`
+/// moved by a `transform`, wider or narrower by a `width`, its border taking
+/// room from what it holds (Tidal Light's `width: 100.3%`,
+/// `translate(-2px, 2px)` and 2 px border). TIDAL's bar holds its parts, so
+/// they go with it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FooterBox {
+    translate: egui::Vec2,
+    width: Option<f32>,
+    border: [f32; 4],
+}
+
+impl FooterBox {
+    /// The bar's box, and the room for its parts: `content` is that room
+    /// with no theme, `margin` the bar's padding on either side of it.
+    pub fn place(&self, content: Rect, margin: f32) -> (Rect, Rect) {
+        let mut outer = content.expand2(egui::vec2(margin, 0.0));
+        if let Some(width) = self.width {
+            outer.max.x = outer.min.x + width;
+        }
+        let outer = outer.translate(self.translate);
+        let [_, right, _, left] = self.border;
+        let inner = Rect::from_min_max(
+            egui::pos2(outer.left() + left + margin, outer.top()),
+            egui::pos2(outer.right() - right - margin, outer.bottom()),
+        );
+        (outer, inner)
+    }
+}
+
+/// The theme's [`FooterBox`], `None` while it leaves the bar's box alone.
+pub fn footer_box(viewport: egui::Vec2) -> Option<FooterBox> {
+    use dom_anchors::keys::FOOTER;
+    let translate = anchor_look(FOOTER).map_or(egui::Vec2::ZERO, |l| l.translate);
+    let width = host(FOOTER, |h, vars| {
+        let v = css::resolve_vars(h.style.width.as_deref()?, vars);
+        css::length(&v, 14.0, viewport.x, [viewport.x, viewport.y])
+    })
+    .filter(|w| *w > 0.0);
+    let border = outline_sides(FOOTER, Color32::TRANSPARENT).map_or([0.0; 4], |(sides, _)| sides);
+    (translate != egui::Vec2::ZERO || width.is_some() || border[1] > 0.0 || border[3] > 0.0)
+        .then_some(FooterBox {
+            translate,
+            width,
+            border,
+        })
+}
+
 /// What TIDAL's bar glass paints over the bar's own look.
 pub const TIDAL_BAR_GLASS: Color32 = Color32::from_rgba_premultiplied(30, 30, 30, 191);
 

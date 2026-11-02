@@ -132,6 +132,39 @@ fn a_border_on_an_albums_row_boxes_moves_the_rows() {
     pd::test_overlay(None);
 }
 
+/// `#footerPlayer` is the box that holds the bar's parts: a theme's
+/// `transform` moves them, its `width` and border give them other room
+/// (they stayed where they were, with only the bar's look moved). In TIDAL
+/// the left of what the bar holds stays put here: 2 px left, 2 px of border.
+#[test]
+fn a_theme_moves_the_bars_parts_with_its_box() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::FOOTER;
+    let css = r#"/* {"name": "Moved bar"} */
+#footerPlayer {
+    width: 100.5% !important;
+    transform: translate(-2px, 2px);
+    border: 2px solid rgba(1, 2, 3, 0.1);
+}
+"#;
+    let o = overlay_when(
+        "moved-bar.css",
+        css,
+        &dom_anchors::sample_frame(),
+        |o: &DomOverlay| o.hosts.get(FOOTER).is_some_and(|h| h.style.width.is_some()),
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let view = egui::vec2(1000.0, 800.0);
+    let bar = egui::Rect::from_min_max(egui::pos2(18.0, 712.0), egui::pos2(982.0, 800.0));
+    let (outer, inner) = pd::footer_box(view).expect("the theme's box").place(bar, 18.0);
+    assert_eq!(outer.min, egui::pos2(-2.0, 714.0));
+    assert!((outer.width() - 1005.0).abs() < 0.01, "{outer:?}");
+    assert_eq!(inner.min, egui::pos2(18.0, 714.0));
+    assert!((inner.right() - 983.0).abs() < 0.01, "{inner:?}");
+    pd::test_overlay(None);
+    assert_eq!(pd::footer_box(view), None);
+}
+
 /// TIDAL's previous, play and next stand in wrappers of their own in
 /// `._centerControls_`, and themes reach their glyphs through those (the
 /// Cotton Candy Nights family's exact-class selectors). The anchors had the

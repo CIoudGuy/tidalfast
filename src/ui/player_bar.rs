@@ -141,8 +141,15 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
             crate::theme::apply_local(ui, &bar_palette(app, ui.ctx()));
             let rect = ui.max_rect();
             let now = app.now_playing();
-            // The whole bar, margins included, behind everything else.
-            let behind = rect.expand2(vec2(18.0, 0.0));
+            // The whole bar, margins included, behind everything else, and
+            // the room for its parts: a theme moves them with the bar.
+            let (behind, rect) = floating
+                .is_none()
+                .then(|| plugin_dom::footer_box(ui.ctx().content_rect().size()))
+                .flatten()
+                .map_or((rect.expand2(vec2(18.0, 0.0)), rect), |theirs| {
+                    theirs.place(rect, 18.0)
+                });
             if let Some((backdrop, own)) = &backdrop {
                 let corners = floating
                     .as_ref()
