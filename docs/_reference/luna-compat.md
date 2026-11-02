@@ -3675,6 +3675,92 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 54 (the search pill's glass, TIDAL's rules under a theme, the header, menus, 2026-11-02)
+
+Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
+TIDAL. Fixed in the generic layer, each with a made-up theme in the test. The
+tool to see why: TIDAL's capture opened in Edge with a theme's sheet, every
+matched rule listed for an element.
+
+- **TIDAL's rules that join the cascade under a theme alone.** `css.js` has a
+  second sheet, read only while a `style[data-luna-theme]` is in the document.
+  With no theme nothing changes.
+- **The search pill has TIDAL's frosted glass under a theme,** the maintainer's
+  decision: `backdrop-filter: var(--frosted-glass-nav-blur)`, a theme's token
+  or `none` obeyed. With no theme the pill stays as it was. Tests:
+  `the_search_pills_blur_comes_with_a_theme_alone`,
+  `the_search_pills_blur_is_painted_under_its_fill`.
+- **The pill's colour is TIDAL's three classes deep,** so a lighter rule for
+  `._container_f1be359` does not reach it. Test:
+  `a_lighter_rule_for_the_search_pill_loses_to_tidals`.
+- **`* { color }` and tag rules lose to the parts TIDAL colours itself**
+  (`color: revert` in that sheet, Meteor Night), and reach the sidebar's icons,
+  which have no colour of their own: an older rule here kept them dim, the real
+  shot has them white. The bar's artist line and clock carry TIDAL's classes.
+  The tests of rounds 19, 25, 26, 31 and 32 were corrected to what TIDAL's cascade gives.
+  Test: `a_universal_colour_loses_to_tidals_own_colours`.
+- **A navigation row's words are `color: inherit` two classes deep,** so
+  `._marketText_ { color }` does not reach them. Test:
+  `a_rule_for_all_words_leaves_a_navigation_rows_words`.
+- **`data-test-page-name` is `#main`'s,** as captured: Abyss Neptune's macOS
+  black variant's rule for it takes the place of its `[data-test="main"]`
+  margin, and its page no longer stands 10 low. Test:
+  `the_pages_name_stands_on_main`.
+- **A header pulled into a tab leaves the page.** `#mainHeader` is `position:
+  fixed`; the page followed Lunallena's tab up by as much as 45. Test:
+  `a_header_pulled_into_a_tab_leaves_the_page`.
+- **The "All playlists" box is drawn on the open sidebar,** round 53's stood on
+  the rail alone, and a colour on the box does not reach the words (computed in
+  Edge). Test: `the_open_sidebar_draws_the_headings_box_and_its_own_grey`.
+- **TIDAL's bar glass filters the bar's own look,** so Cotton Candy Single's bar
+  is TIDAL's blue, not a greyer one. Test:
+  `tidals_bar_glass_filters_the_bars_own_colour`.
+- **The page runs on under a bar with a `backdrop-filter` of its own, and
+  TIDAL's `::before` shade lies over its fill.** Round 53's "black through
+  TidalCustomTheme's bar" was that shade: 255 falls to 238 at the bar's top and
+  221 at its foot, as the gradient says. Test:
+  `the_page_runs_on_under_a_bar_with_a_filter_of_its_own`.
+- **A list's heading words take `--wave-color-opacity-contrast-fill-thick` as
+  a theme gives it** (Sugarcoat's black was 60 % of its text colour). Test:
+  `a_lists_heading_takes_the_themes_token_as_it_is`.
+- **A navigation row's fills under a theme are TIDAL's tokens,** as a library
+  row's are. Test: `a_navigation_rows_fills_are_tidals_under_a_theme`.
+- **A menu keeps `#2d2d2d` in dark mode over a page a theme paints,** unless a
+  rule or token says otherwise (it was cream under Sugarcoat). Test:
+  `a_menu_keeps_tidals_grey_over_a_page_a_theme_paints`.
+- **The row's `+` is TIDAL's glyph,** 12 by 1.5 in its 24-point box. Test:
+  `a_rows_add_button_is_tidals_cross`.
+
+The album page's Report action stays out: no report call is known
+(`tidal-api.md`), and a button that does nothing is not parity. It moves the
+action row 88 points on every album, in every theme.
+
+Look with no theme: the row's `+` is larger and a little heavier, at every
+width, in light and dark. Nothing else, narrow or normal, light or dark.
+
+Numbers against the round's base: dark 1.18 % -> 1.06 % of 305 million, no theme
+0.66 % as it was, style 417 -> 300. Meteor Night 5.24 -> 2.71, Abyss Neptune's
+macOS black variant 4.57 -> 3.21, Sugarcoat 3.19 -> 1.87, TidalCustomTheme
+1.52 -> 0.50, Lunallena Visible Sidebar 3.52 -> 2.53, Cotton Candy Single 1.34 ->
+0.85. Light unchanged: Tidal Light 0.67 %, adaptive Cotton Candy 0.56 %, Horchata
+0.43 %.
+
+Narrow in light, the bar alone (no TIDAL exists to compare with no theme there):
+Tidal Light 1273, 618, 578 differing pixels at 1300, 960, 780, adaptive Cotton
+Candy 3326, 3187, 2015, Horchata 1972, 1873, 1657. What differs is data (title,
+position, bit rate) and card borders about 8 levels off: nothing to fix.
+
+CPU, release demo at rest on Home, 20 s, 3 runs: Cotton Candy process 3,560 to 4,583 million cycles, within the noise of round 53's 4,008 to 4,479; Cotton Candy Single, which gained the glass pass, 2,912 to 3,266. Hover 1.33 % -> 1.23 %.
+
+Worse: Lunallena macOS 1.74 -> 2.65, only because its collection page now stands
+where TIDAL's does (31 points nearer), so more of the grid is compared with the
+demo's other pictures.
+
+Still open: Meteor Night's `[class*="active"]` box on the row title's span
+(`table--inactive-title`; the anchor is the cell, the box is not drawn); that
+theme's page stands 20 lower in TIDAL only with a menu open, cause not found;
+dark row titles look heavier than TIDAL's on pale pages (text rendering).
+
 ### Round 53 (the bar's rules by width, its box and glass, rounded pictures, moved shadows, 2026-11-02)
 
 Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
