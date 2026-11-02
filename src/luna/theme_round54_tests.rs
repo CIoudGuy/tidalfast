@@ -262,3 +262,33 @@ fn the_pages_name_stands_on_main() {
     });
     assert_eq!(o.hosts[MAIN].style.margin_top.as_deref(), Some("56px"),);
 }
+
+/// The "All playlists" heading's black box is drawn on the open sidebar, not
+/// only on the rail, and its words keep TIDAL's own grey under a rule for
+/// the box: the box's colour does not reach words with a colour of their own.
+#[test]
+fn the_open_sidebar_draws_the_headings_box_and_its_own_grey() {
+    use super::theme_round41_tests::{boxes, demo_app, drawn, painted_at};
+    use dom_anchors::keys::{LIB_HEADING, LIB_HEADING_TITLE};
+    let css = "/* {\"name\": \"Coloured sidebar 2\"} */\n\
+        ._sidebarWrapper_2f256ce { background: rgb(30, 40, 50); }\n\
+        ._sectionHeader_ca54638 { color: rgb(240, 10, 10); }\n";
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.heading = Some([16.0, 300.0, 160.0, 22.0]);
+    let o = overlay_when("coloured-sidebar-2.css", css, &frame, |o| {
+        o.hosts.contains_key(LIB_HEADING)
+    });
+    let (ctx, mut app) = demo_app("album", Some("queue"));
+    let tree = drawn(&ctx, &mut app, (*o).clone());
+    let title = boxes(&tree)[LIB_HEADING_TITLE];
+    let at = [[title[0] + 140.0, title[1] + 2.0]];
+    let got = painted_at(&ctx, &mut app, (*o).clone(), &at);
+    assert_eq!(got, [egui::Color32::BLACK]);
+    crate::ui::plugin_dom::test_overlay(Some((*o).clone()));
+    let ink = crate::ui::plugin_dom::library_heading(
+        egui::Rect::from_min_size(egui::pos2(16.0, 300.0), egui::vec2(160.0, 22.0)),
+        egui::Color32::WHITE,
+    );
+    crate::ui::plugin_dom::test_overlay(None);
+    assert_eq!(ink, None, "TIDAL's grey ({LIB_HEADING})");
+}

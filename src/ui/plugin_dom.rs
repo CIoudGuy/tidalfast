@@ -3195,7 +3195,7 @@ fn nav_style_now(key: &str) -> Option<NavStyle> {
 /// fill. The sidebar is that black with no theme, and a theme that colours
 /// the sidebar alone shows a black band there.
 pub fn library_heading_box(dark: bool) -> Option<Color32> {
-    if !on() || !dark {
+    if !on() || !dark || with(|s| s.overlay.hosts.is_empty()) {
         return None;
     }
     let tidal = with(|s| {
@@ -3210,29 +3210,24 @@ pub fn library_heading_box(dark: bool) -> Option<Color32> {
 /// and returns the colour a theme's rules give its words (the cotton candy
 /// family's `[class="_sectionHeader_ca54638"] ._titleText_1d0e44e`), or
 /// `around` (the sidebar's words) where a rule leaves it the colour around
-/// it (Tidal TUI's `._sectionHeader_ca54638 { color }` with no value).
-/// `None` keeps TIDAL's grey, as under Rose Pine.
+/// it (Tidal TUI's `._titleText_1d0e44e { color }` with no value). A colour
+/// on the box does not reach the words, which have TIDAL's own (2.47.0,
+/// computed). `None` keeps TIDAL's grey, as under Rose Pine.
 pub fn library_heading(r: Rect, around: Color32) -> Option<Color32> {
     if !on() {
         return None;
     }
     note(|f| f.sidebar.heading = rect(r));
-    let inherits = |key: &str| {
-        host(key, |h, _| {
-            h.style
-                .color
-                .as_deref()
-                .map(|c| c.trim().eq_ignore_ascii_case("inherit"))
-        })
-        .unwrap_or(false)
-    };
-    color(dom_anchors::keys::LIB_HEADING_TITLE)
-        .or_else(|| color(dom_anchors::keys::LIB_HEADING))
-        .or_else(|| {
-            (inherits(dom_anchors::keys::LIB_HEADING_TITLE)
-                || inherits(dom_anchors::keys::LIB_HEADING))
-            .then_some(around)
-        })
+    let title = dom_anchors::keys::LIB_HEADING_TITLE;
+    let inherits = host(title, |h, _| {
+        h.style
+            .color
+            .as_deref()
+            .map(|c| c.trim().eq_ignore_ascii_case("inherit"))
+    })
+    .unwrap_or(false);
+    color(title)
+        .or_else(|| inherits.then_some(around))
         .filter(|c| c.a() > 0)
 }
 

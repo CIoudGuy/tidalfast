@@ -375,7 +375,7 @@ fn the_playlists_heading_takes_the_themes_colour_for_it() {
     // With no value the rule leaves it the sidebar's white (Tidal TUI).
     assert_eq!(
         heading(
-            r#"/* {"name": "Unset"} */ ._sectionHeader_ca54638 { color: var(--tui-border-inactive); }"#,
+            r#"/* {"name": "Unset"} */ ._titleText_1d0e44e { color: var(--tui-border-inactive); }"#,
             "heading-tui.css",
         ),
         Some(egui::Color32::WHITE)
@@ -385,8 +385,8 @@ fn the_playlists_heading_takes_the_themes_colour_for_it() {
             r#"/* {"name": "Own"} */ ._sectionHeader_ca54638 { color: rgb(1, 2, 3); }"#,
             "heading-own.css",
         ),
-        Some(egui::Color32::from_rgb(1, 2, 3)),
-        "the heading's box colours its words"
+        None,
+        "a colour on the heading's box does not reach its words (TIDAL 2.47.0)"
     );
     assert_eq!(
         heading(
