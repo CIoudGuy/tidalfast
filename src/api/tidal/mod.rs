@@ -1672,10 +1672,15 @@ impl TidalClient {
             .send(Call::new(Method::POST, self.openapi("playlists")).json_api(&body))
             .await?;
         let document: Value = decode(&reply.body)?;
-        Ok(convert::openapi_playlist(
-            &document["data"],
-            self.user_id()?.to_string(),
-        ))
+        let mut playlist =
+            convert::openapi_playlist(&document["data"], self.user_id()?.to_string());
+        // The answer has no picture. TIDAL gives a new playlist its own cover,
+        // which the row and the page show from the start. Without this read
+        // they draw the app's placeholder until the next one.
+        if let Ok(read) = self.playlist(&playlist.id).await {
+            playlist.images = read.images;
+        }
+        Ok(playlist)
     }
 
     /// Renames, redescribes, or publishes a playlist; `None` keeps a field.

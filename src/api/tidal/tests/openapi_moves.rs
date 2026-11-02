@@ -150,9 +150,13 @@ async fn similar_videos_are_tidals_suggested_videos() {
 
 #[tokio::test]
 async fn a_playlist_is_created_as_tidals_dialog_creates_it() {
+    let read = r#"{"uuid": "835c91e8-8128-457e-b412-c30618637746", "title": "Tidalfast test",
+        "squareImage": "cc-dd-ee"}"#;
     let (base, seen) = script(vec![
         reply("201 Created", "", CREATED_PLAYLIST),
+        reply("200 OK", "", read),
         reply("201 Created", "", CREATED_PLAYLIST),
+        reply("404 Not Found", "", "{}"),
     ])
     .await;
     let client = client(&base, refresher());
@@ -160,6 +164,14 @@ async fn a_playlist_is_created_as_tidals_dialog_creates_it() {
         .create_playlist("Tidalfast test", false, "")
         .await
         .unwrap();
+    assert!(
+        playlist
+            .images
+            .iter()
+            .any(|image| image.url.contains("cc/dd/ee")),
+        "TIDAL's cover for a new playlist, from the start: {:?}",
+        playlist.images
+    );
     assert_eq!(playlist.id, "835c91e8-8128-457e-b412-c30618637746");
     assert_eq!(playlist.name, "Tidalfast test");
     assert_eq!(playlist.public, Some(false));
@@ -168,20 +180,26 @@ async fn a_playlist_is_created_as_tidals_dialog_creates_it() {
         Some(client.user_id().unwrap().to_string().as_str()),
         "the account owns what it made"
     );
-    client
+    let unread = client
         .create_playlist("Public", true, "Words")
         .await
         .unwrap();
+    assert!(unread.images.is_empty(), "a failed read still made it");
     let seen = seen.lock().unwrap();
     assert!(seen[0].starts_with("POST /playlists"), "{}", seen[0]);
+    assert!(
+        seen[1].starts_with("GET /playlists/835c91e8"),
+        "{}",
+        seen[1]
+    );
     assert!(
         seen[0].contains(r#""accessType":"UNLISTED""#),
         "{}",
         seen[0]
     );
     assert!(!seen[0].contains("description"), "{}", seen[0]);
-    assert!(seen[1].contains(r#""accessType":"PUBLIC""#), "{}", seen[1]);
-    assert!(seen[1].contains(r#""description":"Words""#), "{}", seen[1]);
+    assert!(seen[2].contains(r#""accessType":"PUBLIC""#), "{}", seen[2]);
+    assert!(seen[2].contains(r#""description":"Words""#), "{}", seen[2]);
 }
 
 #[tokio::test]
