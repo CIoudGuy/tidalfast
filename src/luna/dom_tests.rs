@@ -7838,3 +7838,74 @@ setTimeout(async () => {
     assert_eq!(by("bare").style, Default::default());
     finish(luna, dir);
 }
+
+/// `observe` and `observePromise` through the page changing and the plugin
+/// being disabled and enabled: a row shown again after the page was left is
+/// reported again, nothing is reported to a disabled plugin, and enabling it
+/// leaves one observer (what is already there is reported once).
+#[test]
+fn observers_follow_navigation_and_disable_and_enable() {
+    let (luna, _host, dir) = start(
+        r##"
+const bump = (k) => (R[k] = (R[k] ?? 0) + 1);
+lib.observe(unloads, '[data-test="tracklist-row"][data-track-id]', () => bump("rows"));
+lib.observePromise(unloads, '[data-test="footer-track-title"]', 30000).then((el) => el && bump("promised"));
+R.ready = (R.ready ?? 0) + 1;
+"##,
+    );
+    let away = || {
+        luna.sync_dom(HostTree {
+            path: "/search".into(),
+            ..HostTree::default()
+        });
+        luna.sync(Duration::from_secs(10));
+    };
+    let settle = |luna: &Luna| {
+        std::thread::sleep(Duration::from_millis(300));
+        luna.sync(Duration::from_secs(10));
+    };
+    luna.sync_dom(tree());
+    let r = results_until(&luna, &dir, 10, |r| {
+        r["rows"] == json!(3) && r["promised"] == json!(1)
+    });
+    settle(&luna);
+    assert_eq!(dom_results(&dir)["rows"], json!(3), "{r}");
+
+    away();
+    luna.sync_dom(tree());
+    results_until(&luna, &dir, 10, |r| r["rows"] == json!(6));
+    settle(&luna);
+    assert_eq!(dom_results(&dir)["rows"], json!(6));
+    assert_eq!(dom_results(&dir)["promised"], json!(1));
+
+    luna.set_enabled("DomTest", false);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "DomTest").unwrap().status == PluginStatus::Disabled
+    });
+    away();
+    luna.sync_dom(tree());
+    settle(&luna);
+    assert_eq!(
+        dom_results(&dir)["rows"],
+        json!(6),
+        "reported while disabled"
+    );
+
+    luna.set_enabled("DomTest", true);
+    results_until(&luna, &dir, 20, |r| {
+        r["rows"] == json!(9) && r["promised"] == json!(2)
+    });
+    settle(&luna);
+    let r = dom_results(&dir);
+    assert_eq!(
+        (r["rows"].clone(), r["promised"].clone()),
+        (json!(9), json!(2)),
+        "{r}"
+    );
+    away();
+    luna.sync_dom(tree());
+    results_until(&luna, &dir, 10, |r| r["rows"] == json!(12));
+    settle(&luna);
+    assert_eq!(dom_results(&dir)["rows"], json!(12), "doubled by enabling");
+    finish(luna, dir);
+}
