@@ -54,6 +54,10 @@ pub(crate) struct Seen {
     /// How many times [`Seen::queue_rows`] was made: what the queue's songs
     /// and the queue-changed event follow.
     pub queue_made: u64,
+    /// The length the queue's rows had before the song advanced and
+    /// dropped the head: a song added at the end up to it is the queue
+    /// getting its length back, not a change.
+    pub queue_topup: Option<usize>,
     /// Queue tracks as TIDAL JSON, and the queue ([`Seen::queue_made`]) and
     /// cached track count they were built from.
     pub items_key: Option<(u64, usize)>,

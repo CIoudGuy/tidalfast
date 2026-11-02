@@ -532,19 +532,37 @@ impl App {
             // The song advancing drops the head of the rows. TIDAL's queue
             // keeps its elements and moves its index, and sends no queue
             // action for it, so plugins that were up to date are not told.
-            // Songs the queue gets to keep its length may come with it.
+            // Nor of the songs the queue then gets at its end to keep its
+            // length (a pass later or in the same one); a song the user adds
+            // is a change.
             let was = &self.plugins.seen.queue_rows;
-            let advanced = now.is_some()
+            let same_ids = |a: &[crate::luna::QueueEntry], b: &[crate::luna::QueueEntry]| {
+                a.iter().zip(b).all(|(a, b)| a.id == b.id)
+            };
+            let dropped = now.is_some()
                 && was.len() > 1
                 && rows.len() >= was.len() - 1
-                && was[1..]
-                    .iter()
-                    .zip(rows.iter())
-                    .all(|(was, now)| was.id == now.id);
+                && same_ids(&was[1..], &rows);
+            let refilled = !dropped
+                && rows.len() > was.len()
+                && same_ids(was, &rows)
+                && self
+                    .plugins
+                    .seen
+                    .queue_topup
+                    .is_some_and(|length| rows.len() <= length);
+            let topup = if dropped && rows.len() < was.len() {
+                Some(was.len())
+            } else if refilled && rows.len() < self.plugins.seen.queue_topup.unwrap_or(0) {
+                self.plugins.seen.queue_topup
+            } else {
+                None
+            };
             let told = self.plugins.seen.queue == Some(self.plugins.seen.queue_made);
             self.plugins.seen.queue_rows = Arc::new(rows);
             self.plugins.seen.queue_made += 1;
-            if advanced && told {
+            self.plugins.seen.queue_topup = topup;
+            if (dropped || refilled) && told {
                 self.plugins.seen.queue = Some(self.plugins.seen.queue_made);
             }
         }
@@ -3000,7 +3018,7 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
         now.uri = "tidal:track:2".into();
         now.id = Some("2".into());
         now.position_ms = 0;
-        app.queue = queue(2, 3..9);
+        app.queue = queue(2, 3..8);
         app.local.track_sequence += 1;
         assert_eq!(
             step(&mut app, &now),
@@ -3009,6 +3027,12 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
                 "playbackControls/TIME_UPDATE 0",
             ])
         );
+        // The queue gets its length back with a song at its end, a pass
+        // later: not a queue change either. One added by the user is.
+        app.queue = queue(2, 3..9);
+        assert!(step(&mut app, &now).is_empty(), "the queue's top-up");
+        app.queue = queue(2, 3..10);
+        assert_eq!(step(&mut app, &now), said(&["playQueue/RESET 8"]));
         // Repeat one: the same song again is a transition again, as TIDAL
         // sends one (TidaLuna's scrobbler counts on it).
         app.local.track_sequence += 1;
