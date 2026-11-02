@@ -313,6 +313,17 @@ pub fn page_runs_under(ctx: &egui::Context) -> bool {
     floating(ctx).is_some()
 }
 
+/// Whether TIDAL's bar glass, its colour cleared, filters what lies under a
+/// see-through bar ([`plugin_dom::bar_glass_backdrop`]): TIDAL's page and
+/// sidebar run on under its fixed bar, so this bar needs them there (Tidal
+/// Light's blurred through its bar). A `backdrop-filter` a theme puts on the
+/// bar itself is not this: TIDAL shows black through TidalCustomTheme's.
+pub fn glass_filters_page(palette: &crate::theme::Palette) -> bool {
+    plugin_dom::bar_glass_backdrop()
+        .and_then(|(_, own)| own)
+        .is_some_and(|own| plugin_dom::footer_under_glass(own, palette.window).a() < 255)
+}
+
 /// Keeps the bar's room at the bottom of `ui` for the panels beside the
 /// page, which end above it, while the bar itself is drawn over the page
 /// later ([`show_over_page`]).
@@ -331,6 +342,9 @@ pub fn show_over_page(app: &mut App, ui: &mut egui::Ui, window: Rect) {
         pos2(window.left(), window.bottom() - reserved_height(ui.ctx())),
         window.max,
     );
+    if floating(ui.ctx()).is_none() {
+        super::sidebar::run_on_under(ui, &app.palette, strip);
+    }
     let mut bar = ui.new_child(UiBuilder::new().max_rect(strip));
     show(app, &mut bar);
 }
@@ -2952,28 +2966,6 @@ mod narrow_tests {
                 ..Default::default()
             },
         );
-        let page_bottom = |ctx: &egui::Context, app: &mut App| {
-            let mut bottom = 0.0f32;
-            for _ in 0..4 {
-                let mut out = ctx.run_ui(
-                    egui::RawInput {
-                        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1400.0, 820.0))),
-                        ..Default::default()
-                    },
-                    |ui| crate::ui::show(app, ui),
-                );
-                out.textures_delta.clear();
-                // How far down the page's words may be drawn: the clip of
-                // the shelves' headings.
-                bottom = out
-                    .shapes
-                    .iter()
-                    .filter(|c| matches!(&c.shape, egui::Shape::Text(t) if t.galley.text() == "Recently played"))
-                    .map(|c| c.clip_rect.bottom())
-                    .fold(0.0, f32::max);
-            }
-            bottom
-        };
         crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
             version: 3,
             ..DomOverlay::default()
@@ -2995,6 +2987,64 @@ mod narrow_tests {
             "the page reaches the window's bottom: {under}"
         );
         crate::ui::plugin_dom::test_overlay(None);
+    }
+
+    /// How far down the page's words may be drawn: the clip of the shelves'
+    /// headings, in a 1400 by 820 window.
+    fn page_bottom(ctx: &egui::Context, app: &mut App) -> f32 {
+        let mut bottom = 0.0f32;
+        for _ in 0..4 {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1400.0, 820.0))),
+                    ..Default::default()
+                },
+                |ui| crate::ui::show(app, ui),
+            );
+            out.textures_delta.clear();
+            bottom = out
+                .shapes
+                .iter()
+                .filter(|c| matches!(&c.shape, egui::Shape::Text(t) if t.galley.text() == "Recently played"))
+                .map(|c| c.clip_rect.bottom())
+                .fold(0.0, f32::max);
+        }
+        bottom
+    }
+
+    /// A see-through bar on the window's edge that filters what lies under
+    /// it has the page there, as TIDAL's fixed bar has: it stopped above
+    /// the bar, and the filter had only the window's colour to blur.
+    #[test]
+    fn the_page_runs_on_under_a_bar_that_filters_it() {
+        let _drawn = crate::ui::backdrop::force(true);
+        let (ctx, mut app) = setup();
+        let mut hosts = std::collections::BTreeMap::new();
+        hosts.insert(
+            keys::FOOTER.to_string(),
+            crate::luna::dom::HostOverride {
+                style: crate::luna::dom::Style {
+                    background_color: Some("rgba(10, 20, 30, 0.25)".into()),
+                    ..Default::default()
+                },
+                after: Some(crate::luna::dom::Style {
+                    background_color: Some("transparent".into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        );
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 5,
+            hosts,
+            ..DomOverlay::default()
+        }));
+        let under = page_bottom(&ctx, &mut app);
+        crate::ui::plugin_dom::test_overlay(None);
+        assert!(
+            (under - 820.0).abs() < 0.5,
+            "the page reaches the window's bottom: {under}"
+        );
     }
 
     /// up-next's card at the end of the track info, which in a narrowing
@@ -3328,7 +3378,10 @@ mod narrow_tests {
             let [(wider, before), (narrower, after)] = pair else {
                 continue;
             };
-            if [992.0, 768.0].iter().any(|at| **wider > *at && **narrower <= *at) {
+            if [992.0, 768.0]
+                .iter()
+                .any(|at| **wider > *at && **narrower <= *at)
+            {
                 continue;
             }
             assert!(

@@ -160,7 +160,9 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     // `#footerPlayer` lifted off the window's edges: the page runs on under
     // it to the window's bottom and shows round it, so the bar is drawn
     // after the page. Its room is kept for the panels beside the page.
-    let page_under_bar = !covered && player_bar::page_runs_under(ctx);
+    let page_under_bar = !covered
+        && (player_bar::page_runs_under(ctx)
+            || (slide <= 0.0 && player_bar::glass_filters_page(&app.palette)));
     if page_under_bar {
         player_bar::keep_room(ui);
     } else {

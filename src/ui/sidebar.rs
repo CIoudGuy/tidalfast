@@ -865,6 +865,8 @@ fn collapsing(app: &mut App, ui: &mut egui::Ui, collapse: f32) -> Placed {
             });
         });
     let edge = response.response.rect;
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(edge_id(), shown(edge, shift)));
     super::plugin_dom::note(|f| {
         f.sidebar.rect = super::plugin_dom::rect(shown(edge, shift));
         f.sidebar.width = edge.width();
@@ -1065,6 +1067,23 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
     place(app, ui);
 }
 
+/// Where the sidebar stands this frame, for [`run_on_under`].
+fn edge_id() -> egui::Id {
+    egui::Id::new("sidebar-edge")
+}
+
+/// The sidebar's colour down the strip `under` of the window, under a bar
+/// that shows what lies under it: TIDAL's sidebar runs on to the window's
+/// bottom, its rows end above the bar.
+pub fn run_on_under(ui: &egui::Ui, palette: &theme::Palette, under: Rect) {
+    let Some(edge) = ui.ctx().data(|d| d.get_temp::<Rect>(edge_id())) else {
+        return;
+    };
+    let strip = Rect::from_x_y_ranges(edge.x_range(), under.y_range());
+    ui.painter()
+        .rect_filled(strip, 0.0, panel_fill(ui.ctx(), palette));
+}
+
 pub(super) fn place(app: &mut App, ui: &mut egui::Ui) -> Placed {
     // Under a theme the sidebar's words are TIDAL's own colours (white on
     // its dark panel unless the theme's root tokens say otherwise), not the
@@ -1161,6 +1180,8 @@ fn place_panel(app: &mut App, ui: &mut egui::Ui) -> Placed {
     });
     // TIDAL's 1-point divider along the sidebar's right edge.
     let edge = response.response.rect;
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(edge_id(), shown(edge, shift)));
     super::plugin_dom::note(|f| {
         f.sidebar.rect = super::plugin_dom::rect(shown(edge, shift));
         f.sidebar.width = edge.width();
