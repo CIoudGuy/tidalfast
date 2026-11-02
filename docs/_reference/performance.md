@@ -1916,6 +1916,55 @@ about 130 ms of a ten-second window both before and after, at most 1.3 %
 of the thread, and skipping them would need the DOM layer to record which
 attribute changed.
 
+## Plugins, speed round 27: one plugin element restyled (2026-11-02)
+
+The same 18 plugins on Home, an artist, search and a large playlist,
+scripted, three interleaved runs each.
+
+Rounds 25 and 26 put many more of TIDAL's elements in the page, and that
+cost no speed per element: on the scripted playlist scroll one element
+matches in 66 us and styles in 95 us both on round 24 and now (the same
+scroll's medians, read with a coarser clock than round 24's 74 and
+112 us). A page simply has more elements: search's overlay build at rest
+went from 10 to 21 ms, which is what the fix below takes away.
+
+- **A plugin's own element restyled no longer builds the overlay.** With
+  no event at all the runtime still made three to four builds a second, 35
+  to 50 ms each. Every one came from a single inline style: oneko's
+  sleeping cat flipping its sprite. It rebuilt 350 kB of overlay to say one
+  `background-position`, and the windows with it depended on when the cat
+  fell asleep, at random. Now the new styles of that element and of what
+  takes a value from it go out alone (`dom.overlay_styles`) and the runtime
+  replaces them in the published overlay. A build still comes when anything
+  else changed, when a rule reads `style`, or when an app element, an
+  animation, a `::before` or `::after` box, an `<svg>` or a form control is
+  involved. The test has each step followed by a whole build, which must
+  then change nothing.
+
+| Scripted run of 135 s, 18 plugins (3 interleaved runs) | Before | After |
+| --- | --- | --- |
+| One update for the cat's frame (windows with no events) | 35 ms | about 6 ms |
+| Time in updates over the run | 15.5 s | 7.5 s |
+| Luna thread's processor time over the run | 34.9 s | 26.2 s |
+
+What is left of those 6 ms is the runtime's copy of the published overlay
+(5 ms, a `Style` is about 2 kB). Skipping the runtime's comparisons on top
+gave nothing measurable, so they stayed.
+
+Checked and left alone:
+
+- **The 1,900 kinds of a window with no events** are the first page: 1,237
+  to 1,428 and 226 to 447 in the first two windows of a run, whose rows come
+  through the tree and not through events. After them 0 or 1, and 31 to 81
+  when a page opens.
+- **The kind key** takes 3.6 us a call, 2 to 3.4 calls a cascade: 30 to
+  40 ms of two seconds of the fastest scroll, under 2 % of the thread.
+  Caching it per element needs an attribute version; it does not show up.
+- **Opening a page**: an artist's first build takes 120 to 140 ms and
+  search's 60 ms. About half is matching the page's 780 and 250 new
+  elements, the rest spread over `::before` boxes, hosts and JSON, nothing
+  on its own worth a change.
+
 ## Findings and decisions
 
 - **Luna's work follows changes, not the page.** With Luna on, a pass made
