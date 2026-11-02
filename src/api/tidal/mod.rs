@@ -18,6 +18,7 @@ pub mod activity;
 pub mod convert;
 pub mod events;
 pub mod feed;
+mod jsonapi;
 pub mod manifest;
 pub mod pages;
 mod playlist_v2;

@@ -14,6 +14,7 @@
 use reqwest::Method;
 use serde_json::{Value, json};
 
+use super::jsonapi::{id_of, next_cursor};
 use super::{Call, Result, TidalClient};
 use crate::save_later::{SaveKind, Saved};
 
@@ -34,24 +35,13 @@ pub(crate) fn parse(document: &Value) -> SaveLaterPage {
         .flatten()
         .filter_map(|entry| {
             let kind = SaveKind::from_api_type(entry["type"].as_str()?)?;
-            let id = match &entry["id"] {
-                Value::String(id) => id.clone(),
-                Value::Number(id) => id.to_string(),
-                _ => return None,
-            };
-            (!id.is_empty()).then_some((kind, id))
+            Some((kind, id_of(entry)?))
         })
         .collect();
-    let next = document["links"]["next"]
-        .as_str()
-        .and_then(|link| link.split_once('?').map(|(_, query)| query))
-        .and_then(|query| {
-            query.split('&').find_map(|pair| {
-                let (key, value) = pair.split_once('=')?;
-                (key == "page%5Bcursor%5D" || key == "page[cursor]").then(|| value.to_string())
-            })
-        });
-    SaveLaterPage { items, next }
+    SaveLaterPage {
+        items,
+        next: next_cursor(document),
+    }
 }
 
 /// The body of a write: one identifier.

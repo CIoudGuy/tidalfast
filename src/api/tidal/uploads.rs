@@ -27,6 +27,7 @@
 use reqwest::Method;
 use serde_json::{Value, json};
 
+use super::jsonapi::{artwork_href, duration_seconds, id_of, next_cursor};
 use super::{Call, Result, TidalClient};
 use crate::api::ApiError;
 
@@ -190,78 +191,12 @@ impl AlbumChange {
     }
 }
 
-fn id_of(value: &Value) -> Option<String> {
-    match value {
-        Value::String(id) if !id.is_empty() => Some(id.clone()),
-        Value::Number(id) => Some(id.to_string()),
-        _ => None,
-    }
-}
-
 /// `included` entries by `(type, id)`.
 fn find<'a>(document: &'a Value, kind: &str, id: &str) -> Option<&'a Value> {
-    document["included"].as_array()?.iter().find(|entry| {
-        entry["type"].as_str() == Some(kind) && id_of(&entry["id"]).as_deref() == Some(id)
-    })
-}
-
-/// The next page's cursor: `links.meta.nextCursor`, else `page[cursor]` of
-/// `links.next`.
-fn next_cursor(document: &Value) -> Option<String> {
-    if let Some(cursor) = document["links"]["meta"]["nextCursor"].as_str() {
-        return (!cursor.is_empty()).then(|| cursor.to_string());
-    }
-    let link = document["links"]["next"].as_str()?;
-    let (_, query) = link.split_once('?')?;
-    query.split('&').find_map(|pair| {
-        let (key, value) = pair.split_once('=')?;
-        (key == "page%5Bcursor%5D" || key == "page[cursor]").then(|| {
-            percent_encoding::percent_decode_str(value)
-                .decode_utf8_lossy()
-                .into_owned()
-        })
-    })
-}
-
-/// The file of an artwork nearest `width` (TIDAL lists several sizes).
-fn artwork_href(artwork: &Value, width: u64) -> Option<String> {
-    let files = artwork["attributes"]["files"].as_array()?;
-    files
+    document["included"]
+        .as_array()?
         .iter()
-        .filter_map(|file| {
-            let href = file["href"].as_str()?;
-            let w = file["meta"]["width"].as_u64().unwrap_or(0);
-            let h = file["meta"]["height"].as_u64().unwrap_or(w);
-            // Square files first: TIDAL also lists wide crops (1280x720).
-            let wide = u64::from(h != w) * 100_000;
-            Some((w.abs_diff(width) + wide, href))
-        })
-        .min_by_key(|(distance, _)| *distance)
-        .map(|(_, href)| href.to_string())
-}
-
-/// ISO 8601 durations as TIDAL writes them (`PT3M5S`, `PT1H2M`, `PT12.5S`).
-pub fn parse_duration(text: &str) -> Option<u32> {
-    let rest = text.strip_prefix("PT")?;
-    let mut total = 0.0_f64;
-    let mut number = String::new();
-    for c in rest.chars() {
-        match c {
-            '0'..='9' | '.' => number.push(c),
-            'H' | 'M' | 'S' => {
-                let value: f64 = number.parse().ok()?;
-                number.clear();
-                total += value
-                    * match c {
-                        'H' => 3600.0,
-                        'M' => 60.0,
-                        _ => 1.0,
-                    };
-            }
-            _ => return None,
-        }
-    }
-    number.is_empty().then_some(total.round() as u32)
+        .find(|entry| entry["type"].as_str() == Some(kind) && id_of(entry).as_deref() == Some(id))
 }
 
 pub(crate) fn parse_albums(document: &Value) -> Paged<UploadAlbum> {
@@ -271,12 +206,12 @@ pub(crate) fn parse_albums(document: &Value) -> Paged<UploadAlbum> {
         .flatten()
         .filter(|entry| entry["type"].as_str().unwrap_or("albums") == "albums")
         .filter_map(|entry| {
-            let id = id_of(&entry["id"])?;
+            let id = id_of(entry)?;
             let attributes = &entry["attributes"];
             let artist_id = entry["relationships"]["artists"]["data"]
                 .as_array()
                 .and_then(|artists| artists.first())
-                .and_then(|artist| id_of(&artist["id"]));
+                .and_then(id_of);
             let artist_name = artist_id
                 .as_deref()
                 .and_then(|artist| find(document, "artists", artist))
@@ -286,7 +221,7 @@ pub(crate) fn parse_albums(document: &Value) -> Paged<UploadAlbum> {
             let cover = entry["relationships"]["coverArt"]["data"]
                 .as_array()
                 .and_then(|art| art.first())
-                .and_then(|art| id_of(&art["id"]))
+                .and_then(id_of)
                 .and_then(|art| find(document, "artworks", &art))
                 .and_then(|art| artwork_href(art, 640));
             Some(UploadAlbum {
@@ -335,11 +270,11 @@ pub(crate) fn parse_tracks(document: &Value) -> Paged<UploadTrack> {
         .enumerate()
         .filter(|(_, entry)| entry["type"].as_str() == Some("tracks"))
         .filter_map(|(index, entry)| {
-            let id = id_of(&entry["id"])?;
+            let id = id_of(entry)?;
             let track = find(document, "tracks", &id);
             let attributes = track.map(|track| &track["attributes"]);
             let source = track
-                .and_then(|track| id_of(&track["relationships"]["sourceFile"]["data"]["id"]))
+                .and_then(|track| id_of(&track["relationships"]["sourceFile"]["data"]))
                 .and_then(|source| find(document, "trackSourceFiles", &source));
             Some(UploadTrack {
                 title: attributes
@@ -353,7 +288,7 @@ pub(crate) fn parse_tracks(document: &Value) -> Paged<UploadTrack> {
                 ),
                 duration_secs: attributes
                     .and_then(|a| a["duration"].as_str())
-                    .and_then(parse_duration)
+                    .and_then(duration_seconds)
                     .filter(|secs| *secs > 0),
                 file: file_state(source),
                 number: entry["meta"]["trackNumber"]
@@ -376,7 +311,7 @@ pub(crate) fn parse_artist(document: &Value) -> Option<UploadArtist> {
         _ => return None,
     };
     Some(UploadArtist {
-        id: id_of(&entry["id"])?,
+        id: id_of(entry)?,
         name: entry["attributes"]["name"]
             .as_str()
             .unwrap_or_default()
@@ -409,7 +344,7 @@ pub(crate) fn parse_suggested(document: &Value) -> Vec<SuggestedCover> {
         .into_iter()
         .flatten()
         .filter_map(|entry| {
-            let artwork_id = id_of(&entry["id"])?;
+            let artwork_id = id_of(entry)?;
             Some(SuggestedCover {
                 image: find(document, "artworks", &artwork_id)
                     .and_then(|art| artwork_href(art, 320)),
@@ -503,7 +438,7 @@ pub(crate) fn position_body(track_id: &str, position: u32) -> Value {
 fn created_id(body: &str) -> Result<(String, Value)> {
     let document: Value =
         serde_json::from_str(body).map_err(|error| ApiError::Decode(error.to_string()))?;
-    let id = id_of(&document["data"]["id"])
+    let id = id_of(&document["data"])
         .ok_or_else(|| ApiError::Decode("TIDAL answered without an id".into()))?;
     Ok((id, document))
 }
@@ -767,16 +702,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn durations_read_tidals_iso_form() {
-        assert_eq!(parse_duration("PT3M5S"), Some(185));
-        assert_eq!(parse_duration("PT1H2M"), Some(3720));
-        assert_eq!(parse_duration("PT12.6S"), Some(13));
-        assert_eq!(parse_duration("PT0S"), Some(0));
-        assert_eq!(parse_duration("3:05"), None);
-        assert_eq!(parse_duration("PT3"), None);
-    }
-
-    #[test]
     fn a_new_release_takes_its_type_from_how_many_files_it_starts_with() {
         assert_eq!(AlbumType::for_tracks(1), AlbumType::Single);
         assert_eq!(AlbumType::for_tracks(2), AlbumType::Single);
@@ -970,12 +895,5 @@ mod tests {
         assert_eq!(covers[0].artwork_id, "a1");
         assert_eq!(covers[0].image.as_deref(), Some("https://img/320.jpg"));
         assert_eq!(covers[0].foreground.as_deref(), Some("#ffffff"));
-    }
-
-    #[test]
-    fn the_next_cursor_comes_from_the_link_too() {
-        let document = json!({"links": {"next": "/albums?page%5Bcursor%5D=a%3Db&x=1"}});
-        assert_eq!(next_cursor(&document).as_deref(), Some("a=b"));
-        assert_eq!(next_cursor(&json!({"links": {}})), None);
     }
 }

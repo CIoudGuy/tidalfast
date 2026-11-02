@@ -24,6 +24,7 @@ use std::time::{Duration, Instant};
 use reqwest::Method;
 use serde_json::{Value, json};
 
+use super::jsonapi::{Document, artwork_uuid, duration_seconds, next_cursor, text_id};
 use super::{ApiError, Call, Result, TidalClient};
 
 /// How long a list read through v2 is reused.
@@ -171,89 +172,12 @@ fn page_body(entries: &[Value], offset: u32, limit: u32) -> String {
     .to_string()
 }
 
-/// The `page[cursor]` of a document's `links.next`.
-pub(crate) fn next_cursor(document: &Value) -> Option<String> {
-    let query = document["links"]["next"].as_str()?.split_once('?')?.1;
-    query.split('&').find_map(|pair| {
-        let (key, value) = pair.split_once('=')?;
-        (key == "page%5Bcursor%5D" || key == "page[cursor]").then(|| value.to_string())
-    })
-}
-
-fn text_id(value: &Value) -> Option<String> {
-    match value {
-        Value::String(text) if !text.is_empty() => Some(text.clone()),
-        Value::Number(number) => Some(number.to_string()),
-        _ => None,
-    }
-}
-
-/// `PT3M45S`, `PT1H2M3S` as seconds.
-pub(crate) fn iso_seconds(text: &str) -> Option<u64> {
-    let rest = text.strip_prefix("PT")?;
-    let mut total = 0.0_f64;
-    let mut number = String::new();
-    for character in rest.chars() {
-        if character.is_ascii_digit() || character == '.' {
-            number.push(character);
-            continue;
-        }
-        let value: f64 = number.parse().ok()?;
-        number.clear();
-        total += value
-            * match character {
-                'H' => 3600.0,
-                'M' => 60.0,
-                'S' => 1.0,
-                _ => return None,
-            };
-    }
-    number.is_empty().then_some(total.round() as u64)
-}
-
-/// The image id (`xxxxxxxx-xxxx-...`) behind an artwork's file address
-/// (`https://resources.tidal.com/images/xxxxxxxx/xxxx/.../1280x1280.jpg`).
-fn artwork_uuid(artwork: &Value) -> Option<String> {
-    let files = artwork["attributes"]["files"].as_array()?;
-    files.iter().find_map(|file| {
-        let href = file["href"].as_str()?;
-        let path = href.split_once("/images/")?.1;
-        let parts: Vec<&str> = path.split('/').collect();
-        // five uuid groups, then the file name
-        (parts.len() == 6).then(|| parts[..5].join("-"))
-    })
-}
-
 /// The v1-shaped entries of a v2 document, in its order.
 pub(crate) fn entries_of(document: &Value) -> Vec<Value> {
-    let included: HashMap<(String, String), &Value> = document["included"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|resource| {
-            Some((
-                (
-                    resource["type"].as_str()?.to_string(),
-                    text_id(&resource["id"])?,
-                ),
-                resource,
-            ))
-        })
-        .collect();
-    let related = |resource: &Value, name: &str| -> Vec<&Value> {
-        resource["relationships"][name]["data"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|link| {
-                included
-                    .get(&(link["type"].as_str()?.to_string(), text_id(&link["id"])?))
-                    .copied()
-            })
-            .collect()
-    };
+    let document = Document::new(document);
     let artists = |resource: &Value| -> Vec<Value> {
-        related(resource, "artists")
+        document
+            .related(resource, "artists")
             .into_iter()
             .map(|artist| {
                 json!({
@@ -264,19 +188,18 @@ pub(crate) fn entries_of(document: &Value) -> Vec<Value> {
             })
             .collect()
     };
-    document["data"]
-        .as_array()
+    document
+        .data()
         .into_iter()
-        .flatten()
         .filter_map(|link| {
             let kind = link["type"].as_str()?;
             let id = text_id(&link["id"])?;
-            let resource = included.get(&(kind.to_string(), id.clone())).copied();
+            let resource = document.resource(link);
             let attributes = resource.map(|resource| &resource["attributes"]);
             let attribute = |name: &str| attributes.map_or(Value::Null, |a| a[name].clone());
             let duration = attributes
                 .and_then(|a| a["duration"].as_str())
-                .and_then(iso_seconds);
+                .and_then(duration_seconds);
             let mut item = json!({
                 "id": id,
                 "title": attribute("title"),
@@ -291,8 +214,9 @@ pub(crate) fn entries_of(document: &Value) -> Vec<Value> {
                         let artists = artists(resource);
                         item["artist"] = artists.first().cloned().unwrap_or(Value::Null);
                         item["artists"] = Value::Array(artists);
-                        if let Some(album) = related(resource, "albums").first() {
-                            let cover = related(album, "coverArt")
+                        if let Some(album) = document.related(resource, "albums").first() {
+                            let cover = document
+                                .related(album, "coverArt")
                                 .first()
                                 .and_then(|art| artwork_uuid(art));
                             item["album"] = json!({
@@ -309,7 +233,8 @@ pub(crate) fn entries_of(document: &Value) -> Vec<Value> {
                         let artists = artists(resource);
                         item["artist"] = artists.first().cloned().unwrap_or(Value::Null);
                         item["artists"] = Value::Array(artists);
-                        item["imageId"] = related(resource, "thumbnailArt")
+                        item["imageId"] = document
+                            .related(resource, "thumbnailArt")
                             .first()
                             .and_then(|art| artwork_uuid(art))
                             .map_or(Value::Null, Value::String);
@@ -322,26 +247,4 @@ pub(crate) fn entries_of(document: &Value) -> Vec<Value> {
             Some(json!({ "item": item, "type": entry_type, "created": created }))
         })
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn iso_durations_are_read_in_seconds() {
-        assert_eq!(iso_seconds("PT3M45S"), Some(225));
-        assert_eq!(iso_seconds("PT1H2M3S"), Some(3723));
-        assert_eq!(iso_seconds("PT45S"), Some(45));
-        assert_eq!(iso_seconds("PT2M"), Some(120));
-        assert_eq!(iso_seconds("3M"), None);
-        assert_eq!(iso_seconds("PT3X"), None);
-    }
-
-    #[test]
-    fn the_next_cursor_is_read_from_the_link() {
-        let document = json!({"links": {"next": "/playlists/p/relationships/items?page%5Bcursor%5D=abc&include=items"}});
-        assert_eq!(next_cursor(&document).as_deref(), Some("abc"));
-        assert_eq!(next_cursor(&json!({"links": {}})), None);
-    }
 }
