@@ -776,7 +776,7 @@ const COMPAT: &[CompatRow] = &[
         name: "@visiuun/true-taste",
         note: CompatNote {
             level: Compat::PartlySupported,
-            reason: "Its rating buttons work, but it cannot build its playlist through TIDAL's newer API, which Tidalfast does not open to plugins.",
+            reason: "Its playlist asks for your permission to use TIDAL's official API; the listening history in TIDAL's Home feed stays closed to plugins.",
         },
     },
     CompatRow {
