@@ -558,11 +558,26 @@ impl App {
             } else {
                 None
             };
+            // Nor is the remembered song's queue, the one it was saved with,
+            // when it is shown paused at the start: TIDAL restores its queue
+            // once, before plugins ask. The loaded queue that replaces it
+            // when the song is opened is the change they are told of.
+            let remembered = now.is_some()
+                && was.is_empty()
+                && self.queue.get().is_none_or(|q| q.queue.is_empty())
+                && self.resume_only();
+            // Nor are the rows between that song being started and its queue
+            // loading: the song alone, for as long as it takes to load.
+            let unloaded = now.is_some()
+                && !matches!(self.queue, Loadable::Loaded(_))
+                && was.len() > 1
+                && rows.len() == 1
+                && same_ids(&was[..1], &rows);
             let told = self.plugins.seen.queue == Some(self.plugins.seen.queue_made);
             self.plugins.seen.queue_rows = Arc::new(rows);
             self.plugins.seen.queue_made += 1;
             self.plugins.seen.queue_topup = topup;
-            if (dropped || refilled) && told {
+            if (dropped || refilled || remembered || unloaded) && told {
                 self.plugins.seen.queue = Some(self.plugins.seen.queue_made);
             }
         }
@@ -3092,10 +3107,13 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
             uri: "tidal:track:7".into(),
             ..Default::default()
         });
+        app.local.playback = crate::player::Playback::Playing;
+        let loading = step(&mut app, &now);
         app.queue = queue(7, 8..14);
         let opened = step(&mut app, &now);
         let transitions: Vec<&String> = shown
             .iter()
+            .chain(&loading)
             .chain(&opened)
             .filter(|l| l.starts_with("playbackControls/MEDIA_PRODUCT_TRANSITION"))
             .collect();
@@ -3104,11 +3122,22 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
             vec!["playbackControls/MEDIA_PRODUCT_TRANSITION \"7\""],
             "one transition for the remembered song, shown and then opened"
         );
+        // The first is the pass with no song (the queue of the song before
+        // gone); the rows made of the remembered song's saved queue are not
+        // announced, and the loaded queue is, once.
+        let resets: Vec<&String> = shown
+            .iter()
+            .chain(&loading)
+            .chain(&opened)
+            .filter(|l| l.starts_with("playQueue/RESET"))
+            .collect();
+        assert_eq!(resets, vec!["playQueue/RESET 3", "playQueue/RESET 7"]);
         assert!(
-            opened
+            loading
                 .iter()
+                .chain(&opened)
                 .all(|l| !l.starts_with("playbackControls/TIME_UPDATE")),
-            "the position is not told again as the engine opens the song: {opened:?}"
+            "the position is not told again as the engine opens the song: {loading:?} {opened:?}"
         );
         // A song asked for while another plays is shown at once and then
         // opened by the engine: one transition, at the pass it is shown.
