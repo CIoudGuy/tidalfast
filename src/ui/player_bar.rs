@@ -156,6 +156,9 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                     .map_or(egui::CornerRadius::ZERO, |f| f.radius);
                 super::backdrop::paint(ui.painter(), behind, corners, backdrop);
                 ui.painter().rect_filled(behind, corners, *own);
+                if floating.is_none() {
+                    paint_shade_on_bar(ui, behind);
+                }
             }
             if let Some(over_body) = column {
                 let left = super::queue::wrapper_left(ui.ctx().content_rect());
@@ -313,13 +316,15 @@ pub fn page_runs_under(ctx: &egui::Context) -> bool {
     floating(ctx).is_some()
 }
 
-/// Whether TIDAL's bar glass, its colour cleared, filters what lies under a
-/// see-through bar ([`plugin_dom::bar_glass_backdrop`]): TIDAL's page and
-/// sidebar run on under its fixed bar, so this bar needs them there (Tidal
-/// Light's blurred through its bar). A `backdrop-filter` a theme puts on the
-/// bar itself is not this: TIDAL shows black through TidalCustomTheme's.
+/// Whether a see-through bar filters what lies under it, by a theme's
+/// `backdrop-filter` on the bar or by TIDAL's bar glass with its colour
+/// cleared ([`plugin_dom::bar_glass_backdrop`]): TIDAL's page and sidebar run
+/// on under its fixed bar, so this bar needs them there (Tidal Light's
+/// blurred through its bar, the end of TidalCustomTheme's page gradient
+/// through its own).
 pub fn glass_filters_page(palette: &crate::theme::Palette) -> bool {
-    plugin_dom::bar_glass_backdrop()
+    plugin_dom::backdrop_fill(keys::FOOTER)
+        .or_else(plugin_dom::bar_glass_backdrop)
         .and_then(|(_, own)| own)
         .is_some_and(|own| plugin_dom::footer_under_glass(own, palette.window).a() < 255)
 }
@@ -374,6 +379,27 @@ pub fn paint_shade(ui: &egui::Ui, window: Rect, view: f32) {
     mesh.colored_vertex(rect.right_top(), clear);
     mesh.colored_vertex(rect.right_bottom(), dark);
     mesh.colored_vertex(rect.left_bottom(), dark);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(0, 2, 3);
+    ui.painter().add(egui::Shape::mesh(mesh));
+}
+
+/// The rest of that shade, over a see-through bar's own fill: `::before` lies
+/// in the bar's box, over its background, where no TIDAL glass covers it
+/// (TidalCustomTheme's bar darkens to its foot as the gradient goes on).
+fn paint_shade_on_bar(ui: &egui::Ui, bar: Rect) {
+    if !plugin_dom::footer_shade() {
+        return;
+    }
+    let span = SHADE_ABOVE + bar.height() + SHADE_BELOW;
+    let alpha = |at: f32| (255.0 * SHADE_ALPHA * at / span).round() as u8;
+    let top = Color32::from_black_alpha(alpha(SHADE_ABOVE));
+    let bottom = Color32::from_black_alpha(alpha(SHADE_ABOVE + bar.height()));
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(bar.left_top(), top);
+    mesh.colored_vertex(bar.right_top(), top);
+    mesh.colored_vertex(bar.right_bottom(), bottom);
+    mesh.colored_vertex(bar.left_bottom(), bottom);
     mesh.add_triangle(0, 1, 2);
     mesh.add_triangle(0, 2, 3);
     ui.painter().add(egui::Shape::mesh(mesh));
@@ -3044,6 +3070,57 @@ mod narrow_tests {
         assert!(
             (under - 820.0).abs() < 0.5,
             "the page reaches the window's bottom: {under}"
+        );
+    }
+
+    /// The same under a `backdrop-filter` the theme sets on the bar itself
+    /// (TidalCustomTheme's): the page's gradient goes on under it in TIDAL
+    /// and ended flat here, at the bar's top.
+    #[test]
+    fn the_page_runs_on_under_a_bar_with_a_filter_of_its_own() {
+        let _drawn = crate::ui::backdrop::force(true);
+        let (ctx, mut app) = setup();
+        let mut hosts = std::collections::BTreeMap::new();
+        hosts.insert(
+            keys::FOOTER.to_string(),
+            crate::luna::dom::HostOverride {
+                style: crate::luna::dom::Style {
+                    background_color: Some("rgba(10, 20, 30, 0.25)".into()),
+                    backdrop_filter: Some("blur(9px)".into()),
+                    ..Default::default()
+                },
+                after: Some(crate::luna::dom::Style {
+                    background_image: Some("none".into()),
+                    backdrop_filter: Some("none".into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        );
+        crate::ui::plugin_dom::test_overlay(Some(DomOverlay {
+            version: 5,
+            hosts,
+            ..DomOverlay::default()
+        }));
+        let under = page_bottom(&ctx, &mut app);
+        let frame = ctx.run_ui(egui::RawInput::default(), |ui| show(&mut app, ui));
+        crate::ui::plugin_dom::test_overlay(None);
+        assert!(
+            (under - 820.0).abs() < 0.5,
+            "the page reaches the window's bottom: {under}"
+        );
+        // TIDAL's shade goes on over the bar's own fill, darker to its foot.
+        let mut frame = frame;
+        frame.textures_delta.clear();
+        let shade = frame.shapes.iter().find_map(|c| match &c.shape {
+            egui::Shape::Mesh(m) if m.vertices.len() == 4 && m.vertices[0].color.r() == 0 => {
+                Some((m.vertices[0].color.a(), m.vertices[2].color.a()))
+            }
+            _ => None,
+        });
+        assert!(
+            shade.is_some_and(|(top, foot)| top > 0 && foot > top),
+            "{shade:?}"
         );
     }
 
