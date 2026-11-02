@@ -1839,16 +1839,24 @@ pub(crate) fn outer_shadow_shape(
     corner: egui::CornerRadius,
     shadow: egui::epaint::Shadow,
 ) -> egui::Shape {
-    let r = r.translate(egui::vec2(
-        f32::from(shadow.offset[0]),
-        f32::from(shadow.offset[1]),
-    ));
+    let offset = egui::vec2(f32::from(shadow.offset[0]), f32::from(shadow.offset[1]));
     let (blur, spread) = (f32::from(shadow.blur), f32::from(shadow.spread));
     let depth = spread + blur;
-    if depth <= 0.0 || shadow.color.a() == 0 {
+    if (depth <= 0.0 && offset == egui::Vec2::ZERO) || shadow.color.a() == 0 {
         return egui::Shape::Noop;
     }
     let mut rings = Vec::new();
+    // The rings go outward from the shadow's own box. What a moved shadow's
+    // box shows past the casting box lies inside them.
+    let edge = if spread > 0.0 || blur <= 0.0 { 1.0 } else { 0.5 };
+    let band = shadow_band(r, corner, offset, shadow.color, edge, blur);
+    if !band.is_empty() {
+        rings.push(egui::Shape::mesh(band));
+    }
+    let r = r.translate(offset);
+    if depth <= 0.0 {
+        return egui::Shape::Vec(rings);
+    }
     let steps = (depth / 2.0).ceil().clamp(1.0, 48.0);
     let width = depth / steps;
     for i in 0..steps as usize {
@@ -1877,6 +1885,81 @@ pub(crate) fn outer_shadow_shape(
         ));
     }
     egui::Shape::Vec(rings)
+}
+
+/// The rounded outline of `r`, clockwise from its left edge's top, with the
+/// way out at each point.
+fn outline_with_ways_out(r: Rect, corner: egui::CornerRadius) -> Vec<(egui::Pos2, egui::Vec2)> {
+    /// Steps along a corner's quarter circle.
+    const ARC: u16 = 8;
+    let at = |radius: u8, left: bool, top: bool, start: f32| {
+        let radius = f32::from(radius);
+        let x = if left {
+            r.left() + radius
+        } else {
+            r.right() - radius
+        };
+        let y = if top {
+            r.top() + radius
+        } else {
+            r.bottom() - radius
+        };
+        (0..=ARC).map(move |i| {
+            let a = (start + f32::from(i) / f32::from(ARC)) * std::f32::consts::FRAC_PI_2;
+            let out = egui::vec2(a.cos(), a.sin());
+            (egui::pos2(x, y) + out * radius, out)
+        })
+    };
+    at(corner.nw, true, true, 2.0)
+        .chain(at(corner.ne, false, true, 3.0))
+        .chain(at(corner.se, false, false, 0.0))
+        .chain(at(corner.sw, true, false, 1.0))
+        .collect()
+}
+
+/// What of a moved shadow's box lies past the casting box `r`: the outline
+/// swept along `offset`. `edge` is the shadow's strength on its box's edge;
+/// it grows inward across `blur`, as [`outer_shadow_shape`]'s rings fall off
+/// outward, and only the sides the shadow moves towards have any.
+fn shadow_band(
+    r: Rect,
+    corner: egui::CornerRadius,
+    offset: egui::Vec2,
+    color: Color32,
+    edge: f32,
+    blur: f32,
+) -> egui::Mesh {
+    let mut band = egui::Mesh::default();
+    if offset == egui::Vec2::ZERO {
+        return band;
+    }
+    let ink = |depth: f32| {
+        let t = if blur > 0.0 {
+            (depth.max(0.0) / blur).min(1.0)
+        } else {
+            1.0
+        };
+        color.gamma_multiply(1.0 - (1.0 - edge) * (1.0 - t) * (1.0 - t))
+    };
+    let outline = outline_with_ways_out(r, corner);
+    let far = color.gamma_multiply(edge);
+    for (i, &(a, a_out)) in outline.iter().enumerate() {
+        let (b, b_out) = outline[(i + 1) % outline.len()];
+        let (a_depth, b_depth) = (a_out.dot(offset), b_out.dot(offset));
+        if a_depth <= 0.001 && b_depth <= 0.001 {
+            continue;
+        }
+        let base = band.vertices.len() as u32;
+        band.colored_vertex(a, ink(a_depth));
+        band.colored_vertex(b, ink(b_depth));
+        // A little past the shadow's edge, under the first ring's own soft
+        // edge, or a pale line shows between them.
+        band.colored_vertex(b + offset + b_out * 0.25, far);
+        band.colored_vertex(a + offset + a_out * 0.25, far);
+        band.add_triangle(base, base + 1, base + 2);
+        band.add_triangle(base, base + 2, base + 3);
+    }
+    band
 }
 
 /// A theme's inset `box-shadow` on anchor `key` (its look's glow), inside
@@ -10692,6 +10775,57 @@ mod tests {
                 v.color.a()
             );
         }
+    }
+
+    /// A shadow moved off its box shows past it, strongest by the box, and
+    /// a hard one (no blur) shows at all.
+    #[test]
+    fn a_moved_shadow_fills_what_it_shows_past_its_box() {
+        let r = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(120.0, 40.0));
+        let corner = egui::CornerRadius::same(20);
+        let meshes = |blur: u8| {
+            let shape = outer_shadow_shape(
+                r,
+                corner,
+                egui::epaint::Shadow {
+                    offset: [0, 4],
+                    blur,
+                    spread: 0,
+                    color: Color32::BLACK,
+                },
+            );
+            let egui::Shape::Vec(shapes) = shape else {
+                panic!("no shadow");
+            };
+            shapes
+                .into_iter()
+                .filter_map(|s| match s {
+                    egui::Shape::Mesh(m) => Some(m),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        };
+        // Under the box's bottom edge, down to the shadow's.
+        let alpha_at = |mesh: &egui::Mesh, x: f32, y: f32| {
+            mesh.vertices
+                .iter()
+                .find(|v| (v.pos.x - x).abs() < 25.0 && (v.pos.y - y).abs() < 0.01)
+                .map(|v| v.color.a())
+        };
+        let soft = meshes(12);
+        let band = soft.first().expect("the band");
+        let (near, far) = (
+            alpha_at(band, 100.0, 40.0).expect("along the box"),
+            alpha_at(band, 100.0, 44.25).expect("along the shadow's edge"),
+        );
+        assert!((i32::from(far) - 128).abs() <= 2, "{far}");
+        assert!(near > far, "{near} {far}");
+        assert!(band.vertices.iter().all(|v| v.pos.y >= 19.9), "up");
+        let hard = meshes(0);
+        assert_eq!(
+            alpha_at(hard.first().expect("a hard shadow"), 100.0, 44.25),
+            Some(255)
+        );
     }
 
     /// An elliptical radial gradient with its stop positions, drawn in a
