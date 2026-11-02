@@ -3993,6 +3993,11 @@ pub fn next_card(item: dom_anchors::CardItem) {
     });
 }
 
+/// [`next_card`] said what the card about to be drawn shows.
+pub fn next_card_waits() -> bool {
+    with(|s| s.frame.page.as_ref().is_some_and(|p| p.next_card.is_some()))
+}
+
 /// Forgets what [`next_card`] said when no card took it (one scrolled out
 /// of its shelf is not drawn).
 pub fn drop_next_card() {

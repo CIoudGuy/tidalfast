@@ -161,7 +161,15 @@ pub(super) fn shelf_card(
     let width = widgets::card_width(ui);
     let thumb_height = (width * 9.0 / 16.0).round();
     let art = app.art_px(width);
+    // Its anchor: TIDAL's `video-card-<id>` and `video-play-button-<id>`.
+    super::plugin_dom::next_card(crate::luna::dom_anchors::CardItem {
+        kind: crate::luna::dom_anchors::CardKind::Video,
+        id: video.id.clone(),
+        saved: app.is_saved(&video.uri()),
+        artists: Vec::new(),
+    });
     card(app, ui, video, shelf, from, (width, thumb_height, art));
+    super::plugin_dom::drop_next_card();
 }
 
 /// Videos as rows of 16:9 cards, as many across as fit.
@@ -210,8 +218,29 @@ fn card(
             format!("{}, {}", video.name, video.artist),
         )
     });
+    let thumb = Rect::from_min_size(rect.min, vec2(width, thumb_height));
+    if !ui.is_rect_visible(rect) {
+        super::plugin_dom::unseen_card(rect, thumb, false, &video.name, &video.artist);
+    }
     if ui.is_rect_visible(rect) {
-        let thumb = Rect::from_min_size(rect.min, vec2(width, thumb_height));
+        let card_key = super::plugin_dom::next_card_waits()
+            .then(|| super::plugin_dom::grid_card(rect, false))
+            .flatten();
+        // A plugin hid the card (`display: none`): its cell stays, empty.
+        if card_key.as_deref().is_some_and(super::plugin_dom::hidden) {
+            return;
+        }
+        if let Some(key) = &card_key {
+            super::plugin_dom::grid_card_cover(key, thumb);
+            super::plugin_dom::card_play(Some(key), play_rect(thumb));
+            super::plugin_dom::card_words(
+                Some(key),
+                &video.name,
+                title_rect(rect, thumb),
+                &video.artist,
+                artist_rect(rect, thumb),
+            );
+        }
         widgets::paint_cover(
             ui,
             &palette,
@@ -235,10 +264,7 @@ fn card(
             );
             Icon::CirclePlay
                 .image(Color32::WHITE.gamma_multiply(hover), 40.0)
-                .paint_at(
-                    ui,
-                    Rect::from_center_size(thumb.center(), egui::Vec2::splat(40.0)),
-                );
+                .paint_at(ui, play_rect(thumb));
         }
         if video.duration > 0 {
             let galley = ui.painter().layout_no_wrap(
@@ -269,11 +295,8 @@ fn card(
             width,
             1,
         );
-        ui.painter().galley(
-            pos2(rect.left(), thumb.bottom() + 12.0),
-            title,
-            palette.text,
-        );
+        ui.painter()
+            .galley(title_rect(rect, thumb).min, title, palette.text);
         if !video.artist.is_empty() {
             let secondary = Color32::from_rgb(0xaf, 0xaf, 0xb6);
             let artist = widgets::ellipsized(
@@ -285,7 +308,7 @@ fn card(
                 1,
             );
             ui.painter()
-                .galley(pos2(rect.left(), thumb.bottom() + 34.0), artist, secondary);
+                .galley(artist_rect(rect, thumb).min, artist, secondary);
         }
     }
     theme::focus_ring(ui, &response);
@@ -310,6 +333,27 @@ fn card(
     egui::Popup::context_menu(&response)
         .frame(widgets::menu_frame(&palette))
         .show(|ui| menu(ui, app, video, list));
+}
+
+/// Where a card's play button goes (the one drawn under the pointer).
+fn play_rect(thumb: Rect) -> Rect {
+    Rect::from_center_size(thumb.center(), egui::Vec2::splat(40.0))
+}
+
+/// A card's title line.
+fn title_rect(card: Rect, thumb: Rect) -> Rect {
+    Rect::from_min_size(
+        pos2(card.left(), thumb.bottom() + 12.0),
+        vec2(card.width(), 20.0),
+    )
+}
+
+/// A card's artist line.
+fn artist_rect(card: Rect, thumb: Rect) -> Rect {
+    Rect::from_min_size(
+        pos2(card.left(), thumb.bottom() + 34.0),
+        vec2(card.width(), 20.0),
+    )
 }
 
 /// Plays `video` and the videos after it in `list`, as TIDAL plays a

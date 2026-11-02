@@ -10346,6 +10346,49 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// An artist's videos are TIDAL's cards, on the screen or scrolled out
+    /// of the shelf: `video-card-<id>`, with `video-play-button-<id>` titled
+    /// Play on it and a link to `/video/<id>`. The videos of a page of their
+    /// own are no shelf's, and nothing was captured of them.
+    #[test]
+    fn an_artists_videos_are_tidals_cards() {
+        use crate::luna::dom_anchors::attr;
+        let (ctx, mut app) = accessible_app("artist-video-cards");
+        app.open(Page::Artist("art0".into()));
+        let videos: Vec<crate::api::models::Video> = (0..12)
+            .map(|i| crate::api::models::Video {
+                id: format!("vid{i}"),
+                name: format!("Video {i}"),
+                artist: "Someone".into(),
+                ..Default::default()
+            })
+            .collect();
+        app.artist_pages
+            .get_mut("art0")
+            .unwrap()
+            .videos
+            .absorb(0, page(videos));
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let with_test = |test: &str| {
+            tree.nodes
+                .iter()
+                .find(|n| attr(n, "data-test") == Some(test))
+        };
+        for id in ["vid0", "vid11"] {
+            with_test(&format!("video-card-{id}")).expect("the card");
+            let play = with_test(&format!("video-play-button-{id}")).expect("its play button");
+            assert_eq!(attr(play, "title"), Some("Play"));
+            assert_eq!(attr(play, "aria-label"), Some("Play"));
+        }
+        assert!(
+            tree.nodes
+                .iter()
+                .any(|n| attr(n, "href") == Some("/video/vid0")),
+            "a link to the video"
+        );
+        app.backend.shutdown();
+    }
+
     /// TIDAL 2.47.0's Top Tracks are a plain table, not its media table
     /// (captured): `table._trackList_a129abb > tbody >
     /// tr[data-test=tracklist-row--selected-false]` with
