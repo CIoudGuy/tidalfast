@@ -207,8 +207,6 @@ struct PlaylistDetailChanges {
     name: Option<String>,
     description: Option<String>,
     public: Option<bool>,
-    /// The description was cleared, which TIDAL doesn't allow.
-    kept_description: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -11410,12 +11408,6 @@ impl App {
             } => {
                 self.dialog = None;
                 let changes = self.changed_playlist_details(&id, name, description, public);
-                if changes.kept_description {
-                    self.toast_error(gettext(
-                        self.locale,
-                        "TIDAL doesn't let apps remove a playlist description, so it was kept",
-                    ));
-                }
                 if changes.name.is_some()
                     || changes.description.is_some()
                     || changes.public.is_some()
@@ -12250,13 +12242,11 @@ impl App {
             .and_then(|playlist| playlist.description.as_deref())
             .map(util::strip_html)
             .unwrap_or_default();
-        let cleared = description.is_empty();
         PlaylistDetailChanges {
             name: original
                 .is_none_or(|playlist| playlist.name != name)
                 .then_some(name),
-            kept_description: cleared && !original_description.is_empty(),
-            description: (!cleared && description != original_description).then_some(description),
+            description: (description != original_description).then_some(description),
             public: public
                 .filter(|public| original.is_none_or(|playlist| playlist.public != Some(*public))),
         }
@@ -12279,7 +12269,7 @@ impl App {
                 playlist.name.clone_from(name);
             }
             if let Some(description) = &changes.description {
-                playlist.description = Some(description.clone());
+                playlist.description = (!description.is_empty()).then(|| description.clone());
             }
             if let Some(public) = changes.public {
                 playlist.public = Some(public);
@@ -15348,15 +15338,19 @@ mod tests {
             Some((None, None, Some(false)))
         );
 
-        app.playlist_busy = false;
-        let toasts = app.toasts.len();
-        assert_eq!(save(&mut app, "Mix", "", Some(true)), None);
-        assert!(!app.playlist_busy, "nothing was sent, so nothing waits");
-        assert_eq!(app.toasts.len(), toasts + 1);
+        assert_eq!(
+            save(&mut app, "Mix", "", Some(true)),
+            Some((None, Some(String::new()), None)),
+            "a cleared description is sent: TIDAL's PATCH takes it"
+        );
+        assert_eq!(
+            app.library.playlists.get().unwrap()[0].description,
+            None,
+            "and it is gone from the shown playlist"
+        );
         assert_eq!(
             save(&mut app, "Renamed", "", Some(true)),
-            Some((Some("Renamed".into()), None, None)),
-            "clearing the description does not fail the rename"
+            Some((Some("Renamed".into()), Some(String::new()), None))
         );
     }
 
