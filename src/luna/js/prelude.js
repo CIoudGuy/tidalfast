@@ -348,12 +348,12 @@
 		lunaInternal.focused = !!focused;
 	};
 	const clampFloor = () => (lunaInternal.focused ? 4 : 16);
-	const addTimer = (cb, ms, args, repeat, internal) => {
+	const addTimer = (cb, ms, args, repeat, internal, shared) => {
 		const id = timerSeq++;
 		let delay = Math.max(0, Number(ms) || 0);
 		const nesting = internal ? 0 : nestNow + 1;
 		if (!internal && (repeat || nesting > NEST_LEVELS)) delay = Math.max(delay, clampFloor());
-		const plugin = internal ? undefined : (lunaInternal.running ?? lunaInternal.pluginFromStack());
+		const plugin = internal || shared ? undefined : (lunaInternal.running ?? lunaInternal.pluginFromStack());
 		timers.set(id, { cb, args, due: Date.now() + delay, every: repeat ? Math.max(1, delay) : 0, plugin, internal: !!internal, nesting });
 		return id;
 	};
@@ -371,6 +371,11 @@
 	// Runtime bookkeeping timers: never cleared with a plugin's own timers.
 	lunaInternal.internalTimeout = (cb, ms) => addTimer(cb, ms, [], false, true);
 	lunaInternal.clearInternal = (id) => void timers.delete(id);
+	// A timer of the runtime's shared state (the player element's
+	// `timeupdate`), started by whichever plugin's action happened to be on
+	// the stack: no plugin owns it, so disabling that plugin does not stop
+	// it. It keeps a plugin timer's clamps and the hidden window's pace.
+	lunaInternal.sharedInterval = (cb, ms) => addTimer(cb, ms, [], true, false, true);
 	const timerId = (t) => (typeof t === "object" && t !== null ? t[Symbol.toPrimitive]?.() ?? t.id : t);
 	g.setTimeout = (cb, ms, ...args) => addTimer(cb, ms, args, false);
 	g.setInterval = (cb, ms, ...args) => addTimer(cb, ms, args, true);

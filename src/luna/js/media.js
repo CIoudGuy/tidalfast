@@ -2904,7 +2904,7 @@
 		// second; only kept up while someone listens for it.
 		const wants = !!(player._ls?.has("timeupdate") || g.document._ls?.has("timeupdate") || player._on?.timeupdate);
 		if (playing && wants && !timeTimer)
-			timeTimer = setInterval(() => {
+			timeTimer = L.sharedInterval(() => {
 				if (pstate.paused) {
 					clearInterval(timeTimer);
 					timeTimer = null;

@@ -13,6 +13,10 @@ use super::*;
 /// Installs `body` as plugin `Compat` on the catalogue host and returns the
 /// running Luna with its data folder.
 fn start(body: &str) -> (Luna, std::path::PathBuf) {
+    start_on(body, Arc::new(CatalogueHost::default()))
+}
+
+fn start_on(body: &str, host: Arc<dyn LunaHost>) -> (Luna, std::path::PathBuf) {
     let files: Files = Arc::default();
     files.lock().unwrap().insert(
         "/Compat.json".into(),
@@ -26,7 +30,7 @@ fn start(body: &str) -> (Luna, std::path::PathBuf) {
     );
     let base = serve(files);
     let dir = temp_dir("use");
-    let luna = Luna::start(config(&dir), Arc::new(CatalogueHost::default())).unwrap();
+    let luna = Luna::start(config(&dir), host).unwrap();
     luna.install(&format!("{base}/Compat.mjs"));
     (luna, dir)
 }
@@ -152,6 +156,159 @@ R.ready = true;
     }
     assert_eq!(count(&dir, "onState"), 1, "{}", results(&dir));
     assert_eq!(count(&dir, "own"), 0, "{}", results(&dir));
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The entries a plugin adds to a context menu are there while it runs,
+/// gone while it is disabled, and one entry (not two) once it is enabled
+/// again, whichever kind of item the menu opened for.
+#[test]
+fn context_menu_entries_follow_the_plugin_through_disable_and_enable() {
+    let (luna, dir) = start(
+        r##"
+R.ready = false;
+const b = lib.ContextMenu.addButton(unloads);
+b.text = "Entry";
+lib.ContextMenu.onMediaItem(unloads, async ({ mediaCollection, contextMenu }) => {
+	R.opened = (R.opened ?? 0) + 1;
+	await b.show(contextMenu);
+});
+b.onClick(() => (R.clicked = (R.clicked ?? 0) + 1));
+R.ready = true;
+"##,
+    );
+    wait_for(&luna, &dir, "ready");
+    let entries = |luna: &Luna, target: ContextTarget| {
+        luna.open_context_menu(target);
+        std::thread::sleep(Duration::from_millis(400));
+        luna.sync(Duration::from_secs(10));
+        luna.snapshot()
+            .context_menu
+            .iter()
+            .map(|i| i.text.clone())
+            .collect::<Vec<_>>()
+    };
+    let targets = || {
+        [
+            ContextTarget::Tracks(vec!["1".into()]),
+            ContextTarget::Tracks(vec!["1".into(), "2".into()]),
+            ContextTarget::Album("10".into()),
+        ]
+    };
+    for t in targets() {
+        assert_eq!(entries(&luna, t.clone()), ["Entry"], "{t:?}");
+    }
+    luna.set_enabled("Compat", false);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "Compat").unwrap().status == PluginStatus::Disabled
+    });
+    for t in targets() {
+        assert!(entries(&luna, t.clone()).is_empty(), "{t:?}");
+    }
+    luna.set_enabled("Compat", true);
+    wait_for(&luna, &dir, "ready");
+    for t in targets() {
+        assert_eq!(entries(&luna, t.clone()), ["Entry"], "{t:?}");
+    }
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A second plugin on the same server, named `name`, with no results store.
+fn install_other(luna: &Luna, name: &str, body: &str) {
+    let files: Files = Arc::default();
+    files.lock().unwrap().insert(
+        format!("/{name}.json"),
+        json!({ "name": name, "version": "1.0.0", "hash": "o1" })
+            .to_string()
+            .into_bytes(),
+    );
+    files.lock().unwrap().insert(
+        format!("/{name}.mjs"),
+        format!(
+            "export const unloads = new Set();\nvar lib = luna?.core?.modules?.[\"@luna/lib\"];\n{body}"
+        )
+        .into_bytes(),
+    );
+    let base = serve(files);
+    luna.install(&format!("{base}/{name}.mjs"));
+}
+
+/// The player element reports `timeupdate` to whoever listens, as long as a
+/// song plays: a plugin whose own action made the library start the timer
+/// that drives it does not take the timer away when it is disabled.
+#[test]
+fn timeupdate_goes_on_when_the_plugin_that_started_its_timer_is_disabled() {
+    let host = Arc::new(MockHost::default());
+    {
+        let mut snap = host.snap.lock().unwrap();
+        snap.queue = vec![QueueEntry {
+            id: "1".into(),
+            uid: "u1".into(),
+            kind: "track".into(),
+        }]
+        .into();
+        snap.current_index = Some(0);
+        snap.state = PlaybackState::Playing;
+        snap.desired_state = PlaybackState::Playing;
+    }
+    let (luna, dir) = start_on(
+        r##"
+R.ready = false;
+lib.redux.intercept("probe/MARKER", unloads, () => (R.marker = (R.marker ?? 0) + 1));
+lib.redux.intercept("probe/ADD", unloads, () => setTimeout(() => {
+	document.getElementById("video-one").addEventListener("timeupdate", () => (R.tu = (R.tu ?? 0) + 1));
+	R.added = true;
+}, 50));
+R.ready = true;
+"##,
+        host,
+    );
+    wait_for(&luna, &dir, "ready");
+    install_other(
+        &luna,
+        "Other",
+        r##"lib.redux.intercept("probe/GO", unloads, () => { lib.redux.actions["playbackControls/SET_VOLUME"]({ volume: 33 }); });"##,
+    );
+    wait_until(&luna, 10, |s| {
+        plugin(s, "Other").is_some_and(|p| p.status == PluginStatus::Running)
+    });
+    deliver(
+        &luna,
+        &dir,
+        vec![
+            LunaEvent::TrackChanged { id: "1".into() },
+            LunaEvent::PlaybackState(PlaybackState::Playing),
+        ],
+    );
+    tidal_action(&luna, "probe/ADD", json!(null));
+    wait_for(&luna, &dir, "added");
+    // No timer yet: nothing has asked the library for one since the
+    // listener came.
+    std::thread::sleep(Duration::from_millis(600));
+    assert_eq!(count(&dir, "tu"), 0, "{}", results(&dir));
+    tidal_action(&luna, "probe/GO", json!(null));
+    deliver(&luna, &dir, vec![]);
+    let ticking = |luna: &Luna| {
+        let t0 = count(&dir, "tu");
+        let end = Instant::now() + Duration::from_secs(3);
+        while count(&dir, "tu") < t0 + 2 && Instant::now() < end {
+            luna.sync(Duration::from_secs(10));
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        count(&dir, "tu") >= t0 + 2
+    };
+    assert!(
+        ticking(&luna),
+        "no timeupdate while playing: {}",
+        results(&dir)
+    );
+    luna.set_enabled("Other", false);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "Other").unwrap().status == PluginStatus::Disabled
+    });
+    assert!(ticking(&luna), "timeupdate stopped: {}", results(&dir));
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
