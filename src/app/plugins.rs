@@ -2755,4 +2755,257 @@ mod tests {
         app.plugins.stop_luna();
         app.backend.shutdown();
     }
+
+    /// What a plugin hears while a song plays, as TIDAL's player sends it:
+    /// each change is one action, at the pass the app sees it, with TIDAL's
+    /// payload, and a pass with nothing new says nothing (a real Luna runtime
+    /// with a recording plugin on the app's own host).
+    #[test]
+    fn plugins_hear_each_playback_change_once_with_tidals_payload() {
+        use std::io::{Read, Write};
+        let files: HashMap<String, Vec<u8>> = [
+            (
+                "/Recorder.json".to_string(),
+                json!({ "name": "Recorder", "version": "1.0.0", "hash": "r1" })
+                    .to_string()
+                    .into_bytes(),
+            ),
+            (
+                "/Recorder.mjs".to_string(),
+                br#"export const unloads = new Set();
+var lib = luna?.core?.modules?.["@luna/lib"];
+for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK", "playbackControls/MEDIA_PRODUCT_TRANSITION", "playbackControls/TIME_UPDATE", "playbackControls/SET_VOLUME", "playQueue/SET_REPEAT_MODE", "playQueue/ENABLE_SHUFFLE_MODE", "playQueue/DISABLE_SHUFFLE_MODE", "playQueue/RESET", "player/PRELOAD_ITEM"])
+	lib.redux.intercept(t, unloads, (p) => console.log("EV " + t + " " + JSON.stringify(t.endsWith("TRANSITION") ? p.mediaProduct.productId : t.endsWith("RESET") ? p.elements.length : (p ?? null))));
+"#
+                .to_vec(),
+            ),
+        ]
+        .into();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let mut buf = [0u8; 2048];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..n]).to_string();
+                let path = request.split_whitespace().nth(1).unwrap_or("/").to_string();
+                let reply = match files.get(&path) {
+                    Some(body) => [
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        )
+                        .into_bytes(),
+                        body.clone(),
+                    ]
+                    .concat(),
+                    None => {
+                        b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                            .to_vec()
+                    }
+                };
+                let _ = stream.write_all(&reply);
+            }
+        });
+
+        let mut app = app("plugin-playback-events");
+        let data = crate::paths::unique_test_dir("plugin-playback-events-luna");
+        let mut config = crate::luna::LunaConfig::new(data.clone());
+        config.auto_update = false;
+        config.default_stores = false;
+        let host: Arc<dyn crate::luna::LunaHost> = app.plugins.host.clone();
+        let luna = crate::luna::Luna::start(config, host).unwrap();
+        luna.install(&format!("{base}/Recorder"));
+        let end = std::time::Instant::now() + Duration::from_secs(30);
+        while !luna
+            .snapshot()
+            .plugins
+            .iter()
+            .any(|p| p.name == "Recorder" && p.status == crate::luna::PluginStatus::Running)
+        {
+            luna.sync(Duration::from_secs(5));
+            assert!(std::time::Instant::now() < end, "the plugin never ran");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        app.plugins.luna = Some(luna);
+
+        let song = |n: usize| {
+            PlayableItem::Track(Track {
+                id: Some(n.to_string()),
+                name: format!("Song {n}"),
+                uri: format!("tidal:track:{n}"),
+                duration_ms: 200_000,
+                ..Track::default()
+            })
+        };
+        let queue = |playing: usize, next: std::ops::Range<usize>| {
+            Loadable::Loaded(crate::api::models::Queue {
+                currently_playing: Some(song(playing)),
+                queue: next.map(song).collect(),
+            })
+        };
+        let mut now = NowPlaying {
+            local: true,
+            device_name: None,
+            device_kind: None,
+            uri: "tidal:track:1".into(),
+            id: Some("1".into()),
+            title: String::new(),
+            artists: Vec::new(),
+            subtitle: String::new(),
+            album_name: String::new(),
+            album_id: None,
+            art_url: None,
+            art_small: None,
+            duration_ms: 200_000,
+            position_ms: 10_000,
+            playing: true,
+            loading: false,
+            shuffle: false,
+            repeat: RepeatMode::Off,
+            volume_percent: 50,
+            can_control: true,
+            can_set_volume: true,
+            resuming: false,
+        };
+        let window = WindowState::default();
+        let told = std::cell::Cell::new(0usize);
+        let step = |app: &mut App, now: &NowPlaying| -> Vec<String> {
+            app.luna_sync(Some(now), window);
+            let luna = app.plugins.luna.as_ref().unwrap();
+            let mut last = (usize::MAX, 0);
+            let end = std::time::Instant::now() + Duration::from_secs(10);
+            // Settled: the plugin's log stopped growing.
+            let lines = loop {
+                luna.sync(Duration::from_secs(5));
+                let lines: Vec<String> = luna
+                    .snapshot()
+                    .plugins
+                    .iter()
+                    .find(|p| p.name == "Recorder")
+                    .map(|p| {
+                        p.logs
+                            .iter()
+                            .filter_map(|l| l.message.strip_prefix("EV ").map(str::to_string))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if lines.len() == last.0 {
+                    last.1 += 1;
+                } else {
+                    last = (lines.len(), 0);
+                }
+                if last.1 >= 3 || std::time::Instant::now() > end {
+                    break lines;
+                }
+                std::thread::sleep(Duration::from_millis(30));
+            };
+            let new = lines[told.get().min(lines.len())..].to_vec();
+            told.set(lines.len());
+            new
+        };
+        let said = |lines: &[&str]| lines.iter().map(|l| l.to_string()).collect::<Vec<_>>();
+        app.queue = queue(1, 2..6);
+        assert_eq!(
+            step(&mut app, &now),
+            said(&[
+                "playbackControls/MEDIA_PRODUCT_TRANSITION \"1\"",
+                "playbackControls/TIME_UPDATE 10",
+                "playbackControls/SET_PLAYBACK_STATE \"PLAYING\"",
+            ])
+        );
+        assert!(step(&mut app, &now).is_empty(), "a pass with nothing new");
+        now.playing = false;
+        assert_eq!(
+            step(&mut app, &now),
+            said(&["playbackControls/SET_PLAYBACK_STATE \"NOT_PLAYING\""])
+        );
+        now.playing = true;
+        assert_eq!(
+            step(&mut app, &now),
+            said(&["playbackControls/SET_PLAYBACK_STATE \"PLAYING\""])
+        );
+        now.position_ms = 30_000;
+        app.local.seek_sequence += 1;
+        assert_eq!(
+            step(&mut app, &now),
+            said(&[
+                "playbackControls/SEEK 30",
+                "playbackControls/TIME_UPDATE 30"
+            ])
+        );
+        now.shuffle = true;
+        assert_eq!(
+            step(&mut app, &now),
+            said(&["playQueue/ENABLE_SHUFFLE_MODE null"])
+        );
+        now.shuffle = false;
+        assert_eq!(
+            step(&mut app, &now),
+            said(&["playQueue/DISABLE_SHUFFLE_MODE null"])
+        );
+        now.repeat = RepeatMode::Track;
+        assert_eq!(step(&mut app, &now), said(&["playQueue/SET_REPEAT_MODE 2"]));
+        now.repeat = RepeatMode::Context;
+        assert_eq!(step(&mut app, &now), said(&["playQueue/SET_REPEAT_MODE 1"]));
+        now.volume_percent = 20;
+        assert_eq!(
+            step(&mut app, &now),
+            said(&["playbackControls/SET_VOLUME {\"volume\":20}"])
+        );
+        app.queue = queue(1, 2..8);
+        assert_eq!(step(&mut app, &now), said(&["playQueue/RESET 7"]));
+        // The next song: one transition, its time from the start, the
+        // queue's rows without the song that began.
+        now.uri = "tidal:track:2".into();
+        now.id = Some("2".into());
+        now.position_ms = 0;
+        app.queue = queue(2, 3..8);
+        app.local.track_sequence += 1;
+        assert_eq!(
+            step(&mut app, &now),
+            said(&[
+                "playbackControls/MEDIA_PRODUCT_TRANSITION \"2\"",
+                "playbackControls/TIME_UPDATE 0",
+                "playQueue/RESET 6",
+            ])
+        );
+        // Repeat one: the same song again is a transition again, as TIDAL
+        // sends one (TidaLuna's scrobbler counts on it).
+        app.local.track_sequence += 1;
+        assert_eq!(
+            step(&mut app, &now),
+            said(&[
+                "playbackControls/MEDIA_PRODUCT_TRANSITION \"2\"",
+                "playbackControls/TIME_UPDATE 0",
+            ])
+        );
+        // A plugin reloaded while the song plays (a store update) hears the
+        // next change once, not twice, and nothing it heard before again.
+        app.plugins.luna.as_ref().unwrap().reload("Recorder");
+        let end = std::time::Instant::now() + Duration::from_secs(20);
+        while app.plugins.luna.as_ref().is_some_and(|l| {
+            l.sync(Duration::from_secs(5));
+            !l.snapshot()
+                .plugins
+                .iter()
+                .any(|p| p.name == "Recorder" && p.status == crate::luna::PluginStatus::Running)
+        }) {
+            assert!(
+                std::time::Instant::now() < end,
+                "the plugin did not come back"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let quiet = step(&mut app, &now);
+        assert!(quiet.is_empty(), "heard again after the reload: {quiet:?}");
+        now.playing = false;
+        assert_eq!(
+            step(&mut app, &now),
+            said(&["playbackControls/SET_PLAYBACK_STATE \"NOT_PLAYING\""])
+        );
+        app.backend.shutdown();
+        let _ = app.plugins.luna.take().map(|l| l.shutdown());
+    }
 }
