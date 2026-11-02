@@ -292,3 +292,25 @@ fn the_open_sidebar_draws_the_headings_box_and_its_own_grey() {
     crate::ui::plugin_dom::test_overlay(None);
     assert_eq!(ink, None, "TIDAL's grey ({LIB_HEADING})");
 }
+
+/// `#mainHeader` lies over the page in TIDAL (`position: fixed`), so a header
+/// a theme pulls up into a tab (Lunallena's `margin-top: -80px`) leaves the
+/// page where it was. The page followed the tab up, 45 points on a collection.
+#[test]
+fn a_header_pulled_into_a_tab_leaves_the_page() {
+    use super::theme_round41_tests::{plain_and_themed, top};
+    use dom_anchors::keys::{HEADER, PAGE_TITLE};
+    let css = r#"/* {"name": "Tab"} */
+#mainHeader {
+    background-color: rgba(50, 50, 50, 0.5);
+    margin-top: -80px;
+    width: 30vw;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 0 0 20px 20px;
+    padding-top: 45px;
+}
+"#;
+    let (plain, tab) = plain_and_themed("tab.css", css, HEADER);
+    assert_eq!(top(&tab, PAGE_TITLE), top(&plain, PAGE_TITLE));
+}

@@ -187,11 +187,10 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) -> Option<super::theme_layout::Hea
     // window controls' row stays here; [`show_tab`] draws the tab over the
     // page once it is drawn.
     if let Some(tab) = header_tab(ui.ctx(), &window_controls) {
-        // In TIDAL the tab stays in the page's flow: the page starts under
-        // the part of it that shows (its box less the pull).
-        let [top, _, bottom, _] = tab.padding;
-        let foot = tab_margin(ui.ctx(), &tab) + top + theme::top_bar_height() + bottom;
-        ui.add_space(window_controls.topbar_top + foot.max(0.0));
+        // TIDAL's header lies over the page (`position: fixed`), and `#main`
+        // keeps its room whatever a theme makes of the header.
+        let spacing = ui.spacing().item_spacing.y;
+        ui.add_space(window_controls.topbar_top + content_height + spacing);
         return Some(tab);
     }
     if crate::window::custom_titlebar() && !super::titlebar::visible(ui.ctx()) {
