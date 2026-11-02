@@ -1,6 +1,7 @@
 //! Demo builds only: `TIDALFAST_API_PROBE=<file>` sends the read-only TIDAL
 //! requests listed in `<file>` with the signed-in session and writes TIDAL's
-//! answers to `<file>.out.json`, for checking response shapes live.
+//! answers to `<file>.out.json` (`{"<line>": {"ms", "answer"}}`), for checking
+//! response shapes and speed live.
 //!
 //! One request per line: `v1 <path>[?query]` or `v2 <path>[?query]`, e.g.
 //! `v1 artists/17275/toptracks?limit=100&offset=0`; `{userId}` in a path or a
@@ -53,6 +54,7 @@ fn run(tidal: &TidalAccess, file: &std::path::Path) {
             .collect();
         let path = path.to_string();
         let v2 = base == "v2";
+        let started = std::time::Instant::now();
         let answer: Option<Value> = tidal.block_on(move |c| async move {
             let user = c.user_id().map(|id| id.to_string()).unwrap_or_default();
             let path = path.replace("{userId}", &user);
@@ -72,7 +74,10 @@ fn run(tidal: &TidalAccess, file: &std::path::Path) {
         });
         out.insert(
             line.to_string(),
-            answer.unwrap_or_else(|| json!({ "probe_error": "no session or timed out" })),
+            json!({
+                "ms": started.elapsed().as_millis() as u64,
+                "answer": answer.unwrap_or_else(|| json!({ "probe_error": "no session or timed out" })),
+            }),
         );
     }
     let dest = file.with_extension("out.json");
