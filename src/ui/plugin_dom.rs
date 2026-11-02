@@ -6107,6 +6107,9 @@ pub fn backdrop_fill(key: &str) -> Option<(Arc<super::backdrop::Backdrop>, Optio
     Some((backdrop, look.fill))
 }
 
+/// The filter of TIDAL's bar glass and search pill.
+const NAV_BLUR: &str = "var(--frosted-glass-nav-blur, blur(20px) saturate(180%))";
+
 /// TIDAL's bar glass with only its colour cleared: the glass is the bar's
 /// `::after`, `backdrop-filter: var(--frosted-glass-nav-blur)` in TIDAL's
 /// sheet, and a theme's `background: transparent` for it (Tidal Light's)
@@ -6125,11 +6128,7 @@ pub fn bar_glass_backdrop() -> Option<(Arc<super::backdrop::Backdrop>, Option<Co
         if !clear || after.backdrop_filter.is_some() || after.hidden() || h.hidden() {
             return None;
         }
-        let filter = css::resolve_vars(
-            "var(--frosted-glass-nav-blur, blur(20px) saturate(180%))",
-            vars,
-        );
-        let backdrop = super::backdrop::Backdrop::parse(&filter)?;
+        let backdrop = super::backdrop::Backdrop::parse(&css::resolve_vars(NAV_BLUR, vars))?;
         let own = unveiled_fill(h, vars).unwrap_or(Color32::TRANSPARENT);
         Some((Arc::new(backdrop), Some(own)))
     })
@@ -8526,6 +8525,15 @@ fn paint_layers(
     let mut glass = glass;
     let mut lay_glass = |ui: &egui::Ui| {
         if let Some(c) = glass.take() {
+            // The glass filters what lies under it, the box's colour and
+            // pictures: 180 % more saturated in TIDAL, its radial glows
+            // blurred.
+            let filter =
+                with(|s| super::backdrop::Backdrop::parse(&css::resolve_vars(NAV_BLUR, &s.vars)));
+            if let Some(filter) = filter {
+                let corners = corners.unwrap_or_default();
+                super::backdrop::paint(ui.painter(), rect, corners, &Arc::new(filter));
+            }
             ui.painter()
                 .rect_filled(rect, corners.unwrap_or_default(), c);
         }

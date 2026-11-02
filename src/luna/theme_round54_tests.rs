@@ -147,3 +147,39 @@ fn the_search_pills_blur_is_painted_under_its_fill() {
         assert!(order.len() > 1, "{name}: {order:?}");
     }
 }
+
+/// A theme that keeps TIDAL's bar glass over its own bar colour: the glass
+/// filters that colour (`blur(20px) saturate(180%)`) before its `#282828bf`
+/// goes over it, so a blue bar stays bluer than the plain mix. The filter is
+/// painted between the box's own look and the glass, once.
+#[test]
+fn tidals_bar_glass_filters_the_bars_own_colour() {
+    use crate::ui::backdrop;
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::FOOTER;
+    let _drawn = backdrop::force(true);
+    let css =
+        "/* {\"name\": \"Glass kept\"} */ ._player_8c80ae6 { background-color: rgb(0, 80, 200); }";
+    let o = overlay_when("glass-kept.css", css, &dom_anchors::sample_frame(), |o| {
+        o.hosts.contains_key(FOOTER)
+    });
+    pd::test_overlay(Some((*o).clone()));
+    assert!(pd::footer_glass());
+    let ctx = egui::Context::default();
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let r = egui::Rect::from_min_size(egui::pos2(0.0, 500.0), egui::vec2(800.0, 96.0));
+        pd::paint_host_layers_under_glass(ui, FOOTER, r, pd::TIDAL_BAR_GLASS);
+    });
+    out.textures_delta.clear();
+    pd::test_overlay(None);
+    let order: Vec<&str> = out
+        .shapes
+        .iter()
+        .filter_map(|c| match &c.shape {
+            egui::Shape::Callback(_) => Some("filter"),
+            egui::Shape::Rect(r) if r.fill == pd::TIDAL_BAR_GLASS => Some("glass"),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(order, ["filter", "glass"]);
+}
