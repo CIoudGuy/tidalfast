@@ -24,25 +24,37 @@
 			return v;
 		};
 	};
+	// An emitter starts its shared listener when the first plugin asks for
+	// it. That listener is the library's: while it is set up, no plugin is
+	// its owner, or disabling or reloading that plugin would take it from
+	// every other one (and from the plugin itself once it is enabled
+	// again), and its own dispatches would not reach it.
+	let emitterSetup = 0;
 	const registerEmitter = (setup) => {
 		const listeners = new Set();
 		let started = false;
 		return (unloadsSet, cb) => {
+			const plugin = L.pluginFromStack();
 			if (!started) {
 				started = true;
-				setup(async (value, onErr) => {
-					for (const l of [...listeners]) {
-						try {
-							await l(value);
-						} catch (err) {
-							onErr ? onErr(err) : L.reportError(err);
+				emitterSetup++;
+				try {
+					setup(async (value, onErr) => {
+						for (const l of [...listeners]) {
+							try {
+								await l(value);
+							} catch (err) {
+								onErr ? onErr(err) : L.reportError(err);
+							}
 						}
-					}
-				});
+					});
+				} finally {
+					emitterSetup--;
+				}
 			}
 			listeners.add(cb);
 			const unload = () => listeners.delete(cb);
-			unload.__lunaPlugin = L.pluginFromStack();
+			unload.__lunaPlugin = plugin;
 			unloadsSet?.add(unload);
 			return unload;
 		};
@@ -187,7 +199,7 @@
 	const interceptedLogged = {};
 	function intercept(actionTypes, unloadsSet, cb, once) {
 		const types = Array.isArray(actionTypes) ? actionTypes : [actionTypes];
-		const plugin = L.pluginFromStack();
+		const plugin = emitterSetup > 0 ? undefined : L.pluginFromStack();
 		const wrapped = once
 			? (payload, type) => {
 					unIntercept();
