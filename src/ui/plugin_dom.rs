@@ -9502,61 +9502,10 @@ fn paint_radial(
     paint_radial_in(painter, r, center, radii, stops, at, None);
 }
 
-/// The point of `r` rounded by `corner` nearest to `p` (`p` itself when
-/// inside).
-fn into_rounded(p: egui::Pos2, r: Rect, corner: egui::CornerRadius) -> egui::Pos2 {
-    let p = r.clamp(p);
-    for (radius, cx, cy) in [
-        (
-            corner.nw,
-            r.left() + f32::from(corner.nw),
-            r.top() + f32::from(corner.nw),
-        ),
-        (
-            corner.ne,
-            r.right() - f32::from(corner.ne),
-            r.top() + f32::from(corner.ne),
-        ),
-        (
-            corner.sw,
-            r.left() + f32::from(corner.sw),
-            r.bottom() - f32::from(corner.sw),
-        ),
-        (
-            corner.se,
-            r.right() - f32::from(corner.se),
-            r.bottom() - f32::from(corner.se),
-        ),
-    ] {
-        let radius = f32::from(radius);
-        if radius <= 0.0 {
-            continue;
-        }
-        let beyond_x = if cx < r.center().x {
-            p.x < cx
-        } else {
-            p.x > cx
-        };
-        let beyond_y = if cy < r.center().y {
-            p.y < cy
-        } else {
-            p.y > cy
-        };
-        if beyond_x && beyond_y {
-            let c = egui::pos2(cx, cy);
-            let d = p - c;
-            if d.length() > radius {
-                return c + d.normalized() * radius;
-            }
-        }
-    }
-    p
-}
-
 /// [`paint_radial`] inside the corners of `corner`, when given: the
-/// gradient's outer rings are pulled in to the rounded edge, so a rounded
-/// see-through box (the cotton candy family's track list panel) shows no
-/// square corners of its own darker edge.
+/// gradient is cut at the rounded edge, so a rounded see-through box (the
+/// cotton candy family's track list panel) shows no square corners of its
+/// own darker edge.
 fn paint_radial_in(
     painter: &egui::Painter,
     r: Rect,
@@ -9575,7 +9524,8 @@ fn paint_radial_in(
 /// A radial gradient as a mesh: rings at its stops round `center`, `radii`
 /// the ending shape (an ellipse), each stop at its place along the ray;
 /// past the last stop its colour goes on to the box's corners. With
-/// `corner`, a ring point outside the rounded box is pulled in to its edge.
+/// `corner`, it is cut at the rounded box's edge, as a browser clips a
+/// box's background.
 fn radial_mesh(
     r: Rect,
     center: egui::Pos2,
@@ -9621,12 +9571,7 @@ fn radial_mesh(
         rings.push((reach + 0.01, color));
     }
     let mut mesh = egui::Mesh::default();
-    // A centre outside the box (`at 60% 107%`) is pulled in with the rings,
-    // or the fan to it would paint past the box's corners.
-    mesh.colored_vertex(
-        corner.map_or(center, |corner| into_rounded(center, r, corner)),
-        rings[0].1,
-    );
+    mesh.colored_vertex(center, rings[0].1);
     let mut count = 0u32;
     // The first colour fills out to its stop when that is past the centre.
     let first = usize::from(rings[0].0 <= 0.0);
@@ -9634,7 +9579,6 @@ fn radial_mesh(
         for s in 0..SEGMENTS {
             let a = s as f32 / SEGMENTS as f32 * std::f32::consts::TAU;
             let p = center + egui::vec2(a.cos() * radii.x, a.sin() * radii.y) * scale;
-            let p = corner.map_or(p, |corner| into_rounded(p, r, corner));
             mesh.colored_vertex(p, color);
         }
         count += 1;
@@ -9655,7 +9599,79 @@ fn radial_mesh(
             mesh.add_triangle(base + s, outer + next, base + next);
         }
     }
-    Some(mesh)
+    Some(match corner {
+        Some(corner) => clip_mesh(&mesh, &rounded_outline(r, corner)),
+        None => mesh,
+    })
+}
+
+/// `mesh` cut to the convex `outline` (clockwise on screen), colours worked
+/// out along the cut edges. Triangles wholly inside are kept as they are.
+fn clip_mesh(mesh: &egui::Mesh, outline: &[egui::Pos2]) -> egui::Mesh {
+    let side = |p: egui::Pos2, a: egui::Pos2, b: egui::Pos2| {
+        let (edge, to) = (b - a, p - a);
+        edge.x * to.y - edge.y * to.x
+    };
+    // Where a pill's arcs meet, an "edge" is rounding noise, and may even
+    // point backwards.
+    let edges = || {
+        (0..outline.len())
+            .map(|i| (outline[i], outline[(i + 1) % outline.len()]))
+            .filter(|(a, b)| a.distance(*b) > 0.01)
+    };
+    let inside: Vec<bool> = mesh
+        .vertices
+        .iter()
+        .map(|v| edges().all(|(a, b)| side(v.pos, a, b) >= 0.0))
+        .collect();
+    let mut out = egui::Mesh::default();
+    let mut kept: Vec<Option<u32>> = vec![None; mesh.vertices.len()];
+    for tri in mesh.indices.as_chunks::<3>().0 {
+        let ids = [tri[0] as usize, tri[1] as usize, tri[2] as usize];
+        if ids.iter().all(|&i| inside[i]) {
+            for &i in &ids {
+                let at = *kept[i].get_or_insert_with(|| {
+                    out.vertices.push(mesh.vertices[i]);
+                    out.vertices.len() as u32 - 1
+                });
+                out.indices.push(at);
+            }
+            continue;
+        }
+        let mut poly: Vec<(egui::Pos2, Color32)> = ids
+            .iter()
+            .map(|&i| (mesh.vertices[i].pos, mesh.vertices[i].color))
+            .collect();
+        for (a, b) in edges() {
+            let mut cut = Vec::with_capacity(poly.len() + 1);
+            for (i, &(p, pc)) in poly.iter().enumerate() {
+                let (q, qc) = poly[(i + 1) % poly.len()];
+                let (ps, qs) = (side(p, a, b), side(q, a, b));
+                if ps >= 0.0 {
+                    cut.push((p, pc));
+                }
+                if (ps >= 0.0) != (qs >= 0.0) {
+                    let t = ps / (ps - qs);
+                    cut.push((p + (q - p) * t, pc.lerp_to_gamma(qc, t)));
+                }
+            }
+            poly = cut;
+            if poly.is_empty() {
+                break;
+            }
+        }
+        if poly.len() < 3 {
+            continue;
+        }
+        let first = out.vertices.len() as u32;
+        for &(p, c) in &poly {
+            out.colored_vertex(p, c);
+        }
+        for i in 1..poly.len() as u32 - 1 {
+            out.add_triangle(first, first + i, first + i + 1);
+        }
+    }
+    out
 }
 
 // ---- Fonts --------------------------------------------------------------------
@@ -10604,25 +10620,78 @@ mod tests {
     fn a_radial_gradient_keeps_inside_rounded_corners() {
         let r = Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(200.0, 100.0));
         let corner = egui::CornerRadius::same(20);
-        let p = into_rounded(egui::pos2(0.0, 0.0), r, corner);
-        assert!(
-            (p.distance(egui::pos2(20.0, 20.0)) - 20.0).abs() < 0.01,
-            "{p:?}"
+        let mesh = radial_box_mesh(
+            "radial-gradient(ellipse 70% 70% at 50% 50%, #ffffff00, #000000ff)",
+            r,
+            Some(corner),
+        )
+        .expect("the gradient");
+        // Up to the rounded corner along its diagonal, and no further.
+        let out = 20.0 * (std::f32::consts::SQRT_2 - 1.0);
+        let reach = mesh
+            .vertices
+            .iter()
+            .map(|v| v.pos.distance(egui::pos2(0.0, 0.0)))
+            .fold(f32::MAX, f32::min);
+        assert!((reach - out).abs() < 0.5, "{reach}");
+        // The straight edges are the box's.
+        let (min, max) = mesh.vertices.iter().fold(
+            (egui::Pos2::new(f32::MAX, f32::MAX), egui::Pos2::ZERO),
+            |(min, max), v| (min.min(v.pos), max.max(v.pos)),
         );
-        // Inside, and along a straight edge, points stay.
-        assert_eq!(
-            into_rounded(egui::pos2(100.0, 50.0), r, corner),
-            egui::pos2(100.0, 50.0)
-        );
-        assert_eq!(
-            into_rounded(egui::pos2(100.0, -10.0), r, corner),
-            egui::pos2(100.0, 0.0)
-        );
-        let p = into_rounded(egui::pos2(250.0, 130.0), r, corner);
-        assert!(
-            (p.distance(egui::pos2(180.0, 80.0)) - 20.0).abs() < 0.01,
-            "{p:?}"
-        );
+        assert!(min.distance(r.min) < 0.01 && max.distance(r.max) < 0.01);
+    }
+
+    /// A pill's corners meet on its middle line, and the top ones are as
+    /// round as the bottom ones.
+    #[test]
+    fn a_pills_four_corners_are_all_pulled_in() {
+        let r = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(120.0, 40.0));
+        let corner = egui::CornerRadius::same(20);
+        // By the corners' own circles, no vertex of a gradient on a pill is
+        // left in a corner.
+        let mesh = radial_box_mesh(
+            "radial-gradient(ellipse 60% 170% at 60% 107%, #e6e6e6 0%, #fff 50%, #eee 100%)",
+            r,
+            Some(corner),
+        )
+        .expect("the gradient");
+        assert!(!mesh.vertices.is_empty());
+        for v in &mesh.vertices {
+            for (beyond, centre) in [(v.pos.x < 20.0, 20.0), (v.pos.x > 100.0, 100.0)] {
+                if beyond {
+                    let d = v.pos.distance(egui::pos2(centre, 20.0));
+                    assert!(d <= 20.01, "{:?}", v.pos);
+                }
+            }
+        }
+    }
+
+    /// A browser clips a rounded box's gradient: what reaches the rounded
+    /// edge has the colour the gradient has there. Points pulled in to the
+    /// edge kept theirs, a rim of the strong middle along it.
+    #[test]
+    fn a_radial_in_a_pill_is_cut_at_the_edge_not_pressed_to_it() {
+        let r = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(120.0, 40.0));
+        let corner = egui::CornerRadius::same(20);
+        let mesh = radial_box_mesh(
+            "radial-gradient(ellipse 60% 60% at 100% 100%, #ff000080 10%, #ff000000 40%)",
+            r,
+            Some(corner),
+        )
+        .expect("the gradient");
+        assert!(!mesh.vertices.is_empty());
+        for v in &mesh.vertices {
+            let d = v.pos - r.right_bottom();
+            let t = (d.x / 72.0).hypot(d.y / 24.0);
+            let want = 128.0 * (1.0 - ((t - 0.1) / 0.3).clamp(0.0, 1.0));
+            assert!(
+                (f32::from(v.color.a()) - want).abs() <= 24.0,
+                "{:?} {} {want}",
+                v.pos,
+                v.color.a()
+            );
+        }
     }
 
     /// An elliptical radial gradient with its stop positions, drawn in a
@@ -10638,9 +10707,14 @@ mod tests {
             Some(corner),
         )
         .expect("the gradient");
+        assert!(!mesh.vertices.is_empty());
+        let outline = rounded_outline(r, corner);
         for v in &mesh.vertices {
-            let inside = into_rounded(v.pos, r, corner);
-            assert!((inside - v.pos).length() < 0.01, "{:?}", v.pos);
+            for (i, &a) in outline.iter().enumerate() {
+                let b = outline[(i + 1) % outline.len()];
+                let (edge, to) = (b - a, v.pos - a);
+                assert!(edge.x * to.y - edge.y * to.x >= -0.01, "{:?}", v.pos);
+            }
         }
     }
 
@@ -10677,7 +10751,8 @@ mod tests {
                 .map(|v| v.pos)
                 .collect()
         };
-        assert_eq!(blue(&rounded), blue(&plain));
+        let kept = blue(&rounded);
+        assert!(blue(&plain).iter().all(|p| kept.contains(p)));
         assert!(!blue(&plain).is_empty());
     }
 
