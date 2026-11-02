@@ -1084,6 +1084,7 @@ impl App {
         let mut events = Vec::new();
         let seen = &mut self.plugins.seen;
         if let Some(now) = now {
+            let engine_position_ms = self.local.position_ms;
             let occurrence = (now.uri.clone(), track_sequence);
             if seen.track.as_ref() != Some(&occurrence) {
                 seen.track = Some(occurrence);
@@ -1096,7 +1097,13 @@ impl App {
                 if seen.seek_sequence.is_some() {
                     // Where the seek went, as TIDAL sends it, not the
                     // heard position behind it.
-                    events.push(LunaEvent::Seek(f64::from(now.position_ms) / 1000.0));
+                    // (The engine's position is the target until it plays on.)
+                    let target_ms = if now.local {
+                        engine_position_ms
+                    } else {
+                        now.position_ms
+                    };
+                    events.push(LunaEvent::Seek(f64::from(target_ms) / 1000.0));
                 }
                 seen.seek_sequence = Some(seek_sequence);
             }
@@ -2943,14 +2950,15 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
         );
         // SEEK carries where the user seeked to, as TIDAL sends it; the
         // time updates are what is heard, the output's delay behind it.
-        now.position_ms = 30_000;
+        now.position_ms = 30_007;
+        app.local.position_ms = 30_000;
         app.local.seek_sequence += 1;
         app.local.output_delay_ms = 250;
         assert_eq!(
             step(&mut app, &now),
             said(&[
                 "playbackControls/SEEK 30",
-                "playbackControls/TIME_UPDATE 29.75"
+                "playbackControls/TIME_UPDATE 29.757"
             ])
         );
         app.local.output_delay_ms = 0;
