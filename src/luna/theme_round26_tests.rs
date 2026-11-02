@@ -215,7 +215,7 @@ fn the_queues_playing_song_follows_the_theme() {
 /// TIDAL's navigation rows keep their own dim words under a
 /// theme's catch-all `* { color }` (Meteor Night's white: TIDAL shows the
 /// inactive rows dimmed), while a rule naming the words (one class, as
-/// TidalCustomTheme's `[class^="_marketText_"]`) still colours them.
+/// TidalCustomTheme's `[class^="_marketText_"]`) with `!important` still colours them (without, TIDAL's `color: inherit` two classes deep outweighs it).
 /// Tidalfast took the catch-all on the words and drew every row white.
 #[test]
 fn a_catch_all_colour_leaves_the_navigation_rows_words() {
@@ -255,7 +255,7 @@ fn a_catch_all_colour_leaves_the_navigation_rows_words() {
 
     let named = r#"/* {"name": "Named words"} */
 * { color: rgb(240, 250, 10); }
-[class^="_marketText_"] { color: rgb(120, 10, 40); }
+[class^="_marketText_"] { color: rgb(120, 10, 40) !important; }
 "#;
     let (luna, o) = overlay_with("named-words.css", named, dom_anchors::build(&frame), &label);
     luna.shutdown();

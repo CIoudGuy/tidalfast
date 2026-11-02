@@ -314,3 +314,28 @@ fn a_header_pulled_into_a_tab_leaves_the_page() {
     let (plain, tab) = plain_and_themed("tab.css", css, HEADER);
     assert_eq!(top(&tab, PAGE_TITLE), top(&plain, PAGE_TITLE));
 }
+
+/// The words of a navigation row have `color: inherit` two classes deep in
+/// TIDAL: a theme's rule for all words (Sugarcoat's `._marketText_ { color
+/// }`) does not reach them, and they keep the row's dim colour.
+#[test]
+fn a_rule_for_all_words_leaves_a_navigation_rows_words() {
+    use dom_anchors::keys::{HEADER, sidebar_item_label};
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.items.push(dom_anchors::SidebarItem {
+        test: "sidebar-explore".into(),
+        label: "Explore".into(),
+        href: Some("/explore".into()),
+        selected: false,
+        rect: Some([16.0, 128.0, 208.0, 40.0]),
+    });
+    let css = "/* {\"name\": \"All words\"} */ ._marketText_1lyag_1 { color: rgb(9, 8, 7); } #mainHeader { color: rgb(1, 2, 3); }";
+    let o = overlay_when("all-words.css", css, &frame, |o| {
+        o.hosts.contains_key(HEADER)
+    });
+    let label = sidebar_item_label("sidebar-explore");
+    assert_eq!(
+        o.hosts.get(&label).and_then(|h| h.style.color.clone()),
+        None
+    );
+}

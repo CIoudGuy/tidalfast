@@ -452,7 +452,7 @@
 					// a theme's lighter rule (Meteor Night's `* { color }`) does
 					// not reach them, where it does the elements inside with no
 					// colour of their own. Tidalfast draws those colours itself.
-					"button, ._utilityButtons_4d7aaf9 button, div._searchField_b2eb7f7 input, ._marketText_1lyag_1, ._text_518b2d4, ._scrubberTimeText_5696619, ._tableHeader_ebaf366, ._trackcells-sort_ecf19dd, ._iconButton_4b3ed40, ._button_6808704, ._primary_1d16h_6, ._button_c25ce4d, ._button_c372e89, ._button_a3412d0, ._contextMenuButton_4c9ff38, ._indexNumber_de640b9, ._explicitBadge_b93510b, ._playButton_eb70a43, .wave-badge-color-high { color: revert; }",
+					"button, ._utilityButtons_4d7aaf9 button, ._navigationItem_4e9deae ._title_f46b277, ._submenuItem_3d0e609 ._label_cd5bc9e, div._searchField_b2eb7f7 input, ._marketText_1lyag_1, ._text_518b2d4, ._scrubberTimeText_5696619, ._tableHeader_ebaf366, ._trackcells-sort_ecf19dd, ._iconButton_4b3ed40, ._button_6808704, ._primary_1d16h_6, ._button_c25ce4d, ._button_c372e89, ._button_a3412d0, ._contextMenuButton_4c9ff38, ._indexNumber_de640b9, ._explicitBadge_b93510b, ._playButton_eb70a43, .wave-badge-color-high { color: revert; }",
 			);
 		}
 		return themedTidal;
