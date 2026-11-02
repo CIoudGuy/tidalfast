@@ -513,3 +513,121 @@ R.ready = true;
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A server counting what it receives: `hits` counts requests, `bytes` what
+/// connections write to it; "/slow" answers after `delay`.
+struct Counting {
+    port: u16,
+    hits: Arc<std::sync::atomic::AtomicUsize>,
+    bytes: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+fn counting_server(delay: Duration) -> Counting {
+    use std::io::{Read, Write};
+    use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = l.local_addr().unwrap().port();
+    let (hits, bytes) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
+    let (h, b) = (hits.clone(), bytes.clone());
+    std::thread::spawn(move || {
+        for s in l.incoming() {
+            let Ok(mut s) = s else { continue };
+            let (h, b) = (h.clone(), b.clone());
+            std::thread::spawn(move || {
+                let mut buf = [0u8; 4096];
+                let Ok(n) = s.read(&mut buf) else { return };
+                if buf[..n].starts_with(b"GET ") {
+                    h.fetch_add(1, SeqCst);
+                    if buf[..n].windows(5).any(|w| w == b"/slow") {
+                        std::thread::sleep(delay);
+                    }
+                    let _ = s.write_all(
+                        b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+                    );
+                    return;
+                }
+                b.fetch_add(n, SeqCst);
+                while let Ok(n) = s.read(&mut buf) {
+                    if n == 0 {
+                        break;
+                    }
+                    b.fetch_add(n, SeqCst);
+                }
+            });
+        }
+    });
+    Counting { port, hits, bytes }
+}
+
+/// Nothing keeps calling a disabled plugin: its repeating fetches and its
+/// open socket stop. (A fetch already on its way when it was disabled still
+/// answers its caller, as in TidaLuna, where unloading cannot cancel a
+/// browser fetch; nothing new starts from it.)
+#[test]
+fn fetches_and_sockets_stop_with_the_plugin() {
+    use std::sync::atomic::Ordering::SeqCst;
+    let srv = counting_server(Duration::from_millis(1200));
+    let p = srv.port;
+    let (luna, dir) = start_on(
+        &format!(
+            r##"
+const run = (R.runs = (R.runs ?? 0) + 1);
+const bump = (k) => (R[k] = (R[k] ?? 0) + 1);
+const n = await native("Compat/sock.native.ts", `"use strict";
+const net = require("net");
+exports.open = () => {{
+	const s = net.connect({p}, "127.0.0.1");
+	s.on("error", () => {{}});
+	const t = setInterval(() => s.write("xxxx"), 30);
+	s.on("close", () => clearInterval(t));
+}};`);
+await n("open");
+fetch("http://127.0.0.1:{p}/slow").then((r) => r.text()).then(() => bump("slow" + run), () => bump("slowErr" + run));
+lib.safeInterval(unloads, () => fetch("http://127.0.0.1:{p}/tick").then(() => bump("tick"), () => {{}}), 40);
+R.ready = true;
+"##
+        ),
+        Arc::new(MockHost::default()),
+    );
+    wait_for(&luna, &dir, "ready");
+    std::thread::sleep(Duration::from_millis(400));
+    assert!(srv.bytes.load(SeqCst) > 0, "the socket wrote nothing");
+    luna.set_enabled("Compat", false);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "Compat").unwrap().status == PluginStatus::Disabled
+    });
+    std::thread::sleep(Duration::from_millis(300));
+    let taken = || {
+        (
+            srv.hits.load(SeqCst),
+            srv.bytes.load(SeqCst),
+            count(&dir, "tick"),
+        )
+    };
+    let before = taken();
+    assert!(before.0 > 2 && before.1 > 0 && before.2 > 0, "{before:?}");
+    std::thread::sleep(Duration::from_millis(600));
+    assert_eq!(
+        taken(),
+        before,
+        "something ran on after the plugin was disabled"
+    );
+    // Enabled again: one socket and one interval of the new run (a second
+    // copy would show as twice the writes and requests).
+    luna.set_enabled("Compat", true);
+    wait_until(&luna, 20, |_| count(&dir, "runs") == 2);
+    wait_for(&luna, &dir, "ready");
+    std::thread::sleep(Duration::from_millis(600));
+    let (h0, b0, t0) = taken();
+    std::thread::sleep(Duration::from_millis(1000));
+    let (h1, b1, t1) = taken();
+    assert!(t1 - t0 <= 32, "ticks doubled: {}", t1 - t0);
+    assert!(
+        h1 - h0 <= 34 && b1 - b0 <= 4 * 36,
+        "{} requests, {} bytes",
+        h1 - h0,
+        b1 - b0
+    );
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
