@@ -7565,7 +7565,14 @@ pub fn themed(base: &Palette, o: &DomOverlay) -> Palette {
         p.surface = blend(p.window, toward, 0.08);
         p.surface_hover = blend(p.window, toward, 0.12);
         p.surface_active = blend(p.window, toward, 0.17);
-        p.overlay = blend(p.window, toward, if p.dark { 0.1 } else { 0.0 });
+        // TIDAL's menus keep their own #2d2d2d in its dark mode, whatever
+        // the page's colours are (Sugarcoat's pale page, Meteor Night's
+        // navy), unless a theme's rule or token says otherwise (below).
+        p.overlay = if base.dark {
+            Palette::TIDAL_MENU
+        } else {
+            p.window
+        };
         p.outline = blend(p.window, toward, 0.14);
     }
     if let Some(c) = own_window {

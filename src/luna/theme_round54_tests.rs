@@ -385,3 +385,28 @@ fn a_lists_heading_takes_the_themes_token_as_it_is() {
     pd::test_overlay(None);
     assert_eq!(ink, Some(egui::Color32::from_rgb(1, 2, 3)));
 }
+
+/// TIDAL's context menu is #2d2d2d in its dark mode whatever colours the
+/// page has: a theme that paints the page and leaves the menu alone keeps
+/// that. The palette's own shade of the page stood in for it, cream under
+/// Sugarcoat. A theme's rule for the menu still sets it.
+#[test]
+fn a_menu_keeps_tidals_grey_over_a_page_a_theme_paints() {
+    use crate::theme::Palette;
+    use crate::ui::plugin_dom::themed;
+    use dom_anchors::keys::FOOTER;
+    let base = Palette::dark();
+    let css = "/* {\"name\": \"Pale page\"} */ :root { --wave-color-solid-base-fill: rgb(240, 220, 220); } body { background-color: var(--wave-color-solid-base-fill); } ._player_8c80ae6 { color: rgb(9, 9, 9); }";
+    let o = overlay_when("pale-page.css", css, &dom_anchors::sample_frame(), |o| {
+        o.hosts.contains_key(FOOTER)
+    });
+    assert_eq!(themed(&base, &o).menu_bg(), Palette::TIDAL_MENU);
+    let css = "/* {\"name\": \"Pale menu\"} */ :root { --wave-color-solid-base-fill: rgb(240, 220, 220); } ._contextMenu_8606b2d { background-color: rgb(1, 2, 3); } body { background-color: var(--wave-color-solid-base-fill); } ._player_8c80ae6 { color: rgb(9, 9, 9); }";
+    let o = overlay_when("pale-menu.css", css, &dom_anchors::sample_frame(), |o| {
+        o.hosts.contains_key(dom_anchors::keys::THEME_MENU)
+    });
+    assert_eq!(
+        themed(&base, &o).menu_bg(),
+        egui::Color32::from_rgb(1, 2, 3)
+    );
+}

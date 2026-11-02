@@ -130,6 +130,9 @@ impl Palette {
         }
     }
 
+    /// TIDAL's context menu in its dark mode.
+    pub const TIDAL_MENU: Color32 = Color32::from_rgb(0x2d, 0x2d, 0x2d);
+
     /// The selected navigation row (white at 15 %).
     pub fn nav_selected(&self) -> Color32 {
         if self.tidal_dark() {
@@ -165,7 +168,7 @@ impl Palette {
     /// #2d2d2d, sampled from its context, avatar and collection menus).
     pub fn menu_bg(&self) -> Color32 {
         if self.tidal_dark() {
-            Color32::from_rgb(0x2d, 0x2d, 0x2d)
+            Self::TIDAL_MENU
         } else {
             self.overlay
         }
