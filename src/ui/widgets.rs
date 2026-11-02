@@ -2750,7 +2750,8 @@ pub fn table_header(
     let mut album_rect = None;
     let mut added_rect = None;
     let font = theme::semibold(12.0);
-    let color = palette.text.gamma_multiply(0.6);
+    let color =
+        super::plugin_dom::list_heading_ink().unwrap_or_else(|| palette.text.gamma_multiply(0.6));
     let cols = tidal_columns(
         width,
         numbered,

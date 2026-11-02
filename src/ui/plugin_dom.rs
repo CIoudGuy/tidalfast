@@ -2116,6 +2116,20 @@ pub fn token_queue_fill() -> Option<Color32> {
     Some(queue_fill_from(base))
 }
 
+/// The words of a list's heading row where a theme gives their token:
+/// TIDAL colours them `var(--wave-color-opacity-contrast-fill-thick)`
+/// (`._trackcells-sort_`), as it is (Sugarcoat's black). Tidalfast's own 60 %
+/// of the text colour else.
+pub fn list_heading_ink() -> Option<Color32> {
+    on().then(|| {
+        with(|s| {
+            let o = &s.overlay;
+            let token = o.vars.get("--wave-color-opacity-contrast-fill-thick")?;
+            css::color(&css::resolve_vars(token, &o.vars))
+        })
+    })?
+}
+
 /// A library row's fill under the pointer and while its page is open, as
 /// TIDAL 2.47.0's own rules give them whatever the theme's colours are:
 /// `._contentItem_:hover { background-color: var(--market-core-surface-10-

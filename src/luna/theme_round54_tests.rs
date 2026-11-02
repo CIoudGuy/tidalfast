@@ -339,3 +339,49 @@ fn a_rule_for_all_words_leaves_a_navigation_rows_words() {
         None
     );
 }
+
+/// A list's heading words are TIDAL's token as it stands, where a theme
+/// gives it (Sugarcoat's black): they were 60 % of the text colour.
+#[test]
+fn a_lists_heading_takes_the_themes_token_as_it_is() {
+    use super::theme_round41_tests::demo_app;
+    use crate::ui::plugin_dom as pd;
+    let css = "/* {\"name\": \"Heading token\"} */ :root { --wave-color-opacity-contrast-fill-thick: rgb(1, 2, 3); } ._player_8c80ae6 { color: rgb(9, 9, 9); }";
+    let o = overlay_when(
+        "heading-token.css",
+        css,
+        &dom_anchors::sample_frame(),
+        |o| o.hosts.contains_key(dom_anchors::keys::FOOTER),
+    );
+    let (ctx, mut app) = demo_app("album:alb0", Some("queue"));
+    pd::test_overlay(Some((*o).clone()));
+    let mut ink = None;
+    for _ in 0..4 {
+        let mut output = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(2137.0, 1183.0),
+                )),
+                ..Default::default()
+            },
+            |ui| {
+                app.refresh_frame_now();
+                pd::test_viewport([2137.0, 1183.0]);
+                pd::test_page_frame_for(&app.page().clone());
+                crate::ui::show(&mut app, ui);
+                pd::end_frame(ui.ctx());
+                app.clear_frame_now();
+            },
+        );
+        output.textures_delta.clear();
+        ink = output.shapes.iter().find_map(|c| match &c.shape {
+            egui::Shape::Text(t) if t.galley.text().eq_ignore_ascii_case("title") => {
+                Some(t.fallback_color)
+            }
+            _ => None,
+        });
+    }
+    pd::test_overlay(None);
+    assert_eq!(ink, Some(egui::Color32::from_rgb(1, 2, 3)));
+}
