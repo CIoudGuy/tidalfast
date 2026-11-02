@@ -1754,21 +1754,41 @@
 		// `border-width` the four sides' widths, top right bottom left, in
 		// the order the declarations were written: a CSS triangle (a box with
 		// no size and `border: 10px solid transparent; border-bottom: 0`).
+		const widthOf = (v) => {
+			let w = null;
+			let none = false;
+			// A colour's numbers (`rgb(255 255 255 / 10%)`) are not a width.
+			let bare = String(v);
+			for (let was = ""; was !== bare; ) {
+				was = bare;
+				bare = bare.replace(/(?<![\w-])(?!calc|min|max|clamp)[a-z-]+\([^()]*\)/gi, " ");
+			}
+			for (const word of bare.trim().split(/\s+/)) {
+				if (/^(none|hidden)$/i.test(word)) none = true;
+				else if (/^(thin|medium|thick)$/i.test(word)) w = { thin: "1px", medium: "3px", thick: "5px" }[word.toLowerCase()];
+				else if (/^-?[\d.]+[a-z%]*$/i.test(word) || /^(calc|min|max|clamp)\(/i.test(word)) w = /^0+(\.0*)?[a-z%]*$/i.test(word) ? "0px" : word;
+			}
+			return none ? "0px" : w;
+		};
+		// A side's shorthand with no border of the box's own (`border-right:
+		// 1px solid ...` alone, or after `border: none`) is the box's border,
+		// on that side: its width, style and colour, the other sides none.
+		const lined = (v) => /(^|\s)(solid|dashed|dotted|double|groove|ridge|inset|outset)(\s|$)/i.test(v);
+		const noBox = !st.border || widthOf(st.border) === "0px";
+		const lineSide = noBox && SIDES.find((s) => {
+			const v = decls.has(`border-${s}`) ? resolveVars(decls.get(`border-${s}`), vars) : "";
+			return lined(v) && widthOf(v) !== "0px";
+		});
+		if (lineSide) {
+			const v = resolveVars(decls.get(`border-${lineSide}`), vars).trim();
+			const colour = String(st["border-color"]).split(/\s+(?![^(]*\))/)[SIDES.indexOf(lineSide)];
+			st.border = `${widthOf(v) ?? "3px"} solid ${colour}`;
+		}
 		if (st.border && [...decls.keys()].some((k) => k === "border-width" || /^border-(top|right|bottom|left)(-width)?$/.test(k))) {
-			const widthOf = (v) => {
-				let w = null;
-				let none = false;
-				for (const word of String(v).trim().split(/\s+/)) {
-					if (/^(none|hidden)$/i.test(word)) none = true;
-					else if (/^(thin|medium|thick)$/i.test(word)) w = { thin: "1px", medium: "3px", thick: "5px" }[word.toLowerCase()];
-					else if (/^-?[\d.]+[a-z%]*$/i.test(word) || /^(calc|min|max|clamp)\(/i.test(word)) w = /^0+(\.0*)?[a-z%]*$/i.test(word) ? "0px" : word;
-				}
-				return none ? "0px" : w;
-			};
-			const four = Array(4).fill(widthOf(st.border) ?? "3px");
+			const four = Array(4).fill(lineSide ? "0px" : (widthOf(st.border) ?? "3px"));
 			for (const [k, raw] of decls) {
 				const v = resolveVars(raw, vars);
-				if (k === "border") four.fill(widthOf(v) ?? "3px");
+				if (k === "border") four.fill(lineSide ? "0px" : (widthOf(v) ?? "3px"));
 				else if (k === "border-width") {
 					const p = v.trim().split(/\s+/);
 					const [t, r = t, b = t, l = r] = p;
