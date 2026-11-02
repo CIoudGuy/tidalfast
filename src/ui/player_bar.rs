@@ -367,7 +367,10 @@ pub fn paint_shade(ui: &egui::Ui, window: Rect, view: f32) {
     let top_gap = floating(ui.ctx()).map_or(0.0, |f| f32::from(f.gaps.top));
     let bar_top = window.bottom() - reserved_height(ui.ctx()) + top_gap;
     let from = bar_top - SHADE_ABOVE;
-    let to = bar_top + theme::PLAYER_BAR_HEIGHT + SHADE_BELOW;
+    let height = floating(ui.ctx()).map_or(theme::PLAYER_BAR_HEIGHT, |f| {
+        f.height_or(theme::PLAYER_BAR_HEIGHT)
+    });
+    let to = bar_top + height + SHADE_BELOW;
     // The gradient's alpha at the bar's top.
     let at_bar = SHADE_ALPHA * SHADE_ABOVE / (to - from);
     let fade = 1.0 - view.max(0.0);
@@ -414,7 +417,9 @@ const SHADE_ALPHA: f32 = 0.15;
 /// The height the bar takes from the bottom of the window: its own, plus
 /// the gaps of a floating bar a theme sets.
 pub fn reserved_height(ctx: &egui::Context) -> f32 {
-    theme::PLAYER_BAR_HEIGHT + floating(ctx).map_or(0.0, |f| f.vertical())
+    floating(ctx).map_or(theme::PLAYER_BAR_HEIGHT, |f| {
+        f.height_or(theme::PLAYER_BAR_HEIGHT) + f.vertical()
+    })
 }
 
 /// How wide the words beside the heart are: the title, the second line, or

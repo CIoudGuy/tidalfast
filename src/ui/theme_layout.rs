@@ -45,6 +45,11 @@ impl Floating {
         f32::from(self.gaps.top) + f32::from(self.gaps.bottom)
     }
 
+    /// The box's height, its own where the theme sets one, else `own`.
+    pub fn height_or(&self, own: f32) -> f32 {
+        self.height.unwrap_or(own)
+    }
+
     /// The card in a column `column` points tall: a height of its own ends
     /// it that far under its top; without one it ends as far off the
     /// column's foot as its top is off the column's top.
@@ -706,7 +711,7 @@ fn player_bar(
         },
         radius,
         shadow: shadow(style.box_shadow.as_deref(), vars, viewport).unwrap_or_default(),
-        height: None,
+        height: len(style.height.as_deref(), vars, viewport[1], viewport).filter(|h| *h > 0.0),
     })
 }
 
@@ -982,6 +987,19 @@ mod tests {
     /// width: 98vw; border-radius: 15px`, and a sidebar card `top: 2vh`
     /// rounded on its right.
     #[test]
+    fn a_floating_bars_height_is_its_box() {
+        let vars = BTreeMap::new();
+        let bar = host(&[
+            ("position", "fixed"),
+            ("bottom", "2vh"),
+            ("width", "98vw"),
+            ("height", "100px"),
+        ]);
+        let l = resolve(Some(&bar), None, None, None, &vars, VIEW);
+        assert_eq!(l.player_bar.unwrap().height_or(88.0), 100.0);
+    }
+
+    #[test]
     fn snusehunden_floats_a_rounded_bar_and_a_sidebar_card() {
         let vars = BTreeMap::new();
         let bar = host(&[
@@ -1008,6 +1026,7 @@ mod tests {
         );
         assert_eq!(bar.radius, CornerRadius::same(15));
         assert_eq!(bar.shadow, Shadow::NONE);
+        assert_eq!(bar.height_or(88.0), 88.0);
         let side = l.sidebar.unwrap();
         assert_eq!(
             side.gaps,
