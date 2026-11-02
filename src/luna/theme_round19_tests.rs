@@ -26,7 +26,7 @@ fn theme_rules_reach_track_row_text_nav_rows_collection_cells_menus_search_and_t
 [data-track--page-id^="mycollection_"] ._cellContainer_19b23ad { background-color: #654321; padding: .6em; border-radius: 1.1em; }
 ._actionItem_e0c1e65 { border-radius: 4px; }
 ._actionTextInner_a14f37c { color: #abcdef; }
-div._searchField_b2eb7f7 { background-color: #fefefe; border-radius: 6px; }
+._container_cb5cbe4 ._searchFieldWithPopover_267e090 div._searchField_b2eb7f7 { background-color: #fefefe; border-radius: 6px; }
 div._searchField_b2eb7f7 input { color: #222222; }
 ._shuffleButton_545c75a, ._repeatButton_729613e { color: #fedcba; }
 "#;

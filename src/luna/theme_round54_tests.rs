@@ -183,3 +183,36 @@ fn tidals_bar_glass_filters_the_bars_own_colour() {
         .collect();
     assert_eq!(order, ["filter", "glass"]);
 }
+
+/// TIDAL colours the search pill in a rule three classes deep, so a theme's
+/// lighter rule for it does not reach it (`._container_f1be359 { background
+/// }`), a rule as deep or deeper does. The theme's rule won here.
+#[test]
+fn a_lighter_rule_for_the_search_pill_loses_to_tidals() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::SEARCH_FIELD;
+    let frame = dom_anchors::sample_frame();
+    let fill = |name: &str, rules: &str| {
+        let css = format!("/* {{\"name\": \"{name}\"}} */ {rules}");
+        let o = overlay_when(name, &css, &frame, |o| o.hosts.contains_key(SEARCH_FIELD));
+        pd::test_overlay(Some((*o).clone()));
+        let got = pd::anchor_look(SEARCH_FIELD).and_then(|l| l.fill);
+        pd::test_overlay(None);
+        got
+    };
+    let tidal = egui::Color32::from_rgba_unmultiplied(40, 40, 40, 191);
+    assert_eq!(
+        fill(
+            "pill-light.css",
+            "._container_f1be359 { background-color: rgb(1, 2, 3); }"
+        ),
+        Some(tidal)
+    );
+    assert_eq!(
+        fill(
+            "pill-deep.css",
+            "._container_cb5cbe4 ._searchFieldWithPopover_267e090 .searchFieldWithinSearchFieldWithPopover { background-color: rgb(1, 2, 3); }"
+        ),
+        Some(egui::Color32::from_rgb(1, 2, 3))
+    );
+}

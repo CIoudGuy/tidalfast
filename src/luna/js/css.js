@@ -440,13 +440,14 @@
 	// TIDAL's rules that join the cascade only while a theme's sheet is in the
 	// document: the look with no theme is Tidalfast's own, which leaves them
 	// out. The search pill's frosted glass (TIDAL 2.47.0's rule, three
-	// classes deep) is drawn under a theme alone, the maintainer's decision.
+	// classes deep) is drawn under a theme alone, the maintainer's decision;
+	// its colour there is what a theme's lighter rule for the pill loses to.
 	let themedTidal = null;
 	const themedTidalSheet = () => {
 		if (!themedTidal) {
 			themedTidal = new CSSStyleSheet();
 			themedTidal.replaceSync(
-				":is(._container_cb5cbe4 ._searchFieldWithPopover_267e090) .searchFieldWithinSearchFieldWithPopover { backdrop-filter: var(--frosted-glass-nav-blur, blur(20px) saturate(180%)); }",
+				":is(._container_cb5cbe4 ._searchFieldWithPopover_267e090) .searchFieldWithinSearchFieldWithPopover { backdrop-filter: var(--frosted-glass-nav-blur, blur(20px) saturate(180%)); background: var(--frosted-glass-floating-surface, #282828bf); }",
 			);
 		}
 		return themedTidal;
