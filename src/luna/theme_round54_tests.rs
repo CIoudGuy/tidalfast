@@ -216,3 +216,30 @@ fn a_lighter_rule_for_the_search_pill_loses_to_tidals() {
         Some(egui::Color32::from_rgb(1, 2, 3))
     );
 }
+
+/// TIDAL colours most of its parts by a class or tag of their own, so a
+/// universal rule (`* { color }`) or a tag rule reaches only what has no
+/// colour of its own there. The anchors had none of those rules, so it won
+/// on every word and button. As heavy a rule of the theme's still reaches
+/// them, and the sheet's rules stand with no theme at all as they were.
+#[test]
+fn a_universal_colour_loses_to_tidals_own_colours() {
+    use dom_anchors::keys::{ARTIST, CURRENT_TIME, MUTE, SEARCH_FIELD};
+    let css = "/* {\"name\": \"Everything white\"} */ * { color: rgb(9, 8, 7); }";
+    let o = overlay_when("universal.css", css, &dom_anchors::sample_frame(), |o| {
+        o.hosts.contains_key(SEARCH_FIELD)
+    });
+    let color = |o: &DomOverlay, key: &str| o.hosts.get(key).and_then(|h| h.style.color.clone());
+    for key in [ARTIST, CURRENT_TIME, MUTE] {
+        assert_eq!(color(&o, key), None, "{key}");
+    }
+    assert!(
+        color(&o, SEARCH_FIELD).is_some_and(|c| c.contains("9, 8, 7")),
+        "a part with no colour of its own in TIDAL takes it"
+    );
+    let css = "/* {\"name\": \"Words\"} */ ._marketText_1lyag_1 { color: rgb(9, 8, 7); }";
+    let o = overlay_when("words.css", css, &dom_anchors::sample_frame(), |o| {
+        o.hosts.contains_key(ARTIST)
+    });
+    assert!(color(&o, ARTIST).is_some_and(|c| c.contains("9, 8, 7")));
+}

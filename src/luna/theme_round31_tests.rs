@@ -74,7 +74,8 @@ a { color: rgb(200, 160, 250) !important; }
 /// playing song in its accent: TIDAL's own rules for their quality classes
 /// (`._qualityHigh_39ef787` on the name, `._textHigh_ee6a2ff` on the
 /// title, TIDAL 2.46.0) outweigh it, as TIDAL's captures under Meteor Night
-/// show. Tidalfast drew both white. Other names take the colour.
+/// show. Tidalfast drew both white. The other names and the queue's words
+/// have TIDAL's `._marketText_ { color }`, which outweighs it too.
 #[test]
 fn a_catch_all_colour_leaves_the_playing_items_to_tidal() {
     use crate::theme::Palette;
@@ -93,18 +94,20 @@ body { background-color: rgb(12, 14, 30) !important; }
     let idle = dom_anchors::keys::lib_row_title(0);
     let playing = dom_anchors::keys::lib_row_title(1);
     let o = wait(&luna, &tree, &|o| {
-        o.hosts.get(&idle).is_some_and(|h| h.style.color.is_some())
-            && o.hosts.contains_key(dom_anchors::keys::QUEUE_ROLE_TEXT)
+        o.hosts
+            .get(dom_anchors::keys::SEARCH_FIELD)
+            .is_some_and(|h| h.style.color.is_some())
     });
     luna.shutdown();
-    let playing_color = o.hosts.get(&playing).and_then(|h| h.style.color.clone());
-    assert_eq!(playing_color, None);
+    let color = |key: &str| o.hosts.get(key).and_then(|h| h.style.color.clone());
+    assert_eq!(color(&playing), None);
+    assert_eq!(color(&idle), None, "TIDAL's class rule outweighs it");
     pd::test_overlay(Some((*o).clone()));
     let base = Palette::dark();
     let queue = tidal_panel_text(themed(&base, &o), SidePanel::Queue);
     pd::test_overlay(None);
     assert_eq!(queue.accent, base.accent);
-    assert_eq!(queue.text, egui::Color32::from_rgb(240, 240, 250));
+    assert_ne!(queue.text, egui::Color32::from_rgb(240, 240, 250));
 }
 
 /// A rule that names the queue's titles with more weight than TIDAL's own

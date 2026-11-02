@@ -62,7 +62,7 @@ fn a_dark_themes_market_text_rule_colours_the_queue_artists() {
     use crate::ui::now_playing::queue_name_colors;
     use crate::ui::plugin_dom::{self as pd, SidePanel, themed, tidal_panel_text};
     let names = |name: &str, css: &str| {
-        let o = overlay_for(name, css, dom_anchors::keys::QUEUE_ROLE_TEXT);
+        let o = overlay_for(name, css, dom_anchors::keys::SEARCH_FIELD);
         pd::test_overlay(Some((*o).clone()));
         let queue = tidal_panel_text(themed(&Palette::dark(), &o), SidePanel::Queue);
         let colors = queue_name_colors(&queue);

@@ -5898,6 +5898,10 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
         el(ARTIST, Some(ARTIST_ROW), "span")
             .test("footer-artist-name")
             .modules(&["artistName"])
+            .class("_artist_20c7124")
+            .class("_marketText_1lyag_1")
+            .class("_paragraph10_1lyag_156")
+            .class("_text20_1lyag_291")
             .at(p.rect(P::Artist)),
     );
     for (i, a) in p.artists.iter().enumerate() {
@@ -6088,6 +6092,7 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     out.push(
         el(CURRENT_TIME, Some(CURRENT_TIME_WRAP), "time")
             .modules(&["scrubberTimeText"])
+            .class("_text_518b2d4")
             .test("current-time")
             .text(format_time(p.position))
             .at(p.rect(P::CurrentTime)),
@@ -6131,6 +6136,7 @@ pub fn player_bar(out: &mut Vec<HostNode>, p: &PlayerBar, fullscreen: bool) {
     out.push(
         el(DURATION, Some(DURATION_WRAP), "time")
             .modules(&["scrubberTimeText"])
+            .class("_text_518b2d4")
             .test("duration")
             .text(format_time(p.duration))
             .at(p.rect(P::Duration)),

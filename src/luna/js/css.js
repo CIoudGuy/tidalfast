@@ -447,7 +447,12 @@
 		if (!themedTidal) {
 			themedTidal = new CSSStyleSheet();
 			themedTidal.replaceSync(
-				":is(._container_cb5cbe4 ._searchFieldWithPopover_267e090) .searchFieldWithinSearchFieldWithPopover { backdrop-filter: var(--frosted-glass-nav-blur, blur(20px) saturate(180%)); background: var(--frosted-glass-floating-surface, #282828bf); }",
+				":is(._container_cb5cbe4 ._searchFieldWithPopover_267e090) .searchFieldWithinSearchFieldWithPopover { backdrop-filter: var(--frosted-glass-nav-blur, blur(20px) saturate(180%)); background: var(--frosted-glass-floating-surface, #282828bf); }\n" +
+					// The parts TIDAL 2.47.0 colours by a class or tag of their own:
+					// a theme's lighter rule (Meteor Night's `* { color }`) does
+					// not reach them, where it does the elements inside with no
+					// colour of their own. Tidalfast draws those colours itself.
+					"button, ._utilityButtons_4d7aaf9 button, div._searchField_b2eb7f7 input, ._marketText_1lyag_1, ._text_518b2d4, ._scrubberTimeText_5696619, ._tableHeader_ebaf366, ._trackcells-sort_ecf19dd, ._iconButton_4b3ed40, ._button_6808704, ._primary_1d16h_6, ._button_c25ce4d, ._button_c372e89, ._button_a3412d0, ._contextMenuButton_4c9ff38, ._indexNumber_de640b9, ._explicitBadge_b93510b, ._playButton_eb70a43, .wave-badge-color-high { color: revert; }",
 			);
 		}
 		return themedTidal;
@@ -469,11 +474,12 @@
 	// rule does (`initial`: the app's own colour). A navigation row has
 	// TIDAL's own colour on its class, so a theme's rule for a tag (Synthwave
 	// '77's `button { color }`, which the Collection row is) does not reach
-	// it in TIDAL and a class rule does. Its words and icon take the row's
+	// it in TIDAL and a class rule does. Its words take the row's
 	// colour over a theme's catch-all `* { color }` (Meteor Night's white
 	// leaves TIDAL's inactive rows dim), while any rule naming them (one
-	// class, TidalCustomTheme's `[class^="_marketText_"]`; a tag,
-	// its `svg { fill }`) still wins: the rule adds no weight of its own.
+	// class, TidalCustomTheme's `[class^="_marketText_"]`) still wins: the
+	// rule adds no weight of its own. The row's icon has no colour of its
+	// own in TIDAL, so the catch-all reaches it (white under Meteor Night).
 	// The playing playlist's name in the sidebar and the queue's playing
 	// title keep TIDAL's teal and accent through its own rules for their
 	// quality classes (TIDAL 2.46.0, captured under Meteor Night's `* {
@@ -542,7 +548,6 @@
 					"._artistText_73966a1 { color: initial; }\n" +
 					"._navigationItem_4e9deae { color: initial; }\n" +
 					":where(._navigationItem_4e9deae) > ._marketText_1lyag_1 { color: initial; }\n" +
-					":where(._navigationItem_4e9deae) > svg { color: initial; }\n" +
 					"._qualityHigh_39ef787:is(._textContent_462c76e ._title_8b245d1, ._textContent_462c76e ._subtitle_c0fd197) { color: initial; }\n" +
 					"._textHigh_ee6a2ff, ._textHigh_ee6a2ff span { color: initial; }\n" +
 					"._textHigh_bbc1075 { color: var(--wave-color-solid-accent-fill); }\n" +

@@ -212,7 +212,7 @@ fn the_queues_playing_song_follows_the_theme() {
     assert_eq!(queue.accent, egui::Color32::from_rgb(255, 250, 240));
 }
 
-/// TIDAL's navigation rows keep their own dim words and icon under a
+/// TIDAL's navigation rows keep their own dim words under a
 /// theme's catch-all `* { color }` (Meteor Night's white: TIDAL shows the
 /// inactive rows dimmed), while a rule naming the words (one class, as
 /// TidalCustomTheme's `[class^="_marketText_"]`) still colours them.
@@ -249,7 +249,9 @@ fn a_catch_all_colour_leaves_the_navigation_rows_words() {
     let ink = pd::sidebar_icon(&icon);
     pd::test_overlay(None);
     assert_eq!(words, None, "the row's own words");
-    assert_eq!(ink, None, "the row's own icon");
+    // Its icon has no colour of its own in TIDAL (2.47.0 under Meteor Night:
+    // white icon, dim words): the catch-all reaches it.
+    assert_eq!(ink, Some(egui::Color32::from_rgb(240, 250, 10)), "the icon");
 
     let named = r#"/* {"name": "Named words"} */
 * { color: rgb(240, 250, 10); }
