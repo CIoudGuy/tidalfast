@@ -102,6 +102,58 @@ fn a_side_on_the_menus_empty_span_opens_a_line_above_the_shell() {
     }
 }
 
+/// A box a theme gives a row's title is the words' box, not the cell's: as
+/// wide as the words and its border, 20 high and its border, in the middle
+/// of the row, and the words stand inside the border.
+#[test]
+fn a_box_on_a_rows_title_is_as_wide_as_its_words() {
+    use crate::ui::plugin_dom as pd;
+    let frame = dom_anchors::sample_frame();
+    let list = frame.lists.first().unwrap();
+    let key = dom_anchors::keys::row_cell(&list.id, list.rows[0].index, "title-text");
+    let css = "/* {\"name\": \"Title box\"} */ [class*=\"active\"] { background: rgb(9, 8, 7) !important; border: 1px solid rgb(1, 2, 3) !important; }";
+    let ready = |o: &DomOverlay| o.hosts.contains_key(&key);
+    let o = overlay_when("title-box.css", css, &frame, ready);
+    pd::test_overlay(Some((*o).clone()));
+    let ctx = egui::Context::default();
+    let font = egui::FontId::proportional(14.0);
+    let (mut width, mut text_left, mut right) = (0.0, 0.0, 0.0);
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let cell = egui::Rect::from_min_size(egui::pos2(100.0, 50.0), egui::vec2(400.0, 56.0));
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(cell)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        );
+        child.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        let white = egui::Color32::WHITE;
+        width = child
+            .painter()
+            .layout_no_wrap("A title".to_owned(), font.clone(), white)
+            .size()
+            .x;
+        right = pd::paint_words_box(&mut child, &key, "A title", font.clone(), white);
+        text_left = child.cursor().left();
+    });
+    out.textures_delta.clear();
+    pd::test_overlay(None);
+    assert_eq!(right, 1.0);
+    assert_eq!(text_left, 101.0);
+    let boxes: Vec<egui::Rect> = out
+        .shapes
+        .iter()
+        .filter_map(|c| match &c.shape {
+            egui::epaint::Shape::Rect(r) => Some(r.rect),
+            _ => None,
+        })
+        .collect();
+    let b = boxes.first().copied().expect("the box is painted");
+    assert_eq!(b.left(), 100.0, "{boxes:?}");
+    assert!((b.width() - (width + 2.0)).abs() < 0.01, "{boxes:?}");
+    assert_eq!(b.height(), 22.0, "{boxes:?}");
+    assert_eq!(b.center().y, 78.0, "{boxes:?}");
+}
+
 /// A side's shorthand is a border by itself, with none on the box before it
 /// or after `border: none`: the sidebar's edge and the bar's top line of
 /// several themes went undrawn. The side stands alone in the box's widths.

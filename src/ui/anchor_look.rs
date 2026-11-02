@@ -529,6 +529,39 @@ fn origin_in(value: Option<&str>, r: Rect) -> egui::Pos2 {
     )
 }
 
+/// The box a theme gives the words at `ui`'s cursor when they are a flex
+/// item of their own (a list row's title, `span._titleText_`): as wide as
+/// the words and their padding and border, the 20 points of their line
+/// high, and centred across the row. Moves the cursor past the box's left
+/// edge and returns what the words leave of it on their right.
+pub fn paint_words_box(
+    ui: &mut egui::Ui,
+    key: &str,
+    words: &str,
+    font: egui::FontId,
+    color: Color32,
+) -> f32 {
+    const LINE: f32 = 20.0;
+    let Some(look) = anchor_look(key).filter(|l| l.paints_box()) else {
+        return 0.0;
+    };
+    let [top, right, bottom, left] = card_inset(key, &look);
+    let at = ui.available_rect_before_wrap();
+    let width = ui
+        .painter()
+        .layout_no_wrap(words.to_owned(), font, color)
+        .size()
+        .x;
+    let height = LINE + top + bottom;
+    let r = Rect::from_min_size(
+        egui::pos2(at.left(), at.center().y - height / 2.0),
+        egui::vec2((width + left + right).min(at.width()), height),
+    );
+    paint_look(ui, key, &look, r, CornerRadius::ZERO);
+    ui.add_space(left);
+    right
+}
+
 /// The room TIDAL's `span.context-menu` takes above the main container while
 /// a menu is open. It is an empty inline box, which takes no line until
 /// something gives it a side: padding or a border on its left or right

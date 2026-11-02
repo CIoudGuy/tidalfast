@@ -3460,7 +3460,14 @@ fn tidal_row_cells(
         };
         // A plugin hid the title's text (`display: none`): the badges stay.
         if !link_key.as_deref().is_some_and(super::plugin_dom::hidden) {
+            let right = link_key.as_deref().map_or(0.0, |key| {
+                let font = text_font.clone();
+                super::plugin_dom::paint_words_box(&mut child, key, &title, font, color)
+            });
             theme::text(&mut child, title.as_ref(), text_font.clone(), color);
+            if right > 0.0 {
+                child.add_space(right);
+            }
         }
         let PlayableItem::Track(track) = row.item;
         if track.explicit {

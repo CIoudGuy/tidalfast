@@ -37,8 +37,8 @@ mod anchor_look;
 pub use anchor_look::{
     AnchorLook, MENU_BOX_MARK, SUBMENU_BOX_MARK, anchor_look, box_transform, card_inset,
     context_menu_line, look_text, mark_opacity, menu_box_looks, menu_see_through, paint_anchor_box,
-    paint_card, paint_look, paint_look_with_fill, paint_part, paint_sides, paints_beyond_fill,
-    part_card, scale_shapes, scaled, shapes_mark, submenu_box_look,
+    paint_card, paint_look, paint_look_with_fill, paint_part, paint_sides, paint_words_box,
+    paints_beyond_fill, part_card, scale_shapes, scaled, shapes_mark, submenu_box_look,
 };
 #[cfg(any(test, feature = "demo"))]
 #[path = "look_dump.rs"]
