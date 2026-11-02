@@ -807,6 +807,10 @@ impl LunaHost for AppHost {
         else {
             return NetVerdict::Deny("not a request".into());
         };
+        // Home's feed lives on TIDAL's own API, as the v1 reads do.
+        if method.eq_ignore_ascii_case("GET") && tidal_v2_home_feed(url).is_some() {
+            return self.account_call(plugin, request, "read");
+        }
         let Some(target) = open_api_target(url).filter(|t| open_api_open(method, t)) else {
             return NetVerdict::Deny(OPEN_API_REFUSED.into());
         };
@@ -918,6 +922,19 @@ impl LunaHost for AppHost {
                     NetVerdict::AskOpenApi
                 } else {
                     NetVerdict::Deny(OPEN_API_REFUSED.into())
+                }
+            }
+            // Home's feed, the same permission: the app reads it for the plugin.
+            NetRequest::Fetch {
+                method,
+                url,
+                headers,
+                ..
+            } if account_request(headers) && tidal_v2_home_feed(url).is_some() => {
+                if method.eq_ignore_ascii_case("GET") {
+                    NetVerdict::AskOpenApi
+                } else {
+                    NetVerdict::Deny("plugins can only read TIDAL's Home feed".into())
                 }
             }
             NetRequest::Fetch {
@@ -1124,11 +1141,25 @@ fn tidal_v2_collection(url: &str) -> Option<(String, Vec<(String, String)>)> {
     tidal_path(url, "/v2/").filter(|(path, _)| path.starts_with("my-collection/"))
 }
 
+/// The path and query of a read of one of Home's feeds
+/// (`https://api.tidal.com/v2/home/feed/static?...`), which the permission
+/// for TIDAL's official API opens.
+fn tidal_v2_home_feed(url: &str) -> Option<(String, Vec<(String, String)>)> {
+    tidal_path(url, "/v2/").filter(|(path, _)| {
+        matches!(
+            path.split('/').collect::<Vec<_>>().as_slice(),
+            ["home", "feed", name]
+                if !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric())
+        )
+    })
+}
+
 /// Which API a plugin's call to the account goes to, its path and query.
 fn account_api(url: &str) -> Option<(Api, String, Query)> {
     tidal_v1(url)
         .map(|(path, query)| (Api::V1, path, query))
         .or_else(|| tidal_v2_collection(url).map(|(path, query)| (Api::V2, path, query)))
+        .or_else(|| tidal_v2_home_feed(url).map(|(path, query)| (Api::V2, path, query)))
 }
 
 /// A path as a server reads it: decoded, in one case, cut at its separators.
@@ -1615,6 +1646,49 @@ mod tests {
             })
         );
         assert_eq!(stream_info(&json!(["a list"])), json!({}));
+    }
+
+    /// Home's feed is the permission's to open, for reading, and nothing
+    /// else under v2 comes with it.
+    #[test]
+    fn homes_feed_opens_with_the_official_api_permission_and_for_reading_only() {
+        let host = AppHost::new(None, None);
+        let account = serde_json::Map::from_iter([(
+            "Authorization".to_string(),
+            json!("Bearer tidalfast-account"),
+        )]);
+        let fetch =
+            |method: &str, url: &str, headers: &serde_json::Map<String, Value>| NetRequest::Fetch {
+                method: method.into(),
+                url: url.into(),
+                headers: headers.clone(),
+                body: None,
+            };
+        let feed = "https://api.tidal.com/v2/home/feed/static?deviceType=BROWSER";
+        assert_eq!(
+            host.outbound(Some("P"), &fetch("GET", feed, &account)),
+            NetVerdict::AskOpenApi
+        );
+        assert!(matches!(
+            host.outbound(Some("P"), &fetch("POST", feed, &account)),
+            NetVerdict::Deny(_)
+        ));
+        // Not as the account: an ordinary request.
+        assert_eq!(
+            host.outbound(Some("P"), &fetch("GET", feed, &serde_json::Map::new())),
+            NetVerdict::Allow
+        );
+        // Only the feeds themselves.
+        for other in [
+            "https://api.tidal.com/v2/home/feed/static/more",
+            "https://api.tidal.com/v2/home/feed/",
+            "https://api.tidal.com/v2/home/pages/x",
+            "https://api.tidal.com/v2/feed/activities",
+            "https://evil.test/v2/home/feed/static",
+            "http://api.tidal.com/v2/home/feed/static",
+        ] {
+            assert!(tidal_v2_home_feed(other).is_none(), "{other}");
+        }
     }
 
     #[test]

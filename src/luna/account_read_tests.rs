@@ -276,3 +276,49 @@ R.done = true;
     assert_eq!(after["manifestHash"], "made-up-hash", "{results}");
     assert_eq!(after["audioQuality"], "LOSSLESS", "{results}");
 }
+
+/// Home's feed opens with the permission for TIDAL's official API, for any
+/// plugin: the same question, nothing sent before the answer, and the app's
+/// session goes out while the plugin keeps its placeholder.
+#[test]
+fn a_plugin_reads_homes_feed_only_with_the_official_api_permission() {
+    let (base, seen) = made_up_tidal();
+    let (host, _runtime) = app_host(&base);
+    let body = r#"
+R.n = (R.n ?? 0) + 1;
+const run = R.n;
+const auth = await lib.TidalApi.getAuthHeaders();
+R["feed" + run] = await fetch("https://api.tidal.com/v2/home/feed/static?deviceType=BROWSER&platform=WEB&locale=en_US", { headers: auth })
+	.then(async (r) => r.status + " " + (await r.text()), (e) => "ERR " + (e?.message ?? e));
+R.done = run;
+"#;
+    let (luna, dir) = start("AnyPlugin", body, host);
+    let q = question(&luna);
+    assert_eq!(
+        (q.plugin.as_str(), &q.access),
+        ("AnyPlugin", &Access::OpenApi)
+    );
+    luna.answer_permission(q.id, ProgramChoice::Deny);
+    wait_until(&luna, 30, |_| results(&dir)["done"] == json!(1));
+    let first = results(&dir);
+    assert!(
+        first["feed1"].as_str().unwrap().contains("did not allow"),
+        "{first}"
+    );
+    assert!(seen.lock().unwrap().is_empty(), "denied: nothing was sent");
+    luna.reload("AnyPlugin");
+    let q = question(&luna);
+    assert_eq!(q.access, Access::OpenApi);
+    luna.answer_permission(q.id, ProgramChoice::Once);
+    wait_until(&luna, 30, |_| results(&dir)["done"] == json!(2));
+    let second = results(&dir);
+    assert_eq!(
+        second["feed2"], r#"200 {"page":{"modules":[]}}"#,
+        "{second}"
+    );
+    let seen = seen.lock().unwrap().clone();
+    assert_eq!(seen.len(), 1, "{seen:?}");
+    assert!(seen[0].starts_with("/home/feed/static?"), "{seen:?}");
+    assert!(seen[0].contains("deviceType=BROWSER"), "{seen:?}");
+    assert!(seen[0].ends_with("bearer app-session"), "{seen:?}");
+}

@@ -1110,7 +1110,9 @@
 		} catch {
 			return false;
 		}
-		if (u.protocol !== "https:" || u.host !== "openapi.tidal.com" || !u.pathname.startsWith("/v2/")) return false;
+		// Home's feed is on TIDAL's own API, behind the same permission.
+		const homeFeed = u.protocol === "https:" && /^(desktop|api|listen)\.tidal\.com$/.test(u.hostname) && /^\/v2\/home\/feed\/[^/]+$/.test(u.pathname);
+		if (!homeFeed && (u.protocol !== "https:" || u.host !== "openapi.tidal.com" || !u.pathname.startsWith("/v2/"))) return false;
 		return Object.entries(headers).some(([k, v]) => k.toLowerCase() === "authorization" && v === "Bearer tidalfast-account");
 	};
 	g.fetch = async (input, init = {}) => {

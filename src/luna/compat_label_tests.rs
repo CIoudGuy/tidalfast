@@ -275,8 +275,8 @@ fn labels_are_keyed_by_store_and_package_name() {
     // Partly supported: miniplayer and lyrics-everywhere (their windows
     // open and work; the widget can slip under the taskbar and the lyrics
     // window does not scroll), Avatar (no email for Gravatar) and
-    // Themer (no Monaco window), true-taste (TIDAL's openapi needs the
-    // permission, TIDAL's v2 Home feed stays closed). 3d-cover's Base model and its fade and
+    // Themer (no Monaco window), true-taste (TIDAL's openapi and Home feed
+    // need the permission, no full run checked). 3d-cover's Base model and its fade and
     // spinner work, so it carries no label.
     let partly: Vec<&str> = COMPAT
         .iter()
@@ -423,6 +423,7 @@ fn plugins_behind_a_permission_say_so() {
     // icons yet.
     assert_eq!(level("@jxnxsdev/miniplayer"), Some(Compat::PartlySupported));
     // Its playlist goes through TIDAL's openapi behind a permission (plugin
-    // round 28); the history it reads from TIDAL's v2 Home feed stays closed.
+    // round 28), its read of TIDAL's Home feed too (plugin round 29); the
+    // unmodified plugin has not made a full run on a real account with both.
     assert_eq!(level("@visiuun/true-taste"), Some(Compat::PartlySupported));
 }
