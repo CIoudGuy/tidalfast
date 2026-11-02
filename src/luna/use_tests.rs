@@ -370,3 +370,75 @@ m.withFormat(unloads, undefined, () => {});"##,
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A plugin's stylesheet (`StyleTag`, a `<style>` it appends) is in the page
+/// while it runs, goes when it is disabled, and is there once (not twice)
+/// when it is enabled again.
+#[test]
+fn a_plugins_styles_follow_it_through_disable_and_enable() {
+    let (luna, dir) = start(
+        r##"
+R.ready = false;
+new lib.StyleTag("probe-style", unloads, "body { color: red; }");
+R.ready = true;
+"##,
+    );
+    wait_for(&luna, &dir, "ready");
+    let bytes = |luna: &Luna| {
+        luna.sync(Duration::from_secs(10));
+        std::thread::sleep(Duration::from_millis(200));
+        luna.dom_overlay().css_bytes
+    };
+    let on = bytes(&luna);
+    assert!(on > 0, "the stylesheet is not in the page");
+    luna.set_enabled("Compat", false);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "Compat").unwrap().status == PluginStatus::Disabled
+    });
+    assert_eq!(bytes(&luna), 0, "the stylesheet stayed");
+    luna.set_enabled("Compat", true);
+    wait_for(&luna, &dir, "ready");
+    assert_eq!(bytes(&luna), on, "not the same sheet once");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A plugin's page (`Page.register`) leaves with the plugin and is back,
+/// once, when it is enabled again.
+#[test]
+fn a_plugin_page_comes_back_once_after_disable_and_enable() {
+    let (luna, dir) = start(
+        r##"
+R.ready = false;
+const ui = luna.core.modules["@luna/ui"];
+const React = luna.core.modules.react;
+ui.Page.register("MyPage", unloads, React.createElement("p", null, "Hello page"));
+R.ready = true;
+"##,
+    );
+    wait_for(&luna, &dir, "ready");
+    let page_shown = |luna: &Luna| {
+        luna.event(LunaEvent::Action {
+            kind: "router/NAVIGATED".into(),
+            payload: json!({ "pathname": "/not-found", "search": "?MyPage", "hash": "" }),
+        });
+        std::thread::sleep(Duration::from_millis(300));
+        luna.sync(Duration::from_secs(10));
+        serde_json::to_string(&luna.dom_overlay().injected)
+            .unwrap()
+            .matches("Hello page")
+            .count()
+    };
+    luna.sync_dom(super::dom_anchors::sample_tree());
+    assert_eq!(page_shown(&luna), 1);
+    luna.set_enabled("Compat", false);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "Compat").unwrap().status == PluginStatus::Disabled
+    });
+    assert_eq!(page_shown(&luna), 0, "the page stayed");
+    luna.set_enabled("Compat", true);
+    wait_for(&luna, &dir, "ready");
+    assert_eq!(page_shown(&luna), 1, "the page is back once");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
