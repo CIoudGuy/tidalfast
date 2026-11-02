@@ -88,3 +88,34 @@ fn a_sides_shorthand_alone_is_the_boxs_border() {
         );
     }
 }
+
+/// Corners, a shadow and a colour that TIDAL sets by a class of its own are
+/// out of reach of a rule of no weight (`* { ... }`) or for a tag, and within
+/// reach of any rule that names the part.
+#[test]
+fn a_rule_of_no_weight_leaves_what_tidals_classes_set() {
+    use dom_anchors::keys::{FOOTER, sidebar_item};
+    let mut frame = dom_anchors::sample_frame();
+    frame.sidebar.items.push(dom_anchors::SidebarItem {
+        test: "sidebar-explore".into(),
+        label: "Explore".into(),
+        href: Some("/explore".into()),
+        selected: false,
+        rect: Some([16.0, 128.0, 208.0, 40.0]),
+    });
+    let row = sidebar_item("sidebar-explore");
+    let css = "/* {\"name\": \"Square\"} */ * { border-radius: 0; box-shadow: none; } a { color: rgb(1, 2, 3); } #footerPlayer { color: rgb(1, 2, 3); }";
+    let o = overlay_when("square.css", css, &frame, |o| o.hosts.contains_key(FOOTER));
+    let style = o
+        .hosts
+        .get(&row)
+        .map(|h| h.style.clone())
+        .unwrap_or_default();
+    assert_eq!(style.border_radius, None, "{row}");
+    assert_eq!(style.color, None, "{row}");
+    let css = "/* {\"name\": \"Named\"} */ [class*=\"navigationItem\"] { border-radius: 3px; color: rgb(1, 2, 3); }";
+    let o = overlay_when("named.css", css, &frame, |o| o.hosts.contains_key(&row));
+    let style = &o.hosts[&row].style;
+    assert_eq!(style.border_radius.as_deref(), Some("3px"));
+    assert_eq!(style.color.as_deref(), Some("rgb(1, 2, 3)"));
+}
