@@ -279,6 +279,39 @@ R.done = true;
     assert_eq!(r["date"], json!("2001-02-03"), "{r}");
 }
 
+/// TidaLuna's `MediaItem.bestQuality` on anything but a track answers High
+/// and says so in the plugin's log (`MediaItem quality called on non-track!`,
+/// as the one a plugin that asks a video logs in TIDAL).
+#[test]
+fn the_best_quality_of_a_video_is_high_and_logged_as_in_luna() {
+    let (r, _host) = run_catalogue(
+        r##"
+const { MediaItem } = lib;
+const video = new MediaItem(23794830, { title: "A video" }, "video");
+R.video = video.bestQuality.name;
+const track = new MediaItem(23794831, { title: "A song", audioQuality: "LOSSLESS" }, "track");
+R.track = typeof track.bestQuality.name;
+R.ready = true;
+await new Promise((r) => setTimeout(r, 600));
+R.done = true;
+"##,
+        |luna, dir| {
+            wait_for(luna, dir, "ready");
+            std::thread::sleep(Duration::from_millis(300));
+            let s = luna.snapshot();
+            let p = s.plugins.iter().find(|p| p.name == "Compat").unwrap();
+            let logs: Vec<&str> = p.logs.iter().map(|l| l.message.as_str()).collect();
+            let warned = logs
+                .iter()
+                .filter(|l| l.contains("MediaItem quality called on non-track!"))
+                .count();
+            assert_eq!(warned, 1, "once, for the video only: {logs:?}");
+        },
+    );
+    assert_eq!(r["video"], "High", "{r}");
+    assert_eq!(r["track"], "string", "{r}");
+}
+
 #[test]
 fn content_classes_follow_lunas_source() {
     let (r, host) = run_catalogue(

@@ -872,7 +872,10 @@
 			return tags;
 		}
 		get bestQuality() {
-			if (this.contentType !== "track") return Quality.High;
+			if (this.contentType !== "track") {
+				this.trace.warn("MediaItem quality called on non-track!", this);
+				return Quality.High;
+			}
 			const allTags = Quality.fromMetaTags(this.tidalItem.mediaMetadata?.tags);
 			const tags = allTags.filter((q) => q !== Quality.Atmos && q !== Quality.Sony630);
 			// Spatial audio cannot say what its quality is: a spatial-only
