@@ -27,6 +27,22 @@ const SIMILAR_PAGE_TWO: &str = r#"{
   "links": {"self": "/artists/17275/relationships/similarArtists"}
 }"#;
 
+const SUGGESTED_VIDEOS: &str = r#"{
+  "data": [{"id": "142481460", "type": "videos"}, {"id": "441699021", "type": "videos"}],
+  "included": [
+    {"id": "142481460", "type": "videos",
+     "attributes": {"title": "Non e vero", "duration": "PT3M11S", "explicit": true, "releaseDate": "2020-05-23"},
+     "relationships": {"artists": {"data": [{"id": "6068727", "type": "artists"}]},
+                       "thumbnailArt": {"data": [{"id": "thumb", "type": "artworks"}]}}},
+    {"id": "441699021", "type": "videos", "attributes": {"title": "The video itself", "duration": "PT1S"}},
+    {"id": "6068727", "type": "artists", "attributes": {"name": "Singer"}},
+    {"id": "thumb", "type": "artworks", "attributes": {"files": [
+      {"href": "https://resources.tidal.com/images/b2e21110/d424/41db/8e86/351f92b177d1/1280x720.jpg",
+       "meta": {"height": 720, "width": 1280}}]}}
+  ],
+  "links": {"self": "/videos/441699021/relationships/suggestedVideos"}
+}"#;
+
 #[tokio::test]
 async fn related_artists_are_tidals_similar_artists_read_by_cursor() {
     let (base, seen) = script(vec![
@@ -93,4 +109,33 @@ async fn an_artist_with_no_similar_artists_is_an_empty_shelf_and_a_failure_an_er
     let client = client(&base, refresher());
     assert!(client.related_artists("1").await.unwrap().is_empty());
     assert!(client.related_artists("2").await.is_err());
+}
+
+#[tokio::test]
+async fn similar_videos_are_tidals_suggested_videos() {
+    let (base, seen) = script(vec![reply("200 OK", "", SUGGESTED_VIDEOS)]).await;
+    let client = client(&base, refresher());
+    let videos = client.similar_videos("441699021", None).await.unwrap();
+    assert_eq!(videos.len(), 1, "the video itself is left out");
+    let video = &videos[0];
+    assert_eq!(video.id, "142481460");
+    assert_eq!(video.name, "Non e vero");
+    assert_eq!(video.artist, "Singer");
+    assert_eq!(video.artists[0].id.as_deref(), Some("6068727"));
+    assert_eq!(video.duration, 191);
+    assert!(video.explicit);
+    assert_eq!(video.release_date.as_deref(), Some("2020-05-23"));
+    assert!(
+        video.images[0]
+            .url
+            .contains("/images/b2e21110/d424/41db/8e86/351f92b177d1/"),
+        "{:?}",
+        video.images
+    );
+    let seen = seen.lock().unwrap();
+    assert!(
+        seen[0].starts_with("GET /videos/441699021/relationships/suggestedVideos?"),
+        "{}",
+        seen[0]
+    );
 }

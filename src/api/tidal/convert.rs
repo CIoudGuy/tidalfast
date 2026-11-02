@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Deserializer};
 
-use super::jsonapi::{Document, artwork_uuid, id_of};
+use super::jsonapi::{Document, artwork_uuid, duration_seconds, id_of};
 use crate::api::models::{
     Album, Artist, ArtistRef, AudioAnalysis, Copyright, ExternalIds, ExternalUrls, Image, Mix,
     Owner, Page, Playlist, Track, TrackCount,
@@ -417,44 +417,6 @@ pub(crate) fn video(raw: RawVideo) -> crate::api::models::Video {
     }
 }
 
-/// The videos of a page answer whose items are videos, bare or wrapped as
-/// `{ "item": video, "type": "video" }`.
-pub(crate) fn video_items(page: &serde_json::Value) -> Vec<crate::api::models::Video> {
-    page.get("items")
-        .and_then(serde_json::Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            // `videos/{id}/recommendations` wraps each as `{sources, video}`
-            // (live 2026-10-15); other lists use `{item, type}` or bare.
-            let value = entry
-                .get("video")
-                .or_else(|| entry.get("item"))
-                .unwrap_or(entry);
-            serde_json::from_value::<RawVideo>(value.clone()).ok()
-        })
-        .map(video)
-        .filter(|video| !video.id.is_empty())
-        .collect()
-}
-
-#[cfg(test)]
-mod video_items_tests {
-    #[test]
-    fn video_recommendations_unwrap_the_live_shape() {
-        let page = serde_json::json!({ "items": [
-            { "sources": ["SUGGESTED_VIDEOS"], "video": { "id": 1, "title": "A", "duration": 200 } },
-            { "item": { "id": 2, "title": "B", "duration": 200 }, "type": "VIDEO" },
-            { "id": 3, "title": "C", "duration": 200 },
-        ]});
-        let ids: Vec<String> = super::video_items(&page)
-            .into_iter()
-            .map(|v| v.id)
-            .collect();
-        assert_eq!(ids, ["1", "2", "3"]);
-    }
-}
-
 pub fn album_images(cover: Option<&str>) -> Vec<Image> {
     square_images(cover, ALBUM_SIZES)
 }
@@ -596,6 +558,38 @@ pub(crate) fn openapi_artist(document: &Document, resource: &serde_json::Value) 
             .map(|share| (share * 100.0).round() as u32),
         url: sharing_link(attributes),
         ..RawArtist::default()
+    })
+}
+
+/// A `videos` resource of an openapi document.
+pub(crate) fn openapi_video(
+    document: &Document,
+    resource: &serde_json::Value,
+) -> crate::api::models::Video {
+    let attributes = &resource["attributes"];
+    video(RawVideo {
+        id: id_of(resource).unwrap_or_default(),
+        title: attributes["title"].as_str().unwrap_or_default().to_string(),
+        duration: attributes["duration"].as_str().and_then(duration_seconds),
+        image_id: document
+            .related(resource, "thumbnailArt")
+            .first()
+            .and_then(|art| artwork_uuid(art)),
+        artist: None,
+        artists: document
+            .related(resource, "artists")
+            .into_iter()
+            .map(|artist| RawArtist {
+                id: id_of(artist).unwrap_or_default(),
+                name: artist["attributes"]["name"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
+                ..RawArtist::default()
+            })
+            .collect(),
+        explicit: attributes["explicit"].as_bool(),
+        release_date: attributes["releaseDate"].as_str().map(str::to_string),
     })
 }
 

@@ -3251,30 +3251,38 @@ impl TidalClient {
     }
 
     /// Videos like `video_id`, for the now-playing view's Similar videos:
-    /// TIDAL's recommendations for it, else the artist's other videos.
+    /// TIDAL's suggestions for it, else the artist's other videos.
     pub async fn similar_videos(
         &self,
         video_id: &str,
         artist_id: Option<&str>,
     ) -> Result<Vec<Video>> {
         let recommended: Result<Vec<Video>> = async {
-            let page: Value = self
-                .get(
-                    Call::new(
-                        Method::GET,
-                        self.v1(&format!("videos/{video_id}/recommendations")),
-                    )
-                    .query("limit", "20"),
-                )
-                .await?;
-            Ok(convert::video_items(&page))
+            let call = Call::new(
+                Method::GET,
+                format!(
+                    "{}/videos/{video_id}/relationships/suggestedVideos",
+                    self.openapi_base
+                ),
+            )
+            .query(
+                "include",
+                "suggestedVideos,suggestedVideos.thumbnailArt,suggestedVideos.artists",
+            );
+            let page: Value = self.get(call).await?;
+            let document = jsonapi::Document::new(&page);
+            Ok(document
+                .resources()
+                .into_iter()
+                .map(|video| convert::openapi_video(&document, video))
+                .collect())
         }
         .await;
         let mut videos = match recommended {
             Ok(items) if !items.is_empty() => items,
             other => {
                 if let Err(error) = other {
-                    log::debug!("video recommendations: {error}");
+                    log::debug!("suggested videos: {error}");
                 }
                 match artist_id {
                     Some(artist) => self.artist_videos_page(artist).await?,
