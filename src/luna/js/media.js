@@ -2699,6 +2699,8 @@
 	let swap = null; // { el, track, src, failed }
 	let lastSrc = null; // the <audio> given a src last
 	let ownLength = NaN; // the length of the plugin's own song, as the engine found it
+	let finishedTrack = null; // the song of the plugin's own that has just played out, until it plays or changes
+	let endedFired = false;
 	let endedCount = 0; // plays of a plugin's own song to its end, as the engine counts
 	let queued = false;
 	const swapped = (el) => swap !== null && swap.el === el && swap.track === (lastTrack == null ? null : String(lastTrack));
@@ -2880,21 +2882,30 @@
 		const ended = +pc.tidalfastReplaceEnded || 0;
 		if (ended !== endedCount) {
 			endedCount = ended;
-			if (swap?.own) swap.el.dispatchEvent(new Event("ended"));
+			if (swap?.own) {
+				finishedTrack = track;
+				swap.el.dispatchEvent(new Event("ended"));
+			}
 		}
+		// A song has ended when the engine says it played out, not when it
+		// is paused near its end: TIDAL's store says NOT_PLAYING for both.
+		if (playing || finishedTrack !== track) finishedTrack = null;
 		pstate.volume = Math.max(0, Math.min(1, (+pc.volume || 0) / 100));
 		pstate.muted = !!pc.muted;
 		const timeChanged = Math.abs(time - pstate.currentTime) > 0.001;
 		pstate.currentTime = time;
 		pstate.sync = now;
 		pstate.paused = !playing;
-		pstate.ended = !playing && pc.playbackState === "NOT_PLAYING" && pstate.duration > 0 && time >= pstate.duration - 0.5;
+		pstate.ended = !playing && finishedTrack !== null;
 		if (wasPaused && playing) {
 			fire("play");
 			fire("playing");
 		} else if (!wasPaused && !playing) {
 			fire("pause");
-			if (pstate.ended) fire("ended");
+		}
+		if (pstate.ended !== endedFired) {
+			endedFired = pstate.ended;
+			if (endedFired) fire("ended");
 		}
 		if (timeChanged) {
 			fire("timeupdate");

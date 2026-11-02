@@ -1667,6 +1667,7 @@ fn a_plugin_audio_for_a_paused_player_is_the_plugins_own_song() {
         r#"
 const own = new Audio();
 own.addEventListener("ended", () => say("ended"));
+document.getElementById("video-one").addEventListener("ended", () => say("player-ended:" + document.getElementById("video-one").ended));
 own.src = "http://192.168.1.10:8096/Audio/b1/stream?static=true&api_key=K";
 await own.play();
 await new Promise((r) => setTimeout(r, 700));
@@ -1697,6 +1698,9 @@ globalThis.__own = own;
     host.snap.lock().unwrap().replaced_audio = Some(true);
     luna.event(LunaEvent::Position(1.0));
     host.wait(&luna, "the end", |h| h.notes().iter().any(|n| n == "ended"));
+    host.wait(&luna, "the player's end", |h| {
+        h.notes().iter().any(|n| n == "player-ended:true")
+    });
     luna.shutdown();
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -2419,6 +2423,51 @@ say(String(email) + " | " + url);
     host.wait(&luna, "the answer", |h| !h.notes().is_empty());
     let note = host.notes()[0].clone();
     assert!(note.starts_with("undefined | refused"), "{note}");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A pause in a song's last half second is a pause: TIDAL's player says
+/// `NOT_PLAYING` for both a paused song and one that has played out, and the
+/// player element's `ended` and its event are for the song that played out
+/// only (the engine counts that, for a plugin's own song).
+#[test]
+fn pausing_in_a_songs_last_half_second_is_not_the_song_ending() {
+    let snap = PlaybackSnapshot {
+        state: PlaybackState::Playing,
+        desired_state: PlaybackState::Playing,
+        queue: vec![entry("42", "u1")].into(),
+        current_index: Some(0),
+        current_item: Some(item(42, "Song")),
+        duration: Some(200.0),
+        position: 150.0,
+        ..PlaybackSnapshot::default()
+    };
+    let (luna, host, dir) = start(
+        r#"
+const el = document.getElementById("video-one");
+for (const t of ["pause", "ended"]) el.addEventListener(t, () => say(t + ":" + el.ended));
+say("ready");
+"#,
+        snap,
+    );
+    host.wait(&luna, "the plugin", |h| {
+        h.notes().iter().any(|n| n == "ready")
+    });
+    {
+        let mut snap = host.snap.lock().unwrap();
+        snap.position = 199.9;
+        snap.state = PlaybackState::Paused;
+        snap.desired_state = PlaybackState::Paused;
+    }
+    luna.event(LunaEvent::PlaybackState(PlaybackState::Paused));
+    host.wait(&luna, "the pause", |h| {
+        h.notes().iter().any(|n| n.starts_with("pause:"))
+    });
+    std::thread::sleep(Duration::from_millis(300));
+    luna.sync(Duration::from_secs(5));
+    let notes = host.notes();
+    assert!(!notes.iter().any(|n| n.starts_with("ended")), "{notes:?}");
     luna.shutdown();
     let _ = std::fs::remove_dir_all(dir);
 }
