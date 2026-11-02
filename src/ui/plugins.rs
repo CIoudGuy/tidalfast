@@ -1343,6 +1343,10 @@ fn grant_text(locale: Locale, access: &crate::luna::Access) -> (String, String) 
             t("Switches the output to exclusive mode"),
             t("Ask again before this plugin turns on exclusive (bit-perfect) output"),
         ),
+        Access::OpenApi => (
+            t("Uses TIDAL's official API as you"),
+            t("Ask again before this plugin uses TIDAL's official API as you"),
+        ),
     }
 }
 

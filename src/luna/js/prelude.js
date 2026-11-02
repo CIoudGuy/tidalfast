@@ -1101,6 +1101,18 @@
 		if (u.protocol !== "https:" || !/^(desktop|api|listen)\.tidal\.com$/.test(u.hostname) || !(u.pathname.startsWith("/v1/") || u.pathname.startsWith("/v2/my-collection/"))) return false;
 		return Object.entries(headers).some(([k, v]) => k.toLowerCase() === "authorization" && v === "Bearer tidalfast-account");
 	};
+	// A call to TIDAL's official API as the signed-in account: the app makes
+	// it with its own session, once the user allowed that plugin (permits.rs).
+	lunaInternal.isOpenApiCall = (url, headers) => {
+		let u;
+		try {
+			u = new URL(url);
+		} catch {
+			return false;
+		}
+		if (u.protocol !== "https:" || u.host !== "openapi.tidal.com" || !u.pathname.startsWith("/v2/")) return false;
+		return Object.entries(headers).some(([k, v]) => k.toLowerCase() === "authorization" && v === "Bearer tidalfast-account");
+	};
 	g.fetch = async (input, init = {}) => {
 		const req = new Request(input, init);
 		const url = new URL(req.url).href;
@@ -1119,6 +1131,9 @@
 		// the runtime checks the answer again before the host carries it out.
 		if (lunaInternal.isAccountWrite(req.method, url, headers) && !(await lunaInternal.allowAccountWrite(plugin, req.method, url))) {
 			throw new TypeError("fetch failed: you did not allow this plugin to change your TIDAL account");
+		}
+		if (lunaInternal.isOpenApiCall(url, headers) && !(await lunaInternal.allowOpenApi(plugin))) {
+			throw new TypeError("fetch failed: you did not allow this plugin to use TIDAL's official API as your account");
 		}
 		const body = bodyBytes(req._body);
 		if (body !== undefined && !req.headers.has("content-type") && typeof req._body === "string") headers["content-type"] = "text/plain;charset=UTF-8";

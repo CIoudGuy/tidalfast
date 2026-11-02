@@ -93,6 +93,7 @@
 	// Changing the signed-in account is asked about from the plugin's own
 	// code; a forked script's request to do it is refused.
 	L.allowAccountWrite ??= async () => false;
+	L.allowOpenApi ??= async () => false;
 
 	// ---------------------------------------------------------------- modules
 	const esm = L.node.esm;

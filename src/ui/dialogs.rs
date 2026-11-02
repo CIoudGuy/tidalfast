@@ -462,6 +462,12 @@ pub(crate) fn permission_text(
                 "It turns on Bit-perfect output: Tidalfast takes the audio device for itself, so other apps go silent while it plays. You can turn it off again in Settings.",
             ),
         ),
+        Access::OpenApi => (
+            t("{plugin} wants to use TIDAL's official API as you"),
+            t(
+                "It can read your account, your email address included, and change your playlists, collection and profile. It never gets your sign-in, and this ends as soon as you take the permission back. Allow it only if you trust this plugin.",
+            ),
+        ),
     }
 }
 

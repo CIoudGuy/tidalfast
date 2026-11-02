@@ -459,6 +459,9 @@ pub enum Permission {
     /// Switches the output to exclusive (bit-perfect) mode, only after the
     /// user said yes ([`Access::ExclusiveOutput`]).
     ExclusiveOutput,
+    /// Calls TIDAL's official API as the account, through the app, only
+    /// after the user said yes ([`Access::OpenApi`]).
+    TidalOpenApi,
 }
 
 impl Permission {
@@ -485,6 +488,7 @@ impl Permission {
             Permission::ExclusiveOutput => {
                 "Switches the output to exclusive (bit-perfect) mode (asks you first)"
             }
+            Permission::TidalOpenApi => "Uses TIDAL's official API as you (asks you first)",
         }
     }
 
@@ -526,6 +530,9 @@ impl Permission {
                 locale,
                 "Switches the output to exclusive (bit-perfect) mode (asks you first)",
             ),
+            Permission::TidalOpenApi => {
+                gettext(locale, "Uses TIDAL's official API as you (asks you first)")
+            }
         }
         .into_owned()
     }

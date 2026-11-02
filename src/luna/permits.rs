@@ -1,9 +1,10 @@
 //! What a plugin may do only after the user said yes, beyond running
 //! programs ([`super::child`]) and changing the account
-//! ([`super::writes`]): hand it the TIDAL sign-in, register keyboard
-//! shortcuts across the whole computer, talk to another program over that
-//! program's own pipe or socket, save TIDAL audio to files, and switch the
-//! output to exclusive (bit-perfect) mode.
+//! ([`super::writes`]): hand it the TIDAL sign-in, call TIDAL's official API
+//! as the account, register keyboard shortcuts across the whole computer,
+//! talk to another program over that program's own pipe or socket, save
+//! TIDAL audio to files, and switch the output to exclusive (bit-perfect)
+//! mode.
 //!
 //! * Each is off until the user answers the plugin's first use with Allow
 //!   once, Always allow or Deny (Deny is what Esc and the default button
@@ -42,6 +43,10 @@ pub enum Access {
     /// setting, which takes the audio device for Tidalfast alone. Going
     /// back to shared output never asks.
     ExclusiveOutput,
+    /// `fetch` of `https://openapi.tidal.com/v2/...` as the signed-in
+    /// account (the headers of `TidalApi.getAuthHeaders()`): the app makes
+    /// the call with its own session, so the plugin never gets the token.
+    OpenApi,
 }
 
 /// The op an [`Access`] question carries when no plugin call waits for the
@@ -57,6 +62,7 @@ impl Access {
             Access::Pipe { .. } => super::Permission::ProgramPipes,
             Access::SaveAudio => super::Permission::SaveAudio,
             Access::ExclusiveOutput => super::Permission::ExclusiveOutput,
+            Access::OpenApi => super::Permission::TidalOpenApi,
         }
     }
 
@@ -68,6 +74,7 @@ impl Access {
             Access::Pipe { path } => format!("talk to another program over {path}"),
             Access::SaveAudio => "save TIDAL songs as files".into(),
             Access::ExclusiveOutput => "switch the output to exclusive (bit-perfect) mode".into(),
+            Access::OpenApi => "use TIDAL's official API as your account".into(),
         }
     }
 }
@@ -348,6 +355,7 @@ mod tests {
             Access::GlobalShortcuts,
             Access::SaveAudio,
             Access::ExclusiveOutput,
+            Access::OpenApi,
             Access::Pipe { path: "x".into() },
         ] {
             assert_eq!(p.standing("a", &access), Standing::Ask);
@@ -412,6 +420,18 @@ mod tests {
         assert!(p.allowed("a", &Access::GlobalShortcuts));
         p.revoke("a", &Access::GlobalShortcuts);
         assert_eq!(p.standing("a", &Access::GlobalShortcuts), Standing::Ask);
+    }
+
+    #[test]
+    fn the_official_api_is_allowed_per_plugin_and_nothing_else_comes_with_it() {
+        let p = Permits::default();
+        p.ask("a", Access::OpenApi, None, 1.0);
+        p.answer(p.requests()[0].id, ProgramChoice::Once);
+        assert!(p.allowed("a", &Access::OpenApi));
+        assert!(!p.allowed("b", &Access::OpenApi), "another plugin is asked");
+        assert!(!p.allowed("a", &Access::Credentials), "not the sign-in");
+        assert_eq!(p.ask("b", Access::OpenApi, None, 2.0), Standing::Ask);
+        assert_eq!(p.requests().len(), 1);
     }
 
     #[test]

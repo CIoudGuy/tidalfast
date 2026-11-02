@@ -22,6 +22,9 @@ struct PermitHost {
     /// When set, a song's stream is these addresses, part after part (as
     /// TIDAL's DASH segments), instead of made-up bytes.
     parts: Mutex<Option<Vec<String>>>,
+    /// The calls to TIDAL's openapi the host carried out: method, address,
+    /// body.
+    open_api: Mutex<Vec<(String, String, Option<String>)>>,
 }
 
 impl LunaHost for PermitHost {
@@ -71,6 +74,43 @@ impl LunaHost for PermitHost {
     }
     fn file_dialog(&self, _: Option<&str>, _: &FileDialogRequest) -> Option<Vec<PathBuf>> {
         self.dialog.lock().unwrap().clone().map(|p| vec![p])
+    }
+    // As the app's host: only the account's placeholder headers need the
+    // user's yes. Nothing here leaves this computer.
+    fn outbound(&self, _plugin: Option<&str>, request: &NetRequest) -> NetVerdict {
+        match request {
+            NetRequest::Fetch { url, headers, .. } if url.contains("openapi.tidal.com") => {
+                match headers.get("authorization").and_then(Value::as_str) {
+                    Some("Bearer tidalfast-account") => NetVerdict::AskOpenApi,
+                    _ => NetVerdict::Respond {
+                        status: 401,
+                        headers: Vec::new(),
+                        body: Vec::new(),
+                    },
+                }
+            }
+            _ => NetVerdict::Allow,
+        }
+    }
+    fn open_api_call(&self, _plugin: Option<&str>, request: &NetRequest) -> NetVerdict {
+        let NetRequest::Fetch {
+            method, url, body, ..
+        } = request
+        else {
+            return NetVerdict::Deny("not a request".into());
+        };
+        let body = body
+            .as_deref()
+            .map(|b| String::from_utf8_lossy(b).into_owned());
+        self.open_api
+            .lock()
+            .unwrap()
+            .push((method.clone(), url.clone(), body));
+        NetVerdict::Respond {
+            status: 200,
+            headers: vec![("Content-Type".into(), "application/vnd.api+json".into())],
+            body: br#"{"data":{"id":"made-up","type":"playlists"}}"#.to_vec(),
+        }
     }
 }
 
@@ -150,6 +190,108 @@ fn start(name: &str, body: &str, host: Arc<PermitHost>) -> (Luna, PathBuf) {
     let luna = Luna::start(config(&dir), host).unwrap();
     luna.install(&format!("{base}/Compat.mjs"));
     (luna, dir)
+}
+
+/// TIDAL's official API as the account: nothing leaves before the user
+/// answers, a Deny fails the plugin's `fetch` and reaches no host call, Allow
+/// once lasts until the plugin stops, Always is kept, Revoke asks again.
+/// What the plugin has is the placeholder: the call is the app's, and a call
+/// with a token of the plugin's own asks nothing. The name of this plugin
+/// means nothing to anyone: any plugin gets the same question.
+#[test]
+fn tidals_official_api_as_the_account_is_opened_only_as_the_user_allows() {
+    let body = r#"
+R.n = (R.n ?? 0) + 1;
+const run = R.n;
+const base = "https://openapi.tidal.com/v2/";
+const auth = await lib.TidalApi.getAuthHeaders();
+const call = (path, init) => fetch(base + path, { ...init, headers: { ...auth, ...init?.headers } })
+	.then((r) => r.json().then((j) => r.status + " " + j.data.id), (e) => "ERR " + (e?.message ?? e));
+R["own" + run] = await fetch(base + "users/me", { headers: { Authorization: "Bearer own-token" } }).then((r) => r.status);
+R["read" + run] = await call("tracks/1/relationships/similarTracks");
+R["write" + run] = await call("playlists", { method: "POST", body: '{"data":{"type":"playlists"}}' });
+R.done = run;
+"#;
+    let host = Arc::new(PermitHost::default());
+    let (luna, dir) = start("AnyPlugin", body, host.clone());
+    // Run 1: asked once, nothing sent before the answer; Deny.
+    let q = question(&luna);
+    assert_eq!(
+        (q.plugin.as_str(), &q.access),
+        ("AnyPlugin", &Access::OpenApi)
+    );
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(host.open_api.lock().unwrap().is_empty(), "it waits");
+    luna.answer_permission(q.id, ProgramChoice::Deny);
+    let r = run_done(&luna, &dir, 1);
+    for key in ["read1", "write1"] {
+        let got = r[key].as_str().unwrap();
+        assert!(
+            got.starts_with("ERR") && got.contains("did not allow"),
+            "{r}"
+        );
+    }
+    assert_eq!(r["own1"], 401, "its own token asks nothing: {r}");
+    assert!(host.open_api.lock().unwrap().is_empty(), "denied");
+    no_question(&luna);
+    // Run 2: Allow once covers reads and writes until the plugin stops.
+    luna.reload("AnyPlugin");
+    let q = question(&luna);
+    luna.answer_permission(q.id, ProgramChoice::Once);
+    let r = run_done(&luna, &dir, 2);
+    assert_eq!(r["read2"], "200 made-up", "{r}");
+    assert_eq!(r["write2"], "200 made-up", "{r}");
+    assert!(saved_grants(&dir).is_empty(), "Allow once is not kept");
+    assert_eq!(
+        *host.open_api.lock().unwrap(),
+        [
+            (
+                "GET".to_string(),
+                "https://openapi.tidal.com/v2/tracks/1/relationships/similarTracks".to_string(),
+                None
+            ),
+            (
+                "POST".to_string(),
+                "https://openapi.tidal.com/v2/playlists".to_string(),
+                Some(r#"{"data":{"type":"playlists"}}"#.to_string())
+            ),
+        ]
+    );
+    let s = luna.snapshot();
+    assert!(
+        plugin(&s, "AnyPlugin")
+            .unwrap()
+            .permissions
+            .contains(&Permission::TidalOpenApi)
+    );
+    // Run 3: asked again; Always is kept and listed.
+    luna.reload("AnyPlugin");
+    let q = question(&luna);
+    luna.answer_permission(q.id, ProgramChoice::Always);
+    assert_eq!(run_done(&luna, &dir, 3)["read3"], "200 made-up");
+    assert_eq!(saved_grants(&dir), [json!({ "kind": "open_api" })]);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "AnyPlugin").is_some_and(|p| p.grants == [Access::OpenApi])
+    });
+    // Run 4: Always holds without a question.
+    luna.reload("AnyPlugin");
+    assert_eq!(run_done(&luna, &dir, 4)["write4"], "200 made-up");
+    assert!(luna.pending_permission().is_none());
+    // Revoke: asked again, and nothing goes out on a Deny.
+    luna.revoke_permission("AnyPlugin", &Access::OpenApi);
+    wait_until(&luna, 10, |s| {
+        plugin(s, "AnyPlugin").is_some_and(|p| p.grants.is_empty())
+    });
+    assert!(saved_grants(&dir).is_empty());
+    let sent = host.open_api.lock().unwrap().len();
+    luna.reload("AnyPlugin");
+    let q = question(&luna);
+    luna.answer_permission(q.id, ProgramChoice::Deny);
+    let r = run_done(&luna, &dir, 5);
+    assert!(r["read5"].as_str().unwrap().starts_with("ERR"), "{r}");
+    assert_eq!(host.open_api.lock().unwrap().len(), sent);
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The sign-in: denied by default (and not asked again in the same run),

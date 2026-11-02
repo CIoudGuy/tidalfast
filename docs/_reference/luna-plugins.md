@@ -62,7 +62,9 @@ limits" in `luna-compat.md`; the 2026-10-21 review's tests are in
   permissions are not reachable by name.
 - **Sign-in.** The TIDAL token is handed over only after the user allows
   it for that plugin; TIDAL's sign-in hosts are refused to plugin requests
-  however spelled; the token never reaches logs or plugin storage.
+  however spelled; the token never reaches logs or plugin storage. TIDAL's
+  official API (`openapi.tidal.com`) as the account is a permission of its
+  own: the app makes those calls, so the plugin never holds the token.
 - **Network.** A plugin may reach the network, the local network and this
   computer, as TidaLuna's Node code can (AltPlay reaches the user's own
   media server); every redirect hop is put to the same policy. Plugins,

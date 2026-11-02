@@ -799,6 +799,73 @@ impl LunaHost for AppHost {
         self.account_call(plugin, request, "wrote")
     }
 
+    /// A call to TIDAL's openapi the user allowed this plugin (the runtime
+    /// checked), made with the app's session: the token stays here, and
+    /// TIDAL's answer goes back as it came.
+    fn open_api_call(&self, plugin: Option<&str>, request: &NetRequest) -> NetVerdict {
+        let NetRequest::Fetch {
+            method,
+            url,
+            headers,
+            body,
+        } = request
+        else {
+            return NetVerdict::Deny("not a request".into());
+        };
+        let Some(target) = open_api_target(url).filter(|t| open_api_open(method, t)) else {
+            return NetVerdict::Deny(OPEN_API_REFUSED.into());
+        };
+        let body = match body.as_deref().map(std::str::from_utf8) {
+            Some(Ok(text)) => Some(text.to_string()),
+            Some(Err(_)) => return NetVerdict::Deny("TIDAL's API takes JSON".into()),
+            None => None,
+        };
+        let path = target.split('?').next().unwrap_or_default().to_string();
+        let method = method.to_ascii_uppercase();
+        let sent = (method.clone(), target, open_api_headers(headers), body);
+        let answer = self.tidal.as_ref().and_then(|tidal| {
+            self.tidal_pace.wait();
+            tidal.block_on(move |client| async move {
+                let (method, target, headers, body) = sent;
+                client.open_api_call(&method, &target, headers, body).await
+            })
+        });
+        // The path only: a query can carry what the plugin searched for.
+        log::info!(
+            "Luna plugin {} called {method} openapi/{path} through the app: {}",
+            plugin.unwrap_or("?"),
+            match &answer {
+                Some((status, ..)) => status.to_string(),
+                None => "no answer".into(),
+            }
+        );
+        let Some((status, body, etag)) = answer else {
+            return NetVerdict::Respond {
+                status: 503,
+                headers: Vec::new(),
+                body: Vec::new(),
+            };
+        };
+        if method != "GET"
+            && (200..300).contains(&status)
+            && let Some(changed) = open_api_playlist_changed(&path)
+        {
+            self.push(HostRequest::PlaylistChanged(changed));
+        }
+        let mut headers = vec![(
+            "Content-Type".to_string(),
+            "application/vnd.api+json".to_string(),
+        )];
+        if let Some(etag) = etag {
+            headers.push(("ETag".into(), etag));
+        }
+        NetVerdict::Respond {
+            status,
+            headers,
+            body: body.into_bytes(),
+        }
+    }
+
     /// The runtime's state or the plugins' overlay changed: the window
     /// paints it (the frame reads both as it starts), now or, in the
     /// background, with its next pass ([`AppHost::change_delay`]).
@@ -822,6 +889,20 @@ impl LunaHost for AppHost {
                     plugin.unwrap_or("?")
                 );
                 NetVerdict::Deny(denied_url(url).unwrap_or_default().into())
+            }
+            // TIDAL's official API as the account: only for a plugin the user
+            // allowed (the runtime asks; see luna/permits.rs).
+            NetRequest::Fetch {
+                method,
+                url,
+                headers,
+                ..
+            } if account_request(headers) && open_api_target(url).is_some() => {
+                if open_api_target(url).is_some_and(|t| open_api_open(method, &t)) {
+                    NetVerdict::AskOpenApi
+                } else {
+                    NetVerdict::Deny(OPEN_API_REFUSED.into())
+                }
             }
             NetRequest::Fetch {
                 method,
@@ -1031,6 +1112,65 @@ fn account_api(url: &str) -> Option<(Api, String, Query)> {
         .or_else(|| tidal_v2_collection(url).map(|(path, query)| (Api::V2, path, query)))
 }
 
+/// Why a plugin's call to openapi as the account is refused.
+const OPEN_API_REFUSED: &str = "TIDAL's streams stay behind the save-audio permission, and plugins use TIDAL's API with GET, POST, PATCH, PUT and DELETE only";
+
+/// What follows `/v2/` in a call to TIDAL's openapi, query included: only
+/// `https://openapi.tidal.com/v2/...`, on its own port, whatever else the
+/// address names. The app's session goes nowhere else.
+fn open_api_target(url: &str) -> Option<String> {
+    let parsed = url::Url::parse(url).ok()?;
+    if parsed.scheme() != "https"
+        || parsed.host_str()? != "openapi.tidal.com"
+        || parsed.port().is_some()
+    {
+        return None;
+    }
+    let path = parsed.path().strip_prefix("/v2/")?;
+    if path.is_empty() || path.contains("..") {
+        return None;
+    }
+    Some(match parsed.query() {
+        Some(query) => format!("{path}?{query}"),
+        None => path.to_string(),
+    })
+}
+
+/// Whether a plugin allowed TIDAL's openapi may make this call. Streams are
+/// the one thing left out: a plugin gets TIDAL's audio only through the
+/// save-audio permission, which never shows it a stream's address.
+fn open_api_open(method: &str, target: &str) -> bool {
+    let resource = target.split(['/', '?']).next().unwrap_or_default();
+    matches!(
+        method.to_ascii_uppercase().as_str(),
+        "GET" | "HEAD" | "POST" | "PATCH" | "PUT" | "DELETE"
+    ) && !matches!(resource, "trackManifests" | "videoManifests")
+}
+
+/// The plugin's headers TIDAL reads on an openapi call. The placeholder
+/// sign-in and everything else stay behind; the body's type is the app's.
+fn open_api_headers(headers: &serde_json::Map<String, Value>) -> Vec<(String, String)> {
+    headers
+        .iter()
+        .filter(|(k, _)| {
+            ["accept", "idempotency-key", "if-match", "if-none-match"]
+                .iter()
+                .any(|name| k.eq_ignore_ascii_case(name))
+        })
+        .filter_map(|(k, v)| Some((k.clone(), v.as_str()?.to_string())))
+        .collect()
+}
+
+/// Which playlist an openapi write changed, as [`playlist_changed`] says it
+/// for v1: `playlists` makes one, `playlists/{id}...` changes that one.
+fn open_api_playlist_changed(path: &str) -> Option<Option<String>> {
+    match path.split('/').collect::<Vec<_>>().as_slice() {
+        ["playlists"] => Some(None),
+        ["playlists", id, ..] if !id.is_empty() => Some(Some((*id).to_string())),
+        _ => None,
+    }
+}
+
 /// A call's query, `(name, value)` in order.
 type Query = Vec<(String, String)>;
 
@@ -1201,6 +1341,133 @@ mod tests {
         ] {
             assert!(denied_url(url).is_none(), "{url}");
         }
+    }
+
+    #[test]
+    fn only_openapi_itself_is_called_as_the_account() {
+        assert_eq!(
+            open_api_target("https://openapi.tidal.com/v2/tracks?filter[id]=1,2").as_deref(),
+            Some("tracks?filter[id]=1,2")
+        );
+        assert_eq!(
+            open_api_target("https://OPENAPI.tidal.com:443/v2/playlists").as_deref(),
+            Some("playlists")
+        );
+        for url in [
+            "http://openapi.tidal.com/v2/playlists",
+            "https://openapi.tidal.com:8443/v2/playlists",
+            "https://openapi.tidal.com.evil.org/v2/playlists",
+            "https://evil.org/v2/playlists",
+            "https://evil.org#openapi.tidal.com/v2/playlists",
+            "https://openapi.tidal.com@evil.org/v2/playlists",
+            "https://openapi.tidal.com/v1/playlists",
+            "https://openapi.tidal.com/v2/",
+            "https://openapi.tidal.com/v2/%2e%2e/%2e%2e/admin",
+            "https://openapi.tidal.com/v2/a/..%2f..%2fb",
+            "not an address",
+        ] {
+            assert_eq!(open_api_target(url), None, "{url}");
+        }
+    }
+
+    #[test]
+    fn a_plugin_reaches_openapi_only_behind_the_question() {
+        let host = AppHost::new(None, None);
+        let mut account = serde_json::Map::new();
+        account.insert(
+            "Authorization".into(),
+            Value::from("Bearer tidalfast-account"),
+        );
+        let fetch =
+            |method: &str, url: &str, headers: &serde_json::Map<String, Value>| NetRequest::Fetch {
+                method: method.into(),
+                url: url.into(),
+                headers: headers.clone(),
+                body: None,
+            };
+        let base = "https://openapi.tidal.com/v2";
+        for (method, path) in [
+            ("GET", "tracks/1/relationships/similarTracks"),
+            ("POST", "playlists"),
+            ("PATCH", "playlists/x"),
+            ("DELETE", "playlists/x/relationships/items"),
+        ] {
+            assert_eq!(
+                host.outbound(
+                    Some("P"),
+                    &fetch(method, &format!("{base}/{path}"), &account)
+                ),
+                NetVerdict::AskOpenApi,
+                "{method} {path}"
+            );
+        }
+        // Streams stay behind the save-audio permission, asked or not.
+        for path in [
+            "trackManifests/1?manifestType=HLS",
+            "trackManifests",
+            "videoManifests/1",
+        ] {
+            let request = fetch("GET", &format!("{base}/{path}"), &account);
+            assert!(
+                matches!(host.outbound(Some("P"), &request), NetVerdict::Deny(_)),
+                "{path}"
+            );
+            assert!(
+                matches!(host.open_api_call(Some("P"), &request), NetVerdict::Deny(_)),
+                "{path}"
+            );
+        }
+        assert!(matches!(
+            host.outbound(
+                Some("P"),
+                &fetch("TRACE", &format!("{base}/tracks"), &account)
+            ),
+            NetVerdict::Deny(_)
+        ));
+        // Without the account's headers it is any other address: the app's
+        // session is not used.
+        let own = serde_json::Map::new();
+        assert_eq!(
+            host.outbound(Some("P"), &fetch("GET", &format!("{base}/tracks"), &own)),
+            NetVerdict::Allow
+        );
+        // The placeholder elsewhere means nothing.
+        assert_eq!(
+            host.outbound(
+                Some("P"),
+                &fetch("GET", "https://evil.org/v2/tracks", &account)
+            ),
+            NetVerdict::Allow
+        );
+        // A write the user allowed changes the app's list of playlists.
+        assert_eq!(open_api_playlist_changed("playlists"), Some(None));
+        assert_eq!(
+            open_api_playlist_changed("playlists/x/relationships/items"),
+            Some(Some("x".to_string()))
+        );
+        assert_eq!(open_api_playlist_changed("userCollectionAlbums/me"), None);
+    }
+
+    #[test]
+    fn the_placeholder_sign_in_stays_behind_on_an_openapi_call() {
+        let headers = json!({
+            "Authorization": "Bearer tidalfast-account",
+            "x-tidal-token": "tidalfast-account",
+            "Accept": "application/vnd.api+json",
+            "Idempotency-Key": "key",
+            "Cookie": "a=b",
+            "content-type": "text/plain",
+        });
+        let headers = headers.as_object().unwrap();
+        let mut sent = open_api_headers(headers);
+        sent.sort();
+        assert_eq!(
+            sent,
+            [
+                ("Accept".to_string(), "application/vnd.api+json".to_string()),
+                ("Idempotency-Key".to_string(), "key".to_string()),
+            ]
+        );
     }
 
     #[test]

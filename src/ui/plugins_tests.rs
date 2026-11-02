@@ -1451,6 +1451,7 @@ fn permissions_list_the_other_grants_with_a_revoke_button_each() {
         Access::GlobalShortcuts,
         pipe.clone(),
         Access::SaveAudio,
+        Access::OpenApi,
     ];
     let mut out = Vec::new();
     let draw = |ctx: &egui::Context, events: Vec<egui::Event>, out: &mut Vec<Do>| {
@@ -1478,6 +1479,7 @@ fn permissions_list_the_other_grants_with_a_revoke_button_each() {
         "Keyboard shortcuts across your whole computer",
         r"\\.\pipe\mpvserver-1",
         "Saves TIDAL songs as files",
+        "Uses TIDAL's official API as you",
     ] {
         assert!(has_text(&tree, text), "{text}");
     }
@@ -1488,7 +1490,7 @@ fn permissions_list_the_other_grants_with_a_revoke_button_each() {
         .map(|(id, n)| (top(n).0, *id))
         .collect();
     revokes.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-    assert_eq!(revokes.len(), 4);
+    assert_eq!(revokes.len(), 5);
     // The third row is the pipe.
     out.clear();
     draw(&ctx, vec![click(revokes[2].1)], &mut out);

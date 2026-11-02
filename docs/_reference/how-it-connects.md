@@ -167,6 +167,11 @@ TidaLuna would, with no cookie or account detail, and draws the plugin's text
 in it. Fonts at other kinds of address (a file on this computer or a network
 share) are never opened.
 
+A plugin you allowed to use TIDAL's official API as you (off by default, asked
+per plugin, revocable in its Permissions) has Tidalfast call
+`https://openapi.tidal.com/v2/` for it with your session. The plugin gets
+TIDAL's answer, never your token, and no stream address.
+
 A window a plugin opens (its own `BrowserWindow`, such as miniplayer's mini
 player) can link a stylesheet on the web (`<link rel="stylesheet">`;
 miniplayer's icons come from Font Awesome on cdnjs) and the fonts that sheet

@@ -549,6 +549,29 @@ Transfer and never imported. Code: `src/luna/permits.rs`, the prompt in
   it shows `[TIDAL sign-in hidden]`. A token already handed over stays valid
   until TIDAL expires it, Revoke or not. `getAuthHeaders` keeps its
   placeholder token (the app answers those requests itself).
+- **TIDAL's official API as the account** (`fetch` of
+  `https://openapi.tidal.com/v2/...` with the headers of
+  `TidalApi.getAuthHeaders()`; owner's decision, 2026-11-02). The prompt says
+  the plugin can read the account, the email address included, and change its
+  playlists, collection and profile, and that it never gets the sign-in. Any
+  plugin asking gets the same question, reads and writes alike, once. Allowed,
+  the app makes the call with its own session and hands back TIDAL's status,
+  body and `ETag`: the token stays in the app, so Revoke takes effect at the
+  plugin's next call, unlike a handed-over sign-in. Only that host, on HTTPS
+  and its own port, under `/v2/`; the address goes out as the plugin wrote it
+  (no `countryCode` added, `userCollection*` refuses one), and only `Accept`,
+  `Idempotency-Key`, `If-Match` and `If-None-Match` go with it, never the
+  placeholder. `trackManifests` and `videoManifests` stay refused, allowed or
+  not: streams are behind the save-audio permission, which never shows an
+  address. A write to `playlists` refreshes the app's lists. The runtime
+  checks the answer again before the app makes the call, and a forked script
+  is refused. Logs get the method, path and status, never the query or an
+  answer. A call with a token of the plugin's own is any other request and
+  asks nothing. Tests: `permits_flow_tests::tidals_official_api_as_the_account_is_opened_only_as_the_user_allows`,
+  `only_openapi_itself_is_called_as_the_account` and
+  `a_plugin_reaches_openapi_only_behind_the_question` in
+  `src/plugins/luna_host.rs`,
+  `a_plugins_openapi_call_goes_out_as_written_with_the_apps_token`.
 - **System-wide shortcuts** (Electron `globalShortcut`). Windows only
   (`RegisterHotKey` on a thread of its own, `src/luna/hotkeys.rs`): allowed,
   the plugin's accelerators are taken system-wide and let go when the plugin
@@ -629,7 +652,7 @@ test (`src/luna/harden_tests.rs` unless named).
   network (UNC) pipe or path is refused before Windows would sign in to that
   host.
 - Permissions asked at first use (see "Permissions a plugin asks for"): the
-  TIDAL sign-in, system-wide shortcuts, another program's pipe and saving
+  TIDAL sign-in, TIDAL's official API as the account, system-wide shortcuts, another program's pipe and saving
   TIDAL audio are off until the user answers; the runtime checks the answer
   itself before it acts (`permits_flow_tests`).
 - Plugin requests speak HTTP/1.1 only, as Node's `https` does. Google's

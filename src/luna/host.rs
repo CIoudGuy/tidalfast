@@ -376,6 +376,10 @@ pub enum NetVerdict {
     /// the runtime then asks [`LunaHost::account_write`] to carry it out.
     /// The text says what it is.
     Ask(String),
+    /// A call to TIDAL's openapi as the account, which goes ahead only when
+    /// the user has allowed that plugin [`super::Access::OpenApi`]; the
+    /// runtime then asks [`LunaHost::open_api_call`] to carry it out.
+    AskOpenApi,
 }
 
 /// A native file dialog a plugin asked for (Electron's
@@ -509,6 +513,12 @@ pub trait LunaHost: Send + Sync + 'static {
     /// the answer the plugin gets. The default refuses.
     fn account_write(&self, _plugin: Option<&str>, _request: &NetRequest) -> NetVerdict {
         NetVerdict::Deny("plugins cannot change the account here".into())
+    }
+    /// Carry out a call to TIDAL's openapi the user allowed
+    /// ([`NetVerdict::AskOpenApi`]) with the app's own session: the answer
+    /// the plugin gets. The default refuses.
+    fn open_api_call(&self, _plugin: Option<&str>, _request: &NetRequest) -> NetVerdict {
+        NetVerdict::Deny("plugins cannot use TIDAL's API as the account here".into())
     }
     /// A native open or save dialog for a plugin (on a worker thread; it
     /// returns when the user has chosen). The paths chosen, or `None` when

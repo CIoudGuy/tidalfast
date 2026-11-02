@@ -2296,7 +2296,7 @@ It is installed and switched on; what it may do is asked when it does it, and it
                 _ => None,
             };
             let target = match host.outbound(Some(&plugin), &req) {
-                NetVerdict::Allow | NetVerdict::Respond { .. } => target,
+                NetVerdict::Allow | NetVerdict::Respond { .. } | NetVerdict::AskOpenApi => target,
                 NetVerdict::Deny(why) | NetVerdict::Ask(why) => {
                     return Err(format!("ECONNREFUSED: {why}"));
                 }
@@ -2327,7 +2327,10 @@ It is installed and switched on; what it may do is asked when it does it, and it
             let port = u16::try_from(port).map_err(|_| format!("ERR_SOCKET_BAD_PORT: {port}"))?;
             let host = inner.borrow().host.clone();
             match host.outbound(Some(&plugin), &NetRequest::Listen { port }) {
-                NetVerdict::Allow | NetVerdict::Respond { .. } | NetVerdict::Redirect(_) => {}
+                NetVerdict::Allow
+                | NetVerdict::Respond { .. }
+                | NetVerdict::Redirect(_)
+                | NetVerdict::AskOpenApi => {}
                 NetVerdict::Deny(why) | NetVerdict::Ask(why) => {
                     return Err(format!("EACCES: {why}"));
                 }
@@ -2782,6 +2785,7 @@ fn permit(inner: &S, who: &Who, arg: &str, id: f64) {
     let (access, detail) = match str_of(&a, "kind") {
         "credentials" => (super::Access::Credentials, None),
         "save_audio" => (super::Access::SaveAudio, None),
+        "open_api" => (super::Access::OpenApi, None),
         "global_shortcuts" => {
             if !super::hotkeys::SUPPORTED {
                 return settle(
@@ -2806,7 +2810,13 @@ fn permit(inner: &S, who: &Who, arg: &str, id: f64) {
         return settle(false, json!(format!("EACCES: unknown plugin {plugin}")));
     }
     match i.permits.ask(&plugin, access.clone(), detail, id) {
-        super::permits::Standing::Allowed => settle(true, json!(true)),
+        super::permits::Standing::Allowed => {
+            // Its calls run on worker threads, which do not see the record.
+            if access == super::Access::OpenApi {
+                i.used(&plugin, access.permission());
+            }
+            settle(true, json!(true))
+        }
         super::permits::Standing::Denied => settle(false, json!(denied(&access))),
         super::permits::Standing::Ask => i.dirty = true,
     }
@@ -2858,7 +2868,7 @@ fn op_async(inner: &S, who: Who, name: String, arg: String, id: f64) {
         });
         return;
     }
-    let (tx, host, http, writes, runtime) = {
+    let (tx, host, http, grants, runtime) = {
         let mut i = inner.borrow_mut();
         let http = if name == "fetch" {
             if let Some(p) = &plugin {
@@ -2871,7 +2881,11 @@ fn op_async(inner: &S, who: Who, name: String, arg: String, id: f64) {
         } else {
             None
         };
-        (i.tx.clone(), i.host.clone(), http, i.writes.clone(), i.id)
+        let grants = Grants {
+            writes: i.writes.clone(),
+            permits: i.permits.clone(),
+        };
+        (i.tx.clone(), i.host.clone(), http, grants, i.id)
     };
     // TIDAL lookups (with the user's session) and everything else (fetch)
     // each run on a small pool, a few per plugin at a time; the rest wait
@@ -2879,7 +2893,7 @@ fn op_async(inner: &S, who: Who, name: String, arg: String, id: f64) {
     let owner = plugin.clone().unwrap_or_default();
     let job = move || {
         let r = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            op_async_run(&name, &a, &*host, http, &writes, runtime)
+            op_async_run(&name, &a, &*host, http, &grants, runtime)
         }))
         .unwrap_or_else(|_| Err(format!("{name} panicked")));
         let (ok, json) = match r {
@@ -3006,13 +3020,19 @@ struct FetchCtx {
     spool: std::path::PathBuf,
 }
 
+/// What the user allowed, as the worker threads check it.
+struct Grants {
+    writes: Arc<super::writes::Grants>,
+    permits: Arc<super::permits::Permits>,
+}
+
 /// An asynchronous op on a worker thread, for a plugin of `runtime`.
 fn op_async_run(
     name: &str,
     a: &Value,
     host: &dyn LunaHost,
     http: Option<FetchCtx>,
-    writes: &super::writes::Grants,
+    grants: &Grants,
     runtime: super::RuntimeId,
 ) -> Result<Value, String> {
     let id = str_of(a, "id");
@@ -3030,12 +3050,22 @@ fn op_async_run(
                 match host.outbound(plugin, &request) {
                     // A write to the account: only for a plugin the user
                     // said yes to (its shim `fetch` asked before sending).
-                    NetVerdict::Ask(what) => match plugin.map(|p| writes.standing(p)) {
+                    NetVerdict::Ask(what) => match plugin.map(|p| grants.writes.standing(p)) {
                         Some(super::writes::Standing::Allowed) => {
                             host.account_write(plugin, &request)
                         }
                         _ => NetVerdict::Deny(format!("you did not allow this plugin to {what}")),
                     },
+                    // TIDAL's API as the account: asked by the shim's `fetch`,
+                    // checked here whatever the shim did.
+                    NetVerdict::AskOpenApi => {
+                        let access = super::Access::OpenApi;
+                        if plugin.is_some_and(|p| grants.permits.allowed(p, &access)) {
+                            host.open_api_call(plugin, &request)
+                        } else {
+                            NetVerdict::Deny(denied(&access))
+                        }
+                    }
                     verdict => verdict,
                 }
             };
@@ -3394,6 +3424,11 @@ fn fetch(
             NetVerdict::Allow | NetVerdict::Redirect(_) => {}
             NetVerdict::Deny(why) | NetVerdict::Ask(why) => {
                 return Err(format!("fetch failed: {why}"));
+            }
+            // The worker's `ask` answers these; a request that skipped it
+            // goes nowhere.
+            NetVerdict::AskOpenApi => {
+                return Err("fetch failed: not allowed".into());
             }
             NetVerdict::Respond {
                 status,
@@ -5117,6 +5152,9 @@ impl Engine {
                         let host = i.host.clone();
                         host.command(HostCommand::SetExclusiveMode(true));
                     }
+                    if answer.allowed && answer.access == super::Access::OpenApi {
+                        i.used(&answer.plugin, Permission::TidalOpenApi);
+                    }
                     for op in answer.ops {
                         if op == super::permits::NO_OP {
                             continue;
@@ -5146,7 +5184,9 @@ impl Engine {
                     super::Access::GlobalShortcuts => i.hotkeys.close_plugin(&plugin),
                     super::Access::Pipe { path } => i.net.close_pipe(&plugin, path),
                     super::Access::SaveAudio => super::audio::close_plugin(i.id, &plugin),
-                    super::Access::Credentials | super::Access::ExclusiveOutput => {}
+                    super::Access::Credentials
+                    | super::Access::ExclusiveOutput
+                    | super::Access::OpenApi => {}
                 }
                 let what = access.log_name();
                 i.log(

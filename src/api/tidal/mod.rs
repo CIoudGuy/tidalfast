@@ -245,6 +245,9 @@ struct Call {
     if_none_match: Option<String>,
     /// Extra request headers (the web player's `x-tidal-authenticated-*`).
     headers: Vec<(String, String)>,
+    /// The address goes out as written: the account's country is not added
+    /// (a plugin's own openapi call, which says where it wants one).
+    as_written: bool,
 }
 
 impl Call {
@@ -257,6 +260,7 @@ impl Call {
             json_api: None,
             if_none_match: None,
             headers: Vec::new(),
+            as_written: false,
         }
     }
 
@@ -771,7 +775,7 @@ impl TidalClient {
                 .request(call.method.clone(), &call.url)
                 .bearer_auth(&token)
                 .header("x-tidal-client-version", CLIENT_VERSION);
-            if !country.is_empty() {
+            if !country.is_empty() && !call.as_written {
                 request = request.query(&[("countryCode", country.as_str())]);
             }
             request = request.query(&call.query);
@@ -2240,6 +2244,38 @@ impl TidalClient {
                 let body = serde_json::json!({ "status": status, "userMessage": message });
                 Ok((status, body.to_string(), None))
             }
+            Err(error) => Err(error),
+        }
+    }
+
+    /// A call a Luna plugin made to openapi as the signed-in account, once
+    /// the user allowed it, answered as TIDAL answers it: the status, the
+    /// body and the `ETag`. `target` is what follows `/v2/` in the address,
+    /// query included, sent as written (some of openapi's endpoints refuse a
+    /// `countryCode`); `headers` the few of the plugin's that TIDAL reads
+    /// (never its placeholder sign-in). An error status is an answer, not an
+    /// error, and its body is TIDAL's own.
+    pub async fn open_api_call(
+        &self,
+        method: &str,
+        target: &str,
+        headers: Vec<(String, String)>,
+        body: Option<String>,
+    ) -> Result<(u16, String, Option<String>)> {
+        let method = Method::from_bytes(method.as_bytes())
+            .map_err(|_| ApiError::Decode("the request method".into()))?;
+        let mut call = Call::new(method, format!("{}/{target}", self.openapi_base));
+        call.as_written = true;
+        call.headers = headers;
+        call.json_api = body;
+        match self.send_keeping(call, true).await {
+            Ok(reply) => Ok((reply.status, reply.body, reply.etag)),
+            Err(ApiError::Status { status, message }) => {
+                let body = serde_json::json!({ "status": status, "userMessage": message });
+                Ok((status, body.to_string(), None))
+            }
+            // TIDAL's limit outlasted the waits: the plugin backs off itself.
+            Err(ApiError::RateLimited) => Ok((429, String::new(), None)),
             Err(error) => Err(error),
         }
     }

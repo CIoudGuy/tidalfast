@@ -13184,6 +13184,11 @@ mod tests {
                 "Plug wants to save TIDAL songs as files",
                 "This may break TIDAL's terms of use",
             ),
+            (
+                Access::OpenApi,
+                "Plug wants to use TIDAL's official API as you",
+                "It never gets your sign-in",
+            ),
         ];
         let text_of = |tree: &egui::accesskit::TreeUpdate| -> String {
             tree.nodes

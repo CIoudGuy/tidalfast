@@ -395,6 +395,64 @@ fn refresher() -> Arc<FakeRefresher> {
     })
 }
 
+/// A plugin's openapi call goes out as it wrote it, with the app's token and
+/// without its country added (`userCollection*` refuses one), and TIDAL's
+/// answer comes back as it came, errors included.
+#[tokio::test]
+async fn a_plugins_openapi_call_goes_out_as_written_with_the_apps_token() {
+    let (base, seen) = script(vec![
+        reply("200 OK", "ETag: \"1\"\r\n", r#"{"data":[]}"#),
+        reply("409 Conflict", "", r#"{"errors":[{"code":"X"}]}"#),
+    ])
+    .await;
+    let client = client(&base, refresher());
+    let (status, body, etag) = client
+        .open_api_call(
+            "GET",
+            "userCollectionArtists/me/relationships/items?sort=-addedAt&filter[id]=1,2",
+            vec![("Accept".into(), "application/vnd.api+json".into())],
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!((status, body.as_str()), (200, r#"{"data":[]}"#));
+    assert_eq!(etag.as_deref(), Some("\"1\""));
+    let (status, body, _) = client
+        .open_api_call(
+            "POST",
+            "playlists",
+            vec![("Idempotency-Key".into(), "key".into())],
+            Some(r#"{"data":{"type":"playlists"}}"#.into()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        (status, body.as_str()),
+        (409, r#"{"errors":[{"code":"X"}]}"#)
+    );
+    let seen = seen.lock().unwrap();
+    let read = seen[0].to_ascii_lowercase();
+    assert!(
+        seen[0].starts_with(
+            "GET /userCollectionArtists/me/relationships/items?sort=-addedAt&filter[id]=1,2 "
+        ),
+        "{read}"
+    );
+    assert!(read.contains("authorization: bearer stale"), "{read}");
+    assert!(read.contains("accept: application/vnd.api+json"), "{read}");
+    let write = seen[1].to_ascii_lowercase();
+    assert!(seen[1].starts_with("POST /playlists "), "{write}");
+    assert!(
+        write.contains("content-type: application/vnd.api+json"),
+        "{write}"
+    );
+    assert!(write.contains("idempotency-key: key"), "{write}");
+    assert!(
+        seen[1].ends_with(r#"{"data":{"type":"playlists"}}"#),
+        "{write}"
+    );
+}
+
 #[tokio::test]
 async fn an_expired_token_is_refreshed_once_and_the_request_retried() {
     let (base, seen) = script(vec![

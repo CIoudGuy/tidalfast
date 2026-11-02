@@ -1249,8 +1249,8 @@
 	// everything and answers with the button clicked (null: Esc), which the
 	// `dialog` host call hands to the waiting promise.
 	const dialogWaiters = new Map();
-	// A permission the user gives (the TIDAL sign-in, system-wide
-	// shortcuts, another program's pipe, saving TIDAL audio): resolves once
+	// A permission the user gives (the TIDAL sign-in, TIDAL's official API
+	// as the account, system-wide shortcuts, another program's pipe, saving TIDAL audio): resolves once
 	// allowed (at once when it already is), rejects with EACCES when
 	// denied. The question is asked by the app (permits.rs); `plugin` is
 	// taken by the caller before any await, and Rust checks it.
@@ -1303,6 +1303,9 @@
 		}
 		return ask;
 	};
+	// Asked before a plugin's first call to TIDAL's official API as the
+	// account (Allow once, Always allow or Deny, like the sign-in).
+	L.allowOpenApi = (plugin) => (plugin ? L.permit({ plugin, kind: "open_api" }).then(() => true, () => false) : Promise.resolve(false));
 	L.dialogAnswer = ({ id, button }) => {
 		const waiter = dialogWaiters.get(id);
 		dialogWaiters.delete(id);
