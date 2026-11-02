@@ -2626,7 +2626,7 @@ impl TidalClient {
     /// The artists TIDAL's own artist page lists under Fans Also Like, in
     /// its order (`ARTIST_SIMILAR_ARTISTS` holds the same names; v1's
     /// `artists/{id}/similar` is another, older list). Read 20 at a time up
-    /// to [`RELATED_ARTISTS`].
+    /// to `RELATED_ARTISTS`.
     pub async fn related_artists(&self, id: &str) -> Result<Vec<Artist>> {
         let url = format!(
             "{}/artists/{id}/relationships/similarArtists",
