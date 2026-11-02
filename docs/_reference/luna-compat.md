@@ -918,7 +918,10 @@ A plugin that removes a playlist row sees it stay; it would otherwise see the
 row gone for a moment and back, and remove it again. No Remix then keeps the
 remix in the queue and skips it when it comes up.
 
-Notify only (cancel has no effect): `content/LOAD_ITEM_LYRICS`,
+Notify only (cancel has no effect): `player/PRELOAD_ITEM` (`{ productId,
+productType }`, when the engine starts opening the next song ahead of the playing
+one, 15 s or the crossfade and 10 s before the end; `MediaItem.onPreload`),
+`content/LOAD_ITEM_LYRICS`,
 `content/LOAD_ITEM_LYRICS_SUCCESS` (`{ trackId, lyricsProvider, lyrics,
 subtitles }`) / `_FAIL`, `view/ENTERED_NOWPLAYING` / `EXIT_NOWPLAYING`,
 `view/REQUEST_FULLSCREEN` / `EXIT_FULLSCREEN` (when the window changes) and

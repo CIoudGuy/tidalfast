@@ -221,6 +221,19 @@ fn view_event(
     })
 }
 
+/// TIDAL's `player/PRELOAD_ITEM` for the song the engine has started to
+/// open ahead of the playing one, once for each (plugins such as RealMAX
+/// and CoverTheme get the next song ready from it); none while it opens
+/// nothing.
+fn preload_event(told: &mut Option<String>, local: &LocalState) -> Option<LunaEvent> {
+    if *told == local.preloading {
+        return None;
+    }
+    told.clone_from(&local.preloading);
+    let id = tidal_id(local.preloading.as_deref()?, "track")?;
+    Some(LunaEvent::Preload { id })
+}
+
 fn luna_repeat(mode: RepeatMode) -> LunaRepeat {
     match mode {
         RepeatMode::Off => LunaRepeat::Off,
@@ -1072,6 +1085,7 @@ impl App {
                 }
                 seen.seek_sequence = Some(seek_sequence);
             }
+            events.extend(preload_event(&mut seen.preloading, &self.local));
             let second = snap.position as u32;
             if seen.position_s != Some(second) {
                 seen.position_s = Some(second);
@@ -1775,6 +1789,36 @@ mod tests {
         assert_eq!(j["id"], 5);
         assert_eq!(j["duration"], 61);
         assert_eq!(j["title"], "Song");
+    }
+
+    /// `MediaItem.onPreload` never fired: the engine opens the next song
+    /// ahead of the playing one, but plugins were never told. They are,
+    /// once for each song it opens, and not while it opens nothing.
+    #[test]
+    fn plugins_are_told_of_the_song_the_engine_opens_ahead_once() {
+        let mut told = None;
+        let mut local = LocalState::default();
+        assert_eq!(preload_event(&mut told, &local), None);
+        local.preloading = Some("tidal:track:42".into());
+        assert_eq!(
+            preload_event(&mut told, &local),
+            Some(LunaEvent::Preload { id: "42".into() })
+        );
+        assert_eq!(preload_event(&mut told, &local), None, "told twice");
+        // Another song opened in its place (the queue changed): told again.
+        local.preloading = Some("tidal:track:43".into());
+        assert_eq!(
+            preload_event(&mut told, &local),
+            Some(LunaEvent::Preload { id: "43".into() })
+        );
+        // The next song started: nothing is open ahead, then the one after.
+        local.preloading = None;
+        assert_eq!(preload_event(&mut told, &local), None);
+        local.preloading = Some("tidal:track:43".into());
+        assert_eq!(
+            preload_event(&mut told, &local),
+            Some(LunaEvent::Preload { id: "43".into() })
+        );
     }
 
     /// Luna's `bestQuality` and `qualityTags` read a track's `audioQuality`

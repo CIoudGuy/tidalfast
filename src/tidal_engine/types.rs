@@ -245,6 +245,10 @@ pub struct LocalState {
     pub loading: bool,
     /// A newly loaded track, including another play of the same URI.
     pub track_sequence: u64,
+    /// The song the engine is opening ahead of the one playing, from the
+    /// moment it starts until the next song starts (plugins hear it as
+    /// TIDAL's `player/PRELOAD_ITEM`).
+    pub preloading: Option<String>,
     /// Another play of the same track started, and its start position has
     /// not arrived yet. The track looks unchanged, so the `Playing` or
     /// `Paused` that brings the position counts as a seek for media

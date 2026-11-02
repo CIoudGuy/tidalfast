@@ -30,6 +30,8 @@ pub(crate) struct Seen {
     /// The queue plugins were last told about: [`Seen::queue_made`] then.
     pub queue: Option<u64>,
     pub seek_sequence: Option<u64>,
+    /// The song the engine was last announced to be opening ahead.
+    pub preloading: Option<String>,
     pub position_s: Option<u32>,
     pub favorites: Option<usize>,
     pub page: Option<String>,

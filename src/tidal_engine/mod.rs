@@ -1370,6 +1370,7 @@ impl Core {
                 .is_some_and(|previous| previous.uri == track.uri);
             state.track = Some(track);
             state.track_sequence = state.track_sequence.wrapping_add(1);
+            state.preloading = None;
             state.error = None;
             state.loading = true;
             state.format = None;
@@ -2236,7 +2237,9 @@ impl Core {
         match peek {
             Advance::Track(track) => {
                 log::info!("loading {} ahead, {remaining} ms before the end", track.uri);
+                let uri = track.uri.clone();
                 self.next = Some(self.open(track, 0));
+                self.update(|state| set(&mut state.preloading, Some(uri)));
             }
             // Nothing after it yet while its context is read.
             Advance::NeedAutoplay if self.placing.is_some() => {}
