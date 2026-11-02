@@ -772,3 +772,70 @@ setTimeout(() => void (store.later = true), 300);
     luna.set_hide_settings("SetTest", false);
     wait_until(&luna, 10, |_| stored(&dir)["mounts"] == json!(2));
 }
+
+/// Every control kind store plugins use, written the way they write it:
+/// a change reaches the plugin's own store value (read by the plugin from
+/// elsewhere, not from the control), is kept across a restart, and the page
+/// draws it again from that value.
+#[test]
+fn every_control_kind_reaches_the_plugins_value_live_and_survives_a_restart() {
+    let body = r#"
+export const Settings = () => {
+	const [on, setOn] = React.useState(store.on);
+	const [n, setN] = React.useState(store.step);
+	const [name, setName] = React.useState(store.name);
+	const [mode, setMode] = React.useState(store.mode);
+	const [tok, setTok] = React.useState(store.token ?? "");
+	const [chk, setChk] = React.useState(!!store.chk);
+	const [num, setNum] = React.useState(store.raw ?? 1);
+	return h(ui.LunaSettings, { title: "All" },
+		h(ui.LunaSwitchSetting, { title: "Switch", checked: on, onChange: (_, checked) => setOn((store.on = checked)) }),
+		h(ui.LunaNumberSetting, { title: "Number", value: n, min: 0, max: 100, onNumber: (v) => setN((store.step = v)) }),
+		h(ui.LunaTextSetting, { title: "Text", value: name, onChange: (e) => setName((store.name = e.target.value)) }),
+		h(ui.LunaSecureTextSetting, { title: "Secret", value: tok, onChange: (e) => setTok((store.token = e.target.value)) }),
+		h(ui.LunaSelectSetting, { title: "Select", value: mode, onChange: (e) => setMode((store.mode = e.target.value)) }, h(ui.LunaSelectItem, { value: "a" }, "A"), h(ui.LunaSelectItem, { value: "b" }, "B")),
+		h(ui.LunaSetting, { title: "Custom check" }, h("input", { type: "checkbox", "aria-label": "Chk", checked: chk, onChange: (e) => setChk((store.chk = e.target.checked)) })),
+		h(ui.LunaSetting, { title: "Custom number" }, h("input", { type: "number", "aria-label": "Raw", value: num, onChange: (e) => setNum((store.raw = Number(e.target.value))) })));
+};
+// The plugin reads its values from elsewhere, as an event handler would.
+setInterval(() => void (store.seen = [store.on, store.step, store.name, store.token, store.mode, store.chk, store.raw].join("|")), 40);
+"#;
+    let dir = temp_dir("settings-kinds");
+    let (luna, _) = start_in(&dir, body);
+    wait_until(&luna, 30, |s| {
+        plugin(s, "SetTest").is_some_and(|p| p.settings.is_some())
+    });
+    send(&luna, "Switch", SettingValue::Bool(true));
+    send(&luna, "Number", SettingValue::Number(42.0));
+    send(&luna, "Text", SettingValue::Text("hello".into()));
+    send(&luna, "Secret", SettingValue::Text("tok".into()));
+    send(&luna, "Select", SettingValue::Json(json!("b")));
+    send(&luna, "Chk", SettingValue::Bool(true));
+    send(&luna, "Raw", SettingValue::Number(7.0));
+    wait_until(&luna, 10, |_| {
+        stored(&dir)["seen"] == json!("true|42|hello|tok|b|true|7")
+    });
+    let want = |d: &[String]| {
+        [
+            "switch:Switch=true",
+            "number:Number=42",
+            "text:Text=hello",
+            "secure:Secret=tok",
+            "select:Select=b[A,B]",
+            "switch:Chk=true",
+            "number:Raw=7",
+        ]
+        .iter()
+        .all(|w| d.contains(&w.to_string()))
+    };
+    let d = until(&luna, |d| want(d));
+    drop(luna);
+
+    let luna = Luna::start(config(&dir), Arc::new(MockHost::default())).unwrap();
+    luna.set_settings_open(true);
+    wait_until(&luna, 30, |s| {
+        plugin(s, "SetTest").is_some_and(|p| p.settings.is_some())
+    });
+    let d2 = until(&luna, |d| want(d));
+    assert_eq!(d, d2);
+}
