@@ -10389,6 +10389,51 @@ mod tests {
         app.backend.shutdown();
     }
 
+    /// The BPM and KEY headings of an artist's Top Tracks are TIDAL's
+    /// (captured): `th._bpmColumn_3455955 > span.wave-text-caption-demi` and
+    /// `th._keyColumn_5b80b57 > span...`, after the time heading, and the
+    /// words a plugin leaves in them are the ones drawn.
+    #[test]
+    fn an_artists_bpm_and_key_headings_are_tidals() {
+        use crate::luna::dom_anchors::{attr, keys};
+        let (ctx, mut app) = accessible_app("artist-bpm");
+        app.open(Page::Artist("art0".into()));
+        let tree = sent_plugin_tree(&ctx, &mut app);
+        let table = keys::list("artist:art0");
+        let heads: Vec<_> = tree
+            .nodes
+            .iter()
+            .filter(|n| n.tag == "th")
+            .map(|n| n.key.strip_prefix(&format!("{table}:")).unwrap_or(&n.key))
+            .collect();
+        assert_eq!(
+            heads,
+            [
+                "image-col",
+                "title-col",
+                "artist-col",
+                "album-col",
+                "time-col",
+                "bpm-col",
+                "key-col",
+                "buttons-col"
+            ]
+        );
+        for (cell, class, words) in [
+            ("bpm-col", "_bpmColumn_3455955", "BPM"),
+            ("key-col", "_keyColumn_5b80b57", "KEY"),
+        ] {
+            let key = format!("{table}:{cell}");
+            let th = tree.nodes.iter().find(|n| n.key == key).unwrap();
+            assert!(attr(th, "class").unwrap().contains(class), "{th:?}");
+            assert!(th.rect.is_some(), "{th:?}");
+            let label = format!("{key}:label");
+            let span = tree.nodes.iter().find(|n| n.key == label).unwrap();
+            assert_eq!(span.text.as_deref(), Some(words), "{span:?}");
+        }
+        app.backend.shutdown();
+    }
+
     /// TIDAL 2.47.0's Top Tracks are a plain table, not its media table
     /// (captured): `table._trackList_a129abb > tbody >
     /// tr[data-test=tracklist-row--selected-false]` with

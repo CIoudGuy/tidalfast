@@ -5215,16 +5215,20 @@ pub fn extra_cells(
     }
 }
 
-/// The column headings above `list`'s rows (`list:<l>:header`), its time
-/// heading (`:time-col`, which Tidal Tags clones) and its album and
-/// date-added headings when it has them, where the table drew them.
-pub fn list_header(
-    list: &str,
-    header: Rect,
-    time: Option<Rect>,
-    album: Option<Rect>,
-    added: Option<Rect>,
-) {
+/// Where a table drew the headings a plugin may look for.
+pub struct ListHeadings {
+    /// The time heading (`:time-col`, which Tidal Tags clones).
+    pub time: Option<Rect>,
+    pub album: Option<Rect>,
+    pub added: Option<Rect>,
+    /// BPM and KEY, on a table that shows them.
+    pub bpm: Option<Rect>,
+    pub key: Option<Rect>,
+}
+
+/// The column headings above `list`'s rows (`list:<l>:header`), each where
+/// the table drew it.
+pub fn list_header(list: &str, header: Rect, headings: ListHeadings) {
     if !on() {
         return;
     }
@@ -5241,9 +5245,11 @@ pub fn list_header(
         };
         let l = &mut s.frame.lists[pos];
         l.header_rect = rect(header);
-        l.time_header_rect = time.and_then(rect);
-        l.album_header_rect = album.and_then(rect);
-        l.added_header_rect = added.and_then(rect);
+        l.time_header_rect = headings.time.and_then(rect);
+        l.album_header_rect = headings.album.and_then(rect);
+        l.added_header_rect = headings.added.and_then(rect);
+        l.bpm_header_rect = headings.bpm.and_then(rect);
+        l.key_header_rect = headings.key.and_then(rect);
     });
 }
 

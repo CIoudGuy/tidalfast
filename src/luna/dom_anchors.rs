@@ -2199,6 +2199,9 @@ pub struct TrackList {
     /// playlist's, the collection's songs).
     pub album_header_rect: Option<Rect>,
     pub added_header_rect: Option<Rect>,
+    /// The BPM and KEY headings, on a table that shows them.
+    pub bpm_header_rect: Option<Rect>,
+    pub key_header_rect: Option<Rect>,
     pub rows: Vec<TrackRow>,
 }
 
@@ -5067,7 +5070,9 @@ pub fn track_list(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
 /// caption-demi` and `tbody > tr[data-test=tracklist-row--selected-false]
 /// ._rowContainer_ebb4cfc`, so `div[data-test=tracklist-row]` finds nothing
 /// on this page. The keys are the media table's: what the rows draw from
-/// them does not depend on the markup.
+/// them does not depend on the markup. Where the songs have been analysed
+/// `th._bpmColumn_3455955` and `th._keyColumn_5b80b57` follow the time
+/// heading; what TIDAL's rows hold under them was not captured.
 fn artist_track_table(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
     let table = keys::list(&list.id);
     out.push(
@@ -5095,9 +5100,25 @@ fn artist_track_table(out: &mut Vec<HostNode>, parent: &str, list: &TrackList) {
             Some("TIME"),
             list.time_header_rect,
         ),
+        (
+            "bpm-col",
+            Some("_bpmColumn_3455955"),
+            list.bpm_header_rect.map(|_| "BPM"),
+            list.bpm_header_rect,
+        ),
+        (
+            "key-col",
+            Some("_keyColumn_5b80b57"),
+            list.key_header_rect.map(|_| "KEY"),
+            list.key_header_rect,
+        ),
         ("buttons-col", None, None, None),
     ];
     for (cell, class, words, rect) in headings {
+        // BPM and KEY are headings only where the table shows them.
+        if matches!(cell, "bpm-col" | "key-col") && rect.is_none() {
+            continue;
+        }
         let key = format!("{table}:{cell}");
         let mut heading = el(key.clone(), Some(&head_row), "th").at(rect);
         if let Some(class) = class {

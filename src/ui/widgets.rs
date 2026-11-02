@@ -2941,22 +2941,57 @@ pub fn table_header(
         );
         x += cols.time;
     }
+    let mut music_rects = [None, None];
     if cols.bpm > 0.0 {
-        for (text, left) in [
-            (pgettext(locale, "column heading", "BPM"), x),
-            (pgettext(locale, "column heading", "KEY"), x + cols.bpm),
-        ] {
-            ui.painter().text(
+        for (i, (text, left, cell)) in [
+            (pgettext(locale, "column heading", "BPM"), x, "bpm-col"),
+            (
+                pgettext(locale, "column heading", "KEY"),
+                x + cols.bpm,
+                "key-col",
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            // Luna: words a plugin rewrites or hides, as the other headings'.
+            let anchor = list_key.as_ref().map(|l| format!("{l}:{cell}"));
+            let label_key = anchor.as_ref().map(|a| format!("{a}:label"));
+            if anchor
+                .iter()
+                .chain(label_key.iter())
+                .any(|k| super::plugin_dom::hidden(k))
+            {
+                continue;
+            }
+            let own = label_key
+                .as_deref()
+                .and_then(|k| match super::plugin_dom::text(k, "") {
+                    std::borrow::Cow::Owned(t) => Some(t.to_uppercase()),
+                    std::borrow::Cow::Borrowed(_) => None,
+                });
+            let drawn = ui.painter().text(
                 pos2(left, rect.center().y),
                 egui::Align2::LEFT_CENTER,
-                text,
+                own.unwrap_or_else(|| text.into_owned()),
                 font.clone(),
                 color,
             );
+            music_rects[i] = Some(drawn.expand2(vec2(4.0, 8.0)));
         }
     }
     if let Some(list) = list {
-        super::plugin_dom::list_header(list, rect, time_rect, album_rect, added_rect);
+        super::plugin_dom::list_header(
+            list,
+            rect,
+            super::plugin_dom::ListHeadings {
+                time: time_rect,
+                album: album_rect,
+                added: added_rect,
+                bpm: music_rects[0],
+                key: music_rects[1],
+            },
+        );
     }
     clicked
 }
