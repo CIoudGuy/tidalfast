@@ -745,6 +745,11 @@ struct Seen {
     played: Vec<String>,
     errors: Vec<String>,
     stopped: bool,
+    /// The song opened ahead (`LocalState::preloading`), each with the song
+    /// that was playing when the engine said so, in order.
+    ahead: Vec<(String, String)>,
+    /// A report that named the playing song as the one opened ahead.
+    ahead_is_playing: bool,
 }
 
 struct Player {
@@ -825,6 +830,13 @@ impl Player {
             && self.seen.errors.last() != Some(error)
         {
             self.seen.errors.push(error.clone());
+        }
+        if let (Some(ahead), Some(track)) = (&state.preloading, &state.track) {
+            self.seen.ahead_is_playing |= *ahead == track.uri;
+            let pair = (track.uri.clone(), ahead.clone());
+            if self.seen.ahead.last() != Some(&pair) {
+                self.seen.ahead.push(pair);
+            }
         }
         let playing = state.playback == Playback::Playing && !state.loading;
         let again = state.seek_sequence != self.last_seek && state.position_ms == 0;
@@ -928,6 +940,29 @@ fn songs_of_each_kind_play_on_into_the_next_and_stop_at_the_end() {
     // Every song reached the output, to its end: 3.6 s at 44.1 kHz.
     let frames = player.frames.load(Ordering::SeqCst);
     assert!(frames >= 44_100 * 36 / 10 - 4096, "{frames} frames");
+}
+
+/// The engine tells the app which song it has begun to open ahead of the
+/// playing one (`player/PRELOAD_ITEM` for plugins), once for each song, while
+/// the song before it plays; the song that began is no longer "ahead".
+#[test]
+fn the_engine_reports_the_song_it_opens_ahead() {
+    let songs = Arc::new(mixed_album());
+    let mut player = Player::new(quiet_config(), songs, Some(4));
+    player.play_album(None, false);
+    player.until(|seen| seen.stopped && played_count(seen) >= 3);
+    assert_eq!(
+        player.seen.ahead,
+        [
+            ("tidal:track:1".to_string(), "tidal:track:2".to_string()),
+            ("tidal:track:2".to_string(), "tidal:track:3".to_string()),
+        ]
+    );
+    assert!(
+        !player.seen.ahead_is_playing,
+        "a song began and stayed 'ahead'"
+    );
+    player.engine.shutdown();
 }
 
 #[test]
