@@ -3119,7 +3119,12 @@ pub fn sidebar(out: &mut Vec<HostNode>, side: &Sidebar, docked_view: bool) {
             // `_navigationItem_4e9deae _selected_29027d1`), which the cotton
             // candy family names whole (`[class="_navigationItem_4e9deae
             // _selected_29027d1"] { ._icon_77f3f89 { fill } }`).
-            node = node.class("_selected_29027d1").attr("aria-current", "page");
+            node = node.class("_selected_29027d1");
+            // A link's mark; the Collection button has none (captured), and
+            // a theme's `[aria-current="page"]` box does not reach it.
+            if !collection {
+                node = node.attr("aria-current", "page");
+            }
         }
         if let Some(href) = &item.href {
             node = node.attr("href", href.clone());
@@ -7279,6 +7284,31 @@ mod tests {
         let gradient = find(&tree, keys::QUALITY_GRADIENT_HIGH);
         assert_eq!(gradient.parent.as_deref(), Some(keys::QUALITY_BADGE));
         assert_eq!(attr(gradient, "class"), Some("_gradientHigh_87f2c3b"));
+    }
+
+    /// TIDAL's Collection entry is a button, selected by class alone
+    /// (captured); the links carry `aria-current`.
+    #[test]
+    fn only_the_links_of_the_sidebar_are_the_current_page() {
+        let mut frame = sample_frame();
+        for (test, label) in [
+            ("sidebar-collection-menu", "Collection"),
+            ("sidebar-feed", "Feed"),
+        ] {
+            frame.sidebar.items.push(SidebarItem {
+                test: test.into(),
+                label: label.into(),
+                href: None,
+                selected: true,
+                rect: None,
+            });
+        }
+        let tree = build(&frame);
+        let button = find(&tree, &keys::sidebar_item("sidebar-collection-menu"));
+        assert!(attr(button, "class").unwrap().contains("_selected_29027d1"));
+        assert_eq!(attr(button, "aria-current"), None);
+        let link = find(&tree, &keys::sidebar_item("sidebar-feed"));
+        assert_eq!(attr(link, "aria-current"), Some("page"));
     }
 
     /// TIDAL 2.46.0's Collection submenu is in the document whether it is
