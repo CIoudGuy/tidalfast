@@ -228,6 +228,7 @@ impl AudioControl {
                 }
                 self.reset_output.store(true, Ordering::SeqCst);
                 self.reset_processing.store(true, Ordering::SeqCst);
+                self.set_output_delay(Duration::ZERO);
                 // Previous can rewind the current track after interrupting
                 // it. Release that gate, but never close it for a seek:
                 // the decoder is already sending audio from the new position.
@@ -261,6 +262,7 @@ impl AudioControl {
         }
         self.reset_output.store(true, Ordering::SeqCst);
         self.reset_processing.store(true, Ordering::SeqCst);
+        self.set_output_delay(Duration::ZERO);
     }
 
     /// Opens the write gate once the engine has left the old decoder behind.
@@ -937,6 +939,9 @@ impl AudioSink for RodioSink {
 
     /// Never fails: the engine exits the process when a sink cannot stop.
     fn stop(&mut self) -> OutputResult<()> {
+        // Nothing waits to be heard once this is done: Play starts from an
+        // empty queue, so the lyrics must not wait for the old one.
+        self.control.set_output_delay(Duration::ZERO);
         if let Some(output) = &mut self.output {
             // The drain below plays the queue out, so the ramp is cut to
             // what is in it. During steady playback that is the whole
@@ -1666,6 +1671,33 @@ mod tests {
         }
         assert_eq!(envelope.next_gain(), 0.0);
         assert!(envelope.silent());
+    }
+
+    /// A skip, a seek and a pause leave nothing queued, so the lyrics do not
+    /// go on waiting for the queue that was there.
+    #[test]
+    fn nothing_is_waiting_to_be_heard_once_the_queue_is_gone() {
+        let queued = Duration::from_millis(1_300);
+        let control = AudioControl::new(DEFAULT_BUFFER_MS);
+        control.set_output_delay(queued);
+        control.interrupt();
+        assert_eq!(control.output_delay(), Duration::ZERO, "a skip");
+        control.track_changed();
+
+        control.set_output_delay(queued);
+        control.handle_event(OutputEvent::Seeked);
+        assert_eq!(control.output_delay(), Duration::ZERO, "a seek");
+
+        control.set_output_delay(queued);
+        let mut sink = RodioSink::new(
+            None,
+            Arc::new(|error| panic!("no audio device should be opened: {error}")),
+            Box::new(Unity),
+            DEFAULT_BUFFER_MS,
+            Arc::clone(&control),
+        );
+        assert!(sink.stop().is_ok());
+        assert_eq!(control.output_delay(), Duration::ZERO, "a pause");
     }
 
     #[test]
