@@ -624,8 +624,13 @@ fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: 
         // `blur(10px) brightness(0.4)`): the cover blurred by that much at the
         // size the box shows it (`cover`, a square cover as wide as the box's
         // longer side), soft-edged as the playlist's is. Until that copy is
-        // made the sharp cover stands in.
-        let soft = (backdrop.sharp.is_some() && blur > 0.5)
+        // made the sharp cover stands in. A theme's own blur on a
+        // playlist's box other than TIDAL's 50 (Abyss Neptune's 10 again)
+        // is the cover blurred by that much too, not the 50-point wash.
+        let playlist = matches!(app.page(), Page::Playlist(_));
+        let own_blur =
+            plugin_dom::before_blur(key).is_some_and(|b| (b - COVER_BACKDROP_BLUR).abs() > 0.5);
+        let soft = (blur > 0.5 && (backdrop.sharp.is_some() || own_blur))
             .then(|| {
                 let side = header.width().max(header.height()).max(1.0);
                 let sigma = blur * crate::images::SOFT_SIDE / side;
@@ -639,19 +644,32 @@ fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: 
                 .as_deref()
                 .is_some_and(|url| widgets::paint_backdrop_image(&layer, url, header, Some(&art)));
         let tinted = (sharp || soft.is_some())
-            .then(plugin_dom::album_art_multiply)
+            .then(|| {
+                if backdrop.sharp.is_some() {
+                    plugin_dom::album_art_multiply()
+                } else if playlist {
+                    plugin_dom::playlist_art_multiply()
+                } else {
+                    None
+                }
+            })
             .flatten();
         if let Some(texture) = soft {
-            let shade = tinted.unwrap_or_else(|| widgets::veil_shade(ALBUM_VEIL));
+            let veil = if backdrop.sharp.is_some() {
+                ALBUM_VEIL
+            } else {
+                BLURRED_VEIL
+            };
+            let shade = tinted.unwrap_or_else(|| widgets::veil_shade(veil));
             let shade = own.map_or(shade, |own| own.shade(shade));
-            widgets::paint_cover_wash_blurred(
-                &layer,
-                &texture,
-                header,
-                shade,
-                blur,
-                widgets::CENTRED,
-            );
+            // A playlist's box shows the cover's top (no
+            // `background-position`), an album's its middle.
+            let position = if playlist {
+                egui::Vec2::ZERO
+            } else {
+                widgets::CENTRED
+            };
+            widgets::paint_cover_wash_blurred(&layer, &texture, header, shade, blur, position);
         } else if let (true, Some(own)) = (sharp, own) {
             // The theme's own picture or brightness on the box.
             let (top, foot) = own.shade(tinted.unwrap_or_else(|| widgets::veil_shade(ALBUM_VEIL)));
