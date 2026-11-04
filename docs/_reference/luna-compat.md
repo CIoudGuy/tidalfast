@@ -3694,6 +3694,68 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 56 (header art against the demo's own cover, TIDAL's tokens, 2026-11-04)
+
+Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
+TIDAL. The checker's replay now lays the demo's own cover in TIDAL's header
+art box (`--img` on `._dataContainer_`), so the box is compared where it was
+left out as a picture (Lunallena's full-page backdrop was 97 % of its album
+and playlist pages). That correction alone raised the dark share from 0.96 %
+to 8.44 %, nearly all of it real differences in that box, which the fixes
+below take back.
+
+- **A playlist's header art shows the cover's top.** TIDAL's
+  `._dataContainer_9f47346::before` sets no `background-position`; an
+  album's (`50% center`) shows its middle. Look with no theme, measured: the
+  playlist page's header 26 % -> 0.5 % differing. Test:
+  `a_playlists_header_art_shows_the_covers_top`.
+- **An album's header art is multiplied by the theme's base tokens**
+  (`--wave-color-opacity-base-fill-thick` at the top,
+  `--wave-color-solid-base-fill` at the foot, `background-blend-mode:
+  multiply`): the Catppuccin flavours, Rose Pine and Black Glow tint the
+  cover. With no theme TIDAL's black, as before. Test:
+  `an_albums_header_art_takes_the_themes_base_tokens`.
+- **TIDAL's market corner tokens** (`--market-core-radius-100` is 6 px, and
+  the rest of TIDAL 2.47.0's `--market-core-radius-*`) are known, so a theme's
+  `var(--market-core-radius-100)` rounds its box (Lunallena's queue button,
+  Giorgeous' and Sunken Tidal's search field). Test:
+  `a_market_corner_token_rounds_a_themes_box`.
+- **A caption's own colour token.** TIDAL colours `[data-wave-color=
+  "textDefault"]` by `--wave-color-text-main` (and `textSecondary` by
+  `--wave-color-text-secondary`): a theme's text token reaches a playlist's
+  captions over the button's colour (the Cotton Candy Nights family). With no
+  such token Tidalfast's own colour stays. Test:
+  `a_themes_text_token_colours_a_caption`.
+- **A right border on the sidebar's wrapper** lies inside its 240 and
+  narrows the navigation, whose edge is TIDAL's divider: the divider stands
+  one point left, beside the border (Abyss Neptune). Test:
+  `a_border_on_the_sidebar_wrapper_moves_the_divider_in`.
+
+- **A theme's own gradient on that box leaves no cover** (any `background-image`
+  with no picture in it takes the place of TIDAL's gradient and `var(--img)`):
+  Cotton Candy Nights Single's clear gradient, 15.6 % -> 1.3 % with the
+  checker's correction. Test:
+  `a_themes_gradient_on_the_header_art_box_leaves_no_cover`.
+
+Numbers against the round's base, the checker as it was: dark 0.96 % -> 0.95 %
+of 305 million, no theme 0.57 % as it was, hover 1.13 % -> 1.11 %, Tidal Light
+0.67 % as it was. With the cover laid in the header art box: dark 8.44 % ->
+about 4.3 % of 361 million, no theme 7.74 % -> 0.57 %; the Catppuccin
+flavours, Rose Pine, Black Glow and Synthwave '77 about 20 % -> under 1.2 %.
+A narrow window (960, the bar alone, eight themes) is as it was.
+
+Still open: Lunallena's backdrop is TIDAL's `#main`, 2,377 points wide under
+the queue wrapper's `margin-left: calc(var(--playQueueWidth) * -1 - 480px)`,
+because TIDAL 2.47.0 declares `--playQueueWidth: 350px` on
+`div.has-footer-player` (in the capture, queue open) where Tidalfast declares
+TIDAL 2.46.0's `0px` (an earlier round's reading of the cotton candy grids); which is right for the cotton
+candy family's grids needs its own check before the variable changes. Abyss
+Neptune's own `::before` (`background-image: var(--img); filter: blur(10px)
+brightness(0.4)`) and Giorgeous' full-height box are not drawn as TIDAL draws
+them. Dark row titles on pale pages are about twice as inked per column as in
+the replay (white on black 1.25 times): the replay's headless Chromium and its
+stand-in face are not TIDAL's window, so this was measured, not changed.
+
 ### Round 55 (one-sided borders, rules of no weight, the menu's empty span, 2026-11-02)
 
 Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
