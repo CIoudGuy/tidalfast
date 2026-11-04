@@ -6098,10 +6098,11 @@ fn setup_with(
             )?;
         }
         ctx.eval::<(), _>(format!(
-            "globalThis.__lunaVersions = Object.freeze({}); globalThis.__lunaStatsOn = {}; globalThis.__lunaModuleLiterals = {}; globalThis.__lunaActionTypes = {};",
+            "globalThis.__lunaVersions = Object.freeze({}); globalThis.__lunaStatsOn = {}; globalThis.__lunaModuleLiterals = {}; globalThis.__lunaClassLiterals = {}; globalThis.__lunaActionTypes = {};",
             super::versions::js_object(),
             stats_enabled(),
             serde_json::json!(super::dom_anchors::literal_module_names()),
+            serde_json::json!(super::dom_anchors::literal_classes()),
             serde_json::json!(ACTION_TYPES)
         ))
         .catch(&ctx)

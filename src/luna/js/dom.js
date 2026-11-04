@@ -2447,12 +2447,15 @@
 	const MODULE_RE = /^_([A-Za-z][A-Za-z0-9]*)_[0-9a-f]{7}$/;
 	const GENERIC_MODULES = new Set(["container", "wrapper", "header", "title", "button", "icon", "link", "item", "items", "text", "content", "inner", "root", "list", "row", "image", "label", "cell", "column", "section", "body", "footer", "grid", "info", "name", "subtitle", "description", "actions", "active", "selected", "visible", "hidden", "small", "large", "primary", "secondary", "default", "base", "outer", "main", "img", "overlay", "background", "gradient"]);
 	const literalModules = new Set(g.__lunaModuleLiterals ?? []);
+	// Single classes kept exact where their module's other anchors are not
+	// (an album's and a playlist's header container, TIDAL's hash).
+	const literalClasses = new Set(g.__lunaClassLiterals ?? []);
 	const canonCache = new Map();
 	const canonClass = (t) => {
 		let c = canonCache.get(t);
 		if (c === undefined) {
 			const m = MODULE_RE.exec(t);
-			c = m && !GENERIC_MODULES.has(m[1]) && !literalModules.has(m[1]) ? `_${m[1]}_*` : t;
+			c = m && !GENERIC_MODULES.has(m[1]) && !literalModules.has(m[1]) && !literalClasses.has(t) ? `_${m[1]}_*` : t;
 			if (canonCache.size < 8192) canonCache.set(t, c);
 		}
 		return c;

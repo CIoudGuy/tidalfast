@@ -201,6 +201,43 @@ fn the_header_container_holds_the_captions_a_theme_nests_in_it() {
     );
 }
 
+/// A theme's header container class with another hash (the Cotton Candy
+/// Nights family's older `[class="_headerContainer_ee5acc5"]`) matches no
+/// page header in TIDAL 2.47.0, whose album and playlist carry their own
+/// hashes: its nested caption colour stays out. Tidalfast matched any
+/// `_headerContainer_` hash there, so the playlist's captions and title took
+/// it.
+#[test]
+fn a_header_container_class_of_another_hash_leaves_the_page_header_alone() {
+    use dom_anchors::keys;
+    let css = r#"/* {"name": "Old container"} */
+[data-wave-color="textDefault"] { color: rgb(9, 9, 9) !important; }
+[class="_headerContainer_abc1234"] { [data-wave-color="textDefault"] { color: rgb(203, 211, 255) !important; } }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(page) = frame.page.as_mut() {
+        page.data = Some([240.0, 92.0, 1040.0, 300.0]);
+        page.actions = vec![dom_anchors::HeaderAction {
+            test: "favorite-button".into(),
+            label: "Add".into(),
+            rect: Some([600.0, 220.0, 48.0, 48.0]),
+            icon: Some([614.0, 224.0, 20.0, 20.0]),
+            caption: Some([610.0, 248.0, 28.0, 16.0]),
+            checked: Some(false),
+        }];
+    }
+    let label = keys::page_action_label("favorite-button");
+    let (luna, o) = overlay_with("old-container.css", css, dom_anchors::build(&frame), &label);
+    luna.shutdown();
+    let color = o.hosts.get(&label).and_then(|h| h.style.color.clone());
+    assert_eq!(
+        color.as_deref(),
+        Some("rgb(9, 9, 9)"),
+        "{:?}",
+        o.hosts.get(&label)
+    );
+}
+
 /// TIDAL 2.47.0 multiplies a playlist's header art by its market black
 /// (`._dataContainer_9f47346::before { background-image: linear-gradient(
 /// color-mix(in sRGB, var(--market-core-fill-black-color) 40%, transparent)

@@ -1060,6 +1060,18 @@ pub(crate) fn literal_module_names() -> Vec<&'static str> {
         .collect()
 }
 
+/// Classes anchors carry as TIDAL's exact ones where other anchors share
+/// their module's name: a theme's class of that name with another hash does
+/// not match them (TIDAL 2.47.0's page header containers, which a theme's
+/// older `[class="_headerContainer_ee5acc5"]` misses in TIDAL, while its
+/// section headers' `_headerContainer_` still match whatever the hash).
+pub(crate) fn literal_classes() -> Vec<&'static str> {
+    ["album", "playlist"]
+        .into_iter()
+        .filter_map(|p| header_container_class(Some(p)))
+        .collect()
+}
+
 /// An album's or playlist's header box, TIDAL 2.46.0's own module for the
 /// page: themes name it by hash, and the hashes of older TIDAL builds they
 /// still carry match nothing there (the cotton candy family's
