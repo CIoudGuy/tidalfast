@@ -296,3 +296,60 @@ fn a_queue_wrapper_pulled_left_widens_the_header_art_box_past_the_window() {
     assert_eq!(span(Some("queue")), Some((0.0, 2377.0)), "queue open");
     assert_eq!(span(None), Some((0.0, 2377.0)), "queue closed");
 }
+
+/// A theme's own `blur()` on an album's header art box (Abyss Neptune's
+/// `[class^="_dataContainer_"]::before { background-image: var(--img);
+/// filter: blur(10px) brightness(0.4) }`) blurs the cover TIDAL lays there
+/// sharp: Tidalfast drew the large copy unblurred. The cover is now blurred
+/// by that much at the size the box shows it (10 points of a box about 1500
+/// wide is under 2 on the 256-point copy), its edges soft as the box's.
+#[test]
+fn a_themes_blur_on_an_albums_header_art_blurs_the_cover() {
+    use super::theme_round41_tests as r41;
+    let css = "/* {\"name\": \"Soft art\"} */ [class^=\"_dataContainer_\"]::before { background-image: var(--img); filter: blur(10px) brightness(0.4); } [class^=\"_dataContainer_\"] { scrollbar-width: none; }";
+    let (ctx, mut app) = r41::demo_app("album:alb0", Some("queue"));
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let mut o = r41::styled("soft-art.css", css, &plain, dom_anchors::keys::PAGE_DATA);
+    o.version = 2;
+    // A first pass asks for the blurred copy; it is then held, as once made.
+    let _ = super::theme_round56_tests::shapes(&ctx, &mut app, Some(o.clone()));
+    let held = app.softened_covers.hold_pending_blurs_for_test(&ctx);
+    let s = super::theme_round56_tests::shapes(&ctx, &mut app, Some(o));
+    assert_eq!(held.len(), 1, "one blurred copy asked for: {held:?}");
+    let key = &held[0];
+    // What is held under the key now (the real copy, if the fetch made one).
+    let texture = app
+        .softened_covers
+        .held_texture_for_test(key)
+        .expect("the copy is held");
+    app.backend.shutdown();
+    let sigma: f32 = key
+        .strip_prefix("blur:")
+        .and_then(|k| k.split_once(':'))
+        .and_then(|(s, _)| s.parse().ok())
+        .expect("the sigma in the key");
+    assert!((1.0..=2.5).contains(&sigma), "{key}");
+    fn meshes<'a>(shape: &'a egui::Shape, out: &mut Vec<&'a egui::Mesh>) {
+        match shape {
+            egui::Shape::Mesh(m) => out.push(m),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| meshes(s, out)),
+            _ => {}
+        }
+    }
+    let mut all = Vec::new();
+    for c in &s {
+        meshes(&c.shape, &mut all);
+    }
+    let art = all
+        .into_iter()
+        .find(|m| m.texture_id == texture)
+        .expect("the blurred copy is drawn in the header art box");
+    assert!(art.vertices.len() > 4, "soft edges: {}", art.vertices.len());
+}

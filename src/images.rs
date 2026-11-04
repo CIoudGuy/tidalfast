@@ -771,6 +771,11 @@ const COVER_BLUR: f32 = 1.5;
 /// cover about five times larger).
 const WASH_BLUR: f32 = 10.0;
 const WASH_PREFIX: &str = "wash:";
+/// A cover blurred to a theme's own `filter: blur()` on the header art box,
+/// keyed `blur:<sigma>:<uri>` (the sigma on the 256-point copy).
+const BLUR_PREFIX: &str = "blur:";
+/// The side of the copy [`blurred_image`] blurs.
+pub const SOFT_SIDE: f32 = 256.0;
 
 /// Softened covers held at once, for library artwork seen recently.
 const HELD_COVERS: usize = 64;
@@ -926,6 +931,43 @@ impl SoftenedCovers {
         );
     }
 
+    /// Holds a one-pixel white copy for every blurred cover asked for with
+    /// [`Self::blurred_to`] and not made yet; returns their keys.
+    #[cfg(test)]
+    pub(crate) fn hold_pending_blurs_for_test(&mut self, ctx: &egui::Context) -> Vec<String> {
+        let keys: Vec<String> = self
+            .pending
+            .iter()
+            .chain(self.failed.iter())
+            .chain(self.retry_at.keys())
+            .filter(|k| k.starts_with(BLUR_PREFIX))
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        for key in &keys {
+            self.pending.remove(key);
+            self.failed.remove(key);
+            self.retry_at.remove(key);
+            let image = egui::ColorImage::filled([1, 1], egui::Color32::WHITE);
+            let texture = ctx.load_texture("softened-cover", image, egui::TextureOptions::LINEAR);
+            self.textures.insert(
+                key.clone(),
+                SoftenedCover {
+                    texture,
+                    last_used: Instant::now(),
+                },
+            );
+        }
+        keys
+    }
+
+    /// The texture held under `key`.
+    #[cfg(test)]
+    pub(crate) fn held_texture_for_test(&self, key: &str) -> Option<egui::TextureId> {
+        self.textures.get(key).map(|c| c.texture.id())
+    }
+
     /// Holds a one-pixel blurred cover made in `ctx`.
     #[cfg(test)]
     pub(crate) fn hold_for_test(&mut self, ctx: &egui::Context) {
@@ -1000,6 +1042,22 @@ impl SoftenedCovers {
         self.blurred(ctx, loader, &format!("{WASH_PREFIX}{uri}"), WASH_BLUR)
     }
 
+    /// The cover for `uri` blurred by `sigma` points on its 256-point copy
+    /// (a theme's `blur(10px)` on a box ~1500 points wide is about 1.7
+    /// there), blurring it in the background the first time it is asked
+    /// for. The sigma is held in quarter steps, so a window resized a
+    /// little keeps the copy it has.
+    pub fn blurred_to(
+        &mut self,
+        ctx: &egui::Context,
+        loader: &ArtLoader,
+        uri: &str,
+        sigma: f32,
+    ) -> Option<egui::TextureHandle> {
+        let sigma = ((sigma * 4.0).round() / 4.0).clamp(0.25, 40.0);
+        self.blurred(ctx, loader, &format!("{BLUR_PREFIX}{sigma}:{uri}"), sigma)
+    }
+
     fn blurred(
         &mut self,
         ctx: &egui::Context,
@@ -1022,7 +1080,15 @@ impl SoftenedCovers {
         {
             return None;
         }
-        let source = uri.strip_prefix(WASH_PREFIX).unwrap_or(uri).to_string();
+        let source = uri
+            .strip_prefix(WASH_PREFIX)
+            .or_else(|| {
+                uri.strip_prefix(BLUR_PREFIX)?
+                    .split_once(':')
+                    .map(|(_, u)| u)
+            })
+            .unwrap_or(uri)
+            .to_string();
         if !is_http(&source) {
             self.failed.insert(uri.to_string());
             return None;
@@ -1058,7 +1124,8 @@ fn blurred_background(bytes: &[u8], sigma: f32) -> Option<egui::ColorImage> {
 }
 
 fn blurred_image(image: image::DynamicImage, sigma: f32) -> egui::ColorImage {
-    let image = image.thumbnail(256, 256).blur(sigma).to_rgba8();
+    let side = SOFT_SIDE as u32;
+    let image = image.thumbnail(side, side).blur(sigma).to_rgba8();
     egui::ColorImage::from_rgba_unmultiplied(
         [image.width() as usize, image.height() as usize],
         image.as_raw(),
