@@ -148,6 +148,36 @@ fn a_market_corner_token_rounds_a_themes_box() {
     assert_eq!(radius.as_deref().map(str::trim), Some("6px"));
 }
 
+/// A caption's colour token: TIDAL 2.47.0 colours `[data-wave-color=
+/// "textDefault"]` by `--wave-color-text-main`, so a theme's text token reaches a
+/// playlist's Share caption, which would otherwise take its button's
+/// colour (the Cotton Candy Nights family). A theme without the token
+/// leaves the caption to Tidalfast.
+#[test]
+fn a_themes_text_token_colours_a_caption() {
+    use super::theme_round38_tests::page_frame;
+    let label = dom_anchors::keys::page_action_label("share-button");
+    let caption = |name: &str, css: &str| {
+        let o = overlay_when(name, css, &page_frame("playlist"), |o| {
+            o.hosts.contains_key(dom_anchors::keys::FOOTER)
+        });
+        pd::test_overlay(Some((*o).clone()));
+        let text = pd::anchor_look(&label).and_then(|l| l.text);
+        pd::test_overlay(None);
+        text
+    };
+    let with = caption(
+        "text-token.css",
+        "/* {\"name\": \"Text token\"} */ :root { --wave-color-text-main: rgb(9, 8, 7); } button { color: rgb(200, 201, 202); } ._player_8c80ae6 { color: rgb(1, 2, 3); }",
+    );
+    assert_eq!(with, Some(egui::Color32::from_rgb(9, 8, 7)));
+    let without = caption(
+        "no-text-token.css",
+        "/* {\"name\": \"No text token\"} */ ._player_8c80ae6 { color: rgb(1, 2, 3); }",
+    );
+    assert_eq!(without, None);
+}
+
 /// TIDAL 2.47.0 multiplies an album's header art by its base tokens
 /// (`._dataContainer_66f4f40::before { background-image: linear-gradient(
 /// var(--wave-color-opacity-base-fill-thick) 0, var(--wave-color-solid-

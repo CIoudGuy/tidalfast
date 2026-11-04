@@ -448,6 +448,14 @@
 			themedTidal = new CSSStyleSheet();
 			themedTidal.replaceSync(
 				":is(._container_cb5cbe4 ._searchFieldWithPopover_267e090) .searchFieldWithinSearchFieldWithPopover { backdrop-filter: var(--frosted-glass-nav-blur, blur(20px) saturate(180%)); background: var(--frosted-glass-floating-surface, #282828bf); }\n" +
+					// A caption's own colour token (TIDAL 2.47.0's `[data-wave-color=
+					// "textDefault"]` rule): a theme's text token colours it over the
+					// button's colour it would inherit (the Cotton Candy Nights family's
+					// playlist captions). With no such token the rule says nothing and
+					// Tidalfast's own colour stays. `textSecondary` is left out: TIDAL's
+					// own class rules, which Tidalfast does not carry, beat it on the
+					// meta lines and card subtitles that have it.
+					'[data-wave-color="textDefault"] { color: var(--wave-color-text-main); }\n' +
 					// The parts TIDAL 2.47.0 colours by a class or tag of their own:
 					// a theme's lighter rule (Meteor Night's `* { color }`) does
 					// not reach them, where it does the elements inside with no
