@@ -2498,6 +2498,14 @@ pub fn build(frame: &Frame) -> HostTree {
             panel = panel.modules(&["nowPlayingVisible"]);
         }
         out.push(panel);
+        // Its wrapper is there closed too, 0 wide, beside the empty aside:
+        // a theme's margins on it still move `main`'s slot (Lunallena's
+        // `margin-left: calc(var(--playQueueWidth) * -1 - 480px)`, -480
+        // closed).
+        out.push(
+            el(keys::QUEUE_WRAPPER, Some(keys::MAIN_CONTAINER), "div")
+                .modules(&["playQueueWrapper"]),
+        );
     }
     if let Some((rect, over_now_playing)) = &frame.queue_panel {
         // TIDAL 2.46.0's `aside#playQueueSidebar[data-type=module]` (a

@@ -83,6 +83,14 @@ pub struct ThemeLayout {
     /// left its content starts, in points (Lunallena's visible sidebar
     /// build pads the page 50 so that it starts beside the card).
     pub main_inset: f32,
+    /// `#main`'s `min-width` (or `width`, the larger) in window lengths,
+    /// points; 0 where the theme gives none in points or `vw` (a
+    /// percentage is of `main`'s slot, which is its width already).
+    pub main_min_width: f32,
+    /// The play queue wrapper's left and right margins together, in points
+    /// (Lunallena's `margin-left: calc(var(--playQueueWidth) * -1 -
+    /// 480px)`), see [`ThemeLayout::main_width`].
+    pub queue_wrapper_margin: f32,
     /// `#mainHeader` lifted above the page as a tab (Snusehunden,
     /// Lunallena), which their `:hover` rules slide down.
     pub header: Option<HeaderTab>,
@@ -102,9 +110,33 @@ impl ThemeLayout {
             && self.sidebar_shift == 0.0
             && self.main_reach == 0.0
             && self.main_inset == 0.0
+            && self.main_min_width == 0.0
+            && self.queue_wrapper_margin == 0.0
             && self.header.is_none()
             && self.flow == Flow::default()
             && self.queue.is_none()
+    }
+
+    /// TIDAL's `#main` width where the theme's rules make it other than
+    /// the room beside the sidebar and the open queue: `main` fills the
+    /// content row's flex slot, the window's `window` points less the
+    /// sidebar's `sidebar` and the queue wrapper's margin box (its width
+    /// `--playQueueWidth`, 350 with the queue open and 0 closed, and its
+    /// margins), at least its `min-width`. Lunallena's wrapper margin of
+    /// -830 (-480 closed) widens it to 2377 in a 2137 window, the box its
+    /// header art covers (captured under the theme: `#main` and its
+    /// `._dataContainer_::before` 2377 wide, the queue open or closed).
+    /// `None` where the theme sets neither.
+    pub fn main_width(&self, sidebar: f32, window: f32, queue_open: bool) -> Option<f32> {
+        if self.main_min_width == 0.0 && self.queue_wrapper_margin == 0.0 {
+            return None;
+        }
+        let wrapper = if queue_open { QUEUE_WRAPPER_WIDTH } else { 0.0 };
+        let slot = window - sidebar - (wrapper + self.queue_wrapper_margin);
+        Some(
+            slot.max(self.main_min_width)
+                .clamp(0.0, 2.0 * window.max(0.0)),
+        )
     }
 }
 
@@ -495,6 +527,8 @@ pub fn resolve(
         main_inset: main
             .filter(|_| main_reach > 0.0)
             .map_or(0.0, |h| main_inset(&h.style, vars, viewport)),
+        main_min_width: main.map_or(0.0, |h| main_min_width(&h.style, vars, viewport)),
+        queue_wrapper_margin: 0.0,
         header: header
             .filter(|h| !h.hidden())
             .and_then(|h| header_tab(&h.style, vars, viewport)),
@@ -541,6 +575,32 @@ fn main_reach(style: &Style, vars: &BTreeMap<String, String>, viewport: [f32; 2]
         .into_iter()
         .any(|w| len(w, vars, vw, viewport).is_some_and(|w| w >= vw - 1.0));
     if spans { (-left).min(vw).round() } else { 0.0 }
+}
+
+/// `#main`'s `min-width` or `width` (the larger) in points, where it is a
+/// length of the window's (`100vw`) or in points; a percentage is left
+/// out.
+fn main_min_width(style: &Style, vars: &BTreeMap<String, String>, viewport: [f32; 2]) -> f32 {
+    [style.min_width.as_deref(), style.width.as_deref()]
+        .into_iter()
+        .flatten()
+        .filter(|w| !css::resolve_vars(w, vars).contains('%'))
+        .filter_map(|w| len(Some(w), vars, f32::NAN, viewport))
+        .fold(0.0_f32, f32::max)
+        .clamp(0.0, 2.0 * viewport[0].max(0.0))
+}
+
+/// The play queue wrapper's left and right margins together, in points.
+pub fn queue_wrapper_margin(
+    wrapper: Option<&HostOverride>,
+    vars: &BTreeMap<String, String>,
+    viewport: [f32; 2],
+) -> f32 {
+    let [vw, _] = viewport;
+    wrapper.filter(|h| !h.hidden()).map_or(0.0, |h| {
+        let m = margins(&h.style, vars, EM, viewport);
+        (m[1] + m[3]).clamp(-vw.max(0.0), vw.max(0.0))
+    })
 }
 
 /// `#main`'s left padding (`padding-left`, else the `padding` shorthand's

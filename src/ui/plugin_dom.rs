@@ -5913,6 +5913,11 @@ pub fn theme_layout(ctx: &egui::Context) -> Option<Arc<super::theme_layout::Them
                 &s.vars,
                 [size.x, size.y],
             );
+            layout.queue_wrapper_margin = super::theme_layout::queue_wrapper_margin(
+                hosts.get(dom_anchors::keys::QUEUE_WRAPPER),
+                &s.vars,
+                [size.x, size.y],
+            );
             layout.queue = super::theme_layout::queue_box(
                 hosts.get(dom_anchors::keys::QUEUE_WRAPPER),
                 hosts.get(dom_anchors::keys::QUEUE_PANEL),

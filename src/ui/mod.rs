@@ -672,6 +672,21 @@ fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: 
     plugin_dom::paint_host_layers(&layer, key, header);
 }
 
+/// TIDAL's `#main` box across (its left edge and width) for the page laid
+/// in `page`, where the theme's rules make its width other than the room
+/// Tidalfast gives the page ([`theme_layout::ThemeLayout::main_width`]).
+/// `main` starts its left padding before the page's content, and the
+/// sidebar's slot is what lies left of `main` and the width it reaches
+/// under the sidebar.
+fn main_box(app: &App, ctx: &egui::Context, page: Rect) -> Option<(f32, f32)> {
+    let layout = plugin_dom::theme_layout(ctx)?;
+    let window = ctx.content_rect();
+    let left = page.left() - layout.main_inset;
+    let sidebar = (left - window.left() + layout.main_reach).max(0.0);
+    let width = layout.main_width(sidebar, window.width(), app.show_queue_panel)?;
+    Some((left, width))
+}
+
 /// The page, in the room `ui` has left, reaching `under` points further
 /// down (under a floating player bar).
 fn central(app: &mut App, ui: &mut egui::Ui, under: f32) {
@@ -729,7 +744,16 @@ fn page_panel(app: &mut App, ui: &mut egui::Ui, under: f32) {
                 );
             }
             if let Some(backdrop) = cover_backdrop(app) {
-                paint_cover_backdrop(app, ui, backdrop_rect, &backdrop);
+                // The header art box is `main`'s width, which a theme's
+                // queue wrapper margins or `min-width` can take past the
+                // window (Lunallena's 2377 of 2137): the cover is scaled
+                // and centred on that box.
+                let mut art_rect = backdrop_rect;
+                if let Some((left, width)) = main_box(app, ui.ctx(), rect) {
+                    art_rect.min.x = left;
+                    art_rect.max.x = left + width;
+                }
+                paint_cover_backdrop(app, ui, art_rect, &backdrop);
             }
             if let Page::Artist(id) = app.page().clone() {
                 artist::backdrop(app, ui, backdrop_rect, &id);

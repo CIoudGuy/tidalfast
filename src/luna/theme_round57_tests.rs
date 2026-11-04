@@ -236,3 +236,63 @@ fn a_playlists_header_art_takes_the_themes_market_black() {
         "TIDAL's black without a theme"
     );
 }
+
+/// The box across of the header art's textured mesh (the cover laid on
+/// the page's top, at least 1000 wide), `None` when it is not drawn.
+fn header_art_span(shapes: &[egui::epaint::ClippedShape]) -> Option<(f32, f32)> {
+    fn meshes<'a>(shape: &'a egui::Shape, out: &mut Vec<&'a egui::Mesh>) {
+        match shape {
+            egui::Shape::Mesh(m) => out.push(m),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| meshes(s, out)),
+            _ => {}
+        }
+    }
+    let mut all = Vec::new();
+    for s in shapes {
+        meshes(&s.shape, &mut all);
+    }
+    all.into_iter()
+        .filter(|m| m.texture_id != egui::TextureId::default() && !m.vertices.is_empty())
+        .map(|m| egui::Rect::from_points(&m.vertices.iter().map(|v| v.pos).collect::<Vec<_>>()))
+        .filter(|r| r.width() >= 1000.0 && r.height() >= 300.0)
+        .max_by(|a, b| a.width().total_cmp(&b.width()))
+        .map(|r| (r.left().round(), r.width().round()))
+}
+
+/// TIDAL's `#main` fills the content row's flex slot: the window less the
+/// sidebar and the play queue wrapper's margin box. A theme that pulls the
+/// wrapper left by more than its width (Lunallena's `margin-left:
+/// calc(var(--playQueueWidth) * -1 - 480px)`, the wrapper reading TIDAL's
+/// 350 with the queue open and 0 closed) widens `main` past the window:
+/// 2377 in a 2137 window with a 240 sidebar, open or closed (captured
+/// under the theme), and the header art box, `main`'s width, scales and
+/// centres the cover on that. Tidalfast laid the box as wide as the
+/// window.
+#[test]
+fn a_queue_wrapper_pulled_left_widens_the_header_art_box_past_the_window() {
+    use super::theme_round41_tests as r41;
+    let css = r#"/* {"name": "Wide main"} */
+#main { min-width: 100vw; left: calc(var(--sidebarWidth) * -1); --playQueueWidth: 0px; }
+[class*="playQueueWrapper"] { margin-left: calc(var(--playQueueWidth) * -1 - 480px); }
+[class^="_dataContainer_"]::before { height: 100%; }
+"#;
+    let span = |show: Option<&str>| {
+        let (ctx, mut app) = r41::demo_app("album:alb0", show);
+        let plain = r41::drawn(
+            &ctx,
+            &mut app,
+            DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            },
+        );
+        let mut o = r41::styled("wide-main.css", css, &plain, dom_anchors::keys::MAIN);
+        o.version = 2;
+        crate::ui::hold_cover_backdrop_for_test(&mut app, &ctx);
+        let s = super::theme_round56_tests::shapes(&ctx, &mut app, Some(o));
+        app.backend.shutdown();
+        header_art_span(&s)
+    };
+    assert_eq!(span(Some("queue")), Some((0.0, 2377.0)), "queue open");
+    assert_eq!(span(None), Some((0.0, 2377.0)), "queue closed");
+}
