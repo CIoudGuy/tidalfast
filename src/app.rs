@@ -10745,6 +10745,7 @@ impl App {
         if !self.gate_action(&action, ctx) {
             return;
         }
+        self.mark_queue_edit(&action);
         if matches!(
             &action,
             Action::Open(_)

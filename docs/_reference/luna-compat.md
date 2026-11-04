@@ -905,11 +905,22 @@ cancel-and-redispatch cannot loop). The gate waits at most ~25 ms inline and
 | Play tracks (search result, loose list, sorted/filtered view) | `playQueue/ADD_NOW` | `{ mediaItemIds: [ids], fromIndex, context }` |
 | "Play next" / "Add to queue" on tracks | `playQueue/ADD_ALREADY_LOADED_ITEMS_TO_QUEUE` | `{ items: [ids], position: "next"\|"last", fromIndex: 0, context, sourceContext }` (ids, as filtered-queue-fix reads them) |
 | Click a "Next up" row | `playQueue/MOVE_TO` | the queue index (a number) |
-| Remove from queue, clear, shuffle button | `playQueue/REMOVE_ELEMENT`, `playQueue/CLEAR_ACTIVE_ITEMS`, `playQueue/TOGGLE_SHUFFLE` | `{ uid }` / none |
+| Remove from queue, shuffle button | `playQueue/REMOVE_ELEMENT`, `playQueue/TOGGLE_SHUFFLE` | `{ uid }` / none |
+| Drag a queue row | `playQueue/MOVE_TRACK` | `{ fromIndex, toIndex }`, numbered from the playing row, `toIndex` the place it goes before in the rows as they were |
+| Clear the queue | `playQueue/CLEAR_QUEUE_REQUESTED`, then `playQueue/CLEAR_UPCOMING` while a song plays, else `playQueue/CLEAR_QUEUE` (TIDAL's saga) | none |
+| After an add, once the queue changed | `playQueue/ADD_LAST` (`ADD_NEXT`, `ADD_AT_INDEX`), then `playQueue/ADD_STREAMABLE_ITEMS_TO_QUEUE_SUCCESS` (notify) | `{ context, mediaItemIds[, index] }` / `{ offsetNumberOfItems }` |
 | A track is about to start | `playbackControls/PREFILL_MEDIA_PRODUCT_TRANSITION` (notify) | `{ mediaProduct: { productId, productType } }` |
 | Search | `search/SET_SEARCH_PHRASE` then `search/SEARCH_COMMIT` (cancel, or rewrite and re-dispatch `SEARCH_COMMIT`) | `{ searchPhrase }` / the phrase |
 | Open a page | `router/PUSH`, then (notify) `router/NAVIGATED` and `page/SET_PAGE_ID` | `{ pathname, search, replace }` / `{ pathname, path, search, hash }` |
 | Like / unlike, add to playlist | `content/ADD_MEDIA_ITEM_IDS_TO_FAVORITES`, `content/REMOVE_MEDIA_ITEM_IDS_FROM_FAVORITES`, `content/ADD_MEDIA_ITEMS_TO_PLAYLIST` (+ `..._SUCCESS` notify) | `{ mediaItemIds, from }` / `{ playlistUUID, mediaItemIdsToAdd, onDupes, addToIndex }` |
+
+No `playQueue/RESET` follows these edits, as in TIDAL, which sends RESET only
+for a queue it loads (the cloud queue applied, the saved queue read at start,
+a remote play). Tidalfast announces RESET when the queue's rows change any
+other way, or a song other than the playing one is then at the head (the
+user's edit is marked for five seconds, `Seen::queue_edit`). The add actions
+are TIDAL's local queue saga's: its cloud-queue branch
+(`cloudQueue/ADD_ITEMS_TO_CLOUD_QUEUE`) is not emitted.
 
 `getState().playQueue.elements[].uid` is `<trackId>:<n>` (n = which copy), so a
 row keeps its uid when others before it go. A plugin's `REMOVE_ELEMENT` /

@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
@@ -16,6 +16,9 @@ use crate::luna::{
 use crate::plugins::gate::{self, GateEnv, Outcome};
 use crate::plugins::luna_host::HostRequest;
 use crate::tidal_engine::{AudioOrigin, SourceUrl};
+
+/// How long after the user's queue edit the rows it makes are taken for it.
+const QUEUE_EDIT_WINDOW: Duration = Duration::from_secs(5);
 
 /// Demo builds only: `TIDALFAST_DEMO_LUNA` runs Luna in the (offline) demo
 /// and installs the comma separated plugin URLs it lists (`1` for none), so
@@ -327,11 +330,56 @@ impl App {
                             }),
                         });
                     }
-                    self.apply_cleared(action, ctx)
+                    // An add as TIDAL's saga sends it: the add's own action
+                    // before the queue changes, the success after.
+                    let added = self.plugins.luna.is_some().then(|| {
+                        let list = match &action {
+                            Action::PlayNextContext { uri, .. } => {
+                                self.context_list(uri).map(|(ids, _)| ids)
+                            }
+                            _ => None,
+                        };
+                        gate::queue_added(&action, list.as_deref())
+                    });
+                    let added = added.unwrap_or_default();
+                    let (first, rest) = added.split_at(added.len().min(1));
+                    self.send_actions(first);
+                    self.apply_cleared(action, ctx);
+                    self.send_actions(rest);
                 }
                 Outcome::Cancelled(action) => {
                     log::info!("a Luna plugin cancelled {action:?}");
                 }
+            }
+        }
+    }
+
+    /// Note that `action` edits the queue: see [`Seen::queue_edit`].
+    pub(super) fn mark_queue_edit(&mut self, action: &Action) {
+        if self.plugins.luna.is_some()
+            && matches!(
+                action,
+                Action::AddToQueue { .. }
+                    | Action::QueueMany { .. }
+                    | Action::InsertInQueue { .. }
+                    | Action::PlayNextContext { .. }
+                    | Action::MoveInQueue { .. }
+                    | Action::RemoveFromQueue { .. }
+                    | Action::PluginRemoveFromQueue { .. }
+                    | Action::ClearQueue
+            )
+        {
+            self.plugins.seen.queue_edit = Some(Instant::now());
+        }
+    }
+
+    fn send_actions(&self, actions: &[(&'static str, Value)]) {
+        if let Some(luna) = &self.plugins.luna {
+            for (kind, payload) in actions {
+                luna.event(LunaEvent::Action {
+                    kind: (*kind).into(),
+                    payload: payload.clone(),
+                });
             }
         }
     }
@@ -350,6 +398,7 @@ impl App {
                 .set_track_list(&gate::track_list_name(&uri), ids.clone(), items);
             env.lists.insert(uri, ids);
         }
+        env.playing = matches!(action, Action::ClearQueue) && self.believed_playing();
         if gate::needs_queue(action) {
             let now = self.now_playing();
             env.queue = self
@@ -573,11 +622,24 @@ impl App {
                 && was.len() > 1
                 && rows.len() == 1
                 && same_ids(&was[..1], &rows);
+            // Nor is the queue the user's own edit made: plugins heard
+            // TIDAL's action for it (ADD_*, REMOVE_ELEMENT, MOVE_TRACK,
+            // CLEAR_*), which TIDAL does not follow with a RESET. The song
+            // playing stays the same one; another head is something else
+            // (a remote play, a loaded queue) and is announced.
+            let edited = self
+                .plugins
+                .seen
+                .queue_edit
+                .take_if(|at| at.elapsed() < QUEUE_EDIT_WINDOW)
+                .is_some()
+                && now.is_some()
+                && was.first().map(|row| &row.id) == rows.first().map(|row| &row.id);
             let told = self.plugins.seen.queue == Some(self.plugins.seen.queue_made);
             self.plugins.seen.queue_rows = Arc::new(rows);
             self.plugins.seen.queue_made += 1;
             self.plugins.seen.queue_topup = topup;
-            if (dropped || refilled || remembered || unloaded) && told {
+            if (dropped || refilled || remembered || unloaded || edited) && told {
                 self.plugins.seen.queue = Some(self.plugins.seen.queue_made);
             }
         }
@@ -2849,7 +2911,7 @@ mod tests {
                 "/Recorder.mjs".to_string(),
                 br#"export const unloads = new Set();
 var lib = luna?.core?.modules?.["@luna/lib"];
-for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK", "playbackControls/MEDIA_PRODUCT_TRANSITION", "playbackControls/TIME_UPDATE", "playbackControls/SET_VOLUME", "playQueue/SET_REPEAT_MODE", "playQueue/ENABLE_SHUFFLE_MODE", "playQueue/DISABLE_SHUFFLE_MODE", "playQueue/RESET", "player/PRELOAD_ITEM"])
+for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK", "playbackControls/MEDIA_PRODUCT_TRANSITION", "playbackControls/TIME_UPDATE", "playbackControls/SET_VOLUME", "playQueue/SET_REPEAT_MODE", "playQueue/ENABLE_SHUFFLE_MODE", "playQueue/DISABLE_SHUFFLE_MODE", "playQueue/RESET", "player/PRELOAD_ITEM", "playQueue/ADD_LAST", "playQueue/ADD_NEXT", "playQueue/ADD_AT_INDEX", "playQueue/ADD_STREAMABLE_ITEMS_TO_QUEUE_SUCCESS", "playQueue/REMOVE_ELEMENT", "playQueue/MOVE_TRACK", "playQueue/CLEAR_QUEUE_REQUESTED", "playQueue/CLEAR_UPCOMING", "playQueue/CLEAR_QUEUE"])
 	lib.redux.intercept(t, unloads, (p) => console.log("EV " + t + " " + JSON.stringify(t.endsWith("TRANSITION") ? p.mediaProduct.productId : t.endsWith("RESET") ? p.elements.length : (p ?? null))));
 "#
                 .to_vec(),
@@ -3071,6 +3133,83 @@ for (const t of ["playbackControls/SET_PLAYBACK_STATE", "playbackControls/SEEK",
         // later: not a queue change either. One added by the user is.
         app.queue = queue(2, 3..9);
         assert!(step(&mut app, &now).is_empty(), "the queue's top-up");
+        app.queue = queue(2, 3..10);
+        assert_eq!(step(&mut app, &now), said(&["playQueue/RESET 8"]));
+        // The user's own edits are TIDAL's own actions and no RESET: TIDAL
+        // sends one only for a queue it loads (the cloud's, the saved one, a
+        // remote play), not after an add, a remove, a move or a clear.
+        let ctx = egui::Context::default();
+        app.apply(
+            Action::AddToQueue {
+                uri: "tidal:track:40".into(),
+                label: "Song 40".into(),
+            },
+            &ctx,
+        );
+        assert_eq!(
+            step(&mut app, &now),
+            said(&[
+                "playQueue/ADD_LAST {\"context\":{\"type\":\"UNKNOWN\"},\"mediaItemIds\":[40]}",
+                "playQueue/ADD_STREAMABLE_ITEMS_TO_QUEUE_SUCCESS {\"offsetNumberOfItems\":1}",
+            ])
+        );
+        app.apply(
+            Action::InsertInQueue {
+                items: vec![song(41)],
+                position: 0,
+            },
+            &ctx,
+        );
+        let said_next = step(&mut app, &now);
+        assert_eq!(
+            said_next,
+            said(&[
+                "playQueue/ADD_NEXT {\"context\":{\"type\":\"UNKNOWN\"},\"mediaItemIds\":[41]}",
+                "playQueue/ADD_STREAMABLE_ITEMS_TO_QUEUE_SUCCESS {\"offsetNumberOfItems\":1}",
+            ])
+        );
+        let (_, rows) = {
+            let q = app.luna_queue(Some("tidal:track:2"));
+            (0, q.iter().map(|r| r.id.clone()).collect::<Vec<_>>())
+        };
+        assert_eq!(&rows[..3], ["2", "40", "41"], "rows: {rows:?}");
+        app.apply(
+            Action::RemoveFromQueue {
+                rows: vec![(0, "tidal:track:40".into())],
+            },
+            &ctx,
+        );
+        let removed = step(&mut app, &now);
+        assert!(
+            removed.len() == 1 && removed[0].starts_with("playQueue/REMOVE_ELEMENT {\"uid\":"),
+            "a removed row: TIDAL's action, no RESET: {removed:?}"
+        );
+        app.apply(
+            Action::AddToQueue {
+                uri: "tidal:track:42".into(),
+                label: "Song 42".into(),
+            },
+            &ctx,
+        );
+        assert_eq!(step(&mut app, &now).len(), 2);
+        app.apply(Action::MoveInQueue { from: 0, to: 2 }, &ctx);
+        assert_eq!(
+            step(&mut app, &now),
+            said(&["playQueue/MOVE_TRACK {\"fromIndex\":1,\"toIndex\":3}"])
+        );
+        app.optimistic_playing = Some((true, std::time::Instant::now()));
+        app.apply(Action::ClearQueue, &ctx);
+        assert_eq!(
+            step(&mut app, &now),
+            said(&[
+                "playQueue/CLEAR_QUEUE_REQUESTED null",
+                "playQueue/CLEAR_UPCOMING null",
+            ])
+        );
+        // A queue that changes any other way is still a RESET (the edit's
+        // mark is spent or five seconds old by then; the clear's rows came
+        // with the engine's answer, which this test does not run).
+        app.plugins.seen.queue_edit = None;
         app.queue = queue(2, 3..10);
         assert_eq!(step(&mut app, &now), said(&["playQueue/RESET 8"]));
         // Repeat one: the same song again is a transition again, as TIDAL

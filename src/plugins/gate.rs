@@ -102,6 +102,8 @@ pub struct GateEnv {
     pub queue: Vec<(String, String)>,
     /// Track ids saved to the library.
     pub saved: HashSet<String>,
+    /// A song is playing (what TIDAL's clear-queue saga asks).
+    pub playing: bool,
 }
 
 fn id_value(id: &str) -> Value {
@@ -259,7 +261,26 @@ pub fn redux_actions(action: &Action, env: &GateEnv) -> Vec<(&'static str, Value
             .filter_map(|(i, _)| env.queue.get(i + 1))
             .map(|(uid, _)| ("playQueue/REMOVE_ELEMENT", json!({ "uid": uid })))
             .collect(),
-        Action::ClearQueue => vec![("playQueue/CLEAR_ACTIVE_ITEMS", Value::Null)],
+        // The queue panel's button asks; TIDAL's saga clears what is to come
+        // while a song plays and the whole queue otherwise.
+        Action::ClearQueue => vec![
+            ("playQueue/CLEAR_QUEUE_REQUESTED", Value::Null),
+            (
+                if env.playing {
+                    "playQueue/CLEAR_UPCOMING"
+                } else {
+                    "playQueue/CLEAR_QUEUE"
+                },
+                Value::Null,
+            ),
+        ],
+        // The panel's drag: `toIndex` is the place the row goes before, in
+        // the rows as they were (TIDAL's reducer takes the moved row out
+        // after it is put in). Rows are numbered from the playing one.
+        Action::MoveInQueue { from, to } => vec![(
+            "playQueue/MOVE_TRACK",
+            json!({ "fromIndex": from + 1, "toIndex": to + 1 }),
+        )],
         Action::ToggleShuffle => vec![("playQueue/TOGGLE_SHUFFLE", Value::Null)],
         Action::Search(phrase) if !phrase.trim().is_empty() => vec![
             (
@@ -338,6 +359,63 @@ pub fn needs_list(action: &Action) -> Option<String> {
 /// Whether the action reads the queue's rows.
 pub fn needs_queue(action: &Action) -> bool {
     matches!(action, Action::RemoveFromQueue { .. })
+}
+
+/// What TIDAL's saga says once a song is in the queue: the add's own action
+/// and `ADD_STREAMABLE_ITEMS_TO_QUEUE_SUCCESS` with how many it added
+/// (plugins refresh their view of what is next on that one). `list` is the
+/// ids of a context's loaded tracks, for the actions that add a context.
+/// Empty for any other action.
+pub fn queue_added(action: &Action, list: Option<&[String]>) -> Vec<(&'static str, Value)> {
+    let (kind, extra, context, ids) = match action {
+        Action::AddToQueue { uri, .. } => (
+            "playQueue/ADD_LAST",
+            None,
+            json!({ "type": "UNKNOWN" }),
+            track_ids([uri.as_str()]),
+        ),
+        Action::QueueMany { songs } => (
+            "playQueue/ADD_LAST",
+            None,
+            json!({ "type": "UNKNOWN" }),
+            track_ids(songs.iter().map(|(uri, _)| uri.as_str())),
+        ),
+        Action::InsertInQueue { items, position } => (
+            if *position == 0 {
+                "playQueue/ADD_NEXT"
+            } else {
+                "playQueue/ADD_AT_INDEX"
+            },
+            (*position > 0).then_some(*position + 1),
+            json!({ "type": "UNKNOWN" }),
+            track_ids(items.iter().map(|i| i.uri())),
+        ),
+        Action::PlayNextContext { uri, .. } => match list {
+            Some(list) => (
+                "playQueue/ADD_NEXT",
+                None,
+                context_of(uri),
+                list.iter().map(|id| id_value(id)).collect(),
+            ),
+            None => return Vec::new(),
+        },
+        _ => return Vec::new(),
+    };
+    if ids.is_empty() {
+        return Vec::new();
+    }
+    let count = ids.len();
+    let mut payload = json!({ "context": context, "mediaItemIds": ids });
+    if let Some(index) = extra {
+        payload["index"] = json!(index);
+    }
+    vec![
+        (kind, payload),
+        (
+            "playQueue/ADD_STREAMABLE_ITEMS_TO_QUEUE_SUCCESS",
+            json!({ "offsetNumberOfItems": count }),
+        ),
+    ]
 }
 
 /// The track an action is about to start, when it names one: plugins get
@@ -570,6 +648,63 @@ mod tests {
             remove[0],
             ("playQueue/REMOVE_ELEMENT", json!({ "uid": "7:0" }))
         );
+        // The panel's drag and its clear button, as TIDAL's own sends them.
+        let moved = redux_actions(&Action::MoveInQueue { from: 0, to: 2 }, &env);
+        assert_eq!(
+            moved,
+            vec![(
+                "playQueue/MOVE_TRACK",
+                json!({ "fromIndex": 1, "toIndex": 3 })
+            )]
+        );
+        let kinds = |env: &GateEnv| -> Vec<&'static str> {
+            redux_actions(&Action::ClearQueue, env)
+                .into_iter()
+                .map(|(kind, _)| kind)
+                .collect()
+        };
+        assert_eq!(
+            kinds(&GateEnv {
+                playing: true,
+                ..GateEnv::default()
+            }),
+            [
+                "playQueue/CLEAR_QUEUE_REQUESTED",
+                "playQueue/CLEAR_UPCOMING"
+            ]
+        );
+        assert_eq!(
+            kinds(&env),
+            ["playQueue/CLEAR_QUEUE_REQUESTED", "playQueue/CLEAR_QUEUE"]
+        );
+        // What follows an add: its own action, then the saga's success.
+        let added = queue_added(
+            &Action::AddToQueue {
+                uri: "tidal:track:5".into(),
+                label: String::new(),
+            },
+            None,
+        );
+        assert_eq!(added[0].0, "playQueue/ADD_LAST");
+        assert_eq!(added[0].1["mediaItemIds"], json!([5]));
+        assert_eq!(
+            added[1],
+            (
+                "playQueue/ADD_STREAMABLE_ITEMS_TO_QUEUE_SUCCESS",
+                json!({ "offsetNumberOfItems": 1 })
+            )
+        );
+        let next = queue_added(
+            &Action::PlayNextContext {
+                uri: "tidal:album:3".into(),
+                label: String::new(),
+            },
+            Some(&["8".to_string(), "9".to_string()]),
+        );
+        assert_eq!(next[0].0, "playQueue/ADD_NEXT");
+        assert_eq!(next[0].1["mediaItemIds"], json!([8, 9]));
+        assert_eq!(next[1].1, json!({ "offsetNumberOfItems": 2 }));
+        assert!(queue_added(&Action::ClearQueue, None).is_empty());
         let jump = redux_actions(
             &Action::PlayFromRow {
                 context: RowContext::Queue,

@@ -61,6 +61,10 @@ pub(crate) struct Seen {
     /// dropped the head: a song added at the end up to it is the queue
     /// getting its length back, not a change.
     pub queue_topup: Option<usize>,
+    /// When the user last edited the queue (add, remove, move, clear): the
+    /// plugins already heard TIDAL's own action for it, so the rows it makes
+    /// again are not announced a second time as `playQueue/RESET`.
+    pub queue_edit: Option<std::time::Instant>,
     /// Queue tracks as TIDAL JSON, and the queue ([`Seen::queue_made`]) and
     /// cached track count they were built from.
     pub items_key: Option<(u64, usize)>,
