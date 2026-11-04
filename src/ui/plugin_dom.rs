@@ -9000,10 +9000,13 @@ fn frost(ui: &egui::Ui, rect: Rect, radius: f32) {
 pub fn before_image_removed(key: &str) -> bool {
     host(key, |h, _| {
         let b = h.before.as_ref()?;
+        // Any picture layers of the theme's own take the place of TIDAL's
+        // gradient and cover (`var(--img)`): `none`, or a gradient alone
+        // (Cotton Candy Nights Single's clear one), leaves no cover.
         (b.hidden()
             || b.background_image
                 .as_deref()
-                .is_some_and(|v| v.trim().eq_ignore_ascii_case("none")))
+                .is_some_and(|v| !v.to_ascii_lowercase().contains("url(")))
         .then_some(())
     })
     .is_some()

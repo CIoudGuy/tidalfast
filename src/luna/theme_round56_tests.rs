@@ -282,3 +282,31 @@ fn a_border_on_the_sidebar_wrapper_moves_the_divider_in() {
     let css = "/* {\"name\": \"Wrapper edge\"} */ [data-test=\"main-layout-sidebar-wrapper\"] { border-right: rgb(25, 25, 25) 1px solid; }";
     assert_eq!(divider(Some(css)), plain - 1.0);
 }
+
+/// A theme's own picture layers on TIDAL's header art box take the place of
+/// TIDAL's gradient and cover (`background-image: linear-gradient(...),
+/// var(--img)`): a gradient alone (Cotton Candy Nights Single's clear one on
+/// `div._dataContainer_66f4f40::before`) leaves no cover, and TIDAL shows the
+/// page's black there. Tidalfast still laid the cover.
+#[test]
+fn a_themes_gradient_on_the_header_art_box_leaves_no_cover() {
+    let (ctx, mut app) = r41::demo_app("album:alb0", None);
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let css = "/* {\"name\": \"Clear art\"} */ div._dataContainer_66f4f40::before { background-image: linear-gradient(0deg, rgba(1, 2, 3, 0), rgba(1, 2, 3, 0)); } div._dataContainer_66f4f40 { scrollbar-width: none; }";
+    let mut o = r41::styled("clear-art.css", css, &plain, dom_anchors::keys::PAGE_DATA);
+    o.version = 2;
+    crate::ui::hold_cover_backdrop_for_test(&mut app, &ctx);
+    let s = shapes(&ctx, &mut app, Some(o));
+    app.backend.shutdown();
+    assert!(
+        header_art(&s).is_none(),
+        "no cover under the theme's gradient"
+    );
+}
