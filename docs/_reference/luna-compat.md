@@ -17,7 +17,7 @@ ones, and each row says which round last verified it. How a round worked is unde
 
 | | ✅ live | ✅ tests only | 🔑 your permission | ⛔ by design | ⚠️ external | ❌ open | total |
 |---|---|---|---|---|---|---|---|
-| Plugins | 74 | 2 | 8 | 4 | 1 | 3 | 92 |
+| Plugins | 76 | 2 | 8 | 4 | 1 | 2 | 93 |
 | Catalogue themes | 52 | 0 | 0 | 0 | 0 | 0 | 52 |
 
 Since 2026-10-20 (a project decision) seven plugins that were refused by design
@@ -228,15 +228,17 @@ animated cover TIDAL plays where the demo has a picture) or TIDAL's
 minimised window, which renders no frames (fades and observers that wait
 for one). No status changed.
 
-Open gaps (❌): TidalDJ and @imp/local-files, new in plugin round 14, and
-@visiuun/true-taste, new in plugin round 16 (see their rows). Before them: none. betterFullscreen's own view, open in plugin round 5,
+Open gaps (❌): @imp/local-files, new in plugin round 14, and
+@visiuun/true-taste, new in plugin round 16 (see their rows). TidalDJ, open
+since round 14, is live since plugin round 38, and TidalPlaylistRescue, new
+in the store after round 31, is live for its reads (round 38). Before them: none. betterFullscreen's own view, open in plugin round 5,
 renders since plugin round 6 (TIDAL 2.46.0's now-playing and fullscreen
 sections, see its row). qr-share's overlay, open in round 20, is drawn since
 round 21 (batch 3). Before it the last three closed in round 17: Hunminjeongeum and
 LangRomanizer were seen working live on a Korean song, and DesktopConnect is a
 by-design refusal (it needs TIDAL's closed remote-desktop code).
 
-Nothing is open in the plugin rows; the by-design refusals are
+Besides those two, nothing is open in the plugin rows; the by-design refusals are
 DesktopConnect (TIDAL's closed remote-desktop controller), TidalMediaControls' native addon,
 ScrobbleFix's Last.fm credentials and playlist-indicator's TIDAL web modal.
 Since 2026-10-24 a plugin's own `BrowserWindow` opens as a native window
