@@ -801,7 +801,8 @@ body { background-color: var(--wave-color-solid-base-fill); background-image: li
         assert_eq!(dark.sidebar, Color32::from_rgb(0x33, 0x44, 0x55));
         // `1em` corners of TIDAL's 14-point bar.
         assert_eq!(dark.bar_float, Some([35.0, 10.0, 14.0]));
-        assert_eq!(dark.side_float, Some([18.0, 20.0]));
+        // `2vh` of TIDAL's window, 30 points taller than the 900 shown.
+        assert_eq!(dark.side_float, Some([19.0, 20.0]));
         assert!(matches!(dark.layers.as_slice(), [PageLayer::Linear { .. }]));
         let light = resolve(css, true);
         assert_eq!(light.window, Color32::from_rgb(0xf0, 0xf0, 0xf8));

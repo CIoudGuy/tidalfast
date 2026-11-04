@@ -52,10 +52,15 @@ impl Floating {
 
     /// The card in a column `column` points tall: a height of its own ends
     /// it that far under its top; without one it ends as far off the
-    /// column's foot as its top is off the column's top.
+    /// column's foot as its top is off the column's top. The room under a
+    /// card of its own height is whatever its height leaves, not a gap the
+    /// theme sets, so it is held to the margin's range only (Lunallena's
+    /// visible sidebar card, `76vh` of TIDAL's 1183-point window, leaves
+    /// about 100 above a floating bar).
     pub fn fitted(mut self, column: f32) -> Self {
         if let Some(height) = self.height {
-            self.gaps.bottom = gap(column - f32::from(self.gaps.top) - height);
+            let room = column - f32::from(self.gaps.top) - height;
+            self.gaps.bottom = room.clamp(0.0, f32::from(i8::MAX)).round() as i8;
         }
         self
     }
@@ -843,8 +848,12 @@ fn side_card(
     vars: &BTreeMap<String, String>,
     viewport: [f32; 2],
 ) -> Option<Floating> {
+    // Window lengths (`76vh`) are of TIDAL's window, which holds its
+    // 30-point title bar above the page Tidalfast's window shows; a
+    // percentage is of the content row, Tidalfast's window.
+    let tidal = [viewport[0], viewport[1] + TITLE_BAR];
     let top = if offsets_apply(style) {
-        len(style.top.as_deref(), vars, viewport[1], viewport).unwrap_or(0.0)
+        len(style.top.as_deref(), vars, viewport[1], tidal).unwrap_or(0.0)
     } else {
         0.0
     };
@@ -858,13 +867,8 @@ fn side_card(
     // whole window: it shows TIDAL's page from the title bar's foot down
     // (see [`Flow::row`]). Without a height, a card as far off the bottom
     // as the top.
-    let height = len(
-        style.height.as_deref(),
-        vars,
-        viewport[1].max(0.0),
-        viewport,
-    )
-    .filter(|h| *h > 0.0);
+    let height =
+        len(style.height.as_deref(), vars, viewport[1].max(0.0), tidal).filter(|h| *h > 0.0);
     let top = gap(top);
     Some(Floating {
         gaps: Margin {
@@ -1151,13 +1155,14 @@ mod tests {
         assert_eq!(bar.shadow, Shadow::NONE);
         assert_eq!(bar.height_or(88.0), 88.0);
         let side = l.sidebar.unwrap();
+        // `2vh` of TIDAL's window, 30 taller than Tidalfast's 900.
         assert_eq!(
             side.gaps,
             Margin {
                 left: 0,
                 right: 0,
-                top: 18,
-                bottom: 18
+                top: 19,
+                bottom: 19
             }
         );
         assert_eq!(
@@ -1169,6 +1174,30 @@ mod tests {
                 sw: 0
             }
         );
+    }
+
+    /// A sidebar card of its own height (Lunallena's visible sidebar build,
+    /// `top: 2vh; height: 76vh`) is TIDAL's window lengths high, 899 of its
+    /// 1183-point window (captured: 53.7 to 952.7 under the 30-point title
+    /// bar), and ends that far under its top: the room left under it is
+    /// not held to the 64 points a theme may move a box in by. Tidalfast
+    /// took `vh` of its own window, 30 shorter, and held the room to 64,
+    /// so the card ran about 40 points too far down.
+    #[test]
+    fn a_sidebar_card_of_its_own_height_ends_there() {
+        let vars = BTreeMap::new();
+        let side = host(&[
+            ("top", "2vh"),
+            ("height", "76vh"),
+            ("border-radius", "0 20px 20px 0"),
+        ]);
+        let l = resolve(None, Some(&side), None, None, &vars, [2137.0, 1153.0]);
+        let card = l.sidebar.unwrap();
+        assert!((card.height.unwrap() - 899.08).abs() < 0.01, "{card:?}");
+        assert_eq!(card.gaps.top, 24);
+        // In a 1030-point column (above the player bar).
+        let fitted = card.fitted(1030.0);
+        assert_eq!(fitted.gaps.bottom, 107);
     }
 
     /// Cotton candy's base: `width: 200%` held to `98.3vw` by `max-width`
