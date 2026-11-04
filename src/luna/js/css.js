@@ -834,7 +834,11 @@
 							const subject = hoverSubject(sel.steps[last].c);
 							sel.steps.forEach((st, i) => {
 								const next = sel.steps[i + 1]?.comb;
-								hoverAt(st.c, i === last ? "self" : next === "+" ? "next" : next === "~" ? "side" : "down", subject, sib, found);
+								// `.a:hover + .b + .c` and `.a:hover + .b ~ .c` reach
+								// past the next sibling: any later one, as `~` does.
+								const further = sel.steps.slice(i + 2).some((s) => s.comb === "+" || s.comb === "~");
+								const how = i === last ? "self" : next === "+" && !further ? "next" : next === "+" || next === "~" ? "side" : "down";
+								hoverAt(st.c, how, subject, sib, found);
 							});
 							// One this cannot see (`:nth-child(2 of :hover)`): any
 							// element. A selector of the list without `:hover`

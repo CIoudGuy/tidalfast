@@ -7625,6 +7625,8 @@ st.textContent = `
 .t .h:hover .x { background-color: rgb(2, 0, 0); }
 .t .a:hover + .b { border-top-color: rgb(3, 0, 0); }
 .t .a:hover ~ .c span { opacity: 0.5; }
+.t .a:hover + .b + .c { padding-right: 4px; }
+.t .a:hover + * ~ .y { padding-bottom: 5px; }
 .t li:hover > i { margin-left: 1px; }
 .t :hover > .y { padding-top: 2px; }
 .t .b:is(.c:hover *) { margin-top: 3px; }
