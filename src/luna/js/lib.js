@@ -1457,15 +1457,27 @@
 			return `countryCode=${s.session?.countryCode ?? "US"}&deviceType=DESKTOP&locale=${s.settings?.language ?? "en_US"}`;
 		},
 		// TidaLuna's is memoised: an address asked again gets the first
-		// answer until `TidalApi.fetch.clear(url)`.
-		fetch: memoize(async (url) => {
-			// Whose request it is, before the await leaves only this code on the stack.
-			const owner = L.pluginFromStack() ?? L.running;
-			const res = await L.fetchAs(owner, url, { headers: await TidalApi.getAuthHeaders() });
-			if (res.status >= 200 && res.status < 300) return res.json();
-			if (res.status === 403 || res.status === 404) return undefined;
-			throw new Error(`${res.status} ${res.statusText}`);
-		}),
+		// answer until `TidalApi.fetch.clear(url)`. Each plugin remembers
+		// its own answers, so none is handed what another's permission got.
+		fetch: (url) => {
+			// Whose request it is, before an await leaves only this code on the stack.
+			const owner = L.pluginFromStack() ?? L.running ?? null;
+			let memo = tidalFetches.get(owner);
+			if (!memo) {
+				memo = memoize(async (u) => {
+					const res = await L.fetchAs(owner, u, { headers: await TidalApi.getAuthHeaders() });
+					if (res.status >= 200 && res.status < 300) return res.json();
+					if (res.status === 403 || res.status === 404) return undefined;
+					throw new Error(`${res.status} ${res.statusText}`);
+				});
+				tidalFetches.set(owner, memo);
+			}
+			return memo(url);
+		},
+	};
+	const tidalFetches = new Map();
+	TidalApi.fetch.clear = (...args) => {
+		for (const memo of tidalFetches.values()) memo.clear(...args);
 	};
 	// TidaLuna memoises the query; here it is read each time (the session
 	// can arrive after a plugin loads), so there is nothing to forget.

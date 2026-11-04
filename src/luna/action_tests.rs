@@ -2525,6 +2525,51 @@ setTimeout(() => lib.TidalApi.fetch(url + "&again").catch(() => {}).finally(() =
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// `TidalApi.fetch`'s remembered answers are each plugin's own: another
+/// plugin asking the same address asks itself, so it is never handed an
+/// answer the first plugin's permission got.
+#[test]
+fn the_librarys_remembered_fetch_is_not_shared_between_plugins() {
+    let files: Files = Arc::default();
+    let url = "https://desktop.tidal.com/v1/tracks/3/who-answers-each";
+    for name in ["First", "Second"] {
+        files.lock().unwrap().insert(
+            format!("/{name}.json"),
+            json!({ "name": name, "version": "1.0.0", "hash": name })
+                .to_string()
+                .into_bytes(),
+        );
+        let body = format!(
+            "await lib.TidalApi.fetch({url:?}).catch(() => {{}});\nsay(\"{name} done\");\n"
+        );
+        files.lock().unwrap().insert(
+            format!("/{name}.mjs"),
+            format!("{HEADER}{body}").into_bytes(),
+        );
+    }
+    let base = serve(files);
+    let dir = temp_dir("actions-two");
+    let host = Arc::new(ActionHost::default());
+    let luna = Luna::start(config(&dir), host.clone()).unwrap();
+    for name in ["First", "Second"] {
+        luna.install(&format!("{base}/{name}.mjs"));
+        host.wait(&luna, name, |h| {
+            h.notes().iter().any(|n| *n == format!("{name} done"))
+        });
+    }
+    let answered: Vec<String> = host
+        .notes()
+        .into_iter()
+        .filter(|n| n.starts_with("answered"))
+        .collect();
+    assert_eq!(
+        answered,
+        [format!("answered {url}"), format!("answered {url}")]
+    );
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// `TidalApi.fetch` is TidaLuna's memoised fetch: the same address asked
 /// again gets the first answer, and `.clear(url)` forgets it (TidalEQ
 /// clears a playback answer whose stream address no longer works, and
