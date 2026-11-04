@@ -561,7 +561,8 @@ pub(crate) mod css {
     /// A length in points: `px`, `em` (of `font`), `rem` (TIDAL's root
     /// font, 14: `html { font-size: calc(var(--baseFontSize) * 1px) }` with
     /// `:root { --baseFontSize: 14 }`, measured in TIDAL 2.46.0), `%` (of
-    /// `reference`), `vw`/`vh` (of `viewport`), plain numbers and simple
+    /// `reference`), `vw`/`vh` and their `s`/`l`/`d` forms (of `viewport`),
+    /// plain numbers and simple
     /// `calc(a ± b)`. `auto` and unknown units give `None`.
     pub fn length(value: &str, font: f32, reference: f32, viewport: [f32; 2]) -> Option<f32> {
         /// TIDAL's root font size in points, what `1rem` is.
@@ -583,9 +584,19 @@ pub(crate) mod css {
             m.ws();
             return (m.i == m.s.len()).then_some(n);
         }
-        let units: [(&str, f32); 9] = [
+        // The small, large and dynamic viewport units are the window's
+        // own (`100svh`, Lunallena's `#main`): a desktop window has no
+        // browser bars that come and go. Before `vh`/`vw`, which they end
+        // in.
+        let units: [(&str, f32); 15] = [
             ("vmax", viewport[0].max(viewport[1]) / 100.0),
             ("vmin", viewport[0].min(viewport[1]) / 100.0),
+            ("svh", viewport[1] / 100.0),
+            ("lvh", viewport[1] / 100.0),
+            ("dvh", viewport[1] / 100.0),
+            ("svw", viewport[0] / 100.0),
+            ("lvw", viewport[0] / 100.0),
+            ("dvw", viewport[0] / 100.0),
             ("px", 1.0),
             ("rem", ROOT_FONT),
             ("em", font),
@@ -1056,6 +1067,26 @@ pub(crate) mod css {
                 color("color-mix(in srgb, rgb(7, 0, 39) 13% , rgb(0, 0, 0)87%)"),
                 Some(Color32::from_rgb(1, 0, 5))
             );
+        }
+
+        /// The small, large and dynamic viewport units (Lunallena's `#main
+        /// { height: 100svh; max-height: calc(100svh - var(--os-title-bar-
+        /// height)) }`) are the window's: `100svh` read as `100s` and
+        /// `vh`, no length, so the theme's height was dropped.
+        #[test]
+        fn small_large_and_dynamic_viewport_units_are_the_windows() {
+            let vp = [1000.0, 800.0];
+            for (v, n) in [
+                ("100svh", 800.0),
+                ("50lvh", 400.0),
+                ("10dvh", 80.0),
+                ("100svw", 1000.0),
+                ("50lvw", 500.0),
+                ("10dvw", 100.0),
+            ] {
+                assert_eq!(length(v, 14.0, 0.0, vp), Some(n), "{v}");
+            }
+            assert_eq!(length("calc(100svh - 30px)", 14.0, 0.0, vp), Some(770.0));
         }
 
         #[test]

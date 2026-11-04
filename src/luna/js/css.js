@@ -1988,8 +1988,14 @@
 	// cat is rounded by `var(--wave-border-radius--extra-small)`, 4 px. The
 	// market radii are TIDAL 2.47.0's (`[data-market-theme]`): Lunallena's,
 	// Giorgeous' and Sunken Tidal's queue button and search field are
-	// rounded by `var(--market-core-radius-100)`, 6 px.
+	// rounded by `var(--market-core-radius-100)`, 6 px. The title bar's
+	// height is TIDAL 2.47.0's one declaration of it (`:root {
+	// --os-title-bar-height: 30px }`, on every platform; only its Windows
+	// rules read it): Lunallena's and Giorgeous' `#main { max-height:
+	// calc(100svh - var(--os-title-bar-height)) }` keeps the page box
+	// above the window's foot.
 	const TIDAL_VARS = [
+		["--os-title-bar-height", "30px"],
 		["--wave-color-opacity-contrast-fill-thick", "#fff9"],
 		["--wave-color-opacity-contrast-fill-ultra-thick", "#fffc"],
 		["--wave-border-radius--none", "0"],
