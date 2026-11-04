@@ -82,6 +82,10 @@ pub mod keys {
     /// `_detailContainer_105eeff` on a playlist, in the header box).
     pub const PAGE_DETAIL: &str = "page-detail";
     pub const PAGE_DATA: &str = "page-data";
+    /// The box round an album's or playlist's header box and its controls
+    /// (TIDAL 2.47.0: `div._headerContainer_e0cf17f`, a playlist's
+    /// `_headerContainer_2aeeef7`).
+    pub const PAGE_HEADER_BOX: &str = "page-header-box";
     pub const PAGE_SMALL_HEADER: &str = "page-small-header";
     /// The pinned header's cover on an album (TIDAL 2.47.0:
     /// `div._smallHeader_f2c3791 > div.tidal-ui__geometry.css-kb5cm1.
@@ -1070,6 +1074,16 @@ fn header_title_markup(page_id: Option<&str>) -> Option<(&'static str, &'static 
     match page_id {
         Some("album") => Some(("_detailContainer_5b36b6c", "_titleText_7494646")),
         Some("playlist") => Some(("_detailContainer_105eeff", "_title_c9bc1b1")),
+        _ => None,
+    }
+}
+
+/// TIDAL 2.47.0's box round an album's or playlist's header box and its
+/// controls.
+fn header_container_class(page_id: Option<&str>) -> Option<&'static str> {
+    match page_id {
+        Some("album") => Some("_headerContainer_e0cf17f"),
+        Some("playlist") => Some("_headerContainer_2aeeef7"),
         _ => None,
     }
 }
@@ -3937,13 +3951,36 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         .flatten()
         .filter_map(|b| b.rect);
     let pills_rect = around(&mut pill_rects);
-    if page.play.is_some() || page.shuffle.is_some() || !page.actions.is_empty() {
+    let has_controls = page.play.is_some() || page.shuffle.is_some() || !page.actions.is_empty();
+    // TIDAL 2.47.0 holds an album's and a playlist's header box and its
+    // controls in one box (`div._headerContainer_e0cf17f`, a playlist's
+    // `_headerContainer_2aeeef7`): the Cotton Candy Nights family nests
+    // its caption colours in it (`[class^="_headerContainer_e0cf17f"] {
+    // [data-wave-color="textDefault"] { color } }`).
+    let header_box = header_container_class(page.page_id.as_deref())
+        .filter(|_| has_data || has_controls)
+        .map(|class| {
+            let mut rects = [&page.play, &page.shuffle]
+                .into_iter()
+                .flatten()
+                .filter_map(|b| b.rect)
+                .chain(page.actions.iter().filter_map(|a| a.rect))
+                .chain(page.data);
+            out.push(
+                el(keys::PAGE_HEADER_BOX, Some(PAGE), "div")
+                    .class(class)
+                    .at(around(&mut rects)),
+            );
+            keys::PAGE_HEADER_BOX
+        });
+    let header_parent = header_box.unwrap_or(PAGE);
+    if has_controls {
         let mut all = [&page.play, &page.shuffle]
             .into_iter()
             .flatten()
             .filter_map(|b| b.rect)
             .chain(page.actions.iter().filter_map(|a| a.rect));
-        let mut controls = el(PAGE_HEADER_CONTROLS, Some(PAGE), "div")
+        let mut controls = el(PAGE_HEADER_CONTROLS, Some(header_parent), "div")
             .test(markup.controls_test)
             .at(around(&mut all));
         if let Some(class) = markup.controls {
@@ -4038,7 +4075,7 @@ pub fn page_root(out: &mut Vec<HostNode>, page: &Page) {
         out.push(el(keys::PROFILE_PIC_IMG, Some(keys::PROFILE_PIC), "img").at(Some(rect)));
     }
     if has_data {
-        let mut data = el(PAGE_DATA, Some(PAGE), "div")
+        let mut data = el(PAGE_DATA, Some(header_parent), "div")
             .class(&page_data_class(page.page_id.as_deref()))
             .at(page.data);
         // A playlist's header box is `[data-test=header-background]` in

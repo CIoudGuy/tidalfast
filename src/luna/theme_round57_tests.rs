@@ -157,3 +157,46 @@ fn the_covers_own_variable_on_the_header_art_box_is_the_cover_alone() {
         "TIDAL's veil, then half as bright"
     );
 }
+
+/// TIDAL 2.47.0 holds an album's header box and its controls in
+/// `div._headerContainer_e0cf17f` (a playlist's `_headerContainer_2aeeef7`),
+/// and the Cotton Candy Nights family nests its caption colour in it
+/// (`[class^="_headerContainer_e0cf17f"] { [data-wave-color="textDefault"]
+/// { color } }`): the header's Add and Share captions take it in TIDAL. The
+/// box was not in Tidalfast's markup, so the theme's plain caption colour
+/// stayed.
+#[test]
+fn the_header_container_holds_the_captions_a_theme_nests_in_it() {
+    use dom_anchors::keys;
+    let css = r#"/* {"name": "Nested caption"} */
+[data-wave-color="textDefault"] { color: rgb(9, 9, 9) !important; }
+[class^="_headerContainer_e0cf17f"] { [data-wave-color="textDefault"] { color: rgb(215, 217, 255) !important; } }
+"#;
+    let mut frame = dom_anchors::sample_frame();
+    if let Some(page) = frame.page.as_mut() {
+        page.data = Some([240.0, 92.0, 1040.0, 300.0]);
+        page.actions = vec![dom_anchors::HeaderAction {
+            test: "favorite-button".into(),
+            label: "Add".into(),
+            rect: Some([600.0, 220.0, 48.0, 48.0]),
+            icon: Some([614.0, 224.0, 20.0, 20.0]),
+            caption: Some([610.0, 248.0, 28.0, 16.0]),
+            checked: Some(false),
+        }];
+    }
+    let label = keys::page_action_label("favorite-button");
+    let (luna, o) = overlay_with(
+        "nested-caption.css",
+        css,
+        dom_anchors::build(&frame),
+        &label,
+    );
+    luna.shutdown();
+    let color = o.hosts.get(&label).and_then(|h| h.style.color.clone());
+    assert_eq!(
+        color.as_deref(),
+        Some("rgb(215, 217, 255)"),
+        "{:?}",
+        o.hosts.get(&label)
+    );
+}
