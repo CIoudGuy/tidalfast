@@ -20555,10 +20555,11 @@ mod tests {
             );
             plugin_dom::test_overlay(Some(overlay(2, true)));
             let layout = plugin_dom::theme_layout(&ctx).expect("the theme floats the shell");
-            assert_eq!(layout.player_bar.unwrap().gaps.bottom, 18);
+            // `2vh` of TIDAL's window, 30 taller than this one.
+            assert_eq!(layout.player_bar.unwrap().gaps.bottom, 19);
             let themed = shapes(&ctx, &mut app);
             assert!(themed != off, "the theme moves the shell");
-            assert_eq!(bar(&ctx).height(), crate::theme::PLAYER_BAR_HEIGHT + 18.0);
+            assert_eq!(bar(&ctx).height(), crate::theme::PLAYER_BAR_HEIGHT + 19.0);
             plugin_dom::test_overlay(Some(overlay(3, false)));
             assert!(
                 shapes(&ctx, &mut app) == on,

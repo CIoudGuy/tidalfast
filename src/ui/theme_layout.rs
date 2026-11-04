@@ -843,8 +843,11 @@ fn player_bar(
         width = width.max(min);
     }
     let side = ((vw - width) / 2.0).max(0.0);
+    // Down, the bar's window lengths and `%` are of TIDAL's window, 30
+    // taller than the page Tidalfast's shows (Lunallena's `bottom: 2vh`).
+    let tidal = [vw, viewport[1] + TITLE_BAR];
     let bottom = if offsets_apply(style) {
-        len(style.bottom.as_deref(), vars, viewport[1], viewport).unwrap_or(0.0)
+        len(style.bottom.as_deref(), vars, tidal[1], tidal).unwrap_or(0.0)
     } else {
         0.0
     };
@@ -862,7 +865,7 @@ fn player_bar(
         },
         radius,
         shadow: shadow(style.box_shadow.as_deref(), vars, viewport).unwrap_or_default(),
-        height: len(style.height.as_deref(), vars, viewport[1], viewport).filter(|h| *h > 0.0),
+        height: len(style.height.as_deref(), vars, tidal[1], tidal).filter(|h| *h > 0.0),
     })
 }
 
@@ -1165,13 +1168,14 @@ mod tests {
         ]);
         let l = resolve(Some(&bar), Some(&side), None, None, &vars, VIEW);
         let bar = l.player_bar.unwrap();
+        // `2vh` of TIDAL's window, as the card's below.
         assert_eq!(
             bar.gaps,
             Margin {
                 left: 14,
                 right: 14,
                 top: 0,
-                bottom: 18
+                bottom: 19
             }
         );
         assert_eq!(bar.radius, CornerRadius::same(15));
