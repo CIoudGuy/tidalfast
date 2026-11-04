@@ -28,3 +28,39 @@ fn a_page_that_takes_back_the_headers_room_lies_under_the_header() {
         r41::top(&themed, HEADER)
     );
 }
+
+/// A corner radius in `%` is a share of the box's own size: a theme's
+/// round 40-point navigation buttons (Lunallena's `[data-test=
+/// "navigation-arrows"] button { width: 40px; height: 40px; border-radius:
+/// 50% }`, captured 20 in TIDAL) and its 10-point progress knob (5). The
+/// share was taken of nothing, so the buttons' fills were drawn square.
+#[test]
+fn a_corner_radius_in_percent_is_a_share_of_the_box() {
+    use crate::ui::plugin_dom as pd;
+    use dom_anchors::keys::{NAV_BACK, NAV_FORWARD, PROGRESS_KNOB};
+    let css = r#"/* {"name": "Round arrows"} */
+[data-test="navigation-arrows"] button { background-color: rgba(0, 0, 0, 0.1) !important; border-radius: 50%; width: 40px; height: 40px; }
+[class*='_knob_'] { width: 10px; height: 10px; border-radius: 50%; }
+[data-test="navigation-arrows"] button:disabled { border-radius: 10%; }
+"#;
+    let o = super::theme_round38_tests::overlay(
+        "round-arrows.css",
+        css,
+        &dom_anchors::sample_frame(),
+        NAV_BACK,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let corners = |key| pd::anchor_look(key).and_then(|l| l.corners);
+    let (back, forward, knob) = (
+        corners(NAV_BACK),
+        corners(NAV_FORWARD),
+        corners(PROGRESS_KNOB),
+    );
+    pd::test_overlay(None);
+    let round = |n| Some(egui::CornerRadius::same(n));
+    assert!(
+        [back, forward].contains(&round(20)),
+        "half of 40: {back:?} {forward:?}"
+    );
+    assert_eq!(knob, round(5), "half of 10");
+}

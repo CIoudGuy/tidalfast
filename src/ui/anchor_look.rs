@@ -164,7 +164,7 @@ pub(super) fn look_of(
     let corners = s
         .border_radius
         .as_deref()
-        .and_then(|v| corners(v, vars, viewport, em));
+        .and_then(|v| corners(v, vars, viewport, em, own_size(s, vars, viewport, em)));
     let sides = some_sides(s, vars, viewport);
     let shadow = super::super::theme_layout::shadow(s.box_shadow.as_deref(), vars, viewport);
     let glow = super::super::theme_layout::inset_shadow(s.box_shadow.as_deref(), vars, viewport);
@@ -217,15 +217,53 @@ pub(super) fn look_of(
     (look != AnchorLook::default()).then_some(look)
 }
 
+/// The box's own `width` and `height` where the theme gives them as
+/// lengths (not `%` of a parent, `auto` or the like).
+fn own_size(
+    s: &Style,
+    vars: &std::collections::BTreeMap<String, String>,
+    viewport: [f32; 2],
+    em: f32,
+) -> [Option<f32>; 2] {
+    [s.width.as_deref(), s.height.as_deref()].map(|v| {
+        let v = css::resolve_vars(v?, vars);
+        let v = v.trim().trim_end_matches("!important").trim();
+        if v.ends_with('%') {
+            return None;
+        }
+        css::length(v, em, 0.0, viewport).filter(|n| n.is_finite() && *n > 0.0)
+    })
+}
+
+/// One corner's radius: a length, or a share of the box (`50%`). CSS
+/// takes the share of the box's width across and its height down; one
+/// radius a corner takes the smaller of the two, of the box's own `size`
+/// where the theme sets it. Half the box or more without a size is round
+/// whatever the box (egui keeps a radius to half the box's least side).
+fn corner(w: &str, em: f32, viewport: [f32; 2], size: [Option<f32>; 2]) -> Option<f32> {
+    let Some(share) = w.trim().strip_suffix('%') else {
+        return css::length(w, em, 0.0, viewport);
+    };
+    let share = share.trim().parse::<f32>().ok()? / 100.0;
+    Some(match size {
+        [Some(a), Some(b)] => share * a.min(b),
+        [Some(a), None] | [None, Some(a)] => share * a,
+        [None, None] if share >= 0.5 => 255.0,
+        [None, None] => 0.0,
+    })
+}
+
 /// `border-radius`, one to four corners (`0 20px 20px 0`), `em` of the
 /// box's text size `em` (TIDAL's 14-point text unless the box has its
-/// own); the elliptical part after `/` is left out. `None` for a value that
-/// is no length.
+/// own), a share in `%` of the box's own `size` (see [`corner`]); the
+/// elliptical part after `/` is left out. `None` for a value that is no
+/// length.
 fn corners(
     value: &str,
     vars: &std::collections::BTreeMap<String, String>,
     viewport: [f32; 2],
     em: f32,
+    size: [Option<f32>; 2],
 ) -> Option<CornerRadius> {
     let v = css::resolve_vars(value, vars);
     let v = v.trim().trim_end_matches("!important").trim();
@@ -233,7 +271,7 @@ fn corners(
     let n: Vec<u8> = css::words(v)
         .iter()
         .map(|w| {
-            css::length(w, em, 0.0, viewport)
+            corner(w, em, viewport, size)
                 .filter(|n| n.is_finite())
                 .map(|n| n.clamp(0.0, 255.0).round() as u8)
         })
