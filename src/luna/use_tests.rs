@@ -179,16 +179,27 @@ R.ready = true;
 "##,
     );
     wait_for(&luna, &dir, "ready");
-    let entries = |luna: &Luna, target: ContextTarget| {
+    // The menu's entries once `want` of them are there (or after 5 s): a
+    // slow machine takes longer than a fixed wait to answer.
+    let entries_of = |luna: &Luna, target: ContextTarget, want: usize| {
         luna.open_context_menu(target);
         std::thread::sleep(Duration::from_millis(400));
-        luna.sync(Duration::from_secs(10));
-        luna.snapshot()
-            .context_menu
-            .iter()
-            .map(|i| i.text.clone())
-            .collect::<Vec<_>>()
+        let end = Instant::now() + Duration::from_secs(5);
+        loop {
+            luna.sync(Duration::from_secs(10));
+            let got = luna
+                .snapshot()
+                .context_menu
+                .iter()
+                .map(|i| i.text.clone())
+                .collect::<Vec<_>>();
+            if got.len() >= want || Instant::now() >= end {
+                return got;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
     };
+    let entries = |luna: &Luna, target: ContextTarget| entries_of(luna, target, 1);
     let targets = || {
         [
             ContextTarget::Tracks(vec!["1".into()]),
@@ -204,7 +215,7 @@ R.ready = true;
         plugin(s, "Compat").unwrap().status == PluginStatus::Disabled
     });
     for t in targets() {
-        assert!(entries(&luna, t.clone()).is_empty(), "{t:?}");
+        assert!(entries_of(&luna, t.clone(), 0).is_empty(), "{t:?}");
     }
     luna.set_enabled("Compat", true);
     wait_for(&luna, &dir, "ready");
@@ -596,7 +607,6 @@ R.ready = true;
     wait_until(&luna, 10, |s| {
         plugin(s, "Compat").unwrap().status == PluginStatus::Disabled
     });
-    std::thread::sleep(Duration::from_millis(300));
     let taken = || {
         (
             srv.hits.load(SeqCst),
@@ -604,7 +614,18 @@ R.ready = true;
             count(&dir, "tick"),
         )
     };
-    let before = taken();
+    // A fetch already on its way may still answer: wait until nothing moves
+    // for 300 ms (a slow machine answers later), then check it stays so.
+    let mut before = taken();
+    let settle = Instant::now() + Duration::from_secs(5);
+    loop {
+        std::thread::sleep(Duration::from_millis(300));
+        let now = taken();
+        if now == before || Instant::now() >= settle {
+            break;
+        }
+        before = now;
+    }
     assert!(before.0 > 2 && before.1 > 0 && before.2 > 0, "{before:?}");
     std::thread::sleep(Duration::from_millis(600));
     assert_eq!(

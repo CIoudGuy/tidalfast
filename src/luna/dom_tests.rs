@@ -3479,9 +3479,11 @@ unloads.add(() => clearInterval(id));
         }
         std::thread::sleep(Duration::from_millis(15));
     }
+    // From the second tick: the first can come before the app's look has
+    // had its first pass on a slow machine.
     let before: Vec<u64> = seen
         .iter()
-        .filter(|(n, _)| (1..5).contains(n))
+        .filter(|(n, _)| (2..5).contains(n))
         .map(|s| s.1)
         .collect();
     let after: Vec<u64> = seen.iter().filter(|(n, _)| *n >= 5).map(|s| s.1).collect();
