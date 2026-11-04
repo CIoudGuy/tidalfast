@@ -50,6 +50,25 @@ fn embed_release_notes() {
     std::fs::write(out.join("release_notes.rs"), code).expect("write release_notes.rs");
 }
 
+/// The Windows application manifest: the segment heap for the process's
+/// heaps. The default heap kept what a song change frees committed and cut
+/// up into slivers it could not use again: after 200 songs with plugins
+/// 229 MB committed for 103 MB in use, still growing. The segment heap
+/// gives freed space back (about 120 MB committed, flat after the first
+/// songs; see "Memory over many song changes" in
+/// docs/_reference/performance.md).
+/// Windows 10 2004 and later honour it; earlier ones ignore it.
+#[cfg(windows)]
+const MANIFEST: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <heapType xmlns="http://schemas.microsoft.com/SMI/2020/WindowsSettings">SegmentHeap</heapType>
+    </windowsSettings>
+  </application>
+</assembly>
+"#;
+
 fn main() {
     embed_release_notes();
     fastframe_i18n::build::compile_catalogs("assets/i18n");
@@ -60,7 +79,8 @@ fn main() {
         resource
             .set_icon("packaging/windows/tidalfast.ico")
             .set("ProductName", "Tidalfast")
-            .set("FileDescription", "A fast native TIDAL client");
+            .set("FileDescription", "A fast native TIDAL client")
+            .set_manifest(MANIFEST);
         if let Err(error) = resource.compile() {
             println!("cargo:warning=Windows resources not embedded: {error}");
         }
