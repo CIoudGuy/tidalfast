@@ -2785,8 +2785,20 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
             )
             .attr("style", "display: contents;"),
     );
+    // TIDAL declares `--playQueueWidth` on this box: its open play queue
+    // panel's width, `0px` while the panel is closed (its captures: 350 on
+    // the album and menu pages, queue open; 0 on the playlist and the
+    // collection, queue closed).
+    let queue_open = frame.queue_sidebar.unwrap_or(frame.queue_panel.is_some());
     let mut root = el(SHELL, Some(MARKET), "div")
         .class("has-footer-player is-desktop-app")
+        .attr(
+            "style",
+            format!(
+                "--playQueueWidth: {}px;",
+                if queue_open { PLAY_QUEUE_WIDTH } else { 0.0 }
+            ),
+        )
         .at(s.rect);
     if s.fullscreen {
         root = root.class("is-fullscreen");
@@ -2868,15 +2880,13 @@ pub fn shell(out: &mut Vec<HostNode>, frame: &Frame) {
     if frame.sidebar.width > 0.0 {
         // TIDAL's variables for the sidebar's width, read by the sidebar
         // and by `#main` (a theme that lays the page under the sidebar sets
-        // `left: calc(var(--sidebarWidth) * -1)`), and for its side
-        // panel's (the cotton candy family sizes Home's card by it).
+        // `left: calc(var(--sidebarWidth) * -1)`).
         row = row.attr(
             "style",
             format!(
-                "--sidebarWidth: {}px; --collapsedSidebarWidth: {}px; --playQueueWidth: {}px;",
+                "--sidebarWidth: {}px; --collapsedSidebarWidth: {}px;",
                 frame.sidebar.width.round(),
                 crate::ui::sidebar::RAIL_WIDTH,
-                PLAY_QUEUE_WIDTH,
             ),
         );
     }
@@ -3052,12 +3062,12 @@ fn main_rect(frame: &Frame) -> Option<Rect> {
 
 /// The width of TIDAL's expanded sidebar, in its inline style.
 const TIDAL_SIDEBAR_WIDTH: f32 = 240.0;
-/// TIDAL 2.46.0's `--playQueueWidth`: `0px`, on the player's wrapper
-/// (`div.has-footer-player`), with the play queue open or not (its capture,
-/// queue open: the cotton candy singles' collection grid, `calc(100.2% -
-/// var(--playQueueWidth) * .85)`, is 1474.9 of 1472 points). TIDAL 2.43.2
-/// gave its 350-point panel's width.
-const PLAY_QUEUE_WIDTH: f32 = 0.0;
+/// TIDAL's `--playQueueWidth` while the play queue is open: its panel's
+/// wrapper, 350 points (TIDAL 2.46.0 and 2.47.0 on `div.has-footer-player`;
+/// `0px` while the queue is closed, which the cotton candy singles'
+/// collection grid, `calc(100.2% - var(--playQueueWidth) * .85)`, shows
+/// 1474.9 of 1472 points wide in TIDAL's collection capture).
+const PLAY_QUEUE_WIDTH: f32 = crate::ui::theme_layout::QUEUE_WRAPPER_WIDTH;
 
 /// The sidebar; `docked_view`: the docked now-playing view is open, which
 /// TIDAL 2.46.0 marks on the wrapper (`_nowPlayingVisible_03bf437`).
@@ -7208,7 +7218,7 @@ mod tests {
         );
         assert_eq!(
             style(&frame, keys::CONTAINER_ROW).as_deref(),
-            Some("--sidebarWidth: 300px; --collapsedSidebarWidth: 72px; --playQueueWidth: 0px;")
+            Some("--sidebarWidth: 300px; --collapsedSidebarWidth: 72px;")
         );
         frame.sidebar.width = 240.0;
         assert_eq!(
@@ -7223,8 +7233,22 @@ mod tests {
         );
         assert_eq!(
             style(&frame, keys::CONTAINER_ROW).as_deref(),
-            Some("--sidebarWidth: 72px; --collapsedSidebarWidth: 72px; --playQueueWidth: 0px;")
+            Some("--sidebarWidth: 72px; --collapsedSidebarWidth: 72px;")
         );
+    }
+
+    #[test]
+    fn the_player_wrapper_carries_the_open_queues_width() {
+        let style = |frame: &Frame| {
+            let tree = build(frame);
+            attr(find(&tree, keys::SHELL), "style").map(str::to_string)
+        };
+        let mut frame = sample_frame();
+        frame.queue_sidebar = Some(false);
+        assert_eq!(style(&frame).as_deref(), Some("--playQueueWidth: 0px;"));
+        frame.queue_sidebar = Some(true);
+        frame.queue_panel = Some((Some([1787.0, 60.0, 334.0, 900.0]), false));
+        assert_eq!(style(&frame).as_deref(), Some("--playQueueWidth: 350px;"));
     }
 
     #[test]
