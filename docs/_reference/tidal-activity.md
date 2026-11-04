@@ -286,7 +286,7 @@ config). Web (`headerUtils.ts`): `app-name`, `app-version`, `browser-name`, `bro
 
 ### 2.6 Recently played / history endpoints
 
-- No dedicated "history" REST resource in the official OpenAPI. [X] (only `userPlaybackStates`, `playQueues` — now-playing
+- No dedicated "history" REST resource in the official OpenAPI. [X] (only `userPlaybackStates`, `playQueues`, now-playing
   / queue sync for TIDAL Connect, scopes `r_usr`/`w_usr`; not history.)
 - Recently Played appears as a module on private-API pages (home / `pages/...`), populated from `play_log` events. Module
   type name is not recorded in the sources read. [?]

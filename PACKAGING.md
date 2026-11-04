@@ -125,7 +125,7 @@ Applications need no packaging Gemfile, lockfile or Ruby wrapper.
 
 From 7.5.0 every release published to the update host carries the Linux
 builds beside the Windows ones, listed in one signed `latest.json` and one
-signed `checksums.txt`. The lead publishes; nothing here uploads. One-time
+signed `checksums.txt`. The maintainer publishes; nothing here uploads. One-time
 setup in WSL (Ubuntu, with rustup, python3, rsync, squashfs-tools and libarchive-tools):
 `GEM_HOME=~/.tidalfast-release/gems gem install native-packages --version 0.9.0`
 and nFPM 2.47.0 as `~/.tidalfast-release/bin/nfpm`.

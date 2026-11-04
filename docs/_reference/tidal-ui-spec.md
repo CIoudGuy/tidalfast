@@ -98,7 +98,7 @@ Measured on tidal.com signed in (Cole World: The Sideline Story, 1440 and 2000 w
 - Section title: h2 19/26 w700; "View all" 14/22 w600 rgba(255,255,255,.55) right aligned (x1325), prev/next arrow circles 28px left of it. Title->content gap 16 (artist) / 42 (home cards top = title top + 42). Section pitch on home = 338px (title 26 + 16 + card 256 + 40).
 - Tidalfast: src/ui/artist.rs, home.rs, library.rs (album/playlist header in library.rs/widgets).
 
-## 8. Track table (album/playlist) — row metrics
+## 8. Track table (album/playlist): row metrics
 - Header row: h36, 12/20 w500 UPPERCASE ls .504px, color rgba(255,255,255,.60); sits y464 (28px under controls row bottom incl. margin). Columns share row widths. Header text 12/12 line when inline.
 - Row: h48, display flex, contain strict, overflow hidden, cells padding-right 16 (last 11), cell text 14/20 w500 white, ellipsis.
 - Album columns (1104 wide): # 42 | Title flex (472) | Artist 414 | Time 77 | Context 100 (menu 24 + heart 24, gap 4, right pad 11). Title cell: title 14/20 w500 + explicit badge 16 + (artist shown only in compact). Artist cell: links 14/20 w500, hover underline.

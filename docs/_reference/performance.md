@@ -2032,7 +2032,7 @@ What the counts show:
 Not measured: the now-playing view and animated covers (a window at
 `-4000,100` showing now playing stops its passes, so the script stalls),
 oneko and DiscordRPC (the test profile keeps DiscordRPC off), a visible
-window, and the 1.2.1-alpha.1 executable itself. The owner's 821 MB is
+window, and the 1.2.1-alpha.1 executable itself. A reported 821 MB is
 higher than these runs reach in 200 songs; the now-playing cover (up to
 6.5 MB of texture each) and the animated cover's decoder (about 90 MB while
 one plays, see "Animated covers") are the likely difference. No fix is in

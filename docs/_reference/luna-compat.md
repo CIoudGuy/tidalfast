@@ -11,7 +11,7 @@ same results; since 2026-10-21 only `dev` is listed, as TidaLuna does, see "Stor
 channels" under History). Rounds 6 to 15 re-checked them live; later rounds override earlier
 ones, and each row says which round last verified it. How a round worked is under
 "History" at the end; the API surface is checked in
-[luna-api-coverage.md](luna-api-coverage.md) (71 rows: 65 works, 6 refused).
+[luna-api-coverage.md](luna-api-coverage.md) (72 rows: 65 works, 2 partial, 5 refused).
 
 ## Summary
 
@@ -575,7 +575,7 @@ Transfer and never imported. Code: `src/luna/permits.rs`, the prompt in
   placeholder token (the app answers those requests itself).
 - **TIDAL's official API as the account** (`fetch` of
   `https://openapi.tidal.com/v2/...` with the headers of
-  `TidalApi.getAuthHeaders()`; owner's decision, 2026-11-02). The prompt says
+  `TidalApi.getAuthHeaders()`; the maintainer's decision, 2026-11-02). The prompt says
   the plugin can read the account, the email address included, and change its
   playlists, collection and profile, and that it never gets the sign-in. Any
   plugin asking gets the same question, reads and writes alike, once. Allowed,
@@ -1244,7 +1244,7 @@ real this round; what each would take, through the generic layer only:
 ## Plugin settings
 
 Every plugin's `Settings` is drawn natively on the Plugins page (`src/luna/js/react.js`
-renders it to `SettingsNode`s). Of the 86 distinct plugins, 61 show controls on the Plugins page and 25 show none (no
+renders it to `SettingsNode`s). Of the 86 distinct plugins in that sweep, 61 show controls on the Plugins page and 25 show none (no
 `Settings` export, or an empty panel by design: `multipleplaylists`, `element-hider`). Cross-checking the sweep's
 rendered controls against each plugin's source: before the settings pass 46 of the 55
 showed everything their developer declared, 8 lost controls or text (plain `<input>`,
@@ -1763,7 +1763,7 @@ review pass of the compatibility audit.
   97.23 % (pooled 242 to 245 of 357). TidalDJ and TidalEQ run in the
   checker's demo without errors; nothing in the generic layer to fix.
   Not done: comparing them with TIDAL (no TIDAL with TidaLuna to record
-  on this round), the owner's album and Home in the demo (page data).
+  on this round), the recorded album and Home in the demo (page data).
 - **Plugin round 14 (2026-10-29).** Fixed for every plugin, each with a
   synthetic test that fails without it: the lyrics' lines box is TIDAL
   2.46.0's market text (`display-20` type, white, `_hasCues_` when timed),
