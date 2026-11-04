@@ -1966,6 +1966,76 @@ Checked and left alone:
   elements, the rest spread over `::before` boxes, hosts and JSON, nothing
   on its own worth a change.
 
+## Memory over many song changes (2026-11-04)
+
+An installed 1.2.1-alpha.1 window was seen at 821 MB private (878 MB
+working set, 1,118 MB peak) after 2.3 hours and about 160 songs, most of
+them skipped after a few seconds, with six plugins, animated covers, the
+blurred background, hi-res streaming and crossfade. It stepped up with song
+changes and with use of the window, and stayed flat while idle.
+
+Reproduced with a release demo build of `tidal` (b4b6645a; no memory change
+lies between 1.2.1-alpha.1 and it) on the `lunatest` profile with the same
+settings, signed in, at volume 0, the window at `-4000,100` on Home with the
+sidebar's large cover, skipping to the next song every 6 to 8 seconds.
+Scratch counters every 15 seconds: private bytes, the Rust heap (the
+counting allocator), egui's textures by name, QuickJS's own accounting, the
+process heaps walked (bytes in use and committed), the rest of the private
+committed memory and its write-combined part (the OpenGL driver's), and
+every thread the process started (a TLS callback).
+
+| Run | Start | After 100 songs | After 200 songs |
+| --- | --- | --- | --- |
+| Luna on, four plugins (no-remix, total-play-time, tidal-genres, Tidal Tags) | 260 to 270 MB | 380 to 400 MB | 433 to 506 MB |
+| Luna off | 229 MB | 301 MB | not run |
+
+Where 433 MB went after 200 songs (Luna on):
+
+| Holder | At 90 s | After 200 songs |
+| --- | --- | --- |
+| Process heap, committed | 158 MB | 211 MB |
+| of it in use: Rust | 45 MB | 46 MB (flat) |
+| of it in use: QuickJS (the plugins) | 25 MB | 31 MB (flat, 14 MB of objects) |
+| of it in use: everything else | about 34 MB | about 22 MB |
+| of it free but kept committed | 54 MB | 111 MB |
+| Private outside the heaps, write-combined (driver) | 43 MB | 79 MB |
+| Private outside the heaps, the rest | 30 MB | 101 MB |
+| egui textures (bytes) | 7 MB, 81 | 28 MB, 226 |
+
+What the counts show:
+
+- **Covers, through the driver.** About two covers a song stay cached
+  (the sidebar's large art, the player bar's), 0.27 MB of texture a song,
+  until the 32 MB artwork budget is reached at about 140 songs. Private
+  memory outside the heaps rises about four times as fast (write-combined
+  and system copies), and the write-combined part stops when the
+  textures stop. A Python probe with the same driver (an OpenGL context,
+  200 textures alive, 8,000 made of 24 sizes) levels off too, so the
+  driver reuses what is let go; what stays is set by the most held at once.
+- **The process heap grows with nothing in it.** Bytes in use stay flat
+  (Rust, QuickJS and the rest), but the committed heap grows about 0.3 MB
+  a song and does not level off within 200 songs. Rust's own heap shows
+  transient peaks of 27 MB.
+- **Thread starts.** About two a song (downloads, decoding, blocking
+  tasks). In this process 2,000 empty thread starts left 35 MB behind; in a
+  process with only an OpenGL context the same cost stops at about 35 MB
+  after the first 500. Bounded.
+- **Plugins.** QuickJS holds 25 to 32 MB and does not grow; Luna on adds
+  about 40 MB of Rust heap at start and about half again to the growth per
+  song.
+- After the artwork budget is reached, private memory still grows about
+  0.5 MB a song (0.3 MB free heap, 0.2 MB outside the heaps).
+
+Not measured: the now-playing view and animated covers (a window at
+`-4000,100` showing now playing stops its passes, so the script stalls),
+oneko and DiscordRPC (the test profile keeps DiscordRPC off), a visible
+window, and the 1.2.1-alpha.1 executable itself. The owner's 821 MB is
+higher than these runs reach in 200 songs; the now-playing cover (up to
+6.5 MB of texture each) and the animated cover's decoder (about 90 MB while
+one plays, see "Animated covers") are the likely difference. No fix is in
+this pass: nothing found grows without a bound that the code sets, except
+the free committed heap, whose source is not pinned down yet.
+
 ## Findings and decisions
 
 - **Luna's work follows changes, not the page.** With Luna on, a pass made
