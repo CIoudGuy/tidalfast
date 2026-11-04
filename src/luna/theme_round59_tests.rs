@@ -64,3 +64,21 @@ fn a_corner_radius_in_percent_is_a_share_of_the_box() {
     );
     assert_eq!(knob, round(5), "half of 10");
 }
+
+/// TIDAL's header centres its controls on its first box
+/// (`div._container_cb5cbe4`, 32 high): a theme's height for that box
+/// moves them by half the difference. Tidalify's `height: 0px` puts their
+/// middle on the box's top, 16 higher (captured: the search field at 12,
+/// its `#mainHeader` 0 high at 30). Tidalfast kept them where TIDAL's 32
+/// put them.
+#[test]
+fn a_header_bar_of_its_own_height_centres_the_controls_on_it() {
+    use super::theme_round41_tests as r41;
+    use dom_anchors::keys::{HEADER, HEADER_BAR};
+    let css = r#"/* {"name": "Flat header bar"} */
+._container_cb5cbe4 { height: 0px !important; outline-color: rgb(1, 2, 3); }
+"#;
+    let (plain, themed) = r41::plain_and_themed("flat-header-bar.css", css, HEADER_BAR);
+    let (was, now) = (r41::top(&plain, HEADER), r41::top(&themed, HEADER));
+    assert!(r41::near(now, was - 16.0), "16 up: {was} -> {now}");
+}

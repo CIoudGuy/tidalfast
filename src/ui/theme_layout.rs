@@ -184,6 +184,9 @@ const TITLE_BAR_EM: f32 = 12.0;
 const HEADER_HEIGHT: f32 = 56.0;
 /// `#mainHeader`'s own top padding in TIDAL 2.46.0.
 const HEADER_PADDING_TOP: f32 = 14.0;
+/// The header's first box (`div._container_cb5cbe4`) in TIDAL 2.47.0: 32
+/// high, its controls centred on it.
+const HEADER_BAR_HEIGHT: f32 = 32.0;
 /// The most a theme's margins move the shell's boxes, either way.
 const MAX_FLOW: f32 = 200.0;
 
@@ -206,8 +209,9 @@ pub struct Flow {
     /// header under a title bar taken out of the flow), `#mainHeader`'s
     /// margin and its top padding beyond TIDAL's 14, and its first box's
     /// margin (the cotton candy family's `#mainHeader > * { margin-top:
-    /// 2em }`). The header lies over the page in TIDAL: the page keeps its
-    /// place.
+    /// 2em }`), and half of what the first box's own height takes from or
+    /// adds to TIDAL's 32 (the controls are centred on it). The header
+    /// lies over the page in TIDAL: the page keeps its place.
     pub header: f32,
     /// The page's content from where TIDAL's `#main` padding puts it:
     /// `#main`'s top margin and its top padding beyond TIDAL's
@@ -300,7 +304,14 @@ pub fn flow(hosts: FlowHosts<'_>, vars: &BTreeMap<String, String>, viewport: [f3
             .header
             .and_then(|h| padding_top(&h.style, vars, viewport))
             .map_or(0.0, |p| p - HEADER_PADDING_TOP)
-        + top_margin(hosts.header_bar);
+        + top_margin(hosts.header_bar)
+        // The box centres the controls on itself: a height of the theme's
+        // moves them by half the difference (Tidalify's `height: 0px`, 16
+        // up, the controls' middle on the box's top).
+        + hosts
+            .header_bar
+            .and_then(|h| len(h.style.height.as_deref(), vars, f32::NAN, viewport))
+            .map_or(0.0, |h| (h.max(0.0) - HEADER_BAR_HEIGHT) / 2.0);
     let page = top_margin(hosts.main)
         + hosts
             .main
