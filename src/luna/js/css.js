@@ -1971,7 +1971,10 @@
 	// CSS; measured in TIDAL 2.43.2. They are not a theme's: they never
 	// reach the overlay's variables, which recolour Tidalfast.
 	// The corner radii are TIDAL 2.46.0's (`:root` in its sheet): CatJam's
-	// cat is rounded by `var(--wave-border-radius--extra-small)`, 4 px.
+	// cat is rounded by `var(--wave-border-radius--extra-small)`, 4 px. The
+	// market radii are TIDAL 2.47.0's (`[data-market-theme]`): Lunallena's,
+	// Giorgeous' and Sunken Tidal's queue button and search field are
+	// rounded by `var(--market-core-radius-100)`, 6 px.
 	const TIDAL_VARS = [
 		["--wave-color-opacity-contrast-fill-thick", "#fff9"],
 		["--wave-color-opacity-contrast-fill-ultra-thick", "#fffc"],
@@ -1980,6 +1983,20 @@
 		["--wave-border-radius--small", "8px"],
 		["--wave-border-radius--regular", "12px"],
 		["--wave-border-radius--full", "1000px"],
+		["--market-core-radius-none", "0px"],
+		["--market-core-radius-6", "4px"],
+		["--market-core-radius-10", "6px"],
+		["--market-core-radius-20", "12px"],
+		["--market-core-radius-33", "2px"],
+		["--market-core-radius-66", "4px"],
+		["--market-core-radius-100", "6px"],
+		["--market-core-radius-200", "12px"],
+		["--market-core-radius-266", "16px"],
+		["--market-core-radius-400", "24px"],
+		["--market-core-radius-533", "32px"],
+		["--market-core-radius-circle", "1000px"],
+		["--market-core-radius-forms", "var(--market-core-radius-100)"],
+		["--market-core-radius-modals", "var(--market-core-radius-200)"],
 	];
 	const NO_VARS = new Map(TIDAL_VARS);
 	let rootMemo = null;

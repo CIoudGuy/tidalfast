@@ -1,9 +1,13 @@
 //! Round 56: what the parity checker showed once its replay lays the demo's
 //! own cover in TIDAL's header art box (`--img`), so the box compares.
 
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
 use super::dom::DomOverlay;
 use super::dom_anchors;
 use super::theme_round41_tests as r41;
+use super::*;
 use crate::ui::plugin_dom as pd;
 
 /// The page's shapes in a 2137 x 1183 window under `overlay` (none: Luna's
@@ -93,6 +97,55 @@ fn a_playlists_header_art_shows_the_covers_top() {
         (uv.center().y - 0.5).abs() < 1e-3,
         "an album's shows its middle: {uv:?}"
     );
+}
+
+/// Installs `css` as a theme over `frame`'s anchors and returns the overlay
+/// once `ready` holds for it.
+fn overlay_when(
+    name: &str,
+    css: &str,
+    frame: &dom_anchors::Frame,
+    ready: impl Fn(&DomOverlay) -> bool,
+) -> Arc<DomOverlay> {
+    let tree = dom_anchors::build(frame);
+    let files: Files = Arc::default();
+    files
+        .lock()
+        .unwrap()
+        .insert(format!("/{name}"), css.as_bytes().to_vec());
+    let base = serve(files);
+    let data = temp_dir(name);
+    let luna = Luna::start(config(&data), Arc::new(MockHost::default())).unwrap();
+    luna.install_theme(&format!("{base}/{name}"));
+    let end = Instant::now() + Duration::from_secs(20);
+    loop {
+        luna.sync_dom(tree.clone());
+        luna.sync(Duration::from_secs(5));
+        let o = luna.dom_overlay();
+        if o.css_bytes > 0 && ready(&o) {
+            return o;
+        }
+        assert!(Instant::now() < end, "{name} never took");
+        std::thread::sleep(Duration::from_millis(30));
+    }
+}
+
+/// TIDAL 2.47.0's market corner tokens (`[data-market-theme] {
+/// --market-core-radius-100: 6px }`, ...) are there for a theme's rules:
+/// Lunallena's `button[aria-label="Play queue"]`, Giorgeous' and Sunken
+/// Tidal's `[data-type="search-field"]` are rounded 6 by
+/// `var(--market-core-radius-100)`. The token was unknown, so the corner
+/// was dropped and TIDAL's own stayed.
+#[test]
+fn a_market_corner_token_rounds_a_themes_box() {
+    use dom_anchors::keys::FOOTER;
+    let frame = dom_anchors::sample_frame();
+    let css = "/* {\"name\": \"Market corners\"} */ ._player_8c80ae6 { border-radius: var(--market-core-radius-100); outline-color: rgb(1, 2, 3); }";
+    let o = overlay_when("market-corners.css", css, &frame, |o| {
+        o.hosts.contains_key(FOOTER)
+    });
+    let radius = o.hosts[FOOTER].style.border_radius.clone();
+    assert_eq!(radius.as_deref().map(str::trim), Some("6px"));
 }
 
 /// TIDAL 2.47.0 multiplies an album's header art by its base tokens
