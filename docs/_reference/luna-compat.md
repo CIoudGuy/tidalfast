@@ -3767,6 +3767,59 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 59 (the page under the header, glass over the page, corners in percent, 2026-11-04)
+
+Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
+TIDAL, with the demo's own cover in TIDAL's header art box as in round 56.
+
+- **A page that takes back the header's room lies under the header.**
+  TIDAL's header lies over `#main` (`position: fixed`, see-through) with
+  no theme too, and `#main`'s `padding-top: 56px` keeps its room. Tidalify's
+  `#main { margin-top: -30px; padding-top: 30px }` lays the page 56 points
+  higher, its top at the header's; Tidalfast's page stopped at the
+  header's foot. The page's body now starts that much higher, under the
+  header, which is drawn over it. Without such a theme nothing moves.
+  Test: `a_page_that_takes_back_the_headers_room_lies_under_the_header`.
+- **The header's first box centres the controls on itself**: a theme's
+  height for it (Tidalify's `height: 0px`) moves them by half the
+  difference from TIDAL's 32 points. Test:
+  `a_header_bar_of_its_own_height_centres_the_controls_on_it`.
+- **A glass sidebar over the page blurs what lies under it.** Where
+  backdrop filters are drawn, Lunallena's visible sidebar card (`blur(35px)
+  saturate(2.5)` under a half see-through grey) now filters the header art
+  behind it under its own fill; the card was filled opaque over the
+  window's black, a flat grey where TIDAL shows the cover's colours.
+  Without the GPU filter the card stays opaque as before. Test:
+  `a_glass_sidebar_over_the_page_blurs_what_lies_under_it`.
+- **A corner radius in `%` is a share of the box's own size** (its
+  `width` and `height` where the theme sets them; half or more of a box
+  of unknown size is round): Lunallena's round 40-point navigation
+  buttons were drawn square. Test:
+  `a_corner_radius_in_percent_is_a_share_of_the_box`.
+- **A floating bar's lengths down are of TIDAL's window** (Lunallena's
+  `bottom: 2vh`), as the sidebar card's became in round 58. Test:
+  `snusehunden_floats_a_rounded_bar_and_a_sidebar_card` (its bar's gap).
+
+Numbers against the round's base (round 58's final), all 55 themes: with
+the cover laid in the header art box, dark 1.13 % -> 1.05 % of 362 million,
+no theme 0.57 % as it was. Lunallena's visible sidebar build 4.8 % ->
+2.3 %, Tidalify 3.3 % -> 2.0 %, Lunallena 1.9 % -> 1.7 % and its macOS
+build 2.2 % -> 2.0 %; no theme worse. The checker as it was: dark 0.98 %
+both (Lunallena's visible sidebar build 1.04 % -> 1.61 % and its macOS
+build 2.06 % -> 2.13 %: that checker's TIDAL pages have no cover in the
+header art box, so the glass shows nothing there, and Tidalfast's now
+shows the demo's cover through it). Style items 172 -> 160 (corners in
+percent: the Lunallena builds', Abyss Neptune macOS's and Giorgeous').
+Hover 1.11 % and Tidal Light 0.67 % as they were.
+
+Still open: the rest of the no-theme residue is TIDAL's page scrollbar,
+whose grey thumb its window shows at rest (Tidalfast draws its own
+scrollbar otherwise: an interface change, not made), the captured state of TIDAL's
+sound output button, and the captures' own data (a Credits button, the
+bitrate columns). Tidalify's page with a context menu open keeps 5.8 %
+(its album page 0.7 %): there the track rows sit about 16 points off
+TIDAL's, not looked into yet.
+
 ### Round 58 (the page box down, TIDAL's title bar token, header art blur, the sidebar card, 2026-11-04)
 
 Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
