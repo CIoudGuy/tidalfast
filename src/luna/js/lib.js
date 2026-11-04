@@ -15,7 +15,7 @@
 	// ---------------------------------------------------------------- helpers
 	const memoize = (fn) => {
 		const cache = new Map();
-		return (...args) => {
+		const memo = (...args) => {
 			const key = JSON.stringify(args);
 			if (cache.has(key)) return cache.get(key);
 			const v = fn(...args);
@@ -23,6 +23,9 @@
 			if (v instanceof Promise) v.catch(() => cache.delete(key));
 			return v;
 		};
+		// As TidaLuna's helper: `clear()` forgets every answer, `clear(...args)` that call's.
+		memo.clear = (...args) => (args.length === 0 ? cache.clear() : cache.delete(JSON.stringify(args)));
+		return memo;
 	};
 	// An emitter starts its shared listener when the first plugin asks for
 	// it. That listener is the library's: while it is set up, no plugin is
@@ -1453,15 +1456,20 @@
 			const s = redux.store.getState();
 			return `countryCode=${s.session?.countryCode ?? "US"}&deviceType=DESKTOP&locale=${s.settings?.language ?? "en_US"}`;
 		},
-		fetch: async (url) => {
+		// TidaLuna's is memoised: an address asked again gets the first
+		// answer until `TidalApi.fetch.clear(url)`.
+		fetch: memoize(async (url) => {
 			// Whose request it is, before the await leaves only this code on the stack.
 			const owner = L.pluginFromStack() ?? L.running;
 			const res = await L.fetchAs(owner, url, { headers: await TidalApi.getAuthHeaders() });
 			if (res.status >= 200 && res.status < 300) return res.json();
 			if (res.status === 403 || res.status === 404) return undefined;
 			throw new Error(`${res.status} ${res.statusText}`);
-		},
+		}),
 	};
+	// TidaLuna memoises the query; here it is read each time (the session
+	// can arrive after a plugin loads), so there is nothing to forget.
+	TidalApi.queryArgs.clear = () => {};
 	const ACCOUNT_TOKEN = "tidalfast-account";
 	// The TIDAL sign-in, only for a plugin the user allowed to have it
 	// (asked at first use): TidaLuna's shape, with the current token.

@@ -57,6 +57,17 @@ impl LunaHost for ActionHost {
                     .push(format!("asked {} {method} {url}", plugin.unwrap_or("?")));
                 NetVerdict::Deny("not sent in the test".into())
             }
+            // Answered here: how many times it was asked so far.
+            NetRequest::Fetch { url, .. } if url.contains("who-answers") => {
+                let mut notes = self.notes.lock().unwrap();
+                notes.push(format!("answered {url}"));
+                let n = notes.iter().filter(|n| n.starts_with("answered")).count();
+                NetVerdict::Respond {
+                    status: 200,
+                    headers: vec![("Content-Type".into(), "application/json".into())],
+                    body: json!({ "n": n }).to_string().into_bytes(),
+                }
+            }
             NetRequest::Fetch { method, url, .. }
                 if url.contains("ask-me")
                     || (method != "GET"
@@ -2509,6 +2520,40 @@ setTimeout(() => lib.TidalApi.fetch(url + "&again").catch(() => {}).finally(() =
             "asked Actions GET https://desktop.tidal.com/v1/tracks/1/who-asks?limit=1",
             "asked Actions GET https://desktop.tidal.com/v1/tracks/1/who-asks?limit=1&again",
         ]
+    );
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// `TidalApi.fetch` is TidaLuna's memoised fetch: the same address asked
+/// again gets the first answer, and `.clear(url)` forgets it (TidalEQ
+/// clears a playback answer whose stream address no longer works, and
+/// calls `TidalApi.fetch.clear` for that). Every memoised library method
+/// has the `clear` of TidaLuna's helper.
+#[test]
+fn the_librarys_memoised_calls_answer_once_until_cleared() {
+    let (luna, host, dir) = start(
+        r#"
+const url = "https://desktop.tidal.com/v1/tracks/2/who-answers";
+const a = await lib.TidalApi.fetch(url);
+const b = await lib.TidalApi.fetch(url);
+lib.TidalApi.fetch.clear(url);
+const c = await lib.TidalApi.fetch(url);
+lib.TidalApi.fetch.clear();
+const d = await lib.TidalApi.fetch(url);
+lib.TidalApi.queryArgs.clear();
+say(JSON.stringify([a.n, b.n, c.n, d.n, typeof lib.TidalApi.queryArgs()]));
+"#,
+        PlaybackSnapshot::default(),
+    );
+    host.wait(&luna, "the answers", |h| {
+        h.notes().iter().any(|n| n.starts_with('['))
+    });
+    let notes = host.notes();
+    assert_eq!(
+        notes.last().map(String::as_str),
+        Some(r#"[1,1,2,3,"string"]"#),
+        "{notes:?}"
     );
     luna.shutdown();
     let _ = std::fs::remove_dir_all(dir);
