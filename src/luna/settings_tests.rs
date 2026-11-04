@@ -931,3 +931,49 @@ setInterval(() => void (store.seen = [store.on, store.step, store.name, store.to
     let d2 = until(&luna, |d| want(d));
     assert_eq!(d, d2);
 }
+
+/// A select's `disabled` item is a placeholder: MUI's menu shows it dimmed
+/// and never picks it, and with `displayEmpty` the empty value shows that
+/// item's words (TidalEQ's "Choose a preset..." over its presets). The
+/// page gets both, and an input naming the disabled item changes nothing.
+#[test]
+fn a_disabled_item_is_shown_and_never_picked() {
+    let (luna, _dir) = start(
+        r#"
+export const Settings = () => {
+	const [picked, setPicked] = React.useState("none");
+	return h(ui.LunaSettings, null,
+		h(ui.LunaSelectSetting, { title: "Preset", value: "", displayEmpty: true, onChange: (e) => setPicked(String(e.target.value)) },
+			h(ui.LunaSelectItem, { value: "", disabled: true }, "Choose one"),
+			h(ui.LunaSelectItem, { value: "flat" }, "Flat")),
+		h(ui.LunaTextSetting, { title: "Picked", value: picked }));
+};
+"#,
+    );
+    let t = tree(&luna);
+    let mut select = None;
+    t.walk(&mut |n| {
+        if let SettingsNode::Select {
+            id,
+            options,
+            display_empty,
+            ..
+        } = n
+        {
+            select = Some((id.clone(), options.clone(), *display_empty));
+        }
+    });
+    let (id, options, display_empty) = select.expect("the select");
+    assert_eq!(display_empty, Some(true));
+    assert_eq!(
+        options.iter().map(|o| o.disabled).collect::<Vec<_>>(),
+        [Some(true), None]
+    );
+    luna.settings_input("SetTest", &id, SettingValue::Json(json!("")));
+    luna.sync(std::time::Duration::from_secs(5));
+    let d = describe(&tree(&luna));
+    assert!(d.contains(&"text:Picked=none".to_string()), "{d:?}");
+    luna.settings_input("SetTest", &id, SettingValue::Json(json!("flat")));
+    let d = until(&luna, |d| d.contains(&"text:Picked=flat".to_string()));
+    assert!(d.contains(&"text:Picked=flat".to_string()), "{d:?}");
+}

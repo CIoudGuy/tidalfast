@@ -17,6 +17,10 @@ pub struct SelectOption {
     /// Sent back unchanged in [`SettingValue::Json`].
     pub value: Value,
     pub label: String,
+    /// A `disabled` item (TidalEQ's "Choose a preset..." placeholder): shown
+    /// dimmed and never picked, as MUI's `MenuItem` and `<option>` do.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disabled: Option<bool>,
 }
 
 /// Fields every titled setting has.
@@ -109,6 +113,10 @@ pub enum SettingsNode {
         options: Vec<SelectOption>,
         #[serde(default)]
         multiple: Option<bool>,
+        /// MUI's `displayEmpty`: an empty value shows the item that has it
+        /// (without it, MUI's field is blank for an empty value).
+        #[serde(default, rename = "displayEmpty")]
+        display_empty: Option<bool>,
     },
     /// `LunaButtonSetting` / `LunaButton`.
     Button {

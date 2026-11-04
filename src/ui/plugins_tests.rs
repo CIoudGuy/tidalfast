@@ -53,13 +53,16 @@ fn tree() -> SettingsNode {
                     SelectOption {
                         value: json!("HIGH"),
                         label: "High".into(),
+                        disabled: None,
                     },
                     SelectOption {
                         value: json!("LOSSLESS"),
                         label: "Lossless".into(),
+                        disabled: None,
                     },
                 ],
                 multiple: None,
+                display_empty: None,
             },
             SettingsNode::Button {
                 id: "reset".into(),
@@ -2712,13 +2715,16 @@ fn luna_settings_rows_place_their_controls_as_tidaluna_does() {
                     SelectOption {
                         value: json!(""),
                         label: "None".into(),
+                        disabled: None,
                     },
                     SelectOption {
                         value: json!("Arial"),
                         label: "Arial".into(),
+                        disabled: None,
                     },
                 ],
                 multiple: None,
+                display_empty: None,
             },
         ],
     };
@@ -2757,15 +2763,24 @@ fn a_mui_select_shows_nothing_for_an_empty_value() {
         SelectOption {
             value: json!(""),
             label: "None".into(),
+            disabled: None,
         },
         SelectOption {
             value: json!("Arial"),
             label: "Arial".into(),
+            disabled: None,
         },
     ];
-    assert_eq!(shown_option(&json!(""), &options), (Some(0), ""));
-    assert_eq!(shown_option(&json!("Arial"), &options), (Some(1), "Arial"));
-    assert_eq!(shown_option(&json!("Gone"), &options), (None, ""));
+    assert_eq!(shown_option(&json!(""), &options, false), (Some(0), ""));
+    assert_eq!(
+        shown_option(&json!("Arial"), &options, false),
+        (Some(1), "Arial")
+    );
+    assert_eq!(shown_option(&json!("Gone"), &options, false), (None, ""));
+    // With `displayEmpty` the empty value's item shows (TidalEQ's
+    // "Choose a preset..." placeholder).
+    assert_eq!(shown_option(&json!(""), &options, true), (Some(0), "None"));
+    assert_eq!(shown_option(&json!("Gone"), &options, true), (None, ""));
 }
 
 // ------------------------------------------------- the view stays in place

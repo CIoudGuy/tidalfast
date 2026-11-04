@@ -677,6 +677,8 @@ pub(crate) fn text_field(
 /// and the words the field shows (none for an empty value).
 pub(crate) struct Choices<'a> {
     pub options: &'a [&'a str],
+    /// Items MUI draws at its disabled opacity (0.38) and does not pick.
+    pub disabled: &'a [bool],
     pub chosen: Option<usize>,
     pub shown: &'a str,
 }
@@ -691,6 +693,7 @@ pub(crate) fn select(
 ) -> Option<usize> {
     let Choices {
         options,
+        disabled,
         chosen,
         shown,
     } = choices;
@@ -767,12 +770,13 @@ pub(crate) fn select(
                             .show(ui, |ui| {
                                 ui.spacing_mut().item_spacing.y = 0.0;
                                 for (i, option) in options.iter().enumerate() {
+                                    let off = disabled.get(i) == Some(&true);
                                     let (r, item) = ui.allocate_exact_size(
                                         vec2(rect.width(), item_h),
-                                        Sense::click(),
+                                        if off { Sense::hover() } else { Sense::click() },
                                     );
                                     let on = chosen == Some(i);
-                                    let fill = match (on, item.hovered()) {
+                                    let fill = match (on, item.hovered() && !off) {
                                         (true, true) => mui.text.gamma_multiply(0.12),
                                         (true, false) => mui.text.gamma_multiply(0.08),
                                         (false, true) => Color32::from_black_alpha(10),
@@ -784,7 +788,11 @@ pub(crate) fn select(
                                         Align2::LEFT_CENTER,
                                         *option,
                                         font(ui.ctx(), REM),
-                                        mui.text,
+                                        if off {
+                                            mui.text.gamma_multiply(0.38)
+                                        } else {
+                                            mui.text
+                                        },
                                     );
                                     if on {
                                         // Keep the chosen item in view as

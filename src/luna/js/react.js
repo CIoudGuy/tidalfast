@@ -928,11 +928,13 @@
 					const value = this.ctl(path, p.value, p.defaultValue ?? (multiple ? [] : null));
 					const id = this.handler(path, (v) => {
 						const found = options.findIndex((o) => sameJson(o.value, v));
+						// A disabled item is never picked (MUI's and the browser's menus skip it).
+						if (found >= 0 && options[found].disabled) return;
 						const val = found >= 0 ? options[found].value : v;
 						this.local.set(path, val);
 						return p.onChange?.(mkEvent({ value: val, name: p.name, id: p.id, type: "select-one" }), items[found]);
 					});
-					return [{ kind: "select", id, ...base, value, options, multiple: multiple || undefined }];
+					return [{ kind: "select", id, ...base, value, options, multiple: multiple || undefined, displayEmpty: !!p.displayEmpty || undefined }];
 				}
 				case "button": {
 					if (!p.onClick && p.href) return [{ kind: "link", text: textOnly(p.children) || title || String(p.href), href: String(p.href) }];

@@ -2292,8 +2292,10 @@ pub(crate) fn settings_tree(
                         .selected_text(shown)
                         .show_ui(ui, |ui| {
                             for option in options {
+                                let label =
+                                    egui::Button::selectable(option.value == *value, &option.label);
                                 if ui
-                                    .selectable_label(option.value == *value, &option.label)
+                                    .add_enabled(option.disabled != Some(true), label)
                                     .clicked()
                                 {
                                     changes.push((
@@ -2351,11 +2353,12 @@ pub(crate) fn settings_tree(
 pub(crate) fn shown_option<'a>(
     value: &serde_json::Value,
     options: &'a [crate::luna::SelectOption],
+    display_empty: bool,
 ) -> (Option<usize>, &'a str) {
     let chosen = options.iter().position(|o| o.value == *value);
     let empty = value.is_null() || value.as_str() == Some("");
     let shown = match chosen {
-        Some(i) if !empty => options[i].label.as_str(),
+        Some(i) if !empty || display_empty => options[i].label.as_str(),
         _ => "",
     };
     (chosen, shown)
@@ -2514,12 +2517,14 @@ fn luna_look(
             meta,
             value,
             options,
+            display_empty,
             ..
         } if named(meta, &["LunaSelectSetting", "Select", "TextField"]) => {
             let (title, desc) = meta_text(meta);
             let key = egui::Id::new(("luna-select", plugin, id));
             let labels: Vec<&str> = options.iter().map(|o| o.label.as_str()).collect();
-            let (chosen, shown) = shown_option(value, options);
+            let disabled: Vec<bool> = options.iter().map(|o| o.disabled == Some(true)).collect();
+            let (chosen, shown) = shown_option(value, options, *display_empty == Some(true));
             ui.add_enabled_ui(enabled(meta), |ui| {
                 let mut field = |ui: &mut Ui, width: f32| {
                     if let Some(i) = look::select(
@@ -2529,6 +2534,7 @@ fn luna_look(
                         &title,
                         look::Choices {
                             options: &labels,
+                            disabled: &disabled,
                             chosen,
                             shown,
                         },
