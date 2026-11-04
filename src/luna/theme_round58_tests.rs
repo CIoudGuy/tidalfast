@@ -153,3 +153,39 @@ fn a_themes_blur_on_a_playlists_header_art_blurs_the_cover_by_that_much() {
         "the blurred copy is drawn in the header art box"
     );
 }
+
+/// Without a height of the theme's, TIDAL's `#main` is as high as the
+/// content row, down to the window's foot under a docked player bar
+/// (`_scrollSlot_ _hasDockedPlayer`, `main` 1153 high in a 1183 window
+/// with its 30-point title bar): Sunken Tidal's `[class*="dataContainer"]
+/// :before { height: 100% }` box is that high (captured). Tidalfast took
+/// the room above the bar, about 90 short.
+#[test]
+fn a_full_height_header_art_box_reaches_under_a_docked_player_bar() {
+    use super::dom::DomOverlay;
+    use super::theme_round41_tests as r41;
+    let css = r#"/* {"name": "Full art"} */
+[class*="dataContainer"]::before { height: 100% !important; }
+[class^="_dataContainer_"] { scrollbar-width: none; }
+"#;
+    let (ctx, mut app) = r41::demo_app("album:alb0", None);
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let mut o = r41::styled("full-art.css", css, &plain, dom_anchors::keys::PAGE_DATA);
+    o.version = 2;
+    crate::ui::hold_cover_backdrop_for_test(&mut app, &ctx);
+    let s = super::theme_round56_tests::shapes(&ctx, &mut app, Some(o));
+    app.backend.shutdown();
+    let (top, height) = header_art_down(&s).expect("the header art is drawn");
+    assert_eq!(
+        top + height,
+        1183.0,
+        "down to the window's foot: {top} + {height}"
+    );
+}

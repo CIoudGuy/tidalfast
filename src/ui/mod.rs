@@ -801,14 +801,15 @@ fn page_panel(app: &mut App, ui: &mut egui::Ui, under: f32) {
                 // Down, the box is `main`'s: below its top margin, as
                 // high as the theme makes `main` (Lunallena macOS's 100
                 // down and the window's height, its foot below the
-                // window's).
-                if let Some(layout) = plugin_dom::theme_layout(ui.ctx()) {
-                    art_rect.min.y += layout.main_top;
-                    let height = layout
-                        .main_height(rect.height())
-                        .unwrap_or(rect.height() - layout.main_top);
-                    art_rect.max.y = art_rect.min.y + height;
-                }
+                // window's). Otherwise `main` is as high as the content
+                // row, down to the window's foot under a docked player
+                // bar (TIDAL's `_hasDockedPlayer`: Sunken Tidal's
+                // `height: 100%` box is 1153 high in a 1183 window).
+                let row = (ui.ctx().content_rect().bottom() - rect.top()).max(rect.height());
+                let (top, height) = plugin_dom::theme_layout(ui.ctx())
+                    .map_or((0.0, None), |l| (l.main_top, l.main_height(row)));
+                art_rect.min.y += top;
+                art_rect.max.y = art_rect.min.y + height.unwrap_or(row - top);
                 paint_cover_backdrop(app, ui, art_rect, &backdrop);
             }
             if let Page::Artist(id) = app.page().clone() {
