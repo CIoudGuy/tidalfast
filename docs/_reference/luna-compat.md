@@ -1249,6 +1249,9 @@ What the renderer understands:
   the control's title (a radio's option), the rest its description (the
   chosen radio's, for the select). Radios without a `value` of their own
   (all "on") are told apart by their place in the group.
+  Inline elements side by side run into one line; a horizontal margin or
+  padding between them is a space there, as Chromium leaves a gap
+  (`<span>Favorites</span><span style="margin-left:8px">712 tracks</span>`).
 - MUI, both what a plugin bundles (it ends up as plain elements) and
   `luna.core.modules["@mui/material"]` (Stack, Box, Typography, Button, Switch,
   FormControlLabel, Slider, TextField, Select, MenuItem, Tooltip, Divider...; unknown names
@@ -1650,6 +1653,9 @@ review pass of the compatibility audit.
   first one's description for a name and left the last lines loose under
   the select, and radios without a `value` could only pick the first
   (`settings_tests::a_label_around_a_control_names_that_control_only`).
+  Words in spans with a margin between them ran together ("Favorites712
+  tracks"); the margin is a space now
+  (`settings_tests::a_margin_between_inline_words_is_a_gap`).
 - **Plugin round 26 (2026-10-30).** Worked from the 2.47.0 records and
   captures of round 25; TIDAL itself was not run. Fixed for every plugin,
   each with a test that fails without it: an artist's Top Tracks are

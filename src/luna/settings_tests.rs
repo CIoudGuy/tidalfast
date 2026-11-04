@@ -437,6 +437,34 @@ export const Settings = () => {
     );
 }
 
+/// Inline elements side by side run into one line, and a horizontal margin
+/// or padding between them is a gap there, as Chromium draws it: a title
+/// and its count in spans with `margin-left` read "Favorites 712 tracks",
+/// not "Favorites712 tracks". Spans with no room between them still join.
+#[test]
+fn a_margin_between_inline_words_is_a_gap() {
+    let (luna, _dir) = start(
+        r#"
+export const Settings = () => h("div", null,
+	h("div", null, h("span", null, "Favorites"), h("span", { style: { marginLeft: "8px" } }, 712, " tracks")),
+	h("div", null, h("span", { style: { paddingRight: 4 } }, "A"), h("span", null, "B")),
+	h("div", null, h("span", { style: { margin: "0 0 0 6px" } }, "C"), h("span", { style: { marginLeft: "0px" } }, "D")),
+	h("div", null, "1", "/", "63"));
+"#,
+    );
+    let d = describe(&tree(&luna));
+    assert_eq!(
+        d,
+        vec![
+            "text:Favorites 712 tracks",
+            "text:A B",
+            "text:CD",
+            "text:1/63"
+        ],
+        "{d:?}"
+    );
+}
+
 #[test]
 fn bundled_mui_markup_keeps_its_labels() {
     // What MUI's TextField, FormControlLabel+Switch and Slider render.

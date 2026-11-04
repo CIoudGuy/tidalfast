@@ -229,6 +229,27 @@
 	const BLOCK = new Set(["div", "p", "section", "article", "header", "footer", "main", "nav", "aside", "form", "fieldset", "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6", "table", "tr", "thead", "tbody", "dl", "dt", "dd", "pre", "blockquote", "details", "summary", "legend", "figure", "figcaption", "address"]);
 	const SKIP = new Set(["svg", "style", "script", "canvas", "img", "picture", "video", "audio", "iframe", "noscript", "template", "link", "meta", "head", "hr", "option", "optgroup", "datalist", "map", "object", "embed", "dialog"]);
 	const HEADING = /^h[1-6]$/;
+	// Whether an inline element's horizontal margin or padding leaves room
+	// before and after its words: `[before, after]`.
+	const sideRoom = (style) => {
+		if (!style || typeof style !== "object") return [false, false];
+		const len = (v) => {
+			const m = /^\s*(-?[\d.]+)/.exec(String(v ?? ""));
+			return m ? Number(m[1]) > 0 : false;
+		};
+		const sides = (v) => {
+			const p = String(v ?? "").trim().split(/\s+/);
+			if (!p[0]) return [false, false];
+			return [len(p[p.length === 4 ? 3 : p.length > 1 ? 1 : 0]), len(p[p.length > 1 ? 1 : 0])];
+		};
+		const [ml, mr] = sides(style.margin);
+		const [pl, pr] = sides(style.padding);
+		const pick = (side, ...keys) => {
+			for (const k of keys) if (style[k] !== undefined) return len(style[k]);
+			return side;
+		};
+		return [pick(ml, "marginLeft", "marginInlineStart") || pick(pl, "paddingLeft", "paddingInlineStart"), pick(mr, "marginRight", "marginInlineEnd") || pick(pr, "paddingRight", "paddingInlineEnd")];
+	};
 	const TEXTUAL = new Set(["", "text", "search", "email", "url", "tel", "password", "date", "time", "datetime-local", "month", "week", "color"]);
 	const mkEvent = (target, extra) => {
 		const ev = {
@@ -391,6 +412,8 @@
 				delete n.radio;
 				delete n._b;
 				delete n._lbl;
+				delete n._gapL;
+				delete n._gapR;
 				out.push(n);
 			}
 			return out;
@@ -471,7 +494,11 @@
 			const merged = [];
 			for (const n of nodes) {
 				const last = merged.at(-1);
-				if (isText(n) && isText(last) && !n.title && !last.title && !n._b && !last._b && !n._lbl && !last._lbl) last.text = `${last.text}${n.text}`;
+				if (isText(n) && isText(last) && !n.title && !last.title && !n._b && !last._b && !n._lbl && !last._lbl) {
+					const gap = (last._gapR || n._gapL) && !/\s$/.test(last.text) && !/^\s/.test(n.text);
+					last.text = `${last.text}${gap ? " " : ""}${n.text}`;
+					last._gapR = n._gapR;
+				}
 				else merged.push(n);
 			}
 			for (let i = 0; i < merged.length; i++) {
@@ -681,7 +708,13 @@
 				else kids = [{ kind: "text", text: "•" }, ...kids];
 			}
 			if ((tag === "td" || tag === "th") && isText(kids.at(-1))) kids.at(-1).text += "  ";
-			return BLOCK.has(tag) ? this.block(kids) : kids;
+			if (BLOCK.has(tag)) return this.block(kids);
+			// An inline element's side room is a gap between its words and
+			// its neighbours' on the line.
+			const [before, after] = sideRoom(props.style);
+			if (before && isText(kids[0])) kids[0]._gapL = true;
+			if (after && isText(kids.at(-1))) kids.at(-1)._gapR = true;
+			return kids;
 		}
 		buttonNode(props, path, label0) {
 			const kids = this.renderChildren(props.children, path);
