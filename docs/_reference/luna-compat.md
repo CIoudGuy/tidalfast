@@ -981,6 +981,8 @@ plugins' shortcuts are dropped.
 
 Plugin elements in the player bar (a genre chip after the title, star ratings and Up Next after the heart, total play time and buttons on the right, tags beside the quality pill) never cover the transport buttons or the seek bar. The sides may use the centre's room beyond the transport (108 points either side of the middle). An element that does not fit is left out whole, not clipped, and on the right the plugins' text goes first, then the tags by the quality pill, then plugin buttons, and TIDAL's own quality pill last, always in the same order, so a window resized across a limit switches each element once. Without plugins, and in a wide bar, the layout is unchanged. Tests: `narrow_tests` in `src/ui/player_bar.rs`.
 
+TIDAL itself does not leave such an element out. Laid out with TIDAL 2.47.0's own stylesheet in Chromium (plugin round 38: the footer's `1fr 1.5fr 1fr` grid, the track info a flex row with `min-width: 0`, up-next's card with `flex-shrink: 0`), up-next's card with a long next title is drawn whole: at 1600 pixels the title and artists shrink to nothing, the heart and "..." lie under the card and the card runs about 166 pixels into the centre column, whose start time and seek bar are painted over it. With a short title the card fits and the title is ellipsised, as in Tidalfast. Tidalfast keeps the transport and seek row clear instead, a deliberate difference; making it TIDAL's would change the player bar's layout and needs the maintainer's approval.
+
 ## Plugin `<video>` and live audio analysis
 
 - A plugin's own `<video>` (not TIDAL's player element) loads its `src`
