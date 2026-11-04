@@ -5971,6 +5971,62 @@ pub fn before_blur(key: &str) -> Option<f32> {
     })
 }
 
+/// What a theme's own rules on the anchor's `::before` do to the header art
+/// TIDAL paints there: its `background-image` the cover alone
+/// (`var(--img)` or a `url()`, no gradient: Abyss Neptune's
+/// `background-image: var(--img)`), which leaves TIDAL's veil out, and the
+/// `brightness()` in its `filter`, which darkens the whole box. `None` when
+/// the theme does neither.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BeforeArt {
+    pub cover_alone: bool,
+    pub brightness: f32,
+}
+
+impl BeforeArt {
+    /// `shade`, the colours the cover is multiplied by at its box's top and
+    /// foot, as this rule leaves them.
+    pub fn shade(self, shade: (Color32, Color32)) -> (Color32, Color32) {
+        let (top, foot) = if self.cover_alone {
+            (Color32::WHITE, Color32::WHITE)
+        } else {
+            shade
+        };
+        let b = self.brightness.clamp(0.0, 1.0);
+        let dim = |c: Color32| {
+            let k = |v: u8| (f32::from(v) * b).round() as u8;
+            Color32::from_rgb(k(c.r()), k(c.g()), k(c.b()))
+        };
+        (dim(top), dim(foot))
+    }
+}
+
+/// See [`BeforeArt`].
+pub fn before_art(key: &str) -> Option<BeforeArt> {
+    host(key, |h, vars| {
+        let b = h.before.as_ref()?;
+        let cover_alone = b.background_image.as_deref().is_some_and(|v| {
+            let v = v.to_ascii_lowercase();
+            covers_art(&v) && !v.contains("gradient(")
+        });
+        let brightness = b
+            .filter
+            .as_deref()
+            .and_then(|f| backdrop_brightness(&css::resolve_vars(f, vars)))
+            .unwrap_or(1.0);
+        (cover_alone || brightness < 1.0).then_some(BeforeArt {
+            cover_alone,
+            brightness,
+        })
+    })
+}
+
+/// A `::before` picture value that paints the cover: a `url()`, or TIDAL's
+/// `var(--img)` (the cover's own variable on the header art box).
+fn covers_art(value: &str) -> bool {
+    value.contains("url(") || value.contains("var(--img")
+}
+
 /// A plugin took the anchor's TIDAL class starting `prefix` away
 /// (`_selected_`: the row no longer shows as the open page).
 pub fn class_removed(key: &str, prefix: &str) -> bool {
@@ -9002,11 +9058,12 @@ pub fn before_image_removed(key: &str) -> bool {
         let b = h.before.as_ref()?;
         // Any picture layers of the theme's own take the place of TIDAL's
         // gradient and cover (`var(--img)`): `none`, or a gradient alone
-        // (Cotton Candy Nights Single's clear one), leaves no cover.
+        // (Cotton Candy Nights Single's clear one), leaves no cover; the
+        // cover's own `var(--img)` keeps it (Abyss Neptune's).
         (b.hidden()
             || b.background_image
                 .as_deref()
-                .is_some_and(|v| !v.to_ascii_lowercase().contains("url(")))
+                .is_some_and(|v| !covers_art(&v.to_ascii_lowercase())))
         .then_some(())
     })
     .is_some()

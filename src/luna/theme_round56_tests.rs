@@ -12,7 +12,7 @@ use crate::ui::plugin_dom as pd;
 
 /// The page's shapes in a 2137 x 1183 window under `overlay` (none: Luna's
 /// look left out), after the frames a page needs to settle.
-fn shapes(
+pub(super) fn shapes(
     ctx: &egui::Context,
     app: &mut crate::app::App,
     overlay: Option<DomOverlay>,

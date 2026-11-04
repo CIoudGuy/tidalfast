@@ -1598,6 +1598,12 @@
 				if (INHERITED.has(name)) {
 					if (parentStyle?.[name] !== undefined) st[name] = parentStyle[name];
 					else if (!TIDAL_VAR.test(missing) && UNSET_INHERITED[name]) st[name] = UNSET_INHERITED[name];
+				} else if (missing === "--img" && name === "background-image") {
+					// The cover TIDAL paints from `--img` on its header art
+					// box: the value goes on as it is, so the app knows the
+					// theme's layers are the cover (Abyss Neptune's
+					// `background-image: var(--img)`, no veil).
+					st[name] = v;
 				} else if (!TIDAL_VAR.test(missing)) {
 					if (UNSET_INITIAL[name]) st[name] = UNSET_INITIAL[name];
 					else if (name === "background") {

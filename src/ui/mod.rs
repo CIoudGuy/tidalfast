@@ -623,8 +623,14 @@ fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: 
             .sharp
             .as_deref()
             .is_some_and(|url| widgets::paint_backdrop_image(&layer, url, header, Some(&art)));
+        let own = plugin_dom::before_art(key);
         let tinted = sharp.then(plugin_dom::album_art_multiply).flatten();
-        if let Some((top, foot)) = tinted {
+        if let (true, Some(own)) = (sharp, own) {
+            // The theme's own picture or brightness on the box.
+            let (top, foot) = own.shade(tinted.unwrap_or_else(|| widgets::veil_shade(ALBUM_VEIL)));
+            let end = paint_list_end(&layer);
+            widgets::multiply_painted(&layer, start, end, header, top, foot);
+        } else if let Some((top, foot)) = tinted {
             let end = paint_list_end(&layer);
             widgets::multiply_painted(&layer, start, end, header, top, foot);
         } else if sharp {
@@ -648,6 +654,7 @@ fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: 
                 .then(plugin_dom::album_art_multiply)
                 .flatten()
                 .unwrap_or_else(|| widgets::veil_shade(veil));
+            let shade = own.map_or(shade, |own| own.shade(shade));
             // A playlist's box sets no `background-position` (TIDAL 2.47.0's
             // `._dataContainer_9f47346::before`): the cover's top shows, the
             // sky of a landscape, where an album's shows its middle.

@@ -87,3 +87,73 @@ fn a_box_sized_by_the_queues_width_narrows_while_the_queue_is_open() {
         "{open}"
     );
 }
+
+/// The colours at the top-left and bottom-left corners of the header art's
+/// textured mesh (as wide as the page), `None` when it is not drawn.
+fn header_art_corners(
+    shapes: &[egui::epaint::ClippedShape],
+) -> Option<(egui::Color32, egui::Color32)> {
+    fn meshes<'a>(shape: &'a egui::Shape, out: &mut Vec<&'a egui::Mesh>) {
+        match shape {
+            egui::Shape::Mesh(m) => out.push(m),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| meshes(s, out)),
+            _ => {}
+        }
+    }
+    let mut all = Vec::new();
+    for s in shapes {
+        meshes(&s.shape, &mut all);
+    }
+    let mesh = all
+        .into_iter()
+        .filter(|m| m.texture_id != egui::TextureId::default() && !m.vertices.is_empty())
+        .filter(|m| {
+            let pos =
+                egui::Rect::from_points(&m.vertices.iter().map(|v| v.pos).collect::<Vec<_>>());
+            pos.width() >= 1000.0 && pos.height() >= 300.0
+        })
+        .max_by_key(|m| m.vertices.len())?;
+    let pos = egui::Rect::from_points(&mesh.vertices.iter().map(|v| v.pos).collect::<Vec<_>>());
+    let at = |p: egui::Pos2| mesh.vertices.iter().find(|v| v.pos == p).map(|v| v.color);
+    Some((at(pos.left_top())?, at(pos.left_bottom())?))
+}
+
+/// A theme's `background-image: var(--img)` on TIDAL's header art box (Abyss
+/// Neptune's `[class^="_dataContainer_"]::before`, with `filter: blur(10px)
+/// brightness(0.4)`) is the cover alone: TIDAL's gradient goes, so no veil
+/// darkens it towards the foot, and the brightness darkens the whole box to
+/// 40 %. Tidalfast took a picture value without `url(` for no cover and
+/// drew none.
+#[test]
+fn the_covers_own_variable_on_the_header_art_box_is_the_cover_alone() {
+    use super::theme_round41_tests as r41;
+    let corners = |css: &str| {
+        let (ctx, mut app) = r41::demo_app("album:alb0", None);
+        let plain = r41::drawn(
+            &ctx,
+            &mut app,
+            DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            },
+        );
+        let mut o = r41::styled("own-art.css", css, &plain, dom_anchors::keys::PAGE_DATA);
+        o.version = 2;
+        crate::ui::hold_cover_backdrop_for_test(&mut app, &ctx);
+        let s = super::theme_round56_tests::shapes(&ctx, &mut app, Some(o));
+        app.backend.shutdown();
+        header_art_corners(&s)
+    };
+    let css = "/* {\"name\": \"Own art\"} */ [class^=\"_dataContainer_\"]::before { background-image: var(--img); filter: brightness(0.4); } [class^=\"_dataContainer_\"] { scrollbar-width: none; }";
+    assert_eq!(
+        corners(css),
+        Some((egui::Color32::from_gray(102), egui::Color32::from_gray(102))),
+        "the cover at 40 % from top to foot"
+    );
+    let css = "/* {\"name\": \"Dim art\"} */ [class^=\"_dataContainer_\"]::before { filter: brightness(0.5); } [class^=\"_dataContainer_\"] { scrollbar-width: none; }";
+    assert_eq!(
+        corners(css),
+        Some((egui::Color32::from_gray(51), egui::Color32::BLACK)),
+        "TIDAL's veil, then half as bright"
+    );
+}
