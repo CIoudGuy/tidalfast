@@ -372,7 +372,7 @@ Notes that apply to every plugin:
 | PlayerAPI | thororen1234/luna-plugins | ✅ live r13 | GET answers the playing song; resume and pause work since the `executeJavaScript` fix. |
 | DiscordRPC+ | thororen1234/luna-plugins | ✅ live r13 | Handshake and SET_ACTIVITY with title, artist, cover and buttons against a fake Discord on pipe 7. |
 | TidalPresence | BaeHyolyn/luna-plugins (was BaeHyolyn/tidal-presence) | ✅ tests | Discord Rich Presence (derived from DiscordRPC, on `@xhayper/discord-rpc` with its own bundled undici), checked in plugin round 13 against a fake Discord pipe that every IPC connect was sent to (never a Discord running on the computer): the handshake with its own client id, then SET_ACTIVITY with the title, artists, album cover and "Album · HiFi", the artist's picture, links to the track, album and artist, the Listen on TIDAL and View Album buttons, the listening type and the song's own length 34 seconds in; paused, the activity reads "Paused". Its settings page renders all fifteen controls (six selects, four switches, five text fields) with the pipe picker listing the pipes found. Not seen on screen in a Discord client, and its karaoke styles (live lyric lines) were not exercised. |
-| TidalDJ | BaeHyolyn/luna-plugins | ✅ live r38 | Published in TidaLuna 1.19.0-beta's store list. Plugin round 15 put it in the parity checker: in the demo it loads without errors and puts its `button.withBackground[data-test=tidaldj-now]` before the queue button, its colour, background and radius set each second, as its code reads; its queue picks (radio tracks, moods, favourites, skips) act only when a song changes or a wished-for song does not start, and were not exercised. Plugin round 18 compared it with TIDAL 2.47.0 (TidaLuna 1.20.0-beta), paused: its button and its look are the same on both sides. Its queue picks still were not exercised (they need playback, which the checker never starts in TIDAL). Plugin round 38 (live, test profile, muted): a one-song album played as the queue's last song; on the transition it read `tracks/{id}/radio` through the app (200) and put its pick in Playing next (`playQueue/ADD_NEXT`), as its code reads; no error. Mix (needs TidalEQ) and the stuck-song replacement were not exercised. |
+| TidalDJ | BaeHyolyn/luna-plugins | ✅ live r38 | Published in TidaLuna 1.19.0-beta's store list. Plugin round 15 put it in the parity checker: in the demo it loads without errors and puts its `button.withBackground[data-test=tidaldj-now]` before the queue button, its colour, background and radius set each second, as its code reads; its queue picks (radio tracks, moods, favourites, skips) act only when a song changes or a wished-for song does not start, and were not exercised. Plugin round 18 compared it with TIDAL 2.47.0 (TidaLuna 1.20.0-beta), paused: its button and its look are the same on both sides. Its queue picks still were not exercised (they need playback, which the checker never starts in TIDAL). Plugin round 38 (live, test profile, muted): a one-song album played as the queue's last song; on the transition it read `tracks/{id}/radio` through the app (200) and put its pick in Playing next (`playQueue/ADD_NEXT`), as its code reads; no error. Mix (needs TidalEQ) and the stuck-song replacement were not exercised. Plugin round 39 (live, test profile, muted, with TidalEQ): its mix loop finds TidalEQ's `mixInto` and `analyzeTrack` through `LunaPlugin.plugins`, as its code reads; TidalEQ's analysis decodes the song with mpv, and TidalEQ's `mixInto` only mixes while TidalEQ plays through mpv, so without mpv (none on the test machine) the DJ gives up mixing for each song and TIDAL moves on by itself, as in TidaLuna without mpv; no error. Its radio read is now logged as TidalDJ's. |
 | TidalEQ | BaeHyolyn/luna-plugins | 🔑 permission | Plays TIDAL's stream (its unencrypted manifest URL, from `MediaItem.playbackInfo`) through an mpv it starts with its equalizer, as @vmohammad/mpv does: starting mpv asks behind the `child_process` prompt. Plugin round 14, demo only: it loads, adds its two now-playing tabs (`toggle-tidaleq`, `toggle-tidaleq-visualizer`) and its start of mpv failed with ENOENT before any question (no mpv at its default path on the test machine), after which it says TIDAL keeps playing normally, as in TidaLuna without mpv. Not checked with mpv. Plugin round 15, parity checker (demo side only, as TidalDJ): its stylesheet and both tabs are added and the failed start of mpv shows its own error toast; nothing else at load. Plugin round 16 (sweep and demo): its frame loop builds a `DOMRect` from the now-playing cover's box, which threw a ReferenceError every frame (`DOMRect` is defined now, as in Chromium); and its native module, compiled while the next plugin loaded, left QuickJS's ignored syntax error behind, so that plugin failed to load (fixed for every plugin, see "Plugin rounds"). Its visualizer fetches the stream from the manifest's URL (`manifest.urls[0]`), which Tidalfast never hands plugins (see "Security model and limits"): it logs that it could not prepare the song and shows nothing. Still not checked with mpv. |
 | TranslateLyrics | thororen1234/luna-plugins | ✅ live r13 | Answered 'Lyrics translated successfully' for a song that loaded after the plugin (after the HTTP/1.1 change). For the song restored at start-up it says 'No lyrics available': it learns lyrics only from `content/LOAD_ITEM_LYRICS_SUCCESS`, which was sent before the plugin started. |
 | BetterFullscreen (fork) | thororen1234/luna-plugins | ✅ live r19 | Same code paths as vMohammad's (131 characters differ): its button appears in the bar's more-container (and goes away with the plugin off). Clicking it requests real window fullscreen, which took the off-screen test window onto a display, so its own view was not looked at again (as the original's row says). |
@@ -1640,6 +1640,34 @@ review pass of the compatibility audit.
   playlist's cover came only with the next read, a saved name showed only
   after TIDAL's answer, and a cleared description was refused for a limit of
   the old v1 call.
+- **Plugin round 39 (2026-11-04).** Fixed for every plugin, each with a
+  test that fails without it: a request `TidalApi.fetch` makes is the
+  calling plugin's (it awaits the account's headers first, and after that
+  await only the library's code is on the stack, so the host heard
+  TidalDJ's radio read as from nobody, "?"; the library now takes the
+  caller as the call begins,
+  `action_tests::a_request_the_library_makes_for_a_plugin_is_that_plugins`).
+  `TidalApi.fetch` is memoised as TidaLuna's is, and every memoised library
+  method has the helper's `clear()` and `clear(...args)` (TidalEQ clears a
+  playback answer whose stream address stopped working with
+  `TidalApi.fetch.clear(url)` and `playbackInfo.clear(quality)`, which
+  threw; `action_tests::the_librarys_memoised_calls_answer_once_until_cleared`).
+  In settings, a `disabled` select item is dimmed and never picked, and
+  `displayEmpty` shows the empty value's item (TidalEQ's "Choose a
+  preset..." placeholder was a blank field and could be picked;
+  `settings_tests::a_disabled_item_is_shown_and_never_picked`). TidaLuna's
+  own pages: its UI sources changed from 1.17.1-beta to 1.20.1-beta only in
+  the Plugin Store's built-in store list (BaeHyolyn's and Drousis3's
+  stores, both already in Tidalfast's list). A runtime-error sweep, live
+  on the test profile with real (muted) playback: the profile's store
+  plugins (DiscordRPC left out), five or six enabled at a time, then
+  TidalDJ with TidalEQ, each group through a play, album, artist,
+  collection, search and home page, a skip and a song's end. No uncaught
+  error and no rejection from the layer; one unhandled rejection, from
+  @vmohammad/betterFullscreen when its lyrics service answered 503: its
+  bundled memoize rethrows in a `catch` nobody handles, so Chromium
+  reports the same in TIDAL. TidalEQ, as before, cannot start mpv where
+  none is installed and says so.
 - **Plugin round 38 (2026-11-04).** TidalAPI's new store build changed
   only the `ws` library it bundles; in the demo its REST routes, the
   WebSocket handshake, masked frames and live `update` messages work. Fixed
