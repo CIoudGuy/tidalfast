@@ -97,12 +97,22 @@ impl Backdrop {
 /// painter's opacity: call it where the box's paint order starts, before
 /// its fill. Nothing is added while backdrop filters are not drawn.
 pub fn paint(painter: &egui::Painter, rect: Rect, corners: CornerRadius, backdrop: &Arc<Backdrop>) {
-    if !available() || !rect.is_positive() {
-        return;
+    if let Some(shape) = shape(rect, corners, backdrop, painter.opacity()) {
+        painter.add(shape);
     }
-    let opacity = painter.opacity();
-    if opacity <= 0.0 {
-        return;
+}
+
+/// [`paint`]'s shape at `opacity`, for a slot reserved in the box's paint
+/// order before its size is known (a panel's frame). `None` while backdrop
+/// filters are not drawn.
+pub fn shape(
+    rect: Rect,
+    corners: CornerRadius,
+    backdrop: &Arc<Backdrop>,
+    opacity: f32,
+) -> Option<egui::Shape> {
+    if !available() || !rect.is_positive() || opacity <= 0.0 {
+        return None;
     }
     let backdrop = Arc::clone(backdrop);
     let callback = egui_glow::CallbackFn::new(move |info, painter| {
@@ -111,10 +121,10 @@ pub fn paint(painter: &egui::Painter, rect: Rect, corners: CornerRadius, backdro
         // after it (`prepare_painting`), and the framebuffer is put back.
         unsafe { draw(&info, painter.gl(), &backdrop, corners, opacity) };
     });
-    painter.add(egui::PaintCallback {
+    Some(egui::Shape::Callback(egui::PaintCallback {
         rect,
         callback: Arc::new(callback),
-    });
+    }))
 }
 
 /// The GLSL header for `gl`, or `None` when it is older than OpenGL 3 or

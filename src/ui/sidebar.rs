@@ -841,6 +841,7 @@ fn collapsing(app: &mut App, ui: &mut egui::Ui, collapse: f32) -> Placed {
         .filter(|_| !over)
         .map(|_| ui.painter().add(egui::Shape::Noop));
     let shadow = floating.map(|_| ui.painter().add(egui::Shape::Noop));
+    let glass_slot = glass(ui.ctx()).map(|_| ui.painter().add(egui::Shape::Noop));
     let response = egui::Panel::left("sidebar-rail")
         .resizable(false)
         .exact_size(width)
@@ -874,6 +875,7 @@ fn collapsing(app: &mut App, ui: &mut egui::Ui, collapse: f32) -> Placed {
         f.sidebar.collapsed = collapse >= 0.5;
     });
     card_shadow(ui, shadow, edge, floating.as_ref(), shift);
+    glass_backdrop(ui, glass_slot, edge, floating.as_ref(), shift);
     edge_line(ui, &palette, edge, behind, floating.is_some(), shift);
     Placed {
         slot: edge.width(),
@@ -904,15 +906,59 @@ fn slide(ctx: &egui::Context, width: f32) -> Option<f32> {
 }
 
 /// The sidebar's fill: the theme's, and over the page (see [`over_page`])
-/// opaque where the theme asks for a backdrop blur, so the page's text under
-/// the glass cannot be read.
+/// opaque where the theme asks for a backdrop blur that is not drawn, so
+/// the page's text under the glass cannot be read. Where it is drawn
+/// ([`glass`]) the fill is the theme's own, over the blurred page.
 fn panel_fill(ctx: &egui::Context, palette: &theme::Palette) -> egui::Color32 {
     let key = crate::luna::dom_anchors::keys::SIDEBAR;
     let fill = super::plugin_dom::surface(key, palette.window);
-    if over_page(ctx) {
-        super::plugin_dom::frosted(key, fill, palette.window)
-    } else {
-        fill
+    if !over_page(ctx) {
+        return fill;
+    }
+    match glass(ctx) {
+        Some(look) => look.fill_or(fill),
+        None => super::plugin_dom::frosted(key, fill, palette.window),
+    }
+}
+
+/// The sidebar's look when a theme lays it over the page as glass whose
+/// backdrop filter is drawn (Lunallena's `backdrop-filter: blur(35px)
+/// saturate(2.5)` card over the header art).
+fn glass(ctx: &egui::Context) -> Option<std::sync::Arc<super::plugin_dom::AnchorLook>> {
+    if !over_page(ctx) {
+        return None;
+    }
+    super::plugin_dom::anchor_look(crate::luna::dom_anchors::keys::SIDEBAR)
+        .filter(|l| l.backdrop.is_some())
+}
+
+/// The glass's backdrop filter in the slot reserved under the panel: the
+/// box the card or the slid panel covers, in the window.
+fn glass_backdrop(
+    ui: &egui::Ui,
+    slot: Option<egui::layers::ShapeIdx>,
+    edge: Rect,
+    floating: Option<&crate::ui::theme_layout::Floating>,
+    shift: Option<f32>,
+) {
+    let Some(slot) = slot else {
+        return;
+    };
+    let Some(backdrop) = glass(ui.ctx()).and_then(|l| l.backdrop.clone()) else {
+        return;
+    };
+    let card = floating.map_or(edge, |f| edge - f.gaps);
+    let card = card.translate(egui::vec2(-shift.unwrap_or(0.0), 0.0));
+    let mut corners = floating.map_or(egui::CornerRadius::ZERO, |f| f.radius);
+    // What lies past the window's edge is not there to blur.
+    let window = ui.ctx().content_rect();
+    let shown = card.intersect(window);
+    if shown.left() > card.left() {
+        corners.nw = 0;
+        corners.sw = 0;
+    }
+    if let Some(shape) = super::backdrop::shape(shown, corners, &backdrop, ui.painter().opacity()) {
+        ui.painter().set(slot, shape);
     }
 }
 
@@ -948,8 +994,16 @@ fn slid(
 ) {
     let key = crate::luna::dom_anchors::keys::SIDEBAR;
     let corner = floating.map_or(egui::CornerRadius::ZERO, |f| f.radius);
+    // Under drawn glass the filter's stand-ins are left out.
+    let layers = |ui: &egui::Ui, rect: Rect| {
+        if glass(ui.ctx()).is_some() {
+            super::plugin_dom::paint_layers_over_backdrop(ui, key, rect, None);
+        } else {
+            super::plugin_dom::paint_host_layers(ui, key, rect);
+        }
+    };
     let Some(shift) = shift else {
-        super::plugin_dom::paint_host_layers(ui, key, ui.max_rect());
+        layers(ui, ui.max_rect());
         // The card's inset `box-shadow` over its fill, under what it holds
         // (the cotton candy family's white glow round its sidebar).
         super::plugin_dom::paint_glow(ui, key, ui.max_rect() + margin, corner);
@@ -967,7 +1021,7 @@ fn slid(
         floating.map_or(egui::CornerRadius::ZERO, |f| f.radius),
         fill,
     );
-    super::plugin_dom::paint_host_layers(&moved, key, rect);
+    layers(&moved, rect);
     super::plugin_dom::paint_glow(&moved, key, rect + margin, corner);
     let opacity = [
         crate::luna::dom_anchors::keys::SIDEBAR_NAV,
@@ -1157,6 +1211,7 @@ fn place_panel(app: &mut App, ui: &mut egui::Ui) -> Placed {
         .filter(|_| !over)
         .map(|_| ui.painter().add(egui::Shape::Noop));
     let shadow = floating.map(|_| ui.painter().add(egui::Shape::Noop));
+    let glass_slot = glass(ui.ctx()).map(|_| ui.painter().add(egui::Shape::Noop));
     let panel = egui::Panel::left("sidebar")
         .resizable(true)
         .default_size(app.settings.sidebar_width)
@@ -1197,6 +1252,7 @@ fn place_panel(app: &mut App, ui: &mut egui::Ui) -> Placed {
         f.sidebar.collapsed = false;
     });
     card_shadow(ui, shadow, edge, floating.as_ref(), shift);
+    glass_backdrop(ui, glass_slot, edge, floating.as_ref(), shift);
     edge_line(ui, &palette, edge, behind, floating.is_some(), shift);
     let width = edge.width();
     if (width - app.settings.sidebar_width).abs() > 1.0

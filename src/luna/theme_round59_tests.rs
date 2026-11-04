@@ -82,3 +82,49 @@ fn a_header_bar_of_its_own_height_centres_the_controls_on_it() {
     let (was, now) = (r41::top(&plain, HEADER), r41::top(&themed, HEADER));
     assert!(r41::near(now, was - 16.0), "16 up: {was} -> {now}");
 }
+
+/// A sidebar card a theme lays over the page as glass (Lunallena's
+/// visible sidebar: `#main { left: -240px; min-width: 100vw }` under a
+/// `backdrop-filter: blur(35px) saturate(2.5)` card of `rgba(50, 50, 50,
+/// 0.5)`) blurs the page's header art behind it in TIDAL. Tidalfast made
+/// the card's fill opaque over the window's black, so the card was a flat
+/// grey where TIDAL's shows the cover's colours. Where backdrop filters
+/// are drawn, the filter now goes under the card's own see-through fill.
+#[test]
+fn a_glass_sidebar_over_the_page_blurs_what_lies_under_it() {
+    use super::dom::DomOverlay;
+    use super::theme_round41_tests as r41;
+    let _drawn = crate::ui::backdrop::force(true);
+    let css = r#"/* {"name": "Glass card"} */
+#main { left: -240px; min-width: 100vw; }
+[class*="_sidebarWrapper_"] { top: 2vh; height: 76vh; border-radius: 0 20px 20px 0; background-color: rgba(50, 50, 50, 0.5); backdrop-filter: blur(35px) saturate(2.5); }
+"#;
+    let (ctx, mut app) = r41::demo_app("album:alb0", None);
+    let plain = r41::drawn(
+        &ctx,
+        &mut app,
+        DomOverlay {
+            version: 1,
+            ..DomOverlay::default()
+        },
+    );
+    let mut o = r41::styled("glass-card.css", css, &plain, dom_anchors::keys::SIDEBAR);
+    o.version = 2;
+    let s = super::theme_round56_tests::shapes(&ctx, &mut app, Some(o));
+    app.backend.shutdown();
+    let card = s.iter().position(|c| {
+        matches!(&c.shape, egui::Shape::Callback(cb)
+            if cb.rect.left() <= 1.0 && (200.0..=260.0).contains(&cb.rect.width()) && cb.rect.height() > 600.0)
+    });
+    let card = card.expect("the card's backdrop filter is drawn");
+    let fill = s[card..].iter().find_map(|c| match &c.shape {
+        egui::Shape::Rect(r)
+            if r.rect.left() <= 1.0 && r.rect.height() > 600.0 && r.fill.a() > 0 =>
+        {
+            Some(r.fill)
+        }
+        _ => None,
+    });
+    let fill = fill.expect("the card's fill over it");
+    assert!(fill.a() < 255, "see-through over the blur: {fill:?}");
+}
