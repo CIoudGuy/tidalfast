@@ -774,7 +774,7 @@ const WASH_PREFIX: &str = "wash:";
 /// A cover blurred to a theme's own `filter: blur()` on the header art box,
 /// keyed `blur:<sigma>:<uri>` (the sigma on the 256-point copy).
 const BLUR_PREFIX: &str = "blur:";
-/// The side of the copy [`blurred_image`] blurs.
+/// The side of the copy `blurred_image` blurs.
 pub const SOFT_SIDE: f32 = 256.0;
 
 /// Softened covers held at once, for library artwork seen recently.
