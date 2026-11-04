@@ -1454,7 +1454,9 @@
 			return `countryCode=${s.session?.countryCode ?? "US"}&deviceType=DESKTOP&locale=${s.settings?.language ?? "en_US"}`;
 		},
 		fetch: async (url) => {
-			const res = await g.fetch(url, { headers: await TidalApi.getAuthHeaders() });
+			// Whose request it is, before the await leaves only this code on the stack.
+			const owner = L.pluginFromStack() ?? L.running;
+			const res = await L.fetchAs(owner, url, { headers: await TidalApi.getAuthHeaders() });
 			if (res.status >= 200 && res.status < 300) return res.json();
 			if (res.status === 403 || res.status === 404) return undefined;
 			throw new Error(`${res.status} ${res.statusText}`);

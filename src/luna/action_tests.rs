@@ -47,8 +47,16 @@ impl LunaHost for ActionHost {
     }
     /// A write to the (pretend) account asks first, as the app's host does;
     /// so does any address with `ask-me` in it, whatever the method.
-    fn outbound(&self, _plugin: Option<&str>, request: &NetRequest) -> NetVerdict {
+    fn outbound(&self, plugin: Option<&str>, request: &NetRequest) -> NetVerdict {
         match request {
+            // Who the runtime says asks, and nothing sent.
+            NetRequest::Fetch { method, url, .. } if url.contains("who-asks") => {
+                self.notes
+                    .lock()
+                    .unwrap()
+                    .push(format!("asked {} {method} {url}", plugin.unwrap_or("?")));
+                NetVerdict::Deny("not sent in the test".into())
+            }
             NetRequest::Fetch { method, url, .. }
                 if url.contains("ask-me")
                     || (method != "GET"
@@ -2468,6 +2476,40 @@ say("ready");
     luna.sync(Duration::from_secs(5));
     let notes = host.notes();
     assert!(!notes.iter().any(|n| n.starts_with("ended")), "{notes:?}");
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A request the library makes for a plugin (`TidalApi.fetch`, which
+/// awaits the account's headers before it fetches) is that plugin's: the
+/// host hears its name, not nobody's, though only the library's code is on
+/// the stack when the request goes (TidalDJ's radio read was logged as
+/// from "?").
+#[test]
+fn a_request_the_library_makes_for_a_plugin_is_that_plugins() {
+    let (luna, host, dir) = start(
+        r#"
+const url = "https://desktop.tidal.com/v1/tracks/1/who-asks?limit=1";
+const r = await lib.TidalApi.fetch(url).then(() => "answered", (e) => "failed");
+setTimeout(() => lib.TidalApi.fetch(url + "&again").catch(() => {}).finally(() => say("done " + r)), 0);
+"#,
+        PlaybackSnapshot::default(),
+    );
+    host.wait(&luna, "both requests", |h| {
+        h.notes().iter().any(|n| n.starts_with("done"))
+    });
+    let asked: Vec<String> = host
+        .notes()
+        .into_iter()
+        .filter(|n| n.starts_with("asked"))
+        .collect();
+    assert_eq!(
+        asked,
+        [
+            "asked Actions GET https://desktop.tidal.com/v1/tracks/1/who-asks?limit=1",
+            "asked Actions GET https://desktop.tidal.com/v1/tracks/1/who-asks?limit=1&again",
+        ]
+    );
     luna.shutdown();
     let _ = std::fs::remove_dir_all(dir);
 }

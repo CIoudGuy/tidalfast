@@ -1120,7 +1120,10 @@
 		if (!homeFeed && (u.protocol !== "https:" || u.host !== "openapi.tidal.com" || !u.pathname.startsWith("/v2/"))) return false;
 		return Object.entries(headers).some(([k, v]) => k.toLowerCase() === "authorization" && v === "Bearer tidalfast-account");
 	};
-	g.fetch = async (input, init = {}) => {
+	// `owner`: the plugin a library call fetches for, taken as that call
+	// began (`TidalApi.fetch` awaits the account's headers first, and after
+	// an await only the library's own code is on the stack).
+	const fetchFor = async (owner, input, init = {}) => {
 		const req = new Request(input, init);
 		const url = new URL(req.url).href;
 		const signal = req.signal;
@@ -1132,7 +1135,7 @@
 			lunaInternal.captureFetch.push({ url, method: req.method });
 			throw Object.assign(new Error("The operation was aborted."), { name: "AbortError" });
 		}
-		const plugin = lunaInternal.pluginFromStack();
+		const plugin = lunaInternal.pluginFromStack() ?? owner;
 		// A write to the signed-in account (playlist-tools removing
 		// duplicates) goes ahead only after the user said yes to that plugin;
 		// the runtime checks the answer again before the host carries it out.
@@ -1165,6 +1168,12 @@
 		}
 		return new Response(lunaInternal.b64dec(res.body), { status: res.status, statusText: res.statusText, headers: res.headers, url: res.url });
 	};
+	const shimFetch = (input, ...rest) => fetchFor(undefined, input, rest[0]);
+	g.fetch = shimFetch;
+	// The library's fetch for `owner`, through a `fetch` a plugin put in
+	// place of the global one if there is one (as TidaLuna's library calls
+	// the global), which then names its own plugin.
+	lunaInternal.fetchAs = (owner, input, init) => (g.fetch === shimFetch ? fetchFor(owner, input, init) : g.fetch(input, init));
 
 	// ---------------------------------------------------------------- web streams (minimal)
 	// Enough for libraries that build on them at load time (undici); not a
