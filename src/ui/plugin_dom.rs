@@ -2116,6 +2116,45 @@ pub fn token_queue_fill() -> Option<Color32> {
     Some(queue_fill_from(base))
 }
 
+/// An album's header art under a theme that sets TIDAL's base tokens: TIDAL
+/// 2.47.0 multiplies the cover by `linear-gradient(var(--wave-color-
+/// opacity-base-fill-thick), var(--wave-color-solid-base-fill))`
+/// (`._dataContainer_66f4f40::before { background-blend-mode: multiply }`),
+/// so the Catppuccin flavours' navy tints it where TIDAL's own tokens (60 %
+/// black to black) darken it. The colours the cover is multiplied by at the
+/// box's top and foot; `None` while no theme sets either token.
+pub fn album_art_multiply() -> Option<(Color32, Color32)> {
+    if !on() {
+        return None;
+    }
+    with(|s| {
+        let o = &s.overlay;
+        let read = |k: &str| {
+            o.vars
+                .get(k)
+                .and_then(|v| css::color(&css::resolve_vars(v, &o.vars)))
+        };
+        let (top, foot) = (
+            read("--wave-color-opacity-base-fill-thick"),
+            read("--wave-color-solid-base-fill"),
+        );
+        if top.is_none() && foot.is_none() {
+            return None;
+        }
+        // Over the cover, a layer of colour `c` multiplied in keeps
+        // `1 - a + a * c` of it, channel by channel.
+        let keep = |c: Color32| {
+            let [r, g, b, a] = c.to_srgba_unmultiplied().map(|v| f32::from(v) / 255.0);
+            let k = |x: f32| ((1.0 - a + a * x) * 255.0).round() as u8;
+            Color32::from_rgb(k(r), k(g), k(b))
+        };
+        Some((
+            keep(top.unwrap_or(Color32::from_black_alpha(153))),
+            keep(foot.unwrap_or(Color32::BLACK)),
+        ))
+    })
+}
+
 /// The words of a list's heading row where a theme gives their token:
 /// TIDAL colours them `var(--wave-color-opacity-contrast-fill-thick)`
 /// (`._trackcells-sort_`), as it is (Sugarcoat's black). Tidalfast's own 60 %

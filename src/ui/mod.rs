@@ -618,11 +618,16 @@ fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: 
     // the art, tint it, frost it.
     if !plugin_dom::before_image_removed(key) {
         let art = app.backend.art().clone();
+        let start = paint_list_end(&layer);
         let sharp = backdrop
             .sharp
             .as_deref()
             .is_some_and(|url| widgets::paint_backdrop_image(&layer, url, header, Some(&art)));
-        if sharp {
+        let tinted = sharp.then(plugin_dom::album_art_multiply).flatten();
+        if let Some((top, foot)) = tinted {
+            let end = paint_list_end(&layer);
+            widgets::multiply_painted(&layer, start, end, header, top, foot);
+        } else if sharp {
             widgets::paint_vertical_gradient(
                 &layer,
                 header,
@@ -636,7 +641,22 @@ fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: 
             } else {
                 BLURRED_VEIL
             };
-            widgets::paint_cover_wash_blurred(&layer, &texture, header, veil, blur);
+            // An album's box multiplies the cover by the theme's base tokens.
+            let shade = backdrop
+                .sharp
+                .is_some()
+                .then(plugin_dom::album_art_multiply)
+                .flatten()
+                .unwrap_or_else(|| widgets::veil_shade(veil));
+            // A playlist's box sets no `background-position` (TIDAL 2.47.0's
+            // `._dataContainer_9f47346::before`): the cover's top shows, the
+            // sky of a landscape, where an album's shows its middle.
+            let position = if matches!(app.page(), Page::Playlist(_)) {
+                egui::Vec2::ZERO
+            } else {
+                widgets::CENTRED
+            };
+            widgets::paint_cover_wash_blurred(&layer, &texture, header, shade, blur, position);
         }
     }
     plugin_dom::paint_host_layers(&layer, key, header);

@@ -141,8 +141,20 @@ pub(super) fn paint_avatar_image(
 /// by a gradient from black at `veil` strength at the top to solid black at
 /// the bottom. One textured quad; the gradient is its vertex colours.
 pub(super) fn paint_cover_wash(ui: &Ui, texture: &egui::TextureHandle, rect: Rect, veil: f32) {
-    paint_cover_wash_blurred(ui, texture, rect, veil, 0.0);
+    paint_cover_wash_blurred(ui, texture, rect, veil_shade(veil), 0.0, CENTRED);
 }
+
+/// The colours a cover is multiplied by at its box's top and foot under
+/// black at `veil` strength at the top, solid black at the foot.
+pub(super) fn veil_shade(veil: f32) -> (Color32, Color32) {
+    (
+        Color32::from_gray(((1.0 - veil) * 255.0) as u8),
+        Color32::BLACK,
+    )
+}
+
+/// `background-position: 50% center`: the cover's middle in the box.
+pub(super) const CENTRED: egui::Vec2 = egui::vec2(0.5, 0.5);
 
 /// [`paint_cover_wash`] for a box under `filter: blur(<blur>)` (TIDAL's
 /// playlist header art, `._dataContainer_::before { filter: blur(50px) }`):
@@ -150,15 +162,26 @@ pub(super) fn paint_cover_wash(ui: &Ui, texture: &egui::TextureHandle, rect: Rec
 /// standard deviation softens them: half strength on each edge, fading in
 /// over about two `blur` inside, and its black foot running on as far below
 /// the box, fading into the page. What lies past the page's own edges is
-/// cut off by the clip, as TIDAL's scroll container cuts it.
+/// cut off by the clip, as TIDAL's scroll container cuts it. `position` is
+/// the box's `background-position` as fractions across and down: which part
+/// of the cover shows where it is cut to cover the box. `shade`: what the
+/// cover is multiplied by at the box's top and foot ([`veil_shade`]).
 pub(super) fn paint_cover_wash_blurred(
     ui: &Ui,
     texture: &egui::TextureHandle,
     rect: Rect,
-    veil: f32,
+    shade: (Color32, Color32),
     blur: f32,
+    position: egui::Vec2,
 ) {
-    for mesh in cover_wash_meshes(texture.id(), texture.size_vec2(), rect, veil, blur) {
+    for mesh in cover_wash_meshes(
+        texture.id(),
+        texture.size_vec2(),
+        rect,
+        shade,
+        blur,
+        position,
+    ) {
         ui.painter().add(egui::Shape::mesh(mesh));
     }
 }
@@ -170,27 +193,32 @@ pub(super) fn cover_wash_meshes(
     texture: egui::TextureId,
     size: egui::Vec2,
     rect: Rect,
-    veil: f32,
+    shade: (Color32, Color32),
     blur: f32,
+    position: egui::Vec2,
 ) -> Vec<egui::Mesh> {
     let aspect = size.x / size.y;
     let rect_aspect = rect.width() / rect.height();
+    // `background-size: cover` cuts the cover to the box; the cut part
+    // shows by `background-position` (0 % the cover's top or left edge).
     let uv = if aspect > rect_aspect {
-        let inset = (1.0 - rect_aspect / aspect) / 2.0;
-        Rect::from_min_max(pos2(inset, 0.0), pos2(1.0 - inset, 1.0))
+        let shown = rect_aspect / aspect;
+        let left = (1.0 - shown) * position.x.clamp(0.0, 1.0);
+        Rect::from_min_max(pos2(left, 0.0), pos2(left + shown, 1.0))
     } else {
-        let inset = (1.0 - aspect / rect_aspect) / 2.0;
-        Rect::from_min_max(pos2(0.0, inset), pos2(1.0, 1.0 - inset))
+        let shown = aspect / rect_aspect;
+        let top = (1.0 - shown) * position.y.clamp(0.0, 1.0);
+        Rect::from_min_max(pos2(0.0, top), pos2(1.0, top + shown))
     };
-    let top = Color32::from_gray(((1.0 - veil) * 255.0) as u8);
+    let (top, foot) = shade;
     let mut mesh = egui::Mesh::with_texture(texture);
     let vertex = |pos, uv, color| egui::epaint::Vertex { pos, uv, color };
     if !(blur > 0.5 && blur.is_finite()) || rect.width() <= 0.0 || rect.height() <= 0.0 {
         mesh.vertices.extend([
             vertex(rect.left_top(), uv.left_top(), top),
             vertex(rect.right_top(), uv.right_top(), top),
-            vertex(rect.right_bottom(), uv.right_bottom(), Color32::BLACK),
-            vertex(rect.left_bottom(), uv.left_bottom(), Color32::BLACK),
+            vertex(rect.right_bottom(), uv.right_bottom(), foot),
+            vertex(rect.left_bottom(), uv.left_bottom(), foot),
         ]);
         mesh.add_triangle(0, 1, 2);
         mesh.add_triangle(0, 2, 3);
@@ -220,14 +248,19 @@ pub(super) fn cover_wash_meshes(
     let grid = |mut mesh: egui::Mesh, ys: &[f32]| {
         for &y in ys {
             let fy = ((y - rect.top()) / rect.height()).clamp(0.0, 1.0);
-            let grey = f32::from(top.r()) * (1.0 - fy);
+            let shade = |a: u8, b: u8| f32::from(a) * (1.0 - fy) + f32::from(b) * fy;
+            let shade = [
+                shade(top.r(), foot.r()),
+                shade(top.g(), foot.g()),
+                shade(top.b(), foot.b()),
+            ];
             let cover_y = edge(y, rect.top(), rect.bottom());
             for &x in &xs {
                 let fx = ((x - rect.left()) / rect.width()).clamp(0.0, 1.0);
                 let alpha = (cover_y * edge(x, rect.left(), rect.right())).clamp(0.0, 1.0);
-                let g = (grey * alpha).round() as u8;
+                let [r, g, b] = shade.map(|v| (v * alpha).round() as u8);
                 let color =
-                    Color32::from_rgba_premultiplied(g, g, g, (alpha * 255.0).round() as u8);
+                    Color32::from_rgba_premultiplied(r, g, b, (alpha * 255.0).round() as u8);
                 // The foot is plain colour: egui's white texel.
                 let at = if mesh.texture_id == egui::TextureId::default() {
                     egui::epaint::WHITE_UV
@@ -618,6 +651,73 @@ pub fn paint_shadow(ui: &Ui, palette: &Palette, rect: Rect, radius: f32) {
 }
 
 /// Fills `rect` with a vertical gradient from `top` to `bottom`.
+/// Multiplies the pictures painted from `start` to `end` on `ui`'s layer by
+/// a colour running from `top` at `rect`'s top to `bottom` at its foot (CSS
+/// `background-blend-mode: multiply` of a gradient over a picture). A plain
+/// textured box becomes a mesh, so the colour can change down it.
+pub(super) fn multiply_painted(
+    ui: &Ui,
+    start: egui::layers::ShapeIdx,
+    end: egui::layers::ShapeIdx,
+    rect: Rect,
+    top: Color32,
+    bottom: Color32,
+) {
+    let at = |y: f32| {
+        let t = ((y - rect.top()) / rect.height().max(1.0)).clamp(0.0, 1.0);
+        top.lerp_to_gamma(bottom, t)
+    };
+    fn times(a: Color32, b: Color32) -> Color32 {
+        let m = |x: u8, y: u8| ((u16::from(x) * u16::from(y) + 127) / 255) as u8;
+        Color32::from_rgba_premultiplied(
+            m(a.r(), b.r()),
+            m(a.g(), b.g()),
+            m(a.b(), b.b()),
+            m(a.a(), b.a()),
+        )
+    }
+    fn tint(shape: &mut egui::Shape, at: &dyn Fn(f32) -> Color32) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter_mut().for_each(|s| tint(s, at)),
+            egui::Shape::Mesh(mesh) => {
+                for v in &mut std::sync::Arc::make_mut(mesh).vertices {
+                    v.color = times(v.color, at(v.pos.y));
+                }
+            }
+            egui::Shape::Rect(r)
+                if r.corner_radius == CornerRadius::ZERO
+                    && r.brush
+                        .as_ref()
+                        .is_some_and(|b| b.fill_texture_id != egui::TextureId::default()) =>
+            {
+                let Some((texture, uv)) = r.brush.as_ref().map(|b| (b.fill_texture_id, b.uv))
+                else {
+                    return;
+                };
+                let mut mesh = egui::Mesh::with_texture(texture);
+                mesh.add_rect_with_uv(r.rect, uv, r.fill);
+                for v in &mut mesh.vertices {
+                    v.color = times(v.color, at(v.pos.y));
+                }
+                *shape = egui::Shape::mesh(mesh);
+            }
+            _ => {}
+        }
+    }
+    if end.0 <= start.0 {
+        return;
+    }
+    let layer = ui.layer_id();
+    ui.ctx().graphics_mut(|graphics| {
+        let list = graphics.entry(layer);
+        for index in start.0..end.0 {
+            list.mutate_shape(egui::layers::ShapeIdx(index), |clipped| {
+                tint(&mut clipped.shape, &at)
+            });
+        }
+    });
+}
+
 pub fn paint_vertical_gradient(ui: &Ui, rect: Rect, top: Color32, bottom: Color32) {
     let mut mesh = egui::Mesh::default();
     mesh.colored_vertex(rect.left_top(), top);
