@@ -3667,9 +3667,20 @@ fn lyrics_for_plugin(track_id: &str, attributes: &Value) -> Value {
         let lines: Vec<String> = text
             .lines()
             .filter(|line| !line.trim().is_empty())
-            .map(|line| match line.rfind(']') {
-                Some(end) => format!("{} {}", &line[..=end], line[end + 1..].trim_start()),
-                None => line.to_string(),
+            .map(|line| {
+                // The stamps lead the line; a `]` in the words is not one.
+                let mut end = 0;
+                while line[end..].starts_with('[') {
+                    match line[end..].find(']') {
+                        Some(close) => end += close + 1,
+                        None => break,
+                    }
+                }
+                if end == 0 {
+                    line.to_string()
+                } else {
+                    format!("{} {}", &line[..end], line[end..].trim_start())
+                }
             })
             .collect();
         lines.join("\n")

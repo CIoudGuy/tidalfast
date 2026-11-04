@@ -292,6 +292,12 @@ fn plugins_read_the_lyrics_resource_in_the_shape_tidals_client_gives_them() {
         lyrics_for_plugin("1", &spaced)["subtitles"],
         "[00:01.00] One\n[00:02.00] Two"
     );
+    // The space goes after the stamp, not after a bracket in the words.
+    let bracketed = serde_json::json!({"lrcText": "[00:45.52]Hello [x]\n[00:46.00]"});
+    assert_eq!(
+        lyrics_for_plugin("1", &bracketed)["subtitles"],
+        "[00:45.52] Hello [x]\n[00:46.00] "
+    );
     let rtl = serde_json::json!({"direction": "RIGHT_TO_LEFT", "text": "x"});
     assert_eq!(lyrics_for_plugin("1", &rtl)["isRightToLeft"], true);
     assert!(lyrics_for_plugin("1", &rtl)["subtitles"].is_null());
