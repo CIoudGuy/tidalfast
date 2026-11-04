@@ -537,6 +537,11 @@ except where a line says so.
   installed from the old store updates from the new one, keeping its settings.
   A list that had removed the old store is not given the new one
   (`store_default_tests::meowarexs_store_moves_in_place_and_a_removed_one_stays_removed`).
+  The release also adds `LunaPlugin.migrateBaseUrl`, which TidaLuna's store
+  tab calls to re-point installed plugins; the shim has it, but it moves
+  nothing and logs why, since a plugin may not point other plugins at another
+  address (`coverage_tests::core_helpers_follow_lunas_source`). `LUNA_API` is
+  1.20.2-beta.
 - Plugin servers (`net.createServer`, `http.createServer`) always bind
   `127.0.0.1`, whatever host the plugin asks for (`net::LISTEN_HOST`).
   `https.createServer` (TLS) stays unavailable.

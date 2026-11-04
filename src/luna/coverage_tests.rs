@@ -480,6 +480,11 @@ const dupB = await LunaPlugin.fromStorage({ url: "https://fake.test/DupB", packa
 dupB.store.installed = true;
 R.byName = LunaPlugin.getByName("Dup") === dupB && LunaPlugin.getByName("Dup") !== dupA;
 try { dupB.addDependant({}); R.dep = "accepted"; } catch (e) { R.dep = e.message; }
+// migrateBaseUrl (TidaLuna 1.20.2-beta) is there and moves nothing: a
+// plugin does not re-point installed plugins at another address.
+const keys = Object.keys(LunaPlugin.plugins).sort().join(",");
+try { R.migrate = String(await LunaPlugin.migrateBaseUrl("https://fake.test", "https://elsewhere.test")); } catch (e) { R.migrate = e.message; }
+R.unmoved = Object.keys(LunaPlugin.plugins).sort().join(",") === keys && dupA.url === "https://fake.test/DupA";
 // The settings export: Luna's ExportData.
 const data = await SettingsTransfer.dump();
 R.dump = [data.version, SettingsTransfer.validate(data), SettingsTransfer.validate({ version: 2, stores: {} }), Object.keys(data.stores).sort().join(","), "Compat.results" in data.stores["@luna/pluginStorage"]].join("|");
@@ -527,6 +532,8 @@ R.done = true;
     assert_eq!(r["proto"], "inst.foo", "{r}");
     assert_eq!(r["byName"], true, "{r}");
     assert_eq!(r["dep"], "Cannot add dependancy to non plugin!", "{r}");
+    assert_eq!(r["migrate"], "undefined", "{r}");
+    assert_eq!(r["unmoved"], true, "{r}");
     assert_eq!(
         r["dump"], "1|true|false|@luna/pluginStorage,@luna/plugins,@luna/storage|true",
         "{r}"

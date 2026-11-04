@@ -425,6 +425,7 @@
         "static getAllByName",
         "static getByName",
         "static loadStoredPlugins",
+        "static migrateBaseUrl",
         "static pluginStorage",
         "static plugins",
         "static trace",

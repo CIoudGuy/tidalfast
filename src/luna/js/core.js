@@ -1499,6 +1499,13 @@
 			plugin.store.enabled = false;
 			return (this.plugins[url] = plugin);
 		}
+		// TidaLuna's Plugin Store moves plugins installed from a store that
+		// moved (1.20.2-beta). Here the app does that itself, for the stores
+		// TidaLuna moves, keeping each plugin's settings by name; a plugin
+		// cannot point other plugins at another address, so this moves nothing.
+		static async migrateBaseUrl(fromBaseUrl, toBaseUrl) {
+			this.trace.warn(`migrateBaseUrl(${fromBaseUrl}, ${toBaseUrl}): plugins move to a moved store's new address in Tidalfast's Plugin Store, not by a plugin; nothing moved`);
+		}
 		static async loadStoredPlugins() {
 			return Object.values(this.plugins).filter((p) => p.installed);
 		}
