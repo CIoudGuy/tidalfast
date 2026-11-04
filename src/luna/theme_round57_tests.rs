@@ -200,3 +200,39 @@ fn the_header_container_holds_the_captions_a_theme_nests_in_it() {
         o.hosts.get(&label)
     );
 }
+
+/// TIDAL 2.47.0 multiplies a playlist's header art by its market black
+/// (`._dataContainer_9f47346::before { background-image: linear-gradient(
+/// color-mix(in sRGB, var(--market-core-fill-black-color) 40%, transparent)
+/// 0, var(--market-core-fill-black-color) 100%), var(--img, none) }`), so
+/// Sunken Tidal's `rgb(30, 30, 30)` keeps a grey's worth of the cover down
+/// its full-height box, where Tidalfast ended it in TIDAL's own black.
+#[test]
+fn a_playlists_header_art_takes_the_themes_market_black() {
+    use crate::ui::plugin_dom as pd;
+    let css = r#"/* {"name": "Grey black"} */
+:root { --market-core-fill-black-color: rgb(30, 30, 30) !important; }
+#main { background-color: rgb(1, 1, 1); }
+"#;
+    let (luna, o) = overlay_with(
+        "grey-black.css",
+        css,
+        dom_anchors::sample_tree(),
+        dom_anchors::keys::MAIN,
+    );
+    pd::test_overlay(Some((*o).clone()));
+    let shade = pd::playlist_art_multiply();
+    pd::test_overlay(None);
+    luna.shutdown();
+    // 60 % of the cover plus 40 % of it times 30/255 at the top; 30/255 at
+    // the foot.
+    assert_eq!(
+        shade,
+        Some((egui::Color32::from_gray(165), egui::Color32::from_gray(30)))
+    );
+    assert_eq!(
+        pd::playlist_art_multiply(),
+        None,
+        "TIDAL's black without a theme"
+    );
+}

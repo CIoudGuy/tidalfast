@@ -647,13 +647,16 @@ fn paint_cover_backdrop(app: &mut App, ui: &mut egui::Ui, page: Rect, backdrop: 
             } else {
                 BLURRED_VEIL
             };
-            // An album's box multiplies the cover by the theme's base tokens.
-            let shade = backdrop
-                .sharp
-                .is_some()
-                .then(plugin_dom::album_art_multiply)
-                .flatten()
-                .unwrap_or_else(|| widgets::veil_shade(veil));
+            // An album's and a playlist's box multiply the cover by the
+            // theme's base tokens.
+            let tokens = if backdrop.sharp.is_some() {
+                plugin_dom::album_art_multiply()
+            } else if matches!(app.page(), Page::Playlist(_)) {
+                plugin_dom::playlist_art_multiply()
+            } else {
+                None
+            };
+            let shade = tokens.unwrap_or_else(|| widgets::veil_shade(veil));
             let shade = own.map_or(shade, |own| own.shade(shade));
             // A playlist's box sets no `background-position` (TIDAL 2.47.0's
             // `._dataContainer_9f47346::before`): the cover's top shows, the

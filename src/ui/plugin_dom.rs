@@ -2155,6 +2155,33 @@ pub fn album_art_multiply() -> Option<(Color32, Color32)> {
     })
 }
 
+/// [`album_art_multiply`] for a playlist's header art: TIDAL 2.47.0's
+/// `._dataContainer_9f47346::before` multiplies the cover by
+/// `linear-gradient(color-mix(in sRGB, var(--market-core-fill-black-color)
+/// 40%, transparent), var(--market-core-fill-black-color))`: Sunken Tidal's
+/// `rgb(30, 30, 30)` keeps the cover a grey's worth at the box's foot, where
+/// TIDAL's own black ends it. `None` while no theme sets the colour.
+pub fn playlist_art_multiply() -> Option<(Color32, Color32)> {
+    if !on() {
+        return None;
+    }
+    with(|s| {
+        let o = &s.overlay;
+        let v = o.vars.get("--market-core-fill-black-color")?;
+        let v = css::resolve_vars(v, &o.vars);
+        let c = css::color(v.trim().trim_end_matches("!important").trim())?;
+        let [r, g, b, a] = c.to_srgba_unmultiplied();
+        // A layer of `c` at `alpha` multiplied over the cover keeps
+        // `1 - a + a * c` of it, channel by channel.
+        let at = |alpha: f32| {
+            let a = f32::from(a) / 255.0 * alpha;
+            let k = |x: u8| ((1.0 - a + a * f32::from(x) / 255.0) * 255.0).round() as u8;
+            Color32::from_rgb(k(r), k(g), k(b))
+        };
+        Some((at(0.4), at(1.0)))
+    })
+}
+
 /// The words of a list's heading row where a theme gives their token:
 /// TIDAL colours them `var(--wave-color-opacity-contrast-fill-thick)`
 /// (`._trackcells-sort_`), as it is (Sugarcoat's black). Tidalfast's own 60 %
