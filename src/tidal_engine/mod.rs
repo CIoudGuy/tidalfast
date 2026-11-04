@@ -36,6 +36,7 @@ pub mod store;
 pub mod ts;
 mod types;
 pub mod video;
+mod workers;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};

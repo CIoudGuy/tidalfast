@@ -714,60 +714,58 @@ impl Download {
             meter: fetch.meter.clone(),
         });
         let worker = Arc::clone(&shared);
-        let spawned = thread::Builder::new()
-            .name("tidal-download".into())
-            .spawn(move || {
-                let Fetch {
-                    client,
-                    urls,
-                    skipped,
-                    refresh,
-                    on_complete,
-                    spill: _,
-                    meter,
-                } = fetch;
-                if let Some(meter) = &meter {
-                    meter.begin();
-                }
-                let mut links = Links {
-                    urls,
-                    skipped,
-                    refresh,
-                    refreshes: 0,
-                };
-                let result = if links.urls.len() == 1 {
-                    download_one(&client, &mut links, &worker)
-                } else {
-                    download_segments(&client, &mut links, &worker)
-                };
-                let mut state = worker.lock();
-                if let Some(meter) = &meter {
-                    let finished = result.is_ok() && !worker.cancelled();
-                    // Only a download of the stream from its start has all of it.
-                    let whole = (skipped == 0).then(|| state.data.len());
-                    meter.end(finished, whole);
-                }
-                let finished = match result {
-                    Ok(()) if !worker.cancelled() => {
-                        state.complete = true;
-                        if state.ends.is_empty() {
-                            let len = state.data.len();
-                            state.ends.push(len);
-                        }
-                        on_complete.map(|done| (done, state.data.share(), state.ends.clone()))
+        let spawned = super::workers::run("tidal-download", move || {
+            let Fetch {
+                client,
+                urls,
+                skipped,
+                refresh,
+                on_complete,
+                spill: _,
+                meter,
+            } = fetch;
+            if let Some(meter) = &meter {
+                meter.begin();
+            }
+            let mut links = Links {
+                urls,
+                skipped,
+                refresh,
+                refreshes: 0,
+            };
+            let result = if links.urls.len() == 1 {
+                download_one(&client, &mut links, &worker)
+            } else {
+                download_segments(&client, &mut links, &worker)
+            };
+            let mut state = worker.lock();
+            if let Some(meter) = &meter {
+                let finished = result.is_ok() && !worker.cancelled();
+                // Only a download of the stream from its start has all of it.
+                let whole = (skipped == 0).then(|| state.data.len());
+                meter.end(finished, whole);
+            }
+            let finished = match result {
+                Ok(()) if !worker.cancelled() => {
+                    state.complete = true;
+                    if state.ends.is_empty() {
+                        let len = state.data.len();
+                        state.ends.push(len);
                     }
-                    Ok(()) => None,
-                    Err(error) => {
-                        state.error = Some(error);
-                        None
-                    }
-                };
-                drop(state);
-                worker.changed.notify_all();
-                if let Some((done, data, ends)) = finished {
-                    done(&Finished::of(&data), &ends);
+                    on_complete.map(|done| (done, state.data.share(), state.ends.clone()))
                 }
-            });
+                Ok(()) => None,
+                Err(error) => {
+                    state.error = Some(error);
+                    None
+                }
+            };
+            drop(state);
+            worker.changed.notify_all();
+            if let Some((done, data, ends)) = finished {
+                done(&Finished::of(&data), &ends);
+            }
+        });
         if let Err(error) = spawned {
             shared.lock().error = Some(format!("unable to start the download: {error}"));
         }

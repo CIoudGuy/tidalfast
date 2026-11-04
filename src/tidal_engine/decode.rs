@@ -17,8 +17,7 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender, TryRecvError, sync_channel};
-use std::sync::{Arc, Mutex, PoisonError};
-use std::thread;
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -192,9 +191,10 @@ pub struct TrackStream {
     meter: Arc<Meter>,
     /// The quality its TIDAL stream was asked at.
     asked: Option<Quality>,
-    /// The decoding thread, woken for a seek or the end once it has sent
-    /// the end of the track and sleeps.
-    worker: Option<thread::Thread>,
+    /// Wakes the decoding thread for a seek or the end once it has sent
+    /// the end of the track and sleeps. Not the thread itself: it is a kept
+    /// one ([`super::workers`]) that goes on to decode other songs.
+    woken: Arc<Condvar>,
     /// Times the decoding thread woke while it waited at the end.
     #[cfg(test)]
     idle_wakes: Arc<std::sync::atomic::AtomicU64>,
@@ -212,6 +212,7 @@ impl TrackStream {
     pub fn open(source: Source, track: LocalTrack, start_ms: u32) -> Self {
         let (sender, receiver) = sync_channel(AHEAD);
         let seek = Arc::new(Mutex::new(None));
+        let woken = Arc::new(Condvar::new());
         let cancel = Arc::new(AtomicBool::new(false));
         let meter = Arc::new(Meter::default());
         let asked = match &source {
@@ -221,6 +222,7 @@ impl TrackStream {
         let worker = Worker {
             sender,
             seek: Arc::clone(&seek),
+            woken: Arc::clone(&woken),
             cancel: Arc::clone(&cancel),
             generation: 0,
             duration_hint: Some(track.duration_ms).filter(|ms| *ms > 0),
@@ -231,13 +233,11 @@ impl TrackStream {
         #[cfg(test)]
         let idle_wakes = Arc::clone(&worker.idle_wakes);
         let uri = track.uri.clone();
-        let spawned = thread::Builder::new()
-            .name("tidal-decode".into())
-            .spawn(move || {
-                // Its packets are what the output plays next.
-                crate::sink::above_normal();
-                worker.run(source, &uri, start_ms);
-            });
+        let spawned = super::workers::run("tidal-decode", move || {
+            // Its packets are what the output plays next.
+            crate::sink::above_normal();
+            worker.run(source, &uri, start_ms);
+        });
         let mut stream = Self {
             track,
             receiver,
@@ -253,7 +253,7 @@ impl TrackStream {
             position_ms: start_ms,
             meter,
             asked,
-            worker: spawned.as_ref().ok().map(|handle| handle.thread().clone()),
+            woken,
             #[cfg(test)]
             idle_wakes,
         };
@@ -282,7 +282,7 @@ impl TrackStream {
             position_ms: 0,
             meter: Arc::default(),
             asked: None,
-            worker: None,
+            woken: Arc::default(),
             #[cfg(test)]
             idle_wakes: Arc::default(),
         }
@@ -331,9 +331,10 @@ impl TrackStream {
 
     /// Wakes the decoding thread if it sleeps at the end of the track.
     fn wake_worker(&self) {
-        if let Some(worker) = &self.worker {
-            worker.unpark();
-        }
+        // Under the lock the thread checks for a seek under, so the wake
+        // cannot fall between its check and its sleep.
+        let _seek = self.seek.lock().unwrap_or_else(PoisonError::into_inner);
+        self.woken.notify_all();
     }
 
     pub fn loudness(&self) -> Option<Loudness> {
@@ -424,7 +425,7 @@ impl TrackStream {
         loop {
             match self.poll() {
                 Poll::Pending if std::time::Instant::now() < deadline => {
-                    thread::sleep(Duration::from_millis(2));
+                    std::thread::sleep(Duration::from_millis(2));
                 }
                 other => return other,
             }
@@ -549,6 +550,7 @@ struct Decoding {
 struct Worker {
     sender: SyncSender<Chunk>,
     seek: Arc<Mutex<Option<(u64, u32)>>>,
+    woken: Arc<Condvar>,
     cancel: Arc<AtomicBool>,
     generation: u64,
     /// The catalogue's length, for finding DASH segments before the stream
@@ -565,8 +567,13 @@ impl Worker {
     /// ([`TrackStream::wake_worker`]); the timeout only guards against a
     /// wake that never comes.
     fn wait_at_end(&self) {
-        while !self.cancelled() && self.seek.lock().map_or(true, |seek| seek.is_none()) {
-            thread::park_timeout(Duration::from_secs(1));
+        let mut seek = self.seek.lock().unwrap_or_else(PoisonError::into_inner);
+        while !self.cancelled() && seek.is_none() {
+            seek = self
+                .woken
+                .wait_timeout(seek, Duration::from_secs(1))
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
             #[cfg(test)]
             self.idle_wakes
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
