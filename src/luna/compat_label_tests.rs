@@ -3,11 +3,19 @@
 
 use super::*;
 
-/// The entries of the ten stores that hold a plugin Tidalfast labels, as
-/// their `store.json` and `<file>.json` listed them on 2026-10-16 (one entry,
-/// which is not labelled, is left out):
+/// The entries of the eleven stores that hold a plugin Tidalfast labels, as
+/// their `store.json` and `<file>.json` listed them on 2026-10-16 (BaeHyolyn's
+/// as the store list read in plugin round 25; one entry, which is not
+/// labelled, is left out):
 /// (store repository, file, package name).
 const STORE_INDEX: &[(&str, &str, &str)] = &[
+    ("BaeHyolyn/luna-plugins", "TidalDJ.mjs", "TidalDJ"),
+    ("BaeHyolyn/luna-plugins", "TidalEQ.mjs", "TidalEQ"),
+    (
+        "BaeHyolyn/luna-plugins",
+        "TidalPresence.mjs",
+        "TidalPresence",
+    ),
     ("Inrixia/luna-plugins", "Avatar.mjs", "Avatar"),
     ("Inrixia/luna-plugins", "CoverTheme.mjs", "CoverTheme"),
     (
@@ -218,7 +226,7 @@ fn store_url(repo: &str, file: &str) -> String {
 }
 
 /// The labels hit exactly the store entries they name and no other entry of
-/// those stores: 17 of the 51 (one entry that only needs an outside account is left out of the list).
+/// those stores: 18 of the 55 listed here (one entry that only needs an outside account is left out of the list).
 #[test]
 fn labels_match_their_store_entries_and_nothing_else() {
     let mut got: Vec<&str> = STORE_INDEX
@@ -230,7 +238,7 @@ fn labels_match_their_store_entries_and_nothing_else() {
     got.sort_unstable();
     want.sort_unstable();
     assert_eq!(got, want);
-    assert_eq!(got.len(), 17);
+    assert_eq!(got.len(), 18);
     // Every row targets an entry of the index, in the repository it names.
     for row in COMPAT {
         assert!(
@@ -274,7 +282,7 @@ fn labels_are_keyed_by_store_and_package_name() {
     );
     // Partly supported: miniplayer and lyrics-everywhere (their windows
     // open and work; the widget can slip under the taskbar and the lyrics
-    // window does not scroll), Avatar (no email for Gravatar) and
+    // window's settings panel differs a little), Avatar (no email for Gravatar) and
     // Themer (no Monaco window), true-taste (TIDAL's openapi and Home feed
     // need the permission, no full run checked). 3d-cover's Base model and its fade and
     // spinner work, so it carries no label.
@@ -389,6 +397,7 @@ const NEW_REASONS: &[&str] = &[
     "@jxnxsdev/discord-utils",
     "MediaKeysFixer",
     "@vmohammad/mpv",
+    "TidalEQ",
     "@jxnxsdev/audiovisualiser",
     "@jxnxsdev/miniplayer",
     "@jxnxsdev/lyrics-everywhere",
@@ -406,6 +415,7 @@ fn plugins_behind_a_permission_say_so() {
         "@jxnxsdev/discord-utils",
         "MediaKeysFixer",
         "@vmohammad/mpv",
+        "TidalEQ",
         "DownloadManager",
         "@jxnxsdev/audiovisualiser",
     ] {

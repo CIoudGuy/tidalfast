@@ -740,6 +740,11 @@ const COMPAT: &[CompatRow] = &[
         "@vmohammad/mpv",
         "It plays through mpv, which needs your permission to start mpv, talk to it over its pipe and get TIDAL's audio.",
     ),
+    needs_permission(
+        "BaeHyolyn/luna-plugins",
+        "TidalEQ",
+        "It plays through mpv, which needs your permission to start mpv, talk to it over its pipe and get TIDAL's audio.",
+    ),
     not_supported(
         "squadgazzz/luna-plugins",
         "@squadgazzz/playlist-indicator",

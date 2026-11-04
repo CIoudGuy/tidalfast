@@ -264,12 +264,14 @@ the plugin's exact package name, so a similarly named plugin from another store
 is never labelled. "Needs your permission" is every 🔑 row: the plugin works
 once the user allows what it asks for at first use. "Not supported" is every ⛔ row (the plugin cannot do its job
 here); "Partly supported" is a row that names a part that does not work
-(miniplayer's taskbar widget, which can end up under the taskbar, and
-lyrics-everywhere's window, whose lyrics do not scroll). ⚠️ rows, plugins that only need the
+(miniplayer's taskbar widget, which can end up under the taskbar,
+lyrics-everywhere's window, whose settings panel differs a little, Avatar,
+Themer and true-taste, see their rows). ⚠️ rows, plugins that only need the
 user's own account elsewhere, and "tests only" rows work and carry no label.
 When a row here changes, change `COMPAT` in the same commit
 (`luna::compat_label_tests` checks the rows against the stores' entries). The
-pill text and the reasons are English in every language. A plugin the runtime
+pill text and the reasons are translated; a reason newer than the last
+translation pass shows in English until then (`NEW_REASONS`). A plugin the runtime
 refuses (LastFM) is left out of the store as before, and its imported copy
 carries the label.
 
