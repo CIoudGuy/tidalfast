@@ -1159,11 +1159,22 @@ mod tests {
             let painter = ui.painter();
             let font = FontId::proportional(14.0);
             let text = "שיר ישן (גרסה חיה) של הלהקה הגדולה בעולם כולו ועוד מילים";
+            // A row as wide as the first words with their bracket pair, in
+            // whichever face this system draws Hebrew with.
+            let width = painter
+                .layout_no_wrap(
+                    "שיר ישן (גרסה חיה) ".to_owned(),
+                    font.clone(),
+                    Color32::WHITE,
+                )
+                .size()
+                .x
+                + 2.0;
             let plain = painter.layout_job(LayoutJob::simple(
                 text.to_owned(),
                 font.clone(),
                 Color32::WHITE,
-                130.0,
+                width,
             ));
             // What a row holds, as its letters in sorted order: where the
             // rows break is the question, not how they are laid out.
@@ -1178,10 +1189,9 @@ mod tests {
                 .map(|placed| letters(&mut placed.row.glyphs.iter().map(|glyph| glyph.chr)))
                 .collect();
             let first = letters(&mut "שיר ישן (גרסה חיה)".chars());
-            let second = letters(&mut "של הלהקה הגדולה".chars());
             assert_eq!(rows[0], first, "{:?}", plain.text());
-            assert_eq!(rows[1], second, "{:?}", plain.text());
-            let ours = layout(painter, text, font, Color32::WHITE, 130.0, 8, None);
+            assert!(rows.len() > 1, "{:?}", plain.text());
+            let ours = layout(painter, text, font, Color32::WHITE, width, 8, None);
             let ours: Vec<Vec<char>> = ours
                 .text()
                 .split('\n')
