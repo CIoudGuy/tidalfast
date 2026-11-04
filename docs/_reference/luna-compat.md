@@ -3767,6 +3767,58 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 58 (the page box down, TIDAL's title bar token, header art blur, the sidebar card, 2026-11-04)
+
+Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
+TIDAL, with the demo's own cover in TIDAL's header art box as in round 56.
+
+- **TIDAL's `--os-title-bar-height` is known**, `30px`, as TIDAL 2.47.0
+  declares it once on `:root` on every platform, and the small, large and
+  dynamic viewport units (`svh`, `lvh`, `dvh` and their widths) are the
+  window's. Lunallena's and Giorgeous' `#main { max-height: calc(100svh -
+  var(--os-title-bar-height)) }` now resolves. Tests:
+  `tidals_title_bar_height_token_sizes_a_themes_page_box`,
+  `small_large_and_dynamic_viewport_units_are_the_windows`.
+- **The header art box is `#main`'s down as well as across**: below a
+  theme's top margin on `#main` (Lunallena macOS's 100 points, Abyss
+  Neptune's 35) and as high as the theme makes `#main`, its window lengths
+  of TIDAL's window, which is 30 points taller than the page Tidalfast's
+  window shows. Test: `the_header_art_box_is_the_page_boxs_own_down`.
+- **Without a height of the theme's, `#main` reaches the window's foot**
+  under a docked player bar, so a `height: 100%` header art box does too
+  (Sunken Tidal). Test:
+  `a_full_height_header_art_box_reaches_under_a_docked_player_bar`.
+- **A theme's own `blur()` on a playlist's header art box** other than
+  TIDAL's 50 blurs the cover by that much (Abyss Neptune's `blur(10px)`),
+  from the cover's top, as an album's does. Test:
+  `a_themes_blur_on_a_playlists_header_art_blurs_the_cover_by_that_much`.
+- **A sidebar card of its own height ends there** (Lunallena's visible
+  sidebar build, `top: 2vh; height: 76vh`, 899 points of TIDAL's 1183-point
+  window): its window lengths are TIDAL's, and the room under it is not held
+  to the 64 points a theme may move a box in by. Test:
+  `a_sidebar_card_of_its_own_height_ends_there`.
+
+Numbers against the round's base (round 57's final), all 55 themes: with
+the cover laid in the header art box, dark 2.79 % -> 1.13 % of 362 million,
+no theme 0.57 % as it was. Lunallena macOS 33.4 % -> 2.2 %, Abyss Neptune
+12.3 % -> 1.5 % and its macOS build 21.9 % -> 2.9 %, Giorgeous 9.9 % ->
+0.7 %, Sunken Tidal 11.4 % -> 1.6 %, Tidalify 7.3 % -> 3.3 % (its `#main`
+top margin of -30), Lunallena's visible sidebar build 5.2 % -> 4.8 %; no
+theme worse. The checker as it was: dark 0.98 % both (Lunallena macOS
+1.0 % -> 2.1 %: that checker left its whole album and playlist pages out as
+a picture, and the 100 points above the moved box are compared now). Style
+items 172 as they were. Hover 1.11 % and Tidal Light 0.67 % as they
+were.
+
+Still open: Tidalify lays the page 56 points higher under the header
+(`#main { margin-top: -30px; padding-top: 30px }` and TIDAL's top spacer
+at no height); Tidalfast's page starts below the header's room, so it
+stops at the page's top. Lunallena's visible sidebar card is the right
+box now, but its glass is darker than TIDAL's near the top, where TIDAL
+blurs the brighter header art behind it. The other window lengths of the
+shell (a floating bar's `bottom: 2vh`) are still of Tidalfast's window, a
+fraction of a point off.
+
 ### Round 57 (the queue's width, the page's box, header art, 2026-11-04)
 
 Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
