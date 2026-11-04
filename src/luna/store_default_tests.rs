@@ -6,12 +6,12 @@
 
 use super::*;
 
-/// TidaLuna 1.20.0-beta's `PluginStoreTab` list, in its order, copied from
+/// TidaLuna 1.20.2-beta's `PluginStoreTab` list, in its order, copied from
 /// its `addToStores("...")` calls (the `/store.json` ending is what the tab
 /// strips before it saves one).
 const TIDALUNA_STORES: &[&str] = &[
     "https://github.com/SuperslowJelly/TIDAL-Clear-Coat/releases/download/latest/store.json",
-    "https://github.com/meowarex/TidalLuna-Plugins/releases/download/latest/store.json",
+    "https://release.radiant-lyrics.org/store.json",
     "https://github.com/wont-stream/lunar/releases/download/dev/store.json",
     "https://github.com/jxnxsdev/luna-plugins/releases/download/latest/store.json",
     "https://github.com/espeon/luna-plugins/releases/download/latest/store.json",
@@ -39,6 +39,8 @@ const TIDALUNA_STORES: &[&str] = &[
 
 const OLD_INRIXIA: &str = "https://github.com/Inrixia/luna-plugins/releases/download/latest";
 const NEW_INRIXIA: &str = "https://github.com/Inrixia/luna-plugins/releases/download/dev";
+const OLD_MEOWAREX: &str = "https://github.com/meowarex/TidalLuna-Plugins/releases/download/latest";
+const NEW_MEOWAREX: &str = "https://release.radiant-lyrics.org";
 
 #[test]
 fn the_default_stores_are_tidalunas_list_with_its_channels() {
@@ -119,6 +121,17 @@ fn only_an_address_that_is_exactly_a_retired_default_moves() {
         migrated_plugin_url(&retired, &format!("{presence}/TidalPresence")).as_deref(),
         Some(format!("{plugins}/TidalPresence").as_str())
     );
+    // meowarex's store left GitHub for its own address (TidaLuna
+    // 1.20.2-beta), its plugins with it.
+    assert_eq!(
+        migrated_store(&retired, &format!("{OLD_MEOWAREX}/store.json")).as_deref(),
+        Some(NEW_MEOWAREX)
+    );
+    assert_eq!(
+        migrated_plugin_url(&retired, &format!("{OLD_MEOWAREX}/meowarex.radiant-lyrics"))
+            .as_deref(),
+        Some("https://release.radiant-lyrics.org/meowarex.radiant-lyrics")
+    );
 }
 
 /// Starts on a saved store list that has been given every default store.
@@ -184,6 +197,53 @@ fn a_saved_inrixia_latest_store_becomes_the_dev_store_in_place() {
     let (luna, s) = start_with_stores(&dir, &[OLD_INRIXIA, mine], false);
     assert_eq!(store_urls(&s), [OLD_INRIXIA, mine]);
     assert_eq!(saved_stores(&dir), [OLD_INRIXIA, mine]);
+    luna.shutdown();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Starts on a saved store list given every default store as they were
+/// before meowarex's store moved (its GitHub release address).
+fn start_given_before_the_meowarex_move(dir: &Path, stores: &[&str]) -> (Luna, LunaSnapshot) {
+    let before: Vec<&str> = DEFAULT_STORES
+        .iter()
+        .map(|s| if *s == NEW_MEOWAREX { OLD_MEOWAREX } else { s })
+        .collect();
+    std::fs::create_dir_all(dir).unwrap();
+    std::fs::write(
+        dir.join("default-stores.json"),
+        serde_json::to_string(&before).unwrap(),
+    )
+    .unwrap();
+    start_with_list(dir, stores, true)
+}
+
+/// TidaLuna 1.20.2-beta swaps meowarex's old store for its new address
+/// where it stood (`replaceStore`). A list that had removed the old store
+/// is not given the new one: it is the same store, moved.
+#[test]
+fn meowarexs_store_moves_in_place_and_a_removed_one_stays_removed() {
+    let dir = temp_dir("store-meowarex");
+    let mine = "https://example.invalid/mine";
+    let owner = PINNED_STORES[0];
+    let (luna, s) = start_given_before_the_meowarex_move(
+        &dir,
+        &[
+            DEFAULT_STORES[0],
+            &format!("{OLD_MEOWAREX}/store.json"),
+            mine,
+        ],
+    );
+    let want = [DEFAULT_STORES[0], NEW_MEOWAREX, mine, owner];
+    assert_eq!(store_urls(&s), want, "moved where it stood");
+    assert_eq!(saved_stores(&dir), want, "and saved");
+    luna.shutdown();
+
+    let (luna, s) = start_given_before_the_meowarex_move(&dir, &[DEFAULT_STORES[0], mine]);
+    assert_eq!(
+        store_urls(&s),
+        [DEFAULT_STORES[0], mine, owner],
+        "the user removed it before it moved"
+    );
     luna.shutdown();
     let _ = std::fs::remove_dir_all(&dir);
 }

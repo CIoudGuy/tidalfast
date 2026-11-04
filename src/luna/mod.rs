@@ -112,12 +112,13 @@ impl RuntimeId {
 /// The store list TidaLuna ships with (`@luna/ui` PluginStoreTab), in its
 /// order and with its release channels: Inrixia's store and wont-stream's are
 /// the `dev` build, the rest `latest`. Read from the `addToStores(...)` calls
-/// of TidaLuna 1.20.0-beta. The `dev` builds are what TidaLuna users run and
+/// of TidaLuna 1.20.2-beta, where meowarex's store is at its own address
+/// (`release.radiant-lyrics.org`, not a GitHub release). The `dev` builds are what TidaLuna users run and
 /// what the plugin comparisons were made against. A store added to the end
 /// is offered once to a list saved before it (`offer_new_default_stores`).
 pub const DEFAULT_STORES: &[&str] = &[
     "https://github.com/SuperslowJelly/TIDAL-Clear-Coat/releases/download/latest",
-    "https://github.com/meowarex/TidalLuna-Plugins/releases/download/latest",
+    "https://release.radiant-lyrics.org",
     "https://github.com/wont-stream/lunar/releases/download/dev",
     "https://github.com/jxnxsdev/luna-plugins/releases/download/latest",
     "https://github.com/espeon/luna-plugins/releases/download/latest",
@@ -150,11 +151,14 @@ const DEFAULT_STORES_BEFORE_RECORD: usize = 23;
 /// Adds to a saved store list the default stores it has never been given,
 /// as TidaLuna adds a store newly in its list on the next start. A default
 /// the user removed stays removed: `default-stores.json` in `data_dir`
-/// records the defaults already given. `first_run` is a list just seeded
-/// with every default. Whether `stores` changed.
+/// records the defaults already given. A default that replaced a `retired`
+/// one was given with it: a moved store the user removed stays removed.
+/// `first_run` is a list just seeded with every default. Whether `stores`
+/// changed.
 pub(crate) fn offer_new_default_stores(
     data_dir: &std::path::Path,
     stores: &mut Vec<String>,
+    retired: &[(String, String)],
     first_run: bool,
 ) -> bool {
     let recorded: Option<Vec<String>> = storage::read_json(&data_dir.join("default-stores.json"))
@@ -175,7 +179,10 @@ pub(crate) fn offer_new_default_stores(
     });
     let mut changed = false;
     for store in DEFAULT_STORES {
-        if given.iter().any(|g| is_same_store(g, store)) {
+        if given.iter().any(|g| {
+            is_same_store(g, store)
+                || migrated_store(retired, g).is_some_and(|new| is_same_store(&new, store))
+        }) {
             continue;
         }
         if !stores.iter().any(|s| is_same_store(s, store)) {
@@ -203,7 +210,10 @@ pub(crate) fn record_default_stores(data_dir: &std::path::Path) {
 /// Inrixia's store was listed as the older `latest` build; TidaLuna lists
 /// `dev`. BaeHyolyn's TidalPresence store (TidaLuna 1.18.0-beta) became
 /// their plugins' store in 1.19.0-beta, which carries TidalPresence under
-/// the same file name; the old repository is archived. A saved store list and a plugin installed from exactly an old
+/// the same file name; the old repository is archived. meowarex's store
+/// moved from its GitHub release (gone since) to its own address in
+/// 1.20.2-beta, which TidaLuna swaps in where the old one stood
+/// (`replaceStore`). A saved store list and a plugin installed from exactly an old
 /// address move to the new one (`migrated_store`, `migrated_plugin_url`);
 /// an address the user chose themselves is not in this list.
 pub const RETIRED_DEFAULT_STORES: &[(&str, &str)] = &[
@@ -214,6 +224,10 @@ pub const RETIRED_DEFAULT_STORES: &[(&str, &str)] = &[
     (
         "https://github.com/BaeHyolyn/tidal-presence/releases/latest/download",
         "https://github.com/BaeHyolyn/luna-plugins/releases/latest/download",
+    ),
+    (
+        "https://github.com/meowarex/TidalLuna-Plugins/releases/download/latest",
+        "https://release.radiant-lyrics.org",
     ),
 ];
 

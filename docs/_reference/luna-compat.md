@@ -528,6 +528,15 @@ except where a line says so.
   tags into a downloaded file). `scripts/luna-api-diff.py` finds no gap, so
   `LUNA_API` is 1.20.1-beta and nothing else moved. The store lists are
   unchanged from 1.20.0-beta.
+- TidaLuna 1.20.2-beta (2026-11-04): meowarex's store (radiant-lyrics,
+  colorama-lyrics, copy-lyrics, element-hider, audio-visualizer) moved from
+  its GitHub release, which is gone, to `https://release.radiant-lyrics.org`.
+  `DEFAULT_STORES` lists the new address where the old one stood, and the old
+  one is a retired default (`RETIRED_DEFAULT_STORES`): a saved list gets the
+  new address in its place, as TidaLuna's `replaceStore` does, and a plugin
+  installed from the old store updates from the new one, keeping its settings.
+  A list that had removed the old store is not given the new one
+  (`store_default_tests::meowarexs_store_moves_in_place_and_a_removed_one_stays_removed`).
 - Plugin servers (`net.createServer`, `http.createServer`) always bind
   `127.0.0.1`, whatever host the plugin asks for (`net::LISTEN_HOST`).
   `https.createServer` (TLS) stays unavailable.

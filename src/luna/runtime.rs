@@ -5858,7 +5858,12 @@ fn setup_with(
     let mut stores = stores;
     let stores_moved = cfg.default_stores && migrate_stores(&mut stores, &cfg.retired_stores);
     let defaults_added = cfg.default_stores
-        && super::offer_new_default_stores(&cfg.data_dir, &mut stores, first_run);
+        && super::offer_new_default_stores(
+            &cfg.data_dir,
+            &mut stores,
+            &cfg.retired_stores,
+            first_run,
+        );
     let pinned_added = cfg.default_stores && super::ensure_pinned_stores(&mut stores);
     let rt = Runtime::new()?;
     rt.set_memory_limit(cfg.memory_limit);
