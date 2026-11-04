@@ -373,6 +373,70 @@ export const Settings = () => {
     until(&luna, |d| d == ["select:=c[Option A,Option B,Option C]"]);
 }
 
+/// A label around a control names that control, as HTML's implicit label
+/// does: its first words are the control's title, the rest its
+/// description. Radio rows of a label each holding a title line and a
+/// description line gave the second option the first one's description
+/// for a name, and left the last option's lines loose under the select.
+#[test]
+fn a_label_around_a_control_names_that_control_only() {
+    let (luna, _dir) = start(
+        r#"
+const row = (name, value, label, desc, checked, set) =>
+	h("label", { key: value }, h("input", { type: "radio", name, checked, onChange: () => set(value) }),
+		h("div", null, h("div", null, label), h("div", null, desc)));
+export const Settings = () => {
+	const [v, setV] = React.useState("closest");
+	const [on, setOn] = React.useState(true);
+	return h("div", null,
+		h("label", null, h("input", { type: "checkbox", checked: on, onChange: () => setOn(!on) }), h("div", null, h("div", null, "Loop"), h("div", null, "Plays the list again"))),
+		h("div", null, "Choice"),
+		row("pick", "closest", "Closest version", "Same album and length", v === "closest", setV),
+		row("pick", "quality", "Best quality", "Hi-Res when there is one", v === "quality", setV));
+};
+"#,
+    );
+    let t = tree(&luna);
+    let d = describe(&t);
+    assert_eq!(
+        d,
+        vec![
+            "switch:Loop=true",
+            "text:Choice",
+            "select:=0[Closest version,Best quality]"
+        ],
+        "{d:?}"
+    );
+    let descs = |t: &SettingsNode| {
+        let mut out = Vec::new();
+        t.walk(&mut |n| match n {
+            SettingsNode::Switch { meta, .. } | SettingsNode::Select { meta, .. } => {
+                out.push(meta.desc.clone().unwrap_or_default())
+            }
+            _ => {}
+        });
+        out
+    };
+    assert_eq!(descs(&t), ["Plays the list again", "Same album and length"]);
+    // The radios have no `value` (each is "on"): the plugin tells them
+    // apart by their own handlers, so each option still picks its own.
+    let mut pick = None;
+    t.walk(&mut |n| {
+        if let SettingsNode::Select { id, options, .. } = n {
+            pick = Some((id.clone(), options[1].value.clone()));
+        }
+    });
+    let (id, value) = pick.unwrap();
+    luna.settings_input("SetTest", &id, SettingValue::Json(value));
+    until(&luna, |d| {
+        d.get(2).map(String::as_str) == Some("select:=1[Closest version,Best quality]")
+    });
+    assert_eq!(
+        descs(&tree(&luna)),
+        ["Plays the list again", "Hi-Res when there is one"]
+    );
+}
+
 #[test]
 fn bundled_mui_markup_keeps_its_labels() {
     // What MUI's TextField, FormControlLabel+Switch and Slider render.

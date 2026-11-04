@@ -1243,6 +1243,10 @@ What the renderer understands:
   `select`/`option`, `button`, `a`, `label` (names the control beside it or `htmlFor`), headings,
   paragraphs, lists, tables; `svg`, `img`, `hr`, style and script are dropped.
   Radio buttons of one `name` become one select; `<input type=range>` is a slider.
+  A `label` around one control names that control only: its first words are
+  the control's title (a radio's option), the rest its description (the
+  chosen radio's, for the select). Radios without a `value` of their own
+  (all "on") are told apart by their place in the group.
 - MUI, both what a plugin bundles (it ends up as plain elements) and
   `luna.core.modules["@mui/material"]` (Stack, Box, Typography, Button, Switch,
   FormControlLabel, Slider, TextField, Select, MenuItem, Tooltip, Divider...; unknown names
@@ -1638,7 +1642,12 @@ review pass of the compatibility audit.
   `finished`, `errorEmitted`, ...), which `ws` reads when a client's socket
   closes. Without them every WebSocket client that went away threw in that
   handler and its WebSocket never closed, so a plugin's server kept it
-  (`compat_tests::a_closed_sockets_stream_state_reads_as_nodes`).
+  (`compat_tests::a_closed_sockets_stream_state_reads_as_nodes`). And in
+  settings: radio rows each wrapped in a `label` with a title line and a
+  description line (TidalPlaylistRescue's) gave the second option the
+  first one's description for a name and left the last lines loose under
+  the select, and radios without a `value` could only pick the first
+  (`settings_tests::a_label_around_a_control_names_that_control_only`).
 - **Plugin round 26 (2026-10-30).** Worked from the 2.47.0 records and
   captures of round 25; TIDAL itself was not run. Fixed for every plugin,
   each with a test that fails without it: an artist's Top Tracks are

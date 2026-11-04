@@ -502,11 +502,18 @@
 					continue;
 				}
 				const checked = group.find((g) => g.checked);
+				// Radios without a `value` of their own are all "on" (the
+				// plugin tells them apart by their handlers): their place
+				// in the group is the option's value then.
+				const values = group.map((g) => g.radio.value);
+				const unique = values.every((v, j) => values.findIndex((w) => sameJson(w, v)) === j);
+				const valueOf = (g) => (unique ? g.radio.value : group.indexOf(g));
 				const id = this.handler(`${group[0].id}.group`, (v) => {
-					const pick = group.find((g) => sameJson(g.radio.value, v));
+					const pick = group.find((g) => sameJson(valueOf(g), v));
 					return pick ? this.handlers.get(pick.id)?.(true) : undefined;
 				});
-				out.push({ kind: "select", id, title: group[0].groupTitle, disabled: group.every((g) => g.disabled) || undefined, value: checked ? checked.radio.value : null, options: group.map((g) => ({ value: g.radio.value, label: g.title || String(g.radio.value) })) });
+				// The chosen option's description is the select's.
+				out.push({ kind: "select", id, desc: checked?.desc, disabled: group.every((g) => g.disabled) || undefined, value: checked ? valueOf(checked) : null, options: group.map((g) => ({ value: valueOf(g), label: g.title || String(g.radio.value) })) });
 			}
 			return out;
 		}
@@ -629,6 +636,18 @@
 				}
 				case "label": {
 					const kids = this.renderChildren(props.children, path);
+					// A label around one control names that control, as
+					// HTML's implicit label does: its first words are the
+					// control's title, the rest its description, and none
+					// of them go to a control beside the label.
+					const inner = kids.filter((k) => k.id && k.kind !== "button" && !k.children);
+					const words = kids.filter(isText);
+					if (!props.htmlFor && inner.length === 1 && !inner[0].title && words.length) {
+						inner[0].title = words[0].text.replace(/\s+/g, " ").trim();
+						const rest = words.slice(1).map((k) => k.text.trim()).filter(Boolean);
+						if (rest.length && !inner[0].desc) inner[0].desc = rest.join("\n");
+						return kids.filter((k) => !isText(k));
+					}
 					for (const k of kids) if (isText(k)) k._lbl = true;
 					if (props.htmlFor) for (const k of kids) if (isText(k)) this.labelFor.push({ id: props.htmlFor, node: k });
 					return kids;
