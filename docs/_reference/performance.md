@@ -6,7 +6,10 @@ nav_order: 12
 
 Tidalfast aims to open its window in well under a second, to stay within
 100 to 250 MB of memory in ordinary use, and to scroll a playlist of
-thousands of songs at a steady frame time. This page says how those are
+thousands of songs at a steady frame time. A long session holds more: about
+370 MB on Windows after 200 song changes with four plugins, level from about
+100 songs on (it was 454 MB and still growing; see "Memory over many song
+changes"). This page says how those are
 measured and what the last measurement found.
 
 ## Measuring
@@ -2035,6 +2038,64 @@ higher than these runs reach in 200 songs; the now-playing cover (up to
 one plays, see "Animated covers") are the likely difference. No fix is in
 this pass: nothing found grows without a bound that the code sets, except
 the free committed heap, whose source is not pinned down yet.
+
+### Round 2: the heap and thread starts
+
+The same run (200 songs skipped every 6.5 seconds, Home, the four plugins,
+off-screen), with counters added for the free blocks in each heap, the Rust
+allocations by size and by thread, and Luna's by message and native call:
+
+| Build | Private after 200 songs | Last 100 songs | Process heap: in use / committed | Thread starts |
+| --- | --- | --- | --- | --- |
+| Before | 454 MB | +43 MB | 103 / 229 MB, growing | 807 |
+| Segment heap only | 399 MB | +19 MB | 101 / 120 MB, flat | 813 |
+| Segment heap and kept threads (now) | 370 MB | +10 MB | 98 / 117 MB, flat | 418 |
+
+Working set after 200 songs: 696 MB before, 626 MB now. Some runs start with
+a second heap of 37 MB of large blocks (both runs with the segment heap and
+two runs of the source fixes below had it, the run before did not), which
+these figures include where it appears; it does not grow.
+
+What the counters showed:
+
+- **The free heap was slivers.** The default Windows heap's free blocks of
+  4 KB or less went from 139,000 (25 MB) after a minute to 543,000 (63 MB)
+  after 200 songs, with larger free blocks kept committed beside them, while
+  the bytes in use stayed at about 100 MB. Space freed by one song's work
+  was cut up by the next and not used again. With the segment heap (the
+  application manifest asks for it, `build.rs`) the committed heap stays
+  within 20 MB of what is in use, from the first minute on.
+- **No whole track is held.** No single allocation of 4 MB or more was made
+  in any run; with the audio cache on, a track goes to its spill file as it
+  arrives. The 27 MB rises of the Rust heap seen in round 1 are many small
+  allocations at once, not one buffer.
+- **Thread starts.** A download thread and a decode thread for every song,
+  and more for preloads, about three a song. They are now kept and given
+  the next song's work (`tidal_engine/workers.rs`): half as many starts in
+  the same run, and private memory outside the heaps ended 8 to 12 MB lower
+  (183 MB before, 172 to 175 MB in the runs with kept threads).
+- **Who churns the heap.** Per song: Luna about 1,100 allocations of 4 to
+  512 KB, about 95 MB, all of it parsing `dom.overlay` (66 parses, about
+  30 MB each: a plugin element was 8,000 bytes, four inline styles of 1,952
+  bytes, nearly all empty); the DASH download about 170 such allocations
+  (each segment's buffer grown from nothing); reqwest's own thread about
+  8,500 allocations under 64 KB (HTTP/2 frames and TLS records). Fixing the
+  first two at their source (elements holding their styles boxed, one
+  buffer for all segments) did not change the committed heap after 200
+  songs (212 against 229 MB, within what the second heap and run-to-run
+  differences allow), so neither is in; the segment heap is what stopped the
+  growth.
+
+Covers are not uploaded larger than drawn: every network cover is scaled on
+the CPU to the pixels it covers (its drawn size times `pixels_per_point`, in
+steps of 16) before it becomes a texture, so the driver's cost of about four
+times the texture bytes is for covers at their drawn size, capped by the
+32 MB artwork budget.
+
+Still not measured: the now-playing view and animated covers (an off-screen
+window there stops its passes, as in round 1), a visible window, and
+platforms other than Windows (the manifest is Windows only; macOS and Linux
+allocators were not looked at).
 
 ## Findings and decisions
 
