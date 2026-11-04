@@ -3269,6 +3269,32 @@ impl App {
             })
     }
 
+    /// Reads the header of the playing playlist when nothing holds its
+    /// name, so the queue and the player bar name it: a card's Play on Home
+    /// or Explore starts it without opening its page. Read once; the
+    /// playing context's page is kept from eviction.
+    fn name_playing_playlist(&mut self) {
+        let Some(id) = self
+            .playing_context_uri()
+            .and_then(|uri| uri.strip_prefix("tidal:playlist:").map(str::to_owned))
+        else {
+            return;
+        };
+        if self.library_entry(&id).is_some()
+            || self.playlist_pages.contains_key(&id)
+            || !self.network_reachable
+            || !self.is_connected()
+        {
+            return;
+        }
+        self.load_generation += 1;
+        let generation = self.load_generation;
+        let page = self.playlist_pages.entry(id.clone()).or_default();
+        page.generation = generation;
+        page.playlist = Loadable::Loading;
+        self.backend.api(ApiRequest::Playlist { id, generation });
+    }
+
     /// Where the playing songs come from, for the queue's header: the
     /// playlist, album, or artist with its page, Liked Songs, or
     /// a song radio as plain text because a station has no page. A context
@@ -13358,6 +13384,7 @@ impl App {
             self.lyrics_following = false;
         }
         self.refresh_frame_now();
+        self.name_playing_playlist();
         self.sync_media_controls(ctx);
 
         // Frames only while a toast fades; it sleeps while one just shows.
@@ -21634,6 +21661,60 @@ mod tests {
     /// The queue names where the playing song comes from and opens it.
     /// A radio has no page; a context whose name has not loaded is still
     /// named by kind so it can open.
+    /// A playlist started from a card, whose page was never opened and which
+    /// is not in the library, is named in the queue once its header is read;
+    /// it is read once, and not at all for a playlist the library names.
+    #[test]
+    fn a_playlist_played_from_a_card_is_named_by_its_header() {
+        let mut app = test_app("playing-from-card-playlist");
+        app.network_reachable = true;
+        app.auth = AuthStatus::Connected {
+            username: "alice".into(),
+        };
+        app.assumed_context = Some(AssumedContext {
+            uri: "tidal:playlist:hiphop".into(),
+            shuffle: None,
+            at: Instant::now(),
+        });
+        app.name_playing_playlist();
+        let generation = app.playlist_pages["hiphop"].generation;
+        assert!(generation > 0);
+        assert!(matches!(
+            app.playlist_pages["hiphop"].playlist,
+            Loadable::Loading
+        ));
+        app.name_playing_playlist();
+        assert_eq!(
+            app.playlist_pages["hiphop"].generation, generation,
+            "read once"
+        );
+        app.handle_api(ApiResponse::Playlist {
+            id: "hiphop".into(),
+            generation,
+            result: Ok(crate::api::models::Playlist {
+                id: "hiphop".into(),
+                uri: "tidal:playlist:hiphop".into(),
+                name: "Hip-Hop: RISING".into(),
+                ..Default::default()
+            }),
+        });
+        assert_eq!(app.playing_from().unwrap().name, "Hip-Hop: RISING");
+
+        app.library.playlists = Loadable::Loaded(vec![crate::api::models::Playlist {
+            id: "mine".into(),
+            uri: "tidal:playlist:mine".into(),
+            name: "Mine".into(),
+            ..Default::default()
+        }]);
+        app.assumed_context = Some(AssumedContext {
+            uri: "tidal:playlist:mine".into(),
+            shuffle: None,
+            at: Instant::now(),
+        });
+        app.name_playing_playlist();
+        assert!(!app.playlist_pages.contains_key("mine"));
+    }
+
     #[test]
     fn playing_from_names_the_context_and_its_page() {
         let mut app = headless_app();
