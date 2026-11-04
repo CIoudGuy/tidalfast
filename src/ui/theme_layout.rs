@@ -225,6 +225,18 @@ pub struct Flow {
     pub sidebar: f32,
 }
 
+impl Flow {
+    /// How far the page's body reaches up into the header's `room` above
+    /// it: TIDAL's header lies over `#main` (`position: fixed`), whose top
+    /// padding keeps the header's room, so a theme that takes that room
+    /// back lays the page under the header (Tidalify's `#main {
+    /// margin-top: -30px; padding-top: 30px }`: 56 up, the page's top at
+    /// the header's). The first 4 points up are the page's own top margin.
+    pub fn page_under_header(&self, room: f32) -> f32 {
+        (-self.page - 4.0).clamp(0.0, room.max(0.0))
+    }
+}
+
 /// The shell's boxes [`flow`] reads, as the theme's rules style them.
 #[derive(Clone, Copy, Default)]
 pub struct FlowHosts<'a> {

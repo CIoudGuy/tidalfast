@@ -219,8 +219,12 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) -> Option<super::theme_layout::Hea
     // margin-top: 2em }`, Blur's padded content area). TIDAL's header lies
     // over the page (`position: fixed`), so the moved controls are drawn
     // over it, and the page keeps the header's room.
-    let shift = super::plugin_dom::theme_layout(ui.ctx()).map_or(0.0, |l| l.flow.header);
-    if shift == 0.0 {
+    // A page a theme lays under the header (Tidalify's) is drawn after
+    // the header: the header goes over it, as when it is moved.
+    let flow = super::plugin_dom::theme_layout(ui.ctx()).map(|l| l.flow);
+    let shift = flow.map_or(0.0, |f| f.header);
+    let page_under = flow.is_some_and(|f| f.page_under_header(f32::INFINITY) > 0.0);
+    if shift == 0.0 && !page_under {
         let mut child = ui.new_child(
             egui::UiBuilder::new()
                 .max_rect(bar)

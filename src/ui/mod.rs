@@ -828,7 +828,12 @@ fn page_panel(app: &mut App, ui: &mut egui::Ui, under: f32) {
             // The open play queue takes its width from the page, as in
             // TIDAL: the page and its pinned bar lie beside the panel (the
             // top bar above keeps its full width).
-            let body = ui.available_rect_before_wrap();
+            let mut body = ui.available_rect_before_wrap();
+            // A theme that takes back `#main`'s room for the header lays the
+            // page under it (the header is drawn over the page then).
+            let flow = plugin_dom::theme_layout(ui.ctx()).map(|l| l.flow);
+            let under_header = flow.map_or(0.0, |f| f.page_under_header(body.top() - rect.top()));
+            body.min.y -= under_header;
             let reserve = queue::reserve_for(app, ui.ctx(), body);
             // Its id is the same with the queue open or closed, so the page
             // keeps its scroll position (and the state under it) as the
@@ -870,8 +875,8 @@ fn page_panel(app: &mut App, ui: &mut egui::Ui, under: f32) {
                     // `#main`'s and `.mainContent`'s top margins and
                     // paddings a theme sets move the page's content (the
                     // cotton candy family's 18 down, Sugarcoat's 56). One
-                    // that pulls it up under the header stops at the page's
-                    // top: the header keeps its room here.
+                    // that pulls it up under the header moved the body up
+                    // (`page_under_header`); its first 4 points are here.
                     let shift = plugin_dom::theme_layout(ui.ctx()).map_or(0.0, |l| l.flow.page);
                     if shift != 0.0 {
                         ui.add_space(shift.max(-4.0));
