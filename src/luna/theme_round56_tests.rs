@@ -237,3 +237,48 @@ fn an_albums_header_art_takes_the_themes_base_tokens() {
         )
     );
 }
+
+/// A theme's right border on TIDAL's sidebar wrapper (Abyss Neptune's
+/// `[data-test="main-layout-sidebar-wrapper"] { border-right: 1px solid }`)
+/// lies inside the wrapper's 240 and narrows the navigation in it, whose
+/// edge is TIDAL's divider: the divider stands one point left, beside the
+/// border (the checker's replay: divider at 238, border at 239). Tidalfast
+/// drew both in the last column.
+#[test]
+fn a_border_on_the_sidebar_wrapper_moves_the_divider_in() {
+    let divider = |css: Option<&str>| {
+        let (ctx, mut app) = r41::demo_app("album:alb0", None);
+        let plain = r41::drawn(
+            &ctx,
+            &mut app,
+            DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            },
+        );
+        let overlay = css.map(|css| {
+            let mut o = r41::styled("wrapper-edge.css", css, &plain, dom_anchors::keys::SIDEBAR);
+            o.version = 2;
+            o
+        });
+        let s = shapes(&ctx, &mut app, overlay);
+        app.backend.shutdown();
+        let hairline = egui::Color32::from_white_alpha(20);
+        s.iter()
+            .find_map(|c| match &c.shape {
+                egui::Shape::LineSegment { points, stroke }
+                    if points[0].x == points[1].x
+                        && (points[1].y - points[0].y).abs() > 500.0
+                        && stroke.color == hairline
+                        && points[0].x < 400.0 =>
+                {
+                    Some(points[0].x)
+                }
+                _ => None,
+            })
+            .expect("the sidebar's divider")
+    };
+    let plain = divider(None);
+    let css = "/* {\"name\": \"Wrapper edge\"} */ [data-test=\"main-layout-sidebar-wrapper\"] { border-right: rgb(25, 25, 25) 1px solid; }";
+    assert_eq!(divider(Some(css)), plain - 1.0);
+}

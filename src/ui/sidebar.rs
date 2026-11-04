@@ -1057,8 +1057,16 @@ fn edge_line(
     if edge.width() <= 0.0 {
         return;
     }
+    // The divider is the navigation's own edge, inside the wrapper: a
+    // theme's right border on the wrapper (Abyss Neptune's `[data-test=
+    // "main-layout-sidebar-wrapper"] { border-right: 1px solid }`, the
+    // box keeping its 240) narrows the navigation by its width, so TIDAL
+    // draws its divider that much further left, beside the border.
+    let border = super::plugin_dom::anchor_look(crate::luna::dom_anchors::keys::SIDEBAR)
+        .and_then(|l| l.sides)
+        .map_or(0.0, |(widths, _)| widths[1].max(0.0));
     ui.painter().vline(
-        edge.right() - 0.5,
+        edge.right() - border - 0.5,
         edge.y_range(),
         egui::Stroke::new(1.0, palette.hairline()),
     );
