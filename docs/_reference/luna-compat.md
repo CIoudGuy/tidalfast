@@ -3749,6 +3749,58 @@ above the app); row places a few tenths of a pixel off TIDAL's (the
 cotton candy family's rows, their words); the Lunallena themes' header
 bar on the collection page.
 
+### Round 57 (the queue's width, the page's box, header art, 2026-11-04)
+
+Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
+TIDAL, with the demo's own cover in TIDAL's header art box as in round 56.
+
+- **`--playQueueWidth` is the open queue's 350 points**, `0px` while it is
+  closed, declared on TIDAL's player wrapper (`div.has-footer-player`) as
+  its captures show. A box a theme sizes by it narrows while the queue is
+  open (the cotton candy family's Home card). Test:
+  `a_box_sized_by_the_queues_width_narrows_while_the_queue_is_open`.
+- **`main`'s box takes a theme's queue wrapper margins.** TIDAL's `#main`
+  fills the content row's slot, the window less the sidebar and the queue
+  wrapper's margin box. Lunallena's `margin-left: calc(var(--playQueueWidth)
+  * -1 - 480px)` widens it to 2,377 points in a 2,137 window, open or
+  closed, and the header art box covers that width. The wrapper is there
+  with the queue closed too. Lunallena 21.7 % -> 1.9 %, its visible sidebar
+  build 24.2 % -> 5.2 %. Test:
+  `a_queue_wrapper_pulled_left_widens_the_header_art_box_past_the_window`.
+- **A theme's `var(--img)` on the header art box is the cover alone**, with
+  no veil, and its `brightness()` darkens the box (Abyss Neptune). Test:
+  `the_covers_own_variable_on_the_header_art_box_is_the_cover_alone`.
+- **A theme's `blur()` on an album's header art box blurs the cover**
+  (Abyss Neptune's `blur(10px)`), made once off the UI thread at the size
+  the box shows it; about 14 microseconds a frame to draw. Test:
+  `a_themes_blur_on_an_albums_header_art_blurs_the_cover`.
+- **A playlist's header art is multiplied by the theme's market black**
+  (TIDAL's `color-mix()` of `--market-core-fill-black-color`): Sunken
+  Tidal's grey runs down its full-height box, 22.8 % -> 11.4 %. Test:
+  `a_playlists_header_art_takes_the_themes_market_black`.
+- **TIDAL's header container** (`_headerContainer_e0cf17f` on an album,
+  `_headerContainer_2aeeef7` on a playlist) holds the header box and its
+  controls, so a caption colour a theme nests in it reaches them (the Cotton
+  Candy Nights family). It matches only TIDAL's own hash: a theme's older
+  playlist rule (`[class="_headerContainer_ee5acc5"]`) misses there as in
+  TIDAL. Tests: `the_header_container_holds_the_captions_a_theme_nests_in_it`,
+  `a_header_container_class_of_another_hash_leaves_the_page_header_alone`.
+
+Numbers against the round's base, all 55 themes: with the cover laid in the
+header art box, dark 4.31 % -> 2.79 % of 361 million, no theme 0.57 % as it
+was; the checker as it was, dark 0.95 % -> 0.98 % (Abyss Neptune's two
+builds 1.5 % -> 2.3 % and 3.2 % -> 4.0 %, its cover now drawn where that
+checker's replay has no picture); style items 177 -> 172; hover 1.11 % as it
+was; Tidal Light 0.67 % as it was. TidaLuna 1.20.1's one change
+(`MediaItem.finalizeDash`, ReplayGain tags in downloads) touches no theme.
+
+Still open: Lunallena's macOS build (33 %) moves `#main` down 100 points and
+makes it `100svh` high, so TIDAL's header art box starts at 130 and is 1,183
+high; Tidalfast's ignores `main`'s top margin and own height, and the plain
+build's `max-height` reads `--os-title-bar-height`, which Tidalfast does not
+declare yet. Abyss Neptune's album header (13 %, its macOS build 22 %) has
+the right brightness and blur but the cover sits differently in the box.
+
 ### Round 56 (header art against the demo's own cover, TIDAL's tokens, 2026-11-04)
 
 Found with the parity checker on TIDAL 2.47.0's recorded pages, no live
