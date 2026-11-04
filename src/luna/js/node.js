@@ -744,7 +744,48 @@
 	timers.promises = timersPromises;
 
 	// ---------------------------------------------------------------- stream (minimal)
+	// Node's stream state objects, read by libraries (the `ws` package's
+	// socket close handler reads `_readableState.endEmitted` and `.length`,
+	// its receiver's `_writableState.finished` and `.errorEmitted`): a view
+	// of the shim's own fields. A library that sets its own keeps it.
+	const ownState = (name, view) => ({
+		configurable: true,
+		get() {
+			return view(this);
+		},
+		set(v) {
+			Object.defineProperty(this, name, { value: v, writable: true, configurable: true, enumerable: false });
+		},
+	});
+	const readableState = ownState("_readableState", (s) => ({
+		objectMode: s._objectMode,
+		highWaterMark: s._objectMode ? 16 : 65536,
+		length: s._objectMode ? s._buf.length : s._buf.reduce((n, c) => n + (c?.length ?? 0), 0),
+		ended: s._ended,
+		endEmitted: s.readableEnded,
+		flowing: s._flowing,
+		reading: false,
+		destroyed: s.destroyed,
+		errorEmitted: !!s.__lunaErrorEmitted,
+		pipes: (s._pipes ?? []).map((p) => p.dest),
+	}));
+	const writableState = ownState("_writableState", (s) => ({
+		objectMode: false,
+		highWaterMark: 16384,
+		length: 0,
+		needDrain: false,
+		ending: !!s.writableEnded,
+		ended: !!s.writableEnded,
+		finished: !!s.writableFinished,
+		destroyed: s.destroyed,
+		errorEmitted: !!s.__lunaErrorEmitted,
+		corked: 0,
+	}));
 	class Stream extends EventEmitter {
+		emit(name, ...args) {
+			if (name === "error") this.__lunaErrorEmitted = true;
+			return super.emit(name, ...args);
+		}
 		pipe(dest, opts) {
 			const onData = (c) => {
 				if (dest.write(c) === false && this.pause) this.pause();
@@ -992,6 +1033,9 @@
 		}
 	}
 	for (const k of ["write", "end", "cork", "uncork", "setDefaultEncoding"]) Duplex.prototype[k] = Writable.prototype[k];
+	Object.defineProperty(Readable.prototype, "_readableState", readableState);
+	Object.defineProperty(Writable.prototype, "_writableState", writableState);
+	Object.defineProperty(Duplex.prototype, "_writableState", writableState);
 	class Transform extends Duplex {
 		constructor(opts = {}) {
 			super(opts);

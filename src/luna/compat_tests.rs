@@ -392,6 +392,85 @@ R.done = true;
     assert!(resp.ends_with("not found"), "{resp}");
 }
 
+/// Node's streams carry their state in `_readableState` and
+/// `_writableState`, and libraries read it: the `ws` package's socket close
+/// handler reads the socket's `_readableState.endEmitted` and `.length` and
+/// its receiver's `_writableState.finished` and `errorEmitted`. Without
+/// them the handler threw when a WebSocket client went away, so the
+/// WebSocket never closed (a plugin's WebSocket server kept every client
+/// that left).
+#[test]
+fn a_closed_sockets_stream_state_reads_as_nodes() {
+    let during = |luna: &Luna| {
+        let addr = luna
+            .snapshot()
+            .plugins
+            .iter()
+            .flat_map(|p| p.logs.iter())
+            .find_map(|l| l.message.strip_prefix("serving ").map(str::to_string))
+            .expect("the server's address in the log");
+        let mut s = TcpStream::connect(&addr).unwrap();
+        s.write_all(
+            b"GET / HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n",
+        )
+        .unwrap();
+        s.set_read_timeout(Some(std::time::Duration::from_millis(50)))
+            .unwrap();
+        let mut head = Vec::new();
+        let end = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !head.windows(4).any(|w| w == b"\r\n\r\n") && std::time::Instant::now() < end {
+            luna.sync(std::time::Duration::from_millis(50));
+            let mut buf = [0u8; 256];
+            if let Ok(n) = s.read(&mut buf) {
+                head.extend_from_slice(&buf[..n]);
+            }
+        }
+        assert!(head.starts_with(b"HTTP/1.1 101"), "{head:?}");
+        drop(s);
+    };
+    let (r, ..) = run_with(
+        "Compat",
+        r#"
+const n = await native("Compat/upgrade.native.ts", `"use strict";
+const http = require("http"), stream = require("stream");
+let closed;
+const seen = new Promise((res) => (closed = res));
+const read = (f) => { try { return f(); } catch (e) { return "ERR " + e.message; } };
+exports.serve = () => new Promise((res, rej) => {
+	const srv = http.createServer();
+	srv.on("upgrade", (req, socket) => {
+		const receiver = new stream.Writable({ write(c, e, cb) { cb(); } });
+		socket.write("HTTP/1.1 101 Switching Protocols\\r\\nUpgrade: websocket\\r\\nConnection: Upgrade\\r\\n\\r\\n");
+		const before = read(() => [socket._readableState.endEmitted, socket._readableState.length, receiver._writableState.finished, receiver._writableState.errorEmitted]);
+		socket.on("data", () => {});
+		socket.once("close", function () {
+			const at = read(() => [this._readableState.endEmitted, this._readableState.length, receiver._writableState.finished]);
+			receiver.on("finish", () => closed(JSON.stringify({ before, at, finished: read(() => receiver._writableState.finished) })));
+			receiver.end();
+		});
+	});
+	srv.on("error", rej);
+	srv.listen(0, "127.0.0.1", () => { const a = srv.address(); res(a.address + ":" + a.port); });
+});
+exports.closed = () => seen;
+`);
+await check("serve", () => n("serve"));
+console.log("serving " + R.serve);
+R.ready = true;
+await check("closed", () => n("closed"));
+R.done = true;
+"#,
+        Some(&during),
+    );
+    let got: Value =
+        serde_json::from_str(r["closed"].as_str().unwrap_or("null")).unwrap_or(Value::Null);
+    assert_eq!(
+        got,
+        json!({ "before": [false, 0, false, false], "at": [true, 0, false], "finished": true }),
+        "{r}"
+    );
+}
+
 #[test]
 fn electron_main_window_reaches_renderer() {
     let (r, ..) = run(
