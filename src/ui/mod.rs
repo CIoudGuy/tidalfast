@@ -780,6 +780,17 @@ fn page_panel(app: &mut App, ui: &mut egui::Ui, under: f32) {
                     art_rect.min.x = left;
                     art_rect.max.x = left + width;
                 }
+                // Down, the box is `main`'s: below its top margin, as
+                // high as the theme makes `main` (Lunallena macOS's 100
+                // down and the window's height, its foot below the
+                // window's).
+                if let Some(layout) = plugin_dom::theme_layout(ui.ctx()) {
+                    art_rect.min.y += layout.main_top;
+                    let height = layout
+                        .main_height(rect.height())
+                        .unwrap_or(rect.height() - layout.main_top);
+                    art_rect.max.y = art_rect.min.y + height;
+                }
                 paint_cover_backdrop(app, ui, art_rect, &backdrop);
             }
             if let Page::Artist(id) = app.page().clone() {

@@ -23,3 +23,72 @@ fn tidals_title_bar_height_token_sizes_a_themes_page_box() {
     assert_eq!(max.as_deref().map(str::trim), Some("calc(100svh - 30px)"));
 }
 
+/// The box (top and height) of the header art's textured mesh (the cover
+/// laid on the page's top, at least 1000 wide), `None` when it is not drawn.
+fn header_art_down(shapes: &[egui::epaint::ClippedShape]) -> Option<(f32, f32)> {
+    fn meshes<'a>(shape: &'a egui::Shape, out: &mut Vec<&'a egui::Mesh>) {
+        match shape {
+            egui::Shape::Mesh(m) => out.push(m),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| meshes(s, out)),
+            _ => {}
+        }
+    }
+    let mut all = Vec::new();
+    for s in shapes {
+        meshes(&s.shape, &mut all);
+    }
+    all.into_iter()
+        .filter(|m| m.texture_id != egui::TextureId::default() && !m.vertices.is_empty())
+        .map(|m| egui::Rect::from_points(&m.vertices.iter().map(|v| v.pos).collect::<Vec<_>>()))
+        .filter(|r| r.width() >= 1000.0 && r.height() >= 300.0)
+        .max_by(|a, b| a.width().total_cmp(&b.width()))
+        .map(|r| (r.top().round(), r.height().round()))
+}
+
+/// The header art box is TIDAL's `#main`'s, down as across: below its top
+/// margin and as high as the theme makes it. Lunallena macOS's `#main {
+/// height: 100svh; max-height: 100svh; margin-top: 100px }` puts TIDAL's
+/// box 100 lower and the window's height high, 1183 (captured: 130 from
+/// the window's top, under the 30-point title bar), where Tidalfast laid it
+/// at the page's top as high as the page. Its regular build's `max-height:
+/// calc(100svh - var(--os-title-bar-height))` keeps it 30 shorter, the
+/// height the page has.
+#[test]
+fn the_header_art_box_is_the_page_boxs_own_down() {
+    use super::dom::DomOverlay;
+    use super::theme_round41_tests as r41;
+    let down = |css: Option<&str>| {
+        let (ctx, mut app) = r41::demo_app("album:alb0", None);
+        let plain = r41::drawn(
+            &ctx,
+            &mut app,
+            DomOverlay {
+                version: 1,
+                ..DomOverlay::default()
+            },
+        );
+        let o = css.map(|css| {
+            let mut o = r41::styled("main-down.css", css, &plain, dom_anchors::keys::MAIN);
+            o.version = 2;
+            o
+        });
+        crate::ui::hold_cover_backdrop_for_test(&mut app, &ctx);
+        let s = super::theme_round56_tests::shapes(&ctx, &mut app, o);
+        app.backend.shutdown();
+        header_art_down(&s).expect("the header art is drawn")
+    };
+    let (top, _) = down(None);
+    let tall = r#"/* {"name": "Main down"} */
+#main { height: 100svh; max-height: 100svh; margin-top: 100px; }
+[class^="_dataContainer_"]::before { height: 100%; }
+"#;
+    let (themed, height) = down(Some(tall));
+    assert_eq!(themed - top, 100.0, "below main's top margin");
+    // The demo's window is 1183 below TIDAL's 30-point title bar.
+    assert_eq!(height, 1213.0, "TIDAL's whole window");
+    let kept = r#"/* {"name": "Main kept"} */
+#main { height: 100svh; max-height: calc(100svh - var(--os-title-bar-height)); margin-top: 0; }
+[class^="_dataContainer_"]::before { height: 100%; }
+"#;
+    assert_eq!(down(Some(kept)), (top, 1183.0), "the page's height");
+}

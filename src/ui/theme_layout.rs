@@ -91,6 +91,13 @@ pub struct ThemeLayout {
     /// (Lunallena's `margin-left: calc(var(--playQueueWidth) * -1 -
     /// 480px)`), see [`ThemeLayout::main_width`].
     pub queue_wrapper_margin: f32,
+    /// `#main`'s top margin in points: TIDAL's page box, and the header
+    /// art box laid in it, starts that far below the content row's top
+    /// (Lunallena macOS's `margin-top: 100px`).
+    pub main_top: f32,
+    /// `#main`'s own `height`, `min-height` and `max-height` in points, of
+    /// TIDAL's window ([`ThemeLayout::main_height`]).
+    pub main_heights: [Option<f32>; 3],
     /// `#mainHeader` lifted above the page as a tab (Snusehunden,
     /// Lunallena), which their `:hover` rules slide down.
     pub header: Option<HeaderTab>,
@@ -112,6 +119,8 @@ impl ThemeLayout {
             && self.main_inset == 0.0
             && self.main_min_width == 0.0
             && self.queue_wrapper_margin == 0.0
+            && self.main_top == 0.0
+            && self.main_heights == [None; 3]
             && self.header.is_none()
             && self.flow == Flow::default()
             && self.queue.is_none()
@@ -137,6 +146,25 @@ impl ThemeLayout {
             slot.max(self.main_min_width)
                 .clamp(0.0, 2.0 * window.max(0.0)),
         )
+    }
+}
+
+impl ThemeLayout {
+    /// TIDAL's `#main` height where the theme sets one: the content row's
+    /// `slot` points (the height the page has) unless its own `height`,
+    /// then held to its `max-height` and at least its `min-height`, as CSS
+    /// sizes a box. Lunallena macOS's `height: 100svh; max-height: 100svh`
+    /// is TIDAL's whole window, 1183 in a 1183-point window, where its
+    /// regular build's `max-height: calc(100svh - var(--os-title-bar-
+    /// height))` keeps it 1153 (captured). `None` where the theme sets none.
+    pub fn main_height(&self, slot: f32) -> Option<f32> {
+        let [height, min, max] = self.main_heights;
+        if self.main_heights == [None; 3] {
+            return None;
+        }
+        let h = height.unwrap_or(slot);
+        let h = max.map_or(h, |m| h.min(m));
+        Some(min.map_or(h, |m| h.max(m)).max(0.0))
     }
 }
 
@@ -529,6 +557,15 @@ pub fn resolve(
             .map_or(0.0, |h| main_inset(&h.style, vars, viewport)),
         main_min_width: main.map_or(0.0, |h| main_min_width(&h.style, vars, viewport)),
         queue_wrapper_margin: 0.0,
+        main_top: main.map_or(0.0, |h| {
+            let top = margins(&h.style, vars, EM, viewport)[0];
+            if top.is_finite() {
+                top.clamp(-MAX_FLOW, MAX_FLOW)
+            } else {
+                0.0
+            }
+        }),
+        main_heights: main.map_or([None; 3], |h| main_heights(&h.style, vars, viewport)),
         header: header
             .filter(|h| !h.hidden())
             .and_then(|h| header_tab(&h.style, vars, viewport)),
@@ -588,6 +625,32 @@ fn main_min_width(style: &Style, vars: &BTreeMap<String, String>, viewport: [f32
         .filter_map(|w| len(Some(w), vars, f32::NAN, viewport))
         .fold(0.0_f32, f32::max)
         .clamp(0.0, 2.0 * viewport[0].max(0.0))
+}
+
+/// `#main`'s `height`, `min-height` and `max-height` in points. TIDAL's
+/// window holds its 30-point title bar above the page Tidalfast's window
+/// shows, so the window lengths (`100svh`) are of a window that much
+/// taller. A percentage (of the content row) is left out.
+fn main_heights(
+    style: &Style,
+    vars: &BTreeMap<String, String>,
+    viewport: [f32; 2],
+) -> [Option<f32>; 3] {
+    let tidal = [viewport[0], viewport[1] + TITLE_BAR];
+    let one = |v: Option<&String>| {
+        let v = v.map(|v| css::resolve_vars(v, vars))?;
+        if v.contains('%') {
+            return None;
+        }
+        len(Some(&v), vars, f32::NAN, tidal)
+            .filter(|n| *n >= 0.0)
+            .map(|n| n.min(2.0 * tidal[1].max(0.0)))
+    };
+    [
+        one(style.height.as_ref()),
+        one(style.min_height.as_ref()),
+        one(style.max_height.as_ref()),
+    ]
 }
 
 /// The play queue wrapper's left and right margins together, in points.
