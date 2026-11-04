@@ -518,6 +518,11 @@ except where a line says so.
   (`RETIRED_DEFAULT_STORES`), so a saved list and TidalPresence installed
   from it move to the new store. `LUNA_API` is 1.20.0-beta; the plugin API
   is unchanged (the releases change only the store list and Nix files).
+- TidaLuna 1.20.1-beta (2026-11-02): one change, in `@luna/lib.native`'s
+  `MediaItem.finalizeDash` (it also writes the ReplayGain track gain and peak
+  tags into a downloaded file). `scripts/luna-api-diff.py` finds no gap, so
+  `LUNA_API` is 1.20.1-beta and nothing else moved. The store lists are
+  unchanged from 1.20.0-beta.
 - Plugin servers (`net.createServer`, `http.createServer`) always bind
   `127.0.0.1`, whatever host the plugin asks for (`net::LISTEN_HOST`).
   `https.createServer` (TLS) stays unavailable.
