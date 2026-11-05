@@ -25,6 +25,10 @@ open `tidalfast.exe`.
 Either way, SmartScreen may warn about an unknown publisher on first run;
 choose **More info**, then **Run anyway**.
 
+From the first signed release, Windows builds are signed for free by [SignPath.io](https://about.signpath.io), with a
+certificate by [SignPath Foundation](https://signpath.org). See the
+[code signing policy](https://github.com/CIoudGuy/tidalfast#code-signing-policy).
+
 Tidalfast needs OpenGL 2.0 or newer, which every current Windows graphics
 driver provides. In a virtual machine or remote session that only has the
 Microsoft Basic Display Adapter, it may not start; install the machine's

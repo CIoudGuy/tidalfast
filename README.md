@@ -114,6 +114,25 @@ Download from the **[latest release](https://github.com/CIoudGuy/tidalfast/relea
 
 The AppImage, `.deb`, `.rpm` and `.tar.gz` need glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 or later), ALSA, PulseAudio or PipeWire, and Wayland or X11.
 
+## Privacy
+
+Tidalfast has no accounts of its own, ads or tracking. It talks to TIDAL for your music, to the
+update feed to check for new versions of itself (sending the app's version, the OS name and a
+random install ID made once and not linked to you), and, only if you turn plugins on, to the
+plugin stores you use and whatever those plugins reach. Details are in
+[How it connects](docs/_reference/how-it-connects.md).
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [CIoudGuy](https://github.com/CIoudGuy)
+- Approvers: [CIoudGuy](https://github.com/CIoudGuy)
+
+Signed Windows releases are built from this repository by GitHub Actions, and each signing request is
+approved by hand. Only what this repository builds is signed: the app and its installer.
+
 ## Quick start
 
 1. Open Tidalfast and click **Log in**. Your browser opens with a code already filled in.
