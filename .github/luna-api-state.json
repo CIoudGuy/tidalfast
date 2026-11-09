@@ -1,11 +1,11 @@
 {
-  "commit": "56f8ec6c1fe983b9434c4b732dfeb4577102559b",
-  "release": "1.20.0-beta",
+  "commit": "19b83373cacd55caddaa656e2481283d4ce06fd1",
+  "release": "1.20.2-beta",
   "paths": {
     "luna.d.ts": "d7c94608c70679ca97c9798d4e5e744d1852f441",
-    "plugins/lib": "27e521f6e260e765c1706fab5712cbad566435a2",
+    "plugins/lib": "8a86fab063614e62d2251995f6a426b8a6434831",
     "plugins/lib.native": "7a01de1d0833a28d313501d896378f6603f28f4a",
-    "plugins/ui": "714d9ba95375c287d26190d3f3ea2f79814112ef",
-    "render": "c221878e1789401fb392d921ccde3df3a202e83a"
+    "plugins/ui": "18556ec68c08e86c8893ae02afe7e5ef0d76478c",
+    "render": "e8a53756209c35d0b7f421679549086760b4ec22"
   }
 }
